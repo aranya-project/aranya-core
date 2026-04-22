@@ -32,8 +32,7 @@ use crate::{
     error::Error,
     header::DataHeader,
     testing::util::{
-        Aranya, ChanOp, DataHeaderBuilder, Device, DeviceIdx, GlobalChannelId, LimitedAead,
-        TestEngine, TestImpl,
+        Aranya, ChanOp, DataHeaderBuilder, Device, DeviceIdx, LimitedAead, TestEngine, TestImpl,
     },
 };
 
@@ -141,10 +140,7 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
             let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device {id1} should have channel for global_id {global_id:?}")
             });
-
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-
-            c1.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst
         };
@@ -153,7 +149,6 @@ pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
             let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device {id2} should have channel for global_id {global_id:?}")
             });
-
             let (_, seq) = c2
                 .open(d2_channel_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
@@ -184,8 +179,7 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
             let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device {id1} should have channel for global_id {global_id:?}")
             });
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-            c1.seal_in_place(&mut ctx, &mut data)
+            c1.seal_in_place(d1_channel_id, &mut data)
                 .unwrap_or_else(|err| panic!("seal_in_place({id2}, ...): {err}"));
             data
         };
@@ -194,7 +188,6 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
             let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device {id2} should have channel for global_id {global_id:?}")
             });
-
             let (_, seq) = c2
                 .open_in_place(d2_channel_id, &mut data)
                 .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
@@ -234,14 +227,13 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
 
     const GOLDEN: &str = "hello, world!";
 
-    fn test<T: TestImpl, CS: CipherSuite>(
-        clients: &mut [Client<T::Afc<CS>>],
+    fn test<T: TestImpl, S: AfcState, CS: CipherSuite>(
+        clients: &mut [Client<S>],
         devices: &[Device<T, CS>],
         send: DeviceIdx,
         recv: DeviceIdx,
         label_id: LabelId,
         seqs: &mut HashMap<(DeviceIdx, DeviceIdx, LabelId), u64>,
-        ctxs: &mut HashMap<(DeviceIdx, GlobalChannelId), <T::Afc<CS> as AfcState>::SealCtx>,
     ) {
         let (global_id, label_id) = {
             let send_device = devices.get(send).expect("device to exist");
@@ -272,10 +264,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
                 .unwrap_or_else(|| {
                     panic!("send device should have channel for global_id {global_id:?}")
                 });
-            let ctx = ctxs
-                .entry((send, global_id))
-                .or_insert_with(|| u0.setup_seal_ctx(send_channel_id).expect("can set up ctx"));
-            u0.seal(ctx, &mut dst[..], GOLDEN.as_bytes())
+            u0.seal(send_channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("{label_id}: seal({recv}, ...): {err}"));
             dst
         };
@@ -292,7 +281,6 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
                 .unwrap_or_else(|| {
                     panic!("recv device should have channel for global_id {global_id:?}")
                 });
-
             let (_, seq) = u1
                 .open(recv_channel_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{label_id}: open({send}, ...): {err}"));
@@ -303,7 +291,6 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
     }
 
     let mut seqs = HashMap::new();
-    let mut ctxs = HashMap::new();
 
     for label_id in label_ids {
         for a in &device_idxs {
@@ -312,24 +299,8 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
                     continue;
                 }
 
-                test(
-                    &mut clients,
-                    &d.devices,
-                    *a,
-                    *b,
-                    label_id,
-                    &mut seqs,
-                    &mut ctxs,
-                );
-                test(
-                    &mut clients,
-                    &d.devices,
-                    *b,
-                    *a,
-                    label_id,
-                    &mut seqs,
-                    &mut ctxs,
-                );
+                test(&mut clients, &d.devices, *a, *b, label_id, &mut seqs);
+                test(&mut clients, &d.devices, *b, *a, label_id, &mut seqs);
             }
         }
     }
@@ -357,13 +328,10 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
             let device_channel_id = device.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device should have channel for global_id {global_id:?}")
             });
-
-            let mut seal_ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(&mut seal_ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
@@ -386,7 +354,7 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
             let err = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                c1.seal_in_place(&mut seal_ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .err()
                     .unwrap_or_else(|| panic!("seal_in_place({id}) should panic"))
             };
@@ -408,8 +376,6 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = HashMap::new();
-
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
         for (global_id, label_id) in d1.common_channels(device) {
@@ -422,16 +388,12 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx"));
-                c1.seal_in_place(ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
             let (plaintext, got_seq) = {
                 let mut data = ciphertext.clone();
-
                 let (_, seq) = c
                     .open_in_place(device_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
@@ -456,12 +418,11 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
             let err = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .get_mut(&(id1, global_id))
-                    .expect("to have called `seal` before");
-                c1.seal_in_place(ctx, &mut data).err().unwrap_or_else(|| {
-                    panic!("seal_in_place({d1_channel_id} {label_id} should panic")
-                })
+                c1.seal_in_place(d1_channel_id, &mut data)
+                    .err()
+                    .unwrap_or_else(|| {
+                        panic!("seal_in_place({d1_channel_id} {label_id} should panic")
+                    })
             };
             assert_eq!(err, Error::NotFound(d1_channel_id));
         }
@@ -481,8 +442,6 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = HashMap::new();
-
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
         for (global_id, label_id) in d1.common_channels(device) {
@@ -495,10 +454,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx"));
-                c1.seal_in_place(ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
@@ -527,10 +483,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
             let err = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .get_mut(&(id1, global_id))
-                    .expect("to have called `seal` before");
-                c1.seal_in_place(ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .err()
                     .unwrap_or_else(|| panic!("seal_in_place({id}) should panic"))
             };
@@ -539,12 +492,12 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
             // Test that other channel still works
             if id == id2 {
                 for (global_id, _label_id) in d1.common_channels(d3) {
+                    let d1_channel_id = d1.get_local_channel_id(global_id).unwrap_or_else(|| {
+                        panic!("device should have channel for global_id {global_id:?}")
+                    });
                     let mut data: Vec<u8> = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                     data.extend_from_slice(GOLDEN.as_bytes());
-                    let ctx = ctxs
-                        .get_mut(&(id1, global_id))
-                        .expect("to have called `seal` before");
-                    c1.seal_in_place(ctx, &mut data)
+                    c1.seal_in_place(d1_channel_id, &mut data)
                         .unwrap_or_else(|err| panic!("seal_in_place({id3}, ...): {err}"));
                 }
             }
@@ -565,8 +518,6 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let d2 = d.devices.get(id2).expect("device to exist");
     let d3 = d.devices.get(id3).expect("device to exist");
 
-    let mut ctxs = HashMap::new();
-
     const GOLDEN: &str = "hello, world!";
     for (c, id, device) in [(&c2, id2, d2), (&c3, id3, d3)] {
         for (global_id, label_id) in d1.common_channels(device) {
@@ -579,10 +530,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx"));
-                c1.seal_in_place(ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
@@ -617,10 +565,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
         let err = {
             let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
             data.extend_from_slice(GOLDEN.as_bytes());
-            let ctx = ctxs
-                .get_mut(&(id1, global_id))
-                .expect("to have called `seal` before");
-            c1.seal_in_place(ctx, &mut data)
+            c1.seal_in_place(d1_channel_id, &mut data)
                 .err()
                 .unwrap_or_else(|| panic!("seal_in_place({d1_channel_id},{label_id}) should panic"))
         };
@@ -654,8 +599,7 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-                c1.seal_in_place(&mut ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
@@ -734,8 +678,7 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut data = Vec::with_capacity(GOLDEN.len() + overhead(&c1));
                 data.extend_from_slice(GOLDEN.as_bytes());
-                let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-                c1.seal_in_place(&mut ctx, &mut data)
+                c1.seal_in_place(d1_channel_id, &mut data)
                     .unwrap_or_else(|err| panic!("seal_in_place({id}, ...): {err}"));
                 data
             };
@@ -795,8 +738,7 @@ pub fn test_issue112<T: TestImpl, A: Aead>() {
             let len = GOLDEN.len() + overhead(&c1) + 100;
             let mut dst = vec![0u8; len];
             let mut buf = FixedBuf::from_slice_mut(&mut dst, len).expect("dst should be <= len");
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-            c1.seal(&mut ctx, &mut buf, GOLDEN.as_bytes())
+            c1.seal(d1_channel_id, &mut buf, GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst.truncate(GOLDEN.len() + overhead(&c1));
             dst
@@ -859,8 +801,7 @@ pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(c1)];
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-            c1.seal( &mut ctx, &mut dst[..], GOLDEN.as_bytes())
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("({id1}->{id2}) seal(channel_id: {d1_channel_id}, label_id: {label_id} ...): {err}"));
             dst
         };
@@ -935,9 +876,8 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
                 panic!("device {id1} should have channel for global_id {global_id:?}")
             });
             let mut dst = vec![0u8; overhead(c1)];
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
             let err = c1
-                .seal(&mut ctx, &mut dst[..], &[])
+                .seal(d1_channel_id, &mut dst[..], &[])
                 .err()
                 .unwrap_or_else(|| panic!("{id1}::seal({id2}, ...): expected an error"));
             assert_eq!(err, Error::NotFound(d1_channel_id));
@@ -968,8 +908,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(c1)];
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-            c1.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("{id1}::seal({id2}, ...): {err}"));
             dst
         };
@@ -1129,8 +1068,6 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
 
-    let mut ctxs = HashMap::new();
-
     const GOLDEN: &str = "hello, world!";
 
     // From HPKE: 2^n - 1 where n = nonce length in bytes.
@@ -1148,10 +1085,7 @@ pub fn test_key_expiry<T: TestImpl, A: Aead>() {
             let ciphertext = {
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
 
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx"));
-                let res = c1.seal(ctx, &mut dst[..], GOLDEN.as_bytes());
+                let res = c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes());
                 if seq < seq_max {
                     res.unwrap_or_else(|err| panic!("{seq}: seal({d1_channel_id}, ...): {err}"));
                     dst
@@ -1207,8 +1141,7 @@ pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-            c1.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
             // Remove the first byte in the tag.
             dst.remove(GOLDEN.len());
@@ -1245,8 +1178,7 @@ pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-            c1.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
             dst[GOLDEN.len()] = dst[GOLDEN.len()].wrapping_add(1);
             dst
@@ -1282,8 +1214,7 @@ pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
-            c1.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
+            c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({id2}, ...): {err}"));
 
             // Rewrite the header to use a different sequence
@@ -1341,9 +1272,8 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
         });
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-            let mut ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
 
-            let res = c1.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes());
+            let res = c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes());
             if open_labels.contains(&label_id) {
                 res.unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
                 dst
@@ -1382,8 +1312,6 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     let d1 = d.devices.get(id1).expect("device to exist");
     let d2 = d.devices.get(id2).expect("device to exist");
 
-    let mut ctxs = HashMap::new();
-
     const GOLDEN: &str = "hello, world!";
 
     // From HPKE: 2^n - 1 where n = nonce length in bytes.
@@ -1400,10 +1328,7 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
             });
             let ciphertext = {
                 let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
-                let ctx = ctxs
-                    .entry((id1, global_id))
-                    .or_insert_with(|| c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx"));
-                c1.seal(ctx, &mut dst[..], GOLDEN.as_bytes())
+                c1.seal(d1_channel_id, &mut dst[..], GOLDEN.as_bytes())
                     .unwrap_or_else(|err| panic!("seal({d1_channel_id}, ...): {err}"));
                 dst
             };

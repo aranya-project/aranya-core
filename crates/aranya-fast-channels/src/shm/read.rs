@@ -1,8 +1,14 @@
-use core::{cell::Cell, fmt::Debug, marker::PhantomData, sync::atomic::Ordering};
+use core::{
+    cell::Cell,
+    fmt::Debug,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::atomic::Ordering,
+};
 
 use aranya_crypto::{
     CipherSuite,
-    afc::{OpenKey, SealKey, Seq},
+    afc::{OpenKey, SealKey},
     policy::LabelId,
 };
 use buggy::BugExt as _;
@@ -11,7 +17,7 @@ use derive_where::derive_where;
 use super::{
     error::Error,
     path::{Flag, Mode, Path},
-    shared::{Index, Op, State},
+    shared::{Index, KeyId, Op, State},
 };
 use crate::{
     mutex::StdMutex,
@@ -55,6 +61,7 @@ where
     // APS is typically used to seal/open many messages with the
     // same peer, so cache the most recent successful invocations
     // of seal/open.
+    last_seal: StdMutex<Option<Cache<CachedSealKey<CS>>>>,
     last_open: StdMutex<Option<Cache<OpenKey<CS>>>>,
 
     /// Make `State` `!Sync` pending issues/95.
@@ -72,14 +79,12 @@ where
     {
         Ok(Self {
             inner: State::open(path, flag, mode, max_chans)?,
+            last_seal: StdMutex::new(None),
             last_open: StdMutex::new(None),
             _no_sync: PhantomData,
         })
     }
 }
-
-/// Sealing channel context.
-pub struct SealCtx<CS: CipherSuite>(Option<Cache<SealKey<CS>>>);
 
 impl<CS> AfcState for ReadState<CS>
 where
@@ -87,66 +92,40 @@ where
 {
     type CipherSuite = CS;
 
-    type SealCtx = SealCtx<CS>;
-
-    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, crate::Error> {
-        let mutex = self.inner.load_read_list()?;
-        let mut list = mutex.lock().assume("poisoned")?;
-
-        let generation = list.generation.load(Ordering::Relaxed);
-
-        let (chan, idx) = match list.find_mut(id, None, Op::Seal)? {
-            None => {
-                return Err(crate::Error::NotFound(id));
-            }
-            Some((chan, idx)) => (chan, idx),
-        };
-
-        let key = SealKey::from_raw(&chan.seal_key, Seq::ZERO)?;
-        Ok(SealCtx(Some(Cache {
-            id,
-            label_id: chan.label_id,
-            key,
-            generation,
-            idx,
-        })))
-    }
-
-    fn seal<F, T>(
-        &self,
-        ctx: &mut Self::SealCtx,
-        f: F,
-    ) -> Result<Result<T, crate::Error>, crate::Error>
+    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, crate::Error>, crate::Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, crate::Error>,
     {
-        let cache = ctx.0.as_mut().ok_or(crate::Error::KeyExpired)?;
-
-        let id = cache.id;
-
         let mutex = self.inner.load_read_list()?;
 
-        let hint = {
-            // SAFETY: we only access an atomic field.
-            let generation = unsafe {
-                mutex
-                    .inner_unsynchronized()
-                    .generation
-                    .load(Ordering::Acquire)
-            };
-            if cache.generation == generation {
-                // Same generation, so we can use the key.
-                debug!(
-                    "cache hit: id={id} generation={generation} seq={}",
-                    cache.key.seq()
-                );
+        // Check to see if the current `SealKey` for this channel
+        // is cached.
+        let mut cache = self.last_seal.lock().assume("poisoned")?;
+        let hint = match cache.as_mut().filter(|c| c.id == id) {
+            // There is a cache entry for this channel.
+            Some(c) => {
+                // SAFETY: we only access an atomic field.
+                let generation = unsafe {
+                    mutex
+                        .inner_unsynchronized()
+                        .generation
+                        .load(Ordering::Acquire)
+                };
+                if c.generation == generation {
+                    // Same generation, so we can use the key.
+                    debug!(
+                        "cache hit: id={id} generation={generation} seq={}",
+                        c.key.seq()
+                    );
 
-                return Ok(f(&mut cache.key, cache.label_id));
+                    return Ok(f(&mut c.key, c.label_id));
+                }
+                // The generations are different, so
+                // optimistically use `idx` to try and speed up
+                // the list traversal.
+                Some(c.idx)
             }
-            // The generations are different, so
-            // optimistically use `idx` to try and speed up
-            // the list traversal.
-            Some(cache.idx)
+            _ => None,
         };
 
         // We don't have a cached key, so we need to traverse the
@@ -162,14 +141,11 @@ where
         let generation = list.generation.load(Ordering::Relaxed);
 
         let (chan, idx) = match list.find_mut(id, hint, Op::Seal)? {
-            None => {
-                *ctx = SealCtx(None);
-                return Err(crate::Error::NotFound(id));
-            }
+            None => return Err(crate::Error::NotFound(id)),
             Some((chan, idx)) => (chan, idx),
         };
 
-        let mut key = SealKey::from_raw(&chan.seal_key, cache.key.seq())?;
+        let mut key = SealKey::from_raw(&chan.seal_key, chan.seq())?;
 
         debug!("chan = {chan:p}/{chan:?}");
 
@@ -179,9 +155,30 @@ where
         if likely!(result.is_ok()) {
             // Encryption was successful (it usually is), so
             // update the cache.
-            cache.idx = idx;
-            cache.generation = generation;
-            cache.key = key;
+            let new = Cache {
+                id,
+                label_id,
+                key: CachedSealKey {
+                    key,
+                    id: chan.key_id,
+                },
+                generation,
+                idx,
+            };
+            if let Some(old) = cache.replace(new) {
+                // We've evicted an existing entry, so try to
+                // write back the updated sequence number.
+                if let Some((chan, _)) = list.find_mut(old.id, Some(old.idx), Op::Seal)? {
+                    debug!(
+                        "updating seq: chan = {chan:p}/{chan:?} old={} new={}",
+                        chan.seq(),
+                        old.key.seq()
+                    );
+                    if chan.key_id == old.key.id {
+                        chan.set_seq(old.key.seq());
+                    }
+                }
+            }
         }
         Ok(result)
     }
@@ -254,5 +251,23 @@ where
         let mutex = self.inner.load_read_list()?;
         let list = mutex.lock().assume("poisoned")?;
         Ok(list.exists(id, None, Op::Any)?)
+    }
+}
+
+struct CachedSealKey<CS: CipherSuite> {
+    key: SealKey<CS>,
+    id: KeyId,
+}
+
+impl<CS: CipherSuite> Deref for CachedSealKey<CS> {
+    type Target = SealKey<CS>;
+    fn deref(&self) -> &Self::Target {
+        &self.key
+    }
+}
+
+impl<CS: CipherSuite> DerefMut for CachedSealKey<CS> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.key
     }
 }
