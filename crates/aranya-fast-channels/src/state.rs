@@ -123,7 +123,6 @@ impl LocalChannelId {
     }
 
     /// Converts the [`LocalChannelId`] to its `u64` representation.
-    #[cfg(any(feature = "sdlib", feature = "posix"))]
     pub(crate) const fn to_u64(self) -> u64 {
         self.0
     }
@@ -132,6 +131,18 @@ impl LocalChannelId {
 impl fmt::Display for LocalChannelId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl From<LocalChannelId> for crate::arena::Index {
+    fn from(id: LocalChannelId) -> Self {
+        unsafe { core::mem::transmute::<u64, Self>(id.to_u64()) }
+    }
+}
+
+impl From<crate::arena::Index> for LocalChannelId {
+    fn from(idx: crate::arena::Index) -> Self {
+        Self::new(unsafe { core::mem::transmute::<crate::arena::Index, u64>(idx) })
     }
 }
 
@@ -399,7 +410,7 @@ mod test {
         fn new_states<CS: CipherSuite>(
             _name: &str,
             _device_idx: DeviceIdx,
-            _max_chans: usize,
+            _max_chans: u32,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = DefaultState::<CS>::new();
             let aranya = afc.clone();
