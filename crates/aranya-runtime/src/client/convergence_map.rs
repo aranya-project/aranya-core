@@ -1,3 +1,5 @@
+use core::mem::size_of;
+
 use buggy::BugExt as _;
 
 use crate::{
@@ -5,18 +7,23 @@ use crate::{
     storage::{ScratchFile, TraversalQueue},
 };
 
-/// Maximum entries per block.
-const BLOCK_ENTRIES: usize = 170;
-/// Number of in-memory blocks.
+/// Size of one entry on disk: three `u64`s (segment, max_cut, count).
+const ENTRY_BYTES: usize = size_of::<u64>() * 3;
+/// Target spill-block size. Chosen to match a typical filesystem page so
+/// each block read/write is one page operation; `BLOCK_ENTRIES` is sized
+/// to fit within this budget (24 bytes × 170 = 4080, leaving 16 bytes
+/// unused per block).
+const BLOCK_BYTES: usize = 4096;
+/// Maximum entries per block (floor of `BLOCK_BYTES / ENTRY_BYTES`).
+const BLOCK_ENTRIES: usize = BLOCK_BYTES / ENTRY_BYTES;
+/// Number of in-memory blocks retained via LRU before spilling to disk.
 const NUM_BLOCKS: usize = 3;
-/// Maximum entries in the root index (3 × BLOCK_ENTRIES).
-/// Each root entry points to one spilled block, so this supports
-/// up to 510 × 170 = 86,700 convergence points before overflow.
+/// Maximum entries in the root index. Sized at `3 × BLOCK_ENTRIES` so the
+/// root is comparable in memory footprint to the in-memory block cache;
+/// each root entry points to one spilled block, so this supports up to
+/// `ROOT_CAPACITY × BLOCK_ENTRIES` = 86,700 convergence points before
+/// overflow.
 const ROOT_CAPACITY: usize = BLOCK_ENTRIES * 3;
-/// Size of one entry on disk: 3 × u64 = 24 bytes.
-const ENTRY_BYTES: usize = 24;
-/// Size of one block on disk.
-const BLOCK_BYTES: usize = BLOCK_ENTRIES * ENTRY_BYTES;
 
 /// A convergence point: location and remaining arrival count.
 #[derive(Clone, Copy)]

@@ -183,23 +183,20 @@ impl TraversalQueue {
         Ok(self.entries.swap_remove(self.partition))
     }
 
-    /// Pop the entry with the highest `max_cut`, removing all entries
-    /// at that exact location. Returns `(location, count)`.
-    ///
-    /// Used by the convergence pre-pass. Entries are matched by full
-    /// `Location` equality (segment + max_cut), not just max_cut.
     /// Returns the entry with the highest `max_cut` without removing it.
     pub fn peek(&self) -> Option<&Location> {
         self.entries.iter().max_by_key(|loc| *loc)
     }
 
+    /// Pop the entry with the highest `max_cut`, removing all entries
+    /// at that exact location. Returns `(location, count)`.
+    ///
+    /// Used by the convergence pre-pass. Entries are matched by full
+    /// `Location` equality (segment + max_cut), not just max_cut.
     pub fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
-        // Find the entry with the highest max_cut.
-        let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
+        let Some(location) = self.entries.iter().max_by_key(|loc| *loc).copied() else {
             return Ok(None);
         };
-
-        let location = self.entries[i];
 
         // Remove all entries matching this location.
         // Count them as we go. Iterate backward to avoid index shifts.
