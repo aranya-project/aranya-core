@@ -461,7 +461,7 @@ impl Not for Flags {
 /// call [`read`][Self::read] or
 /// [`drop_in_place`][Self::drop_in_place].
 #[repr(transparent)]
-pub struct OwnedPtr<T> {
+pub struct OwnedPtr<T: ?Sized> {
     ptr: Valid<ManuallyDrop<T>>,
     _marker: PhantomData<T>,
 }
@@ -553,7 +553,7 @@ impl<T> fmt::Pointer for OwnedPtr<T> {
 }
 
 // SAFETY: `T` is `NewType`.
-unsafe impl<T: NewType> NewType for OwnedPtr<T> {
+unsafe impl<T: NewType + ?Sized> NewType for OwnedPtr<T> {
     type Inner = OwnedPtr<T::Inner>;
 }
 
