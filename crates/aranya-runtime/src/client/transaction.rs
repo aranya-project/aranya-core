@@ -494,7 +494,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority, TempFile,
+        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority, MemScratchFile,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -695,7 +695,7 @@ mod test {
             for (max_cut, &id) in ids.iter().enumerate() {
                 let max_cut = MaxCut(max_cut);
                 let cmd = SeqCommand::new(id, prior, max_cut);
-                trx.add_commands::<TempFile>(
+                trx.add_commands::<MemScratchFile>(
                     &[cmd],
                     &mut client.provider,
                     &mut client.policy_store,
@@ -725,7 +725,7 @@ mod test {
             for &id in ids {
                 let max_cut = prev.max_cut.checked_add(1).unwrap();
                 let cmd = SeqCommand::new(id, Prior::Single(prev), max_cut);
-                self.trx.add_commands::<TempFile>(
+                self.trx.add_commands::<MemScratchFile>(
                     &[cmd],
                     &mut self.client.provider,
                     &mut self.client.policy_store,
@@ -742,7 +742,7 @@ mod test {
             let prev = self.get_addr(prev);
             let max_cut = prev.max_cut.checked_add(1).unwrap();
             let cmd = SeqCommand::finalize(id, prev, max_cut);
-            self.trx.add_commands::<TempFile>(
+            self.trx.add_commands::<MemScratchFile>(
                 &[cmd],
                 &mut self.client.provider,
                 &mut self.client.policy_store,
@@ -765,7 +765,7 @@ mod test {
                 max_cut: mergecmd.max_cut,
             };
             self.max_cuts.insert(mergecmd.id, mergecmd.max_cut);
-            self.trx.add_commands::<TempFile>(
+            self.trx.add_commands::<MemScratchFile>(
                 &[mergecmd],
                 &mut self.client.provider,
                 &mut self.client.policy_store,
@@ -783,7 +783,7 @@ mod test {
                     max_cut: cmd.max_cut,
                 };
                 self.max_cuts.insert(cmd.id, cmd.max_cut);
-                self.trx.add_commands::<TempFile>(
+                self.trx.add_commands::<MemScratchFile>(
                     &[cmd],
                     &mut self.client.provider,
                     &mut self.client.policy_store,
@@ -813,7 +813,7 @@ mod test {
         pub fn commit(&mut self) -> Result<(), ClientError> {
             let graph_id = self.trx.graph_id;
             let trx = mem::replace(&mut self.trx, Transaction::new(graph_id));
-            assert!(trx.commit::<TempFile>(
+            assert!(trx.commit::<MemScratchFile>(
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,

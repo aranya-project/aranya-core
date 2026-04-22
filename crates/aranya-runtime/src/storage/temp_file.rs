@@ -1,24 +1,34 @@
-//! Temporary scratch file for spilling data during braiding and convergence.
+//! Scratch-file backends for spilling braid and convergence data.
 //!
-//! Two backends:
-//! - `libc`: file-backed using `aranya_libc` pread/pwrite, matching
-//!   the same APIs used by `linear::libc`.
-//! - `testing`: in-memory `Vec<u8>` buffer (when libc is not available).
+//! Two independent backends, each behind its own feature flag and both
+//! implementing [`ScratchFile`]. When both features are enabled, both
+//! types coexist and the caller picks which one to plug into
+//! [`BraidResult`](crate::client::braiding::BraidResult) /
+//! [`ConvergenceMap`](crate::client::convergence_map::ConvergenceMap),
+//! matching the `IoManager` pattern used by linear storage.
+//!
+//! - [`FileScratchFile`] (`libc`): file-backed via `aranya_libc` pread/pwrite,
+//!   using the same APIs as `linear::libc`. The underlying file is unlinked
+//!   at creation and cleaned up when the last handle is dropped.
+//! - [`MemScratchFile`] (`testing`): in-memory `RefCell<Vec<u8>>` buffer,
+//!   suitable for unit tests and environments without a filesystem.
 
-#[cfg(all(feature = "testing", not(feature = "libc")))]
+#[cfg(feature = "testing")]
 use alloc::vec::Vec;
 
 use crate::{StorageError, storage::ScratchFile};
 
 // --- libc backend ---
 
+/// File-backed scratch file, created unlinked under `/tmp` and cleaned up
+/// when the last clone of the handle drops.
 #[cfg(feature = "libc")]
-pub struct TempFile {
+pub struct FileScratchFile {
     fd: alloc::sync::Arc<aranya_libc::OwnedFd>,
 }
 
 #[cfg(feature = "libc")]
-impl ScratchFile for TempFile {
+impl ScratchFile for FileScratchFile {
     fn new() -> Result<Self, StorageError> {
         use aranya_libc::{
             self as libc, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, Path, S_IRUSR,
@@ -98,13 +108,14 @@ impl ScratchFile for TempFile {
 
 // --- testing (in-memory) backend ---
 
-#[cfg(all(feature = "testing", not(feature = "libc")))]
-pub struct TempFile {
+/// In-memory scratch file backed by a growable byte buffer.
+#[cfg(feature = "testing")]
+pub struct MemScratchFile {
     buf: core::cell::RefCell<Vec<u8>>,
 }
 
-#[cfg(all(feature = "testing", not(feature = "libc")))]
-impl ScratchFile for TempFile {
+#[cfg(feature = "testing")]
+impl ScratchFile for MemScratchFile {
     fn new() -> Result<Self, StorageError> {
         Ok(Self {
             buf: core::cell::RefCell::new(Vec::new()),

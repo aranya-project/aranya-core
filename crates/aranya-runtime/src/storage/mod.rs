@@ -17,8 +17,10 @@ pub mod linear;
 
 #[cfg(any(feature = "libc", feature = "testing"))]
 mod temp_file;
-#[cfg(any(feature = "libc", feature = "testing"))]
-pub use temp_file::TempFile;
+#[cfg(feature = "libc")]
+pub use temp_file::FileScratchFile;
+#[cfg(feature = "testing")]
+pub use temp_file::MemScratchFile;
 
 /// Temporary scratch file for spilling data to disk.
 pub trait ScratchFile: Sized {

@@ -13,7 +13,7 @@ use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
-    SyncRequester, TempFile, TraversalBuffers,
+    SyncRequester, MemScratchFile, TraversalBuffers,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
@@ -536,7 +536,7 @@ where
                 }
 
                 if let Some(cmds) = request_syncer.receive(&target[..len])? {
-                    request_state.add_commands::<TempFile>(
+                    request_state.add_commands::<MemScratchFile>(
                         &mut request_trx,
                         &mut sink,
                         &cmds,
@@ -546,7 +546,7 @@ where
             }
         }
 
-        request_state.commit::<TempFile>(request_trx, &mut sink, &mut self.buffers.primary)?;
+        request_state.commit::<MemScratchFile>(request_trx, &mut sink, &mut self.buffers.primary)?;
 
         Ok(())
     }
