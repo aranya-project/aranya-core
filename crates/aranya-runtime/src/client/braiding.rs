@@ -121,8 +121,8 @@ impl<F: ScratchFile> BraidResult<F> {
 
         for loc in &self.mem {
             let mut buf = [0u8; LOCATION_BYTES];
-            buf[0..8].copy_from_slice(&(loc.segment.0 as u64).to_le_bytes());
-            buf[8..16].copy_from_slice(&(loc.max_cut.0 as u64).to_le_bytes());
+            buf[0..8].copy_from_slice(&(loc.segment.0 as u64).to_ne_bytes());
+            buf[8..16].copy_from_slice(&(loc.max_cut.0 as u64).to_ne_bytes());
             file.write_at(offset, &buf)?;
             offset = offset
                 .checked_add(LOCATION_BYTES)
@@ -224,10 +224,10 @@ impl<'a, F: ScratchFile> BraidIter<'a, F> {
             let mut buf = [0u8; LOCATION_BYTES];
             file.read_at(offset, &mut buf)?;
             let segment =
-                u64::from_le_bytes(buf[0..8].try_into().assume("slice is exactly 8 bytes")?)
+                u64::from_ne_bytes(buf[0..8].try_into().assume("slice is exactly 8 bytes")?)
                     as usize;
             let max_cut =
-                u64::from_le_bytes(buf[8..16].try_into().assume("slice is exactly 8 bytes")?)
+                u64::from_ne_bytes(buf[8..16].try_into().assume("slice is exactly 8 bytes")?)
                     as usize;
             let _ = self.disk_buf.push(Location::new(
                 crate::SegmentIndex(segment),

@@ -35,17 +35,17 @@ struct Entry {
 impl Entry {
     fn to_bytes(self) -> [u8; ENTRY_BYTES] {
         let mut buf = [0u8; ENTRY_BYTES];
-        buf[0..8].copy_from_slice(&(self.location.segment.0 as u64).to_le_bytes());
-        buf[8..16].copy_from_slice(&(self.location.max_cut.0 as u64).to_le_bytes());
-        buf[16..24].copy_from_slice(&(self.count as u64).to_le_bytes());
+        buf[0..8].copy_from_slice(&(self.location.segment.0 as u64).to_ne_bytes());
+        buf[8..16].copy_from_slice(&(self.location.max_cut.0 as u64).to_ne_bytes());
+        buf[16..24].copy_from_slice(&(self.count as u64).to_ne_bytes());
         buf
     }
 
     #[allow(clippy::unwrap_used)] // infallible: slices are exactly 8 bytes
     fn from_bytes(buf: &[u8; ENTRY_BYTES]) -> Self {
-        let segment = u64::from_le_bytes(buf[0..8].try_into().unwrap()) as usize;
-        let max_cut = u64::from_le_bytes(buf[8..16].try_into().unwrap()) as usize;
-        let count = u64::from_le_bytes(buf[16..24].try_into().unwrap()) as usize;
+        let segment = u64::from_ne_bytes(buf[0..8].try_into().unwrap()) as usize;
+        let max_cut = u64::from_ne_bytes(buf[8..16].try_into().unwrap()) as usize;
+        let count = u64::from_ne_bytes(buf[16..24].try_into().unwrap()) as usize;
         Self {
             location: Location::new(crate::SegmentIndex(segment), MaxCut(max_cut)),
             count,
