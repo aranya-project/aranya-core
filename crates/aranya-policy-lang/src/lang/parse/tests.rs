@@ -182,13 +182,13 @@ fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
     // Right-associativity: `a or b or c` should produce `Coalesce(a, Coalesce(b, c))`, not `Coalesce(Coalesce(a, b), c)`.
     use aranya_policy_ast::ExprKind;
     let expr = crate::lang::parse_expression("a or b or c").expect("parse failed");
-    let ExprKind::Coalesce(outer_lhs, outer_rhs) = expr.kind else {
+    let ExprKind::Coalesce(outer_lhs, outer_rhs) = expr.inner else {
         panic!("expected outer Coalesce");
     };
     // Outer left side is `a` (single identifier)
-    assert!(matches!(outer_lhs.kind, ExprKind::Identifier(_)));
+    assert!(matches!(outer_lhs.inner, ExprKind::Identifier(_)));
     // Outer right side is `Coalesce(b, c)`
-    assert!(matches!(outer_rhs.kind, ExprKind::Coalesce(_, _)));
+    assert!(matches!(outer_rhs.inner, ExprKind::Coalesce(_, _)));
 
     Ok(())
 }

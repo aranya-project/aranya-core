@@ -817,7 +817,7 @@ impl CompileState<'_> {
                 // Left must be optional<T>. If T is Never, e.g. `None or None`, it will fail unification with the right side
                 let inner_type = match &lhs.vtype {
                     VType {
-                        kind: TypeKind::Optional(t),
+                        inner: TypeKind::Optional(t),
                         ..
                     } => (**t).clone(),
                     _ => {
