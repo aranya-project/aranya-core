@@ -612,12 +612,18 @@ fn test_sync<PS, P, S>(
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands::<MemSpill>(&mut req_transaction, sink, &cmds, &mut buffers.primary)
-                .expect("add commands");
+            cs2.add_commands(
+                &mut req_transaction,
+                sink,
+                &cmds,
+                &mut buffers.primary,
+                MemSpill::new,
+            )
+            .expect("add commands");
         }
     }
 
-    cs2.commit::<MemSpill>(req_transaction, sink, &mut buffers.primary)
+    cs2.commit(req_transaction, sink, &mut buffers.primary, MemSpill::new)
         .expect("commit");
 }
 

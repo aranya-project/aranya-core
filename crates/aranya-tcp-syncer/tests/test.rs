@@ -29,6 +29,7 @@ fn test_sync() -> Result<()> {
         Arc::clone(&sink1),
         tx,
         server_addr1.local_addr()?,
+        &std::env::temp_dir(),
     )?));
 
     let client2 = make_client();
@@ -64,6 +65,7 @@ fn test_sync() -> Result<()> {
         Arc::clone(&sink2),
         tx,
         server_addr2.local_addr()?,
+        &std::env::temp_dir(),
     )?;
     syncer2.sync(
         client2.lock().unwrap().deref_mut(),
@@ -88,6 +90,7 @@ fn test_sync_subscribe() -> Result<()> {
         Arc::clone(&sink1),
         tx1,
         server_addr1.local_addr()?,
+        &std::env::temp_dir(),
     )?));
 
     let client2 = make_client();
@@ -99,6 +102,7 @@ fn test_sync_subscribe() -> Result<()> {
         Arc::clone(&sink2),
         tx2,
         server_addr2.local_addr()?,
+        &std::env::temp_dir(),
     )?));
 
     let graph_id = client1.lock().unwrap().new_graph(

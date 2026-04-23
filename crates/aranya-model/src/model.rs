@@ -536,17 +536,23 @@ where
                 }
 
                 if let Some(cmds) = request_syncer.receive(&target[..len])? {
-                    request_state.add_commands::<MemSpill>(
+                    request_state.add_commands(
                         &mut request_trx,
                         &mut sink,
                         &cmds,
                         &mut self.buffers.primary,
+                        MemSpill::new,
                     )?;
                 }
             }
         }
 
-        request_state.commit::<MemSpill>(request_trx, &mut sink, &mut self.buffers.primary)?;
+        request_state.commit(
+            request_trx,
+            &mut sink,
+            &mut self.buffers.primary,
+            MemSpill::new,
+        )?;
 
         Ok(())
     }

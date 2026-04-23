@@ -74,13 +74,18 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     }
 
     /// Write current perspective, merge transaction heads, and commit to graph.
-    pub(super) fn commit<F: Spill>(
+    pub(super) fn commit<F, MS>(
         mut self,
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
         buffer: &mut TraversalBuffer,
-    ) -> Result<bool, ClientError> {
+        make_spill: &MS,
+    ) -> Result<bool, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         let storage = provider.get_storage(self.graph_id)?;
 
         let Some(original_head) = self.original_head else {
@@ -128,8 +133,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 }
                 let command = policy.merge(&mut buf, merge_ids)?;
 
-                let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F>(
-                    storage, left_loc, right_loc, sink, policy, buffer,
+                let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F, MS>(
+                    storage, left_loc, right_loc, sink, policy, buffer, make_spill,
                 )?;
 
                 let mut perspective = storage.new_merge_perspective(
@@ -170,14 +175,19 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// Attempt to store the `command` in the graph with `graph_id`. Effects will be
     /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
-    pub(super) fn add_commands<F: Spill>(
+    pub(super) fn add_commands<F, MS>(
         &mut self,
         commands: &[impl Command],
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
         buffer: &mut TraversalBuffer,
-    ) -> Result<usize, ClientError> {
+        make_spill: &MS,
+    ) -> Result<usize, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         let mut commands = commands.iter();
         let mut count: usize = 0;
 
@@ -224,13 +234,14 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
-                    self.add_merge::<F>(
+                    self.add_merge::<F, MS>(
                         storage,
                         policy_store,
                         sink,
                         command,
                         (left, right),
                         buffer,
+                        make_spill,
                     )?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
@@ -275,7 +286,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         Ok(())
     }
 
-    fn add_merge<F: Spill>(
+    fn add_merge<F, MS>(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
         policy_store: &mut PS,
@@ -283,7 +294,12 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         command: &impl Command,
         (left, right): (Address, Address),
         buffer: &mut TraversalBuffer,
-    ) -> Result<bool, ClientError> {
+        make_spill: &MS,
+    ) -> Result<bool, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
@@ -300,8 +316,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
-        let (braid, last_common_ancestor) =
-            make_braid_segment::<_, PS, F>(storage, left_loc, right_loc, sink, policy, buffer)?;
+        let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F, MS>(
+            storage, left_loc, right_loc, sink, policy, buffer, make_spill,
+        )?;
 
         let mut perspective = storage.new_merge_perspective(
             left_loc,
@@ -412,16 +429,30 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 }
 
 /// Run the braid algorithm and evaluate the sequence to create a braided fact index.
-fn make_braid_segment<S: Storage, PS: PolicyStore, F: Spill>(
+fn make_braid_segment<S, PS, F, MS>(
     storage: &mut S,
     left: Location,
     right: Location,
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
     buffer: &mut TraversalBuffer,
-) -> Result<(S::FactIndex, Location), ClientError> {
+    make_spill: &MS,
+) -> Result<(S::FactIndex, Location), ClientError>
+where
+    S: Storage,
+    PS: PolicyStore,
+    F: Spill,
+    MS: Fn() -> Result<F, StorageError>,
+{
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
-    let mut order = braiding::braid::<_, F>(storage, left, right, last_common_ancestor, buffer)?;
+    let mut order = braiding::braid::<_, F, MS>(
+        storage,
+        left,
+        right,
+        last_common_ancestor,
+        buffer,
+        make_spill,
+    )?;
 
     let mut iter = order.iter()?;
     let first = iter.next()?.assume("braid is non-empty")?;
@@ -695,12 +726,13 @@ mod test {
             for (max_cut, &id) in ids.iter().enumerate() {
                 let max_cut = MaxCut(max_cut);
                 let cmd = SeqCommand::new(id, prior, max_cut);
-                trx.add_commands::<MemSpill>(
+                trx.add_commands(
                     &[cmd],
                     &mut client.provider,
                     &mut client.policy_store,
                     &mut NullSink,
                     &mut buffer,
+                    &MemSpill::new,
                 )?;
                 max_cuts.insert(id, max_cut);
                 prior = Prior::Single(Address { id, max_cut });
@@ -725,12 +757,13 @@ mod test {
             for &id in ids {
                 let max_cut = prev.max_cut.checked_add(1).unwrap();
                 let cmd = SeqCommand::new(id, Prior::Single(prev), max_cut);
-                self.trx.add_commands::<MemSpill>(
+                self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
                     &mut self.client.policy_store,
                     &mut NullSink,
                     &mut self.buffer,
+                    &MemSpill::new,
                 )?;
                 self.max_cuts.insert(id, max_cut);
                 prev = Address { id, max_cut };
@@ -742,12 +775,13 @@ mod test {
             let prev = self.get_addr(prev);
             let max_cut = prev.max_cut.checked_add(1).unwrap();
             let cmd = SeqCommand::finalize(id, prev, max_cut);
-            self.trx.add_commands::<MemSpill>(
+            self.trx.add_commands(
                 &[cmd],
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffer,
+                &MemSpill::new,
             )?;
             self.max_cuts.insert(id, max_cut);
             Ok(())
@@ -765,12 +799,13 @@ mod test {
                 max_cut: mergecmd.max_cut,
             };
             self.max_cuts.insert(mergecmd.id, mergecmd.max_cut);
-            self.trx.add_commands::<MemSpill>(
+            self.trx.add_commands(
                 &[mergecmd],
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffer,
+                &MemSpill::new,
             )?;
             for &id in &ids[1..] {
                 let cmd = SeqCommand::new(
@@ -783,12 +818,13 @@ mod test {
                     max_cut: cmd.max_cut,
                 };
                 self.max_cuts.insert(cmd.id, cmd.max_cut);
-                self.trx.add_commands::<MemSpill>(
+                self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
                     &mut self.client.policy_store,
                     &mut NullSink,
                     &mut self.buffer,
+                    &MemSpill::new,
                 )?;
             }
             Ok(())
@@ -813,11 +849,12 @@ mod test {
         pub fn commit(&mut self) -> Result<(), ClientError> {
             let graph_id = self.trx.graph_id;
             let trx = mem::replace(&mut self.trx, Transaction::new(graph_id));
-            assert!(trx.commit::<MemSpill>(
+            assert!(trx.commit(
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffer,
+                &MemSpill::new,
             )?);
             Ok(())
         }

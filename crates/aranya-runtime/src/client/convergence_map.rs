@@ -152,7 +152,7 @@ pub struct ConvergenceMap<'a, F> {
     queue: &'a mut TraversalQueue,
     lca: Location,
     access_counter: u32,
-    spill_file: Option<F>,
+    spill_file: F,
     next_file_offset: usize,
 }
 
@@ -163,6 +163,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         right: Location,
         lca: Location,
         queue: &'a mut TraversalQueue,
+        spill_file: F,
     ) -> Result<Self, ClientError> {
         queue.push_duplicate(left)?;
         queue.push_duplicate(right)?;
@@ -173,7 +174,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             queue,
             lca,
             access_counter: 0,
-            spill_file: None,
+            spill_file,
             next_file_offset: 0,
         })
     }
@@ -208,14 +209,6 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             return Ok(());
         }
 
-        let file = match &self.spill_file {
-            Some(_) => self.spill_file.as_ref().assume("just checked")?,
-            None => {
-                self.spill_file = Some(F::new()?);
-                self.spill_file.as_ref().assume("just created")?
-            }
-        };
-
         let data = block.to_bytes()?;
         let num_entries = block.entries.len();
         let offset = self.next_file_offset;
@@ -223,7 +216,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         let byte_len = num_entries
             .checked_mul(ENTRY_BYTES)
             .assume("spill byte length must not overflow")?;
-        file.write_at(offset, &data[..byte_len])?;
+        self.spill_file.write_at(offset, &data[..byte_len])?;
 
         // Add to root index.
         if self.root.is_full() {
@@ -250,10 +243,6 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     /// Read a spilled block from disk.
     fn read_block_from_disk(&self, root_idx: usize) -> Result<Block, ClientError> {
         let node = self.root[root_idx];
-        let file = self
-            .spill_file
-            .as_ref()
-            .assume("spill file must exist if root has entries")?;
 
         let num_entries = node.num_entries;
         let byte_len = num_entries
@@ -261,7 +250,8 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             .assume("disk byte length must not overflow")?;
 
         let mut buf = [0u8; BLOCK_BYTES];
-        file.read_at(node.file_offset, &mut buf[..byte_len])?;
+        self.spill_file
+            .read_at(node.file_offset, &mut buf[..byte_len])?;
 
         Block::load_from_bytes(&buf, num_entries)
     }

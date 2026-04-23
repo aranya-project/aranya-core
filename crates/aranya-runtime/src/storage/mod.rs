@@ -25,10 +25,10 @@ pub use spill::MemSpill;
 /// Byte-addressable overflow storage for braid and convergence data.
 ///
 /// Implemented by [`LibcSpill`] (file-backed) and [`MemSpill`] (in-memory);
-/// callers pick a backend at each call site.
-pub trait Spill: Sized {
-    /// Create a new spill.
-    fn new() -> Result<Self, StorageError>;
+/// each backend has its own constructor signature (paths, etc.), matching
+/// how [`IoManager`](linear::io::IoManager) backends are constructed.
+/// Callers build a spill and pass it in.
+pub trait Spill {
     /// Write `data` at the given byte offset.
     fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError>;
     /// Read exactly `data.len()` bytes starting at the given byte offset.

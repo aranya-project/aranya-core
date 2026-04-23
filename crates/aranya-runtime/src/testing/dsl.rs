@@ -1012,13 +1012,14 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands::<MemSpill>(
+        received = request_state.add_commands(
             &mut request_trx,
             sink,
             &cmds,
             &mut buffers.primary,
+            MemSpill::new,
         )?;
-        request_state.commit::<MemSpill>(request_trx, sink, &mut buffers.primary)?;
+        request_state.commit(request_trx, sink, &mut buffers.primary, MemSpill::new)?;
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),

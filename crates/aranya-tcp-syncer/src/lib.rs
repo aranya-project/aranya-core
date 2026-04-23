@@ -96,6 +96,8 @@ where
     sink: Arc<Mutex<S>>,
     return_address: std::vec::Vec<u8>,
     buffers: TraversalBuffers,
+    /// Directory where braid/convergence spill files are created.
+    spill_dir: std::path::PathBuf,
 }
 
 impl<PS, SP, S> Syncer<PS, SP, S>
@@ -105,11 +107,15 @@ where
     S: Sink<<PS as PolicyStore>::Effect>,
 {
     /// Create a sync client with the given certificate chain.
+    ///
+    /// `spill_dir` is the directory where braid/convergence spill files
+    /// are created when in-memory capacity overflows.
     pub fn new(
         client_state: Arc<Mutex<ClientState<PS, SP>>>,
         sink: Arc<Mutex<S>>,
         sender: mpsc::Sender<GraphId>,
         return_address: SocketAddr,
+        spill_dir: &std::path::Path,
     ) -> Result<Self> {
         let return_address = postcard::to_allocvec(&return_address)?;
         Ok(Self {
@@ -120,6 +126,7 @@ where
             sink,
             return_address,
             buffers: TraversalBuffers::new(),
+            spill_dir: spill_dir.to_path_buf(),
         })
     }
 
@@ -162,8 +169,16 @@ where
         {
             received = cmds.len();
             let mut trx = client.transaction(graph_id);
-            client.add_commands::<LibcSpill>(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
-            client.commit::<LibcSpill>(trx, sink, &mut self.buffers.primary)?;
+            let spill_dir = self.spill_dir.as_path();
+            let make_spill = || LibcSpill::new(spill_dir);
+            client.add_commands(
+                &mut trx,
+                sink,
+                &cmds,
+                &mut self.buffers.primary,
+                &make_spill,
+            )?;
+            client.commit(trx, sink, &mut self.buffers.primary, &make_spill)?;
             client.update_heads(
                 graph_id,
                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
@@ -305,13 +320,16 @@ where
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().expect("poisoned");
                         let sink = sink_guard.deref_mut();
-                        client.add_commands::<LibcSpill>(
+                        let spill_dir = self.spill_dir.as_path();
+                        let make_spill = || LibcSpill::new(spill_dir);
+                        client.add_commands(
                             &mut trx,
                             sink,
                             &cmds,
                             &mut self.buffers.primary,
+                            &make_spill,
                         )?;
-                        client.commit::<LibcSpill>(trx, sink, &mut self.buffers.primary)?;
+                        client.commit(trx, sink, &mut self.buffers.primary, &make_spill)?;
                         client.update_heads(
                             graph_id,
                             cmds.iter().filter_map(|cmd| cmd.address().ok()),
