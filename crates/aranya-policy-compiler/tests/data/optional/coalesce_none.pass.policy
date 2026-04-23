@@ -1,0 +1,3 @@
+function f() bool {
+    return 0 == (None or 0)
+}

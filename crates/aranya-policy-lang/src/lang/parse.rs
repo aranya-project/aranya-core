@@ -841,6 +841,7 @@ impl ChunkParser<'_> {
                     }
                     Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
                     Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
+                    Rule::coalesce => ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
                     Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
                     Rule::not_equal => ExprKind::NotEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::greater_than => ExprKind::GreaterThan(Box::new(lhs), Box::new(rhs)),
@@ -1919,8 +1920,10 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | 5        | `>`, `<`, `>=`, `<=`, `is` |
 /// | 6        | `==`, `!=` |
 /// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 8        | `or` (optional coalescing, right-associative) |
 fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
+        .op(Op::infix(Rule::coalesce, Assoc::Right))
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
         .op(Op::infix(Rule::equal, Assoc::Left) | Op::infix(Rule::not_equal, Assoc::Left))
         .op(Op::infix(Rule::greater_than, Assoc::Left)
