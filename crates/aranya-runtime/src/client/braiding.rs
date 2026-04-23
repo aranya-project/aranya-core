@@ -73,12 +73,12 @@ pub(super) fn last_common_ancestor<S: Storage>(
     Ok(left)
 }
 
-/// Number of Location entries per braid buffer block.
-/// Location is 16 bytes, so 256 entries = 4096 bytes = one 4KB page.
+/// Size of one Location on disk: two `u64`s (segment, max_cut).
+const LOCATION_BYTES: usize = size_of::<u64>() * 2;
+/// Number of Location entries per braid buffer block. Sized to batch
+/// disk I/O into reasonably large writes without holding too many
+/// entries in memory per spill.
 const BRAID_BLOCK_ENTRIES: usize = 256;
-
-/// Size of one Location on disk: 2 × u64 = 16 bytes.
-const LOCATION_BYTES: usize = 16;
 
 /// Accumulates braid locations and iterates them in reverse push order.
 pub(super) struct BraidResult<F> {

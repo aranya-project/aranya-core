@@ -9,21 +9,18 @@ use crate::{
 
 /// Size of one entry on disk: three `u64`s (segment, max_cut, count).
 const ENTRY_BYTES: usize = size_of::<u64>() * 3;
-/// Target spill-block size. Chosen to match a typical filesystem page so
-/// each block read/write is one page operation; `BLOCK_ENTRIES` is sized
-/// to fit within this budget (24 bytes × 170 = 4080, leaving 16 bytes
-/// unused per block).
-const BLOCK_BYTES: usize = 4096;
-/// Maximum entries per block (floor of `BLOCK_BYTES / ENTRY_BYTES`).
-const BLOCK_ENTRIES: usize = BLOCK_BYTES / ENTRY_BYTES;
+/// Maximum entries per block. Larger blocks mean a bigger in-memory
+/// working set before spilling, but coarser `max_cut` range granularity
+/// per root-index entry.
+const BLOCK_ENTRIES: usize = 256;
+/// Size of one block on disk.
+const BLOCK_BYTES: usize = BLOCK_ENTRIES * ENTRY_BYTES;
 /// Number of in-memory blocks retained via LRU before spilling to disk.
 const NUM_BLOCKS: usize = 3;
-/// Maximum entries in the root index. Sized at `3 × BLOCK_ENTRIES` so the
-/// root is comparable in memory footprint to the in-memory block cache;
-/// each root entry points to one spilled block, so this supports up to
-/// `ROOT_CAPACITY × BLOCK_ENTRIES` = 86,700 convergence points before
-/// overflow.
-const ROOT_CAPACITY: usize = BLOCK_ENTRIES * 3;
+/// Maximum entries in the root index. Each root entry points to one
+/// spilled block, so this supports up to `ROOT_CAPACITY × BLOCK_ENTRIES`
+/// = 131,072 convergence points before overflow.
+const ROOT_CAPACITY: usize = 512;
 
 /// A convergence point: location and remaining arrival count.
 #[derive(Clone, Copy)]
@@ -144,7 +141,7 @@ impl Block {
 
 /// Incrementally-computed convergence map with disk-backed overflow.
 ///
-/// Keeps up to 3 blocks of ~170 entries in memory. When a block
+/// Keeps up to 3 blocks of 256 entries in memory. When a block
 /// fills, the least-recently-accessed block is spilled to a temp
 /// file. An in-memory root index maps max_cut ranges to file
 /// offsets for O(1) block lookup.
