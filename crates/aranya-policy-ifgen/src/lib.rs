@@ -1,4 +1,5 @@
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
+#![cfg_attr(not(doctest), doc = include_str!("../STABILITY.md"))]
 #![no_std]
 #![allow(clippy::needless_doctest_main)]
 #![warn(missing_docs)]
