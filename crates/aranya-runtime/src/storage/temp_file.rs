@@ -7,10 +7,10 @@
 //! [`ConvergenceMap`](crate::client::convergence_map::ConvergenceMap),
 //! matching the `IoManager` pattern used by linear storage.
 //!
-//! - [`FileScratchFile`] (`libc`): file-backed via `aranya_libc` pread/pwrite,
+//! - [`LibcSpill`] (`libc`): file-backed via `aranya_libc` pread/pwrite,
 //!   using the same APIs as `linear::libc`. The underlying file is unlinked
 //!   at creation and cleaned up when the last handle is dropped.
-//! - [`MemScratchFile`] (`testing`): in-memory `RefCell<Vec<u8>>` buffer,
+//! - [`MemSpill`] (`testing`): in-memory `RefCell<Vec<u8>>` buffer,
 //!   suitable for unit tests and environments without a filesystem.
 
 #[cfg(feature = "testing")]
@@ -23,12 +23,12 @@ use crate::{StorageError, storage::ScratchFile};
 /// File-backed scratch file, created unlinked under `/tmp` and cleaned up
 /// when the last clone of the handle drops.
 #[cfg(feature = "libc")]
-pub struct FileScratchFile {
+pub struct LibcSpill {
     fd: alloc::sync::Arc<aranya_libc::OwnedFd>,
 }
 
 #[cfg(feature = "libc")]
-impl ScratchFile for FileScratchFile {
+impl ScratchFile for LibcSpill {
     fn new() -> Result<Self, StorageError> {
         use aranya_libc::{
             self as libc, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, Path, S_IRUSR,
@@ -110,12 +110,12 @@ impl ScratchFile for FileScratchFile {
 
 /// In-memory scratch file backed by a growable byte buffer.
 #[cfg(feature = "testing")]
-pub struct MemScratchFile {
+pub struct MemSpill {
     buf: core::cell::RefCell<Vec<u8>>,
 }
 
 #[cfg(feature = "testing")]
-impl ScratchFile for MemScratchFile {
+impl ScratchFile for MemSpill {
     fn new() -> Result<Self, StorageError> {
         Ok(Self {
             buf: core::cell::RefCell::new(Vec::new()),

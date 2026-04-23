@@ -458,9 +458,9 @@ mod strand_heap {
 #[cfg(test)]
 mod braid_result_tests {
     use super::*;
-    use crate::{MaxCut, SegmentIndex, MemScratchFile};
+    use crate::{MaxCut, SegmentIndex, MemSpill};
 
-    type TestBraidResult = BraidResult<MemScratchFile>;
+    type TestBraidResult = BraidResult<MemSpill>;
 
     fn loc(seg: usize, cut: usize) -> Location {
         Location::new(SegmentIndex(seg), MaxCut(cut))

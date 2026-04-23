@@ -26,7 +26,7 @@ use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Machine, Struct, Value, ffi::FfiModule as _, ident};
-use aranya_runtime::FileScratchFile;
+use aranya_runtime::LibcSpill;
 
 // ---------------------------------------------------------------------------
 // Type Aliases
@@ -235,9 +235,9 @@ fn sync_graphs(
             .context("sync receive failed")?
     {
         let _received = dest
-            .add_commands::<FileScratchFile>(&mut trx, sink, &cmds, &mut buffer)
+            .add_commands::<LibcSpill>(&mut trx, sink, &cmds, &mut buffer)
             .context("add_commands failed")?;
-        dest.commit::<FileScratchFile>(trx, sink, &mut buffer)
+        dest.commit::<LibcSpill>(trx, sink, &mut buffer)
             .context("commit failed")?;
         dest.update_heads(
             graph_id,

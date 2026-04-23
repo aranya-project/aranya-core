@@ -18,7 +18,7 @@ use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, SubscribeResult, SyncError,
-    SyncRequestMessage, SyncRequester, SyncResponder, SyncType, FileScratchFile, TraversalBuffers,
+    SyncRequestMessage, SyncRequester, SyncResponder, SyncType, LibcSpill, TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -162,8 +162,8 @@ where
         {
             received = cmds.len();
             let mut trx = client.transaction(graph_id);
-            client.add_commands::<FileScratchFile>(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
-            client.commit::<FileScratchFile>(trx, sink, &mut self.buffers.primary)?;
+            client.add_commands::<LibcSpill>(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
+            client.commit::<LibcSpill>(trx, sink, &mut self.buffers.primary)?;
             client.update_heads(
                 graph_id,
                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
@@ -305,13 +305,13 @@ where
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().expect("poisoned");
                         let sink = sink_guard.deref_mut();
-                        client.add_commands::<FileScratchFile>(
+                        client.add_commands::<LibcSpill>(
                             &mut trx,
                             sink,
                             &cmds,
                             &mut self.buffers.primary,
                         )?;
-                        client.commit::<FileScratchFile>(trx, sink, &mut self.buffers.primary)?;
+                        client.commit::<LibcSpill>(trx, sink, &mut self.buffers.primary)?;
                         client.update_heads(
                             graph_id,
                             cmds.iter().filter_map(|cmd| cmd.address().ok()),
