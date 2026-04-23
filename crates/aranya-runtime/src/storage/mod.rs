@@ -16,15 +16,18 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 pub mod linear;
 
 #[cfg(any(feature = "libc", feature = "testing"))]
-mod temp_file;
+mod spill;
 #[cfg(feature = "libc")]
-pub use temp_file::LibcSpill;
+pub use spill::LibcSpill;
 #[cfg(feature = "testing")]
-pub use temp_file::MemSpill;
+pub use spill::MemSpill;
 
-/// Temporary scratch file for spilling data to disk.
-pub trait ScratchFile: Sized {
-    /// Create a new scratch file.
+/// Byte-addressable overflow storage for braid and convergence data.
+///
+/// Implemented by [`LibcSpill`] (file-backed) and [`MemSpill`] (in-memory);
+/// callers pick a backend at each call site.
+pub trait Spill: Sized {
+    /// Create a new spill.
     fn new() -> Result<Self, StorageError>;
     /// Write `data` at the given byte offset.
     fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError>;

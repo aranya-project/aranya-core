@@ -4,7 +4,7 @@ use buggy::BugExt as _;
 
 use crate::{
     ClientError, Location, MaxCut, Segment as _, Storage, StorageError,
-    storage::{ScratchFile, TraversalQueue},
+    storage::{Spill, TraversalQueue},
 };
 
 /// Size of one entry on disk: three `u64`s (segment, max_cut, count).
@@ -156,7 +156,7 @@ pub struct ConvergenceMap<'a, F> {
     next_file_offset: usize,
 }
 
-impl<'a, F: ScratchFile> ConvergenceMap<'a, F> {
+impl<'a, F: Spill> ConvergenceMap<'a, F> {
     /// Create a new convergence map with BFS seeded from `left` and `right`.
     pub fn new(
         left: Location,

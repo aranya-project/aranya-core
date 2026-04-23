@@ -8,7 +8,7 @@ use crate::{
     Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MergeIds,
     Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior, Revertable as _,
     Segment as _, Sink, Storage, StorageError, StorageProvider, TraversalBuffer,
-    policy::CommandPlacement, storage::ScratchFile,
+    policy::CommandPlacement, storage::Spill,
 };
 
 /// Transaction used to receive many commands at once.
@@ -74,7 +74,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     }
 
     /// Write current perspective, merge transaction heads, and commit to graph.
-    pub(super) fn commit<F: ScratchFile>(
+    pub(super) fn commit<F: Spill>(
         mut self,
         provider: &mut SP,
         policy_store: &mut PS,
@@ -170,7 +170,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// Attempt to store the `command` in the graph with `graph_id`. Effects will be
     /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
-    pub(super) fn add_commands<F: ScratchFile>(
+    pub(super) fn add_commands<F: Spill>(
         &mut self,
         commands: &[impl Command],
         provider: &mut SP,
@@ -275,7 +275,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         Ok(())
     }
 
-    fn add_merge<F: ScratchFile>(
+    fn add_merge<F: Spill>(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
         policy_store: &mut PS,
@@ -412,7 +412,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 }
 
 /// Run the braid algorithm and evaluate the sequence to create a braided fact index.
-fn make_braid_segment<S: Storage, PS: PolicyStore, F: ScratchFile>(
+fn make_braid_segment<S: Storage, PS: PolicyStore, F: Spill>(
     storage: &mut S,
     left: Location,
     right: Location,

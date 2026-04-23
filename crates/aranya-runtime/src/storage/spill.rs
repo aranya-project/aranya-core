@@ -1,7 +1,7 @@
-//! Scratch-file backends for spilling braid and convergence data.
+//! Spill backends for braid and convergence overflow data.
 //!
 //! Two independent backends, each behind its own feature flag and both
-//! implementing [`ScratchFile`]. When both features are enabled, both
+//! implementing [`Spill`]. When both features are enabled, both
 //! types coexist and the caller picks which one to plug into
 //! [`BraidResult`](crate::client::braiding::BraidResult) /
 //! [`ConvergenceMap`](crate::client::convergence_map::ConvergenceMap),
@@ -16,7 +16,7 @@
 #[cfg(feature = "testing")]
 use alloc::vec::Vec;
 
-use crate::{StorageError, storage::ScratchFile};
+use crate::{StorageError, storage::Spill};
 
 // --- libc backend ---
 
@@ -28,7 +28,7 @@ pub struct LibcSpill {
 }
 
 #[cfg(feature = "libc")]
-impl ScratchFile for LibcSpill {
+impl Spill for LibcSpill {
     fn new() -> Result<Self, StorageError> {
         use aranya_libc::{
             self as libc, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, Path, S_IRUSR,
@@ -115,7 +115,7 @@ pub struct MemSpill {
 }
 
 #[cfg(feature = "testing")]
-impl ScratchFile for MemSpill {
+impl Spill for MemSpill {
     fn new() -> Result<Self, StorageError> {
         Ok(Self {
             buf: core::cell::RefCell::new(Vec::new()),

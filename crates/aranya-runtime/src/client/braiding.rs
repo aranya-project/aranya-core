@@ -3,7 +3,7 @@ use tracing::trace;
 
 use crate::{
     ClientError, Location, Prior, Segment as _, Storage, StorageError,
-    storage::{ScratchFile, TraversalBuffer},
+    storage::{Spill, TraversalBuffer},
 };
 
 /// Returns the last common ancestor of two Locations.
@@ -87,7 +87,7 @@ pub(super) struct BraidResult<F> {
     spill_len: usize, // total locations written to disk
 }
 
-impl<F: ScratchFile> BraidResult<F> {
+impl<F: Spill> BraidResult<F> {
     fn new() -> Self {
         Self {
             mem: heapless::Vec::new(),
@@ -161,7 +161,7 @@ pub(super) struct BraidIter<'a, F> {
     disk_buf_pos: usize,
 }
 
-impl<'a, F: ScratchFile> BraidIter<'a, F> {
+impl<'a, F: Spill> BraidIter<'a, F> {
     fn new(result: &'a mut BraidResult<F>) -> Result<Self, ClientError> {
         Ok(Self {
             mem: result.mem.as_slice(),
@@ -251,7 +251,7 @@ impl<'a, F: ScratchFile> BraidIter<'a, F> {
 /// multiple paths. During braiding, each prior location is checked against
 /// the convergence map for O(1) ancestor detection, replacing the previous
 /// O(k) `is_ancestor` BFS per strand.
-pub(super) fn braid<S: Storage, F: ScratchFile>(
+pub(super) fn braid<S: Storage, F: Spill>(
     storage: &mut S,
     left: Location,
     right: Location,
