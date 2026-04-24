@@ -1,0 +1,7 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
+expression: error
+---
+invalid type: Left side of `or` must be an optional type at line 2 col 5:
+	return 42 or 0

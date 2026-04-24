@@ -29,7 +29,7 @@ pub fn generate_code(target: &PolicyInterface) -> String {
         .map(|(id, fields)| {
             let doc = format!(" {} policy struct.", id);
             let name = mk_ident(id);
-            let names = fields.iter().map(|f| mk_ident(&f.identifier.name));
+            let names = fields.iter().map(|f| mk_ident(&f.identifier.inner));
             let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
             quote! {
                 #[doc = #doc]
@@ -64,7 +64,7 @@ pub fn generate_code(target: &PolicyInterface) -> String {
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
         let doc = format!(" {} policy effect.", s);
         let ident = mk_ident(s);
-        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier.name));
+        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier.inner));
         let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
         quote! {
             #[doc = #doc]
@@ -175,18 +175,18 @@ pub fn generate_code(target: &PolicyInterface) -> String {
 
 fn vtype_to_rtype(ty: &VType) -> TokenStream {
     use aranya_policy_ast::TypeKind;
-    match &ty.kind {
+    match &ty.inner {
         TypeKind::String => quote! { Text },
         TypeKind::Bytes => quote! { Vec<u8> },
         TypeKind::Int => quote! { i64 },
         TypeKind::Bool => quote! { bool },
         TypeKind::Id => quote! { BaseId },
         TypeKind::Struct(st) => {
-            let ident = mk_ident(&st.name);
+            let ident = mk_ident(&st.inner);
             quote! { #ident }
         }
         TypeKind::Enum(st) => {
-            let ident = mk_ident(&st.name);
+            let ident = mk_ident(&st.inner);
             quote! { #ident }
         }
         TypeKind::Optional(opt) => {
@@ -281,16 +281,16 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
     ) {
         match ty {
             TypeKind::Struct(s) => {
-                if found.insert(s.name.clone()) {
+                if found.insert(s.inner.clone()) {
                     for field in struct_defs[s.as_str()] {
-                        visit(struct_defs, found, &field.field_type.kind);
+                        visit(struct_defs, found, &field.field_type.inner);
                     }
                 }
             }
             TypeKind::Enum(s) => {
-                found.insert(s.name.clone());
+                found.insert(s.inner.clone());
             }
-            TypeKind::Optional(inner) => visit(struct_defs, found, &inner.kind),
+            TypeKind::Optional(inner) => visit(struct_defs, found, &inner.inner),
             _ => {}
         }
     }
@@ -305,7 +305,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
 
     for def in target.action_defs.iter() {
         for param in def.params.iter() {
-            visit(&struct_defs, &mut found, &param.ty.kind);
+            visit(&struct_defs, &mut found, &param.ty.inner);
         }
     }
 
@@ -315,7 +315,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
         for field in fields {
-            visit(&struct_defs, &mut found, &field.field_type.kind);
+            visit(&struct_defs, &mut found, &field.field_type.inner);
         }
     }
 

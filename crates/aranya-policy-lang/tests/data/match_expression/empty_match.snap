@@ -1,8 +1,9 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
+assertion_line: 133
 expression: err
 ---
 error: Syntax error
   |
 3 | }
-  | ^ expected add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, dot, substruct, cast, or is
+  | ^ expected add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, coalesce, dot, substruct, cast, or is

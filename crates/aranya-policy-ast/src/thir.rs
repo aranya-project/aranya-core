@@ -152,6 +152,8 @@ pub enum ExprKind {
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
+    /// `expr or expr` — optional coalescing
+    Coalesce(Box<Expression>, Box<Expression>),
     /// expr.expr`
     Dot(Box<Expression>, Ident),
     /// `expr` == `expr`

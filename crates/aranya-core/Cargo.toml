@@ -21,11 +21,16 @@ default = []
 libc = ["aranya-runtime/libc"]
 
 std = [
+	"aranya-crypto/getrandom",
 	"aranya-crypto/std",
 	"aranya-runtime/std",
 ]
 
 low-mem-usage = ["aranya-runtime/low-mem-usage"]
+
+custom-engine = []
+
+memstore = ["aranya-crypto/memstore"]
 
 [dev-dependencies]
 anyhow = "1"
@@ -46,4 +51,4 @@ aranya-policy-vm = { path = "../aranya-policy-vm" }
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
-required-features = ["std", "libc"]
+required-features = ["std", "libc", "memstore"]

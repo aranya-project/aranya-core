@@ -94,7 +94,7 @@ impl SerializeCtx<'_> {
             let v = s
                 .fields
                 .get(d.identifier.as_str())
-                .ok_or_else(|| SerializeError::MissingField(d.identifier.name.clone()))?;
+                .ok_or_else(|| SerializeError::MissingField(d.identifier.inner.clone()))?;
             self.serialize_value(v)?;
         }
         Ok(())
@@ -170,8 +170,8 @@ impl DeserializeCtx<'_> {
             .ok_or_else(|| DeserializeError::UnknownStruct(name.clone()))?;
         let mut fields = BTreeMap::new();
         for d in def {
-            let v = self.deserialize_value(&d.field_type.kind)?;
-            fields.insert(d.identifier.name.clone(), v);
+            let v = self.deserialize_value(&d.field_type.inner)?;
+            fields.insert(d.identifier.inner.clone(), v);
         }
         Ok(Struct::new(name, fields))
     }
@@ -206,26 +206,26 @@ impl DeserializeCtx<'_> {
                 Value::Id(BaseId::from_bytes(*x))
             }
             TypeKind::Struct(ident) => {
-                let x = self.deserialize_struct(ident.name.clone())?;
+                let x = self.deserialize_struct(ident.inner.clone())?;
                 Value::Struct(x)
             }
             TypeKind::Enum(ident) => {
                 let x = postcard_core::de::try_take_i64(self)?.ok_or(Bad)?;
-                Value::Enum(ident.name.clone(), x)
+                Value::Enum(ident.inner.clone(), x)
             }
             TypeKind::Optional(vtype) => {
                 let tag = self.pop()?;
                 match tag {
                     0 => Value::NONE,
-                    1 => Value::Option(Some(Box::new(self.deserialize_value(&vtype.kind)?))),
+                    1 => Value::Option(Some(Box::new(self.deserialize_value(&vtype.inner)?))),
                     _ => return Err(Bad),
                 }
             }
             TypeKind::Result(res) => {
                 let tag = self.pop()?;
                 Value::Result(match tag {
-                    0 => Ok(Box::new(self.deserialize_value(&res.ok.kind)?)),
-                    1 => Err(Box::new(self.deserialize_value(&res.err.kind)?)),
+                    0 => Ok(Box::new(self.deserialize_value(&res.ok.inner)?)),
+                    1 => Err(Box::new(self.deserialize_value(&res.err.inner)?)),
                     _ => return Err(Bad),
                 })
             }

@@ -46,7 +46,7 @@ dependencies = ["install-cargo-all-features"]
 category = "test"
 description = "Run aranya-core example"
 command = "cargo"
-args = ["run", "-p", "aranya-core", "--example", "simple", "--features", "std,libc"]
+args = ["run", "-p", "aranya-core", "--example", "simple", "--features", "std,libc,memstore"]
 
 
 # Security

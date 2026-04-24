@@ -661,13 +661,13 @@ impl Func {
 
                     // arg name should match definition
                     if !ident.to_string().starts_with("_")
-                        && def.name.name != ident.to_string().as_str()
+                        && def.name.inner != ident.to_string().as_str()
                     {
                         return Err(Error::new_spanned(
                             ident,
                             format!(
                                 "arg identifier `{ident}` should match definition (`{}`)",
-                                def.name.name
+                                def.name.inner
                             ),
                         ));
                     }
@@ -728,7 +728,7 @@ impl<'a> VTypeTokens<'a> {
 impl ToTokens for VTypeTokens<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let vm = self.vm;
-        let item = match &self.vtype.kind {
+        let item = match &self.vtype.inner {
             TypeKind::String => quote!(String),
             TypeKind::Bytes => quote!(Bytes),
             TypeKind::Int => quote!(Int),
@@ -782,7 +782,7 @@ impl ToTokens for TypeTokens<'_> {
         let alloc = self.alloc;
         let crypto = self.crypto;
         let vm = self.vm;
-        let item = match &self.vtype.kind {
+        let item = match &self.vtype.inner {
             TypeKind::String => quote!(#vm::Text),
             TypeKind::Bytes => quote!(#alloc::vec::Vec<u8>),
             TypeKind::Int => quote!(i64),

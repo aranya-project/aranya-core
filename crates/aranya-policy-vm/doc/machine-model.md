@@ -131,3 +131,4 @@ const 3                   Foo[]=>{} "x" 3
 fact.kset                 Foo[x: 3]=>{}
 query                     Foo[x: 3]=>{y: 4}
 ```
+
