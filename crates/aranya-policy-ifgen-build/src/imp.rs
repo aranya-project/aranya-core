@@ -8,7 +8,7 @@ use quote::quote;
 
 /// Generate rust source code from a [`PolicyInterface`].
 #[allow(clippy::panic)]
-pub fn generate_code(target: &PolicyInterface, ifgen: Option<&str>) -> String {
+pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> String {
     let reachable = collect_reachable_types(target);
 
     let constants = target.globals.iter().filter_map(|(id, value)| {
@@ -135,9 +135,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&str>) -> String {
         }
     };
 
-    let import_ifgen = ifgen.map(|ifgen| {
-        let path =
-            syn::parse_str::<syn::Path>(ifgen).expect("ifgen path should be a valid Rust path");
+    let import_ifgen = ifgen.map(|path| {
         quote! { use #path as aranya_policy_ifgen; }
     });
 

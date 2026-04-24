@@ -20,7 +20,8 @@ fn dotest(name: &str) {
     let mut file = mint.new_goldenfile(format!("{name}.rs")).unwrap();
     write!(file, "{rust_code}").unwrap();
 
-    let rust_code = generate_code(&target, Some("aranya_core::ifgen"));
+    let ifgen_path: syn::Path = syn::parse_quote!(aranya_core::ifgen);
+    let rust_code = generate_code(&target, Some(&ifgen_path));
     let mut file = mint
         .new_goldenfile(format!("{name}_aranya_core.rs"))
         .unwrap();

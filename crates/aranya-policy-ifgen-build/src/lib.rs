@@ -27,7 +27,11 @@ fn generate_(input: &Path, output: &Path, ifgen: Option<&str>) -> Result<()> {
         .debug(true)
         .stub_ffi(true)
         .compile_interface()?;
-    let rust_code = generate_code(&target, ifgen);
+    let ifgen_path = ifgen
+        .map(syn::parse_str::<syn::Path>)
+        .transpose()
+        .with_context(|| format!("invalid ifgen path: {ifgen:?}"))?;
+    let rust_code = generate_code(&target, ifgen_path.as_ref());
 
     fs::write(output, rust_code).with_context(|| format!("writing to {output:?}"))?;
 
