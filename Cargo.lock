@@ -209,6 +209,7 @@ dependencies = [
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
+ "aranya-policy-ifgen",
  "aranya-policy-lang",
  "aranya-policy-vm",
  "aranya-runtime",
@@ -411,6 +412,7 @@ dependencies = [
 name = "aranya-policy-ifgen"
 version = "0.22.0"
 dependencies = [
+ "aranya-core",
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",

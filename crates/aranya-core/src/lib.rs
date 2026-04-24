@@ -7,6 +7,7 @@
 //! # Modules
 //!
 //! - [`crypto`] — cryptography engine and cipher suite.
+//! - [`ifgen`] — runtime surface for `policy-ifgen`-generated interfaces.
 //! - [`keystore`] — device key material and keystore plumbing.
 //! - [`storage`] — storage providers and I/O plumbing for the graph.
 //! - [`policy`] — VM-backed policy execution (actions, effects, FFI).
@@ -21,6 +22,8 @@
 
 mod client;
 
+#[doc(inline)]
+pub use aranya_policy_ifgen as ifgen;
 #[doc(inline)]
 pub use aranya_runtime::{
     Address, ClientError, ClientState, CmdId, Command, GraphId, Session, Sink, Transaction,
