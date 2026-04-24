@@ -15,7 +15,7 @@ fn dotest(name: &str) {
     let doc = parse_policy_document(&doc).unwrap();
 
     let target = Compiler::new(&doc).compile_interface().unwrap();
-    let rust_code = generate_code(&target);
+    let rust_code = generate_code(&target, None);
 
     let mut file = mint.new_goldenfile(format!("{name}.rs")).unwrap();
     write!(file, "{rust_code}").unwrap();
