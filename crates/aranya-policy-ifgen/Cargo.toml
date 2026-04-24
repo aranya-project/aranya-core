@@ -18,9 +18,8 @@ serde = [
 ]
 
 [dependencies]
+aranya-core = { version = "0.0.1-alpha", path = "../aranya-core", default-features = false }
 aranya-policy-ifgen-macro = { version = "=0.7.0", path = "../aranya-policy-ifgen-macro" }
-aranya-policy-vm = { version = "0.21.0", path = "../aranya-policy-vm" }
-aranya-runtime = { version = "0.22.0", path = "../aranya-runtime" }
 
 serde = { workspace = true, optional = true }
 thiserror = { workspace = true }
@@ -29,8 +28,15 @@ thiserror = { workspace = true }
 aranya-policy-ifgen-build = { version = "=0.15.0", path = "../aranya-policy-ifgen-build" }
 
 [dev-dependencies]
+# Tests and examples exercise the `vm_action!` / `vm_effect!` macros, whose
+# expansion contains absolute paths into `aranya-policy-vm` and
+# `aranya-runtime`. The library itself routes its `pub use` surface through
+# `aranya-core`, but the test/example crates still need these in the extern
+# prelude for macro expansion to resolve.
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
+aranya-policy-vm = { path = "../aranya-policy-vm" }
+aranya-runtime = { path = "../aranya-runtime" }
 
 goldenfile = "1.6.0"

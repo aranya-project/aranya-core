@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Other
+
+- Route the runtime/vm-side re-exports (`BaseId`, `Identifier`, `KVPair`,
+  `Struct`, `Text`, `TryFromValue`, `Value`, `ValueConversionError`,
+  `VmAction`, `VmEffect`, `ClientError`, `ident!`, `text!`, `vm_action!`,
+  `vm_effect!`) through `aranya-core` instead of depending on
+  `aranya-policy-vm` and `aranya-runtime` directly. Public names and
+  shapes at the `aranya_policy_ifgen::` root are unchanged, so generator
+  output is unchanged.
+
 ## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.21.0...aranya-policy-ifgen-v0.22.0) - 2026-03-31
 
 ### Other
