@@ -29,7 +29,7 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
         .iter()
         .map(|f| {
             let f = f.unraw().to_string();
-            quote!(::aranya_policy_ifgen::ident!(#f))
+            quote!(aranya_policy_ifgen::ident!(#f))
         })
         .collect::<Vec<_>>();
 
@@ -39,47 +39,47 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
         #derive
         #strukt
 
-        impl ::core::convert::TryFrom<::aranya_policy_ifgen::Value> for #ident {
-            type Error = ::aranya_policy_ifgen::ValueConversionError;
-            fn try_from(value: ::aranya_policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
-                let ::aranya_policy_ifgen::Value::Struct(mut s) = value else {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+        impl ::core::convert::TryFrom<aranya_policy_ifgen::Value> for #ident {
+            type Error = aranya_policy_ifgen::ValueConversionError;
+            fn try_from(value: aranya_policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
+                let aranya_policy_ifgen::Value::Struct(mut s) = value else {
+                    return ::core::result::Result::Err(aranya_policy_ifgen::ValueConversionError::invalid_type(
                         ::core::concat!("Struct ", #name), value.type_name(), "handle_struct"
                     ));
                 };
 
                 if s.name != #name {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+                    return ::core::result::Result::Err(aranya_policy_ifgen::ValueConversionError::invalid_type(
                         ::core::concat!("Struct ", #name),
-                        ::aranya_policy_ifgen::format!("Struct {}", s.name),
+                        aranya_policy_ifgen::format!("Struct {}", s.name),
                         "struct names don't match"
                     ));
                 }
 
                 let parsed = Self { #(
                     #field_idents:
-                        ::aranya_policy_ifgen::TryFromValue::try_from_value(
+                        aranya_policy_ifgen::TryFromValue::try_from_value(
                             s.fields.remove(&#field_names)
-                                .ok_or_else(|| ::aranya_policy_ifgen::ValueConversionError::InvalidStructMember(
+                                .ok_or_else(|| aranya_policy_ifgen::ValueConversionError::InvalidStructMember(
                                     #field_names,
                                 ))?,
                         )?,
                 )* };
                 if let Some((key, _)) = s.fields.pop_first() {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::InvalidStructMember(key));
+                    return ::core::result::Result::Err(aranya_policy_ifgen::ValueConversionError::InvalidStructMember(key));
                 }
                 ::core::result::Result::Ok(parsed)
             }
         }
 
-        impl ::core::convert::From<#ident> for ::aranya_policy_ifgen::Value {
+        impl ::core::convert::From<#ident> for aranya_policy_ifgen::Value {
             fn from(s: #ident) -> Self {
-                let mut fields = ::aranya_policy_ifgen::FieldMap::new();
+                let mut fields = aranya_policy_ifgen::FieldMap::new();
                 #(
                     fields.insert(#field_names, s.#field_idents.into());
                 )*
-                Self::Struct(::aranya_policy_ifgen::Struct {
-                    name: ::aranya_policy_ifgen::ident!(#name),
+                Self::Struct(aranya_policy_ifgen::Struct {
+                    name: aranya_policy_ifgen::ident!(#name),
                     fields,
                 })
             }
@@ -124,30 +124,30 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
             }
         }
 
-        impl ::core::convert::TryFrom<::aranya_policy_ifgen::Value> for #ident {
-            type Error = ::aranya_policy_ifgen::ValueConversionError;
-            fn try_from(value: ::aranya_policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
-                let ::aranya_policy_ifgen::Value::Enum(name, val) = value else {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+        impl ::core::convert::TryFrom<aranya_policy_ifgen::Value> for #ident {
+            type Error = aranya_policy_ifgen::ValueConversionError;
+            fn try_from(value: aranya_policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
+                let aranya_policy_ifgen::Value::Enum(name, val) = value else {
+                    return ::core::result::Result::Err(aranya_policy_ifgen::ValueConversionError::invalid_type(
                         ::core::concat!("Enum ", #enum_ident), value.type_name(), "handle_enum"
                     ));
                 };
 
                 if name != #enum_ident {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+                    return ::core::result::Result::Err(aranya_policy_ifgen::ValueConversionError::invalid_type(
                         ::core::concat!("Enum ", #enum_ident),
-                        ::aranya_policy_ifgen::format!("Enum {}", name), "enum names don't match"
+                        aranya_policy_ifgen::format!("Enum {}", name), "enum names don't match"
                     ));
                 }
 
-                Self::new(val).ok_or(::aranya_policy_ifgen::ValueConversionError::OutOfRange)
+                Self::new(val).ok_or(aranya_policy_ifgen::ValueConversionError::OutOfRange)
             }
         }
 
-        impl ::core::convert::From<#ident> for ::aranya_policy_ifgen::Value {
+        impl ::core::convert::From<#ident> for aranya_policy_ifgen::Value {
             fn from(e: #ident) -> Self {
                 // TODO if variant discriminants can be set to arbitrary values, we'll need to
-                ::aranya_policy_ifgen::Value::Enum(::aranya_policy_ifgen::ident!(#enum_ident), e as i64)
+                aranya_policy_ifgen::Value::Enum(aranya_policy_ifgen::ident!(#enum_ident), e as i64)
             }
         }
     })

@@ -3,7 +3,7 @@ use quote::quote;
 
 pub(crate) fn get_serde() -> TokenStream {
     if cfg!(feature = "serde") {
-        quote! { ::aranya_policy_ifgen::serde::Serialize, ::aranya_policy_ifgen::serde::Deserialize, }
+        quote! { aranya_policy_ifgen::serde::Serialize, aranya_policy_ifgen::serde::Deserialize, }
     } else {
         quote! {}
     }
