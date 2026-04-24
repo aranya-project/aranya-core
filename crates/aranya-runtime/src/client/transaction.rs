@@ -286,6 +286,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn add_merge<F, MS>(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
@@ -525,7 +526,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority, MemSpill,
+        ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},

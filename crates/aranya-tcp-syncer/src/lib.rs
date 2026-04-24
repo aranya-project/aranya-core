@@ -17,8 +17,8 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, SubscribeResult, SyncError,
-    SyncRequestMessage, SyncRequester, SyncResponder, SyncType, LibcSpill, TraversalBuffers,
+    ClientState, Command as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, SubscribeResult,
+    SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType, TraversalBuffers,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -171,14 +171,8 @@ where
             let mut trx = client.transaction(graph_id);
             let spill_dir = self.spill_dir.as_path();
             let make_spill = || LibcSpill::new(spill_dir);
-            client.add_commands(
-                &mut trx,
-                sink,
-                &cmds,
-                &mut self.buffers.primary,
-                &make_spill,
-            )?;
-            client.commit(trx, sink, &mut self.buffers.primary, &make_spill)?;
+            client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary, make_spill)?;
+            client.commit(trx, sink, &mut self.buffers.primary, make_spill)?;
             client.update_heads(
                 graph_id,
                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
@@ -327,9 +321,9 @@ where
                             sink,
                             &cmds,
                             &mut self.buffers.primary,
-                            &make_spill,
+                            make_spill,
                         )?;
-                        client.commit(trx, sink, &mut self.buffers.primary, &make_spill)?;
+                        client.commit(trx, sink, &mut self.buffers.primary, make_spill)?;
                         client.update_heads(
                             graph_id,
                             cmds.iter().filter_map(|cmd| cmd.address().ok()),

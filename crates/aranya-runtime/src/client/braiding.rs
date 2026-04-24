@@ -430,7 +430,7 @@ mod strand_heap {
 #[cfg(test)]
 mod braid_result_tests {
     use super::*;
-    use crate::{MaxCut, SegmentIndex, MemSpill};
+    use crate::{MaxCut, MemSpill, SegmentIndex};
 
     type TestBraidResult = BraidResult<MemSpill>;
 

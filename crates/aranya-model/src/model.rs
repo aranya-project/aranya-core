@@ -12,8 +12,8 @@ use aranya_crypto::Rng;
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
-    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
-    SyncRequester, MemSpill, TraversalBuffers,
+    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, MemSpill, PeerCache, StorageProvider,
+    SyncError, SyncRequester, TraversalBuffers,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,

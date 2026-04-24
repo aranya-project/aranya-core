@@ -236,9 +236,9 @@ fn sync_graphs(
     {
         let make_spill = || LibcSpill::new(spill_dir);
         let _received = dest
-            .add_commands(&mut trx, sink, &cmds, &mut buffer, &make_spill)
+            .add_commands(&mut trx, sink, &cmds, &mut buffer, make_spill)
             .context("add_commands failed")?;
-        dest.commit(trx, sink, &mut buffer, &make_spill)
+        dest.commit(trx, sink, &mut buffer, make_spill)
             .context("commit failed")?;
         dest.update_heads(
             graph_id,

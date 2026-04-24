@@ -10,8 +10,8 @@ use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    MemSpill, TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
+    SyncRequester, TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
