@@ -136,7 +136,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&str>) -> String {
     };
 
     let import_ifgen = ifgen.map(|ifgen| {
-        let path = syn::parse_str::<syn::Path>(ifgen).unwrap();
+        let path =
+            syn::parse_str::<syn::Path>(ifgen).expect("ifgen path should be a valid Rust path");
         quote! { use #path as aranya_policy_ifgen; }
     });
 
