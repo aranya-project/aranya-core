@@ -15,11 +15,13 @@ pub mod macros {
 
 pub use alloc::format;
 
-pub use aranya_policy_vm::{
-    BaseId, Identifier, KVPair, Struct, Text, TryFromValue, Value, ValueConversionError, ident,
-    text,
+pub use aranya_core::{
+    ClientError,
+    policy::{
+        BaseId, Identifier, KVPair, Struct, Text, TryFromValue, Value, ValueConversionError,
+        VmAction, VmEffect, ident, text, vm_action, vm_effect,
+    },
 };
-pub use aranya_runtime::{ClientError, VmAction, VmEffect, vm_action, vm_effect};
 #[cfg(feature = "serde")]
 pub use serde;
 

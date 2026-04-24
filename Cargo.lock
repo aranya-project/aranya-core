@@ -411,6 +411,7 @@ dependencies = [
 name = "aranya-policy-ifgen"
 version = "0.22.0"
 dependencies = [
+ "aranya-core",
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",

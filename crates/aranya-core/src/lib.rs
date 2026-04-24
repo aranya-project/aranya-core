@@ -57,10 +57,25 @@ pub mod policy {
     //! commands, emitting [`VmEffect`]s. [`VmPolicyStore`] is the
     //! single-policy store used by [`crate::ClientState`]; construct one
     //! with [`VmPolicyStore::new`].
+    //!
+    //! The VM data types ([`Value`], [`KVPair`], [`Struct`],
+    //! [`TryFromValue`], [`ValueConversionError`]) and the textual
+    //! primitives ([`BaseId`], [`Identifier`], [`Text`]) plus the
+    //! companion literal macros ([`ident!`], [`text!`], [`vm_action!`],
+    //! [`vm_effect!`]) are re-exported here as the stable surface that
+    //! [`aranya-policy-ifgen`] generates code against.
+    //!
+    //! [`aranya-policy-ifgen`]: https://docs.rs/aranya-policy-ifgen
 
     #[doc(inline)]
-    pub use aranya_runtime::vm_policy::{
-        FfiCallable, VmAction, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    pub use aranya_policy_vm::{
+        BaseId, Identifier, KVPair, Struct, Text, TryFromValue, Value, ValueConversionError, ident,
+        text,
+    };
+    #[doc(inline)]
+    pub use aranya_runtime::{
+        vm_action, vm_effect,
+        vm_policy::{FfiCallable, VmAction, VmEffect, VmEffectData, VmPolicy, VmPolicyError},
     };
 
     #[doc(inline)]
