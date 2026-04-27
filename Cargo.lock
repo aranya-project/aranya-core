@@ -201,6 +201,7 @@ name = "aranya-core"
 version = "0.0.1-alpha"
 dependencies = [
  "aranya-crypto",
+ "aranya-id",
  "aranya-policy-ifgen",
  "aranya-runtime",
 ]

@@ -7,6 +7,7 @@
 //! # Modules
 //!
 //! - [`crypto`] — cryptography engine and cipher suite.
+//! - [`id`] — tagged cryptographic identifiers and the [`id::custom_id`] macro.
 //! - [`ifgen`] — runtime surface for `policy-ifgen`-generated interfaces.
 //! - [`keystore`] — device key material and keystore plumbing.
 //! - [`storage`] — storage providers and I/O plumbing for the graph.
@@ -21,6 +22,7 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 
 mod client;
+pub mod id;
 
 #[doc(inline)]
 pub use aranya_policy_ifgen as ifgen;
