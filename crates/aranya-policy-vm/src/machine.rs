@@ -10,8 +10,7 @@ use core::fmt::{self, Display};
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
-    ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module, ModuleContract, ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -142,6 +141,8 @@ pub struct Machine {
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
     pub globals: BTreeMap<Identifier, ConstValue>,
+    /// Module contract
+    pub contract: Option<ModuleContract>,
 }
 
 impl Machine {
@@ -160,6 +161,7 @@ impl Machine {
             enum_defs: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
+            contract: None,
         }
     }
 
@@ -175,6 +177,7 @@ impl Machine {
             enum_defs: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
+            contract: None,
         }
     }
 
@@ -191,6 +194,19 @@ impl Machine {
                 enum_defs: m.enum_defs,
                 codemap: m.codemap,
                 globals: m.globals,
+                contract: None,
+            }),
+            ModuleData::V1(m) => Ok(Self {
+                progmem: m.progmem.into(),
+                labels: m.labels,
+                action_defs: m.action_defs,
+                command_defs: m.command_defs,
+                fact_defs: m.fact_defs,
+                struct_defs: m.struct_defs,
+                enum_defs: m.enum_defs,
+                codemap: m.codemap,
+                globals: m.globals,
+                contract: Some(m.contract),
             }),
         }
     }
