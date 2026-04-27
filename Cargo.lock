@@ -200,19 +200,26 @@ dependencies = [
 name = "aranya-core"
 version = "0.0.1-alpha"
 dependencies = [
+ "aranya-crypto",
+ "aranya-policy-ifgen",
+ "aranya-runtime",
+]
+
+[[package]]
+name = "aranya-core-example"
+version = "0.0.0"
+dependencies = [
  "anyhow",
  "aranya-core",
- "aranya-crypto",
  "aranya-crypto-ffi",
  "aranya-device-ffi",
  "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
- "aranya-policy-ifgen",
+ "aranya-policy-ifgen-build",
  "aranya-policy-lang",
  "aranya-policy-vm",
- "aranya-runtime",
  "postcard",
 ]
 
