@@ -2,8 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Expected `b` to be a struct, but it's a(n) bool at line 3 col 5:
-	let new_foo = Foo {
-        y: true,
-        ...b
-    }
+error: invalid type: bool
+  |
+5 |         ...b
+  |            ^ expected `struct T` but found `bool`

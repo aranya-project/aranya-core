@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast::{self as ast, Identifier, Param};
+use aranya_policy_ast::{self as ast, Ident, Identifier, Param};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -134,7 +134,7 @@ pub struct ModuleV0 {
 )]
 pub struct ActionDef {
     /// The name of the action.
-    pub name: ast::Ident,
+    pub name: Ident,
     /// The persistence of the action.
     pub persistence: ast::Persistence,
     /// The parameters of the action.
@@ -156,7 +156,7 @@ named!(ActionDef);
 )]
 pub struct CommandDef {
     /// The name of the command.
-    pub name: ast::Ident,
+    pub name: Ident,
     /// The persistence of the command.
     pub persistence: ast::Persistence,
     /// The attributes of the command.
@@ -180,7 +180,7 @@ named!(CommandDef);
 )]
 pub struct Attribute {
     /// The name of the attribute.
-    pub name: ast::Ident,
+    pub name: Ident,
     /// The value of the attribute.
     pub value: ConstValue,
 }
@@ -200,7 +200,7 @@ named!(Attribute);
 )]
 pub struct Field {
     /// The name of the field
-    pub name: ast::Ident,
+    pub name: Ident,
     /// The type of the field
     pub ty: ast::VType,
 }

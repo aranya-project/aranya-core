@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-bad argument: call to `bar` has 0 arguments, but it should have 1 at line 3 col 5:
-	action bar()
+error: bad argument
+  |
+3 |     action bar()
+  |     ^^^^^^^^^^^^ call to `bar` has 0 arguments, but it should have 1

@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Cannot unwrap non-option expression at line 2 col 5:
-	return unwrap x
+error: invalid type: int
+  |
+2 |     return unwrap x
+  |                   ^ expected `option[T]` but found `int`

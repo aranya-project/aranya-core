@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-pure function not allowed in finish context at line 6 col 5:
-	f()
+error: pure function not allowed in finish context
+  |
+5 | finish function g() {
+6 |     f()
+  |     ^^^ function call not valid in this context
+7 | }
+  |

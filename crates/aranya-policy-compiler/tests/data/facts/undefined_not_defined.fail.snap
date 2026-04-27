@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: Foo at line 2 col 5:
-	check exists Foo[]
+error: a thing being referenced is not in scope
+  |
+2 |     check exists Foo[]
+  |                  ^^^ fact `Foo` not defined

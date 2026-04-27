@@ -382,6 +382,7 @@ dependencies = [
 name = "aranya-policy-compiler"
 version = "0.22.0"
 dependencies = [
+ "annotate-snippets",
  "anyhow",
  "aranya-policy-ast",
  "aranya-policy-lang",
@@ -393,7 +394,6 @@ dependencies = [
  "insta",
  "petgraph",
  "rstest",
- "thiserror 2.0.7",
  "tracing",
 ]
 

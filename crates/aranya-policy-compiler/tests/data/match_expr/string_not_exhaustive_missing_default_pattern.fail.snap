@@ -2,9 +2,12 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-Missing default pattern in `match` statement/expression at line 11 col 13:
-	match c {
-        ColorName {  color: LightColor::Red, name: "red" } => 0
-        ColorName {  color: LightColor::Yellow, name: "yellow" } => 1
-        ColorName {  color: LightColor::Green, name: "green" } => 2
-    }
+error: Missing default pattern in `match` statement/expression
+   |
+11 |       let x = match c {
+   |  _____________^
+12 | |         ColorName {  color: LightColor::Red, name: "red" } => 0
+13 | |         ColorName {  color: LightColor::Yellow, name: "yellow" } => 1
+14 | |         ColorName {  color: LightColor::Green, name: "green" } => 2
+15 | |     }
+   | |_____^

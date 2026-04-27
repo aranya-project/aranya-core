@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: deserializing int, expected bytes at line 6 col 7:
-	return deserialize(3)
+error: invalid type: int
+  |
+6 |       return deserialize(3)
+  |                          ^ expected `bytes` but found `int`

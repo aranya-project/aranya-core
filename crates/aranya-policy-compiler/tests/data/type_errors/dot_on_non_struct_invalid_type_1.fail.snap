@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Expression left of `.` is not a struct at line 2 col 5:
-	return x.y
+error: invalid type: int
+  |
+2 |     return x.y
+  |            ^ expected `struct T` but found `int`

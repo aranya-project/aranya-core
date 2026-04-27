@@ -92,6 +92,7 @@ wildcard_imports = "warn"
 
 [workspace.dependencies]
 anyhow = { version = "1.0" }
+annotate-snippets = { version = "0.12" }
 byteorder = { version = "1", default-features = false }
 cfg-if = { version = "1", default-features = false }
 const_format = { version = "0.2", default-features = false }

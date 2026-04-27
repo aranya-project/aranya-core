@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: struct Nonexistent at line 2 col 1:
-	function get_foo() struct Nonexistent {
-    return Foo {}
-}
+error: a thing being referenced is not in scope
+  |
+2 | function get_foo() struct Nonexistent {
+  |                           ^^^^^^^^^^^ struct `Nonexistent` not defined
