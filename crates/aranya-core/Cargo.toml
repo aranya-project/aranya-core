@@ -13,12 +13,15 @@ workspace = true
 
 [dependencies]
 aranya-crypto = { version = "0.14.0", path = "../aranya-crypto", default-features = false }
+aranya-id = { version = "0.2.2", path = "../aranya-id", default-features = false }
 aranya-runtime = { version = "0.22.0", path = "../aranya-runtime", default-features = false }
 
 [features]
 default = []
 
 libc = ["aranya-runtime/libc"]
+
+proptest = ["aranya-id/proptest"]
 
 std = [
 	"aranya-crypto/getrandom",
