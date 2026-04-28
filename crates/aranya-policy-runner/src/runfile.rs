@@ -280,7 +280,7 @@ impl RunFile {
             Ok(ExitReason::Normal) => {
                 unreachable!("should not be able to reach a normal exit in an action")
             }
-            Ok(ExitReason::Check) => return Err(RunFileError::PolicyVmCheck),
+            Ok(ExitReason::Check(_)) => return Err(RunFileError::PolicyVmCheck),
             Ok(ExitReason::Panic) => return Err(RunFileError::PolicyVmPanic),
             Ok(ExitReason::Yield) => {}
             Err(err) => {
@@ -448,7 +448,7 @@ preamble:
     fn preamble_policy_lang_vm_check() {
         let text = r#"
 preamble:
-    check false
+    let x = check_unwrap None
         "#
         .trim();
 

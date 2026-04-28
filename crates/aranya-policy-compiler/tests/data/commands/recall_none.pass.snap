@@ -8,23 +8,12 @@ Module {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 8,
         <open 'Cmd'>: 14,
-        <action 'test'>: 20,
     },
-    action_defs: {
-        ActionDef {
-            name: "test" @ 148..152,
-            persistence: Ephemeral(
-                131..140,
-            ),
-            params: {},
-        },
-    },
+    action_defs: {},
     command_defs: {
         CommandDef {
-            name: "Cmd" @ 18..21,
-            persistence: Ephemeral(
-                0..9,
-            ),
+            name: "Cmd" @ 8..11,
+            persistence: Persistent,
             attributes: {},
             fields: {},
         },
@@ -61,7 +50,3 @@ Module {
     restore SP
     return
     exit panic
-<action 'test'>:
-    struct.new 'Cmd'
-    publish
-    return

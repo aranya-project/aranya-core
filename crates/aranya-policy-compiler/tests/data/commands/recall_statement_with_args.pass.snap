@@ -6,28 +6,32 @@ Module {
     version: "0",
     labels: {
         <policy 'Cmd'>: 1,
-        <seal 'Cmd'>: 8,
-        <open 'Cmd'>: 14,
-        <action 'test'>: 20,
+        <seal 'Cmd'>: 11,
+        <open 'Cmd'>: 17,
+        <recall 'Cmd_handle'>: 7,
     },
-    action_defs: {
-        ActionDef {
-            name: "test" @ 128..132,
-            persistence: Persistent,
-            params: {},
-        },
-    },
+    action_defs: {},
     command_defs: {
         CommandDef {
             name: "Cmd" @ 8..11,
             persistence: Persistent,
             attributes: {},
-            fields: {},
+            fields: {
+                Field {
+                    name: "x" @ 27..28,
+                    ty: Int @ 29..32,
+                },
+            },
         },
     },
     fact_defs: {},
     struct_defs: {
-        "Cmd": [],
+        "Cmd": [
+            FieldDefinition {
+                identifier: "x" @ 27..28,
+                field_type: Int @ 29..32,
+            },
+        ],
     },
     enum_defs: {},
     globals: {},
@@ -38,11 +42,15 @@ Module {
 <policy 'Cmd'>:
     def 'envelope'
     def 'this'
-    meta: finish enabled
-    block
-    end
-    exit normal
+    get 'this'
+    struct.get 'x'
+    exit check: Cmd_handle
     exit panic
+<recall 'Cmd_handle'>:
+    def 'envelope'
+    def 'this'
+    def 'x'
+    exit normal
 <seal 'Cmd'>:
     def 'this'
     save SP
@@ -57,7 +65,3 @@ Module {
     restore SP
     return
     exit panic
-<action 'test'>:
-    struct.new 'Cmd'
-    publish
-    return

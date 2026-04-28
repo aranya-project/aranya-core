@@ -1,0 +1,7 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
+expression: error
+---
+unknown error: `recall` is only valid in command `policy` blocks at line 2 col 5:
+	recall handle()

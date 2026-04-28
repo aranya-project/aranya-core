@@ -144,6 +144,8 @@ pub enum ExprKind {
     ForeignFunctionCall(ForeignFunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
+    /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
+    Recall(FunctionCall),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -207,6 +209,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
+    /// Optional expression to evaluate if the check fails.
+    pub else_expression: Option<Expression>,
 }
 }
 
@@ -398,4 +402,6 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// A `recall name(args)` statement. Valid only in `policy` blocks.
+    Recall(FunctionCall),
 }
