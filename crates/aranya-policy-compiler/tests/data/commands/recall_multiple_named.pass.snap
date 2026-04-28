@@ -8,9 +8,9 @@ Module {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 17,
         <open 'Cmd'>: 23,
-        <recall 'Cmd_recall_bar'>: 11,
-        <recall 'Cmd_recall_baz'>: 14,
-        <recall 'Cmd_recall_foo'>: 8,
+        <recall 'Cmd_bar'>: 11,
+        <recall 'Cmd_baz'>: 14,
+        <recall 'Cmd_foo'>: 8,
     },
     action_defs: {},
     command_defs: {
@@ -39,15 +39,15 @@ Module {
     end
     exit normal
     exit panic
-<recall 'Cmd_recall_foo'>:
+<recall 'Cmd_foo'>:
     def 'envelope'
     def 'this'
     exit normal
-<recall 'Cmd_recall_bar'>:
+<recall 'Cmd_bar'>:
     def 'envelope'
     def 'this'
     exit normal
-<recall 'Cmd_recall_baz'>:
+<recall 'Cmd_baz'>:
     def 'envelope'
     def 'this'
     exit normal

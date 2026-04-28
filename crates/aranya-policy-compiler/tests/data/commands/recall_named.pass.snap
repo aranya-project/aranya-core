@@ -8,7 +8,7 @@ Module {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 11,
         <open 'Cmd'>: 17,
-        <recall 'Cmd_recall_foo'>: 8,
+        <recall 'Cmd_foo'>: 8,
     },
     action_defs: {},
     command_defs: {
@@ -37,7 +37,7 @@ Module {
     end
     exit normal
     exit panic
-<recall 'Cmd_recall_foo'>:
+<recall 'Cmd_foo'>:
     def 'envelope'
     def 'this'
     exit normal

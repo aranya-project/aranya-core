@@ -1058,7 +1058,7 @@ impl CompileState<'_> {
         let recall_block = cmd
             .recalls
             .iter()
-            .find(|rb| rb.identifier.as_str() == fc.identifier.as_str())
+            .find(|rb| rb.identifier.inner == fc.identifier.inner)
             .ok_or_else(|| {
                 self.err(CompileErrorType::NotDefined(format!(
                     "recall block `{}`",
@@ -1534,7 +1534,7 @@ impl CompileState<'_> {
                             if !matches!(lowered.vtype.inner, TypeKind::Never) {
                                 return Err(self.err_loc(
                                     CompileErrorType::InvalidType(String::from(
-                                        "check else clause must be terminal (type Never)",
+                                        "check else must be terminal (e.g. `return`, `recall`)",
                                     )),
                                     expr.span,
                                 ));
