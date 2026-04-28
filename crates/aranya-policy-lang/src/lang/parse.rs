@@ -1157,7 +1157,10 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
-        let else_expression = pc.consume_expression(self)?;
+        let else_expression = pc
+            .consume_optional(Rule::expression)
+            .map(|token| self.parse_expression(token))
+            .transpose()?;
         Ok(CheckStatement {
             expression,
             else_expression,

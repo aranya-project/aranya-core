@@ -1,4 +1,4 @@
 fact Foo[i int] => {a int}
 action test() {
-    check exists Foo[i: 1] => {a: saturating_add(1, 1)} else todo()
+    check exists Foo[i: 1] => {a: saturating_add(1, 1)}
 }

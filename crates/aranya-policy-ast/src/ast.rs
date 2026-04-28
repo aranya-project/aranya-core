@@ -955,9 +955,9 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// The expression to evaluate if the check fails. Must be a terminal
-    /// expression (type `Never`), e.g. `return Err(..)` or `recall foo()`.
-    pub else_expression: Expression,
+    /// Optional expression to evaluate if the check fails. Must be a terminal expression
+    /// (type `Never`), e.g. `return Err(..)` or `recall foo()`.
+    pub else_expression: Option<Expression>,
 }
 }
 

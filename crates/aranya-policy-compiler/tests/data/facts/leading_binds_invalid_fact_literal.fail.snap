@@ -1,7 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 205
 expression: error
 ---
 fact literal does not match definition: leading bind values not allowed at line 3 col 5:
-	check exists Foo[x: ?, y: 42] => {} else todo()
+	check exists Foo[x: ?, y: 42] => {}

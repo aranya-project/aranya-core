@@ -209,8 +209,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// The expression to evaluate if the check fails. Has type `Never`.
-    pub else_expression: Expression,
+    /// Optional expression to evaluate if the check fails.
+    pub else_expression: Option<Expression>,
 }
 }
 

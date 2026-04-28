@@ -1,4 +1,4 @@
 fact Foo[i int, j int] => {a string}
 action test() {
-    check exists Foo[i: 1, i: 2] else todo()
+    check exists Foo[i: 1, i: 2]
 }

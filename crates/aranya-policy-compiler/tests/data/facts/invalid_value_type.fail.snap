@@ -1,7 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 205
 expression: error
 ---
 invalid type: Fact `Foo` value field `a` found `bool`, not `string` at line 3 col 5:
-	check exists Foo[i: 1] => {a: true} else todo()
+	check exists Foo[i: 1] => {a: true}
