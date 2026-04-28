@@ -206,6 +206,7 @@ dependencies = [
  "aranya-crypto-ffi",
  "aranya-device-ffi",
  "aranya-envelope-ffi",
+ "aranya-id",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
