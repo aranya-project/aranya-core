@@ -68,7 +68,7 @@ use tracing::{debug, error};
 use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
     Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    StorageError, StorageProvider, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -84,7 +84,7 @@ fn default_max_syncs() -> u64 {
     1
 }
 
-/// Dispatches the SyncType contained in data.
+/// Dispatches the sync message contained in data.
 /// This function is only for testing using polling. In production
 /// usage the syncer implementation will handle this.
 pub fn dispatch(
@@ -94,18 +94,17 @@ pub fn dispatch(
     response_cache: &mut PeerCache,
     buffers: &mut TraversalBuffers,
 ) -> Result<usize, SyncError> {
-    let sync_type: SyncType = postcard::from_bytes(data)?;
-    let len = match sync_type {
-        SyncType::Poll { request } => {
+    let len = match SyncIncoming::decode(data)? {
+        SyncIncoming::Poll { raw, .. } => {
             let mut response_syncer = SyncResponder::new();
-            response_syncer.receive(request)?;
+            response_syncer.receive(raw)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache, buffers)?
         }
-        SyncType::Subscribe { .. } => unimplemented!(),
-        SyncType::Unsubscribe { .. } => unimplemented!(),
-        SyncType::Push { .. } => unimplemented!(),
-        SyncType::Hello(_) => unimplemented!(),
+        SyncIncoming::Subscribe { .. } => unimplemented!(),
+        SyncIncoming::Unsubscribe { .. } => unimplemented!(),
+        SyncIncoming::Push(_) => unimplemented!(),
+        SyncIncoming::Hello(_) => unimplemented!(),
     };
     Ok(len)
 }

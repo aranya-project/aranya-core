@@ -18,7 +18,7 @@ use aranya_core::{
     },
     policy::{FfiCallable, VmEffect, VmPolicy, VmPolicyStore},
     storage::{FileManager, LinearStorageProvider},
-    sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequester, SyncResponder, SyncType},
+    sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
@@ -180,12 +180,11 @@ fn dispatch(
     provider: &mut LinearStorageProvider<FileManager>,
     response_cache: &mut PeerCache,
 ) -> Result<usize> {
-    let sync_type: SyncType = postcard::from_bytes(data)?;
-    let len = match sync_type {
-        SyncType::Poll { request } => {
+    let len = match SyncIncoming::decode(data)? {
+        SyncIncoming::Poll { raw, .. } => {
             let mut responder = SyncResponder::new();
             let mut buffers = TraversalBuffers::default();
-            responder.receive(request)?;
+            responder.receive(raw)?;
             responder.poll(target, provider, response_cache, &mut buffers)?
         }
         _ => anyhow::bail!("unsupported sync type"),

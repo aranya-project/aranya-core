@@ -1,22 +1,28 @@
 //! Interface for syncing state between clients.
+//!
+//! Transports decode incoming bytes into a [`SyncIncoming`] and dispatch on
+//! its variants; the on-wire postcard layout is hidden behind that
+//! enumeration so it can evolve without breaking consumers.
+
+use core::time::Duration;
 
 use buggy::Bug;
+use heapless::Vec;
 use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, MaxCut, Prior,
     command::{CmdId, Command, Priority},
-    storage::{MAX_COMMAND_LENGTH, StorageError},
+    storage::{GraphId, MAX_COMMAND_LENGTH, StorageError},
 };
 
-mod dispatcher;
 mod requester;
 mod responder;
+mod wire;
 
-pub use dispatcher::{SubscribeResult, SyncHelloType, SyncType};
-pub use requester::{SyncRequestMessage, SyncRequester};
-pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
+pub use requester::SyncRequester;
+pub use responder::{PeerCache, SyncResponder};
 
 // TODO: These should all be compile time parameters
 
@@ -52,26 +58,6 @@ const SEGMENT_BUFFER_MAX: usize = 100;
 // TODO: Use postcard to calculate max size (which accounts for overhead)
 // https://docs.rs/postcard/latest/postcard/experimental/max_size/index.html
 pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RESPONSE_MAX;
-
-/// Represents high-level data of a command.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CommandMeta {
-    id: CmdId,
-    priority: Priority,
-    parent: Prior<Address>,
-    policy_length: u32,
-    length: u32,
-    max_cut: MaxCut,
-}
-
-impl CommandMeta {
-    pub fn address(&self) -> Address {
-        Address {
-            id: self.id,
-            max_cut: self.max_cut,
-        }
-    }
-}
 
 /// An error returned by the syncer.
 #[derive(Debug, thiserror::Error)]
@@ -128,5 +114,201 @@ impl<'a> Command for SyncCommand<'a> {
 
     fn max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(self.max_cut)
+    }
+}
+
+// Re-imports of pub(crate) wire types used in helper conversions below.
+use responder::SyncResponseMessage;
+use wire::{SubscribeResult, SyncHelloType, SyncType};
+
+/// A decoded incoming sync message.
+///
+/// Transports decode the raw bytes received over the network with
+/// [`SyncIncoming::decode`] and then dispatch on the returned variant.
+/// The on-wire postcard layout is encapsulated by this enum and the
+/// associated helper types — consumers don't depend on the wire
+/// representation directly.
+#[allow(clippy::large_enum_variant)]
+pub enum SyncIncoming<'a> {
+    /// A sync poll. Forward [`raw`] to [`SyncResponder::receive`].
+    ///
+    /// [`raw`]: SyncIncoming::Poll::raw
+    Poll {
+        /// The session identifier for this poll.
+        session_id: u128,
+        /// Encoded request bytes to feed back to [`SyncResponder::receive`].
+        raw: &'a [u8],
+    },
+    /// A subscription request from a peer.
+    Subscribe {
+        /// The graph being subscribed to.
+        graph_id: GraphId,
+        /// Number of seconds the subscription should remain open.
+        remain_open: u64,
+        /// Maximum bytes the responder may push.
+        max_bytes: u64,
+        /// The peer's known graph heads.
+        heads: SyncHeads,
+    },
+    /// An unsubscribe request from a peer.
+    Unsubscribe {
+        /// The graph being unsubscribed from.
+        graph_id: GraphId,
+    },
+    /// A push from a subscribed peer. Hand to [`SyncRequester::receive_push`].
+    Push(PushIncoming<'a>),
+    /// A subscription-control hello message.
+    Hello(SyncHello),
+}
+
+impl<'a> SyncIncoming<'a> {
+    /// Decode an incoming sync message from raw bytes.
+    pub fn decode(data: &'a [u8]) -> Result<Self, SyncError> {
+        let (sync_type, remaining) = postcard::take_from_bytes::<SyncType>(data)?;
+        let consumed = data.len().saturating_sub(remaining.len());
+        // Postcard variant tags for SyncType (5 variants) all encode in 1
+        // varint byte. The body of each variant immediately follows.
+        let body = data.get(1..consumed).unwrap_or(&[]);
+        Ok(match sync_type {
+            SyncType::Poll { request } => Self::Poll {
+                session_id: request.session_id(),
+                raw: body,
+            },
+            SyncType::Subscribe {
+                remain_open,
+                max_bytes,
+                commands,
+                graph_id,
+            } => Self::Subscribe {
+                graph_id,
+                remain_open,
+                max_bytes,
+                heads: SyncHeads { inner: commands },
+            },
+            SyncType::Unsubscribe { graph_id } => Self::Unsubscribe { graph_id },
+            SyncType::Push { message, graph_id } => Self::Push(PushIncoming {
+                graph_id,
+                session_id: message.session_id(),
+                message,
+                command_data: remaining,
+            }),
+            SyncType::Hello(hello) => Self::Hello(hello.into()),
+        })
+    }
+}
+
+/// A peer's sample of known graph heads, carried in [`SyncIncoming::Subscribe`].
+pub struct SyncHeads {
+    inner: Vec<Address, COMMAND_SAMPLE_MAX>,
+}
+
+impl SyncHeads {
+    /// Returns the heads as a slice.
+    pub fn as_slice(&self) -> &[Address] {
+        &self.inner
+    }
+
+    /// Iterates over the heads.
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = Address> + ExactSizeIterator + '_ {
+        self.inner.iter().copied()
+    }
+}
+
+/// A subscription-control message: subscribe, unsubscribe, or hello.
+#[derive(Debug)]
+pub enum SyncHello {
+    /// Subscribe to receive hello notifications from this peer.
+    Subscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
+        /// Delay between notifications when graph changes (rate limiting).
+        graph_change_delay: Duration,
+        /// How long the subscription should last.
+        duration: Duration,
+        /// Schedule-based hello sending delay.
+        schedule_delay: Duration,
+    },
+    /// Unsubscribe from hello notifications.
+    Unsubscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
+    },
+    /// Notification message sent to subscribers.
+    Hello {
+        /// Specifies the graph.
+        graph_id: GraphId,
+        /// The current head of the sender's graph.
+        head: Address,
+    },
+}
+
+impl From<SyncHelloType> for SyncHello {
+    fn from(t: SyncHelloType) -> Self {
+        match t {
+            SyncHelloType::Subscribe {
+                graph_id,
+                graph_change_delay,
+                duration,
+                schedule_delay,
+            } => Self::Subscribe {
+                graph_id,
+                graph_change_delay,
+                duration,
+                schedule_delay,
+            },
+            SyncHelloType::Unsubscribe { graph_id } => Self::Unsubscribe { graph_id },
+            SyncHelloType::Hello { graph_id, head } => Self::Hello { graph_id, head },
+        }
+    }
+}
+
+/// An opaque container for a received push message. Hand to
+/// [`SyncRequester::receive_push`] to extract the contained commands.
+pub struct PushIncoming<'a> {
+    graph_id: GraphId,
+    session_id: u128,
+    pub(crate) message: SyncResponseMessage,
+    pub(crate) command_data: &'a [u8],
+}
+
+impl PushIncoming<'_> {
+    /// Returns the graph this push targets.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns the sender's session identifier.
+    pub fn session_id(&self) -> u128 {
+        self.session_id
+    }
+}
+
+/// The result of a [`SyncIncoming::Subscribe`] dispatch, sent back to the
+/// requester so it knows whether the subscription was accepted.
+#[derive(Debug)]
+pub enum SubscribeResponse {
+    /// The subscription was accepted.
+    Success,
+    /// The responder is at its subscription limit.
+    TooManySubscriptions,
+}
+
+impl SubscribeResponse {
+    /// Encode into `target`. Returns the number of bytes written.
+    pub fn encode_to(self, target: &mut [u8]) -> Result<usize, SyncError> {
+        let inner = match self {
+            Self::Success => SubscribeResult::Success,
+            Self::TooManySubscriptions => SubscribeResult::TooManySubscriptions,
+        };
+        Ok(postcard::to_slice(&inner, target)?.len())
+    }
+
+    /// Decode from raw bytes.
+    pub fn decode(data: &[u8]) -> Result<Self, SyncError> {
+        let inner: SubscribeResult = postcard::from_bytes(data)?;
+        Ok(match inner {
+            SubscribeResult::Success => Self::Success,
+            SubscribeResult::TooManySubscriptions => Self::TooManySubscriptions,
+        })
     }
 }

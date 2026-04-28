@@ -135,13 +135,15 @@ pub mod sync {
     //! Peer-to-peer sync protocol for replicating graph state.
     //!
     //! A [`SyncRequester`] polls a peer; a [`SyncResponder`] serves the polled
-    //! request. Messages up to [`MAX_SYNC_MESSAGE_SIZE`] bytes are exchanged
-    //! as [`SyncType`] envelopes over any transport the caller provides.
+    //! request. Transports decode incoming bytes with [`SyncIncoming::decode`]
+    //! and dispatch on the returned variant; messages up to
+    //! [`MAX_SYNC_MESSAGE_SIZE`] bytes are exchanged over any transport the
+    //! caller provides.
 
     #[doc(inline)]
     pub use aranya_runtime::sync::{
-        COMMAND_RESPONSE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PeerCache,
-        SubscribeResult, SyncCommand, SyncError, SyncHelloType, SyncRequestMessage, SyncRequester,
-        SyncResponder, SyncResponseMessage, SyncType,
+        COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PeerCache, PushIncoming,
+        SubscribeResponse, SyncCommand, SyncError, SyncHeads, SyncHello, SyncIncoming,
+        SyncRequester, SyncResponder,
     };
 }
