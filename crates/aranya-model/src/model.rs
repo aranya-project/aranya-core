@@ -12,8 +12,8 @@ use aranya_crypto::Rng;
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
-    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
-    SyncRequester, TraversalBuffers,
+    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, MemSpill, PeerCache, StorageProvider,
+    SyncError, SyncRequester, TraversalBuffers,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
@@ -541,12 +541,18 @@ where
                         &mut sink,
                         &cmds,
                         &mut self.buffers.primary,
+                        MemSpill::new,
                     )?;
                 }
             }
         }
 
-        request_state.commit(request_trx, &mut sink, &mut self.buffers.primary)?;
+        request_state.commit(
+            request_trx,
+            &mut sink,
+            &mut self.buffers.primary,
+            MemSpill::new,
+        )?;
 
         Ok(())
     }

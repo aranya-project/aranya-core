@@ -10,8 +10,8 @@ use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
+    SyncRequester, TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
@@ -612,12 +612,18 @@ fn test_sync<PS, P, S>(
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds, &mut buffers.primary)
-                .expect("add commands");
+            cs2.add_commands(
+                &mut req_transaction,
+                sink,
+                &cmds,
+                &mut buffers.primary,
+                MemSpill::new,
+            )
+            .expect("add commands");
         }
     }
 
-    cs2.commit(req_transaction, sink, &mut buffers.primary)
+    cs2.commit(req_transaction, sink, &mut buffers.primary, MemSpill::new)
         .expect("commit");
 }
 

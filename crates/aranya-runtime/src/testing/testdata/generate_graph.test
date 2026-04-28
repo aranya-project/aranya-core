@@ -12,6 +12,7 @@
       "graph": 0,
       "commands": 100,
       "add_command_chance": 70,
+      "sync_client_zero": false,
       "sync_chance": 30
     }
   }

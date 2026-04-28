@@ -67,8 +67,8 @@ use tracing::{debug, error};
 
 use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior, Segment as _,
+    Storage, StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -165,6 +165,8 @@ pub enum TestRule {
         commands: u64,
         add_command_chance: u64,
         sync_chance: u64,
+        #[serde(default)]
+        sync_client_zero: bool,
     },
     SetupClientsAndGraph {
         clients: u64,
@@ -275,10 +277,11 @@ impl Display for TestRule {
                 commands,
                 add_command_chance,
                 sync_chance,
+                sync_client_zero,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {} }} }},"#,
-                clients, graph, commands, add_command_chance, sync_chance,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {}, "sync_client_zero": {} }} }},"#,
+                clients, graph, commands, add_command_chance, sync_chance, sync_client_zero,
             ),
             Self::IgnoreExpectations { ignore } => write!(
                 f,
@@ -385,8 +388,13 @@ where
                     commands,
                     add_command_chance,
                     sync_chance,
+                    sync_client_zero,
                 } => {
-                    assert!(clients > 2, "There must be at least three clients");
+                    let min_clients = if sync_client_zero { 2 } else { 3 };
+                    assert!(
+                        clients >= min_clients,
+                        "There must be at least {min_clients} clients"
+                    );
                     assert!(
                         add_command_chance > 0,
                         "There must be a positive command chance or it will never exit"
@@ -398,10 +406,11 @@ where
                     let command_ceiling: u64 = add_command_chance;
                     let sync_ceiling = command_ceiling + sync_chance;
                     generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+                    let client_start = if sync_client_zero { 0 } else { 1 };
                     let mut count = 0;
                     // Randomly generate actions and syncs. This will create a graph with many branches.
                     while count < commands {
-                        let client = rng.gen_range(1..clients);
+                        let client = rng.gen_range(client_start..clients);
                         match rng.gen_range(0..sync_ceiling) {
                             x if x < command_ceiling => {
                                 generated_actions.push(TestRule::ActionSet {
@@ -415,7 +424,7 @@ where
                             }
                             x if x < sync_ceiling => {
                                 let mut from = (client + 1) % clients;
-                                if from == 0 {
+                                if !sync_client_zero && from == 0 {
                                     from += 1;
                                 }
                                 generated_actions.push(TestRule::Sync {
@@ -1003,9 +1012,14 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received =
-            request_state.add_commands(&mut request_trx, sink, &cmds, &mut buffers.primary)?;
-        request_state.commit(request_trx, sink, &mut buffers.primary)?;
+        received = request_state.add_commands(
+            &mut request_trx,
+            sink,
+            &cmds,
+            &mut buffers.primary,
+            MemSpill::new,
+        )?;
+        request_state.commit(request_trx, sink, &mut buffers.primary, MemSpill::new)?;
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),

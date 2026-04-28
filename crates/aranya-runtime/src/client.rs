@@ -6,10 +6,11 @@ use tracing::error;
 use crate::{
     Address, CmdId, Command, GraphId, PeerCache, Perspective as _, Policy, PolicyError,
     PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffer,
-    policy::ActionPlacement,
+    policy::ActionPlacement, storage::Spill,
 };
 
 mod braiding;
+mod convergence_map;
 mod session;
 mod transaction;
 
@@ -127,32 +128,58 @@ where
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
     ///
+    /// `make_spill` is called whenever an internal braid or convergence map
+    /// needs byte-addressable overflow storage. It is typically
+    /// `|| LibcSpill::new(&dir)` for production callers or `MemSpill::new`
+    /// for tests.
+    ///
     /// Returns whether any new commands were added.
-    pub fn commit(
+    pub fn commit<F, MS>(
         &mut self,
         trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         buffer: &mut TraversalBuffer,
-    ) -> Result<bool, ClientError> {
-        trx.commit(&mut self.provider, &mut self.policy_store, sink, buffer)
+        make_spill: MS,
+    ) -> Result<bool, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        trx.commit::<F, MS>(
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            buffer,
+            &make_spill,
+        )
     }
 
     /// Add commands to the transaction, writing the results to
     /// `sink`.
+    ///
+    /// `make_spill` is called whenever an internal braid or convergence map
+    /// needs byte-addressable overflow storage. See [`Self::commit`].
+    ///
     /// Returns the number of commands that were added.
-    pub fn add_commands(
+    pub fn add_commands<F, MS>(
         &mut self,
         trx: &mut Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         commands: &[impl Command],
         buffer: &mut TraversalBuffer,
-    ) -> Result<usize, ClientError> {
-        trx.add_commands(
+        make_spill: MS,
+    ) -> Result<usize, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        trx.add_commands::<F, MS>(
             commands,
             &mut self.provider,
             &mut self.policy_store,
             sink,
             buffer,
+            &make_spill,
         )
     }
 

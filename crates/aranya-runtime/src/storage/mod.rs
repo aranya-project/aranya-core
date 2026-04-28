@@ -15,6 +15,26 @@ use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
 
+#[cfg(any(feature = "libc", feature = "testing"))]
+mod spill;
+#[cfg(feature = "libc")]
+pub use spill::LibcSpill;
+#[cfg(feature = "testing")]
+pub use spill::MemSpill;
+
+/// Byte-addressable overflow storage for braid and convergence data.
+///
+/// Implemented by [`LibcSpill`] (file-backed) and [`MemSpill`] (in-memory);
+/// each backend has its own constructor signature (paths, etc.), matching
+/// how [`IoManager`](linear::io::IoManager) backends are constructed.
+/// Callers build a spill and pass it in.
+pub trait Spill {
+    /// Write `data` at the given byte offset.
+    fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError>;
+    /// Read exactly `data.len()` bytes starting at the given byte offset.
+    fn read_at(&self, offset: usize, data: &mut [u8]) -> Result<(), StorageError>;
+}
+
 /// Default capacity for the traversal queue.
 ///
 /// This should be large enough to hold the maximum expected "active frontier"
@@ -115,6 +135,29 @@ impl TraversalQueue {
         Ok(())
     }
 
+    /// Enqueues a location without deduplication.
+    ///
+    /// Unlike [`Self::push`], each call adds a new entry even if the location
+    /// is already present. Used by the convergence pre-pass where
+    /// duplicate tracking is needed.
+    pub fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
+        self.entries
+            .push(loc)
+            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
+        // All duplicate entries are uncovered.
+        let last = self
+            .entries
+            .len()
+            .checked_sub(1)
+            .assume("just pushed, len must be >= 1")?;
+        self.entries.swap(self.partition, last);
+        self.partition = self
+            .partition
+            .checked_add(1)
+            .assume("partition must not overflow")?;
+        Ok(())
+    }
+
     /// Pop the location with the highest max cut, discarding the covered flag.
     pub fn pop(&mut self) -> Result<Option<Location>, StorageError> {
         Ok(self.pop_covered()?.map(|(loc, _)| loc))
@@ -143,6 +186,47 @@ impl TraversalQueue {
             .assume("partition must be >= 1 when uncovered entry exists")?;
         self.entries.swap(i, self.partition);
         Ok(self.entries.swap_remove(self.partition))
+    }
+
+    /// Returns the entry with the highest `max_cut` without removing it.
+    pub fn peek(&self) -> Option<&Location> {
+        self.entries.iter().max_by_key(|loc| *loc)
+    }
+
+    /// Pop the entry with the highest `max_cut`, removing all entries
+    /// at that exact location. Returns `(location, count)`.
+    ///
+    /// Used by the convergence pre-pass. Entries are matched by full
+    /// `Location` equality (segment + max_cut), not just max_cut.
+    pub fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
+        let Some(location) = self.entries.iter().max_by_key(|loc| *loc).copied() else {
+            return Ok(None);
+        };
+
+        // Remove all entries matching this location.
+        // Count them as we go. Iterate backward to avoid index shifts.
+        let mut count: usize = 0;
+        let mut j = self.entries.len();
+        while j > 0 {
+            j = j.checked_sub(1).assume("j > 0 checked in loop condition")?;
+            if self.entries[j] == location {
+                count = count
+                    .checked_add(1)
+                    .assume("count bounded by QUEUE_CAPACITY")?;
+                if j < self.partition {
+                    self.partition = self
+                        .partition
+                        .checked_sub(1)
+                        .assume("partition >= 1 when uncovered entry at j < partition")?;
+                    self.entries.swap(j, self.partition);
+                    self.entries.swap_remove(self.partition);
+                } else {
+                    self.entries.swap_remove(j);
+                }
+            }
+        }
+
+        Ok(Some((location, count)))
     }
 
     /// Returns true if all entries are covered (uncovered partition is empty).
@@ -385,6 +469,10 @@ pub enum StorageError {
     EmptyPerspective,
     #[error("traversal queue overflow (capacity {0})")]
     TraversalQueueOverflow(usize),
+    #[error("strand heap overflow (capacity {0})")]
+    StrandHeapOverflow(usize),
+    #[error("convergence root index overflow (capacity {0})")]
+    ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
     #[error(transparent)]
@@ -1105,5 +1193,70 @@ mod queue_tests {
         assert_eq!(remaining.len(), 2);
         assert!(remaining.contains(&(SegmentIndex(0), false)));
         assert!(remaining.contains(&(SegmentIndex(3), true)));
+    }
+
+    #[test]
+    fn test_push_duplicate_keeps_separate_entries() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        let first = queue.pop().unwrap();
+        assert!(first.is_some());
+        let second = queue.pop().unwrap();
+        assert!(second.is_some());
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn test_push_duplicate_overflow() {
+        let mut queue = TraversalQueue::new();
+        for i in 0..QUEUE_CAPACITY {
+            queue.push_duplicate(loc(0, i)).unwrap();
+        }
+        let result = queue.push_duplicate(loc(0, 999));
+        assert_eq!(
+            result.unwrap_err(),
+            StorageError::TraversalQueueOverflow(QUEUE_CAPACITY)
+        );
+    }
+
+    #[test]
+    fn test_pop_duplicates_returns_count() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(1, 3)).unwrap();
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(location, loc(0, 5));
+        assert_eq!(count, 2);
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(location, loc(1, 3));
+        assert_eq!(count, 1);
+
+        assert!(queue.pop_duplicates().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pop_duplicates_different_segments_same_max_cut() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(1, 5)).unwrap();
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(location.max_cut, MaxCut(5));
+
+        let (_, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(count, 1);
+
+        assert!(queue.pop_duplicates().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pop_duplicates_empty() {
+        let mut queue = TraversalQueue::new();
+        assert!(queue.pop_duplicates().unwrap().is_none());
     }
 }
