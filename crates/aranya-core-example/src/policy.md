@@ -154,7 +154,7 @@ command Init {
 
     policy {
         let author_id = envelope::author_id(envelope)
-        check author_id == idam::derive_device_id(this.owner_keys.ident_key) else todo()
+        check author_id == idam::derive_device_id(this.owner_keys.ident_key)
 
         let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
 
@@ -191,10 +191,10 @@ command AddDevice {
     policy {
         let author_id = envelope::author_id(envelope)
         let owner = unwrap query Owner[]
-        check author_id == owner.device_id else todo()
+        check author_id == owner.device_id
 
         let new_device_id = idam::derive_device_id(this.device_keys.ident_key)
-        check !exists DeviceSignPubKey[device_id: new_device_id] else todo()
+        check !exists DeviceSignPubKey[device_id: new_device_id]
 
         let new_sign_key_id = idam::derive_sign_key_id(this.device_keys.sign_key)
 

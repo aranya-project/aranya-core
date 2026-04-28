@@ -907,8 +907,10 @@ impl<'a> CompileState<'a> {
                 let branch_wp = self.wp;
                 self.append_instruction(Instruction::Branch(Target::Resolved(0)));
 
-                // Compile the else expression. It has type `Never`, so it always exits.
-                self.compile_typed_expression(s.else_expression)?;
+                match s.else_expression {
+                    Some(else_expression) => self.compile_typed_expression(else_expression)?,
+                    None => self.append_instruction(Instruction::Exit(ExitReason::Check(None))),
+                }
 
                 // Now that we know where the success path begins, patch the branch to jump there.
                 self.m.progmem[branch_wp] = Instruction::Branch(Target::Resolved(self.wp));

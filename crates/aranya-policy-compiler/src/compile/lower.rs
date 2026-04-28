@@ -1527,17 +1527,22 @@ impl CompileState<'_> {
                         ))));
                     }
 
-                    // The else expression must be a terminal (Never type) —
-                    // e.g. `return Err(..)` or `recall foo()`.
-                    let else_expression = self.lower_expression(&s.else_expression)?;
-                    if !matches!(else_expression.vtype.inner, TypeKind::Never) {
-                        return Err(self.err_loc(
-                            CompileErrorType::InvalidType(String::from(
-                                "check else clause must be a terminal expression (e.g. `return` or `recall`)",
-                            )),
-                            s.else_expression.span,
-                        ));
-                    }
+                    // Lower else expression
+                    let else_expression = match &s.else_expression {
+                        Some(expr) => {
+                            let lowered = self.lower_expression(expr)?;
+                            if !matches!(lowered.vtype.inner, TypeKind::Never) {
+                                return Err(self.err_loc(
+                                    CompileErrorType::InvalidType(String::from(
+                                        "check else clause must be terminal (type Never)",
+                                    )),
+                                    expr.span,
+                                ));
+                            }
+                            Some(lowered)
+                        }
+                        None => None,
+                    };
                     thir::StmtKind::Check(thir::CheckStatement {
                         expression: et,
                         else_expression,

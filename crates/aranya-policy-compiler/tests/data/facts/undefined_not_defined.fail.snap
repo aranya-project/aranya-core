@@ -1,7 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 205
 expression: error
 ---
 not defined: Foo at line 2 col 5:
-	check exists Foo[] else todo()
+	check exists Foo[]

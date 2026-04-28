@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-assertion_line: 132
 expression: ast
 ---
 Policy {
@@ -26,39 +25,31 @@ Policy {
                                             expression: Int(
                                                 1,
                                             ) @ 41..42,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    48..54,
-                                                ),
-                                            ) @ 48..54,
+                                            else_expression: None,
                                         },
-                                    ) @ 35..59,
+                                    ) @ 35..47,
                                 ],
                             ),
                         ],
                         fallback: None,
                     },
-                ) @ 20..66,
+                ) @ 20..54,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Int(
                                     0,
-                                ) @ 69..70,
+                                ) @ 57..58,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
                                                 1,
-                                            ) @ 87..88,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    94..100,
-                                                ),
-                                            ) @ 94..100,
+                                            ) @ 75..76,
+                                            else_expression: None,
                                         },
-                                    ) @ 81..105,
+                                    ) @ 69..81,
                                 ],
                             ),
                         ],
@@ -68,94 +59,78 @@ Policy {
                                     CheckStatement {
                                         expression: Int(
                                             2,
-                                        ) @ 128..129,
-                                        else_expression: InternalFunction(
-                                            Todo(
-                                                135..141,
-                                            ),
-                                        ) @ 135..141,
+                                        ) @ 104..105,
+                                        else_expression: None,
                                     },
-                                ) @ 122..146,
+                                ) @ 98..110,
                             ],
                         ),
                     },
-                ) @ 66..147,
+                ) @ 54..111,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Int(
                                     0,
-                                ) @ 156..157,
+                                ) @ 120..121,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
                                                 1,
-                                            ) @ 174..175,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    181..187,
-                                                ),
-                                            ) @ 181..187,
+                                            ) @ 138..139,
+                                            else_expression: None,
                                         },
-                                    ) @ 168..196,
+                                    ) @ 132..148,
                                     Let(
                                         LetStatement {
-                                            identifier: "c" @ 200..201,
+                                            identifier: "c" @ 152..153,
                                             expression: FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "add" @ 204..207,
+                                                    identifier: "add" @ 156..159,
                                                     arguments: [
                                                         Int(
                                                             1,
-                                                        ) @ 208..209,
+                                                        ) @ 160..161,
                                                         Int(
                                                             1,
-                                                        ) @ 211..212,
+                                                        ) @ 163..164,
                                                     ],
                                                 },
-                                            ) @ 204..213,
+                                            ) @ 156..165,
                                         },
-                                    ) @ 196..218,
+                                    ) @ 148..170,
                                 ],
                             ),
                             (
                                 Int(
                                     2,
-                                ) @ 228..229,
+                                ) @ 180..181,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
                                                 3,
-                                            ) @ 246..247,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    253..259,
-                                                ),
-                                            ) @ 253..259,
+                                            ) @ 198..199,
+                                            else_expression: None,
                                         },
-                                    ) @ 240..264,
+                                    ) @ 192..204,
                                 ],
                             ),
                             (
                                 Int(
                                     4,
-                                ) @ 274..275,
+                                ) @ 214..215,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
                                                 5,
-                                            ) @ 292..293,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    299..305,
-                                                ),
-                                            ) @ 299..305,
+                                            ) @ 232..233,
+                                            else_expression: None,
                                         },
-                                    ) @ 286..310,
+                                    ) @ 226..238,
                                 ],
                             ),
                         ],
@@ -165,20 +140,16 @@ Policy {
                                     CheckStatement {
                                         expression: Int(
                                             6,
-                                        ) @ 333..334,
-                                        else_expression: InternalFunction(
-                                            Todo(
-                                                340..346,
-                                            ),
-                                        ) @ 340..346,
+                                        ) @ 261..262,
+                                        else_expression: None,
                                     },
-                                ) @ 327..351,
+                                ) @ 255..267,
                             ],
                         ),
                     },
-                ) @ 153..352,
+                ) @ 117..268,
             ],
-            span: 0..354,
+            span: 0..270,
         },
     ],
     effects: [],
@@ -188,5 +159,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action test() {\n    if 0 {\n        check 1 else todo()\n    }\n\n    if 0 {\n        check 1 else todo()\n    } else {\n        check 2 else todo()\n    }\n\n    if 0 {\n        check 1 else todo()\n        let c = add(1, 1)\n    } else if 2 {\n        check 3 else todo()\n    } else if 4 {\n        check 5 else todo()\n    } else {\n        check 6 else todo()\n    }\n}\n",
+    text: "action test() {\n    if 0 {\n        check 1\n    }\n\n    if 0 {\n        check 1\n    } else {\n        check 2\n    }\n\n    if 0 {\n        check 1\n        let c = add(1, 1)\n    } else if 2 {\n        check 3\n    } else if 4 {\n        check 5\n    } else {\n        check 6\n    }\n}\n",
 }

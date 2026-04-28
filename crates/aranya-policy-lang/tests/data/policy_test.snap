@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-assertion_line: 132
 expression: ast
 ---
 Policy {
@@ -73,12 +72,12 @@ Policy {
         },
         ActionDefinition {
             persistence: Ephemeral(
-                1947..1956,
+                1899..1908,
             ),
-            identifier: "a" @ 1964..1965,
+            identifier: "a" @ 1916..1917,
             arguments: [],
             statements: [],
-            span: 1947..1970,
+            span: 1899..1922,
         },
     ],
     effects: [
@@ -213,25 +212,21 @@ Policy {
                                 },
                             ),
                         ) @ 561..591,
-                        else_expression: InternalFunction(
-                            Todo(
-                                597..603,
-                            ),
-                        ) @ 597..603,
+                        else_expression: None,
                     },
-                ) @ 555..612,
+                ) @ 555..600,
                 Match(
                     MatchStatement {
                         expression: Identifier(
-                            "x" @ 618..619,
-                        ) @ 618..619,
+                            "x" @ 606..607,
+                        ) @ 606..607,
                         arms: [
                             MatchArm {
                                 pattern: Values(
                                     [
                                         Int(
                                             0,
-                                        ) @ 634..635,
+                                        ) @ 622..623,
                                     ],
                                 ),
                                 statements: [
@@ -239,25 +234,21 @@ Policy {
                                         CheckStatement {
                                             expression: FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "positive" @ 663..671,
+                                                    identifier: "positive" @ 651..659,
                                                     arguments: [
                                                         Optional(
                                                             Some(
                                                                 Identifier(
-                                                                    "new_x" @ 677..682,
-                                                                ) @ 677..682,
+                                                                    "new_x" @ 665..670,
+                                                                ) @ 665..670,
                                                             ),
-                                                        ) @ 672..683,
+                                                        ) @ 660..671,
                                                     ],
                                                 },
-                                            ) @ 663..684,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    690..696,
-                                                ),
-                                            ) @ 690..696,
+                                            ) @ 651..672,
+                                            else_expression: None,
                                         },
-                                    ) @ 657..709,
+                                    ) @ 645..685,
                                 ],
                             },
                             MatchArm {
@@ -265,7 +256,7 @@ Policy {
                                     [
                                         Int(
                                             1,
-                                        ) @ 723..724,
+                                        ) @ 699..700,
                                     ],
                                 ),
                                 statements: [
@@ -273,146 +264,138 @@ Policy {
                                         CheckStatement {
                                             expression: FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "positive" @ 752..760,
+                                                    identifier: "positive" @ 728..736,
                                                     arguments: [
                                                         Optional(
                                                             None,
-                                                        ) @ 761..765,
+                                                        ) @ 737..741,
                                                     ],
                                                 },
-                                            ) @ 752..766,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    772..778,
-                                                ),
-                                            ) @ 772..778,
+                                            ) @ 728..742,
+                                            else_expression: None,
                                         },
-                                    ) @ 746..791,
+                                    ) @ 722..755,
                                 ],
                             },
                             MatchArm {
                                 pattern: Default(
-                                    805..806,
+                                    769..770,
                                 ),
                                 statements: [],
                             },
                         ],
                     },
-                ) @ 612..836,
+                ) @ 600..800,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Equal(
                                     Identifier(
-                                        "x" @ 849..850,
-                                    ) @ 849..850,
+                                        "x" @ 813..814,
+                                    ) @ 813..814,
                                     Int(
                                         3,
-                                    ) @ 854..855,
-                                ) @ 849..855,
+                                    ) @ 818..819,
+                                ) @ 813..819,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: LessThan(
                                                 Identifier(
-                                                    "new_x" @ 876..881,
-                                                ) @ 876..881,
+                                                    "new_x" @ 840..845,
+                                                ) @ 840..845,
                                                 Int(
                                                     10,
-                                                ) @ 884..886,
-                                            ) @ 876..886,
-                                            else_expression: InternalFunction(
-                                                Todo(
-                                                    892..898,
-                                                ),
-                                            ) @ 892..898,
+                                                ) @ 848..850,
+                                            ) @ 840..850,
+                                            else_expression: None,
                                         },
-                                    ) @ 870..907,
+                                    ) @ 834..859,
                                 ],
                             ),
                         ],
                         fallback: None,
                     },
-                ) @ 846..918,
+                ) @ 810..870,
                 Let(
                     LetStatement {
-                        identifier: "a" @ 922..923,
+                        identifier: "a" @ 874..875,
                         expression: ForeignFunctionCall(
                             ForeignFunctionCall {
-                                module: "foo" @ 926..929,
-                                identifier: "ext_func" @ 931..939,
+                                module: "foo" @ 878..881,
+                                identifier: "ext_func" @ 883..891,
                                 arguments: [
                                     Identifier(
-                                        "x" @ 940..941,
-                                    ) @ 940..941,
+                                        "x" @ 892..893,
+                                    ) @ 892..893,
                                 ],
                             },
-                        ) @ 926..942,
+                        ) @ 878..894,
                     },
-                ) @ 918..952,
+                ) @ 870..904,
                 Finish(
                     [
                         Create(
                             CreateStatement {
                                 fact: FactLiteral {
-                                    identifier: "F" @ 980..981,
+                                    identifier: "F" @ 932..933,
                                     key_fields: [
                                         (
-                                            "v" @ 982..983,
+                                            "v" @ 934..935,
                                             Expression(
                                                 String(
                                                     "hello",
-                                                ) @ 985..992,
+                                                ) @ 937..944,
                                             ),
                                         ),
                                     ],
                                     value_fields: Some(
                                         [
                                             (
-                                                "x" @ 996..997,
+                                                "x" @ 948..949,
                                                 Expression(
                                                     Identifier(
-                                                        "x" @ 999..1000,
-                                                    ) @ 999..1000,
+                                                        "x" @ 951..952,
+                                                    ) @ 951..952,
                                                 ),
                                             ),
                                             (
-                                                "y" @ 1002..1003,
+                                                "y" @ 954..955,
                                                 Expression(
                                                     FunctionCall(
                                                         FunctionCall {
-                                                            identifier: "saturating_sub" @ 1005..1019,
+                                                            identifier: "saturating_sub" @ 957..971,
                                                             arguments: [
                                                                 Int(
                                                                     0,
-                                                                ) @ 1020..1021,
+                                                                ) @ 972..973,
                                                                 Identifier(
-                                                                    "x" @ 1023..1024,
-                                                                ) @ 1023..1024,
+                                                                    "x" @ 975..976,
+                                                                ) @ 975..976,
                                                             ],
                                                         },
-                                                    ) @ 1005..1025,
+                                                    ) @ 957..977,
                                                 ),
                                             ),
                                         ],
                                     ),
                                 },
                             },
-                        ) @ 973..1026,
+                        ) @ 925..978,
                         Update(
                             UpdateStatement {
                                 fact: FactLiteral {
-                                    identifier: "F" @ 1046..1047,
+                                    identifier: "F" @ 998..999,
                                     key_fields: [],
                                     value_fields: Some(
                                         [
                                             (
-                                                "x" @ 1052..1053,
+                                                "x" @ 1004..1005,
                                                 Expression(
                                                     Identifier(
-                                                        "x" @ 1055..1056,
-                                                    ) @ 1055..1056,
+                                                        "x" @ 1007..1008,
+                                                    ) @ 1007..1008,
                                                 ),
                                             ),
                                         ],
@@ -420,176 +403,176 @@ Policy {
                                 },
                                 to: [
                                     (
-                                        "x" @ 1062..1063,
+                                        "x" @ 1014..1015,
                                         Expression(
                                             Identifier(
-                                                "new_x" @ 1065..1070,
-                                            ) @ 1065..1070,
+                                                "new_x" @ 1017..1022,
+                                            ) @ 1017..1022,
                                         ),
                                     ),
                                 ],
                             },
-                        ) @ 1039..1071,
+                        ) @ 991..1023,
                         Delete(
                             DeleteStatement {
                                 fact: FactLiteral {
-                                    identifier: "F" @ 1091..1092,
+                                    identifier: "F" @ 1043..1044,
                                     key_fields: [
                                         (
-                                            "v" @ 1093..1094,
+                                            "v" @ 1045..1046,
                                             Expression(
                                                 String(
                                                     "hello",
-                                                ) @ 1096..1103,
+                                                ) @ 1048..1055,
                                             ),
                                         ),
                                     ],
                                     value_fields: None,
                                 },
                             },
-                        ) @ 1084..1117,
+                        ) @ 1036..1069,
                         Emit(
                             NamedStruct(
                                 NamedStruct {
-                                    identifier: "Added" @ 1122..1127,
+                                    identifier: "Added" @ 1074..1079,
                                     fields: [
                                         (
-                                            "x" @ 1146..1147,
+                                            "x" @ 1098..1099,
                                             Identifier(
-                                                "new_x" @ 1149..1154,
-                                            ) @ 1149..1154,
+                                                "new_x" @ 1101..1106,
+                                            ) @ 1101..1106,
                                         ),
                                         (
-                                            "y" @ 1172..1173,
+                                            "y" @ 1124..1125,
                                             Identifier(
-                                                "count" @ 1175..1180,
-                                            ) @ 1175..1180,
+                                                "count" @ 1127..1132,
+                                            ) @ 1127..1132,
                                         ),
                                     ],
                                     sources: [],
                                 },
-                            ) @ 1122..1195,
-                        ) @ 1117..1204,
+                            ) @ 1074..1147,
+                        ) @ 1069..1156,
                     ],
-                ) @ 952..1205,
+                ) @ 904..1157,
             ],
             recalls: [
                 RecallBlockDefinition {
-                    identifier: "default" @ 1223..1230,
+                    identifier: "default" @ 1175..1182,
                     arguments: [],
                     statements: [
                         Let(
                             LetStatement {
-                                identifier: "envelope_id" @ 1247..1258,
+                                identifier: "envelope_id" @ 1199..1210,
                                 expression: ForeignFunctionCall(
                                     ForeignFunctionCall {
-                                        module: "envelope" @ 1261..1269,
-                                        identifier: "command_id" @ 1271..1281,
+                                        module: "envelope" @ 1213..1221,
+                                        identifier: "command_id" @ 1223..1233,
                                         arguments: [
                                             Identifier(
-                                                "envelope" @ 1282..1290,
-                                            ) @ 1282..1290,
+                                                "envelope" @ 1234..1242,
+                                            ) @ 1234..1242,
                                         ],
                                     },
-                                ) @ 1261..1291,
+                                ) @ 1213..1243,
                             },
-                        ) @ 1243..1300,
+                        ) @ 1195..1252,
                         Let(
                             LetStatement {
-                                identifier: "author" @ 1304..1310,
+                                identifier: "author" @ 1256..1262,
                                 expression: ForeignFunctionCall(
                                     ForeignFunctionCall {
-                                        module: "envelope" @ 1313..1321,
-                                        identifier: "author_id" @ 1323..1332,
+                                        module: "envelope" @ 1265..1273,
+                                        identifier: "author_id" @ 1275..1284,
                                         arguments: [
                                             Identifier(
-                                                "envelope" @ 1333..1341,
-                                            ) @ 1333..1341,
+                                                "envelope" @ 1285..1293,
+                                            ) @ 1285..1293,
                                         ],
                                     },
-                                ) @ 1313..1342,
+                                ) @ 1265..1294,
                             },
-                        ) @ 1300..1351,
+                        ) @ 1252..1303,
                         Let(
                             LetStatement {
-                                identifier: "new_x" @ 1355..1360,
+                                identifier: "new_x" @ 1307..1312,
                                 expression: FunctionCall(
                                     FunctionCall {
-                                        identifier: "add2" @ 1363..1367,
+                                        identifier: "add2" @ 1315..1319,
                                         arguments: [
                                             Identifier(
-                                                "x" @ 1368..1369,
-                                            ) @ 1368..1369,
+                                                "x" @ 1320..1321,
+                                            ) @ 1320..1321,
                                             Identifier(
-                                                "count" @ 1371..1376,
-                                            ) @ 1371..1376,
+                                                "count" @ 1323..1328,
+                                            ) @ 1323..1328,
                                         ],
                                     },
-                                ) @ 1363..1377,
+                                ) @ 1315..1329,
                             },
-                        ) @ 1351..1386,
+                        ) @ 1303..1338,
                         Finish(
                             [
                                 Create(
                                     CreateStatement {
                                         fact: FactLiteral {
-                                            identifier: "F" @ 1414..1415,
+                                            identifier: "F" @ 1366..1367,
                                             key_fields: [
                                                 (
-                                                    "v" @ 1416..1417,
+                                                    "v" @ 1368..1369,
                                                     Expression(
                                                         String(
                                                             "hello",
-                                                        ) @ 1419..1426,
+                                                        ) @ 1371..1378,
                                                     ),
                                                 ),
                                             ],
                                             value_fields: Some(
                                                 [
                                                     (
-                                                        "x" @ 1430..1431,
+                                                        "x" @ 1382..1383,
                                                         Expression(
                                                             Identifier(
-                                                                "x" @ 1433..1434,
-                                                            ) @ 1433..1434,
+                                                                "x" @ 1385..1386,
+                                                            ) @ 1385..1386,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 1436..1437,
+                                                        "y" @ 1388..1389,
                                                         Expression(
                                                             FunctionCall(
                                                                 FunctionCall {
-                                                                    identifier: "saturating_sub" @ 1439..1453,
+                                                                    identifier: "saturating_sub" @ 1391..1405,
                                                                     arguments: [
                                                                         Int(
                                                                             0,
-                                                                        ) @ 1454..1455,
+                                                                        ) @ 1406..1407,
                                                                         Identifier(
-                                                                            "x" @ 1457..1458,
-                                                                        ) @ 1457..1458,
+                                                                            "x" @ 1409..1410,
+                                                                        ) @ 1409..1410,
                                                                     ],
                                                                 },
-                                                            ) @ 1439..1459,
+                                                            ) @ 1391..1411,
                                                         ),
                                                     ),
                                                 ],
                                             ),
                                         },
                                     },
-                                ) @ 1407..1460,
+                                ) @ 1359..1412,
                                 Update(
                                     UpdateStatement {
                                         fact: FactLiteral {
-                                            identifier: "F" @ 1480..1481,
+                                            identifier: "F" @ 1432..1433,
                                             key_fields: [],
                                             value_fields: Some(
                                                 [
                                                     (
-                                                        "x" @ 1486..1487,
+                                                        "x" @ 1438..1439,
                                                         Expression(
                                                             Identifier(
-                                                                "x" @ 1489..1490,
-                                                            ) @ 1489..1490,
+                                                                "x" @ 1441..1442,
+                                                            ) @ 1441..1442,
                                                         ),
                                                     ),
                                                 ],
@@ -597,75 +580,75 @@ Policy {
                                         },
                                         to: [
                                             (
-                                                "x" @ 1496..1497,
+                                                "x" @ 1448..1449,
                                                 Expression(
                                                     Identifier(
-                                                        "new_x" @ 1499..1504,
-                                                    ) @ 1499..1504,
+                                                        "new_x" @ 1451..1456,
+                                                    ) @ 1451..1456,
                                                 ),
                                             ),
                                         ],
                                     },
-                                ) @ 1473..1505,
+                                ) @ 1425..1457,
                                 Delete(
                                     DeleteStatement {
                                         fact: FactLiteral {
-                                            identifier: "F" @ 1525..1526,
+                                            identifier: "F" @ 1477..1478,
                                             key_fields: [
                                                 (
-                                                    "v" @ 1527..1528,
+                                                    "v" @ 1479..1480,
                                                     Expression(
                                                         String(
                                                             "hello",
-                                                        ) @ 1530..1537,
+                                                        ) @ 1482..1489,
                                                     ),
                                                 ),
                                             ],
                                             value_fields: None,
                                         },
                                     },
-                                ) @ 1518..1551,
+                                ) @ 1470..1503,
                                 Emit(
                                     NamedStruct(
                                         NamedStruct {
-                                            identifier: "Added" @ 1556..1561,
+                                            identifier: "Added" @ 1508..1513,
                                             fields: [
                                                 (
-                                                    "x" @ 1580..1581,
+                                                    "x" @ 1532..1533,
                                                     Identifier(
-                                                        "new_x" @ 1583..1588,
-                                                    ) @ 1583..1588,
+                                                        "new_x" @ 1535..1540,
+                                                    ) @ 1535..1540,
                                                 ),
                                                 (
-                                                    "y" @ 1606..1607,
+                                                    "y" @ 1558..1559,
                                                     Identifier(
-                                                        "count" @ 1609..1614,
-                                                    ) @ 1609..1614,
+                                                        "count" @ 1561..1566,
+                                                    ) @ 1561..1566,
                                                 ),
                                             ],
                                             sources: [],
                                         },
-                                    ) @ 1556..1629,
-                                ) @ 1551..1638,
+                                    ) @ 1508..1581,
+                                ) @ 1503..1590,
                             ],
-                        ) @ 1386..1639,
+                        ) @ 1338..1591,
                     ],
-                    span: 1216..1645,
+                    span: 1168..1597,
                 },
             ],
-            span: 286..1647,
+            span: 286..1599,
         },
         CommandDefinition {
             persistence: Ephemeral(
-                1821..1830,
+                1773..1782,
             ),
             attributes: [],
-            identifier: "C" @ 1839..1840,
+            identifier: "C" @ 1791..1792,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "x" @ 1864..1865,
-                        field_type: Int @ 1866..1869,
+                        identifier: "x" @ 1816..1817,
+                        field_type: Int @ 1818..1821,
                     },
                 ),
             ],
@@ -674,92 +657,92 @@ Policy {
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                1894..1900,
+                                1846..1852,
                             ),
-                        ) @ 1894..1900,
+                        ) @ 1846..1852,
                     },
-                ) @ 1887..1901,
+                ) @ 1839..1853,
             ],
             open: [
                 Return(
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                1921..1927,
+                                1873..1879,
                             ),
-                        ) @ 1921..1927,
+                        ) @ 1873..1879,
                     },
-                ) @ 1914..1928,
+                ) @ 1866..1880,
             ],
             policy: [],
             recalls: [],
-            span: 1821..1945,
+            span: 1773..1897,
         },
     ],
     functions: [
         FunctionDefinition {
-            identifier: "positive" @ 1658..1666,
+            identifier: "positive" @ 1610..1618,
             arguments: [
                 Param {
-                    name: "v" @ 1667..1668,
+                    name: "v" @ 1619..1620,
                     ty: Optional(
-                        Int @ 1676..1679,
-                    ) @ 1669..1680,
+                        Int @ 1628..1631,
+                    ) @ 1621..1632,
                 },
             ],
-            return_type: Bool @ 1682..1686,
+            return_type: Bool @ 1634..1638,
             statements: [
                 Let(
                     LetStatement {
-                        identifier: "x" @ 1697..1698,
+                        identifier: "x" @ 1649..1650,
                         expression: Unwrap(
                             Identifier(
-                                "v" @ 1708..1709,
-                            ) @ 1708..1709,
-                        ) @ 1701..1709,
+                                "v" @ 1660..1661,
+                            ) @ 1660..1661,
+                        ) @ 1653..1661,
                     },
-                ) @ 1693..1714,
+                ) @ 1645..1666,
                 Return(
                     ReturnStatement {
                         expression: GreaterThan(
                             Identifier(
-                                "x" @ 1721..1722,
-                            ) @ 1721..1722,
+                                "x" @ 1673..1674,
+                            ) @ 1673..1674,
                             Int(
                                 0,
-                            ) @ 1725..1726,
-                        ) @ 1721..1726,
+                            ) @ 1677..1678,
+                        ) @ 1673..1678,
                     },
-                ) @ 1714..1727,
+                ) @ 1666..1679,
             ],
-            span: 1649..1728,
+            span: 1601..1680,
         },
     ],
     finish_functions: [
         FinishFunctionDefinition {
-            identifier: "next" @ 1746..1750,
+            identifier: "next" @ 1698..1702,
             arguments: [
                 Param {
-                    name: "x" @ 1751..1752,
-                    ty: Int @ 1753..1756,
+                    name: "x" @ 1703..1704,
+                    ty: Int @ 1705..1708,
                 },
             ],
             statements: [
                 Create(
                     CreateStatement {
                         fact: FactLiteral {
-                            identifier: "Next" @ 1771..1775,
+                            identifier: "Next" @ 1723..1727,
                             key_fields: [],
                             value_fields: Some(
                                 [],
                             ),
                         },
                     },
-                ) @ 1764..1781,
+                ) @ 1716..1733,
             ],
-            span: 1730..1783,
+            span: 1682..1735,
         },
     ],
     global_lets: [],
-    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v string]=>{x int, y bool}\n\naction add2(x int, y int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x int dynamic,\n    y int,\n}\n\ncommand Add {\n    fields {\n        count int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{} else todo()\n        match x {\n            0 => {\n                check positive(Some(new_x)) else todo()\n            }\n            1 => {\n                check positive(None) else todo()\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10 else todo()\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default() {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v option[int]) bool {\n    let x = unwrap v\n    return x > 0\n}\n\nfinish function next(x int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nephemeral command C {\n    fields {\n        x int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {}\n}\n\nephemeral action a() {}\n",
+    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v string]=>{x int, y bool}\n\naction add2(x int, y int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x int dynamic,\n    y int,\n}\n\ncommand Add {\n    fields {\n        count int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{}\n        match x {\n            0 => {\n                check positive(Some(new_x))\n            }\n            1 => {\n                check positive(None)\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default() {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v option[int]) bool {\n    let x = unwrap v\n    return x > 0\n}\n\nfinish function next(x int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nephemeral command C {\n    fields {\n        x int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {}\n}\n\nephemeral action a() {}\n",
 }

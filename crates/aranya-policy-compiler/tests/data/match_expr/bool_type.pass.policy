@@ -3,5 +3,5 @@ action f(n int) {
         0 => false
         _ => true
     }
-    check b else todo()
+    check b
 }

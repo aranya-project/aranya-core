@@ -71,7 +71,7 @@ command Init {
 
     // The policy block contains statements which query data and check its validity.
     policy {
-        check this.nonce > 0 else todo()
+        check this.nonce > 0
         // The finish block contains statements which mutate facts.
         finish {}
     }
@@ -160,7 +160,7 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
         let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25 else todo()
+        check new_x < 25
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -188,7 +188,7 @@ ephemeral command IncrementEphemeral {
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
         let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25 else todo()
+        check new_x < 25
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -342,7 +342,7 @@ ephemeral command VerifyGreeting {
         let greeting = unwrap query Message[msg: this.key]=>{value: ?}
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value else todo()
+        check greeting.value == this.value
         finish {
             emit Success{value: true}
         }
@@ -371,7 +371,7 @@ command VerifyGreetingOnGraph {
 
     policy {
         let greeting = unwrap query Message[msg: this.key]=>{value: ?}
-        check greeting.value == this.value else todo()
+        check greeting.value == this.value
         finish {
             emit Success{value: true}
         }

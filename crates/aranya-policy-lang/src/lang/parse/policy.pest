@@ -295,8 +295,8 @@ publish_statement = { "publish" ~ expression }
 // A let statement assigns a value to an identifier. Identifiers can
 // only be assigned once.
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
-// Check asserts that an expression is true. If it is not, it executes the else branch, which is terminal, e.g. recall or return.
-check_statement = { "check" ~ expression ~ "else" ~ expression }
+// Check asserts that an expression is true. If it is not, it either exits with a check failure, or (if the optional else branch is present) executes that terminal expression, e.g. recall or return.
+check_statement = { "check" ~ expression ~ ("else" ~ expression)? }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).

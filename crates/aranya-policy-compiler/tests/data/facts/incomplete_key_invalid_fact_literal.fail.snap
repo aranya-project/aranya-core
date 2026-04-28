@@ -1,7 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 205
 expression: error
 ---
 fact literal does not match definition: Fact keys don't match definition at line 3 col 5:
-	check exists Foo[] else todo()
+	check exists Foo[]

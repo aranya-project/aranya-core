@@ -31,7 +31,7 @@ function multiply(x int, y int) int {
 }
 
 function divide(x int, y int) int {
-    check y > 0 else todo()
+    check y > 0
     if x < y { return 0 }
     let got = divide0(Division {
         d: y,
@@ -53,7 +53,7 @@ function divide0(args struct Division) struct Division {
     let q = args.q
     let r = args.r
 
-    check d > 0 else todo()
+    check d > 0
 
     if r < d {
         return Division {
