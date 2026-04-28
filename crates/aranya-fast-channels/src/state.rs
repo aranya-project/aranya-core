@@ -19,31 +19,13 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
-    /// Associated seal channel context.
-    ///
-    /// This state must be maintaned for as long as you use a given channel.
-    type SealCtx;
-
-    /// Associated seal channel context.
-    ///
-    /// This state must be maintaned for as long as you use a given channel.
-    type OpenCtx;
-
-    /// Sets up the seal context for a given channel.
-    ///
-    /// This must only be called once for any `id`.
-    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error>;
-
-    /// Sets up the open context for a given channel.
-    fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error>;
-
     /// Invokes `f` with the channel's encryption key.
-    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
@@ -150,6 +132,18 @@ impl LocalChannelId {
 impl fmt::Display for LocalChannelId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl From<LocalChannelId> for crate::arena::Index {
+    fn from(id: LocalChannelId) -> Self {
+        unsafe { core::mem::transmute::<u64, Self>(id.to_u64()) }
+    }
+}
+
+impl From<crate::arena::Index> for LocalChannelId {
+    fn from(idx: crate::arena::Index) -> Self {
+        Self::new(unsafe { core::mem::transmute::<crate::arena::Index, u64>(idx) })
     }
 }
 
@@ -356,25 +350,15 @@ mod test {
         CS: CipherSuite,
     {
         type CipherSuite = CS;
-        type SealCtx = <memory::State<CS> as AfcState>::SealCtx;
-        type OpenCtx = <memory::State<CS> as AfcState>::OpenCtx;
 
-        fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
-            self.state.setup_seal_ctx(id)
-        }
-
-        fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
-            self.state.setup_open_ctx(id)
-        }
-
-        fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
+        fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.seal(ctx, f)
+            self.state.seal(id, f)
         }
 
-        fn open<F, T>(&self, id: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
@@ -427,7 +411,7 @@ mod test {
         fn new_states<CS: CipherSuite>(
             _name: &str,
             _device_idx: DeviceIdx,
-            _max_chans: usize,
+            _max_chans: u32,
         ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
             let afc = DefaultState::<CS>::new();
             let aranya = afc.clone();
