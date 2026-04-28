@@ -8,7 +8,7 @@ Module {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 11,
         <open 'Cmd'>: 17,
-        <recall 'Cmd_recall_handle'>: 7,
+        <recall 'Cmd_handle'>: 7,
     },
     action_defs: {},
     command_defs: {
@@ -44,9 +44,9 @@ Module {
     def 'this'
     get 'this'
     struct.get 'x'
-    exit check: Cmd_recall_handle
+    exit check: Cmd_handle
     exit panic
-<recall 'Cmd_recall_handle'>:
+<recall 'Cmd_handle'>:
     def 'x'
     def 'envelope'
     def 'this'

@@ -1142,7 +1142,7 @@ impl CompileState<'_> {
         let recall_block = cmd
             .recalls
             .iter()
-            .find(|rb| rb.identifier.as_str() == fc.identifier.as_str())
+            .find(|rb| rb.identifier.inner == fc.identifier.inner)
             .ok_or_else(|| {
                 let note = format!("recall block `{}`", fc.identifier);
                 self.err(NotDefined(note, fc.identifier.span))
@@ -1633,7 +1633,7 @@ impl CompileState<'_> {
                             let lowered = self.lower_expression(e)?;
                             if !matches!(lowered.vtype.inner, TypeKind::Never) {
                                 return Err(self.err(InvalidType::new(
-                                    "Never (terminal expression like `return` or `recall`)"
+                                    "check else must be terminal (e.g. `return`, `recall`)"
                                         .to_owned(),
                                     None,
                                     lowered.vtype.to_string(),
