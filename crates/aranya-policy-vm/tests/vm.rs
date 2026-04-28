@@ -2718,3 +2718,97 @@ fn test_match_patterns() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_unit() -> anyhow::Result<()> {
+    let text = r#"
+        enum Err {
+            Fail,
+        }
+
+        effect Yes {
+            n int,
+        }
+
+        effect No {
+            err enum Err,
+        }
+
+        function verify(n int) result[unit, enum Err] {
+            return if n == 42 {
+                : Ok(unit)
+            } else {
+                : Err(Err::Fail)
+            }
+        }
+
+        command DoMatch {
+            fields {
+                n int
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                match verify(this.n) {
+                    Ok(Unit) => {
+                        finish {
+                            emit Yes {
+                                n: this.n,
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        finish {
+                            emit No {
+                                err: e,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let mut io = TestIO::new();
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+
+    // n=42 should emit Yes
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(42))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[0],
+            (
+                ident!("Yes"),
+                vec![KVPair::new(ident!("n"), Value::Int(42))]
+            )
+        );
+    }
+
+    // n=99 should emit No
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(99))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[1],
+            (
+                ident!("No"),
+                vec![KVPair::new(ident!("err"), Value::Enum(ident!("Err"), 0))]
+            )
+        );
+    }
+
+    Ok(())
+}

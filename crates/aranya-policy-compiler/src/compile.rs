@@ -556,6 +556,9 @@ impl<'a> CompileState<'a> {
         expression: thir::Expression,
     ) -> Result<(), CompileError> {
         match expression.kind {
+            thir::ExprKind::Unit => {
+                self.append_instruction(Instruction::Const(ConstValue::Unit));
+            }
             thir::ExprKind::Int(n) => {
                 self.append_instruction(Instruction::Const(ConstValue::Int(n)));
             }
@@ -1018,6 +1021,7 @@ impl<'a> CompileState<'a> {
             | TypeKind::Bytes
             | TypeKind::Int
             | TypeKind::Never
+            | TypeKind::Unit
             | TypeKind::String => {}
             TypeKind::Struct(name) => {
                 if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.inner) {
@@ -1879,6 +1883,7 @@ impl<'a> CompileState<'a> {
     /// Get expression value, e.g. ExprKind::Int => ConstValue::Int
     fn expression_value(&self, e: &Expression) -> Result<ConstValue, CompileError> {
         match &e.inner {
+            ExprKind::Unit => Ok(ConstValue::Unit),
             ExprKind::Int(v) => Ok(ConstValue::Int(*v)),
             ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
             ExprKind::String(v) => Ok(ConstValue::String(v.clone())),

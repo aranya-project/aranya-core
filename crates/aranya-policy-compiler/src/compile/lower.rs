@@ -235,7 +235,8 @@ impl CompileState<'_> {
     /// Check if finish blocks only use appropriate expressions
     fn check_finish_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
         match &expression.inner {
-            ExprKind::Int(_)
+            ExprKind::Unit
+            | ExprKind::Int(_)
             | ExprKind::String(_)
             | ExprKind::Bool(_)
             | ExprKind::Identifier(_)
@@ -259,6 +260,14 @@ impl CompileState<'_> {
         }
 
         Ok(match &expression.inner {
+            ExprKind::Unit => thir::Expression {
+                kind: thir::ExprKind::Unit,
+                vtype: VType {
+                    inner: TypeKind::Unit,
+                    span: expression.span,
+                },
+                span: expression.span,
+            },
             ExprKind::Int(n) => thir::Expression {
                 kind: thir::ExprKind::Int(*n),
                 vtype: VType {
