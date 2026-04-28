@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 199
 expression: module
 ---
 Module {
@@ -19,16 +18,16 @@ Module {
     struct_defs: {
         "Division": [
             FieldDefinition {
-                identifier: "d" @ 898..899,
-                field_type: Int @ 900..903,
+                identifier: "d" @ 886..887,
+                field_type: Int @ 888..891,
             },
             FieldDefinition {
-                identifier: "q" @ 925..926,
-                field_type: Int @ 927..930,
+                identifier: "q" @ 913..914,
+                field_type: Int @ 915..918,
             },
             FieldDefinition {
-                identifier: "r" @ 973..974,
-                field_type: Int @ 975..978,
+                identifier: "r" @ 961..962,
+                field_type: Int @ 963..966,
             },
         ],
     },
@@ -198,7 +197,7 @@ Module {
     const 0
     gt
     branch 149
-    exit panic
+    exit check
 <149>:
     get 'x'
     get 'y'
@@ -242,7 +241,7 @@ Module {
     const 0
     gt
     branch 190
-    exit panic
+    exit check
 <190>:
     get 'r'
     get 'd'

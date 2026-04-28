@@ -4,7 +4,7 @@ command Foo {
     seal { return todo() }
     open { return todo() }
     policy {
-        check true else todo()
+        check true
         finish {
             delete Blah[]
         } // finish must be the last statement in policy

@@ -7,5 +7,5 @@ error: invalid type: string
 1 | fact Foo[i int] => {a string}
   |            --- expected because of this
 2 | action test() {
-3 |     check exists Foo[i: "1"] else todo()
+3 |     check exists Foo[i: "1"]
   |                         ^^^ expected `int` but found `string`

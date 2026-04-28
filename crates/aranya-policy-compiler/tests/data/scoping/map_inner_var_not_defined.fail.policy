@@ -3,5 +3,5 @@ action pets() {
     map Pet[name:?] as p {
         let n = 42
     }
-    check n == 42 else todo() // should not be accessible outside the block
+    check n == 42 // should not be accessible outside the block
 }

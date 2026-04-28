@@ -25,13 +25,13 @@ command Add {
         let envelope_id = envelope::command_id(envelope)
         let author = envelope::author_id(envelope)
         let new_x = add2(x, count)
-        check exists TestFact[v: "test"]=>{} else todo()
+        check exists TestFact[v: "test"]=>{}
         match x {
             0 => {
-                check positive(Some(new_x)) else todo()
+                check positive(Some(new_x))
             }
             1 => {
-                check positive(None) else todo()
+                check positive(None)
             }
             _ => {
 
@@ -39,7 +39,7 @@ command Add {
         }
 
         if x == 3 {
-            check new_x < 10 else todo()
+            check new_x < 10
         }
 
         let a = foo::ext_func(x)

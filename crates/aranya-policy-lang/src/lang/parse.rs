@@ -1164,14 +1164,10 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
-        // The optional `else <expr>` clause. consume_expression returns the
-        // next expression if any; if the optional clause was absent, no
-        // further pair remains.
-        let else_expression = if pc.peek().is_some() {
-            Some(pc.consume_expression(self)?)
-        } else {
-            None
-        };
+        let else_expression = pc
+            .consume_optional(Rule::expression)
+            .map(|token| self.parse_expression(token))
+            .transpose()?;
         Ok(CheckStatement {
             expression,
             else_expression,
