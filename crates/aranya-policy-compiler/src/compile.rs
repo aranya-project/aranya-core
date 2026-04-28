@@ -902,18 +902,16 @@ impl<'a> CompileState<'a> {
             thir::StmtKind::Check(s) => {
                 self.compile_typed_expression(s.expression)?;
 
-                // Reserve space for the branch instruction. We'll go back and update its target
-                // after we know where the success path begins.
-                let branch_wp = self.wp;
-                self.append_instruction(Instruction::Branch(Target::Resolved(0)));
+                let check_succeeded_label = self.anonymous_label();
+                self.append_instruction(Instruction::Branch(Target::Unresolved(
+                    check_succeeded_label.clone(),
+                )));
 
                 match s.else_expression {
                     Some(else_expression) => self.compile_typed_expression(else_expression)?,
                     None => self.append_instruction(Instruction::Exit(ExitReason::Check(None))),
                 }
-
-                // Now that we know where the success path begins, patch the branch to jump there.
-                self.m.progmem[branch_wp] = Instruction::Branch(Target::Resolved(self.wp));
+                self.define_label(check_succeeded_label, self.wp)?;
             }
             thir::StmtKind::Match(s) => {
                 self.compile_match_statement_or_expression(LanguageContext::Statement(s))?;
@@ -1249,24 +1247,20 @@ impl<'a> CompileState<'a> {
     }
 
     /// Returns a unique recall block name for the given command and recall name.
-    /// The name follows the format: `<command>_recall_<name>`.
+    /// The name follows the format: `<command>_<name>`.
     fn command_recall_name(
         &self,
         command: &ast::CommandDefinition,
         recall_name: &Ident,
     ) -> Result<Identifier, CompileError> {
-        format!(
-            "{}_recall_{}",
-            command.identifier.as_str(),
-            recall_name.as_str()
-        )
-        .try_into()
-        .map_err(|_| {
-            CompileError::new(CompileErrorType::InvalidType(format!(
-                "invalid recall block name for command '{:?}'",
-                recall_name
-            )))
-        })
+        format!("{}_{}", command.identifier.as_str(), recall_name.as_str())
+            .try_into()
+            .map_err(|_| {
+                CompileError::new(CompileErrorType::InvalidType(format!(
+                    "invalid recall block name for command '{:?}'",
+                    recall_name
+                )))
+            })
     }
 
     fn compile_command_recall(

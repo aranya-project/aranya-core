@@ -1,0 +1,9 @@
+command Cmd {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        check true else 0
+        finish {}
+    }
+}

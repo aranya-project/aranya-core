@@ -1626,7 +1626,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
                 ident!("Envelope"),
                 [KVPair::new(ident!("payload"), test_data.into())],
             ),
-            ident!("Foo_recall_default"),
+            ident!("Foo_default"),
         )?
         .success();
     }
@@ -2768,7 +2768,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
     let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
 
     // Should exit with Check, and args should be on stack
-    let recall_name = ident!("Foo_recall_test");
+    let recall_name = ident!("Foo_test");
     assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
     let stack_values = rs.stack.as_slice();
     assert_eq!(stack_values.first(), Some(&Value::Int(1)));
@@ -2827,12 +2827,12 @@ fn test_recall_statement() -> anyhow::Result<()> {
     let envelope = dummy_envelope();
 
     // Exec policy: the recall statement should exit immediately with
-    // Check(Some("Foo_recall_handle")) and put the arg on the stack.
+    // Check(Some("Foo_handle")) and put the arg on the stack.
     let ctx = dummy_ctx_policy(name.clone());
     let mut rs = machine.create_run_state(&mut io, ctx);
     let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
 
-    let recall_name = ident!("Foo_recall_handle");
+    let recall_name = ident!("Foo_handle");
     assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
     let stack_values = rs.stack.as_slice();
     assert_eq!(stack_values.first(), Some(&Value::Int(7)));

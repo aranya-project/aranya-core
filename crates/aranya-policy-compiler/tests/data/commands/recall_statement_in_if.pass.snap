@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 199
 expression: module
 ---
 Module {
@@ -9,7 +8,7 @@ Module {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 24,
         <open 'Cmd'>: 30,
-        <recall 'Cmd_recall_handle'>: 20,
+        <recall 'Cmd_handle'>: 20,
     },
     action_defs: {},
     command_defs: {
@@ -52,7 +51,7 @@ Module {
     block
     get 'this'
     struct.get 'x'
-    exit check: Cmd_recall_handle
+    exit check: Cmd_handle
     end
     jump 15
 <15>:
@@ -61,7 +60,7 @@ Module {
     end
     exit normal
     exit panic
-<recall 'Cmd_recall_handle'>:
+<recall 'Cmd_handle'>:
     def 'envelope'
     def 'this'
     def 'x'
