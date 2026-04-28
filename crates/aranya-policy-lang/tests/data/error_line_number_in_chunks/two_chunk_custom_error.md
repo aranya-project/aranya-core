@@ -8,5 +8,5 @@ policy-version: 2
 Next chunk:
 ```policy
     let x = 0
-    let y = "a\\0b"
+    let y = "a\0b"
 ```

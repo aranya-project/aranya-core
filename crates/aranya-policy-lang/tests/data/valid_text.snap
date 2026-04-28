@@ -1,0 +1,68 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [
+        GlobalLetStatement {
+            identifier: "empty" @ 4..9,
+            expression: String(
+                "",
+            ) @ 12..14,
+            span: 0..15,
+        },
+        GlobalLetStatement {
+            identifier: "basic" @ 19..24,
+            expression: String(
+                "foo bar",
+            ) @ 27..36,
+            span: 15..37,
+        },
+        GlobalLetStatement {
+            identifier: "min" @ 41..44,
+            expression: String(
+                "\u{1}",
+            ) @ 47..53,
+            span: 37..54,
+        },
+        GlobalLetStatement {
+            identifier: "max" @ 58..61,
+            expression: String(
+                "\u{7f}",
+            ) @ 64..70,
+            span: 54..71,
+        },
+        GlobalLetStatement {
+            identifier: "newline" @ 75..82,
+            expression: String(
+                "\n",
+            ) @ 85..89,
+            span: 71..90,
+        },
+        GlobalLetStatement {
+            identifier: "slash" @ 94..99,
+            expression: String(
+                "\\",
+            ) @ 102..106,
+            span: 90..107,
+        },
+        GlobalLetStatement {
+            identifier: "quote" @ 111..116,
+            expression: String(
+                "\"",
+            ) @ 119..123,
+            span: 107..124,
+        },
+    ],
+    text: "let empty = \"\"\nlet basic = \"foo bar\"\nlet min = \"\\x01\"\nlet max = \"\\x7f\"\nlet newline = \"\\n\"\nlet slash = \"\\\\\"\nlet quote = \"\\\"\"\n",
+}

@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Syntax error
+  |
+1 | let x = "a\x\\""
+  |                ^ expected EOI, add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, dot, substruct, cast, is, ephemeral_modifier, immutable_modifier, use_definition, effect_definition, struct_definition, enum_definition, function_decl, finish_function_decl, or global_let_statement
