@@ -200,19 +200,27 @@ dependencies = [
 name = "aranya-core"
 version = "0.0.1-alpha"
 dependencies = [
+ "aranya-crypto",
+ "aranya-id",
+ "aranya-policy-ifgen",
+ "aranya-runtime",
+]
+
+[[package]]
+name = "aranya-core-example"
+version = "0.0.0"
+dependencies = [
  "anyhow",
  "aranya-core",
- "aranya-crypto",
  "aranya-crypto-ffi",
  "aranya-device-ffi",
  "aranya-envelope-ffi",
- "aranya-id",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
+ "aranya-policy-ifgen-build",
  "aranya-policy-lang",
  "aranya-policy-vm",
- "aranya-runtime",
  "postcard",
 ]
 
@@ -412,6 +420,7 @@ dependencies = [
 name = "aranya-policy-ifgen"
 version = "0.22.0"
 dependencies = [
+ "aranya-core",
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",
@@ -420,6 +429,7 @@ dependencies = [
  "aranya-runtime",
  "goldenfile",
  "serde",
+ "syn",
  "thiserror 2.0.7",
 ]
 

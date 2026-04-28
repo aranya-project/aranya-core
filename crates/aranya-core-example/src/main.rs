@@ -1,8 +1,10 @@
-//! Minimal aranya-core usage with the built-in file-backed storage.
+//! End-to-end aranya-core example using ifgen-typed actions and effects.
 //!
-//! Uses the `FileManager` re-exported from `aranya_core::storage` (the same
-//! storage the real aranya daemon uses), so there is zero custom storage
-//! code. This is the simplest path to a working `ClientState`.
+//! This crate exercises the public surface of `aranya-core`. The runtime
+//! types come from `aranya-core` directly; typed actions and effects come
+//! from `aranya-core::ifgen` via build-time codegen against `policy.md`.
+//! The FFI/compiler/VM crates are needed for one-time policy compilation
+//! and FFI module wiring.
 
 use std::fs;
 
@@ -10,6 +12,7 @@ use anyhow::{Context as _, Result};
 use aranya_core::{
     ClientState, Command as _, GraphId, Sink, TraversalBuffer, TraversalBuffers,
     crypto::{DefaultCipherSuite, DefaultEngine, Rng},
+    ifgen::Actionable as _,
     keystore::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStoreExt as _, MemStore, SigningKey,
     },
@@ -24,7 +27,12 @@ use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::{Machine, Struct, Value, ffi::FfiModule as _, ident};
+use aranya_policy_vm::{Machine, ffi::FfiModule as _};
+
+#[allow(dead_code)]
+mod policy;
+
+use policy::{Effect, PublicKeys, add_device, increment_counter, init, set_counter};
 
 // ---------------------------------------------------------------------------
 // Type Aliases
@@ -46,7 +54,10 @@ impl PrintSink {
 
     fn drain_and_print(&mut self, label: &str) {
         for eff in self.effects.drain(..) {
-            println!("  [{label}] Effect: {eff}");
+            match Effect::try_from(eff) {
+                Ok(parsed) => println!("  [{label}] Effect: {parsed:?}"),
+                Err(err) => println!("  [{label}] Effect parse failed: {err}"),
+            }
         }
     }
 }
@@ -68,18 +79,16 @@ impl Sink<VmEffect> for PrintSink {
 // ---------------------------------------------------------------------------
 
 #[allow(dead_code)]
-struct DeviceKeys {
+struct Device {
     engine: CE,
     store: MemStore,
     device_id: DeviceId,
     sign_id: <SigningKey<CS> as Identified>::Id,
     enc_id: <EncryptionKey<CS> as Identified>::Id,
-    ident_pk_bytes: Vec<u8>,
-    sign_pk_bytes: Vec<u8>,
-    enc_pk_bytes: Vec<u8>,
+    public_keys: PublicKeys,
 }
 
-fn create_device() -> Result<DeviceKeys> {
+fn create_device() -> Result<Device> {
     let (eng, _) = DefaultEngine::<_, DefaultCipherSuite>::from_entropy(Rng);
     let mut store = MemStore::new();
 
@@ -112,19 +121,19 @@ fn create_device() -> Result<DeviceKeys> {
         .public()?;
 
     // Serialize public keys
-    let ident_pk_bytes = postcard::to_allocvec(&ident_pk)?;
-    let sign_pk_bytes = postcard::to_allocvec(&sign_pk)?;
-    let enc_pk_bytes = postcard::to_allocvec(&enc_pk)?;
+    let public_keys = PublicKeys {
+        ident_key: postcard::to_allocvec(&ident_pk)?,
+        sign_key: postcard::to_allocvec(&sign_pk)?,
+        enc_key: postcard::to_allocvec(&enc_pk)?,
+    };
 
-    Ok(DeviceKeys {
+    Ok(Device {
         engine: eng,
         store,
         device_id,
         sign_id,
         enc_id,
-        ident_pk_bytes,
-        sign_pk_bytes,
-        enc_pk_bytes,
+        public_keys,
     })
 }
 
@@ -132,10 +141,10 @@ fn create_device() -> Result<DeviceKeys> {
 // Policy Compilation
 // ---------------------------------------------------------------------------
 
-fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPolicyStore<CE>> {
-    let ast = parse_policy_document(include_str!("policy.md"))
-        .context("unable to parse policy document")?;
+const POLICY_SOURCE: &str = include_str!("policy.md");
 
+fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPolicyStore<CE>> {
+    let ast = parse_policy_document(POLICY_SOURCE).context("parse policy document")?;
     let module = Compiler::new(&ast)
         .ffi_modules(&[
             CryptoFfi::<MemStore>::SCHEMA,
@@ -145,9 +154,9 @@ fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPol
             PerspectiveFfi::SCHEMA,
         ])
         .compile()
-        .context("unable to compile policy")?;
+        .context("compile policy")?;
 
-    let machine = Machine::from_module(module).context("unable to create machine")?;
+    let machine = Machine::from_module(module).context("create machine")?;
 
     let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
         Box::from(CryptoFfi::new(store.clone())),
@@ -157,23 +166,8 @@ fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPol
         Box::from(PerspectiveFfi),
     ];
 
-    let policy = VmPolicy::new(machine, eng, ffis).context("unable to create VmPolicy")?;
+    let policy = VmPolicy::new(machine, eng, ffis).context("create VmPolicy")?;
     Ok(VmPolicyStore::new(policy))
-}
-
-// ---------------------------------------------------------------------------
-// Helper — Build PublicKeys Value
-// ---------------------------------------------------------------------------
-
-fn make_public_keys(ident: &[u8], sign: &[u8], enc: &[u8]) -> Value {
-    Value::Struct(Struct::new(
-        ident!("PublicKeys"),
-        [
-            (ident!("ident_key"), Value::Bytes(ident.to_vec())),
-            (ident!("sign_key"), Value::Bytes(sign.to_vec())),
-            (ident!("enc_key"), Value::Bytes(enc.to_vec())),
-        ],
-    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -210,13 +204,12 @@ fn sync_graphs(
     let mut buffer = TraversalBuffer::default();
 
     let mut syncer = SyncRequester::new(graph_id, Rng);
-
     let mut trx = dest.transaction(graph_id);
 
     let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, _sent) = syncer
         .poll(&mut buf, dest.provider(), &mut request_cache, &mut buffer)
-        .context("sync poll failed")?;
+        .context("sync poll")?;
 
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let resp_len = dispatch(
@@ -225,25 +218,23 @@ fn sync_graphs(
         source.provider(),
         &mut response_cache,
     )
-    .context("sync dispatch failed")?;
+    .context("sync dispatch")?;
 
     if resp_len > 0
         && let Some(cmds) = syncer
             .receive(&target[..resp_len])
-            .context("sync receive failed")?
+            .context("sync receive")?
     {
-        let _received = dest
-            .add_commands(&mut trx, sink, &cmds, &mut buffer)
-            .context("add_commands failed")?;
-        dest.commit(trx, sink, &mut buffer)
-            .context("commit failed")?;
+        dest.add_commands(&mut trx, sink, &cmds, &mut buffer)
+            .context("add_commands")?;
+        dest.commit(trx, sink, &mut buffer).context("commit")?;
         dest.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             &mut request_cache,
             &mut buffer,
         )
-        .context("update_heads failed")?;
+        .context("update_heads")?;
     }
 
     Ok(())
@@ -254,7 +245,7 @@ fn sync_graphs(
 // ---------------------------------------------------------------------------
 
 fn main() -> Result<()> {
-    let storage_root = std::env::temp_dir().join("aranya-core-simple");
+    let storage_root = std::env::temp_dir().join("aranya-core-example");
 
     // Create per-device storage directories.
     let dir_a = storage_root.join("device_a");
@@ -262,12 +253,10 @@ fn main() -> Result<()> {
     fs::create_dir_all(&dir_a).context("create device_a storage dir")?;
     fs::create_dir_all(&dir_b).context("create device_b storage dir")?;
 
-    let provider_a = LinearStorageProvider::new(
-        FileManager::new(&dir_a).context("create FileManager for device A")?,
-    );
-    let provider_b = LinearStorageProvider::new(
-        FileManager::new(&dir_b).context("create FileManager for device B")?,
-    );
+    let provider_a =
+        LinearStorageProvider::new(FileManager::new(&dir_a).context("FileManager for device A")?);
+    let provider_b =
+        LinearStorageProvider::new(FileManager::new(&dir_b).context("FileManager for device B")?);
 
     println!("== Device Setup ==");
 
@@ -290,56 +279,33 @@ fn main() -> Result<()> {
 
     // Step 4: Create graph with init action
     println!("\nStep 4: Creating graph (init)...");
-    let owner_keys = make_public_keys(
-        &dev_a.ident_pk_bytes,
-        &dev_a.sign_pk_bytes,
-        &dev_a.enc_pk_bytes,
-    );
-    let graph_id = cs_a
-        .new_graph(
-            &[0u8],
-            aranya_runtime::vm_action!(init(owner_keys, 42)),
-            &mut sink,
-        )
-        .context("new_graph failed")?;
+    let graph_id = init(dev_a.public_keys, 42)
+        .with_action(|action| cs_a.new_graph(&[0u8], action, &mut sink))
+        .context("new_graph")?;
     sink.drain_and_print("Device A / init");
     println!("  Graph ID: {graph_id}");
 
     // Step 5: Add Device B
     println!("\n== Device A: Add Device B ==");
     println!("\nStep 5: Adding Device B...");
-    let device_keys_b = make_public_keys(
-        &dev_b.ident_pk_bytes,
-        &dev_b.sign_pk_bytes,
-        &dev_b.enc_pk_bytes,
-    );
-    cs_a.action(
-        graph_id,
-        &mut sink,
-        aranya_runtime::vm_action!(add_device(device_keys_b)),
-    )
-    .context("add_device failed")?;
+    add_device(dev_b.public_keys)
+        .with_action(|action| cs_a.action(graph_id, &mut sink, action))
+        .context("add_device")?;
     sink.drain_and_print("Device A / add_device");
 
     // Step 6: Set counter
     println!("\n== Device A: Application Commands ==");
     println!("\nStep 6: Setting counter(1) = 100...");
-    cs_a.action(
-        graph_id,
-        &mut sink,
-        aranya_runtime::vm_action!(set_counter(1, 100)),
-    )
-    .context("set_counter failed")?;
+    set_counter(1, 100)
+        .with_action(|action| cs_a.action(graph_id, &mut sink, action))
+        .context("set_counter")?;
     sink.drain_and_print("Device A / set_counter");
 
     // Step 7: Increment counter
     println!("\nStep 7: Incrementing counter(1) by 50...");
-    cs_a.action(
-        graph_id,
-        &mut sink,
-        aranya_runtime::vm_action!(increment_counter(1, 50)),
-    )
-    .context("increment_counter failed")?;
+    increment_counter(1, 50)
+        .with_action(|action| cs_a.action(graph_id, &mut sink, action))
+        .context("increment_counter")?;
     sink.drain_and_print("Device A / increment_counter");
 
     // Step 8: Compile policy for Device B, create Client B
@@ -356,12 +322,9 @@ fn main() -> Result<()> {
     // Step 10: Device B runs its own action
     println!("\n== Device B: Own Action ==");
     println!("\nStep 10: Device B incrementing counter(1) by 25...");
-    cs_b.action(
-        graph_id,
-        &mut sink,
-        aranya_runtime::vm_action!(increment_counter(1, 25)),
-    )
-    .context("Device B increment_counter failed")?;
+    increment_counter(1, 25)
+        .with_action(|action| cs_b.action(graph_id, &mut sink, action))
+        .context("Device B increment_counter")?;
     sink.drain_and_print("Device B / increment_counter");
 
     // Step 11: Sync B -> A
@@ -374,6 +337,5 @@ fn main() -> Result<()> {
 
     // Clean up temp storage.
     let _ = fs::remove_dir_all(&storage_root);
-
     Ok(())
 }
