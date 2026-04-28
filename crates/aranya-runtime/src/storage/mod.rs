@@ -248,6 +248,11 @@ impl TraversalBuffer {
         self.queue.clear();
         &mut self.queue
     }
+
+    // TODO(nikki): pub?
+    pub(crate) fn queue_mut(&mut self) -> &mut TraversalQueue {
+        &mut self.queue
+    }
 }
 
 impl Default for TraversalBuffer {
