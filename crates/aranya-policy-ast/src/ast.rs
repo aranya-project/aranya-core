@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
-use core::{cmp, fmt, ops::Deref, str::FromStr};
+use core::{fmt, ops::Deref, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
