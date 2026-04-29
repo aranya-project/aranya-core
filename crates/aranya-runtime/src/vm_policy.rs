@@ -205,6 +205,29 @@ impl<CE> VmPolicy<CE> {
         engine: CE,
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
+        if let Some(contract) = &machine.contract {
+            // validate FFI schema against machine
+            if contract.ffis.len() != ffis.len() {
+                error!(
+                    "Machine and VM have different FFI module count: {} != {}",
+                    contract.ffis.len(),
+                    ffis.len()
+                );
+                return Err(VmPolicyError::ContractMismatch);
+            }
+            for (mod_ffi, vm_ffi) in contract
+                .ffis
+                .iter()
+                .zip(ffis.iter().map(|m| m.schema().name))
+            {
+                if mod_ffi != &vm_ffi {
+                    error!("FFI mismatch: {mod_ffi} != {vm_ffi}");
+                    return Err(VmPolicyError::ContractMismatch);
+                }
+            }
+        } else {
+            tracing::warn!("Module does not have contract; cannot validate FFI");
+        }
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,

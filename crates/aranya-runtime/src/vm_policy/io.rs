@@ -8,7 +8,7 @@ use aranya_policy_vm::{
     CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, MachineStack,
     ast::{Identifier, Text},
-    ffi::FfiModule,
+    ffi::{FfiModule, ModuleSchema},
 };
 use tracing::error;
 
@@ -16,6 +16,9 @@ use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
 /// Object safe wrapper for [`FfiModule`].
 pub trait FfiCallable<CE> {
+    /// Access the module's schema
+    fn schema(&self) -> ModuleSchema<'static>;
+
     /// Invokes a function in the module.
     fn call(
         &self,
@@ -31,6 +34,10 @@ where
     FM: FfiModule,
     CE: aranya_crypto::Engine,
 {
+    fn schema(&self) -> ModuleSchema<'static> {
+        Self::SCHEMA
+    }
+
     fn call(
         &self,
         procedure: usize,

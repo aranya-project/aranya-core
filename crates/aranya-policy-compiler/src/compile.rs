@@ -2175,7 +2175,11 @@ impl<'a> Compiler<'a> {
 
     fn set_up_compile_state(&self) -> CompileState<'_> {
         let codemap = CodeMap::new(&self.policy.text);
-        let machine = CompileTarget::new(codemap);
+        let machine = CompileTarget::new(
+            codemap,
+            self.ffi_modules,
+        );
+
         CompileState {
             policy: self.policy,
             m: machine,
