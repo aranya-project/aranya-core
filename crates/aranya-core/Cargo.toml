@@ -14,6 +14,7 @@ workspace = true
 [dependencies]
 aranya-crypto = { version = "0.14.0", path = "../aranya-crypto", default-features = false }
 aranya-id = { version = "0.2.2", path = "../aranya-id", default-features = false }
+aranya-policy-ifgen = { version = "0.22.0", path = "../aranya-policy-ifgen", features = ["serde"] }
 aranya-runtime = { version = "0.22.0", path = "../aranya-runtime", default-features = false }
 
 [features]
@@ -34,24 +35,3 @@ low-mem-usage = ["aranya-runtime/low-mem-usage"]
 custom-engine = []
 
 memstore = ["aranya-crypto/memstore"]
-
-[dev-dependencies]
-anyhow = "1"
-postcard = { workspace = true, features = ["alloc"] }
-
-aranya-core = { path = ".", features = ["std", "libc"] }
-aranya-crypto = { path = "../aranya-crypto", features = ["std", "alloc", "getrandom", "memstore"] }
-aranya-crypto-ffi = { path = "../aranya-crypto-ffi" }
-aranya-device-ffi = { path = "../aranya-device-ffi" }
-aranya-envelope-ffi = { path = "../aranya-envelope-ffi" }
-aranya-idam-ffi = { path = "../aranya-idam-ffi" }
-aranya-perspective-ffi = { path = "../aranya-perspective-ffi" }
-aranya-policy-compiler = { path = "../aranya-policy-compiler" }
-aranya-policy-lang = { path = "../aranya-policy-lang" }
-aranya-policy-vm = { path = "../aranya-policy-vm" }
-
-
-[[example]]
-name = "simple"
-path = "examples/simple.rs"
-required-features = ["std", "libc", "memstore"]

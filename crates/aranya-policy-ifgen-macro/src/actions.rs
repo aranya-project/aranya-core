@@ -49,13 +49,13 @@ pub(super) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         #derive
         #act
 
-        impl ::aranya_policy_ifgen::Actionable for #ident {
+        impl aranya_policy_ifgen::Actionable for #ident {
             type Interface = #interface;
 
-            fn with_action<R>(self, f: impl for<'a> FnOnce(::aranya_policy_ifgen::VmAction<'a>) -> R) -> R {
+            fn with_action<R>(self, f: impl for<'a> FnOnce(aranya_policy_ifgen::VmAction<'a>) -> R) -> R {
                 match self {
                     #(
-                        Self::#variants(v) => ::aranya_policy_ifgen::Actionable::with_action(v, f),
+                        Self::#variants(v) => aranya_policy_ifgen::Actionable::with_action(v, f),
                     )*
                 }
             }

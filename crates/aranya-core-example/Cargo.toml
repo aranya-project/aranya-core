@@ -1,0 +1,33 @@
+[package]
+name = "aranya-core-example"
+description = "End-to-end example exercising aranya-core's public API and ifgen re-export"
+version = "0.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+aranya-core = { path = "../aranya-core", features = ["std", "libc", "memstore"] }
+
+aranya-crypto-ffi = { path = "../aranya-crypto-ffi" }
+aranya-device-ffi = { path = "../aranya-device-ffi" }
+aranya-envelope-ffi = { path = "../aranya-envelope-ffi" }
+aranya-idam-ffi = { path = "../aranya-idam-ffi" }
+aranya-perspective-ffi = { path = "../aranya-perspective-ffi" }
+aranya-policy-compiler = { path = "../aranya-policy-compiler" }
+aranya-policy-lang = { path = "../aranya-policy-lang" }
+aranya-policy-vm = { path = "../aranya-policy-vm" }
+
+anyhow = { workspace = true, features = ["std"] }
+postcard = { workspace = true, features = ["alloc"] }
+
+[build-dependencies]
+aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
+
+anyhow = { workspace = true, features = ["std"] }

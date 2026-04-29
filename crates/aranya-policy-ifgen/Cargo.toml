@@ -26,8 +26,10 @@ serde = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+aranya-core = { path = "../aranya-core" }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
 
 goldenfile = "1.6.0"
+syn = { workspace = true }
