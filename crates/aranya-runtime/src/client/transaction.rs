@@ -483,13 +483,13 @@ where
     )?;
 
     let mut iter = order.iter()?;
-    let first = iter.next()?.assume("braid is non-empty")?;
+    let first = iter.next().assume("braid is non-empty")??;
 
     let mut braid_perspective = storage.get_fact_perspective(first)?;
 
     sink.begin();
 
-    while let Some(location) = iter.next()? {
+    while let Some(location) = iter.next().transpose()? {
         let segment = storage.get_segment(location)?;
         let command = segment
             .get_command(location)

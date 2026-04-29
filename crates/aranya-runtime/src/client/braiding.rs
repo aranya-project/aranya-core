@@ -113,10 +113,8 @@ impl<F: Spill> BraidResult<F> {
 /// Iterator over braid results in forward order (reversed from push order).
 ///
 /// Reads the in-memory buffer backwards first, then reads spilled
-/// blocks from disk in reverse.
-///
-/// Does not implement [`Iterator`] because iteration is fallible
-/// (disk reads may fail). Use [`next`](Self::next) directly.
+/// blocks from disk in reverse. Item is `Result<Location, ClientError>`
+/// because disk reads may fail.
 pub(super) struct BraidIter<'a, F> {
     /// In-memory entries, reversed for forward iteration.
     mem: &'a [Location],
@@ -137,40 +135,6 @@ impl<'a, F: Spill> BraidIter<'a, F> {
             disk_buf: heapless::Vec::new(),
             disk_buf_pos: 0,
         })
-    }
-
-    /// Get the next location in forward braid order.
-    pub fn next(&mut self) -> Result<Option<Location>, ClientError> {
-        // First yield from in-memory buffer (backwards).
-        if self.mem_pos > 0 {
-            self.mem_pos = self
-                .mem_pos
-                .checked_sub(1)
-                .assume("mem_pos > 0 checked above")?;
-            return Ok(Some(self.mem[self.mem_pos]));
-        }
-
-        // Then yield from disk (backwards).
-        if self.disk_buf_pos > 0 {
-            self.disk_buf_pos = self
-                .disk_buf_pos
-                .checked_sub(1)
-                .assume("disk_buf_pos > 0 checked above")?;
-            return Ok(Some(self.disk_buf[self.disk_buf_pos]));
-        }
-
-        if self.disk_remaining > 0 {
-            self.load_prev_block()?;
-            if self.disk_buf_pos > 0 {
-                self.disk_buf_pos = self
-                    .disk_buf_pos
-                    .checked_sub(1)
-                    .assume("disk_buf_pos > 0 checked above")?;
-                return Ok(Some(self.disk_buf[self.disk_buf_pos]));
-            }
-        }
-
-        Ok(None)
     }
 
     fn load_prev_block(&mut self) -> Result<(), ClientError> {
@@ -206,6 +170,39 @@ impl<'a, F: Spill> BraidIter<'a, F> {
         self.disk_buf_pos = self.disk_buf.len();
         self.disk_remaining = start;
         Ok(())
+    }
+}
+
+impl<'a, F: Spill> Iterator for BraidIter<'a, F> {
+    type Item = Result<Location, ClientError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // First yield from in-memory buffer (backwards).
+        if let Some(prev) = self.mem_pos.checked_sub(1) {
+            self.mem_pos = prev;
+            return Some(Ok(self.mem[prev]));
+        }
+
+        // Then yield from disk buffer (backwards).
+        if let Some(prev) = self.disk_buf_pos.checked_sub(1) {
+            self.disk_buf_pos = prev;
+            return Some(Ok(self.disk_buf[prev]));
+        }
+
+        if self.disk_remaining > 0 {
+            if let Err(e) = self.load_prev_block() {
+                // Fuse the iterator on disk error so subsequent next() calls
+                // return None rather than retrying the same failing block.
+                self.disk_remaining = 0;
+                return Some(Err(e));
+            }
+            if let Some(prev) = self.disk_buf_pos.checked_sub(1) {
+                self.disk_buf_pos = prev;
+                return Some(Ok(self.disk_buf[prev]));
+            }
+        }
+
+        None
     }
 }
 
@@ -528,7 +525,7 @@ mod braid_result_tests {
     fn empty_result_yields_nothing() {
         let mut result = TestBraidResult::new(MemSpill::new().unwrap());
         let mut iter = result.iter().unwrap();
-        assert!(iter.next().unwrap().is_none());
+        assert!(iter.next().is_none());
     }
 
     #[test]
@@ -536,8 +533,8 @@ mod braid_result_tests {
         let mut result = TestBraidResult::new(MemSpill::new().unwrap());
         result.push(loc(0, 1)).unwrap();
         let mut iter = result.iter().unwrap();
-        assert_eq!(iter.next().unwrap(), Some(loc(0, 1)));
-        assert!(iter.next().unwrap().is_none());
+        assert_eq!(iter.next().unwrap().unwrap(), loc(0, 1));
+        assert!(iter.next().is_none());
     }
 
     #[test]
@@ -548,10 +545,10 @@ mod braid_result_tests {
         result.push(loc(2, 1)).unwrap();
 
         let mut iter = result.iter().unwrap();
-        assert_eq!(iter.next().unwrap(), Some(loc(2, 1)));
-        assert_eq!(iter.next().unwrap(), Some(loc(1, 2)));
-        assert_eq!(iter.next().unwrap(), Some(loc(0, 3)));
-        assert!(iter.next().unwrap().is_none());
+        assert_eq!(iter.next().unwrap().unwrap(), loc(2, 1));
+        assert_eq!(iter.next().unwrap().unwrap(), loc(1, 2));
+        assert_eq!(iter.next().unwrap().unwrap(), loc(0, 3));
+        assert!(iter.next().is_none());
     }
 
     #[test]
@@ -570,7 +567,7 @@ mod braid_result_tests {
             let entry = iter.next().unwrap().unwrap();
             assert_eq!(entry, loc(i, i), "mismatch at reverse index {i}");
         }
-        assert!(iter.next().unwrap().is_none());
+        assert!(iter.next().is_none());
     }
 
     #[test]
@@ -587,6 +584,6 @@ mod braid_result_tests {
             let entry = iter.next().unwrap().unwrap();
             assert_eq!(entry, loc(i, i), "mismatch at reverse index {i}");
         }
-        assert!(iter.next().unwrap().is_none());
+        assert!(iter.next().is_none());
     }
 }
