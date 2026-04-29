@@ -22,7 +22,9 @@ mod responder;
 mod wire;
 
 pub use requester::SyncRequester;
+use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
+use wire::{SubscribeResult, SyncHelloType, SyncType};
 
 // TODO: These should all be compile time parameters
 
@@ -116,10 +118,6 @@ impl<'a> Command for SyncCommand<'a> {
         Ok(self.max_cut)
     }
 }
-
-// Re-imports of pub(crate) wire types used in helper conversions below.
-use responder::SyncResponseMessage;
-use wire::{SubscribeResult, SyncHelloType, SyncType};
 
 /// A decoded incoming sync message.
 ///
