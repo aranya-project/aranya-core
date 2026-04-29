@@ -337,9 +337,10 @@ impl<'a> CompileState<'a> {
                             self.err(NotDefined(note, field_type_ident.span()))
                         })?;
                     for field in other {
-                        if let Some(existing_def) = field_definitions
-                            .iter()
-                            .find(|f: &&FieldDefinition| f.identifier.inner == field.identifier.inner)
+                        if let Some(existing_def) =
+                            field_definitions.iter().find(|f: &&FieldDefinition| {
+                                f.identifier.inner == field.identifier.inner
+                            })
                         {
                             return Err(self.err(AlreadyDefined::new(
                                 field.identifier.clone(),
@@ -372,7 +373,8 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let enum_name = &enum_def.identifier;
         // ensure enum name is unique
-        if let Some((existing_def, _)) = self.m.interface.enum_defs.get_key_value(&enum_name.inner) {
+        if let Some((existing_def, _)) = self.m.interface.enum_defs.get_key_value(&enum_name.inner)
+        {
             let err = AlreadyDefined::new(enum_name.clone(), existing_def.clone());
             return Err(self.err(err));
         }

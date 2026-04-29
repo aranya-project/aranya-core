@@ -12,13 +12,7 @@ use serde_derive::{Deserialize, Serialize};
 /// hashing, or ordering — only the inner value is. This lets `WithSpan<T>`
 /// be used as a map key that behaves like `T`.
 #[derive(
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+    Clone, Copy, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
 )]
 #[must_use]
 pub struct WithSpan<T> {

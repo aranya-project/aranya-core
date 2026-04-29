@@ -347,12 +347,6 @@ impl CompileState<'_> {
                         inner_expr = Some(Box::new(inner));
                     }
                 }
-                // We allow nested optional types.
-                // if matches!(inner_vtype.inner, TypeKind::Optional(_)) {
-                //     return Err(self.err(CompileErrorType::InvalidType(
-                //         "Cannot wrap option in another option".into(),
-                //     )));
-                // }
                 thir::Expression {
                     kind: thir::ExprKind::Optional(inner_expr),
                     vtype: VType {
@@ -756,7 +750,7 @@ impl CompileState<'_> {
 
                 let name = t.vtype.as_struct().ok_or_else(|| {
                     self.err(InvalidType::new(
-                        "struct T".to_owned(),
+                        "struct".to_owned(),
                         None,
                         t.vtype.to_string(),
                         t.span,
@@ -797,7 +791,8 @@ impl CompileState<'_> {
                         lhs_expression.span,
                     ))
                 })?;
-                let Some(lhs_field_defns) = self.m.interface.struct_defs.get(&lhs_struct_name.inner)
+                let Some(lhs_field_defns) =
+                    self.m.interface.struct_defs.get(&lhs_struct_name.inner)
                 else {
                     let note = format!("struct `{lhs_struct_name}` not defined");
                     return Err(self.err(NotDefined(note, lhs_struct_name.span)));
@@ -808,7 +803,8 @@ impl CompileState<'_> {
                     lhs_field_defns.iter().any(|lhs_field| {
                         lhs_field.identifier.inner == field_def.identifier.inner
                             && lhs_field
-                                .field_type.inner
+                                .field_type
+                                .inner
                                 .matches(&field_def.field_type.inner)
                     })
                 }) {
@@ -1291,7 +1287,8 @@ impl CompileState<'_> {
                                 ExprKind::Ok(inner) | ExprKind::Err(inner) => {
                                     // Binding pattern: Ok(x) or Err(e) where x/e are identifiers
                                     let is_ok = matches!(&value.inner, ExprKind::Ok(_));
-                                    let TypeKind::Result(result_type) = &scrutinee_type.inner else {
+                                    let TypeKind::Result(result_type) = &scrutinee_type.inner
+                                    else {
                                         return Err(self.err(InvalidType::new(
                                             "result[T, E]".to_owned(),
                                             None,

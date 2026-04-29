@@ -5,4 +5,4 @@ expression: error
 error: invalid type: int
   |
 2 |     return x.y
-  |            ^ expected `struct T` but found `int`
+  |            ^ expected `struct` but found `int`
