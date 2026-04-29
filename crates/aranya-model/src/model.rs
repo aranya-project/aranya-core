@@ -12,8 +12,8 @@ use aranya_crypto::Rng;
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
-    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, MemSpill, PeerCache, StorageProvider,
-    SyncError, SyncRequester, TraversalBuffers,
+    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, MemSpill, PeerCache, RuntimeBuffers,
+    StorageProvider, SyncError, SyncRequester, TraversalBuffers,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
@@ -309,6 +309,7 @@ pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     pub client_graph_peer_cache: ClientGraphPeerCache,
     client_factory: CF,
     buffers: TraversalBuffers,
+    rt_buffers: RuntimeBuffers<<CF::StorageProvider as StorageProvider>::Segment>,
     _ph: PhantomData<(CID, GID)>,
 }
 
@@ -324,6 +325,7 @@ where
             client_graph_peer_cache: BTreeMap::default(),
             client_factory,
             buffers: TraversalBuffers::new(),
+            rt_buffers: RuntimeBuffers::new(),
             _ph: PhantomData,
         }
     }
@@ -540,19 +542,14 @@ where
                         &mut request_trx,
                         &mut sink,
                         &cmds,
-                        &mut self.buffers.primary,
+                        &mut self.rt_buffers,
                         MemSpill::new,
                     )?;
                 }
             }
         }
 
-        request_state.commit(
-            request_trx,
-            &mut sink,
-            &mut self.buffers.primary,
-            MemSpill::new,
-        )?;
+        request_state.commit(request_trx, &mut sink, &mut self.rt_buffers, MemSpill::new)?;
 
         Ok(())
     }

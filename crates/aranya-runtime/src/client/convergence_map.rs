@@ -104,6 +104,7 @@ impl Block {
         self.entries.clear();
         self.min_max_cut = MaxCut(usize::MAX);
         self.max_max_cut = MaxCut(0);
+        self.last_accessed = 0;
     }
 
     fn to_bytes(&self) -> Result<[u8; BLOCK_BYTES], ClientError> {
@@ -139,6 +140,39 @@ impl Block {
     }
 }
 
+/// Reusable storage for [`ConvergenceMap`].
+///
+/// Held inside [`BraidBuffer`](crate::BraidBuffer); cleared on each
+/// access via [`Self::get`], matching the [`TraversalBuffer`] pattern.
+pub struct ConvergenceStorage {
+    blocks: [Block; NUM_BLOCKS],
+    root: heapless::Vec<NodeEntry, ROOT_CAPACITY>,
+}
+
+impl ConvergenceStorage {
+    pub const fn new() -> Self {
+        Self {
+            blocks: [Block::new(), Block::new(), Block::new()],
+            root: heapless::Vec::new(),
+        }
+    }
+
+    /// Returns a cleared storage, ready for use by a fresh `ConvergenceMap`.
+    pub fn get(&mut self) -> &mut Self {
+        for b in &mut self.blocks {
+            b.clear();
+        }
+        self.root.clear();
+        self
+    }
+}
+
+impl Default for ConvergenceStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Incrementally-computed convergence map with disk-backed overflow.
 ///
 /// Keeps up to 3 blocks of 256 entries in memory. When a block
@@ -146,9 +180,8 @@ impl Block {
 /// file. An in-memory root index maps max_cut ranges to file
 /// offsets for O(1) block lookup.
 pub struct ConvergenceMap<'a, F> {
-    blocks: [Block; NUM_BLOCKS],
+    storage: &'a mut ConvergenceStorage,
     active_block: usize,
-    root: heapless::Vec<NodeEntry, ROOT_CAPACITY>,
     queue: &'a mut TraversalQueue,
     lca: Location,
     access_counter: u32,
@@ -163,14 +196,14 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         right: Location,
         lca: Location,
         queue: &'a mut TraversalQueue,
+        storage: &'a mut ConvergenceStorage,
         spill_file: F,
     ) -> Result<Self, ClientError> {
         queue.push_duplicate(left)?;
         queue.push_duplicate(right)?;
         Ok(Self {
-            blocks: [Block::new(), Block::new(), Block::new()],
+            storage,
             active_block: 0,
-            root: heapless::Vec::new(),
             queue,
             lca,
             access_counter: 0,
@@ -183,7 +216,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     fn lru_block(&self) -> usize {
         let mut lru = 0;
         for i in 1..NUM_BLOCKS {
-            if self.blocks[i].last_accessed < self.blocks[lru].last_accessed {
+            if self.storage.blocks[i].last_accessed < self.storage.blocks[lru].last_accessed {
                 lru = i;
             }
         }
@@ -192,17 +225,17 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
 
     /// Insert an entry into the active block, spilling if needed.
     fn insert_entry(&mut self, entry: Entry) -> Result<(), ClientError> {
-        if self.blocks[self.active_block].is_full() {
+        if self.storage.blocks[self.active_block].is_full() {
             self.spill_lru()?;
         }
-        self.blocks[self.active_block].insert(entry);
+        self.storage.blocks[self.active_block].insert(entry);
         Ok(())
     }
 
     /// Spill the LRU block to disk and make it the new active block.
     fn spill_lru(&mut self) -> Result<(), ClientError> {
         let lru = self.lru_block();
-        let block = &self.blocks[lru];
+        let block = &self.storage.blocks[lru];
 
         if block.is_empty() {
             self.active_block = lru;
@@ -219,10 +252,10 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         self.spill_file.write_at(offset, &data[..byte_len])?;
 
         // Add to root index.
-        if self.root.is_full() {
+        if self.storage.root.is_full() {
             return Err(StorageError::ConvergenceRootOverflow(ROOT_CAPACITY).into());
         }
-        let _ = self.root.push(NodeEntry {
+        let _ = self.storage.root.push(NodeEntry {
             min_max_cut: block.min_max_cut,
             max_max_cut: block.max_max_cut,
             file_offset: offset,
@@ -234,15 +267,14 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             .assume("next file offset must not overflow")?;
 
         // Clear and reuse.
-        self.blocks[lru].clear();
-        self.blocks[lru].last_accessed = 0;
+        self.storage.blocks[lru].clear();
         self.active_block = lru;
         Ok(())
     }
 
     /// Read a spilled block from disk.
     fn read_block_from_disk(&self, root_idx: usize) -> Result<Block, ClientError> {
-        let node = self.root[root_idx];
+        let node = self.storage.root[root_idx];
 
         let num_entries = node.num_entries;
         let byte_len = num_entries
@@ -261,13 +293,13 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         let loaded = self.read_block_from_disk(root_idx)?;
 
         // Remove from root index — data is now in memory.
-        self.root.swap_remove(root_idx);
+        self.storage.root.swap_remove(root_idx);
 
         // Evict LRU to disk, then replace it with the loaded block.
         self.spill_lru()?;
         let target = self.active_block;
-        self.blocks[target] = loaded;
-        self.blocks[target].last_accessed = self.access_counter;
+        self.storage.blocks[target] = loaded;
+        self.storage.blocks[target].last_accessed = self.access_counter;
         Ok(target)
     }
 
@@ -316,7 +348,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     /// Look up a location in the in-memory blocks.
     /// Returns (block_index, entry_index) if found.
     fn find_in_memory(&self, location: Location) -> Option<(usize, usize)> {
-        for (bi, block) in self.blocks.iter().enumerate() {
+        for (bi, block) in self.storage.blocks.iter().enumerate() {
             if let Some(ei) = block.find(location) {
                 return Some((bi, ei));
             }
@@ -326,16 +358,18 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
 
     /// Decrement or remove an entry, returning whether the strand should continue.
     fn consume_entry(&mut self, block_idx: usize, entry_idx: usize) -> Result<bool, ClientError> {
-        self.blocks[block_idx].last_accessed = self.access_counter;
-        if self.blocks[block_idx].entries[entry_idx].count > 1 {
-            self.blocks[block_idx].entries[entry_idx].count = self.blocks[block_idx].entries
-                [entry_idx]
-                .count
-                .checked_sub(1)
-                .assume("count > 1 checked above")?;
+        self.storage.blocks[block_idx].last_accessed = self.access_counter;
+        if self.storage.blocks[block_idx].entries[entry_idx].count > 1 {
+            self.storage.blocks[block_idx].entries[entry_idx].count =
+                self.storage.blocks[block_idx].entries[entry_idx]
+                    .count
+                    .checked_sub(1)
+                    .assume("count > 1 checked above")?;
             Ok(false)
         } else {
-            self.blocks[block_idx].entries.swap_remove(entry_idx);
+            self.storage.blocks[block_idx]
+                .entries
+                .swap_remove(entry_idx);
             Ok(true)
         }
     }
@@ -368,12 +402,12 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         // Check spilled blocks on disk.
         {
             let mut ri = 0;
-            while ri < self.root.len() {
-                let node = self.root[ri];
+            while ri < self.storage.root.len() {
+                let node = self.storage.root[ri];
                 if location.max_cut >= node.min_max_cut && location.max_cut <= node.max_max_cut {
                     // Load block into memory (removes root[ri] via swap_remove).
                     let bi = self.load_block_from_disk(ri)?;
-                    if let Some(ei) = self.blocks[bi].find(location) {
+                    if let Some(ei) = self.storage.blocks[bi].find(location) {
                         return self.consume_entry(bi, ei);
                     }
                     // Don't increment ri — swap_remove moved a new entry here.
@@ -384,5 +418,51 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         }
 
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod convergence_storage_tests {
+    use super::*;
+
+    /// Verify that `ConvergenceStorage::get` resets `last_accessed` on all
+    /// blocks. Without this, reusing a `BraidBuffer` across calls would leak
+    /// LRU state from the previous call into the next one.
+    #[test]
+    fn get_resets_last_accessed() {
+        let mut cs = ConvergenceStorage::new();
+
+        // Fresh state: last_accessed should be 0.
+        for block in &cs.blocks {
+            assert_eq!(block.last_accessed, 0);
+        }
+
+        // Simulate dirty state from a previous braid call.
+        cs.blocks[0].last_accessed = 42;
+        cs.blocks[1].last_accessed = 17;
+
+        // get() must reset last_accessed to 0.
+        let cs2 = cs.get();
+        for block in &cs2.blocks {
+            assert_eq!(
+                block.last_accessed, 0,
+                "last_accessed must be reset to 0 on reuse"
+            );
+        }
+
+        // root must also be cleared.
+        assert!(cs2.root.is_empty());
+    }
+
+    /// Verify that `Block::clear` resets `last_accessed` (the A.2.1 fix).
+    #[test]
+    fn block_clear_resets_last_accessed() {
+        let mut block = Block::new();
+        block.last_accessed = 99;
+        block.clear();
+        assert_eq!(
+            block.last_accessed, 0,
+            "Block::clear must reset last_accessed"
+        );
     }
 }

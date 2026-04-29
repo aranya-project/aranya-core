@@ -9,12 +9,14 @@ use crate::{
     policy::ActionPlacement, storage::Spill,
 };
 
-mod braiding;
-mod convergence_map;
+pub(crate) mod braiding; // exposed for `buffers.rs` (StrandHeap)
+mod buffers;
+pub(crate) mod convergence_map; // exposed for `buffers.rs` (ConvergenceStorage)
 mod session;
 mod transaction;
 
 pub use self::{session::Session, transaction::Transaction};
+pub use buffers::{BraidBuffer, RuntimeBuffers};
 
 /// An error returned by the runtime client.
 #[derive(Debug, thiserror::Error)]
@@ -138,7 +140,7 @@ where
         &mut self,
         trx: Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
-        buffer: &mut TraversalBuffer,
+        buffers: &mut RuntimeBuffers<SP::Segment>,
         make_spill: MS,
     ) -> Result<bool, ClientError>
     where
@@ -149,7 +151,7 @@ where
             &mut self.provider,
             &mut self.policy_store,
             sink,
-            buffer,
+            buffers,
             &make_spill,
         )
     }
@@ -166,7 +168,7 @@ where
         trx: &mut Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         commands: &[impl Command],
-        buffer: &mut TraversalBuffer,
+        buffers: &mut RuntimeBuffers<SP::Segment>,
         make_spill: MS,
     ) -> Result<usize, ClientError>
     where
@@ -178,7 +180,7 @@ where
             &mut self.provider,
             &mut self.policy_store,
             sink,
-            buffer,
+            buffers,
             &make_spill,
         )
     }

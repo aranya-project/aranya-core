@@ -589,6 +589,7 @@ fn test_sync<PS, P, S>(
     let mut sync_requester = SyncRequester::new(graph_id, Rng);
 
     let mut req_transaction = cs1.transaction(graph_id);
+    let mut rt_buffers = crate::RuntimeBuffers::<_>::new();
 
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -616,14 +617,14 @@ fn test_sync<PS, P, S>(
                 &mut req_transaction,
                 sink,
                 &cmds,
-                &mut buffers.primary,
+                &mut rt_buffers,
                 MemSpill::new,
             )
             .expect("add commands");
         }
     }
 
-    cs2.commit(req_transaction, sink, &mut buffers.primary, MemSpill::new)
+    cs2.commit(req_transaction, sink, &mut rt_buffers, MemSpill::new)
         .expect("commit");
 }
 

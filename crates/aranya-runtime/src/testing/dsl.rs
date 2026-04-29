@@ -67,9 +67,9 @@ use tracing::{debug, error};
 
 use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior, Segment as _,
-    Storage, StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
-    TraversalBuffer, TraversalBuffers,
+    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
+    RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncRequester,
+    SyncResponder, SyncType, TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -529,6 +529,7 @@ where
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
     let mut buffers = TraversalBuffers::new();
+    let mut rt_buffers = RuntimeBuffers::<<SB::StorageProvider as StorageProvider>::Segment>::new();
 
     for rule in actions {
         debug!(?rule);
@@ -606,6 +607,7 @@ where
                         &mut sink,
                         *graph_id,
                         &mut buffers,
+                        &mut rt_buffers,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -774,6 +776,7 @@ where
                                     &mut sink,
                                     *graph_id,
                                     &mut buffers,
+                                    &mut rt_buffers,
                                 )?;
 
                                 if received > 0 {
@@ -983,6 +986,7 @@ fn sync<SP: StorageProvider>(
     sink: &mut TestSink,
     graph_id: GraphId,
     buffers: &mut TraversalBuffers,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
 ) -> Result<(usize, usize), TestError> {
     let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
@@ -1012,14 +1016,9 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(
-            &mut request_trx,
-            sink,
-            &cmds,
-            &mut buffers.primary,
-            MemSpill::new,
-        )?;
-        request_state.commit(request_trx, sink, &mut buffers.primary, MemSpill::new)?;
+        received =
+            request_state.add_commands(&mut request_trx, sink, &cmds, rt_buffers, MemSpill::new)?;
+        request_state.commit(request_trx, sink, rt_buffers, MemSpill::new)?;
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),

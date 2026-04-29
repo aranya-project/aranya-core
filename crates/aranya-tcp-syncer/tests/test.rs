@@ -280,6 +280,7 @@ fn spawn_syncer<PS, SP, S>(
 where
     PS: PolicyStore + Send + 'static,
     SP: StorageProvider + Send + 'static,
+    SP::Segment: Send,
     S: Sink<<PS as PolicyStore>::Effect> + Send + 'static,
     <SP as StorageProvider>::Perspective: Send,
 {

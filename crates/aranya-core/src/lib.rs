@@ -25,8 +25,8 @@ pub mod id;
 
 #[doc(inline)]
 pub use aranya_runtime::{
-    Address, ClientError, ClientState, CmdId, Command, GraphId, Session, Sink, Transaction,
-    TraversalBuffer, TraversalBuffers,
+    Address, BraidBuffer, ClientError, ClientState, CmdId, Command, GraphId, RuntimeBuffers,
+    Session, Sink, Transaction, TraversalBuffer, TraversalBuffers,
 };
 
 pub mod storage {

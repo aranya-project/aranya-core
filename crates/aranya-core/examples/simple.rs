@@ -8,7 +8,7 @@ use std::fs;
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
-    ClientState, Command as _, GraphId, Sink, TraversalBuffer, TraversalBuffers,
+    ClientState, Command as _, GraphId, RuntimeBuffers, Sink, TraversalBuffer, TraversalBuffers,
     crypto::{DefaultCipherSuite, DefaultEngine, Rng},
     keystore::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStoreExt as _, MemStore, SigningKey,
@@ -209,7 +209,8 @@ fn sync_graphs(
 ) -> Result<()> {
     let mut request_cache = PeerCache::default();
     let mut response_cache = PeerCache::default();
-    let mut buffer = TraversalBuffer::default();
+    let mut traversal = TraversalBuffer::default();
+    let mut rt_buffers = RuntimeBuffers::new();
 
     let mut syncer = SyncRequester::new(graph_id, Rng);
 
@@ -217,7 +218,12 @@ fn sync_graphs(
 
     let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, _sent) = syncer
-        .poll(&mut buf, dest.provider(), &mut request_cache, &mut buffer)
+        .poll(
+            &mut buf,
+            dest.provider(),
+            &mut request_cache,
+            &mut traversal,
+        )
         .context("sync poll failed")?;
 
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -236,15 +242,15 @@ fn sync_graphs(
     {
         let make_spill = || LibcSpill::new(spill_dir);
         let _received = dest
-            .add_commands(&mut trx, sink, &cmds, &mut buffer, make_spill)
+            .add_commands(&mut trx, sink, &cmds, &mut rt_buffers, make_spill)
             .context("add_commands failed")?;
-        dest.commit(trx, sink, &mut buffer, make_spill)
+        dest.commit(trx, sink, &mut rt_buffers, make_spill)
             .context("commit failed")?;
         dest.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             &mut request_cache,
-            &mut buffer,
+            &mut traversal,
         )
         .context("update_heads failed")?;
     }

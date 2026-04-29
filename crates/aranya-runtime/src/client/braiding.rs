@@ -222,7 +222,8 @@ pub(super) fn braid<S, F, MS>(
     left: Location,
     right: Location,
     lca: Location,
-    buffer: &mut TraversalBuffer,
+    traversal: &mut TraversalBuffer,
+    braid_buf: &mut crate::BraidBuffer<S::Segment>,
     make_spill: &MS,
 ) -> Result<BraidResult<F>, ClientError>
 where
@@ -230,15 +231,21 @@ where
     F: Spill,
     MS: Fn() -> Result<F, StorageError>,
 {
-    use strand_heap::{Strand, StrandHeap};
+    use self::strand_heap::Strand;
 
     let mut braid = BraidResult::new(make_spill()?);
-    let mut strands = StrandHeap::new();
+    let strands = braid_buf.strands.get();
 
     trace!(%left, %right, %lca, "braiding");
 
-    let mut convergence =
-        convergence_map::ConvergenceMap::new(left, right, lca, buffer.get(), make_spill()?)?;
+    let mut convergence = convergence_map::ConvergenceMap::new(
+        left,
+        right,
+        lca,
+        traversal.get(),
+        braid_buf.convergence.get(),
+        make_spill()?,
+    )?;
 
     for head in [left, right] {
         strands.push(Strand::new(storage, head, None)?)?;
@@ -309,7 +316,7 @@ where
 
 use super::convergence_map;
 
-mod strand_heap {
+pub(crate) mod strand_heap {
     use heapless::binary_heap::Max;
 
     use crate::{
@@ -375,12 +382,30 @@ mod strand_heap {
         has_finalize: bool,
     }
 
+    impl<S> Default for StrandHeap<S> {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl<S> StrandHeap<S> {
         pub const fn new() -> Self {
             Self {
                 heap: heapless::BinaryHeap::new(),
                 has_finalize: false,
             }
+        }
+
+        /// Empties the heap. Used when reusing a `BraidBuffer` across calls.
+        pub fn clear(&mut self) {
+            self.heap.clear();
+            self.has_finalize = false;
+        }
+
+        /// Returns a cleared `StrandHeap`, ready for use.
+        pub fn get(&mut self) -> &mut Self {
+            self.clear();
+            self
         }
 
         /// Adds another strand to the heap.
@@ -424,6 +449,67 @@ mod strand_heap {
         pub fn iter(&self) -> impl Iterator<Item = &Strand<S>> {
             self.heap.iter()
         }
+
+        /// Returns whether the heap currently tracks a finalize strand.
+        /// Used in tests to verify that `clear`/`get` resets this flag.
+        #[cfg(test)]
+        pub(crate) fn has_finalize(&self) -> bool {
+            self.has_finalize
+        }
+
+        /// Directly sets `has_finalize` to exercise clearing behavior in tests
+        /// without needing to construct a full `Strand`.
+        #[cfg(test)]
+        pub(crate) fn set_has_finalize_for_test(&mut self, value: bool) {
+            self.has_finalize = value;
+        }
+    }
+}
+
+#[cfg(test)]
+mod braid_reuse_tests {
+    use super::strand_heap::StrandHeap;
+    use crate::StorageProvider;
+    use crate::storage::linear::testing::MemStorageProvider;
+
+    type TestStrandHeap = StrandHeap<<MemStorageProvider as StorageProvider>::Segment>;
+
+    /// Verify that `StrandHeap::get` empties the heap so it can be reused
+    /// across braid calls without leaking state.
+    ///
+    /// This test explicitly sets dirty state (`has_finalize = true`) before
+    /// calling `get()` to ensure the clearing behavior is actually exercised,
+    /// not just verified in the vacuous empty case.
+    #[test]
+    fn strand_heap_get_clears_heap() {
+        let mut heap = TestStrandHeap::new();
+
+        // Simulate dirty state: mark that a finalize strand is present.
+        heap.set_has_finalize_for_test(true);
+        assert!(
+            heap.has_finalize(),
+            "precondition: has_finalize should be true before get()"
+        );
+
+        // get() must clear the heap and reset has_finalize.
+        let h = heap.get();
+        assert!(h.pop().is_none(), "heap should be empty after get()");
+        assert!(
+            !h.has_finalize(),
+            "has_finalize should be false after get()"
+        );
+
+        // A second round: set dirty state again and verify get() clears it.
+        h.set_has_finalize_for_test(true);
+        let h2 = h.get();
+        assert!(
+            h2.pop().is_none(),
+            "heap should still be empty after second get()"
+        );
+        assert!(
+            !h2.has_finalize(),
+            "has_finalize should be false after second get()"
+        );
     }
 }
 
