@@ -273,7 +273,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     }
 
     /// Read a spilled block from disk.
-    fn read_block_from_disk(&self, root_idx: usize) -> Result<Block, ClientError> {
+    fn read_block_from_disk(&mut self, root_idx: usize) -> Result<Block, ClientError> {
         let node = self.storage.root[root_idx];
 
         let num_entries = node.num_entries;

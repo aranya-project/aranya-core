@@ -7,8 +7,8 @@
 //! - [`LibcSpill`] (`libc`): file-backed via `aranya_libc` pread/pwrite,
 //!   using the same APIs as `linear::libc`. The caller supplies a
 //!   directory; the underlying file is created unlinked inside it and
-//!   cleaned up when the last handle is dropped.
-//! - [`MemSpill`] (`testing`): in-memory `RefCell<Vec<u8>>` buffer,
+//!   cleaned up when the handle is dropped.
+//! - [`MemSpill`] (`testing`): in-memory `Vec<u8>` buffer,
 //!   suitable for unit tests and environments without a filesystem.
 
 #[cfg(feature = "testing")]
@@ -19,17 +19,17 @@ use crate::{StorageError, storage::Spill};
 // --- libc backend ---
 
 /// File-backed spill. Created unlinked inside a caller-supplied directory
-/// and cleaned up when the last clone of the handle is dropped.
+/// and cleaned up when the handle is dropped.
 #[cfg(feature = "libc")]
 pub struct LibcSpill {
-    fd: alloc::sync::Arc<aranya_libc::OwnedFd>,
+    fd: aranya_libc::OwnedFd,
 }
 
 #[cfg(feature = "libc")]
 impl LibcSpill {
     /// Create a new spill file inside `dir`. The file is immediately
     /// unlinked so it has no externally visible name and is cleaned up
-    /// when all handles are dropped.
+    /// when this handle is dropped.
     pub fn new<P: AsRef<aranya_libc::Path>>(dir: P) -> Result<Self, StorageError> {
         use aranya_libc::{
             self as libc, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRUSR,
@@ -56,15 +56,13 @@ impl LibcSpill {
         // Unlink immediately — file stays open via fd, cleaned up on drop.
         let _ = libc::unlinkat(libc::AsFd::as_fd(&dir_fd), file_path, 0);
 
-        Ok(Self {
-            fd: alloc::sync::Arc::new(fd),
-        })
+        Ok(Self { fd })
     }
 }
 
 #[cfg(feature = "libc")]
 impl Spill for LibcSpill {
-    fn write_at(&self, offset: usize, buf: &[u8]) -> Result<(), StorageError> {
+    fn write_at(&mut self, offset: usize, buf: &[u8]) -> Result<(), StorageError> {
         use aranya_libc::{self as libc, Errno};
         use buggy::BugExt as _;
 
@@ -86,7 +84,7 @@ impl Spill for LibcSpill {
         Ok(())
     }
 
-    fn read_at(&self, offset: usize, buf: &mut [u8]) -> Result<(), StorageError> {
+    fn read_at(&mut self, offset: usize, buf: &mut [u8]) -> Result<(), StorageError> {
         use aranya_libc::{self as libc, Errno};
         use buggy::BugExt as _;
 
@@ -114,39 +112,35 @@ impl Spill for LibcSpill {
 /// In-memory spill backed by a growable byte buffer.
 #[cfg(feature = "testing")]
 pub struct MemSpill {
-    buf: core::cell::RefCell<Vec<u8>>,
+    buf: Vec<u8>,
 }
 
 #[cfg(feature = "testing")]
 impl MemSpill {
     /// Create an empty in-memory spill.
     pub fn new() -> Result<Self, StorageError> {
-        Ok(Self {
-            buf: core::cell::RefCell::new(Vec::new()),
-        })
+        Ok(Self { buf: Vec::new() })
     }
 }
 
 #[cfg(feature = "testing")]
 impl Spill for MemSpill {
-    fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError> {
-        let mut buf = self.buf.borrow_mut();
+    fn write_at(&mut self, offset: usize, data: &[u8]) -> Result<(), StorageError> {
         let end = offset
             .checked_add(data.len())
             .ok_or(StorageError::IoError)?;
-        if end > buf.len() {
-            buf.resize(end, 0);
+        if end > self.buf.len() {
+            self.buf.resize(end, 0);
         }
-        buf[offset..end].copy_from_slice(data);
+        self.buf[offset..end].copy_from_slice(data);
         Ok(())
     }
 
-    fn read_at(&self, offset: usize, data: &mut [u8]) -> Result<(), StorageError> {
-        let buf = self.buf.borrow();
+    fn read_at(&mut self, offset: usize, data: &mut [u8]) -> Result<(), StorageError> {
         let end = offset
             .checked_add(data.len())
             .ok_or(StorageError::IoError)?;
-        let src = buf.get(offset..end).ok_or(StorageError::IoError)?;
+        let src = self.buf.get(offset..end).ok_or(StorageError::IoError)?;
         data.copy_from_slice(src);
         Ok(())
     }

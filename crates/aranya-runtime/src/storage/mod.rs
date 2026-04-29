@@ -30,9 +30,9 @@ pub use spill::MemSpill;
 /// Callers build a spill and pass it in.
 pub trait Spill {
     /// Write `data` at the given byte offset.
-    fn write_at(&self, offset: usize, data: &[u8]) -> Result<(), StorageError>;
+    fn write_at(&mut self, offset: usize, data: &[u8]) -> Result<(), StorageError>;
     /// Read exactly `data.len()` bytes starting at the given byte offset.
-    fn read_at(&self, offset: usize, data: &mut [u8]) -> Result<(), StorageError>;
+    fn read_at(&mut self, offset: usize, data: &mut [u8]) -> Result<(), StorageError>;
 }
 
 /// Default capacity for the traversal queue.

@@ -121,7 +121,7 @@ pub(super) struct BraidIter<'a, F> {
     /// In-memory entries, reversed for forward iteration.
     mem: &'a [Location],
     mem_pos: usize,
-    file: &'a F,
+    file: &'a mut F,
     disk_remaining: usize,
     disk_buf: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
     disk_buf_pos: usize,
@@ -132,7 +132,7 @@ impl<'a, F: Spill> BraidIter<'a, F> {
         Ok(Self {
             mem: result.mem.as_slice(),
             mem_pos: result.mem.len(),
-            file: &result.spill_file,
+            file: &mut result.spill_file,
             disk_remaining: result.spill_len,
             disk_buf: heapless::Vec::new(),
             disk_buf_pos: 0,
@@ -180,7 +180,7 @@ impl<'a, F: Spill> BraidIter<'a, F> {
             .checked_sub(count)
             .assume("count <= disk_remaining by min")?;
 
-        let file = self.file;
+        let file = &mut self.file;
 
         self.disk_buf.clear();
         let mut offset = start
