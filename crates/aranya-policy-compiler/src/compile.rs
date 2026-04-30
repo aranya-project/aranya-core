@@ -1284,41 +1284,23 @@ impl<'a> CompileState<'a> {
                 ))));
             }
 
-            self.define_label(Label::new(full_name, LabelType::CommandRecall), self.wp)?;
+            let params = recall_block
+                .arguments
+                .iter()
+                .cloned()
+                .chain([param::this(command.identifier.clone()), param::envelope()])
+                .collect::<Vec<_>>();
 
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-            self.identifier_types.enter_function();
-            self.identifier_types
-                .add(
-                    ident!("this"),
-                    VType {
-                        inner: TypeKind::Struct(command.identifier.clone()),
-                        span: Span::default(),
-                    },
-                )
-                .map_err(|e| self.err(e))?;
-            self.identifier_types
-                .add(
-                    ident!("envelope"),
-                    VType {
-                        inner: TypeKind::Struct(ident!("Envelope").nowhere()),
-                        span: Span::default(),
-                    },
-                )
-                .map_err(|e| self.err(e))?;
-            self.append_instruction(Instruction::Def(ident!("envelope")));
-            self.append_instruction(Instruction::Def(ident!("this")));
-
-            // define args, like compile_function
-            for arg in recall_block.arguments.iter().rev() {
-                self.ensure_type_is_defined(&arg.ty)?;
-                self.append_var(arg.name.inner.clone(), arg.ty.clone())?;
-            }
-
-            self.compile_statements(&recall_block.statements, Scope::Same)?;
-            self.identifier_types.exit_function();
-            self.exit_statement_context();
+            self.compile_function_like(
+                &params,
+                None,
+                recall_block.span,
+                &recall_block.statements,
+                Label::new(full_name, LabelType::CommandRecall),
+            )?;
             self.append_instruction(Instruction::Exit(ExitReason::Normal));
+            self.exit_statement_context();
         }
         Ok(())
     }
