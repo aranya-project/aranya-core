@@ -47,11 +47,11 @@ pub mod storage {
     #[cfg(feature = "libc")]
     #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
     #[doc(inline)]
-    pub use aranya_runtime::storage::linear::libc::FileManager;
+    pub use aranya_runtime::LibcSpill;
     #[cfg(feature = "libc")]
     #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
     #[doc(inline)]
-    pub use aranya_runtime::LibcSpill;
+    pub use aranya_runtime::storage::linear::libc::FileManager;
     #[doc(inline)]
     pub use aranya_runtime::{
         StorageError,

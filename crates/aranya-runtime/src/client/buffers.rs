@@ -11,10 +11,10 @@ use crate::{
     storage::TraversalBuffers,
 };
 
-/// Reusable storage for one [`braid`](crate::client::braiding::braid) call.
+/// Reusable storage for one braid call.
 ///
-/// Generic over the [`Segment`] type because [`StrandHeap`] caches
-/// segments inline.
+/// Generic over the [`Segment`] type because the strand-heap cache
+/// stores segments inline.
 pub struct BraidBuffer<S> {
     pub strands: StrandHeap<S>,
     pub convergence: ConvergenceStorage,
