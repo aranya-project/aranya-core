@@ -154,7 +154,7 @@ foreign_function_call = { identifier ~ "::" ~ function_call }
 // Split "Result::Ok" into enum name and value name in order to resolve value to integer
 enum_reference = { identifier ~ "::" ~ identifier }
 
-unit_literal = { "unit" }
+unit_literal = { "Unit" }
 
 // Optional literals are "None" or "Some <x>", where <x> is any
 // expression. Note that the grammar allows the construction of

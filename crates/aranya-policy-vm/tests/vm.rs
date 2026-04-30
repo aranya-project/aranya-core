@@ -2644,7 +2644,7 @@ fn test_unit() -> anyhow::Result<()> {
 
         function verify(n int) result[unit, enum Err] {
             return if n == 42 {
-                : Ok(unit)
+                : Ok(Unit)
             } else {
                 : Err(Err::Fail)
             }

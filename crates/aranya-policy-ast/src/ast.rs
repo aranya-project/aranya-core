@@ -549,7 +549,7 @@ pub type Expression = WithSpan<ExprKind>;
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
-    /// A unit literal
+    /// A Unit literal
     Unit,
     /// A 64-bit signed integer
     Int(i64),

@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
     )
 ))]
 pub enum ConstValue {
-    /// A unit value.
+    /// A Unit value.
     Unit,
     /// Integer (64-bit signed)
     Int(i64),
