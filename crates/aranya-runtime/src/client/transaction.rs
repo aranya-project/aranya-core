@@ -139,7 +139,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     right_loc,
                     sink,
                     policy,
-                    &mut buffers.traversal,
+                    &mut buffers.traversal.primary,
                     &mut buffers.braid,
                     make_spill,
                 )?;
@@ -158,7 +158,11 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             } else {
                 let segment = storage.get_segment(left_loc)?;
 
-                if storage.is_ancestor(storage.get_head()?, &segment, &mut buffers.traversal)? {
+                if storage.is_ancestor(
+                    storage.get_head()?,
+                    &segment,
+                    &mut buffers.traversal.primary,
+                )? {
                     storage.commit(segment)?;
                     debug_assert!(heads.is_empty());
                 } else {
@@ -225,7 +229,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             }
 
             if self
-                .locate(storage, command.address()?, &mut buffers.traversal)?
+                .locate(storage, command.address()?, &mut buffers.traversal.primary)?
                 .is_some()
             {
                 // Command already added.
@@ -246,7 +250,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                         sink,
                         command,
                         parent,
-                        &mut buffers.traversal,
+                        &mut buffers.traversal.primary,
                     )?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
@@ -325,10 +329,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         }
 
         let left_loc = self
-            .locate(storage, left, &mut buffers.traversal)?
+            .locate(storage, left, &mut buffers.traversal.primary)?
             .ok_or(ClientError::NoSuchParent(left.id))?;
         let right_loc = self
-            .locate(storage, right, &mut buffers.traversal)?
+            .locate(storage, right, &mut buffers.traversal.primary)?
             .ok_or(ClientError::NoSuchParent(right.id))?;
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
@@ -340,7 +344,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             right_loc,
             sink,
             policy,
-            &mut buffers.traversal,
+            &mut buffers.traversal.primary,
             &mut buffers.braid,
             make_spill,
         )?;

@@ -15,8 +15,9 @@ pub(crate) mod convergence_map; // exposed for `buffers.rs` (ConvergenceStorage)
 mod session;
 mod transaction;
 
-pub use self::{session::Session, transaction::Transaction};
 pub use buffers::{BraidBuffer, RuntimeBuffers};
+
+pub use self::{session::Session, transaction::Transaction};
 
 /// An error returned by the runtime client.
 #[derive(Debug, thiserror::Error)]

@@ -528,7 +528,6 @@ where
     // Store all known heads for each client.
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
-    let mut buffers = TraversalBuffers::new();
     let mut rt_buffers = RuntimeBuffers::<<SB::StorageProvider as StorageProvider>::Segment>::new();
 
     for rule in actions {
@@ -606,7 +605,6 @@ where
                         (&mut response_cache, &mut response_client),
                         &mut sink,
                         *graph_id,
-                        &mut buffers,
                         &mut rt_buffers,
                     )?;
                     total_received += received;
@@ -672,7 +670,7 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
-                print_graph(storage, head, &mut buffers.primary)?;
+                print_graph(storage, head, &mut rt_buffers.traversal.primary)?;
             }
 
             TestRule::CompareGraphs {
@@ -701,9 +699,9 @@ where
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a, &mut buffers.primary)?;
+                    let cmds_a = print_graph(storage_a, head_a, &mut rt_buffers.traversal.primary)?;
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b, &mut buffers.primary)?;
+                    let cmds_b = print_graph(storage_b, head_b, &mut rt_buffers.traversal.primary)?;
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -775,7 +773,6 @@ where
                                     (&mut response_cache, &mut response_client),
                                     &mut sink,
                                     *graph_id,
-                                    &mut buffers,
                                     &mut rt_buffers,
                                 )?;
 
@@ -985,7 +982,6 @@ fn sync<SP: StorageProvider>(
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
     graph_id: GraphId,
-    buffers: &mut TraversalBuffers,
     rt_buffers: &mut RuntimeBuffers<SP::Segment>,
 ) -> Result<(usize, usize), TestError> {
     let mut request_syncer = SyncRequester::new(graph_id, Rng);
@@ -998,7 +994,7 @@ fn sync<SP: StorageProvider>(
         &mut buffer,
         request_state.provider(),
         request_cache,
-        &mut buffers.primary,
+        &mut rt_buffers.traversal.primary,
     )?;
 
     let mut received = 0;
@@ -1008,7 +1004,7 @@ fn sync<SP: StorageProvider>(
         &mut target,
         response_state.provider(),
         response_cache,
-        buffers,
+        &mut rt_buffers.traversal,
     )?;
 
     if len == 0 {
@@ -1023,7 +1019,7 @@ fn sync<SP: StorageProvider>(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
-            &mut buffers.primary,
+            &mut rt_buffers.traversal.primary,
         )?;
     }
 

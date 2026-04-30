@@ -8,7 +8,7 @@
 use crate::{
     Segment,
     client::{braiding::strand_heap::StrandHeap, convergence_map::ConvergenceStorage},
-    storage::TraversalBuffer,
+    storage::TraversalBuffers,
 };
 
 /// Reusable storage for one [`braid`](crate::client::braiding::braid) call.
@@ -38,16 +38,25 @@ impl<S: Segment> Default for BraidBuffer<S> {
 /// Bundle of buffers used by graph-mutating operations such as
 /// [`add_commands`](crate::ClientState::add_commands).
 ///
+/// `traversal` is plural ([`TraversalBuffers`]) so that callers which
+/// also call sync code (`SyncRequester`, `SyncResponder`) can use
+/// `traversal` directly without keeping a separate `TraversalBuffers`
+/// field alongside this struct.
+///
+/// Internal graph-mutation helpers that require a singular
+/// [`TraversalBuffer`](crate::storage::TraversalBuffer) receive
+/// `&mut buffers.traversal.primary`.
+///
 /// Construct once per long-lived component and reuse across calls.
 pub struct RuntimeBuffers<S> {
-    pub traversal: TraversalBuffer,
+    pub traversal: TraversalBuffers,
     pub braid: BraidBuffer<S>,
 }
 
 impl<S: Segment> RuntimeBuffers<S> {
     pub const fn new() -> Self {
         Self {
-            traversal: TraversalBuffer::new(),
+            traversal: TraversalBuffers::new(),
             braid: BraidBuffer::new(),
         }
     }
