@@ -1,5 +1,6 @@
 use buggy::{Bug, BugExt as _, bug};
 use tracing::trace;
+use zerocopy::IntoBytes as _;
 
 use crate::{
     ClientError, Location, Prior, Segment as _, Storage, StorageError,
@@ -47,8 +48,6 @@ pub(super) fn last_common_ancestor<S: Storage>(
     Ok(left)
 }
 
-/// Size of one Location on disk: two `u64`s (segment, max_cut).
-const LOCATION_BYTES: usize = size_of::<u64>() * 2;
 /// Number of Location entries per braid buffer block. Sized to batch
 /// disk I/O into reasonably large writes without holding too many
 /// entries in memory per spill.
@@ -80,20 +79,13 @@ impl<F: Spill> BraidResult<F> {
     }
 
     fn flush_to_disk(&mut self) -> Result<(), ClientError> {
-        let mut offset = self
+        let offset = self
             .spill_len
-            .checked_mul(LOCATION_BYTES)
+            .checked_mul(size_of::<Location>())
             .assume("spill offset must not overflow")?;
 
-        for loc in &self.mem {
-            let mut buf = [0u8; LOCATION_BYTES];
-            buf[0..8].copy_from_slice(&(loc.segment.0 as u64).to_ne_bytes());
-            buf[8..16].copy_from_slice(&(loc.max_cut.0 as u64).to_ne_bytes());
-            self.spill_file.write_at(offset, &buf)?;
-            offset = offset
-                .checked_add(LOCATION_BYTES)
-                .assume("spill offset must not overflow")?;
-        }
+        self.spill_file
+            .write_at(offset, self.mem.as_slice().as_bytes())?;
 
         self.spill_len = self
             .spill_len
@@ -144,29 +136,22 @@ impl<'a, F: Spill> BraidIter<'a, F> {
             .checked_sub(count)
             .assume("count <= disk_remaining by min")?;
 
-        let file = &mut self.file;
-
-        self.disk_buf.clear();
-        let mut offset = start
-            .checked_mul(LOCATION_BYTES)
+        let offset = start
+            .checked_mul(size_of::<Location>())
             .assume("disk offset must not overflow")?;
-        for _ in 0..count {
-            let mut buf = [0u8; LOCATION_BYTES];
-            file.read_at(offset, &mut buf)?;
-            let segment =
-                u64::from_ne_bytes(buf[0..8].try_into().assume("slice is exactly 8 bytes")?)
-                    as usize;
-            let max_cut =
-                u64::from_ne_bytes(buf[8..16].try_into().assume("slice is exactly 8 bytes")?)
-                    as usize;
-            let _ = self.disk_buf.push(Location::new(
-                crate::SegmentIndex(segment),
-                crate::MaxCut(max_cut),
-            ));
-            offset = offset
-                .checked_add(LOCATION_BYTES)
-                .assume("disk offset must not overflow")?;
-        }
+
+        // Resize first so we have a contiguous `&mut [Location]` to read into,
+        // then narrow to `count`.
+        self.disk_buf.clear();
+        self.disk_buf
+            .resize(
+                count,
+                Location::new(crate::SegmentIndex(0), crate::MaxCut(0)),
+            )
+            .map_err(|()| ClientError::from(StorageError::Bug(Bug::new("disk buf overflow"))))?;
+        self.file
+            .read_at(offset, self.disk_buf.as_mut_slice().as_mut_bytes())?;
+
         self.disk_buf_pos = self.disk_buf.len();
         self.disk_remaining = start;
         Ok(())

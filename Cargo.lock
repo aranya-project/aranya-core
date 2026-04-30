@@ -598,6 +598,7 @@ dependencies = [
  "tracing-subscriber",
  "vec1",
  "yoke",
+ "zerocopy 0.8.25",
 ]
 
 [[package]]
