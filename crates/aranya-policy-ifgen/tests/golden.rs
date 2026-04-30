@@ -15,9 +15,16 @@ fn dotest(name: &str) {
     let doc = parse_policy_document(&doc).unwrap();
 
     let target = Compiler::new(&doc).compile_interface().unwrap();
-    let rust_code = generate_code(&target);
 
+    let rust_code = generate_code(&target, None);
     let mut file = mint.new_goldenfile(format!("{name}.rs")).unwrap();
+    write!(file, "{rust_code}").unwrap();
+
+    let ifgen_path: syn::Path = syn::parse_quote!(aranya_core::ifgen);
+    let rust_code = generate_code(&target, Some(&ifgen_path));
+    let mut file = mint
+        .new_goldenfile(format!("{name}_aranya_core.rs"))
+        .unwrap();
     write!(file, "{rust_code}").unwrap();
 }
 

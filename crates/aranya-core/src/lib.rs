@@ -8,6 +8,7 @@
 //!
 //! - [`crypto`] — cryptography engine and cipher suite.
 //! - [`id`] — tagged cryptographic identifiers and the [`id::custom_id`] macro.
+//! - [`ifgen`] — runtime surface for `policy-ifgen`-generated interfaces.
 //! - [`keystore`] — device key material and keystore plumbing.
 //! - [`storage`] — storage providers and I/O plumbing for the graph.
 //! - [`policy`] — VM-backed policy execution (actions, effects, FFI).
@@ -23,6 +24,8 @@
 mod client;
 pub mod id;
 
+#[doc(inline)]
+pub use aranya_policy_ifgen as ifgen;
 #[doc(inline)]
 pub use aranya_runtime::{
     Address, BraidBuffer, ClientError, ClientState, CmdId, Command, GraphId, RuntimeBuffers,
@@ -45,6 +48,10 @@ pub mod storage {
     #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
     #[doc(inline)]
     pub use aranya_runtime::storage::linear::libc::FileManager;
+    #[cfg(feature = "libc")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
+    #[doc(inline)]
+    pub use aranya_runtime::LibcSpill;
     #[doc(inline)]
     pub use aranya_runtime::{
         StorageError,
