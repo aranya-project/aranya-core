@@ -466,8 +466,7 @@ pub(crate) mod strand_heap {
 #[cfg(test)]
 mod braid_reuse_tests {
     use super::strand_heap::StrandHeap;
-    use crate::StorageProvider;
-    use crate::storage::linear::testing::MemStorageProvider;
+    use crate::{StorageProvider, storage::linear::testing::MemStorageProvider};
 
     type TestStrandHeap = StrandHeap<<MemStorageProvider as StorageProvider>::Segment>;
 
