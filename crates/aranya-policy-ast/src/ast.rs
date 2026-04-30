@@ -216,6 +216,8 @@ pub struct ResultTypeKind {
 ))]
 #[rkyv(attr(doc = "The archived kind of a [`VType`]."))]
 pub enum TypeKind {
+    /// The unit, like `()` or `void`.
+    Unit,
     /// A character (UTF-8) string
     String,
     /// A byte string
@@ -242,7 +244,8 @@ impl TypeKind {
     /// Reports whether the kinds are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::String, Self::String)
+            (Self::Unit, Self::Unit)
+            | (Self::String, Self::String)
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
@@ -262,7 +265,8 @@ impl TypeKind {
         match (self, other) {
             (Self::Never, _) => true,
             (_, Self::Never) => true,
-            (Self::String, Self::String)
+            (Self::Unit, Self::Unit)
+            | (Self::String, Self::String)
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
@@ -281,6 +285,7 @@ impl TypeKind {
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unit => write!(f, "unit"),
             Self::String => write!(f, "string"),
             Self::Bytes => write!(f, "bytes"),
             Self::Int => write!(f, "int"),
@@ -544,6 +549,8 @@ pub type Expression = WithSpan<ExprKind>;
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    /// A Unit literal
+    Unit,
     /// A 64-bit signed integer
     Int(i64),
     /// A text string
@@ -612,6 +619,8 @@ impl ExprKind {
     /// Compare two expression kinds for equality, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Unit, Self::Unit) => true,
+
             // Simple types without spans - can use ==
             (Self::Int(a), Self::Int(b)) => a == b,
             (Self::String(a), Self::String(b)) => a == b,

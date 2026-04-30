@@ -183,6 +183,7 @@ impl Display for DisplayType<'_> {
             TypeKind::Enum(id) => write!(f, "enum {}", id),
             TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
             TypeKind::Never => write!(f, "never"),
+            TypeKind::Unit => write!(f, "unit"),
             TypeKind::Result(result_type) => {
                 write!(
                     f,

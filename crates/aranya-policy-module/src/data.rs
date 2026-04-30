@@ -30,6 +30,8 @@ use serde::{Deserialize, Serialize};
     )
 ))]
 pub enum ConstValue {
+    /// A Unit value.
+    Unit,
     /// Integer (64-bit signed)
     Int(i64),
     /// Boolean
@@ -53,6 +55,7 @@ impl ConstValue {
     /// Get the associated [`TypeKind`].
     pub fn vtype(&self) -> TypeKind {
         match self {
+            Self::Unit => TypeKind::Unit,
             Self::Int(_) => TypeKind::Int,
             Self::Bool(_) => TypeKind::Bool,
             Self::String(_) => TypeKind::String,
@@ -85,6 +88,7 @@ impl ConstValue {
     /// Returns a string representing the value's type.
     pub fn type_name(&self) -> String {
         match self {
+            Self::Unit => String::from("Unit"),
             Self::Int(_) => String::from("Int"),
             Self::Bool(_) => String::from("Bool"),
             Self::String(_) => String::from("String"),
@@ -101,6 +105,7 @@ impl ConstValue {
 impl Display for ConstValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unit => write!(f, "()"),
             Self::Int(i) => write!(f, "{}", i),
             Self::Bool(b) => write!(f, "{}", b),
             Self::String(s) => write!(f, "\"{}\"", s),

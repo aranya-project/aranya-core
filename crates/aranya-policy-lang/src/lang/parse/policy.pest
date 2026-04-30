@@ -22,6 +22,7 @@ identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 
 // ## Types
 // Core types.
+unit_t = { "unit" }
 string_t = { "string" }
 bytes_t = { "bytes" }
 int_t = { "int" }
@@ -37,6 +38,7 @@ enum_t = { "enum" ~ identifier }
 // "type" because that's a reserved keyword in Rust)
 result_t = { "result" ~ "[" ~ vtype ~ "," ~ vtype ~ "]" }
 vtype = _{
+    | unit_t
     | string_t
     | bytes_t
     | int_t
@@ -152,6 +154,8 @@ foreign_function_call = { identifier ~ "::" ~ function_call }
 // Split "Result::Ok" into enum name and value name in order to resolve value to integer
 enum_reference = { identifier ~ "::" ~ identifier }
 
+unit_literal = { "Unit" }
+
 // Optional literals are "None" or "Some <x>", where <x> is any
 // expression. Note that the grammar allows the construction of
 // invalid types like `Some None`. This is checked in a later stage.
@@ -218,6 +222,7 @@ atom = _{
     | optional_literal
     | result_literal
     | named_struct_literal
+    | unit_literal
     | match_expression
     | internal_function
     | return_expression
