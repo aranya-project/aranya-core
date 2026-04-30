@@ -1297,14 +1297,14 @@ impl<'a> CompileState<'a> {
                 )));
             }
 
+            let params = recall_block
+                .arguments
+                .iter()
+                .cloned()
+                .chain([param::this(command.identifier.clone()), param::envelope()])
+                .collect::<Vec<_>>();
+
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-            // Recall blocks share the policy block's bindings (`this`, `envelope`)
-            // plus any explicitly declared recall arguments.
-            let mut params: Vec<Param> = vec![
-                param::this(command.identifier.clone()),
-                param::envelope(),
-            ];
-            params.extend(recall_block.arguments.iter().cloned());
             self.compile_function_like(
                 &params,
                 None,

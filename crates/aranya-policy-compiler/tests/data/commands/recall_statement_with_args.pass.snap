@@ -47,9 +47,9 @@ Module {
     exit check: Cmd_handle
     exit panic
 <recall 'Cmd_handle'>:
-    def 'x'
     def 'envelope'
     def 'this'
+    def 'x'
     exit normal
 <seal 'Cmd'>:
     def 'this'
