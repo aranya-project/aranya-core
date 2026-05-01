@@ -1212,19 +1212,14 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn compile_recall(&mut self, recall: thir::FunctionCall) -> Result<(), CompileError> {
+    fn compile_recall(&mut self, recall: thir::RecallCall) -> Result<(), CompileError> {
         // Compile args for command recall
         for arg_e in recall.arguments {
             self.compile_typed_expression(arg_e)?;
         }
-        let context = self.get_statement_context()?.clone();
-        let n = match &context {
-            StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
-                Some(self.command_recall_name(cmd, &recall.identifier)?)
-            }
-            _ => None,
-        };
-        self.append_instruction(Instruction::Exit(ExitReason::Check(n)));
+        let recall_name =
+            Some(self.command_recall_name(&recall.command_name, &recall.recall_name)?);
+        self.append_instruction(Instruction::Exit(ExitReason::Check(recall_name)));
         Ok(())
     }
 
@@ -1250,10 +1245,10 @@ impl<'a> CompileState<'a> {
     /// The name follows the format: `<command>_<name>`.
     fn command_recall_name(
         &self,
-        command: &ast::CommandDefinition,
+        command_name: &Ident,
         recall_name: &Ident,
     ) -> Result<Identifier, CompileError> {
-        format!("{}_{}", command.identifier.as_str(), recall_name.as_str())
+        format!("{}_{}", command_name.as_str(), recall_name.as_str())
             .try_into()
             .map_err(|_| {
                 CompileError::new(CompileErrorType::InvalidType(format!(
@@ -1271,7 +1266,8 @@ impl<'a> CompileState<'a> {
 
         // Compile each recall block
         for recall_block in &command.recalls {
-            let full_name = self.command_recall_name(command, &recall_block.identifier)?;
+            let full_name =
+                self.command_recall_name(&command.identifier, &recall_block.identifier)?;
             if !named_blocks.insert(full_name.clone()) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                     "recall block '{}' for command '{}' defined more than once",

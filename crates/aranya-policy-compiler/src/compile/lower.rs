@@ -1053,7 +1053,7 @@ impl CompileState<'_> {
         &mut self,
         fc: &FunctionCall,
         cmd: &aranya_policy_ast::CommandDefinition,
-    ) -> Result<thir::FunctionCall, CompileError> {
+    ) -> Result<thir::RecallCall, CompileError> {
         // Find the matching recall block in the command definition
         let recall_block = cmd
             .recalls
@@ -1087,8 +1087,9 @@ impl CompileState<'_> {
             arguments.push(arg_te);
         }
 
-        Ok(thir::FunctionCall {
-            identifier: fc.identifier.clone(),
+        Ok(thir::RecallCall {
+            command_name: cmd.identifier.clone(),
+            recall_name: fc.identifier.clone(),
             arguments,
         })
     }
