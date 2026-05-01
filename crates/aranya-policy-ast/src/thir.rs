@@ -35,6 +35,19 @@ pub struct FunctionCall {
 }
 
 spanned! {
+    /// Call to a command's recall block.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct RecallCall {
+        /// the command being recalled
+        pub command_name: Ident,
+        /// the name of the recall block
+        pub recall_name: Ident,
+        /// recall arguments
+        pub arguments: Vec<Expression>,
+    }
+}
+
+spanned! {
 /// A named struct literal
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
@@ -145,7 +158,7 @@ pub enum ExprKind {
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
     /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
-    Recall(FunctionCall),
+    Recall(RecallCall),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -403,5 +416,5 @@ pub enum StmtKind {
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
     /// A `recall name(args)` statement. Valid only in `policy` blocks.
-    Recall(FunctionCall),
+    Recall(RecallCall),
 }
