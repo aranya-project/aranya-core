@@ -16,7 +16,7 @@ use std::{
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
     FieldDefinition, Ident, Identifier, IntLiteral, LanguageContext, NamedStruct, Param, Span,
-    Spanned, Statement, StructItem, TypeKind, VType, ident, thir,
+    Spanned, Statement, StructItem, TypeKind, VType, WithSpanExt as _, ident, thir,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
@@ -124,34 +124,21 @@ macro_rules! typekind {
 }
 
 mod param {
-    use super::{Ident, Param, Span, TypeKind, VType, ident};
+    use aranya_policy_ast::WithSpanExt as _;
+
+    use super::{Ident, Param, TypeKind, ident};
 
     pub fn envelope() -> Param {
         Param {
-            name: Ident {
-                inner: ident!("envelope"),
-                span: Span::empty(),
-            },
-            ty: VType {
-                inner: TypeKind::Struct(Ident {
-                    inner: ident!("Envelope"),
-                    span: Span::empty(),
-                }),
-                span: Span::empty(),
-            },
+            name: ident!("envelope").nowhere(),
+            ty: TypeKind::Struct(ident!("Envelope").nowhere()).nowhere(),
         }
     }
 
     pub fn this(name: Ident) -> Param {
         Param {
-            name: Ident {
-                inner: ident!("this"),
-                span: Span::empty(),
-            },
-            ty: VType {
-                inner: TypeKind::Struct(name),
-                span: Span::empty(),
-            },
+            name: ident!("this").nowhere(),
+            ty: TypeKind::Struct(name).nowhere(),
         }
     }
 }
@@ -1177,13 +1164,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(
-                identifier.clone(),
-                VType {
-                    inner: vt,
-                    span: Span::default(),
-                },
-            )
+            .add_global(identifier.clone(), vt.nowhere())
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -1265,18 +1246,9 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         // fake a function def for the seal block
         let args = &[param::this(command.identifier.clone())];
-        let ret = VType {
-            inner: TypeKind::Struct(Ident {
-                inner: ident!("Envelope"),
-                span: Span::default(),
-            }),
-            span: Span::default(),
-        };
+        let ret = TypeKind::Struct(ident!("Envelope").nowhere()).nowhere();
         let seal_function_definition = ast::FunctionDefinition {
-            identifier: Ident {
-                inner: ident!("seal"),
-                span: Span::default(),
-            },
+            identifier: ident!("seal").nowhere(),
             arguments: args.to_vec(),
             return_type: ret.clone(),
             statements: vec![],
@@ -1303,15 +1275,9 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         // fake a function def for the open block
         let args = &[param::envelope()];
-        let ret = VType {
-            inner: TypeKind::Struct(command.identifier.clone()),
-            span: Span::default(),
-        };
+        let ret = TypeKind::Struct(command.identifier.clone()).nowhere();
         let open_function_definition = ast::FunctionDefinition {
-            identifier: Ident {
-                inner: ident!("open"),
-                span: Span::default(),
-            },
+            identifier: ident!("open").nowhere(),
             arguments: args.to_vec(),
             return_type: ret.clone(),
             statements: vec![],
@@ -1840,19 +1806,12 @@ impl<'a> CompileState<'a> {
                         .iter()
                         .map(|a| {
                             StructItem::Field(FieldDefinition {
-                                identifier: Ident {
-                                    inner: a.name.clone(),
-                                    span: Span::default(),
-                                },
+                                identifier: a.name.clone().nowhere(),
                                 field_type: VType::from(&a.vtype),
                             })
                         })
                         .collect();
-                    let ident = Ident {
-                        inner: s.name.clone(),
-                        span: Span::default(),
-                    };
-                    self.define_struct(ident, &fields)?;
+                    self.define_struct(s.name.clone().nowhere(), &fields)?;
                 }
             }
         }

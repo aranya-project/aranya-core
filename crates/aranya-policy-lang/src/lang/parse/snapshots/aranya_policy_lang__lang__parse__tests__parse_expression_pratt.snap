@@ -13,16 +13,10 @@ Unwrap(
                             identifier: "add" @ 19..22,
                             arguments: [
                                 Int(
-                                    IntLiteral {
-                                        value: 3,
-                                        span: 23..24,
-                                    },
+                                    3 @ 23..24,
                                 ) @ 23..24,
                                 Int(
-                                    IntLiteral {
-                                        value: 7,
-                                        span: 26..27,
-                                    },
+                                    7 @ 26..27,
                                 ) @ 26..27,
                             ],
                         },
@@ -33,10 +27,7 @@ Unwrap(
                         identifier: "saturating_sub" @ 30..44,
                         arguments: [
                             Int(
-                                IntLiteral {
-                                    value: 0,
-                                    span: 45..46,
-                                },
+                                0 @ 45..46,
                             ) @ 45..46,
                             Identifier(
                                 "b" @ 48..49,

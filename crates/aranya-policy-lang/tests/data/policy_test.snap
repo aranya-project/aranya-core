@@ -225,10 +225,7 @@ Policy {
                                 pattern: Values(
                                     [
                                         Int(
-                                            IntLiteral {
-                                                value: 0,
-                                                span: 622..623,
-                                            },
+                                            0 @ 622..623,
                                         ) @ 622..623,
                                     ],
                                 ),
@@ -257,10 +254,7 @@ Policy {
                                 pattern: Values(
                                     [
                                         Int(
-                                            IntLiteral {
-                                                value: 1,
-                                                span: 699..700,
-                                            },
+                                            1 @ 699..700,
                                         ) @ 699..700,
                                     ],
                                 ),
@@ -299,10 +293,7 @@ Policy {
                                         "x" @ 813..814,
                                     ) @ 813..814,
                                     Int(
-                                        IntLiteral {
-                                            value: 3,
-                                            span: 818..819,
-                                        },
+                                        3 @ 818..819,
                                     ) @ 818..819,
                                 ) @ 813..819,
                                 [
@@ -313,10 +304,7 @@ Policy {
                                                     "new_x" @ 840..845,
                                                 ) @ 840..845,
                                                 Int(
-                                                    IntLiteral {
-                                                        value: 10,
-                                                        span: 848..850,
-                                                    },
+                                                    10 @ 848..850,
                                                 ) @ 848..850,
                                             ) @ 840..850,
                                         },
@@ -377,10 +365,7 @@ Policy {
                                                             identifier: "saturating_sub" @ 957..971,
                                                             arguments: [
                                                                 Int(
-                                                                    IntLiteral {
-                                                                        value: 0,
-                                                                        span: 972..973,
-                                                                    },
+                                                                    0 @ 972..973,
                                                                 ) @ 972..973,
                                                                 Identifier(
                                                                     "x" @ 975..976,
@@ -554,10 +539,7 @@ Policy {
                                                             identifier: "saturating_sub" @ 1381..1395,
                                                             arguments: [
                                                                 Int(
-                                                                    IntLiteral {
-                                                                        value: 0,
-                                                                        span: 1396..1397,
-                                                                    },
+                                                                    0 @ 1396..1397,
                                                                 ) @ 1396..1397,
                                                                 Identifier(
                                                                     "x" @ 1399..1400,
@@ -719,10 +701,7 @@ Policy {
                                 "x" @ 1663..1664,
                             ) @ 1663..1664,
                             Int(
-                                IntLiteral {
-                                    value: 0,
-                                    span: 1667..1668,
-                                },
+                                0 @ 1667..1668,
                             ) @ 1667..1668,
                         ) @ 1663..1668,
                     },

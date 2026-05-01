@@ -5,6 +5,6 @@ expression: error
 error: duplicate match patterns found
   |
 3 |         Ok(v) => v
-  |         ^^^^^ duplicate pattern
-4 |         Ok(v) => v
   |         ----- first defined here
+4 |         Ok(v) => v
+  |         ^^^^^ duplicate pattern

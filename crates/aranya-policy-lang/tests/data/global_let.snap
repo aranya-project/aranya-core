@@ -24,10 +24,7 @@ Policy {
                                             "x" @ 63..64,
                                         ) @ 63..64,
                                         Int(
-                                            IntLiteral {
-                                                value: 1,
-                                                span: 66..67,
-                                            },
+                                            1 @ 66..67,
                                         ) @ 66..67,
                                     ],
                                 },
@@ -82,10 +79,7 @@ Policy {
         GlobalLetStatement {
             identifier: "x" @ 4..5,
             expression: Int(
-                IntLiteral {
-                    value: 42,
-                    span: 8..10,
-                },
+                42 @ 8..10,
             ) @ 8..10,
             span: 0..11,
         },

@@ -570,33 +570,7 @@ pub struct ForeignFunctionCall {
 }
 }
 
-/// A 64-bit signed integer
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IntLiteral {
-    value: i64,
-    span: Span,
-}
-
-impl IntLiteral {
-    /// Creates a new [IntLiteral].
-    pub fn new(value: i64, span: Span) -> Self {
-        Self { value, span }
-    }
-}
-
-impl Spanned for IntLiteral {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
-impl Deref for IntLiteral {
-    type Target = i64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
+pub type IntLiteral = WithSpan<i64>;
 
 /// All of the things which can be in an expression.
 pub type Expression = WithSpan<ExprKind>;

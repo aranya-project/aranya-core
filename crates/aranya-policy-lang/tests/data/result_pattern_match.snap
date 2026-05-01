@@ -62,10 +62,7 @@ Policy {
                                             ],
                                         ),
                                         expression: Int(
-                                            IntLiteral {
-                                                value: -1,
-                                                span: 107..109,
-                                            },
+                                            -1 @ 107..109,
                                         ) @ 107..109,
                                         span: 95..114,
                                     },

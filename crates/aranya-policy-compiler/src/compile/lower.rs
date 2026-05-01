@@ -1187,17 +1187,14 @@ impl CompileState<'_> {
                 let v_span = v.span();
 
                 // Check for duplicate values across all prior values.
-                if all_values
+                if let Some(prev_span) = all_values
                     .iter()
-                    .any(|(v2, _): &(ExprKind, Span)| value.matches(v2))
+                    .find(|(v2, _): &&(ExprKind, Span)| value.matches(v2))
+                    .map(|(_, span)| *span)
                 {
                     return Err(self.err(DuplicateMatchPatterns {
-                        patt1: v_span,
-                        patt2: all_values
-                            .iter()
-                            .find(|(v2, _)| value.matches(v2))
-                            .expect("matched")
-                            .1,
+                        patt1: prev_span,
+                        patt2: v_span,
                     }));
                 }
 
