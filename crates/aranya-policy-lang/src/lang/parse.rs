@@ -514,6 +514,14 @@ impl ChunkParser<'_> {
         })
     }
 
+    /// Parses the inner `function_call` out of a `recall_statement` or
+    /// `recall_expression` rule. The body of both rules is identical.
+    fn parse_recall_call(&self, recall: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
+        let pc = self.descend(recall);
+        let fc_token = pc.consume_of_type(Rule::function_call)?;
+        self.parse_function_call(fc_token)
+    }
+
     fn parse_foreign_function_call(
         &self,
         call: Pair<'_, Rule>,
@@ -686,6 +694,10 @@ impl ChunkParser<'_> {
                     let pc = self.descend(primary);
                     let expression = pc.consume_expression(self)?;
                     Ok(Expression{inner:ExprKind::Return(Box::new(expression)),span})
+                }
+                Rule::recall_expression => {
+                    let fc = self.parse_recall_call(primary)?;
+                    Ok(Expression { inner: ExprKind::Recall(fc), span })
                 }
                 Rule::enum_reference => {
                     let er = self.parse_enum_reference(primary)?;
@@ -1144,10 +1156,15 @@ impl ChunkParser<'_> {
     /// Parse a Rule::check_statement into a CheckStatement.
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
-        let token = pc.consume()?;
-        let expression = self.parse_expression(token)?;
-
-        Ok(CheckStatement { expression })
+        let expression = pc.consume_expression(self)?;
+        let else_expression = pc
+            .consume_optional(Rule::expression)
+            .map(|token| self.parse_expression(token))
+            .transpose()?;
+        Ok(CheckStatement {
+            expression,
+            else_expression,
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
@@ -1299,6 +1316,7 @@ impl ChunkParser<'_> {
                     let expression = self.parse_expression(inner_expr_token)?;
                     StmtKind::Return(ReturnStatement { expression })
                 }
+                Rule::recall_statement => StmtKind::Recall(self.parse_recall_call(statement)?),
                 s => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
@@ -1584,12 +1602,43 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::policy_block)?;
         let policy = self.parse_statement_list(token.into_inner())?;
 
-        // 6. Optional recall block
-        let recall = if let Some(token) = pc.consume_optional(Rule::recall_block) {
-            self.parse_statement_list(token.into_inner())?
-        } else {
-            vec![]
-        };
+        // 6. Optional recall blocks (zero or more)
+        let recalls = pc
+            .into_inner()
+            .map(|token| {
+                if token.as_rule() != Rule::recall_block {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!("expected recall block, found `{:?}`", token.as_rule()),
+                        Some(self.to_ast_span(token.as_span())?),
+                    ));
+                }
+
+                let recall_span = self.to_ast_span(token.as_span())?;
+                let recall_pc = self.descend(token);
+
+                // Parse identifier
+                let recall_identifier =
+                    self.parse_ident(recall_pc.consume_of_type(Rule::identifier)?)?;
+
+                // Parse arguments
+                let recall_arguments = recall_pc
+                    .consume_of_type(Rule::function_arguments)?
+                    .into_inner()
+                    .map(|field| self.parse_parameter(field))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                // Parse recall block statements
+                let statements = self.parse_statement_list(recall_pc.into_inner())?;
+
+                Ok(ast::RecallBlockDefinition {
+                    identifier: recall_identifier,
+                    arguments: recall_arguments,
+                    statements,
+                    span: recall_span,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ast::CommandDefinition {
             persistence,
@@ -1599,7 +1648,7 @@ impl ChunkParser<'_> {
             seal,
             open,
             policy,
-            recall,
+            recalls,
             span,
         })
     }

@@ -1,0 +1,7 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
+expression: error
+---
+invalid type: Argument 1 (`x`) in recall `handle` found `string`, expected `int` at line 6 col 9:
+	recall handle("not an int")

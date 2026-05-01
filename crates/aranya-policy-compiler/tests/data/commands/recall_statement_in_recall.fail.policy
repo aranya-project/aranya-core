@@ -1,0 +1,13 @@
+command Cmd {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+    recall handle() {
+        recall other()
+    }
+    recall other() {
+    }
+}

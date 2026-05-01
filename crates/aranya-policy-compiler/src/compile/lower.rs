@@ -4,7 +4,7 @@ use aranya_policy_ast::{
     MatchPattern, MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement,
     StmtKind, TypeKind, VType, ident, thir,
 };
-use buggy::{Bug, BugExt as _, bug};
+use buggy::{BugExt as _, bug};
 use tracing::warn;
 
 use super::{
@@ -14,20 +14,6 @@ use super::{
 };
 
 impl CompileState<'_> {
-    /// Get the statement context
-    fn get_statement_context(&self) -> Result<StatementContext, CompileError> {
-        let cs = self
-            .statement_context
-            .last()
-            .ok_or_else(|| {
-                self.err(CompileErrorType::Bug(Bug::new(
-                    "compiling statement without statement context",
-                )))
-            })?
-            .clone();
-        Ok(cs)
-    }
-
     fn get_fact_def(&self, name: &Identifier) -> Result<&FactDefinition, CompileError> {
         self.m
             .fact_defs
@@ -254,7 +240,7 @@ impl CompileState<'_> {
         &mut self,
         expression: &Expression,
     ) -> Result<thir::Expression, CompileError> {
-        if self.get_statement_context()? == StatementContext::Finish {
+        if matches!(self.get_statement_context()?, StatementContext::Finish) {
             self.check_finish_expression(expression)?;
         }
 
@@ -443,7 +429,7 @@ impl CompileState<'_> {
                 }
                 InternalFunction::Deserialize(e) => {
                     // A bit hacky, but you can't manually define a function named "open".
-                    let struct_name = match self.get_statement_context()? {
+                    let struct_name = match self.get_statement_context()?.clone() {
                         StatementContext::PureFunction(FunctionDefinition {
                             identifier,
                             return_type:
@@ -626,7 +612,7 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Return(ret_expr) => {
-                let ctx = self.get_statement_context()?;
+                let ctx = self.get_statement_context()?.clone();
                 let StatementContext::PureFunction(fd) = ctx else {
                     return Err(self.err(CompileErrorType::InvalidExpression(expression.clone())));
                 };
@@ -641,6 +627,25 @@ impl CompileState<'_> {
                 }
                 thir::Expression {
                     kind: thir::ExprKind::Return(Box::new(et)),
+                    vtype: VType {
+                        inner: TypeKind::Never,
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
+            ExprKind::Recall(fc) => {
+                let cmd = match self.get_statement_context()? {
+                    StatementContext::CommandPolicy(cmd) => cmd.clone(),
+                    _ => {
+                        return Err(self.err(CompileErrorType::Unknown(String::from(
+                            "`recall` is only valid in command `policy` blocks",
+                        ))));
+                    }
+                };
+                let fc_thir = self.lower_recall_call(fc, &cmd)?;
+                thir::Expression {
+                    kind: thir::ExprKind::Recall(fc_thir),
                     vtype: VType {
                         inner: TypeKind::Never,
                         span: expression.span,
@@ -1017,7 +1022,6 @@ impl CompileState<'_> {
             .clone();
 
         let mut arguments = Vec::new();
-
         for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
             let arg_te = self.lower_expression(arg_e)?;
             if !arg_te.vtype.fits_type(&param.ty) {
@@ -1038,6 +1042,54 @@ impl CompileState<'_> {
 
         Ok(thir::FunctionCall {
             identifier: fc.identifier.clone(),
+            arguments,
+        })
+    }
+
+    /// Lowers a recall invocation (`recall foo(args)`) to a typed function call,
+    /// validating that the named recall block exists on the command and that
+    /// the argument types match its parameters.
+    fn lower_recall_call(
+        &mut self,
+        fc: &FunctionCall,
+        cmd: &aranya_policy_ast::CommandDefinition,
+    ) -> Result<thir::RecallCall, CompileError> {
+        // Find the matching recall block in the command definition
+        let recall_block = cmd
+            .recalls
+            .iter()
+            .find(|rb| rb.identifier.inner == fc.identifier.inner)
+            .ok_or_else(|| {
+                self.err(CompileErrorType::NotDefined(format!(
+                    "recall block `{}`",
+                    fc.identifier
+                )))
+            })?;
+
+        let arg_defs = recall_block.arguments.as_slice();
+
+        let mut arguments = Vec::new();
+        for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
+            let arg_te = self.lower_expression(arg_e)?;
+            if !arg_te.vtype.fits_type(&param.ty) {
+                let arg_n = i
+                    .checked_add(1)
+                    .assume("function argument count overflow")?;
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Argument {} (`{}`) in recall `{}` found `{}`, expected `{}`",
+                    arg_n,
+                    param.name,
+                    fc.identifier,
+                    arg_te.vtype,
+                    DisplayType(&param.ty)
+                ))));
+            }
+            arguments.push(arg_te);
+        }
+
+        Ok(thir::RecallCall {
+            command_name: cmd.identifier.clone(),
+            recall_name: fc.identifier.clone(),
             arguments,
         })
     }
@@ -1432,7 +1484,7 @@ impl CompileState<'_> {
         if scope == Scope::Layered {
             self.identifier_types.enter_block();
         }
-        let context = self.get_statement_context()?;
+        let context = self.get_statement_context()?.clone();
         for statement in statements {
             self.map_range(statement.span)?;
             // This match statement matches on a pair of the statement and its allowable
@@ -1475,7 +1527,27 @@ impl CompileState<'_> {
                             "check must have boolean expression",
                         ))));
                     }
-                    thir::StmtKind::Check(thir::CheckStatement { expression: et })
+
+                    // Lower else expression
+                    let else_expression = match &s.else_expression {
+                        Some(expr) => {
+                            let lowered = self.lower_expression(expr)?;
+                            if !matches!(lowered.vtype.inner, TypeKind::Never) {
+                                return Err(self.err_loc(
+                                    CompileErrorType::InvalidType(String::from(
+                                        "check else must be terminal (e.g. `return`, `recall`)",
+                                    )),
+                                    expr.span,
+                                ));
+                            }
+                            Some(lowered)
+                        }
+                        None => None,
+                    };
+                    thir::StmtKind::Check(thir::CheckStatement {
+                        expression: et,
+                        else_expression,
+                    })
                 }
                 (
                     StmtKind::Match(s),
@@ -1771,6 +1843,18 @@ impl CompileState<'_> {
                         arguments: args,
                     })
                 }
+                (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
+                    let fc_thir = self.lower_recall_call(fc, cmd)?;
+                    thir::StmtKind::Recall(fc_thir)
+                }
+                (StmtKind::Recall(_), _) => {
+                    return Err(self.err_loc(
+                        CompileErrorType::Unknown(String::from(
+                            "`recall` is only valid in command `policy` blocks",
+                        )),
+                        statement.span,
+                    ));
+                }
                 (StmtKind::DebugAssert(e), _) => {
                     let e = self.lower_expression(e)?;
                     let _: VType = types::check_type(
@@ -1791,9 +1875,10 @@ impl CompileState<'_> {
                     thir::StmtKind::DebugAssert(e)
                 }
                 (_, _) => {
-                    return Err(
-                        self.err_loc(CompileErrorType::InvalidStatement(context), statement.span)
-                    );
+                    return Err(self.err_loc(
+                        CompileErrorType::InvalidStatement(context.clone()),
+                        statement.span,
+                    ));
                 }
             };
             output.push(thir::Statement {

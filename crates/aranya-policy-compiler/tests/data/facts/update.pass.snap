@@ -6,9 +6,8 @@ Module {
     version: "0",
     labels: {
         <policy 'Test'>: 1,
-        <recall 'Test'>: 15,
-        <seal 'Test'>: 18,
-        <open 'Test'>: 24,
+        <seal 'Test'>: 15,
+        <open 'Test'>: 21,
     },
     action_defs: {},
     command_defs: {
@@ -72,10 +71,6 @@ Module {
     end
     exit normal
     exit panic
-<recall 'Test'>:
-    def 'envelope'
-    def 'this'
-    return
 <seal 'Test'>:
     def 'this'
     save SP

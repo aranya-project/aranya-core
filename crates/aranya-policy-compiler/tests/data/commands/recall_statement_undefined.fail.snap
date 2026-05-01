@@ -1,0 +1,7 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
+expression: error
+---
+not defined: recall block `nonexistent` at line 6 col 9:
+	recall nonexistent()

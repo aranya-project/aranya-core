@@ -6,10 +6,9 @@ Module {
     version: "0",
     labels: {
         <policy 'Foo'>: 1,
-        <recall 'Foo'>: 8,
-        <seal 'Foo'>: 11,
-        <open 'Foo'>: 17,
-        <action 'foo'>: 23,
+        <seal 'Foo'>: 8,
+        <open 'Foo'>: 14,
+        <action 'foo'>: 20,
     },
     action_defs: {
         ActionDef {
@@ -67,10 +66,6 @@ Module {
     end
     exit normal
     exit panic
-<recall 'Foo'>:
-    def 'envelope'
-    def 'this'
-    return
 <seal 'Foo'>:
     def 'this'
     save SP
@@ -92,18 +87,18 @@ Module {
     get 'b'
     const 0
     eq
-    branch 34
+    branch 31
     block
     const 3
     end
-    jump 39
-<34>:
+    jump 36
+<31>:
     block
     const 4
     get 'i'
     saturating_add
     end
-<39>:
+<36>:
     def 'x'
     struct.new 'Foo'
     get 'x'
