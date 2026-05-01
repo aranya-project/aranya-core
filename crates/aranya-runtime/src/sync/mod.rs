@@ -21,6 +21,7 @@ mod requester;
 mod responder;
 mod wire;
 
+use requester::SyncRequestMessage;
 pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
@@ -128,15 +129,8 @@ impl<'a> Command for SyncCommand<'a> {
 /// representation directly.
 #[allow(clippy::large_enum_variant)]
 pub enum SyncIncoming<'a> {
-    /// A sync poll. Forward [`raw`] to [`SyncResponder::receive`].
-    ///
-    /// [`raw`]: SyncIncoming::Poll::raw
-    Poll {
-        /// The session identifier for this poll.
-        session_id: u128,
-        /// Encoded request bytes to feed back to [`SyncResponder::receive`].
-        raw: &'a [u8],
-    },
+    /// A sync poll. Hand to [`SyncResponder::receive`].
+    Poll(PollIncoming),
     /// A subscription request from a peer.
     Subscribe {
         /// The graph being subscribed to.
@@ -163,15 +157,11 @@ impl<'a> SyncIncoming<'a> {
     /// Decode an incoming sync message from raw bytes.
     pub fn decode(data: &'a [u8]) -> Result<Self, SyncError> {
         let (sync_type, remaining) = postcard::take_from_bytes::<SyncType>(data)?;
-        let consumed = data.len().saturating_sub(remaining.len());
-        // Postcard variant tags for SyncType (5 variants) all encode in 1
-        // varint byte. The body of each variant immediately follows.
-        let body = data.get(1..consumed).unwrap_or(&[]);
         Ok(match sync_type {
-            SyncType::Poll { request } => Self::Poll {
+            SyncType::Poll { request } => Self::Poll(PollIncoming {
                 session_id: request.session_id(),
-                raw: body,
-            },
+                message: request,
+            }),
             SyncType::Subscribe {
                 remain_open,
                 max_bytes,
@@ -257,6 +247,20 @@ impl From<SyncHelloType> for SyncHello {
             SyncHelloType::Unsubscribe { graph_id } => Self::Unsubscribe { graph_id },
             SyncHelloType::Hello { graph_id, head } => Self::Hello { graph_id, head },
         }
+    }
+}
+
+/// An opaque container for a received poll message. Hand to
+/// [`SyncResponder::receive`] to update the responder's state.
+pub struct PollIncoming {
+    session_id: u128,
+    pub(crate) message: SyncRequestMessage,
+}
+
+impl PollIncoming {
+    /// Returns the sender's session identifier.
+    pub fn session_id(&self) -> u128 {
+        self.session_id
     }
 }
 

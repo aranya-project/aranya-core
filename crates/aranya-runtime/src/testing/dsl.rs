@@ -95,9 +95,9 @@ pub fn dispatch(
     buffers: &mut TraversalBuffers,
 ) -> Result<usize, SyncError> {
     let len = match SyncIncoming::decode(data)? {
-        SyncIncoming::Poll { raw, .. } => {
+        SyncIncoming::Poll(poll) => {
             let mut response_syncer = SyncResponder::new();
-            response_syncer.receive(raw)?;
+            response_syncer.receive(poll)?;
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache, buffers)?
         }

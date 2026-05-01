@@ -241,11 +241,11 @@ where
         target: &mut [u8],
     ) -> Result<usize> {
         let len = match SyncIncoming::decode(data)? {
-            SyncIncoming::Poll { raw, .. } => {
+            SyncIncoming::Poll(poll) => {
                 let response_cache = self.remote_heads.entry(peer_address).or_default();
                 let mut client = self.client_state.lock().expect("poisoned");
                 let mut response_syncer = SyncResponder::new();
-                response_syncer.receive(raw)?;
+                response_syncer.receive(poll)?;
                 assert!(response_syncer.ready());
 
                 response_syncer.poll(

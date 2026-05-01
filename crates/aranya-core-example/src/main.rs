@@ -181,10 +181,10 @@ fn dispatch(
     response_cache: &mut PeerCache,
 ) -> Result<usize> {
     let len = match SyncIncoming::decode(data)? {
-        SyncIncoming::Poll { raw, .. } => {
+        SyncIncoming::Poll(poll) => {
             let mut responder = SyncResponder::new();
             let mut buffers = TraversalBuffers::default();
-            responder.receive(raw)?;
+            responder.receive(poll)?;
             responder.poll(target, provider, response_cache, &mut buffers)?
         }
         _ => anyhow::bail!("unsupported sync type"),

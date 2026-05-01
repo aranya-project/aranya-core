@@ -3,7 +3,7 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PollIncoming,
     SEGMENT_BUFFER_MAX, SyncError,
     requester::SyncRequestMessage,
     wire::{CommandMeta, SyncType},
@@ -269,13 +269,9 @@ impl SyncResponder {
         Ok(length)
     }
 
-    /// Receive a sync message. Updates the responder's state for later polling.
-    ///
-    /// `data` is the postcard-encoded `SyncRequestMessage` carried by a
-    /// [`SyncIncoming::Poll`](crate::sync::SyncIncoming::Poll).
-    pub fn receive(&mut self, data: &[u8]) -> Result<(), SyncError> {
-        let (message, _) = postcard::take_from_bytes::<SyncRequestMessage>(data)?;
-        self.dispatch(message)
+    /// Receive a sync poll. Updates the responder's state for later polling.
+    pub fn receive(&mut self, poll: PollIncoming) -> Result<(), SyncError> {
+        self.dispatch(poll.message)
     }
 
     /// Begin a new session in-process, without going through the wire.
