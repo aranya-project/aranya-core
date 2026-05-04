@@ -6,7 +6,11 @@
 //! example, accidentally running two instances of the program will cause
 //! issues.
 
-use serde::{Serialize, de::DeserializeOwned};
+use core::ops::Deref;
+
+use rkyv::{Archive, Serialize, bytecheck::CheckBytes};
+use stable_deref_trait::StableDeref;
+use yoke::Yoke;
 
 use crate::{GraphId, Location, StorageError};
 
@@ -37,10 +41,20 @@ pub trait Write {
     /// Append an item (e.g. segment or fact-index) onto the writer.
     ///
     /// A function is used to allow the item to contain its offset.
-    fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
+    fn append<F, T>(
+        &mut self,
+        builder: F,
+    ) -> Result<<Self::ReadOnly as Read>::Handle<T>, StorageError>
     where
-        F: FnOnce(usize) -> T,
-        T: Serialize;
+        F: FnOnce(u64) -> T,
+        T: Readable
+            + for<'a> Serialize<
+                rkyv::api::high::HighSerializer<
+                    rkyv::util::AlignedVec,
+                    rkyv::ser::allocator::ArenaHandle<'a>,
+                    rkyv::rancor::Error,
+                >,
+            >;
 
     /// Set the commit head.
     fn commit(&mut self, head: Location) -> Result<(), StorageError>;
@@ -48,8 +62,39 @@ pub trait Write {
 
 /// A share-able reader for a linear storage graph.
 pub trait Read: Clone {
+    type Handle<T: Readable>: Deref<Target = T::Archived>;
+
     /// Fetch an item written by `Write::append`.
-    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
+    fn fetch<T: Readable>(&self, offset: u64) -> Result<Self::Handle<T>, StorageError>;
+}
+
+/// A type that can be read from archived bytes.
+///
+/// This is just a convenience over using
+/// `Archive<Archived: for<'a> CheckBytes<HighValidator<'a, Error>>> + 'static`
+pub trait Readable: Archive + 'static {
+    /// Read the archived type from the bytes of `cart` and attach it.
+    ///
+    /// The returned [`Yoke`] is static but can accessed `&Self::Archived`.
+    fn yoke<C>(cart: C) -> Result<Yoke<&'static Self::Archived, C>, StorageError>
     where
-        T: DeserializeOwned;
+        C: StableDeref<Target = [u8]>;
+}
+
+impl<T> Readable for T
+where
+    T: Archive + 'static,
+    T::Archived: for<'a> CheckBytes<rkyv::api::high::HighValidator<'a, rkyv::rancor::Error>>,
+{
+    fn yoke<C>(cart: C) -> Result<Yoke<&'static Self::Archived, C>, StorageError>
+    where
+        C: StableDeref<Target = [u8]>,
+    {
+        Yoke::try_attach_to_cart(cart, |bytes| {
+            rkyv::access::<T::Archived, rkyv::rancor::Error>(bytes).map_err(|err| {
+                tracing::error!(?err, "rkyv access");
+                StorageError::IoError
+            })
+        })
+    }
 }

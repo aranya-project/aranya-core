@@ -4,7 +4,6 @@
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
 use buggy::Bug;
-use serde::{Deserialize, Serialize};
 
 use crate::{
     Address,
@@ -35,11 +34,26 @@ impl From<core::convert::Infallible> for PolicyError {
     }
 }
 
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PolicyId(usize);
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Ord,
+    PartialOrd,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+// #[archive(as = "Self")]
+#[repr(transparent)]
+pub struct PolicyId(u64);
 
 impl PolicyId {
-    pub fn new(id: usize) -> Self {
+    pub fn new(id: u64) -> Self {
         Self(id)
     }
 }

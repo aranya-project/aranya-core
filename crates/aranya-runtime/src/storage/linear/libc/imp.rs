@@ -1,18 +1,20 @@
-use alloc::sync::Arc;
-use core::{cmp::Ordering, hash::Hasher as _};
+use alloc::{boxed::Box, sync::Arc};
+use core::{cmp::Ordering, hash::Hasher as _, ops::Deref};
 
 use aranya_libc::{
     self as libc, AsAtRoot, Errno, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
     O_RDONLY, O_RDWR, OwnedDir, OwnedFd, Path, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
 use buggy::{BugExt as _, bug};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use rkyv::{Archive, Deserialize, Serialize};
 use tracing::{error, warn};
+use yoke::Yoke;
 
 use super::error::Error;
 use crate::{
     GraphId, Location, MaxCut, SegmentIndex, StorageError,
     linear::{
+        Readable,
         io::{IoManager, Read, Write},
         libc::IdPath,
     },
@@ -180,8 +182,8 @@ impl Writer {
 
         // Pick the latest valid root.
         let (root, overwrite) = match (
-            file.load(ROOT_A).and_then(Root::validate),
-            file.load(ROOT_B).and_then(Root::validate),
+            file.load_root(ROOT_A).and_then(Root::validate),
+            file.load_root(ROOT_B).and_then(Root::validate),
         ) {
             (Ok(root_a), Ok(root_b)) => match root_a.generation.cmp(&root_b.generation) {
                 Ordering::Equal => (root_a, None),
@@ -212,7 +214,7 @@ impl Writer {
         // ensure one is always valid.
         for offset in [ROOT_A, ROOT_B] {
             self.root.checksum = self.root.calc_checksum();
-            self.file.dump(offset, &self.root)?;
+            self.file.dump_root(offset, &self.root)?;
             self.file.sync()?;
         }
 
@@ -235,24 +237,28 @@ impl Write for Writer {
         Ok(self.root.head)
     }
 
-    fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
+    fn append<F, T>(&mut self, builder: F) -> Result<Handle<T>, StorageError>
     where
-        F: FnOnce(usize) -> T,
-        T: Serialize,
+        F: FnOnce(u64) -> T,
+        T: Readable
+            + for<'a> Serialize<
+                rkyv::api::high::HighSerializer<
+                    rkyv::util::AlignedVec,
+                    rkyv::ser::allocator::ArenaHandle<'a>,
+                    rkyv::rancor::Error,
+                >,
+            >,
     {
         let offset = self.root.free_offset;
+        let offset_u64 = u64::try_from(offset).assume("free_offset can be converted to u64")?;
 
-        let item = builder(
-            offset
-                .try_into()
-                .assume("`free_offset` can be converted to `usize`")?,
-        );
+        let item = builder(offset_u64);
         let new_offset = self.file.dump(offset, &item)?;
 
         self.root.free_offset = new_offset;
         self.write_root()?;
 
-        Ok(item)
+        self.readonly().fetch(offset_u64)
     }
 
     fn commit(&mut self, head: Location) -> Result<(), StorageError> {
@@ -263,7 +269,7 @@ impl Write for Writer {
 }
 
 /// Section of control data for the file
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Archive, Serialize, Deserialize)]
 struct Root {
     /// Incremented each commit
     generation: u64,
@@ -280,7 +286,7 @@ impl Root {
     fn new() -> Self {
         Self {
             generation: 0,
-            head: Location::new(SegmentIndex(usize::MAX), MaxCut(usize::MAX)),
+            head: Location::new(SegmentIndex(u64::MAX), MaxCut(u64::MAX)),
             free_offset: FREE_START,
             checksum: 0,
         }
@@ -289,8 +295,8 @@ impl Root {
     fn calc_checksum(&self) -> u64 {
         let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
-        hasher.write_u64(self.head.segment.0 as u64);
-        hasher.write_u64(self.head.max_cut.0 as u64);
+        hasher.write_u64(self.head.segment.0);
+        hasher.write_u64(self.head.max_cut.0);
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }
@@ -311,10 +317,9 @@ pub struct Reader {
 }
 
 impl Read for Reader {
-    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
-    where
-        T: DeserializeOwned,
-    {
+    type Handle<T: Readable> = Handle<T>;
+
+    fn fetch<T: Readable>(&self, offset: u64) -> Result<Handle<T>, StorageError> {
         let off = i64::try_from(offset).assume("`offset` can be converted to `i64`")?;
         self.file.load(off)
     }
@@ -377,8 +382,37 @@ impl File {
         Ok(())
     }
 
-    fn dump<T: Serialize>(&self, offset: i64, value: &T) -> Result<i64, StorageError> {
-        let bytes = postcard::to_allocvec(value).map_err(|err| {
+    fn dump_root(&self, offset: i64, root: &Root) -> Result<(), StorageError> {
+        const SIZE: usize = size_of::<ArchivedRoot>();
+        let mut buf = [0u8; SIZE];
+        let mut writer = rkyv::ser::writer::Buffer::from(buf.as_mut_slice());
+        rkyv::api::serialize_using::<_, rkyv::rancor::Failure>(root, &mut writer)
+            .assume("can serialize root")?;
+        self.write_all(offset, &writer)
+    }
+
+    // TODO(jdygert): tests don't cover this.
+    fn load_root(&self, offset: i64) -> Result<Root, StorageError> {
+        const SIZE: usize = size_of::<ArchivedRoot>();
+        let mut bytes = [0u8; SIZE];
+        self.read_exact(offset, &mut bytes)?;
+        rkyv::api::low::from_bytes(&bytes).map_err(|err: rkyv::rancor::Error| {
+            error!(?err, "load_root");
+            StorageError::IoError
+        })
+    }
+
+    fn dump<T>(&self, offset: i64, value: &T) -> Result<i64, StorageError>
+    where
+        T: for<'a> Serialize<
+            rkyv::api::high::HighSerializer<
+                rkyv::util::AlignedVec,
+                rkyv::ser::allocator::ArenaHandle<'a>,
+                rkyv::rancor::Error,
+            >,
+        >,
+    {
+        let bytes = rkyv::to_bytes(value).map_err(|err| {
             error!(?err, "dump");
             StorageError::IoError
         })?;
@@ -395,7 +429,7 @@ impl File {
         Ok(off)
     }
 
-    fn load<T: DeserializeOwned>(&self, offset: i64) -> Result<T, StorageError> {
+    fn load<T: Readable>(&self, offset: i64) -> Result<Handle<T>, StorageError> {
         let mut bytes = [0u8; 4];
         self.read_exact(offset, &mut bytes)?;
         let len = u32::from_be_bytes(bytes);
@@ -404,9 +438,16 @@ impl File {
             offset.checked_add(4).assume("offset not near u64::MAX")?,
             &mut bytes,
         )?;
-        postcard::from_bytes(&bytes).map_err(|err| {
-            error!(?err, "load");
-            StorageError::IoError
-        })
+        T::yoke(bytes.into_boxed_slice()).map(Handle)
+    }
+}
+
+/// Handle wrapper around a loaded object.
+pub struct Handle<T: Readable>(Yoke<&'static T::Archived, Box<[u8]>>);
+
+impl<T: Readable> Deref for Handle<T> {
+    type Target = T::Archived;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
     }
 }

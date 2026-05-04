@@ -1,9 +1,13 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{sync::Arc, vec::Vec};
+use core::{ops::Deref, ptr};
 
 use buggy::BugExt as _;
+use rkyv::util::AlignedVec;
 use spin::mutex::Mutex;
+use stable_deref_trait::StableDeref;
+use yoke::Yoke;
 
-use super::io;
+use super::{Read, Readable, io};
 use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError};
 
 /// Alias for memory-backed storage provider commonly used in tests.
@@ -50,8 +54,38 @@ impl io::IoManager for Manager {
 
 #[derive(Default)]
 struct Shared {
-    items: Mutex<Vec<Box<[u8]>>>,
+    // invariant: push-only
+    items: Mutex<Vec<AlignedVec>>,
 }
+
+impl Shared {
+    fn get(self: &Arc<Self>, idx: usize) -> Option<SharedItem> {
+        let item = ptr::from_ref(self.items.lock().get(idx)?.as_slice());
+        Some(SharedItem {
+            _backing: Arc::clone(self),
+            item,
+        })
+    }
+}
+
+struct SharedItem {
+    _backing: Arc<Shared>,
+    // Points into an `AlignedVec` within `_backing`.
+    item: *const [u8],
+}
+
+impl Deref for SharedItem {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        // SAFETY: `Shared.items` is push-only and `AlignedVec` is stable-deref,
+        // so this pointer is valid as long as _backing is held.
+        unsafe { &*self.item }
+    }
+}
+
+// SAFETY: `deref` doesn't rely on location of the shared item.
+unsafe impl StableDeref for SharedItem {}
 
 pub struct Writer {
     head: Mutex<Option<Location>>,
@@ -77,18 +111,23 @@ impl io::Write for Writer {
         Ok(head.assume("head exists")?)
     }
 
-    fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
+    fn append<F, T>(&mut self, builder: F) -> Result<Handle<T>, StorageError>
     where
-        F: FnOnce(usize) -> T,
-        T: serde::Serialize,
+        F: FnOnce(u64) -> T,
+        T: Readable
+            + for<'a> rkyv::Serialize<
+                rkyv::api::high::HighSerializer<
+                    AlignedVec,
+                    rkyv::ser::allocator::ArenaHandle<'a>,
+                    rkyv::rancor::Error,
+                >,
+            >,
     {
-        let offset = self.shared.items.lock().len();
+        let offset = self.shared.items.lock().len() as u64;
         let item = builder(offset);
-        let bytes = postcard::to_allocvec(&item)
-            .map_err(|_| StorageError::IoError)?
-            .into_boxed_slice();
+        let bytes = rkyv::to_bytes(&item).map_err(|_| StorageError::IoError)?;
         self.shared.items.lock().push(bytes);
-        Ok(item)
+        self.readonly().fetch(offset)
     }
 
     fn commit(&mut self, head: Location) -> Result<(), StorageError> {
@@ -97,18 +136,27 @@ impl io::Write for Writer {
     }
 }
 
-impl io::Read for Reader {
-    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let items = self.shared.items.lock();
-        let bytes = items
-            .get(offset)
+impl Read for Reader {
+    type Handle<T: Readable> = Handle<T>;
+
+    fn fetch<T: Readable>(&self, offset: u64) -> Result<Handle<T>, StorageError> {
+        let bytes = self
+            .shared
+            .get(offset as usize)
             .ok_or(StorageError::SegmentOutOfBounds(Location::new(
                 SegmentIndex(offset),
-                MaxCut(usize::MAX), // Not right but this is just for testing...
+                MaxCut(u64::MAX), // Not right but this is just for testing...
             )))?;
-        postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
+
+        T::yoke(bytes).map(Handle)
+    }
+}
+
+pub struct Handle<T: Readable>(Yoke<&'static T::Archived, SharedItem>);
+
+impl<T: Readable> Deref for Handle<T> {
+    type Target = T::Archived;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
     }
 }

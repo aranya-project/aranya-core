@@ -6,14 +6,14 @@
 //! [`Perspective`]s, which represent a slice of state.
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref};
+use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize};
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
+pub mod util;
 
 /// Default capacity for the traversal queue.
 ///
@@ -291,9 +291,25 @@ aranya_crypto::custom_id! {
     pub struct GraphId;
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    // rkyv::Portable,
+)]
+// #[rkyv(as = Self)]
 #[repr(transparent)]
-pub struct SegmentIndex(pub usize);
+pub struct SegmentIndex(pub u64);
 
 impl fmt::Display for SegmentIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -301,9 +317,25 @@ impl fmt::Display for SegmentIndex {
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    // rkyv::Portable,
+)]
+// #[rkyv(as = Self)]
 #[repr(transparent)]
-pub struct MaxCut(pub usize);
+pub struct MaxCut(pub u64);
 
 impl fmt::Display for MaxCut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -314,7 +346,7 @@ impl fmt::Display for MaxCut {
 impl MaxCut {
     /// Adds an amount to the max cut, returning `None` on overflow.
     #[must_use]
-    pub fn checked_add(self, other: usize) -> Option<Self> {
+    pub fn checked_add(self, other: u64) -> Option<Self> {
         self.0.checked_add(other).map(Self)
     }
 
@@ -326,12 +358,29 @@ impl MaxCut {
 
     /// Gets the distance between two max cuts, returning `None` on overflow.
     #[must_use]
-    pub fn distance_from(self, other: Self) -> Option<usize> {
+    pub fn distance_from(self, other: Self) -> Option<u64> {
         self.0.checked_sub(other.0)
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    // rykv::Portable
+)]
+// #[rkyv(as = Self)]
+#[repr(C)]
 pub struct Location {
     pub max_cut: MaxCut,
     pub segment: SegmentIndex,
@@ -492,9 +541,8 @@ pub trait Storage {
             // Skip list is sorted by max_cut ascending, so the first entry
             // with max_cut >= target has the lowest valid max_cut, jumping
             // furthest back in the graph.
-            if let Some(&skip) = segment
+            if let Some(skip) = segment
                 .skip_list()
-                .iter()
                 .find(|skip| skip.max_cut >= address.max_cut)
             {
                 queue.push(skip)?;
@@ -577,9 +625,8 @@ pub trait Storage {
         // Try to use skip list to jump directly backward.
         // Skip list is sorted by max_cut ascending, so first valid skip
         // jumps as far back as possible.
-        if let Some(&skip) = segment
+        if let Some(skip) = segment
             .skip_list()
-            .iter()
             .find(|skip| skip.max_cut >= search_location.max_cut)
         {
             queue.push(skip)?;
@@ -610,9 +657,8 @@ pub trait Storage {
             // Skip list is sorted by max_cut ascending, so the first entry
             // with max_cut >= target has the lowest valid max_cut, jumping
             // furthest back in the graph.
-            if let Some(&skip) = segment
+            if let Some(skip) = segment
                 .skip_list()
-                .iter()
                 .find(|skip| skip.max_cut >= search_location.max_cut)
             {
                 queue.push(skip)?;
@@ -680,7 +726,7 @@ pub trait Segment {
     ///
     /// For merge commands the last location in the skip list is the least
     /// common ancestor.
-    fn skip_list(&self) -> &[Location];
+    fn skip_list(&self) -> impl Iterator<Item = Location> + use<'_, Self>;
 
     /// Returns an iterator of commands starting at the given location.
     fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
@@ -766,7 +812,7 @@ pub trait Revertable {
     fn checkpoint(&self) -> Checkpoint;
 
     /// Revert the perspective to the state it was at when the checkpoint was created.
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug>;
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError>;
 }
 
 /// A checkpoint used to revert perspectives.
@@ -783,7 +829,7 @@ pub struct Checkpoint {
 /// `(k_1, k_2, ..., k_n)`, where each `k` is a sequence of bytes. The fact value is also a sequence of bytes.
 pub trait Query {
     /// Look up a named fact by an exact match of the compound key.
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError>;
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError>;
 
     /// Iterator for [`Query::query_prefix`].
     type QueryIterator: Iterator<Item = Result<Fact, StorageError>>;
@@ -795,7 +841,7 @@ pub trait Query {
     fn query_prefix(
         &self,
         name: &str,
-        prefix: &[Box<[u8]>],
+        prefix: &[Bytes],
     ) -> Result<Self::QueryIterator, StorageError>;
 }
 
@@ -805,7 +851,7 @@ pub struct Fact {
     /// The sequence of keys.
     pub key: Keys,
     /// The bytes of the value.
-    pub value: Box<[u8]>,
+    pub value: Bytes,
 }
 
 /// Can mutate facts by inserting and deleting them.
@@ -815,10 +861,10 @@ pub trait QueryMut: Query {
     /// Insert a fact labeled by a name, with a given compound key and a value.
     ///
     /// This fact can later be looked up by [`Query`] methods, using the name and keys.
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>);
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError>;
 
     /// Delete any fact associated to the compound key, under the given name.
-    fn delete(&mut self, name: String, keys: Keys);
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
 }
 
 // TODO(jdygert): Expose this?
@@ -831,25 +877,42 @@ pub(crate) trait FactIndexExtra {
 }
 
 /// A sequence of byte-based keys, used for facts.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Keys(Box<[Box<[u8]>]>);
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+pub struct Keys(Box<[Bytes]>);
 
 impl Deref for Keys {
-    type Target = [Box<[u8]>];
-    fn deref(&self) -> &[Box<[u8]>] {
+    type Target = [Bytes];
+    fn deref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl AsRef<[Box<[u8]>]> for Keys {
-    fn as_ref(&self) -> &[Box<[u8]>] {
+impl AsRef<[Bytes]> for Keys {
+    fn as_ref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl core::borrow::Borrow<[Box<[u8]>]> for Keys {
-    fn borrow(&self) -> &[Box<[u8]>] {
+impl Borrow<[Bytes]> for Keys {
+    fn borrow(&self) -> &[Bytes] {
         self.0.as_ref()
+    }
+}
+
+impl From<Vec<Bytes>> for Keys {
+    fn from(value: Vec<Bytes>) -> Self {
+        Self(value.into_boxed_slice())
     }
 }
 
@@ -859,17 +922,27 @@ impl From<&[&[u8]]> for Keys {
     }
 }
 
-impl Keys {
-    fn starts_with(&self, prefix: &[Box<[u8]>]) -> bool {
-        self.as_ref().starts_with(prefix)
-    }
-}
-
-impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
+impl<B: Into<Bytes>> FromIterator<B> for Keys {
     fn from_iter<T: IntoIterator<Item = B>>(iter: T) -> Self {
         Self(iter.into_iter().map(Into::into).collect())
     }
 }
+
+impl<'a> IntoIterator for &'a Keys {
+    type Item = &'a Bytes;
+    type IntoIter = core::slice::Iter<'a, Bytes>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl ArchivedKeys {
+    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.0.iter().map(AsRef::as_ref)
+    }
+}
+
+pub type Bytes = Box<[u8]>;
 
 mod impls {
     use alloc::boxed::Box;
@@ -944,7 +1017,7 @@ mod queue_tests {
     use super::*;
 
     fn loc(seg: usize, mc: usize) -> Location {
-        Location::new(SegmentIndex(seg), MaxCut(mc))
+        Location::new(SegmentIndex(seg as u64), MaxCut(mc as u64))
     }
 
     #[test]

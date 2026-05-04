@@ -43,7 +43,6 @@ pub(super) fn last_common_ancestor<S: Storage>(
                     Prior::Merge(_, _) => segment
                         .skip_list()
                         .last()
-                        .copied()
                         .assume("merge skip list must end with LCA")?,
                 };
                 *segment = storage.get_segment(*location)?;

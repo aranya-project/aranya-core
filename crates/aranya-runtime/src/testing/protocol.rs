@@ -102,7 +102,7 @@ impl PolicyStore for TestPolicyStore {
     type Effect = TestEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
-        Ok(PolicyId::new(policy[0] as usize))
+        Ok(PolicyId::new(policy[0].into()))
     }
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
@@ -129,7 +129,10 @@ impl TestPolicy {
         let key = group.to_be_bytes();
         let value = count.to_be_bytes();
 
-        facts.insert("payload".into(), Keys::from_iter([key]), value.into());
+        facts
+            .insert("payload".into(), Keys::from_iter([key]), value.into())
+            .map_err(|_| PolicyError::Write)?;
+
         Ok(())
     }
 

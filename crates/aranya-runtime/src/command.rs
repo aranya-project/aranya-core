@@ -1,12 +1,23 @@
 pub use aranya_crypto::policy::CmdId;
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize};
 
 use crate::{MaxCut, Prior};
 
 /// Identify how the client will sort the associated [`Command`].
 // Note: Order of variants affects derived Ord: Merge is least and Init is greatest.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 pub enum Priority {
     /// Indicates two branches in the parent graph have been merged at this
     /// command. A command with this priority must have two parents,
@@ -100,7 +111,20 @@ impl<C: Command> Command for &C {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Ord, PartialEq, PartialOrd, Eq)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 /// An address contains all of the information needed to find a command in
 /// another graph.
 ///
