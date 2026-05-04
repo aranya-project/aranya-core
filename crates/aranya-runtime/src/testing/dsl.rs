@@ -101,8 +101,8 @@ pub fn dispatch(
             assert!(response_syncer.ready());
             response_syncer.poll(target, provider, response_cache, buffers)?
         }
-        SyncIncoming::Subscribe { .. } => unimplemented!(),
-        SyncIncoming::Unsubscribe { .. } => unimplemented!(),
+        SyncIncoming::Subscribe(_) => unimplemented!(),
+        SyncIncoming::Unsubscribe(_) => unimplemented!(),
         SyncIncoming::Push(_) => unimplemented!(),
         SyncIncoming::Hello(_) => unimplemented!(),
     };

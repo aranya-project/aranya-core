@@ -142,8 +142,9 @@ pub mod sync {
 
     #[doc(inline)]
     pub use aranya_runtime::sync::{
-        COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PeerCache, PollIncoming,
-        PushIncoming, SubscribeResponse, SyncCommand, SyncError, SyncHeads, SyncHello,
-        SyncIncoming, SyncRequester, SyncResponder,
+        COMMAND_RESPONSE_MAX, HelloNotification, HelloSubscribe, HelloUnsubscribe,
+        MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PeerCache, PollIncoming, PushIncoming,
+        SubscribeIncoming, SubscribeResponse, SyncCommand, SyncError, SyncHeads, SyncHello,
+        SyncIncoming, SyncRequester, SyncResponder, UnsubscribeIncoming,
     };
 }

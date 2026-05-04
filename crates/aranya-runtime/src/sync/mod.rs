@@ -132,21 +132,9 @@ pub enum SyncIncoming<'a> {
     /// A sync poll. Hand to [`SyncResponder::receive`].
     Poll(PollIncoming),
     /// A subscription request from a peer.
-    Subscribe {
-        /// The graph being subscribed to.
-        graph_id: GraphId,
-        /// Number of seconds the subscription should remain open.
-        remain_open: u64,
-        /// Maximum bytes the responder may push.
-        max_bytes: u64,
-        /// The peer's known graph heads.
-        heads: SyncHeads,
-    },
+    Subscribe(SubscribeIncoming),
     /// An unsubscribe request from a peer.
-    Unsubscribe {
-        /// The graph being unsubscribed from.
-        graph_id: GraphId,
-    },
+    Unsubscribe(UnsubscribeIncoming),
     /// A push from a subscribed peer. Hand to [`SyncRequester::receive_push`].
     Push(PushIncoming<'a>),
     /// A subscription-control hello message.
@@ -167,13 +155,15 @@ impl<'a> SyncIncoming<'a> {
                 max_bytes,
                 commands,
                 graph_id,
-            } => Self::Subscribe {
+            } => Self::Subscribe(SubscribeIncoming {
                 graph_id,
                 remain_open,
                 max_bytes,
                 heads: SyncHeads { inner: commands },
-            },
-            SyncType::Unsubscribe { graph_id } => Self::Unsubscribe { graph_id },
+            }),
+            SyncType::Unsubscribe { graph_id } => {
+                Self::Unsubscribe(UnsubscribeIncoming { graph_id })
+            }
             SyncType::Push { message, graph_id } => Self::Push(PushIncoming {
                 graph_id,
                 session_id: message.session_id(),
@@ -206,28 +196,11 @@ impl SyncHeads {
 #[derive(Debug)]
 pub enum SyncHello {
     /// Subscribe to receive hello notifications from this peer.
-    Subscribe {
-        /// Specifies the graph.
-        graph_id: GraphId,
-        /// Delay between notifications when graph changes (rate limiting).
-        graph_change_delay: Duration,
-        /// How long the subscription should last.
-        duration: Duration,
-        /// Schedule-based hello sending delay.
-        schedule_delay: Duration,
-    },
+    Subscribe(HelloSubscribe),
     /// Unsubscribe from hello notifications.
-    Unsubscribe {
-        /// Specifies the graph.
-        graph_id: GraphId,
-    },
+    Unsubscribe(HelloUnsubscribe),
     /// Notification message sent to subscribers.
-    Hello {
-        /// Specifies the graph.
-        graph_id: GraphId,
-        /// The current head of the sender's graph.
-        head: Address,
-    },
+    Hello(HelloNotification),
 }
 
 impl From<SyncHelloType> for SyncHello {
@@ -238,15 +211,82 @@ impl From<SyncHelloType> for SyncHello {
                 graph_change_delay,
                 duration,
                 schedule_delay,
-            } => Self::Subscribe {
+            } => Self::Subscribe(HelloSubscribe {
                 graph_id,
                 graph_change_delay,
                 duration,
                 schedule_delay,
-            },
-            SyncHelloType::Unsubscribe { graph_id } => Self::Unsubscribe { graph_id },
-            SyncHelloType::Hello { graph_id, head } => Self::Hello { graph_id, head },
+            }),
+            SyncHelloType::Unsubscribe { graph_id } => {
+                Self::Unsubscribe(HelloUnsubscribe { graph_id })
+            }
+            SyncHelloType::Hello { graph_id, head } => {
+                Self::Hello(HelloNotification { graph_id, head })
+            }
         }
+    }
+}
+
+/// An opaque container for a hello-protocol subscribe request.
+#[derive(Debug)]
+pub struct HelloSubscribe {
+    graph_id: GraphId,
+    graph_change_delay: Duration,
+    duration: Duration,
+    schedule_delay: Duration,
+}
+
+impl HelloSubscribe {
+    /// Returns the graph being subscribed to.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns the delay between notifications when the graph changes (rate limiting).
+    pub fn graph_change_delay(&self) -> Duration {
+        self.graph_change_delay
+    }
+
+    /// Returns how long the subscription should last.
+    pub fn duration(&self) -> Duration {
+        self.duration
+    }
+
+    /// Returns the schedule-based hello sending delay.
+    pub fn schedule_delay(&self) -> Duration {
+        self.schedule_delay
+    }
+}
+
+/// An opaque container for a hello-protocol unsubscribe request.
+#[derive(Debug)]
+pub struct HelloUnsubscribe {
+    graph_id: GraphId,
+}
+
+impl HelloUnsubscribe {
+    /// Returns the graph being unsubscribed from.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+}
+
+/// An opaque container for a hello notification sent to subscribers.
+#[derive(Debug)]
+pub struct HelloNotification {
+    graph_id: GraphId,
+    head: Address,
+}
+
+impl HelloNotification {
+    /// Returns the graph this notification is for.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns the current head of the sender's graph.
+    pub fn head(&self) -> Address {
+        self.head
     }
 }
 
@@ -261,6 +301,48 @@ impl PollIncoming {
     /// Returns the sender's session identifier.
     pub fn session_id(&self) -> u128 {
         self.session_id
+    }
+}
+
+/// An opaque container for a received subscribe message.
+pub struct SubscribeIncoming {
+    graph_id: GraphId,
+    remain_open: u64,
+    max_bytes: u64,
+    heads: SyncHeads,
+}
+
+impl SubscribeIncoming {
+    /// Returns the graph being subscribed to.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns how long the subscription should remain open.
+    pub fn remain_open(&self) -> Duration {
+        Duration::from_secs(self.remain_open)
+    }
+
+    /// Returns the maximum number of bytes the responder may push.
+    pub fn max_bytes(&self) -> u64 {
+        self.max_bytes
+    }
+
+    /// Returns the peer's known graph heads.
+    pub fn heads(&self) -> &SyncHeads {
+        &self.heads
+    }
+}
+
+/// An opaque container for a received unsubscribe message.
+pub struct UnsubscribeIncoming {
+    graph_id: GraphId,
+}
+
+impl UnsubscribeIncoming {
+    /// Returns the graph being unsubscribed from.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
     }
 }
 

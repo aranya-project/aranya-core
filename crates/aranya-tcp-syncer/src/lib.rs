@@ -11,7 +11,7 @@ use std::{
     net::{Shutdown, SocketAddr, TcpListener, TcpStream},
     ops::DerefMut as _,
     sync::{Arc, Mutex, mpsc},
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
 use anyhow::Result;
@@ -255,28 +255,23 @@ where
                     &mut self.buffers,
                 )?
             }
-            SyncIncoming::Subscribe {
-                remain_open,
-                max_bytes,
-                heads,
-                graph_id,
-            } => {
+            SyncIncoming::Subscribe(sub) => {
                 self.subscriptions.retain(|_, s| !s.expired());
                 match self.subscriptions.insert(
-                    (peer_address, graph_id),
+                    (peer_address, sub.graph_id()),
                     Subscription {
                         close_time: SystemTime::now()
-                            .checked_add(Duration::from_secs(remain_open))
+                            .checked_add(sub.remain_open())
                             .assume("must not overflow")?,
-                        remaining_bytes: max_bytes,
+                        remaining_bytes: sub.max_bytes(),
                     },
                 ) {
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(peer_address).or_default();
                         let mut client = self.client_state.lock().expect("poisoned");
                         client.update_heads(
-                            graph_id,
-                            heads.iter(),
+                            sub.graph_id(),
+                            sub.heads().iter(),
                             response_cache,
                             &mut self.buffers.primary,
                         )?;
@@ -285,8 +280,8 @@ where
                     Err(_) => SubscribeResponse::TooManySubscriptions.encode_to(target)?,
                 }
             }
-            SyncIncoming::Unsubscribe { graph_id } => {
-                self.subscriptions.remove(&(peer_address, graph_id));
+            SyncIncoming::Unsubscribe(unsub) => {
+                self.subscriptions.remove(&(peer_address, unsub.graph_id()));
                 0
             }
             SyncIncoming::Push(push) => {
