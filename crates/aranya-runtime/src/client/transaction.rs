@@ -486,7 +486,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority,
+        Bytes, ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -549,13 +549,17 @@ mod test {
                 .assume("can query")?
                 .as_deref()
             {
-                facts.insert(
-                    "seq".into(),
-                    Keys::default(),
-                    [seq, b":", data].concat().into(),
-                );
+                facts
+                    .insert(
+                        "seq".into(),
+                        Keys::default(),
+                        [seq, b":", data].concat().into(),
+                    )
+                    .unwrap();
             } else {
-                facts.insert("seq".into(), Keys::default(), data.into());
+                facts
+                    .insert("seq".into(), Keys::default(), data.into())
+                    .unwrap();
             }
             Ok(())
         }
@@ -685,7 +689,7 @@ mod test {
             let mut max_cuts = HashMap::new();
             let mut buffer = TraversalBuffer::new();
             for (max_cut, &id) in ids.iter().enumerate() {
-                let max_cut = MaxCut(max_cut);
+                let max_cut = MaxCut(max_cut as u64);
                 let cmd = SeqCommand::new(id, prior, max_cut);
                 trx.add_commands(
                     &[cmd],
@@ -847,11 +851,11 @@ mod test {
         };
     }
 
-    fn lookup(storage: &impl Storage, name: &str) -> Option<Box<[u8]>> {
+    fn lookup(storage: &impl Storage, name: &str) -> Option<Bytes> {
         use crate::Query as _;
         let head = storage.get_head().unwrap();
         let p = storage.get_fact_perspective(head).unwrap();
-        p.query(name, &Keys::default()).unwrap()
+        p.query(name, &[]).unwrap()
     }
 
     #[test]

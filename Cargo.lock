@@ -583,20 +583,23 @@ dependencies = [
  "aranya-policy-vm",
  "aranya-runtime",
  "buggy",
+ "criterion",
  "dot-writer",
  "heapless",
  "postcard",
  "proptest",
+ "rkyv",
+ "rkyv_impl",
  "serde",
  "serde_json",
  "spideroak-base58",
  "spin",
+ "stable_deref_trait",
  "tempfile",
  "test-log",
  "thiserror 2.0.7",
  "tracing",
  "tracing-subscriber",
- "vec1",
  "yoke",
 ]
 
@@ -2101,6 +2104,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rkyv_impl"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4807f9916a57301b1992146d1d120808f1b0d5f5994a3b7319dbe5178333422e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "rstest"
 version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2863,15 +2877,6 @@ name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
-
-[[package]]
-name = "vec1"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eab68b56840f69efb0fefbe3ab6661499217ffdc58e2eef7c3f6f69835386322"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "version_check"

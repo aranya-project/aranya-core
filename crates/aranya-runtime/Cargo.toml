@@ -11,6 +11,13 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
+[[bench]]
+name = "rkyv"
+harness = false
+
 [dependencies]
 buggy = { version = "0.1.0", features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
@@ -20,11 +27,13 @@ aranya-policy-vm = { version = "0.21.0", path = "../aranya-policy-vm" }
 
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
+rkyv = { workspace = true }
+rkyv_impl = { version = "0.2" }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 spideroak-base58 = { workspace = true }
+stable_deref_trait = { version = "1", default-features = false, features = ["alloc"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-vec1 = { version = "1.10.1", default-features = false, features = ["serde"] }
 yoke = { version = "0.8", features = ["derive"] }
 
 # Used by `testing`.
@@ -44,6 +53,7 @@ aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
 aranya-policy-vm = { path = "../aranya-policy-vm", features = ["proptest"] }
 
+criterion = { workspace = true }
 proptest = { workspace = true, default-features = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"] }
 tempfile = { version = "3.9.0" }
@@ -77,7 +87,6 @@ std = [
 	"serde/std",
 	"spin/std",
 	"tracing/std",
-	"vec1/std",
 ]
 
 testing = [

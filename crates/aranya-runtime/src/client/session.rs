@@ -5,7 +5,6 @@
 //! Design doc: [Aranya Sessions](https://github.com/aranya-project/aranya-docs/blob/main/src/Aranya-Sessions-note.md)
 
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, btree_map},
     string::String,
     sync::Arc,
@@ -17,13 +16,11 @@ use buggy::{Bug, bug};
 use yoke::{Yoke, Yokeable};
 
 use crate::{
-    Address, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective, GraphId,
-    Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority, Query,
-    QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
+    Address, Bytes, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective,
+    GraphId, Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority,
+    Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
     policy::{ActionPlacement, CommandPlacement},
 };
-
-type Bytes = Box<[u8]>;
 
 /// Ephemeral session used to handle/generate off-graph commands.
 pub struct Session<SP: StorageProvider, PS> {
@@ -302,7 +299,7 @@ impl<SP, PS, MS> Query for SessionPerspective<'_, SP, PS, MS>
 where
     SP: StorageProvider,
 {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
         if let Some(slot) = self
             .session
             .current_facts
@@ -321,7 +318,7 @@ where
     fn query_prefix(
         &self,
         name: &str,
-        prefix: &[Box<[u8]>],
+        prefix: &[Bytes],
     ) -> Result<Self::QueryIterator, StorageError> {
         let prior = self.session.base_facts.query_prefix(name, prefix)?;
         let current = Yoke::<PrefixIter<'static>, _>::attach_to_cart(
@@ -347,8 +344,7 @@ struct PrefixIter<'map> {
 
 impl<'map> PrefixIter<'map> {
     fn new(map: &'map BTreeMap<Keys, Option<Bytes>>, prefix: Keys) -> Self {
-        let range =
-            map.range::<[Box<[u8]>], _>((Bound::Included(prefix.as_ref()), Bound::Unbounded));
+        let range = map.range::<[Bytes], _>((Bound::Included(prefix.as_ref()), Bound::Unbounded));
         Self { range, prefix }
     }
 }
@@ -393,7 +389,7 @@ where
 }
 
 impl<SP: StorageProvider, PS, MS> QueryMut for SessionPerspective<'_, SP, PS, MS> {
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), Some(value.clone())));
@@ -401,9 +397,10 @@ impl<SP: StorageProvider, PS, MS> QueryMut for SessionPerspective<'_, SP, PS, MS
             .entry(name)
             .or_default()
             .insert(keys, Some(value));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), None));
@@ -411,6 +408,7 @@ impl<SP: StorageProvider, PS, MS> QueryMut for SessionPerspective<'_, SP, PS, MS
             .entry(name)
             .or_default()
             .insert(keys, None);
+        Ok(())
     }
 }
 
@@ -451,7 +449,7 @@ where
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
         if checkpoint.index == self.session.fact_log.len() {
             return Ok(());
         }
@@ -491,11 +489,11 @@ mod test {
             Ok((&[b"f"], b"f0")),
             Err(StorageError::IoError),
         ];
-        let current: Vec<([Box<[u8]>; 1], Option<&[u8]>)> = vec![
-            ([Box::new(*b"a")], None),
-            ([Box::new(*b"b")], Some(b"b1")),
-            ([Box::new(*b"e")], None),
-            ([Box::new(*b"j")], None),
+        let current: Vec<([Bytes; 1], Option<&[u8]>)> = vec![
+            ([Bytes::from(*b"a")], None),
+            ([Bytes::from(*b"b")], Some(b"b1")),
+            ([Bytes::from(*b"e")], None),
+            ([Bytes::from(*b"j")], None),
         ];
         let merged: Vec<Result<(&[&[u8]], &[u8]), _>> = vec![
             Ok((&[b"b"], b"b1")),
@@ -514,7 +512,7 @@ mod test {
             }),
             current
                 .into_iter()
-                .map(|(k, v)| (k.into_iter().collect(), v.map(Box::from))),
+                .map(|(k, v)| (k.into_iter().collect(), v.map(Bytes::from))),
         )
         .collect();
         let want: Vec<_> = merged

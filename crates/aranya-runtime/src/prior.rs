@@ -1,7 +1,18 @@
-use serde::{Deserialize, Serialize};
-
 /// Refer to immediately prior commands in a graph, usually via `Prior<CmdId>` or `Prior<Location>`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 pub enum Prior<T> {
     /// No parents (init command)
     None,
@@ -67,6 +78,16 @@ impl<T> Iterator for IntoIter<T> {
                 self.0 = Prior::Single(y);
                 Some(x)
             }
+        }
+    }
+}
+
+impl<T: rkyv::Archive> ArchivedPrior<T> {
+    pub fn as_ref(&self) -> Prior<&T::Archived> {
+        match self {
+            Self::None => Prior::None,
+            Self::Single(x) => Prior::Single(x),
+            Self::Merge(x, y) => Prior::Merge(x, y),
         }
     }
 }
