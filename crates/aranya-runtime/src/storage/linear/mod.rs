@@ -791,6 +791,7 @@ impl<R: Read> crate::storage::FactIndexExtra for LinearFactIndex<R> {
     fn prior(&self) -> Result<Option<Self>, StorageError> {
         self.repr
             .prior
+            .deser_infallible()
             .map(|p| {
                 let repr = self.reader.fetch(p)?;
                 Ok(Self {
