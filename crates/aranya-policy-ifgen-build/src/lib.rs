@@ -50,8 +50,8 @@ impl InterfaceGeneratorBuilder {
 
     /// Reads the policy and writes the generated Rust interface.
     pub fn generate(self) -> Result<()> {
-        let policy_source = fs::read_to_string(&self.input)
-            .with_context(|| format!("reading {:?}", self.input))?;
+        let policy_source =
+            fs::read_to_string(&self.input).with_context(|| format!("reading {:?}", self.input))?;
         let policy_ast = parse_policy_document(&policy_source)?;
         let target = Compiler::new(&policy_ast)
             .debug(true)
