@@ -16,8 +16,6 @@ pub use imp::generate_code;
 
 /// Builder for generating a typed Rust interface from a policy document.
 ///
-/// New options can be added without breaking existing callers.
-///
 /// ```no_run
 /// aranya_policy_ifgen_build::InterfaceGeneratorBuilder::new("src/policy.md", "src/policy.rs")
 ///     .generate()
