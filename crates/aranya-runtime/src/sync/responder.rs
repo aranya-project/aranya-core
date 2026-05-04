@@ -3,11 +3,13 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
-    SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PollIncoming,
+    SEGMENT_BUFFER_MAX, SyncError,
+    requester::SyncRequestMessage,
+    wire::{CommandMeta, SyncType},
 };
 use crate::{
-    StorageError, SyncType,
+    StorageError,
     command::{Address, CmdId, Command as _},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
@@ -85,7 +87,7 @@ impl PeerCache {
 /// Messages sent from the responder to the requester.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum SyncResponseMessage {
+pub(crate) enum SyncResponseMessage {
     /// Sent in response to a `SyncRequest`
     SyncResponse {
         /// A random-value produced by a cryptographically secure RNG.
@@ -130,7 +132,7 @@ pub enum SyncResponseMessage {
 }
 
 impl SyncResponseMessage {
-    pub fn session_id(&self) -> u128 {
+    pub(crate) fn session_id(&self) -> u128 {
         match self {
             Self::SyncResponse { session_id, .. } => *session_id,
             Self::SyncEnd { session_id, .. } => *session_id,
@@ -267,8 +269,37 @@ impl SyncResponder {
         Ok(length)
     }
 
-    /// Receive a sync message. Updates the responders state for later polling.
-    pub fn receive(&mut self, message: SyncRequestMessage) -> Result<(), SyncError> {
+    /// Receive a sync poll. Updates the responder's state for later polling.
+    pub fn receive(&mut self, poll: PollIncoming) -> Result<(), SyncError> {
+        self.dispatch(poll.message)
+    }
+
+    /// Begin a new session in-process, without going through the wire.
+    ///
+    /// Used by transports that need to push out an unsolicited update to a
+    /// subscribed peer: instead of round-tripping a `SyncRequest` through the
+    /// network, the transport seeds the responder directly with the heads it
+    /// already knows about.
+    pub fn start_session(
+        &mut self,
+        session_id: u128,
+        graph_id: GraphId,
+        max_bytes: u64,
+        heads: &[Address],
+    ) -> Result<(), SyncError> {
+        let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
+        commands
+            .extend_from_slice(heads)
+            .map_err(|()| SyncError::CommandOverflow)?;
+        self.dispatch(SyncRequestMessage::SyncRequest {
+            session_id,
+            graph_id,
+            max_bytes,
+            commands,
+        })
+    }
+
+    fn dispatch(&mut self, message: SyncRequestMessage) -> Result<(), SyncError> {
         if self.session_id.is_none() {
             self.session_id = Some(message.session_id());
         }

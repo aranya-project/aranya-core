@@ -6,8 +6,8 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX,
-    SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, PushIncoming,
+    REQUEST_MISSING_MAX, SyncCommand, SyncError, responder::SyncResponseMessage, wire::SyncType,
 };
 use crate::{
     Address, GraphId, Location, TraversalBuffer,
@@ -22,7 +22,7 @@ use crate::{
 /// Messages sent from the requester to the responder.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum SyncRequestMessage {
+pub(crate) enum SyncRequestMessage {
     /// Initiate a new Sync
     SyncRequest {
         /// A new random value produced by a cryptographically secure RNG.
@@ -69,7 +69,7 @@ pub enum SyncRequestMessage {
 }
 
 impl SyncRequestMessage {
-    pub fn session_id(&self) -> u128 {
+    pub(crate) fn session_id(&self) -> u128 {
         match self {
             Self::SyncRequest { session_id, .. } => *session_id,
             Self::RequestMissing { session_id, .. } => *session_id,
@@ -183,8 +183,17 @@ impl SyncRequester {
         self.get_sync_commands(message, remaining)
     }
 
+    /// Apply a push received via [`SyncIncoming::Push`](super::SyncIncoming::Push).
+    /// Returns parsed sync commands borrowed from the original push payload.
+    pub fn receive_push<'data>(
+        &mut self,
+        push: PushIncoming<'data>,
+    ) -> Result<Option<Vec<SyncCommand<'data>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        self.get_sync_commands(push.message, push.command_data)
+    }
+
     /// Extract SyncCommands from a SyncResponseMessage and remaining bytes.
-    pub fn get_sync_commands<'data>(
+    fn get_sync_commands<'data>(
         &mut self,
         message: SyncResponseMessage,
         remaining: &'data [u8],
