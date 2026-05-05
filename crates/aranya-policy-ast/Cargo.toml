@@ -36,7 +36,6 @@ serde = { workspace = true, default-features = false, features = ["alloc"] }
 serde_derive = { workspace = true }
 thiserror = { workspace = true, default-features = false }
 
-
 [package.metadata.docs.rs]
 all-features = true
 

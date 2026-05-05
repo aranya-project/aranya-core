@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid expression: Or(Bool(false) @ 32..37, Bool(true) @ 41..45) @ 32..45 at line 4 col 12:
-	return todo()
+error: invalid expression
+  |
+2 |     attributes { i: false || true }
+  |                     ^^^^^^^^^^^^^ This expression is not valid in a const context

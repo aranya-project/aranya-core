@@ -1,7 +1,10 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 205
 expression: error
 ---
-invalid type: Return value of `f()` must be int at line 2 col 5:
-	return None or None
+error: invalid type: option[never]
+  |
+1 | function f() int {
+  |              --- expected because of this
+2 |     return None or None
+  |            ^^^^^^^^^^^^ expected `int` but found `option[never]`

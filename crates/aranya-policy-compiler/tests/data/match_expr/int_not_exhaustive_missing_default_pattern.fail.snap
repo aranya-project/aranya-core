@@ -2,9 +2,12 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-Missing default pattern in `match` statement/expression at line 2 col 13:
-	match c {
-        0 => 0
-        1 => 1
-        2 => 2
-    }
+error: Missing default pattern in `match` statement/expression
+  |
+2 |       let x = match c {
+  |  _____________^
+3 | |         0 => 0
+4 | |         1 => 1
+5 | |         2 => 2
+6 | |     }
+  | |_____^

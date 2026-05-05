@@ -2,8 +2,16 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Expected field `x` of `b` to be a `int` at line 4 col 5:
-	let new_foo = Foo {
-        y: true,
-        ...b
-    }
+error: struct composition type mismatch: field `x` expects `int` but found `string`
+  |
+1 | struct Foo { x int, y bool }
+  |              ----- field `x` expects `int`
+2 | struct Bar { x string }
+  |              ^^^^^^^^ but field `x` is `string`
+3 | function baz(b struct Bar) struct Foo {
+4 |     let new_foo = Foo {
+5 |         y: true,
+6 |         ...b
+  |            - composed here
+7 |     }
+  |

@@ -2,4 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: Bar at line 1 col 1:
+error: a thing being referenced is not in scope
+  |
+3 |         +Bar, // Bar is not defined
+  |          ^^^ struct Bar is not defined

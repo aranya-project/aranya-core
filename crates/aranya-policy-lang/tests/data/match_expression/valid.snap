@@ -30,7 +30,7 @@ Policy {
                                         pattern: Values(
                                             [
                                                 Int(
-                                                    0,
+                                                    0 @ 50..51,
                                                 ) @ 50..51,
                                             ],
                                         ),
