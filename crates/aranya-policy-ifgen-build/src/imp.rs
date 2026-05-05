@@ -76,7 +76,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
     });
 
     let effect_enum = {
-        let idents = target.effects.iter().map(|ident| ident).map(mk_ident);
+        let idents = target.effects.iter().map(mk_ident);
         quote! {
             #[effects]
             pub enum Effect {

@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref, str::FromStr};
+use core::{fmt, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -570,6 +570,7 @@ pub struct ForeignFunctionCall {
 }
 }
 
+/// Integer value with span information.
 pub type IntLiteral = WithSpan<i64>;
 
 /// All of the things which can be in an expression.
