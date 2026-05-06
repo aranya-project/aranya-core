@@ -28,8 +28,8 @@ pub mod id;
 pub use aranya_policy_ifgen as ifgen;
 #[doc(inline)]
 pub use aranya_runtime::{
-    Address, ClientError, ClientState, CmdId, Command, GraphId, Session, Sink, Transaction,
-    TraversalBuffer, TraversalBuffers,
+    Address, BraidBuffer, ClientError, ClientState, CmdId, Command, GraphId, RuntimeBuffers,
+    Session, Sink, Transaction, TraversalBuffer, TraversalBuffers,
 };
 
 pub mod storage {
@@ -44,6 +44,10 @@ pub mod storage {
     //! backends implement [`IoManager`] (and the associated [`Read`]/
     //! [`Write`] traits) to plug in alternative storage.
 
+    #[cfg(feature = "libc")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
+    #[doc(inline)]
+    pub use aranya_runtime::LibcSpill;
     #[cfg(feature = "libc")]
     #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
     #[doc(inline)]

@@ -1,16 +1,11 @@
-use alloc::vec::Vec;
-
-use buggy::{BugExt as _, bug};
+use buggy::{Bug, BugExt as _, bug};
 use tracing::trace;
+use zerocopy::IntoBytes as _;
 
-use crate::{ClientError, Location, Prior, Segment as _, Storage, storage::TraversalBuffer};
-
-// Note: `strand_heap::ParallelFinalize` is not exposed. This impl is for convenience in `braid`.
-impl From<strand_heap::ParallelFinalize> for ClientError {
-    fn from(_: strand_heap::ParallelFinalize) -> Self {
-        Self::ParallelFinalize
-    }
-}
+use crate::{
+    ClientError, Location, Prior, Segment as _, Storage, StorageError,
+    storage::{Spill, TraversalBuffer},
+};
 
 /// Returns the last common ancestor of two Locations.
 ///
@@ -53,19 +48,186 @@ pub(super) fn last_common_ancestor<S: Storage>(
     Ok(left)
 }
 
+/// Number of Location entries per braid buffer block. Sized to batch
+/// disk I/O into reasonably large writes without holding too many
+/// entries in memory per spill.
+const BRAID_BLOCK_ENTRIES: usize = 256;
+
+/// Accumulates braid locations and iterates them in reverse push order.
+pub(super) struct BraidResult<F> {
+    mem: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
+    spill_file: F,
+    spill_len: usize, // total locations written to disk
+}
+
+impl<F: Spill> BraidResult<F> {
+    fn new(spill_file: F) -> Self {
+        Self {
+            mem: heapless::Vec::new(),
+            spill_file,
+            spill_len: 0,
+        }
+    }
+
+    fn push(&mut self, loc: Location) -> Result<(), ClientError> {
+        if self.mem.is_full() {
+            self.flush_to_disk()?;
+        }
+        self.mem
+            .push(loc)
+            .map_err(|_| ClientError::from(StorageError::Bug(Bug::new("braid result overflow"))))
+    }
+
+    fn flush_to_disk(&mut self) -> Result<(), ClientError> {
+        let offset = self
+            .spill_len
+            .checked_mul(size_of::<Location>())
+            .assume("spill offset must not overflow")?;
+
+        self.spill_file
+            .write_at(offset, self.mem.as_slice().as_bytes())?;
+
+        self.spill_len = self
+            .spill_len
+            .checked_add(self.mem.len())
+            .assume("spill_len must not overflow")?;
+        self.mem.clear();
+        Ok(())
+    }
+
+    /// Returns an iterator that yields locations in forward braid order
+    /// (reversed from push order).
+    pub fn iter(&mut self) -> Result<BraidIter<'_, F>, ClientError> {
+        BraidIter::new(self)
+    }
+}
+
+/// Iterator over braid results in forward order (reversed from push order).
+///
+/// Reads the in-memory buffer backwards first, then reads spilled
+/// blocks from disk in reverse. Item is `Result<Location, ClientError>`
+/// because disk reads may fail.
+pub(super) struct BraidIter<'a, F> {
+    /// In-memory entries, reversed for forward iteration.
+    mem: &'a [Location],
+    mem_pos: usize,
+    file: &'a mut F,
+    disk_remaining: usize,
+    disk_buf: heapless::Vec<Location, BRAID_BLOCK_ENTRIES>,
+    disk_buf_pos: usize,
+}
+
+impl<'a, F: Spill> BraidIter<'a, F> {
+    fn new(result: &'a mut BraidResult<F>) -> Result<Self, ClientError> {
+        Ok(Self {
+            mem: result.mem.as_slice(),
+            mem_pos: result.mem.len(),
+            file: &mut result.spill_file,
+            disk_remaining: result.spill_len,
+            disk_buf: heapless::Vec::new(),
+            disk_buf_pos: 0,
+        })
+    }
+
+    fn load_prev_block(&mut self) -> Result<(), ClientError> {
+        let count = self.disk_remaining.min(BRAID_BLOCK_ENTRIES);
+        let start = self
+            .disk_remaining
+            .checked_sub(count)
+            .assume("count <= disk_remaining by min")?;
+
+        let offset = start
+            .checked_mul(size_of::<Location>())
+            .assume("disk offset must not overflow")?;
+
+        // Resize first so we have a contiguous `&mut [Location]` to read into,
+        // then narrow to `count`.
+        self.disk_buf.clear();
+        self.disk_buf
+            .resize(
+                count,
+                Location::new(crate::SegmentIndex(0), crate::MaxCut(0)),
+            )
+            .map_err(|()| ClientError::from(StorageError::Bug(Bug::new("disk buf overflow"))))?;
+        self.file
+            .read_at(offset, self.disk_buf.as_mut_slice().as_mut_bytes())?;
+
+        self.disk_buf_pos = self.disk_buf.len();
+        self.disk_remaining = start;
+        Ok(())
+    }
+}
+
+impl<'a, F: Spill> Iterator for BraidIter<'a, F> {
+    type Item = Result<Location, ClientError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // First yield from in-memory buffer (backwards).
+        if let Some(prev) = self.mem_pos.checked_sub(1) {
+            self.mem_pos = prev;
+            return Some(Ok(self.mem[prev]));
+        }
+
+        // Then yield from disk buffer (backwards).
+        if let Some(prev) = self.disk_buf_pos.checked_sub(1) {
+            self.disk_buf_pos = prev;
+            return Some(Ok(self.disk_buf[prev]));
+        }
+
+        if self.disk_remaining > 0 {
+            if let Err(e) = self.load_prev_block() {
+                // Fuse the iterator on disk error so subsequent next() calls
+                // return None rather than retrying the same failing block.
+                self.disk_remaining = 0;
+                return Some(Err(e));
+            }
+            if let Some(prev) = self.disk_buf_pos.checked_sub(1) {
+                self.disk_buf_pos = prev;
+                return Some(Ok(self.disk_buf[prev]));
+            }
+        }
+
+        None
+    }
+}
+
 /// Produces a deterministic ordering for a set of [`Command`]s in a graph.
-pub(super) fn braid<S: Storage>(
+///
+/// The `lca` parameter is the last common ancestor of `left` and `right`.
+/// A BFS pre-pass (`compute_convergence`) walks backwards from both merge
+/// parents to identify convergence points — locations reachable from
+/// multiple paths. During braiding, each prior location is checked against
+/// the convergence map for O(1) ancestor detection, replacing the previous
+/// O(k) `is_ancestor` BFS per strand.
+pub(super) fn braid<S, F, MS>(
     storage: &mut S,
     left: Location,
     right: Location,
-    buffer: &mut TraversalBuffer,
-) -> Result<Vec<Location>, ClientError> {
-    use strand_heap::{Strand, StrandHeap};
+    lca: Location,
+    traversal: &mut TraversalBuffer,
+    braid_buf: &mut crate::BraidBuffer<S::Segment>,
+    make_spill: &MS,
+) -> Result<BraidResult<F>, ClientError>
+where
+    S: Storage,
+    F: Spill,
+    MS: Fn() -> Result<F, StorageError>,
+{
+    use self::strand_heap::Strand;
 
-    let mut braid = Vec::new();
-    let mut strands = StrandHeap::new();
+    let mut braid = BraidResult::new(make_spill()?);
+    let strands = braid_buf.strands.get();
 
-    trace!(%left, %right, "braiding");
+    trace!(%left, %right, %lca, "braiding");
+
+    let mut convergence = convergence_map::ConvergenceMap::new(
+        left,
+        right,
+        lca,
+        traversal.get(),
+        braid_buf.convergence.get(),
+        make_spill()?,
+    )?;
 
     for head in [left, right] {
         strands.push(Strand::new(storage, head, None)?)?;
@@ -81,27 +243,36 @@ pub(super) fn braid<S: Storage>(
                 (strand.segment.prior(), None)
             };
         if matches!(prior, Prior::Merge(..)) {
-            trace!("skipping merge command");
+            trace!("skipping merge command at {}", strand.next);
         } else {
             trace!("adding {}", strand.next);
-            braid.push(strand.next);
+            braid.push(strand.next)?;
         }
 
         // Continue processing prior if not accessible from other strands.
         'location: for location in prior {
-            for other in strands.iter() {
-                trace!("checking {}", other.next);
-                let same_segment_check =
-                    location.same_segment(other.next) && location.max_cut <= other.next.max_cut;
-                if same_segment_check {
-                    trace!("same segment");
-                    continue 'location;
-                }
+            // O(1) LCA skip: any prior at or below the outermost LCA
+            // is shared by both branches — no need for further checks.
+            if location.max_cut <= lca.max_cut {
+                trace!(
+                    "prior {location} at/below LCA (max_cut <= {}) skipping",
+                    lca.max_cut
+                );
+                continue 'location;
+            }
 
-                if storage.is_ancestor(location, &other.segment, buffer)? {
-                    trace!("found ancestor");
+            // Same-segment check (O(1) per strand).
+            for other in strands.iter() {
+                if location.same_segment(other.next) && location.max_cut <= other.next.max_cut {
+                    trace!("prior {location} same segment as {}", other.next);
                     continue 'location;
                 }
+            }
+
+            // Convergence check (incremental BFS, O(1) amortized).
+            if !convergence.should_continue(storage, location)? {
+                trace!("prior {location} convergence drop");
+                continue 'location;
             }
 
             trace!("strand at {location}");
@@ -117,22 +288,28 @@ pub(super) fn braid<S: Storage>(
             // No concurrency left, done.
             let next = strand.next;
             trace!("adding {next}");
-            braid.push(next);
+            braid.push(next)?;
             break;
         }
     }
 
-    braid.reverse();
-
     Ok(braid)
 }
 
-mod strand_heap {
-    use alloc::collections::BinaryHeap;
+use super::convergence_map;
+
+pub(crate) mod strand_heap {
+    use heapless::binary_heap::Max;
 
     use crate::{
         ClientError, CmdId, Command as _, Location, Priority, Segment, Storage, StorageError,
+        storage::QUEUE_CAPACITY,
     };
+
+    /// Maximum number of active strands. Equal to `QUEUE_CAPACITY` since
+    /// strand count is bounded by graph width, the same bound as the
+    /// traversal queue.
+    pub const STRAND_CAPACITY: usize = QUEUE_CAPACITY;
 
     pub struct Strand<S> {
         key: (Priority, CmdId),
@@ -182,32 +359,50 @@ mod strand_heap {
 
     /// A wrapper around a binary heap which is limited to one finalize command.
     pub struct StrandHeap<S> {
-        heap: BinaryHeap<Strand<S>>,
+        heap: heapless::BinaryHeap<Strand<S>, Max, STRAND_CAPACITY>,
         /// Tracks whether there is a finalize command in `self.heap`.
         has_finalize: bool,
     }
 
-    pub struct ParallelFinalize;
+    impl<S> Default for StrandHeap<S> {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
     impl<S> StrandHeap<S> {
         pub const fn new() -> Self {
             Self {
-                heap: BinaryHeap::new(),
+                heap: heapless::BinaryHeap::new(),
                 has_finalize: false,
             }
         }
 
+        /// Empties the heap. Used when reusing a `BraidBuffer` across calls.
+        pub fn clear(&mut self) {
+            self.heap.clear();
+            self.has_finalize = false;
+        }
+
+        /// Returns a cleared `StrandHeap`, ready for use.
+        pub fn get(&mut self) -> &mut Self {
+            self.clear();
+            self
+        }
+
         /// Adds another strand to the heap.
         ///
-        /// Errors if it would add a second finalize command.
-        pub fn push(&mut self, strand: Strand<S>) -> Result<(), ParallelFinalize> {
+        /// Errors if it would add a second finalize command or the heap is full.
+        pub fn push(&mut self, strand: Strand<S>) -> Result<(), ClientError> {
             if matches!(strand.key.0, Priority::Finalize) {
                 if self.has_finalize {
-                    return Err(ParallelFinalize);
+                    return Err(ClientError::ParallelFinalize);
                 }
                 self.has_finalize = true;
             }
-            self.heap.push(strand);
+            self.heap
+                .push(strand)
+                .map_err(|_| StorageError::StrandHeapOverflow(STRAND_CAPACITY))?;
             Ok(())
         }
 
@@ -236,5 +431,143 @@ mod strand_heap {
         pub fn iter(&self) -> impl Iterator<Item = &Strand<S>> {
             self.heap.iter()
         }
+
+        /// Returns whether the heap currently tracks a finalize strand.
+        /// Used in tests to verify that `clear`/`get` resets this flag.
+        #[cfg(test)]
+        pub(crate) fn has_finalize(&self) -> bool {
+            self.has_finalize
+        }
+
+        /// Directly sets `has_finalize` to exercise clearing behavior in tests
+        /// without needing to construct a full `Strand`.
+        #[cfg(test)]
+        pub(crate) fn set_has_finalize_for_test(&mut self, value: bool) {
+            self.has_finalize = value;
+        }
+    }
+}
+
+#[cfg(test)]
+mod braid_reuse_tests {
+    use super::strand_heap::StrandHeap;
+    use crate::{StorageProvider, storage::linear::testing::MemStorageProvider};
+
+    type TestStrandHeap = StrandHeap<<MemStorageProvider as StorageProvider>::Segment>;
+
+    /// Verify that `StrandHeap::get` empties the heap so it can be reused
+    /// across braid calls without leaking state.
+    ///
+    /// This test explicitly sets dirty state (`has_finalize = true`) before
+    /// calling `get()` to ensure the clearing behavior is actually exercised,
+    /// not just verified in the vacuous empty case.
+    #[test]
+    fn strand_heap_get_clears_heap() {
+        let mut heap = TestStrandHeap::new();
+
+        // Simulate dirty state: mark that a finalize strand is present.
+        heap.set_has_finalize_for_test(true);
+        assert!(
+            heap.has_finalize(),
+            "precondition: has_finalize should be true before get()"
+        );
+
+        // get() must clear the heap and reset has_finalize.
+        let h = heap.get();
+        assert!(h.pop().is_none(), "heap should be empty after get()");
+        assert!(
+            !h.has_finalize(),
+            "has_finalize should be false after get()"
+        );
+
+        // A second round: set dirty state again and verify get() clears it.
+        h.set_has_finalize_for_test(true);
+        let h2 = h.get();
+        assert!(
+            h2.pop().is_none(),
+            "heap should still be empty after second get()"
+        );
+        assert!(
+            !h2.has_finalize(),
+            "has_finalize should be false after second get()"
+        );
+    }
+}
+
+#[cfg(test)]
+mod braid_result_tests {
+    use super::*;
+    use crate::{MaxCut, MemSpill, SegmentIndex};
+
+    type TestBraidResult = BraidResult<MemSpill>;
+
+    fn loc(seg: usize, cut: usize) -> Location {
+        Location::new(SegmentIndex(seg), MaxCut(cut))
+    }
+
+    #[test]
+    fn empty_result_yields_nothing() {
+        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut iter = result.iter().unwrap();
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn single_entry() {
+        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        result.push(loc(0, 1)).unwrap();
+        let mut iter = result.iter().unwrap();
+        assert_eq!(iter.next().unwrap().unwrap(), loc(0, 1));
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn yields_in_reverse_push_order() {
+        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        result.push(loc(0, 3)).unwrap();
+        result.push(loc(1, 2)).unwrap();
+        result.push(loc(2, 1)).unwrap();
+
+        let mut iter = result.iter().unwrap();
+        assert_eq!(iter.next().unwrap().unwrap(), loc(2, 1));
+        assert_eq!(iter.next().unwrap().unwrap(), loc(1, 2));
+        assert_eq!(iter.next().unwrap().unwrap(), loc(0, 3));
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn spill_to_disk_and_iterate() {
+        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        // Push more than BRAID_BLOCK_ENTRIES (256) to force a disk spill.
+        let total = BRAID_BLOCK_ENTRIES + 10;
+        for i in 0..total {
+            result.push(loc(i, i)).unwrap();
+        }
+        assert!(result.spill_len > 0);
+
+        let mut iter = result.iter().unwrap();
+        // Should yield in reverse push order.
+        for i in (0..total).rev() {
+            let entry = iter.next().unwrap().unwrap();
+            assert_eq!(entry, loc(i, i), "mismatch at reverse index {i}");
+        }
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn multiple_spills() {
+        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        // Push 3 full blocks worth to force multiple spills.
+        let total = BRAID_BLOCK_ENTRIES * 3 + 5;
+        for i in 0..total {
+            result.push(loc(i, i)).unwrap();
+        }
+
+        let mut iter = result.iter().unwrap();
+        for i in (0..total).rev() {
+            let entry = iter.next().unwrap().unwrap();
+            assert_eq!(entry, loc(i, i), "mismatch at reverse index {i}");
+        }
+        assert!(iter.next().is_none());
     }
 }

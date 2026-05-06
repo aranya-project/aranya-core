@@ -5,10 +5,10 @@ use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
-    Address, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH, MergeIds,
-    Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior, Revertable as _,
-    Segment as _, Sink, Storage, StorageError, StorageProvider, TraversalBuffer,
-    policy::CommandPlacement,
+    Address, BraidBuffer, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH,
+    MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior,
+    Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError, StorageProvider,
+    TraversalBuffer, policy::CommandPlacement, storage::Spill,
 };
 
 /// Transaction used to receive many commands at once.
@@ -74,13 +74,18 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     }
 
     /// Write current perspective, merge transaction heads, and commit to graph.
-    pub(super) fn commit(
+    pub(super) fn commit<F, MS>(
         mut self,
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
-        buffer: &mut TraversalBuffer,
-    ) -> Result<bool, ClientError> {
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: &MS,
+    ) -> Result<bool, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         let storage = provider.get_storage(self.graph_id)?;
 
         let Some(original_head) = self.original_head else {
@@ -128,8 +133,15 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 }
                 let command = policy.merge(&mut buf, merge_ids)?;
 
-                let (braid, last_common_ancestor) = make_braid_segment::<_, PS>(
-                    storage, left_loc, right_loc, sink, policy, buffer,
+                let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F, MS>(
+                    storage,
+                    left_loc,
+                    right_loc,
+                    sink,
+                    policy,
+                    &mut buffers.traversal.primary,
+                    &mut buffers.braid,
+                    make_spill,
                 )?;
 
                 let mut perspective = storage.new_merge_perspective(
@@ -146,7 +158,11 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             } else {
                 let segment = storage.get_segment(left_loc)?;
 
-                if storage.is_ancestor(storage.get_head()?, &segment, buffer)? {
+                if storage.is_ancestor(
+                    storage.get_head()?,
+                    &segment,
+                    &mut buffers.traversal.primary,
+                )? {
                     storage.commit(segment)?;
                     debug_assert!(heads.is_empty());
                 } else {
@@ -170,14 +186,19 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// Attempt to store the `command` in the graph with `graph_id`. Effects will be
     /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
-    pub(super) fn add_commands(
+    pub(super) fn add_commands<F, MS>(
         &mut self,
         commands: &[impl Command],
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
-        buffer: &mut TraversalBuffer,
-    ) -> Result<usize, ClientError> {
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: &MS,
+    ) -> Result<usize, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         let mut commands = commands.iter();
         let mut count: usize = 0;
 
@@ -207,7 +228,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 continue;
             }
 
-            if self.locate(storage, command.address()?, buffer)?.is_some() {
+            if self
+                .locate(storage, command.address()?, &mut buffers.traversal.primary)?
+                .is_some()
+            {
                 // Command already added.
                 continue;
             }
@@ -220,11 +244,26 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     }
                 }
                 Prior::Single(parent) => {
-                    self.add_single(storage, policy_store, sink, command, parent, buffer)?;
+                    self.add_single(
+                        storage,
+                        policy_store,
+                        sink,
+                        command,
+                        parent,
+                        &mut buffers.traversal.primary,
+                    )?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
-                    self.add_merge(storage, policy_store, sink, command, (left, right), buffer)?;
+                    self.add_merge::<F, MS>(
+                        storage,
+                        policy_store,
+                        sink,
+                        command,
+                        (left, right),
+                        buffers,
+                        make_spill,
+                    )?;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             }
@@ -268,15 +307,21 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         Ok(())
     }
 
-    fn add_merge(
+    #[allow(clippy::too_many_arguments)]
+    fn add_merge<F, MS>(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
         command: &impl Command,
         (left, right): (Address, Address),
-        buffer: &mut TraversalBuffer,
-    ) -> Result<bool, ClientError> {
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: &MS,
+    ) -> Result<bool, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
@@ -284,17 +329,25 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         }
 
         let left_loc = self
-            .locate(storage, left, buffer)?
+            .locate(storage, left, &mut buffers.traversal.primary)?
             .ok_or(ClientError::NoSuchParent(left.id))?;
         let right_loc = self
-            .locate(storage, right, buffer)?
+            .locate(storage, right, &mut buffers.traversal.primary)?
             .ok_or(ClientError::NoSuchParent(right.id))?;
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
-        let (braid, last_common_ancestor) =
-            make_braid_segment::<_, PS>(storage, left_loc, right_loc, sink, policy, buffer)?;
+        let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F, MS>(
+            storage,
+            left_loc,
+            right_loc,
+            sink,
+            policy,
+            &mut buffers.traversal.primary,
+            &mut buffers.braid,
+            make_spill,
+        )?;
 
         let mut perspective = storage.new_merge_perspective(
             left_loc,
@@ -405,24 +458,42 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 }
 
 /// Run the braid algorithm and evaluate the sequence to create a braided fact index.
-fn make_braid_segment<S: Storage, PS: PolicyStore>(
+#[allow(clippy::too_many_arguments)]
+fn make_braid_segment<S, PS, F, MS>(
     storage: &mut S,
     left: Location,
     right: Location,
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
-    buffer: &mut TraversalBuffer,
-) -> Result<(S::FactIndex, Location), ClientError> {
-    let order = braiding::braid(storage, left, right, buffer)?;
+    traversal: &mut TraversalBuffer,
+    braid_buf: &mut BraidBuffer<S::Segment>,
+    make_spill: &MS,
+) -> Result<(S::FactIndex, Location), ClientError>
+where
+    S: Storage,
+    PS: PolicyStore,
+    F: Spill,
+    MS: Fn() -> Result<F, StorageError>,
+{
     let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
+    let mut order = braiding::braid::<_, F, MS>(
+        storage,
+        left,
+        right,
+        last_common_ancestor,
+        traversal,
+        braid_buf,
+        make_spill,
+    )?;
 
-    let (&first, rest) = order.split_first().assume("braid is non-empty")?;
+    let mut iter = order.iter()?;
+    let first = iter.next().assume("braid is non-empty")??;
 
     let mut braid_perspective = storage.get_fact_perspective(first)?;
 
     sink.begin();
 
-    for &location in rest {
+    while let Some(location) = iter.next().transpose()? {
         let segment = storage.get_segment(location)?;
         let command = segment
             .get_command(location)
@@ -486,7 +557,7 @@ mod test {
 
     use super::*;
     use crate::{
-        ClientState, Keys, MaxCut, MergeIds, Perspective, Policy, Priority,
+        ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -672,7 +743,7 @@ mod test {
         client: ClientState<SeqPolicyStore, SP>,
         trx: Transaction<SP, SeqPolicyStore>,
         max_cuts: HashMap<CmdId, MaxCut>,
-        buffer: TraversalBuffer,
+        buffers: RuntimeBuffers<SP::Segment>,
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
@@ -683,7 +754,7 @@ mod test {
             let mut trx = Transaction::new(GraphId::transmute(ids[0]));
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
-            let mut buffer = TraversalBuffer::new();
+            let mut buffers = RuntimeBuffers::new();
             for (max_cut, &id) in ids.iter().enumerate() {
                 let max_cut = MaxCut(max_cut);
                 let cmd = SeqCommand::new(id, prior, max_cut);
@@ -692,7 +763,8 @@ mod test {
                     &mut client.provider,
                     &mut client.policy_store,
                     &mut NullSink,
-                    &mut buffer,
+                    &mut buffers,
+                    &MemSpill::new,
                 )?;
                 max_cuts.insert(id, max_cut);
                 prior = Prior::Single(Address { id, max_cut });
@@ -701,7 +773,7 @@ mod test {
                 client,
                 trx,
                 max_cuts,
-                buffer,
+                buffers,
             })
         }
 
@@ -722,7 +794,8 @@ mod test {
                     &mut self.client.provider,
                     &mut self.client.policy_store,
                     &mut NullSink,
-                    &mut self.buffer,
+                    &mut self.buffers,
+                    &MemSpill::new,
                 )?;
                 self.max_cuts.insert(id, max_cut);
                 prev = Address { id, max_cut };
@@ -739,7 +812,8 @@ mod test {
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
-                &mut self.buffer,
+                &mut self.buffers,
+                &MemSpill::new,
             )?;
             self.max_cuts.insert(id, max_cut);
             Ok(())
@@ -762,7 +836,8 @@ mod test {
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
-                &mut self.buffer,
+                &mut self.buffers,
+                &MemSpill::new,
             )?;
             for &id in &ids[1..] {
                 let cmd = SeqCommand::new(
@@ -780,7 +855,8 @@ mod test {
                     &mut self.client.provider,
                     &mut self.client.policy_store,
                     &mut NullSink,
-                    &mut self.buffer,
+                    &mut self.buffers,
+                    &MemSpill::new,
                 )?;
             }
             Ok(())
@@ -809,7 +885,8 @@ mod test {
                 &mut self.client.provider,
                 &mut self.client.policy_store,
                 &mut NullSink,
-                &mut self.buffer,
+                &mut self.buffers,
+                &MemSpill::new,
             )?);
             Ok(())
         }

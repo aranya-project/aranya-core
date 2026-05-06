@@ -10,14 +10,14 @@ use std::fs;
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
-    ClientState, Command as _, GraphId, Sink, TraversalBuffer, TraversalBuffers,
+    ClientState, Command as _, GraphId, RuntimeBuffers, Sink, TraversalBuffer, TraversalBuffers,
     crypto::{DefaultCipherSuite, DefaultEngine, Rng},
     ifgen::Actionable as _,
     keystore::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStoreExt as _, MemStore, SigningKey,
     },
     policy::{FfiCallable, VmEffect, VmPolicy, VmPolicyStore},
-    storage::{FileManager, LinearStorageProvider},
+    storage::{FileManager, LibcSpill, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequester, SyncResponder, SyncType},
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
@@ -198,18 +198,25 @@ fn sync_graphs(
     source: &mut ClientState<VmPolicyStore<CE>, LinearStorageProvider<FileManager>>,
     dest: &mut ClientState<VmPolicyStore<CE>, LinearStorageProvider<FileManager>>,
     sink: &mut PrintSink,
+    spill_dir: &std::path::Path,
 ) -> Result<()> {
     let mut request_cache = PeerCache::default();
     let mut response_cache = PeerCache::default();
-    let mut buffer = TraversalBuffer::default();
+    let mut traversal = TraversalBuffer::default();
+    let mut rt_buffers = RuntimeBuffers::new();
 
     let mut syncer = SyncRequester::new(graph_id, Rng);
     let mut trx = dest.transaction(graph_id);
 
     let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, _sent) = syncer
-        .poll(&mut buf, dest.provider(), &mut request_cache, &mut buffer)
-        .context("sync poll")?;
+        .poll(
+            &mut buf,
+            dest.provider(),
+            &mut request_cache,
+            &mut traversal,
+        )
+        .context("sync poll failed")?;
 
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let resp_len = dispatch(
@@ -225,14 +232,17 @@ fn sync_graphs(
             .receive(&target[..resp_len])
             .context("sync receive")?
     {
-        dest.add_commands(&mut trx, sink, &cmds, &mut buffer)
-            .context("add_commands")?;
-        dest.commit(trx, sink, &mut buffer).context("commit")?;
+        let make_spill = || LibcSpill::new(spill_dir);
+        let _received = dest
+            .add_commands(&mut trx, sink, &cmds, &mut rt_buffers, make_spill)
+            .context("add_commands failed")?;
+        dest.commit(trx, sink, &mut rt_buffers, make_spill)
+            .context("commit failed")?;
         dest.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             &mut request_cache,
-            &mut buffer,
+            &mut traversal,
         )
         .context("update_heads")?;
     }
@@ -316,7 +326,7 @@ fn main() -> Result<()> {
 
     // Step 9: Sync graph from A to B
     println!("\nStep 9: Syncing A -> B...");
-    sync_graphs(graph_id, &mut cs_a, &mut cs_b, &mut sink)?;
+    sync_graphs(graph_id, &mut cs_a, &mut cs_b, &mut sink, &storage_root)?;
     sink.drain_and_print("Device B / sync from A");
 
     // Step 10: Device B runs its own action
@@ -330,7 +340,7 @@ fn main() -> Result<()> {
     // Step 11: Sync B -> A
     println!("\n== Sync: B -> A ==");
     println!("\nStep 11: Syncing B -> A...");
-    sync_graphs(graph_id, &mut cs_b, &mut cs_a, &mut sink)?;
+    sync_graphs(graph_id, &mut cs_b, &mut cs_a, &mut sink, &storage_root)?;
     sink.drain_and_print("Device A / sync from B");
 
     println!("\n== Done! ==");

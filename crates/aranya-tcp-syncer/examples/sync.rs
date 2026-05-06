@@ -95,6 +95,7 @@ fn run(options: Opt) -> Result<()> {
         Arc::clone(&sink),
         tx1,
         server.local_addr()?,
+        &std::env::temp_dir(),
     )?));
 
     let graph_id;

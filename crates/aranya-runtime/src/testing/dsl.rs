@@ -67,9 +67,9 @@ use tracing::{debug, error};
 
 use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
-    TraversalBuffer, TraversalBuffers,
+    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
+    RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncRequester,
+    SyncResponder, SyncType, TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -165,6 +165,8 @@ pub enum TestRule {
         commands: u64,
         add_command_chance: u64,
         sync_chance: u64,
+        #[serde(default)]
+        sync_client_zero: bool,
     },
     SetupClientsAndGraph {
         clients: u64,
@@ -275,10 +277,11 @@ impl Display for TestRule {
                 commands,
                 add_command_chance,
                 sync_chance,
+                sync_client_zero,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {} }} }},"#,
-                clients, graph, commands, add_command_chance, sync_chance,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {}, "sync_client_zero": {} }} }},"#,
+                clients, graph, commands, add_command_chance, sync_chance, sync_client_zero,
             ),
             Self::IgnoreExpectations { ignore } => write!(
                 f,
@@ -385,8 +388,13 @@ where
                     commands,
                     add_command_chance,
                     sync_chance,
+                    sync_client_zero,
                 } => {
-                    assert!(clients > 2, "There must be at least three clients");
+                    let min_clients = if sync_client_zero { 2 } else { 3 };
+                    assert!(
+                        clients >= min_clients,
+                        "There must be at least {min_clients} clients"
+                    );
                     assert!(
                         add_command_chance > 0,
                         "There must be a positive command chance or it will never exit"
@@ -398,10 +406,11 @@ where
                     let command_ceiling: u64 = add_command_chance;
                     let sync_ceiling = command_ceiling + sync_chance;
                     generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+                    let client_start = if sync_client_zero { 0 } else { 1 };
                     let mut count = 0;
                     // Randomly generate actions and syncs. This will create a graph with many branches.
                     while count < commands {
-                        let client = rng.gen_range(1..clients);
+                        let client = rng.gen_range(client_start..clients);
                         match rng.gen_range(0..sync_ceiling) {
                             x if x < command_ceiling => {
                                 generated_actions.push(TestRule::ActionSet {
@@ -415,7 +424,7 @@ where
                             }
                             x if x < sync_ceiling => {
                                 let mut from = (client + 1) % clients;
-                                if from == 0 {
+                                if !sync_client_zero && from == 0 {
                                     from += 1;
                                 }
                                 generated_actions.push(TestRule::Sync {
@@ -519,7 +528,7 @@ where
     // Store all known heads for each client.
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
-    let mut buffers = TraversalBuffers::new();
+    let mut rt_buffers = RuntimeBuffers::<<SB::StorageProvider as StorageProvider>::Segment>::new();
 
     for rule in actions {
         debug!(?rule);
@@ -596,7 +605,7 @@ where
                         (&mut response_cache, &mut response_client),
                         &mut sink,
                         *graph_id,
-                        &mut buffers,
+                        &mut rt_buffers,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -661,7 +670,7 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
                 let head = storage.get_head()?;
-                print_graph(storage, head, &mut buffers.primary)?;
+                print_graph(storage, head, &mut rt_buffers.traversal.primary)?;
             }
 
             TestRule::CompareGraphs {
@@ -690,9 +699,9 @@ where
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a, &mut buffers.primary)?;
+                    let cmds_a = print_graph(storage_a, head_a, &mut rt_buffers.traversal.primary)?;
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b, &mut buffers.primary)?;
+                    let cmds_b = print_graph(storage_b, head_b, &mut rt_buffers.traversal.primary)?;
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -764,7 +773,7 @@ where
                                     (&mut response_cache, &mut response_client),
                                     &mut sink,
                                     *graph_id,
-                                    &mut buffers,
+                                    &mut rt_buffers,
                                 )?;
 
                                 if received > 0 {
@@ -973,7 +982,7 @@ fn sync<SP: StorageProvider>(
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
     graph_id: GraphId,
-    buffers: &mut TraversalBuffers,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
 ) -> Result<(usize, usize), TestError> {
     let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
@@ -985,7 +994,7 @@ fn sync<SP: StorageProvider>(
         &mut buffer,
         request_state.provider(),
         request_cache,
-        &mut buffers.primary,
+        &mut rt_buffers.traversal.primary,
     )?;
 
     let mut received = 0;
@@ -995,7 +1004,7 @@ fn sync<SP: StorageProvider>(
         &mut target,
         response_state.provider(),
         response_cache,
-        buffers,
+        &mut rt_buffers.traversal,
     )?;
 
     if len == 0 {
@@ -1004,13 +1013,13 @@ fn sync<SP: StorageProvider>(
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received =
-            request_state.add_commands(&mut request_trx, sink, &cmds, &mut buffers.primary)?;
-        request_state.commit(request_trx, sink, &mut buffers.primary)?;
+            request_state.add_commands(&mut request_trx, sink, &cmds, rt_buffers, MemSpill::new)?;
+        request_state.commit(request_trx, sink, rt_buffers, MemSpill::new)?;
         request_state.update_heads(
             graph_id,
             cmds.iter().filter_map(|cmd| cmd.address().ok()),
             request_cache,
-            &mut buffers.primary,
+            &mut rt_buffers.traversal.primary,
         )?;
     }
 

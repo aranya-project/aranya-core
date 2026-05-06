@@ -106,6 +106,7 @@ fn sync_bench(c: &mut Criterion) {
                     Arc::clone(&request_sink),
                     tx1,
                     server1.local_addr().expect("error getting local addr"),
+                    &std::env::temp_dir(),
                 )
                 .expect("Syncer creation must succeed"),
             ));
@@ -121,6 +122,7 @@ fn sync_bench(c: &mut Criterion) {
                     Arc::clone(&response_sink),
                     tx2,
                     server2_addr,
+                    &std::env::temp_dir(),
                 )
                 .expect("Syncer creation must succeed"),
             ));
