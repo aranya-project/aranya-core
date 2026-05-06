@@ -454,7 +454,7 @@ mod convergence_storage_tests {
         assert!(cs2.root.is_empty());
     }
 
-    /// Verify that `Block::clear` resets `last_accessed` (the A.2.1 fix).
+    /// Verify that `Block::clear` resets `last_accessed`.
     #[test]
     fn block_clear_resets_last_accessed() {
         let mut block = Block::new();
