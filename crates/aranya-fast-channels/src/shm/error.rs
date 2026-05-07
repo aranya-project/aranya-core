@@ -103,10 +103,10 @@ pub(super) const fn bad_state_version(got: U32, want: U32) -> Corrupted {
     }
 }
 
-pub(super) const fn bad_state_size(got: U64, want: U64) -> Corrupted {
+pub(super) const fn bad_state_size(got: U64, want: u64) -> Corrupted {
     Corrupted::SharedMemSize {
         got: got.into(),
-        want: want.into(),
+        want,
     }
 }
 

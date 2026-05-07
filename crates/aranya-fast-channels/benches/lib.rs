@@ -20,9 +20,9 @@ use aranya_crypto::{
     typenum::U16,
 };
 use aranya_fast_channels::{
-    AfcState as _, AranyaState as _, Client, Directed,
+    AranyaState as _, Client, Directed, LocalChannelId,
     crypto::Aes256Gcm,
-    shm::{self, Flag, Mode, OpenCtx, Path, SealCtx},
+    shm::{self, Flag, Mode, Path},
 };
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_main};
 
@@ -104,8 +104,8 @@ macro_rules! bench_impl {
 	($name:ident, $aead:ty, $kdf:ty) => {
 		fn $name(c: &mut Criterion) {
 			// Make sure that `USED_CHANS` is a power of two.
-			const MAX_CHANS: usize = 1024;
-			const USED_CHANS: usize = MAX_CHANS / 2;
+			const MAX_CHANS: u32 = 1024;
+			const USED_CHANS: u32 = MAX_CHANS / 2;
 
 			let path = Path::from_bytes(b"/bench_afc\x00").expect("should not fail");
 			let _ = shm::unlink(path);
@@ -120,7 +120,7 @@ macro_rules! bench_impl {
 			let afc = shm::ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 				.expect("should not fail");
 
-			let mut chans: [(SealCtx<CS<$aead, $kdf>>, OpenCtx<CS<$aead, $kdf>>); USED_CHANS] = array::from_fn(|_| {
+			let chans: [(LocalChannelId, LocalChannelId); USED_CHANS as usize] = array::from_fn(|_| {
 				let label = LabelId::random(Rng);
 
 				// Use the same key to simplify the decryption
@@ -139,13 +139,9 @@ macro_rules! bench_impl {
 					open
 				};
 
-                let seal_local_id = aranya.add(seal_key, label, DeviceId::random(Rng)).unwrap();
-                let open_local_id = aranya.add(open_key, label, DeviceId::random(Rng)).unwrap();
-                let seal_ctx = afc.setup_seal_ctx(seal_local_id).unwrap();
-				let open_ctx = afc.setup_open_ctx(open_local_id).unwrap();
-				(seal_ctx, open_ctx)
+				(aranya.add(seal_key, label, DeviceId::random(Rng)).unwrap(), aranya.add(open_key, label, DeviceId::random(Rng)).unwrap())
 			});
-			let client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
+			let mut client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 
 			for size in SIZES {
 				let mut g = c.benchmark_group(stringify!($aead));
@@ -159,15 +155,11 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
-				let (seal_ctx, _) = chans.last_mut().unwrap();
-
-				client
-					.seal(seal_ctx, &mut ciphertext, &input)
-					.expect("seal_hit: unable to encrypt");
+				let (seal_channel_id, _) = *chans.last().unwrap();
 				g.bench_function(BenchmarkId::new("seal_hit", *size), |b| {
 					b.iter(|| {
 						black_box(client.seal(
-							black_box(seal_ctx),
+							black_box(seal_channel_id),
 							black_box(&mut ciphertext),
 							black_box(&input),
 						))
@@ -175,15 +167,14 @@ macro_rules! bench_impl {
 					})
 				});
 
-                // TODO(#482): seal_miss no longer misses since each channel gets
-                // its own cache. There are still misses when the list generation
-                // changes, so we should measure those.
-				let mut iter = chans.iter_mut();
+				// The worst case scenario: the peer's info is
+				// never cached.
+				let mut iter = chans.iter().cycle().copied();
 				g.bench_function(BenchmarkId::new("seal_miss", *size), |b| {
-                    let (seal_ctx, _) = iter.next().expect("not enough channels");
+					let (seal_channel_id, _) = iter.next().expect("should repeat");
 					b.iter(|| {
 						black_box(client.seal(
-							black_box(seal_ctx),
+							black_box(seal_channel_id),
 							black_box(&mut ciphertext),
 							black_box(&input),
 						))
@@ -193,15 +184,14 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
-				let (seal_ctx, open_ctx) = chans.last_mut().unwrap();
+				let (seal_channel_id, open_channel_id) = *chans.last().unwrap();
 				client
-					.seal(seal_ctx, &mut ciphertext, &input)
+					.seal(seal_channel_id, &mut ciphertext, &input)
 					.expect("open_hit: unable to encrypt");
-
 				g.bench_function(BenchmarkId::new("open_hit", *size), |b| {
 					b.iter(|| {
 						let _ = black_box(client.open(
-							black_box(open_ctx),
+							black_box(open_channel_id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						))
@@ -209,17 +199,16 @@ macro_rules! bench_impl {
 					})
 				});
 
-				// TODO(#482): open_miss no longer misses since each channel gets
-                // its own cache. There are still misses when the list generation
-                // changes, so we should measure those.
-				let mut iter = chans.iter_mut();
+				// The worst case scenario: the peer's info is
+				// never cached.
+				let mut iter = chans.iter().cycle();
 				g.bench_function(BenchmarkId::new("open_miss", *size), |b| {
 					b.iter(|| {
 						// Ignore failures instead of creating
 						// N ciphertexts.
-						let (_seal_ctx, open_ctx) = iter.next().expect("not enough channels");
+						let (_seal_channel_id, open_channel_id) = iter.next().expect("should repeat");
 						let _ = client.open(
-							black_box(open_ctx),
+							black_box(*open_channel_id),
 							black_box(&mut plaintext),
 							black_box(&ciphertext),
 						);

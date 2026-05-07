@@ -86,7 +86,7 @@ pub trait TestImpl {
     fn new_states<CS: CipherSuite>(
         name: &str,
         id: DeviceIdx,
-        max_chans: usize,
+        max_chans: u32,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>>;
 
     /// Converts `key` into the encryption key type used by
@@ -231,7 +231,7 @@ where
     /// All peers that have `ChanOp` to the label.
     peers: Vec<(DeviceIdx, LabelId, ChanOp)>,
     /// For `T::new_states`.
-    max_chans: usize,
+    max_chans: u32,
     /// The underlying crypto engine.
     eng: E,
 }
@@ -244,14 +244,14 @@ where
     /// Creates an instance of Aranya.
     ///
     /// `name` is the name of the test using `Aranya`.
-    pub fn new(name: &str, max_chans: usize, eng: E) -> Self {
+    pub fn new(name: &str, max_chans: u32, eng: E) -> Self {
         #[cfg(feature = "unsafe_debug")]
         crate::util::init_debug_logging();
 
         Self {
             name: name.to_owned(),
-            devices: Vec::with_capacity(max_chans),
-            peers: Vec::with_capacity(max_chans),
+            devices: Vec::with_capacity(max_chans as usize),
+            peers: Vec::with_capacity(max_chans as usize),
             max_chans,
             eng,
         }
@@ -527,7 +527,7 @@ impl TestImpl for MockImpl {
     fn new_states<CS: CipherSuite>(
         _name: &str,
         _device_idx: DeviceIdx,
-        _max_chans: usize,
+        _max_chans: u32,
     ) -> States<Self::Afc<CS>, Self::Aranya<CS>> {
         let afc = memory::State::<CS>::new();
         let aranya = afc.clone();
