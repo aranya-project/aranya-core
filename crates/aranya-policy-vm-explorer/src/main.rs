@@ -273,6 +273,7 @@ fn main() -> anyhow::Result<()> {
                     name: command.clone(),
                     id: CmdId::default(),
                     author: DeviceId::default(),
+                    parent_id: CmdId::default(),
                     version: BaseId::default(),
                 });
                 rs = machine.create_run_state(&mut io, ctx);

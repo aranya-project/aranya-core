@@ -36,7 +36,6 @@ fn rand_vec<R: Csprng>(rng: R, max: usize) -> Vec<u8> {
 impl Random for Envelope {
     fn random<R: Csprng>(rng: R) -> Self {
         Self {
-            parent_id: BaseId::random(&rng),
             command_id: BaseId::random(&rng),
             author_id: BaseId::random(&rng),
             payload: rand_vec(&rng, 4096),
@@ -52,12 +51,14 @@ const SEAL_CTX: &CommandContext = &CommandContext::Seal(SealContext {
 
 const OPEN_CTX: &CommandContext = &CommandContext::Open(OpenContext {
     name: ident!("dummy"),
+    parent_id: CmdId::default(),
 });
 
 const POLICY_CTX: &CommandContext = &CommandContext::Policy(PolicyContext {
     name: ident!("dummy"),
     id: CmdId::default(),
     author: DeviceId::default(),
+    parent_id: CmdId::default(),
     version: BaseId::default(),
 });
 
@@ -65,6 +66,7 @@ const RECALL_CTX: &CommandContext = &CommandContext::Recall(PolicyContext {
     name: ident!("dummy"),
     id: CmdId::default(),
     author: DeviceId::default(),
+    parent_id: CmdId::default(),
     version: BaseId::default(),
 });
 
@@ -144,7 +146,6 @@ fn test_new_envelope() {
         .new_envelope(
             SEAL_CTX,
             &eng,
-            CmdId::from_base(env.parent_id),
             DeviceId::from_base(env.author_id),
             CmdId::from_base(env.command_id),
             env.signature.clone(),

@@ -54,7 +54,10 @@ fn dummy_ctx_seal(name: Identifier) -> CommandContext {
 }
 
 fn dummy_ctx_open(name: Identifier) -> CommandContext {
-    CommandContext::Open(OpenContext { name })
+    CommandContext::Open(OpenContext {
+        name,
+        parent_id: CmdId::default(),
+    })
 }
 
 fn dummy_ctx_policy(name: Identifier) -> CommandContext {
@@ -62,6 +65,7 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
+        parent_id: CmdId::default(),
         version: BaseId::default(),
     })
 }
@@ -71,6 +75,7 @@ fn dummy_ctx_recall(name: Identifier) -> CommandContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
+        parent_id: CmdId::default(),
         version: BaseId::default(),
     })
 }

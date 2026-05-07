@@ -83,6 +83,7 @@ where
 
     const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
         name: ident!("dummy"),
+        parent_id: CmdId::default(),
     });
 
     /// Test that we can verify valid signatures.
@@ -116,7 +117,6 @@ where
                 &Self::OPEN_CTX,
                 &eng,
                 pk,
-                CmdId::default(),
                 command.clone(),
                 CmdId::from_base(command_id),
                 signature,
@@ -164,7 +164,6 @@ where
             &Self::OPEN_CTX,
             &eng,
             pk,
-            CmdId::default(),
             command,
             CmdId::from_base(command_id),
             signature,
@@ -209,7 +208,6 @@ where
                 &Self::OPEN_CTX,
                 &eng,
                 pk,
-                CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
                 signature,
@@ -232,6 +230,7 @@ where
 
         const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
             name: ident!("bar"),
+            parent_id: CmdId::default(),
         });
 
         let (sk, pk) = {
@@ -264,7 +263,6 @@ where
                 &OPEN_CTX,
                 &eng,
                 pk,
-                CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
                 signature,
@@ -312,13 +310,13 @@ where
 
         let open_ctx = CommandContext::Open(OpenContext {
             name: ident!("dummy"),
+            parent_id: CmdId::default(),
         });
         let err = ffi
             .verify(
                 &open_ctx,
                 &eng,
                 pk,
-                CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
                 signature,
@@ -367,7 +365,6 @@ where
                 &Self::OPEN_CTX,
                 &eng,
                 pk,
-                CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
                 signature,
@@ -402,17 +399,20 @@ where
             }),
             CommandContext::Open(OpenContext {
                 name: ident!("dummy"),
+                parent_id: CmdId::default(),
             }),
             CommandContext::Policy(PolicyContext {
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
+                parent_id: CmdId::default(),
                 version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
+                parent_id: CmdId::default(),
                 version: BaseId::default(),
             }),
         ] {
@@ -470,12 +470,14 @@ where
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
+                parent_id: CmdId::default(),
                 version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
                 id: CmdId::default(),
                 author: DeviceId::default(),
+                parent_id: CmdId::default(),
                 version: BaseId::default(),
             }),
         ] {
@@ -484,7 +486,6 @@ where
                     ctx,
                     &eng,
                     pk.clone(),
-                    CmdId::default(),
                     command.clone(),
                     CmdId::from_base(command_id),
                     signature.clone(),

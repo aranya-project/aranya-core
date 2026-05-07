@@ -30,6 +30,7 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
+        parent_id: CmdId::default(),
         version: BaseId::default(),
     })
 }
