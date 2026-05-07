@@ -3,10 +3,19 @@ use std::{
     fmt::{self, Display},
 };
 
-use aranya_policy_ast::{self as ast, FactLiteral, Identifier, NamedStruct, TypeKind, VType};
+use aranya_policy_ast::{
+    self as ast, FactLiteral, Ident, Identifier, NamedStruct, ResultTypeKind, Span, Spanned as _,
+    TypeKind, VType,
+};
 use aranya_policy_module::ffi;
 
-use crate::{CompileError, CompileErrorType, compile::CompileState};
+use crate::{
+    CompileError,
+    compile::{
+        CompileState,
+        error::{AlreadyDefined, InvalidType, NotDefined},
+    },
+};
 
 /// Could not unify a pair of types.
 pub struct TypeUnifyError {
@@ -25,13 +34,6 @@ impl Display for TypeUnifyError {
     }
 }
 
-// TODO: Remove and force callers to make better error.
-impl From<TypeUnifyError> for CompileErrorType {
-    fn from(err: TypeUnifyError) -> Self {
-        Self::InvalidType(err.to_string())
-    }
-}
-
 pub(crate) enum UserType<'a> {
     Struct(&'a ast::StructDefinition),
     Fact(&'a ast::FactDefinition),
@@ -44,8 +46,8 @@ pub(crate) enum UserType<'a> {
 /// scope" is the one on the top of the stack.
 #[derive(Debug, Clone)]
 pub struct IdentifierTypeStack {
-    globals: HashMap<Identifier, VType>,
-    locals: Vec<Vec<HashMap<Identifier, VType>>>,
+    globals: HashMap<Ident, VType>,
+    locals: Vec<Vec<HashMap<Ident, VType>>>,
 }
 
 impl IdentifierTypeStack {
@@ -59,10 +61,11 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the global variables
     #[allow(clippy::result_large_err)]
-    pub fn add_global(&mut self, name: Identifier, value: VType) -> Result<(), CompileErrorType> {
-        match self.globals.entry(name) {
+    pub fn add_global(&mut self, name: Ident, value: VType) -> Result<(), AlreadyDefined> {
+        match self.globals.entry(name.clone()) {
             hash_map::Entry::Occupied(o) => {
-                Err(CompileErrorType::AlreadyDefined(o.key().to_string()))
+                let existing_global = o.key().clone();
+                Err(AlreadyDefined::new(existing_global, name))
             }
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
@@ -73,14 +76,14 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
-    pub fn add(&mut self, ident: Identifier, value: VType) -> Result<(), CompileErrorType> {
-        if self.globals.contains_key(&ident) {
-            return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
+    pub fn add(&mut self, ident: Ident, value: VType) -> Result<(), AlreadyDefined> {
+        if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
+            return Err(AlreadyDefined::new(existing_global.clone(), ident));
         }
         let locals = self.locals.last_mut().expect("no function scope");
         for prev in locals.iter().rev() {
-            if prev.contains_key(&ident) {
-                return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
+            if let Some((existing_var, _)) = prev.get_key_value(&ident) {
+                return Err(AlreadyDefined::new(ident, existing_var.clone()));
             }
         }
         let block = locals.last_mut().expect("no block scope");
@@ -98,7 +101,7 @@ impl IdentifierTypeStack {
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
     #[allow(clippy::result_large_err)]
-    pub fn get(&self, name: &Identifier) -> Result<VType, CompileErrorType> {
+    pub fn get(&self, name: &Identifier) -> Result<VType, IdentNotDefined> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
@@ -109,7 +112,7 @@ impl IdentifierTypeStack {
         if let Some(v) = self.globals.get(name) {
             return Ok(v.clone());
         }
-        Err(CompileErrorType::NotDefined(name.to_string()))
+        Err(IdentNotDefined)
     }
 
     /// Push a new, empty scope on top of the type stack.
@@ -138,6 +141,14 @@ impl IdentifierTypeStack {
             .expect("no function scope")
             .pop()
             .expect("no block scope");
+    }
+}
+
+pub(crate) struct IdentNotDefined;
+
+impl Display for IdentNotDefined {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("identifier not found")
     }
 }
 
@@ -209,10 +220,8 @@ impl CompileState<'_> {
                 span: s.identifier.span,
             })
         } else {
-            Err(self.err(CompileErrorType::InvalidType(format!(
-                "Struct `{}` not defined",
-                s.identifier
-            ))))
+            let note = format!("struct `{}` not defined", s.identifier);
+            Err(self.err(NotDefined(note, s.identifier.span)))
         }
     }
 
@@ -225,10 +234,8 @@ impl CompileState<'_> {
                 span: f.identifier.span,
             })
         } else {
-            Err(self.err(CompileErrorType::InvalidType(format!(
-                "Fact `{}` not defined",
-                f.identifier
-            ))))
+            let note = format!("fact `{}` not defined", f.identifier);
+            Err(self.err(NotDefined(note, f.identifier.span)))
         }
     }
 }
@@ -242,15 +249,15 @@ pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyEr
             let inner = unify_pair(left.as_ref().clone(), right.as_ref().clone())?;
             Ok(VType {
                 inner: TypeKind::Optional(Box::new(inner)),
-                span: aranya_policy_ast::Span::empty(), // TODO
+                span: Span::empty(), // TODO
             })
         }
         (TypeKind::Result(left_result), TypeKind::Result(right_result)) => {
             let ok = unify_pair(left_result.ok.clone(), right_result.ok.clone())?;
             let err = unify_pair(left_result.err.clone(), right_result.err.clone())?;
             Ok(VType {
-                inner: TypeKind::Result(Box::new(aranya_policy_ast::ResultTypeKind { ok, err })),
-                span: aranya_policy_ast::Span::empty(), // TODO
+                inner: TypeKind::Result(Box::new(ResultTypeKind { ok, err })),
+                span: Span::empty(), // TODO
             })
         }
         (_, _) => {
@@ -274,12 +281,22 @@ pub(super) fn unify_pair_as(
     left_type: VType,
     right_type: VType,
     target_type: VType,
-    errmsg: &'static str,
-) -> Result<VType, CompileErrorType> {
-    Ok(unify_pair(
-        check_type(left_type, target_type.clone(), errmsg)
-            .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
-        check_type(right_type, target_type, errmsg)
-            .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
-    )?)
+    span: Span,
+) -> Result<VType, InvalidType> {
+    unify_pair(
+        check_type(left_type, target_type.clone(), "").map_err(|err| {
+            InvalidType::new(err.right.to_string(), None, err.left.to_string(), span)
+        })?,
+        check_type(right_type, target_type, "").map_err(|err| {
+            InvalidType::new(err.right.to_string(), None, err.left.to_string(), span)
+        })?,
+    )
+    .map_err(|err| {
+        InvalidType::new(
+            err.right.to_string(),
+            None,
+            err.left.to_string(),
+            err.right.span(),
+        )
+    })
 }

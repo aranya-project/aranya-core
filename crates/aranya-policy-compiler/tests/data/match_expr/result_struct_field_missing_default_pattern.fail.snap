@@ -2,8 +2,11 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-Missing default pattern in `match` statement/expression at line 4 col 12:
-	match b {
-        Bar { r: Ok(42) } => 1
-        Bar { r: Ok(16) } => 2
-    }
+error: Missing default pattern in `match` statement/expression
+  |
+4 |       return match b {
+  |  ____________^
+5 | |         Bar { r: Ok(42) } => 1
+6 | |         Bar { r: Ok(16) } => 2
+7 | |     }
+  | |_____^

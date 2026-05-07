@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-bad argument: Cannot update fact to a bind value at line 9 col 42:
-	?
+error: bad argument
+  |
+9 |             update F[] => {s: ""} to {s: ?}
+  |                                          ^ Cannot update fact to a bind value

@@ -2,5 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Right side of `or` must match the optional's inner type (int) at line 2 col 5:
-	return Some(42) or true
+error: invalid type: bool
+  |
+2 |     return Some(42) or true
+  |                 --     ^^^^ expected `int` but found `bool`
+  |                 |
+  |                 expected because of this

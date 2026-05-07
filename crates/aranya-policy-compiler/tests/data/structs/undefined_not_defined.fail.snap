@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: Struct `Bar` not defined at line 2 col 5:
-	let v = Bar {}
+error: a thing being referenced is not in scope
+  |
+2 |     let v = Bar {}
+  |             ^^^ struct `Bar` not defined
