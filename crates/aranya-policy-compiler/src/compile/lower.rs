@@ -10,7 +10,7 @@ use tracing::warn;
 use super::{
     CompileError, CompileState, FunctionColor, Scope, StatementContext,
     error::{
-        AlreadyDefined, BadArgument, BugError, DuplicateMatchPatterns, InvalidCallColor,
+        AlreadyDefined, BadArgument, DuplicateMatchPatterns, InvalidCallColor,
         InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidStatement,
         InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm,
         TodoFound, UnknownError, UnreachableMatchArm,

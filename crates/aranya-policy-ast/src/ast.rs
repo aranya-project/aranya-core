@@ -55,13 +55,6 @@ impl core::borrow::Borrow<str> for Ident {
     }
 }
 
-impl Spanned for Text {
-    fn span(&self) -> Span {
-        // TODO: we should add spans for text literals
-        Span::empty()
-    }
-}
-
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]

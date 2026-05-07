@@ -512,7 +512,7 @@ impl<'a> CompileState<'a> {
         match target.clone() {
             Target::Unresolved(s) => {
                 let addr = labels.get(&s).ok_or_else(|| {
-                    CompileError::new(BugError(buggy::Bug::new("bad branch target")), None)
+                    CompileError::new(BugError(Bug::new("bad branch target")), None)
                 })?;
 
                 *target = Target::Resolved(*addr);
@@ -1285,7 +1285,7 @@ impl<'a> CompileState<'a> {
                         full_name
                             .as_str()
                             .split('_')
-                            .last()
+                            .next_back()
                             .expect("should have recall name"),
                         command.identifier.as_str()
                     ),
@@ -2207,7 +2207,7 @@ impl<'a> CompileState<'a> {
         }
 
         let Entry::Vacant(e) = self.builtin_functions.entry(name.inner) else {
-            let err = buggy::Bug::new(
+            let err = Bug::new(
                 "this should be unreachable. If an existing 'builtin' was found then that case would've been handled when checking for duplicate function signatures above.",
             );
             return Err(self.err(BugError(err)));
