@@ -274,12 +274,13 @@ impl SyncResponder {
         session_id: u128,
         graph_id: GraphId,
         max_bytes: u64,
-        heads: &[Address],
+        heads: impl IntoIterator<Item = Address>,
     ) -> Result<(), SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
-        commands
-            .extend_from_slice(heads)
-            .map_err(|()| SyncError::CommandOverflow)?;
+        heads
+            .into_iter()
+            .try_for_each(|head| commands.push(head).ok())
+            .ok_or(SyncError::CommandOverflow)?;
         self.dispatch(SyncRequestMessage::SyncRequest {
             session_id,
             graph_id,
