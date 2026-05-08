@@ -3,10 +3,10 @@ use std::{cell::RefCell, fmt};
 use aranya_policy_ast::{
     self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
-    ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
-    MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Param, Persistence, ResultTypeKind, ReturnStatement, Statement, StmtKind, Text,
-    TypeKind, UpdateStatement, VType, Version, ident,
+    ForeignFunctionCall, FunctionCall, Ident, IfStatement, IntLiteral, InternalFunction,
+    LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
+    MatchStatement, NamedStruct, Param, Persistence, ResultTypeKind, ReturnStatement, Statement,
+    StmtKind, Text, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -489,6 +489,7 @@ impl ChunkParser<'_> {
     ) -> Result<NamedStruct, ParseError> {
         let pc = self.descend(named_struct.clone());
         let identifier = pc.consume_ident(self)?;
+        let span = self.to_ast_span(named_struct.as_span())?;
 
         // key/expression pairs follow the identifier
         let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
@@ -496,6 +497,7 @@ impl ChunkParser<'_> {
             identifier,
             fields,
             sources,
+            span,
         })
     }
 
@@ -565,7 +567,7 @@ impl ChunkParser<'_> {
                             Some(span),
                         )
                     })?;
-                    Ok(Expression{inner: ExprKind::Int(n), span})
+                    Ok(Expression{inner: ExprKind::Int(IntLiteral::new(n, span)), span})
                 }
                 Rule::string_literal => {
                     let s = self.parse_string_literal(primary)?;
@@ -843,6 +845,7 @@ impl ChunkParser<'_> {
                     }
                     Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
                     Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
+                    Rule::coalesce => ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
                     Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
                     Rule::not_equal => ExprKind::NotEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::greater_than => ExprKind::GreaterThan(Box::new(lhs), Box::new(rhs)),
@@ -976,10 +979,15 @@ impl ChunkParser<'_> {
                 Some(span),
             )
         })?;
-        let limit = token.as_str().parse::<i64>().map_err(|e| {
-            let message = e.to_string().replace("target type", "`int`");
-            ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
-        })?;
+        let token_span = self.to_ast_span(token.as_span())?;
+        let limit = token
+            .as_str()
+            .parse::<i64>()
+            .map(|int| IntLiteral::new(int, token_span))
+            .map_err(|e| {
+                let message = e.to_string().replace("target type", "`int`");
+                ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
+            })?;
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
@@ -1921,8 +1929,10 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | 5        | `>`, `<`, `>=`, `<=`, `is` |
 /// | 6        | `==`, `!=` |
 /// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 8        | `or` (optional coalescing, right-associative) |
 fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
+        .op(Op::infix(Rule::coalesce, Assoc::Right))
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
         .op(Op::infix(Rule::equal, Assoc::Left) | Op::infix(Rule::not_equal, Assoc::Left))
         .op(Op::infix(Rule::greater_than, Assoc::Left)

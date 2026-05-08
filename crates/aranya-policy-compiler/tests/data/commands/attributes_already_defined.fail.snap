@@ -2,5 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: a at line 7 col 12:
-	return todo()
+error: the name `a` is defined multiple times
+  |
+3 |         a: 5,
+  |         - previous defintion here
+4 |         a: "five"
+  |         ^ re-defined here

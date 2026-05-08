@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: cycle found: [FFIBar, FFIFoo]
+  |
+1 | use cyclic_types
+  | -

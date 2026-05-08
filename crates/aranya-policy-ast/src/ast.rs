@@ -19,12 +19,39 @@ impl Ident {
     }
 }
 
-impl<T> PartialEq<T> for Ident
-where
-    T: AsRef<str> + ?Sized,
-{
-    fn eq(&self, other: &T) -> bool {
-        self.inner == other.as_ref()
+impl PartialEq<str> for Ident {
+    fn eq(&self, other: &str) -> bool {
+        self.inner == other
+    }
+}
+
+impl PartialEq<&str> for Ident {
+    fn eq(&self, other: &&str) -> bool {
+        self.inner == *other
+    }
+}
+
+impl PartialEq<Identifier> for Ident {
+    fn eq(&self, other: &Identifier) -> bool {
+        &self.inner == other
+    }
+}
+
+impl AsRef<str> for Ident {
+    fn as_ref(&self) -> &str {
+        self.inner.as_str()
+    }
+}
+
+impl core::borrow::Borrow<Identifier> for Ident {
+    fn borrow(&self) -> &Identifier {
+        &self.inner
+    }
+}
+
+impl core::borrow::Borrow<str> for Ident {
+    fn borrow(&self) -> &str {
+        self.inner.as_str()
     }
 }
 
@@ -420,7 +447,6 @@ pub struct FunctionCall {
 }
 }
 
-spanned! {
 /// A named struct literal
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
@@ -430,7 +456,14 @@ pub struct NamedStruct {
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
+    /// The source location of this struct literal
+    pub span: Span,
 }
+
+impl Spanned for NamedStruct {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -503,8 +536,7 @@ pub enum InternalFunction {
     /// An `exists` fact query
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
-    // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function
@@ -543,6 +575,9 @@ pub struct ForeignFunctionCall {
 }
 }
 
+/// Integer value with span information.
+pub type IntLiteral = WithSpan<i64>;
+
 /// All of the things which can be in an expression.
 pub type Expression = WithSpan<ExprKind>;
 
@@ -552,7 +587,7 @@ pub enum ExprKind {
     /// A Unit literal
     Unit,
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal
@@ -581,6 +616,8 @@ pub enum ExprKind {
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
+    /// `expr or expr` — optional coalescing
+    Coalesce(Box<Expression>, Box<Expression>),
     /// expr.expr`
     Dot(Box<Expression>, Ident),
     /// `expr` == `expr`
@@ -742,6 +779,7 @@ impl ExprKind {
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))
             | (Self::Or(a1, a2), Self::Or(b1, b2))
+            | (Self::Coalesce(a1, a2), Self::Coalesce(b1, b2))
             | (Self::Equal(a1, a2), Self::Equal(b1, b2))
             | (Self::NotEqual(a1, a2), Self::NotEqual(b1, b2))
             | (Self::GreaterThan(a1, a2), Self::GreaterThan(b1, b2))

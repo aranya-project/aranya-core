@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: debug assertion must be a boolean expression, was type int at line 2 col 5:
-	debug_assert(3)
+error: invalid type: int
+  |
+2 |     debug_assert(3)
+  |                  ^ expected `bool` but found `int`

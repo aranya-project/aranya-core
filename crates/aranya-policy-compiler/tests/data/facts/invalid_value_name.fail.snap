@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-fact literal does not match definition: Expected value x, got y at line 3 col 5:
-	check exists Foo[k: saturating_add(1, 1)]=>{y: 5}
+error: fact literal does not match definition: Expected value x, got y
+  |
+1 | fact Foo[k int]=>{x int}
+  |                   - expected because of this
+2 | action test() {
+3 |     check exists Foo[k: saturating_add(1, 1)]=>{y: 5}
+  |                                                 ^ Expected value x, got y

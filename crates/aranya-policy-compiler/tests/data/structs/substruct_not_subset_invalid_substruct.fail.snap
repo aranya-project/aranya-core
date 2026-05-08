@@ -2,5 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar` at line 18 col 5:
-	publish source substruct Foo
+error: invalid substruct operation: struct `Foo` must be a subset of struct `Bar`
+   |
+18 |     publish source substruct Foo
+   |             ------           ^^^ `Foo` is not a subset of `Bar`
+   |             |
+   |             type `Bar`

@@ -1,6 +1,6 @@
 // This file contains the extracted keywords from policy.pest from keyword_extraction.pl
 
-pub const KEYWORDS: [&str; 55] = [
+pub const KEYWORDS: [&str; 56] = [
     "action",
     "as",
     "at_least",
@@ -38,6 +38,7 @@ pub const KEYWORDS: [&str; 55] = [
     "match",
     "None",
     "open",
+    "or",
     "optional",
     "policy",
     "publish",

@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-bad argument: Cannot create fact with bind values at line 9 col 33:
-	?
+error: bad argument
+  |
+9 |             create F[i:1] => {s:?}
+  |                                 ^ Cannot create fact with bind values
