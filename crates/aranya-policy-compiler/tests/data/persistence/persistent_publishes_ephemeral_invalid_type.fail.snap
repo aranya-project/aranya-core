@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: persistent action `test` cannot publish ephemeral command `Cmd` at line 10 col 5:
-	publish Cmd {}
+error: invalid type: ephemeral command
+   |
+10 |     publish Cmd {}
+   |             ^^^^^^ expected `persistent command` but found `ephemeral command`

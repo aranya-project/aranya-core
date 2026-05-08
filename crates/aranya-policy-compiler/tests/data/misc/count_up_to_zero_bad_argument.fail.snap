@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-bad argument: count limit must be greater than zero at line 3 col 5:
-	let x = count_up_to 0 Foo[i:?]
+error: bad argument
+  |
+3 |     let x = count_up_to 0 Foo[i:?]
+  |                         ^ count limit must be greater than zero

@@ -1,14 +1,24 @@
+//! Postcard-shaped wire types for the sync protocol.
+//!
+//! These are kept `pub(crate)` so the on-wire layout can evolve without
+//! breaking consumers of `aranya-runtime::sync`. The public dispatch surface
+//! is in [`super`] (`SyncIncoming`, `SyncHello`, `SyncHeads`,
+//! `SubscribeResponse`).
+
 use core::time::Duration;
 
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
-use super::{COMMAND_SAMPLE_MAX, SyncResponseMessage, requester::SyncRequestMessage};
-use crate::{Address, GraphId};
+use super::{COMMAND_SAMPLE_MAX, requester::SyncRequestMessage};
+use crate::{
+    Address, GraphId, MaxCut, Prior,
+    command::{CmdId, Priority},
+};
 
 /// The sync hello message types for subscription-based notifications.
 #[derive(Serialize, Deserialize, Debug)]
-pub enum SyncHelloType {
+pub(crate) enum SyncHelloType {
     /// Subscribe to receive hello notifications from this peer
     Subscribe {
         /// Specifies the graph.
@@ -38,7 +48,7 @@ pub enum SyncHelloType {
 /// The sync type to dispatch.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum SyncType {
+pub(crate) enum SyncType {
     /// This will include a sync request and be
     /// immediately responded to with a sync response.
     Poll {
@@ -69,7 +79,7 @@ pub enum SyncType {
     Push {
         /// A message containing commands that the pusher believes the peer
         /// does not have.
-        message: SyncResponseMessage,
+        message: super::responder::SyncResponseMessage,
         /// The graph this push is for.
         graph_id: GraphId,
     },
@@ -79,7 +89,18 @@ pub enum SyncType {
 
 /// The result of attempting to subscribe.
 #[derive(Serialize, Deserialize, Debug)]
-pub enum SubscribeResult {
+pub(crate) enum SubscribeResult {
     Success,
     TooManySubscriptions,
+}
+
+/// Represents high-level data of a command.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct CommandMeta {
+    pub(crate) id: CmdId,
+    pub(crate) priority: Priority,
+    pub(crate) parent: Prior<Address>,
+    pub(crate) policy_length: u32,
+    pub(crate) length: u32,
+    pub(crate) max_cut: MaxCut,
 }

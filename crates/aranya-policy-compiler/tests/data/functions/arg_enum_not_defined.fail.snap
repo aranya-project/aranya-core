@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: enum UndefinedEnum at line 1 col 1:
-	function bar(x enum UndefinedEnum) bool {
-    return false
-}
+error: a thing being referenced is not in scope
+  |
+1 | function bar(x enum UndefinedEnum) bool {
+  |                     ^^^^^^^^^^^^^ enum `UndefinedEnum` not defined

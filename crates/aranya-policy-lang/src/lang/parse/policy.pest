@@ -240,6 +240,7 @@ equal = { "==" }
 not_equal = { "!=" }
 and = { "&&" }
 or = { "||" }
+coalesce = @{ "or" ~ !(ASCII_ALPHANUMERIC | "_") }
 infix_op = _{
     | add
     | subtract
@@ -251,6 +252,7 @@ infix_op = _{
     | less_than_or_equal
     | greater_than
     | less_than
+    | coalesce
 }
 
 // ## Prefix operators

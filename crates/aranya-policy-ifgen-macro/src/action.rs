@@ -37,10 +37,10 @@ pub(super) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         #derive
         #act
 
-        impl ::aranya_policy_ifgen::Actionable for #ident {
+        impl aranya_policy_ifgen::Actionable for #ident {
             type Interface = #interface;
-            fn with_action<R>(self, f: impl for<'a> FnOnce(::aranya_policy_ifgen::VmAction<'a>) -> R) -> R {
-                f(::aranya_policy_ifgen::vm_action!(
+            fn with_action<R>(self, f: impl for<'a> FnOnce(aranya_policy_ifgen::VmAction<'a>) -> R) -> R {
+                f(aranya_policy_ifgen::vm_action!(
                     #ident( #(self.#field_idents),* )
                 ))
             }

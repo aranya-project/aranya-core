@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-bad argument: Cannot update fact with wildcard keys at line 8 col 24:
-	?
+error: bad argument
+  |
+8 |             update F[i:?] => {} to {}
+  |                        ^ Cannot update fact with wildcard keys

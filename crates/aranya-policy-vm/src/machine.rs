@@ -33,7 +33,7 @@ const STACK_SIZE: usize = 100;
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
 fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
-    if fact.name != schema.identifier.name {
+    if fact.name != schema.identifier.inner {
         return false;
     }
 
@@ -41,7 +41,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(key_value) = schema
             .key
             .iter()
-            .find(|k| k.identifier.name == key.identifier)
+            .find(|k| k.identifier.inner == key.identifier)
         else {
             return false;
         };
@@ -56,7 +56,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
         let Some(schema_value) = schema
             .value
             .iter()
-            .find(|v| v.identifier.name == value.identifier)
+            .find(|v| v.identifier.inner == value.identifier)
         else {
             return false;
         };
@@ -473,14 +473,14 @@ where
                 // Check for struct fields that do not exist in the
                 // definition.
                 for f in &s.fields {
-                    if !fields.iter().any(|v| &v.identifier.name == f.0) {
+                    if !fields.iter().any(|v| &v.identifier.inner == f.0) {
                         return Err(mk_err());
                     }
                 }
                 // Ensure all defined fields exist and have the same
                 // types.
                 for f in fields {
-                    match s.fields.get(&f.identifier.name) {
+                    match s.fields.get(&f.identifier.inner) {
                         Some(v) => {
                             if !v.fits_type(&f.field_type) {
                                 return Err(mk_err());
@@ -710,7 +710,7 @@ where
                     .ok_or_else(|| self.err(MachineErrorType::InvalidSchema(s.name.clone())))?;
                 if !struct_def_fields
                     .iter()
-                    .any(|f| f.identifier.name == field_name)
+                    .any(|f| f.identifier.inner == field_name)
                 {
                     return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
@@ -745,7 +745,7 @@ where
                 for (field_name, field_val) in field_name_value_pairs {
                     let Some(field_defn) = struct_def_fields
                         .iter()
-                        .find(|f| f.identifier.name == field_name)
+                        .find(|f| f.identifier.inner == field_name)
                     else {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     };
@@ -1012,7 +1012,7 @@ where
                             let field_type = &field.field_type;
 
                             // Check if the source struct has this field
-                            let value = s.fields.get(&field_name.name).ok_or_else(|| {
+                            let value = s.fields.get(&field_name.inner).ok_or_else(|| {
                                 self.err(MachineErrorType::Unknown(alloc::format!(
                                     "cannot cast to `struct {}`: missing field `{}`",
                                     identifier,

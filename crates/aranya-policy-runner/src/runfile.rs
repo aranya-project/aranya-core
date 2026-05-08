@@ -179,7 +179,7 @@ impl RunFile {
                         match parse_expression(&full_expression) {
                             Ok(expr) => {
                                 // Successfully parsed an expression. Add it to the list of runnables.
-                                match expr.kind {
+                                match expr.inner {
                                     ExprKind::FunctionCall(_) => {
                                         do_things.push(PolicyRunnable::Action(full_expression));
                                     }

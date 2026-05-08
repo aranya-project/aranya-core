@@ -26,6 +26,7 @@ Policy {
                             identifier: "SomeCommand" @ 145..156,
                             fields: [],
                             sources: [],
+                            span: 145..158,
                         },
                     ) @ 145..158,
                 ) @ 137..159,

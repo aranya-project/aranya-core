@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-bad argument: call to `f` has 0 arguments and it should have 1 at line 6 col 5:
-	return f()
+error: bad argument
+  |
+6 |     return f()
+  |            ^ call to `f` has 0 arguments and it should have 1

@@ -6,7 +6,7 @@ mod bits;
 use std::{collections::BTreeMap, iter};
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
-use aranya_policy_ast::{self as ast, Version};
+use aranya_policy_ast::{self as ast, Version, WithSpanExt as _};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
@@ -175,14 +175,8 @@ fn test_structs() -> anyhow::Result<()> {
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
-            identifier: ast::Ident {
-                name: ident!("x"),
-                span: ast::Span::new(33, 34)
-            },
-            field_type: ast::VType {
-                kind: ast::TypeKind::Int,
-                span: ast::Span::new(35, 38)
-            }
+            identifier: ident!("x").at(33..34),
+            field_type: ast::TypeKind::Int.at(35..38),
         }])
     );
 
@@ -1481,6 +1475,98 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_coalesce_or() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int]=>{x int}
+
+        command Setup {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                finish {
+                    create Foo[i: 1]=>{x: 42}
+                }
+            }
+        }
+
+        action test_some_or() {
+            let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
+            check f.x == 42
+        }
+
+        action test_none_or() {
+            let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
+            check f.x == 99
+        }
+
+        action test_chain() {
+            let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
+            check f.x == 77
+        }
+
+        action test_chain_first_some() {
+            let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
+            check f.x == 42
+        }
+    "#;
+
+    let mut io = TestIO::new();
+    let machine = compile(text);
+
+    // Setup: create the fact
+    {
+        let cmd_name = ident!("Setup");
+        let this_data = Struct {
+            name: cmd_name.clone(),
+            fields: [].into(),
+        };
+        let ctx = dummy_ctx_policy(cmd_name);
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+    }
+
+    // Test: Some(v) or default → v
+    {
+        let action_name = ident!("test_some_or");
+        let ctx = dummy_ctx_action(action_name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    // Test: None or default → default
+    {
+        let action_name = ident!("test_none_or");
+        let ctx = dummy_ctx_action(action_name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    // Test: None or None or default → default (chain)
+    {
+        let action_name = ident!("test_chain");
+        let ctx = dummy_ctx_action(action_name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    // Test: Some(v) or None or default → v (first match wins)
+    {
+        let action_name = ident!("test_chain_first_some");
+        let ctx = dummy_ctx_action(action_name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let text = r#"
         struct Envelope {
@@ -2489,7 +2575,7 @@ fn test_result() -> anyhow::Result<()> {
                 }
             }
         }
-        
+
         function try(succeed bool) result[int, enum Err] {
             // error propagation is done explicilty, until we have `?` operator
             return match try_return(succeed) {

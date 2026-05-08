@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast::{self as ast, Identifier, TypeKind};
+use aranya_policy_ast::{self as ast, Ident, Identifier, TypeKind};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, Instruction, Label, Module, ModuleData, ModuleV0,
     named::NamedMap,
@@ -24,7 +24,7 @@ pub(crate) struct CompileTarget {
     /// Command definitions (`fields`)
     pub command_defs: NamedMap<CommandDef>,
     /// Fact schemas
-    pub fact_defs: BTreeMap<Identifier, FactDefinition>,
+    pub fact_defs: BTreeMap<Ident, FactDefinition>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Public interface
@@ -46,12 +46,16 @@ impl CompileTarget {
 
     /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
+        // helper function for stripping the span info from the key
+        fn strip_key<V>((k, v): (Ident, V)) -> (Identifier, V) {
+            (k.inner, v)
+        }
         // Convert enum defs IndexMap into BTreeMap.
         let enum_defs = self
             .interface
             .enum_defs
             .into_iter()
-            .map(|(k, v)| (k, v.into_iter().collect()))
+            .map(|(k, v)| (k.inner, v.into_iter().map(strip_key).collect()))
             .collect::<BTreeMap<_, _>>();
 
         Module {
@@ -60,11 +64,16 @@ impl CompileTarget {
                 labels: self.labels,
                 action_defs: self.interface.action_defs,
                 command_defs: self.command_defs,
-                fact_defs: self.fact_defs,
-                struct_defs: self.interface.struct_defs,
+                fact_defs: self.fact_defs.into_iter().map(strip_key).collect(),
+                struct_defs: self
+                    .interface
+                    .struct_defs
+                    .into_iter()
+                    .map(strip_key)
+                    .collect(),
                 enum_defs,
                 codemap: self.codemap,
-                globals: self.interface.globals,
+                globals: self.interface.globals.into_iter().map(strip_key).collect(),
             }),
         }
     }
@@ -79,12 +88,13 @@ impl CompileTarget {
             TypeKind::Bool => Some(2),
             TypeKind::Optional(vtype) => {
                 // Add 1 for the None case.
-                self.cardinality(&vtype.kind).and_then(|c| c.checked_add(1))
+                self.cardinality(&vtype.inner)
+                    .and_then(|c| c.checked_add(1))
             }
             TypeKind::Struct(ident) => {
-                let defs = self.interface.struct_defs.get(&ident.name)?;
+                let defs = self.interface.struct_defs.get(&ident.inner)?;
                 defs.iter()
-                    .map(|def| self.cardinality(&def.field_type.kind))
+                    .map(|def| self.cardinality(&def.field_type.inner))
                     .reduce(|acc, e| match e {
                         None => None,
                         Some(v) => acc.and_then(|w| v.checked_mul(w)),
@@ -92,14 +102,14 @@ impl CompileTarget {
                     .flatten()
             }
             TypeKind::Enum(ident) => {
-                let defs = self.interface.enum_defs.get(&ident.name)?;
+                let defs = self.interface.enum_defs.get(&ident.inner)?;
                 Some(defs.len() as u64)
             }
             TypeKind::Never => Some(0),
             TypeKind::Result(result_type) => {
                 // Result cardinality is the sum of the cardinalities of the ok and err types.
-                let ok_cardinality = self.cardinality(&result_type.ok.kind)?;
-                let err_cardinality = self.cardinality(&result_type.err.kind)?;
+                let ok_cardinality = self.cardinality(&result_type.ok.inner)?;
+                let err_cardinality = self.cardinality(&result_type.err.inner)?;
                 ok_cardinality.checked_add(err_cardinality)
             }
         }
@@ -135,13 +145,13 @@ pub struct PolicyInterface {
     /// Action definitions
     pub action_defs: NamedMap<ActionDef>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
-    pub effects: BTreeSet<Identifier>,
+    pub effects: BTreeSet<Ident>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Ident, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
+    pub enum_defs: BTreeMap<Ident, IndexMap<Ident, i64>>,
     /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, ConstValue>,
+    pub globals: BTreeMap<Ident, ConstValue>,
 }
 
 impl PolicyInterface {
