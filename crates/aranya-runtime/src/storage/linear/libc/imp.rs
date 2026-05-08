@@ -286,7 +286,7 @@ impl Root {
     fn new() -> Self {
         Self {
             generation: 0,
-            head: Location::new(SegmentIndex(u64::MAX), MaxCut(u64::MAX)),
+            head: Location::new(SegmentIndex::new(u64::MAX), MaxCut::new(u64::MAX)),
             free_offset: FREE_START,
             checksum: 0,
         }
@@ -295,8 +295,8 @@ impl Root {
     fn calc_checksum(&self) -> u64 {
         let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
-        hasher.write_u64(self.head.segment.0);
-        hasher.write_u64(self.head.max_cut.0);
+        hasher.write_u64(self.head.segment.get());
+        hasher.write_u64(self.head.max_cut.get());
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }

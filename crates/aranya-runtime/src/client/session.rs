@@ -159,7 +159,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
 fn session_parent(graph_id: GraphId) -> Prior<Address> {
     Prior::Single(Address {
         id: CmdId::transmute(graph_id),
-        max_cut: MaxCut(0),
+        max_cut: MaxCut::new(0),
     })
 }
 

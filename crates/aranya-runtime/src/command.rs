@@ -62,7 +62,7 @@ pub trait Command {
     /// Return this command's max cut. Max cut is the maximum distance to the init command.
     fn max_cut(&self) -> Result<MaxCut, Bug> {
         match self.parent() {
-            Prior::None => Ok(MaxCut(0)),
+            Prior::None => Ok(MaxCut::new(0)),
             Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
             Prior::Merge(l, r) => Ok(l
                 .max_cut
@@ -111,6 +111,11 @@ impl<C: Command> Command for &C {
     }
 }
 
+/// An address contains all of the information needed to find a command in
+/// another graph.
+///
+/// The command id identifies the command you're searching for and the
+/// max_cut allows that command to be found efficiently.
 #[derive(
     Copy,
     Clone,
@@ -124,12 +129,12 @@ impl<C: Command> Command for &C {
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
 )]
-/// An address contains all of the information needed to find a command in
-/// another graph.
-///
-/// The command id identifies the command you're searching for and the
-/// max_cut allows that command to be found efficiently.
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(C)]
 pub struct Address {
     pub id: CmdId,
     pub max_cut: MaxCut,
@@ -139,7 +144,7 @@ impl Prior<Address> {
     /// Returns the max cut for the command that is after this prior.
     pub fn next_max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(match self {
-            Self::None => MaxCut(1),
+            Self::None => MaxCut::new(1),
             Self::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
             Self::Merge(l, r) => l
                 .max_cut

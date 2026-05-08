@@ -144,8 +144,8 @@ impl Read for Reader {
             .shared
             .get(offset as usize)
             .ok_or(StorageError::SegmentOutOfBounds(Location::new(
-                SegmentIndex(offset),
-                MaxCut(u64::MAX), // Not right but this is just for testing...
+                SegmentIndex::new(offset),
+                MaxCut::new(u64::MAX), // Not right but this is just for testing...
             )))?;
 
         T::yoke(bytes).map(Handle)

@@ -9,11 +9,11 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
+use rkyv::rend::u64_le;
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
-pub mod util;
 
 /// Default capacity for the traversal queue.
 ///
@@ -305,15 +305,28 @@ aranya_crypto::custom_id! {
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    // rkyv::Portable,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
 )]
-// #[rkyv(as = Self)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct SegmentIndex(pub u64);
+pub struct SegmentIndex(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for SegmentIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl SegmentIndex {
+    pub fn new(val: u64) -> Self {
+        Self(val.into())
+    }
+
+    pub fn get(self) -> u64 {
+        self.0.to_native()
     }
 }
 
@@ -331,11 +344,14 @@ impl fmt::Display for SegmentIndex {
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    // rkyv::Portable,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
 )]
-// #[rkyv(as = Self)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct MaxCut(pub u64);
+pub struct MaxCut(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for MaxCut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -344,22 +360,30 @@ impl fmt::Display for MaxCut {
 }
 
 impl MaxCut {
+    pub fn new(val: u64) -> Self {
+        Self(val.into())
+    }
+
+    pub fn get(self) -> u64 {
+        self.0.to_native()
+    }
+
     /// Adds an amount to the max cut, returning `None` on overflow.
     #[must_use]
     pub fn checked_add(self, other: u64) -> Option<Self> {
-        self.0.checked_add(other).map(Self)
+        self.get().checked_add(other).map(Self::new)
     }
 
     /// Gets a max cut one lower than this, returning `None` on overflow.
     #[must_use]
     pub fn decremented(self) -> Option<Self> {
-        self.0.checked_sub(1).map(Self)
+        self.get().checked_sub(1).map(Self::new)
     }
 
     /// Gets the distance between two max cuts, returning `None` on overflow.
     #[must_use]
     pub fn distance_from(self, other: Self) -> Option<u64> {
-        self.0.checked_sub(other.0)
+        self.get().checked_sub(other.get())
     }
 }
 
@@ -377,9 +401,11 @@ impl MaxCut {
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    // rykv::Portable
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
 )]
-// #[rkyv(as = Self)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
 #[repr(C)]
 pub struct Location {
     pub max_cut: MaxCut,
@@ -541,8 +567,9 @@ pub trait Storage {
             // Skip list is sorted by max_cut ascending, so the first entry
             // with max_cut >= target has the lowest valid max_cut, jumping
             // furthest back in the graph.
-            if let Some(skip) = segment
+            if let Some(&skip) = segment
                 .skip_list()
+                .iter()
                 .find(|skip| skip.max_cut >= address.max_cut)
             {
                 queue.push(skip)?;
@@ -625,8 +652,9 @@ pub trait Storage {
         // Try to use skip list to jump directly backward.
         // Skip list is sorted by max_cut ascending, so first valid skip
         // jumps as far back as possible.
-        if let Some(skip) = segment
+        if let Some(&skip) = segment
             .skip_list()
+            .iter()
             .find(|skip| skip.max_cut >= search_location.max_cut)
         {
             queue.push(skip)?;
@@ -657,8 +685,9 @@ pub trait Storage {
             // Skip list is sorted by max_cut ascending, so the first entry
             // with max_cut >= target has the lowest valid max_cut, jumping
             // furthest back in the graph.
-            if let Some(skip) = segment
+            if let Some(&skip) = segment
                 .skip_list()
+                .iter()
                 .find(|skip| skip.max_cut >= search_location.max_cut)
             {
                 queue.push(skip)?;
@@ -726,7 +755,7 @@ pub trait Segment {
     ///
     /// For merge commands the last location in the skip list is the least
     /// common ancestor.
-    fn skip_list(&self) -> impl Iterator<Item = Location> + use<'_, Self>;
+    fn skip_list(&self) -> &[Location];
 
     /// Returns an iterator of commands starting at the given location.
     fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
@@ -1017,7 +1046,7 @@ mod queue_tests {
     use super::*;
 
     fn loc(seg: usize, mc: usize) -> Location {
-        Location::new(SegmentIndex(seg as u64), MaxCut(mc as u64))
+        Location::new(SegmentIndex::new(seg as u64), MaxCut::new(mc as u64))
     }
 
     #[test]
@@ -1075,7 +1104,7 @@ mod queue_tests {
         queue.push(loc(0, 5)).unwrap();
         queue.push(loc(0, 8)).unwrap();
         let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(queue.is_empty());
     }
 
@@ -1086,7 +1115,7 @@ mod queue_tests {
         // Higher max_cut uncovered: segment head moved beyond covered point.
         queue.push_covered(loc(0, 8), false).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
     }
 
@@ -1097,7 +1126,7 @@ mod queue_tests {
         // Lower max_cut should not change anything.
         queue.push_covered(loc(0, 3), true).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
     }
 
@@ -1107,7 +1136,7 @@ mod queue_tests {
         queue.push_covered(loc(0, 5), true).unwrap();
         // pop() should return only the location.
         let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(5));
+        assert_eq!(l.max_cut, MaxCut::new(5));
         assert!(queue.is_empty());
     }
 
@@ -1131,19 +1160,19 @@ mod queue_tests {
 
         let mut result: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
-            .drain_above(MaxCut(4), |loc| {
+            .drain_above(MaxCut::new(4), |loc| {
                 let _ = result.push(loc);
             })
             .unwrap();
 
         // Entries with max_cut > 4 should be drained.
         assert_eq!(result.len(), 2);
-        assert!(result.iter().any(|l| l.max_cut == MaxCut(7)));
-        assert!(result.iter().any(|l| l.max_cut == MaxCut(5)));
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(7)));
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(5)));
 
         // Only max_cut=3 should remain in the queue.
         let remaining = queue.pop().unwrap().unwrap();
-        assert_eq!(remaining.max_cut, MaxCut(3));
+        assert_eq!(remaining.max_cut, MaxCut::new(3));
         assert!(queue.is_empty());
     }
 
@@ -1159,15 +1188,15 @@ mod queue_tests {
 
         let mut drained: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
-            .drain_above(MaxCut(4), |loc| {
+            .drain_above(MaxCut::new(4), |loc| {
                 let _ = drained.push(loc);
             })
             .unwrap();
 
         // Only uncovered entries above threshold should be passed to f.
         assert_eq!(drained.len(), 2);
-        assert!(drained.iter().any(|l| l.segment == SegmentIndex(1)));
-        assert!(drained.iter().any(|l| l.segment == SegmentIndex(4)));
+        assert!(drained.iter().any(|l| l.segment.get() == 1));
+        assert!(drained.iter().any(|l| l.segment.get() == 4));
 
         // Covered entry above threshold (seg=2) should be discarded.
         // Entries below threshold should remain: seg=0 (uncovered), seg=3 (covered).
@@ -1176,7 +1205,7 @@ mod queue_tests {
             remaining.push((l.segment, covered));
         }
         assert_eq!(remaining.len(), 2);
-        assert!(remaining.contains(&(SegmentIndex(0), false)));
-        assert!(remaining.contains(&(SegmentIndex(3), true)));
+        assert!(remaining.contains(&(SegmentIndex::new(0), false)));
+        assert!(remaining.contains(&(SegmentIndex::new(3), true)));
     }
 }

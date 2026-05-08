@@ -1,8 +1,5 @@
 use alloc::vec::Vec;
-use core::{
-    fmt,
-    ops::{Deref, DerefMut},
-};
+use core::ops::Deref;
 
 use rkyv::{
     Archive, Deserialize, DeserializeUnsized, Serialize,
@@ -11,64 +8,12 @@ use rkyv::{
     ser::{Allocator, Writer},
     vec::{ArchivedVec, VecResolver},
 };
-use rkyv_impl::archive_impl;
-
-pub trait DeserInfallible<T>:
-    Deserialize<T, rkyv::api::low::LowDeserializer<core::convert::Infallible>>
-{
-    fn deser_infallible(&self) -> T;
-}
-
-impl<T, U> DeserInfallible<T> for U
-where
-    U: Deserialize<T, rkyv::api::low::LowDeserializer<core::convert::Infallible>>,
-{
-    fn deser_infallible(&self) -> T {
-        match rkyv::api::low::deserialize(self) {
-            Ok(v) => v,
-        }
-    }
-}
 
 /// A non-empty sequence of items.
 ///
 /// - Construct via `TryFrom`.
-/// - Use as `&[T]` via deref.
 #[derive(Debug)]
 pub struct NonEmpty<T>(Vec<T>);
-
-#[archive_impl]
-impl<T> NonEmpty<T> {
-    /// Gets the first item in the sequence.
-    pub fn first(&self) -> &T {
-        self.0.first().expect("non-empty")
-    }
-
-    /// Gets the last item in the sequence.
-    pub fn last(&self) -> &T {
-        self.0.last().expect("non-empty")
-    }
-
-    /// Gets the index of the last item in the sequence.
-    pub fn last_index(&self) -> usize {
-        self.0.len().checked_sub(1).expect("non-empty")
-    }
-}
-
-#[archive_impl]
-impl<T> Deref for NonEmpty<T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> DerefMut for NonEmpty<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl<T> TryFrom<Vec<T>> for NonEmpty<T> {
     type Error = Empty;
@@ -83,16 +28,9 @@ impl<T> TryFrom<Vec<T>> for NonEmpty<T> {
 }
 
 /// An operation would create an empty [`NonEmpty`].
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[error("operation would create an empty `NonEmpty`")]
 pub struct Empty;
-
-impl core::error::Error for Empty {}
-
-impl fmt::Display for Empty {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("operation would create an empty `NonEmpty`")
-    }
-}
 
 /// An archived [`NonEmpty`].
 #[derive(rkyv::Portable, rkyv::bytecheck::CheckBytes)]
@@ -100,6 +38,26 @@ impl fmt::Display for Empty {
 #[bytecheck(verify)]
 #[repr(transparent)]
 pub struct ArchivedNonEmpty<T>(ArchivedVec<T>);
+
+impl<T> ArchivedNonEmpty<T> {
+    /// Gets the last item in the sequence.
+    pub fn last(&self) -> &T {
+        self.0.last().expect("non-empty")
+    }
+
+    /// Gets the index of the last item in the sequence.
+    pub fn last_index(&self) -> usize {
+        self.0.len().checked_sub(1).expect("non-empty")
+    }
+}
+
+impl<T> Deref for ArchivedNonEmpty<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// The resolver for [`ArchivedNonEmpty`].
 pub struct NonEmptyResolver(VecResolver);

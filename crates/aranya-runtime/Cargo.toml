@@ -28,7 +28,6 @@ aranya-policy-vm = { version = "0.21.0", path = "../aranya-policy-vm" }
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
 rkyv = { workspace = true }
-rkyv_impl = { version = "0.2" }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 spideroak-base58 = { workspace = true }
 stable_deref_trait = { version = "1", default-features = false, features = ["alloc"] }

@@ -310,7 +310,7 @@ impl Policy for TestPolicy {
         let parent = match facts.head_address()? {
             Prior::None => Address {
                 id: CmdId::default(),
-                max_cut: MaxCut(0),
+                max_cut: MaxCut::new(0),
             },
             Prior::Single(id) => id,
             Prior::Merge(_, _) => bug!("cannot get merge command in call_action"),

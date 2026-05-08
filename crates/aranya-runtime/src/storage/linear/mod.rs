@@ -37,11 +37,11 @@ use rkyv::{
 };
 
 use self::triemap::TrieMap;
-use super::util::{DeserInfallible, NonEmpty};
 use crate::{
     Address, Bytes, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys,
     Location, MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
     SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer,
+    util::{DeserInfallible as _, NonEmpty},
 };
 
 pub mod io;
@@ -221,7 +221,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             Prior::None,
             policy_id,
             FactPerspectivePrior::None,
-            MaxCut(0),
+            MaxCut::new(0),
             None,
         )
     }
@@ -294,7 +294,7 @@ impl<W: Write> LinearStorage<W> {
             }
             // Assumes skip list is sorted in ascending order.
             // We always want to skip as close to the root as possible.
-            if let Some(skip) = { head.skip_list().find(|skip| skip.max_cut <= max_cut) } {
+            if let Some(&skip) = head.skip_list().iter().find(|skip| skip.max_cut <= max_cut) {
                 head = self.get_segment(skip)?;
                 continue 'outer;
             }
@@ -332,21 +332,20 @@ impl<W: Write> LinearStorage<W> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
         let segment = writer.append(|offset| SegmentRepr {
-            offset: SegmentIndex(offset),
+            offset: SegmentIndex::new(offset),
             prior: Prior::None,
             parents: Prior::None,
             policy: init.policy,
             facts,
             commands,
-            max_cut: MaxCut(0),
+            max_cut: MaxCut::new(0),
             skip_list: vec![],
         })?;
 
         let head = Location::new(
-            segment.offset.deser_infallible(),
+            segment.offset,
             segment
                 .max_cut
-                .deser_infallible()
                 .checked_add(segment.commands.last_index() as u64)
                 .assume("valid max cut")?,
         );
@@ -438,7 +437,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         let perspective = LinearPerspective::new(
             prior,
             Prior::Single(command.address()?),
-            segment.repr.policy.deser_infallible(),
+            segment.repr.policy,
             prior_facts,
             command
                 .max_cut()?
@@ -536,7 +535,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
         let reader = self.writer.readonly();
-        let repr = reader.fetch(location.segment.0)?;
+        let repr = reader.fetch(location.segment.get())?;
         let seg = LinearSegment { repr, reader };
 
         Ok(seg)
@@ -575,8 +574,8 @@ impl<F: Write> Storage for LinearStorage<F> {
             let mut skips = vec![];
             for _ in 0..count {
                 let segment = self.get_segment(l)?;
-                if l.max_cut > MaxCut(0) {
-                    let max_cut = MaxCut(rng.gen_range(0..l.max_cut.0));
+                if l.max_cut > MaxCut::new(0) {
+                    let max_cut = MaxCut::new(rng.gen_range(0..l.max_cut.get()));
                     if let Some(skip) = self.get_skip(segment, max_cut)? {
                         if !skips.contains(&skip) {
                             skips.push(skip);
@@ -609,7 +608,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             }
         };
         let repr = self.writer.append(|offset| SegmentRepr {
-            offset: SegmentIndex(offset),
+            offset: SegmentIndex::new(offset),
             prior: perspective.prior,
             parents: perspective.parents,
             policy: perspective.policy,
@@ -684,7 +683,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         R: 'a;
 
     fn index(&self) -> SegmentIndex {
-        self.repr.offset.deser_infallible()
+        self.repr.offset
     }
 
     fn head_id(&self) -> CmdId {
@@ -692,33 +691,25 @@ impl<R: Read> Segment for LinearSegment<R> {
     }
 
     fn first_location(&self) -> Location {
-        Location::new(
-            self.repr.offset.deser_infallible(),
-            self.repr.max_cut.deser_infallible(),
-        )
+        Location::new(self.repr.offset, self.repr.max_cut)
     }
 
     fn policy(&self) -> PolicyId {
-        self.repr.policy.deser_infallible()
+        self.repr.policy
     }
 
     fn prior(&self) -> Prior<Location> {
-        self.repr.prior.deser_infallible()
+        self.repr.prior
     }
 
     fn get_command(&self, location: Location) -> Option<Self::Command<'_>> {
-        if self.repr.offset.deser_infallible() != location.segment {
+        if self.repr.offset != location.segment {
             return None;
         }
         let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
         let data = self.repr.commands.get(cmd_idx)?;
         let parent = if let Some(prev) = usize::checked_sub(cmd_idx, 1) {
-            if let Some(max_cut) = self
-                .repr
-                .max_cut
-                .deser_infallible()
-                .checked_add(prev as u64)
-            {
+            if let Some(max_cut) = self.repr.max_cut.checked_add(prev as u64) {
                 Prior::Single(Address {
                     id: self.repr.commands[prev].id,
                     max_cut,
@@ -727,7 +718,7 @@ impl<R: Read> Segment for LinearSegment<R> {
                 return None;
             }
         } else {
-            self.repr.parents.deser_infallible()
+            self.repr.parents
         };
         Some(LinearCommand {
             id: &data.id,
@@ -746,22 +737,18 @@ impl<R: Read> Segment for LinearSegment<R> {
         })
     }
 
-    fn skip_list(&self) -> impl Iterator<Item = Location> {
-        self.repr
-            .skip_list
-            .iter()
-            .map(DeserInfallible::deser_infallible)
+    fn skip_list(&self) -> &[Location] {
+        &self.repr.skip_list
     }
 
     fn shortest_max_cut(&self) -> MaxCut {
-        self.repr.max_cut.deser_infallible()
+        self.repr.max_cut
     }
 
     fn longest_max_cut(&self) -> Result<MaxCut, StorageError> {
         Ok(self
             .repr
             .max_cut
-            .deser_infallible()
             .checked_add(self.repr.commands.last_index() as u64)
             .assume("must not overflow")?)
     }
@@ -770,9 +757,9 @@ impl<R: Read> Segment for LinearSegment<R> {
 impl ArchivedSegmentRepr {
     fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
         max_cut
-            .distance_from(self.max_cut.deser_infallible())
+            .distance_from(self.max_cut)
             .ok_or(StorageError::CommandOutOfBounds(Location::new(
-                self.offset.deser_infallible(),
+                self.offset,
                 max_cut,
             )))
             .map(|x| x as usize)

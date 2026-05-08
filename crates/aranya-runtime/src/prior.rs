@@ -12,7 +12,12 @@
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
 )]
+#[rkyv(as = Prior<T::Archived>)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(u8)]
 pub enum Prior<T> {
     /// No parents (init command)
     None,
@@ -78,16 +83,6 @@ impl<T> Iterator for IntoIter<T> {
                 self.0 = Prior::Single(y);
                 Some(x)
             }
-        }
-    }
-}
-
-impl<T: rkyv::Archive> ArchivedPrior<T> {
-    pub fn as_ref(&self) -> Prior<&T::Archived> {
-        match self {
-            Self::None => Prior::None,
-            Self::Single(x) => Prior::Single(x),
-            Self::Merge(x, y) => Prior::Merge(x, y),
         }
     }
 }

@@ -59,7 +59,7 @@ fn init<SP: StorageProvider>(sp: &mut SP) -> &mut SP::Storage {
             priority: Priority::Basic(42),
             parent: Prior::Single(Address {
                 id: parent,
-                max_cut: MaxCut(i),
+                max_cut: MaxCut::new(i),
             }),
             policy: None,
             bytes: vec![0; 512].into_boxed_slice(),
@@ -92,7 +92,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
         let mut sp = linear::testing::MemStorageProvider::default();
         let store = init(&mut sp);
-        let loc = Location::new(store.get_head().unwrap().segment, MaxCut(42));
+        let loc = Location::new(store.get_head().unwrap().segment, MaxCut::new(42));
 
         group.bench_function("get_command_id", |b| {
             b.iter(|| {
@@ -123,7 +123,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let mut sp =
             linear::LinearStorageProvider::new(linear::libc::FileManager::new(tmp.path()).unwrap());
         let store = init(&mut sp);
-        let loc = Location::new(store.get_head().unwrap().segment, MaxCut(42));
+        let loc = Location::new(store.get_head().unwrap().segment, MaxCut::new(42));
 
         group.bench_function("get_command_id", |b| {
             b.iter(|| {

@@ -589,7 +589,6 @@ dependencies = [
  "postcard",
  "proptest",
  "rkyv",
- "rkyv_impl",
  "serde",
  "serde_json",
  "spideroak-base58",
@@ -2097,17 +2096,6 @@ name = "rkyv_derive"
 version = "0.8.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6dffea3c91fa91a3c0fc8a061b0e27fef25c6304728038a6d6bcb1c58ba9bd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "rkyv_impl"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4807f9916a57301b1992146d1d120808f1b0d5f5994a3b7319dbe5178333422e"
 dependencies = [
  "proc-macro2",
  "quote",
