@@ -243,14 +243,7 @@ equal = { "==" }
 not_equal = { "!=" }
 and = { "&&" }
 or = { "||" }
-// Optional-coalescing `or`. Reject when the next non-space token is
-// `recall` so the `or recall <fn>` clause attached to `check` is not
-// consumed as a coalesce operator.
-coalesce = @{
-    "or"
-    ~ !(ASCII_ALPHANUMERIC | "_")
-    ~ !((" " | "\t" | NEWLINE)+ ~ "recall" ~ !(ASCII_ALPHANUMERIC | "_"))
-}
+coalesce = @{ "or" ~ !(ASCII_ALPHANUMERIC | "_") }
 infix_op = _{
     | add
     | subtract
