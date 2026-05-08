@@ -2,8 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: Return value of `f()` must be int at line 2 col 5:
-	let x = match n {
-        0 => 1
-        _ => return "wrong"
-    }
+error: invalid type: string
+  |
+1 | function f(n int) int {
+  |                   --- expected because of this
+...
+4 |         _ => return "wrong"
+  |                     ^^^^^^^ expected `int` but found `string`

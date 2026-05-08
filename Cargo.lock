@@ -197,6 +197,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-core"
+version = "0.0.1-alpha"
+dependencies = [
+ "aranya-crypto",
+ "aranya-id",
+ "aranya-policy-ifgen",
+ "aranya-runtime",
+]
+
+[[package]]
+name = "aranya-core-example"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "aranya-core",
+ "aranya-crypto-ffi",
+ "aranya-device-ffi",
+ "aranya-envelope-ffi",
+ "aranya-idam-ffi",
+ "aranya-perspective-ffi",
+ "aranya-policy-compiler",
+ "aranya-policy-ifgen-build",
+ "aranya-policy-lang",
+ "aranya-policy-vm",
+ "postcard",
+]
+
+[[package]]
 name = "aranya-crypto"
 version = "0.14.0"
 dependencies = [
@@ -362,6 +390,7 @@ dependencies = [
 name = "aranya-policy-compiler"
 version = "0.22.0"
 dependencies = [
+ "annotate-snippets",
  "anyhow",
  "aranya-policy-ast",
  "aranya-policy-lang",
@@ -373,7 +402,6 @@ dependencies = [
  "insta",
  "petgraph",
  "rstest",
- "thiserror 2.0.7",
  "tracing",
 ]
 
@@ -392,6 +420,7 @@ dependencies = [
 name = "aranya-policy-ifgen"
 version = "0.22.0"
 dependencies = [
+ "aranya-core",
  "aranya-policy-compiler",
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",
@@ -400,6 +429,7 @@ dependencies = [
  "aranya-runtime",
  "goldenfile",
  "serde",
+ "syn",
  "thiserror 2.0.7",
 ]
 
@@ -456,6 +486,31 @@ dependencies = [
  "rkyv",
  "serde",
  "thiserror 2.0.7",
+]
+
+[[package]]
+name = "aranya-policy-runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aranya-afc-util",
+ "aranya-crypto",
+ "aranya-crypto-ffi",
+ "aranya-device-ffi",
+ "aranya-envelope-ffi",
+ "aranya-idam-ffi",
+ "aranya-perspective-ffi",
+ "aranya-policy-compiler",
+ "aranya-policy-ifgen-build",
+ "aranya-policy-lang",
+ "aranya-policy-vm",
+ "aranya-runtime",
+ "clap",
+ "postcard",
+ "rand",
+ "thiserror 2.0.7",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -681,6 +736,7 @@ dependencies = [
 name = "canary-std"
 version = "0.0.0"
 dependencies = [
+ "aranya-core",
  "aranya-crypto",
  "aranya-crypto-ffi",
  "aranya-device-ffi",

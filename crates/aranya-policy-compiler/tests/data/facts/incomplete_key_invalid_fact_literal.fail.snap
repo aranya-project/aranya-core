@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-fact literal does not match definition: Fact keys don't match definition at line 3 col 5:
-	check exists Foo[]
+error: fact literal does not match definition: The number of Fact keys don't match the definition
+  |
+1 | fact Foo[i int] => {a string}
+  | ^----------------------------
+  | |
+  | The number of Fact keys don't match the definition
+  | definition has 1 keys but the expression has 0 keys

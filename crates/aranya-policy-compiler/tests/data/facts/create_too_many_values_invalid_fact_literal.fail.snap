@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-fact literal does not match definition: incorrect number of values at line 4 col 5:
-	create Device[device_id:1]=>{name: "bob", email: "bob@email.com"}
+error: fact literal does not match definition: The number of Fact values don't match the definition
+  |
+1 | fact Device[device_id int]=>{name string}
+  | ----------------------------------------- definition has 1 values but the expression has 2 values
+...
+4 |     create Device[device_id:1]=>{name: "bob", email: "bob@email.com"}
+  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ The number of Fact values don't match the definition

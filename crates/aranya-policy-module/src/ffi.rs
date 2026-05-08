@@ -2,7 +2,7 @@
 extern crate alloc;
 use alloc::boxed::Box;
 
-use aranya_policy_ast::{Ident, Identifier, ResultTypeKind, Span, TypeKind, VType};
+use aranya_policy_ast::{Identifier, ResultTypeKind, Span, TypeKind, VType, WithSpanExt as _};
 
 /// The type of a value
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,14 +53,8 @@ impl From<&Type<'_>> for VType {
             Type::Int => TypeKind::Int,
             Type::Bool => TypeKind::Bool,
             Type::Id => TypeKind::Id,
-            Type::Struct(s) => TypeKind::Struct(Ident {
-                name: s.clone(),
-                span: Span::default(),
-            }),
-            Type::Enum(e) => TypeKind::Enum(Ident {
-                name: e.clone(),
-                span: Span::default(),
-            }),
+            Type::Struct(s) => TypeKind::Struct(s.clone().nowhere()),
+            Type::Enum(e) => TypeKind::Enum(e.clone().nowhere()),
             Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
             Type::Result(ok, err) => TypeKind::Result(Box::new(ResultTypeKind {
                 ok: (*ok).into(),
@@ -68,7 +62,7 @@ impl From<&Type<'_>> for VType {
             })),
         };
         Self {
-            kind,
+            inner: kind,
             span: Span::empty(),
         }
     }

@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: redundant literal pattern in same arm — binding already matches all values
+  |
+3 |         Ok(5) | Ok(n) => n
+  |                 ^^^^^

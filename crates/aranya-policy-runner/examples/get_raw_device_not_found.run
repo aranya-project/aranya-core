@@ -1,0 +1,4 @@
+preamble:
+  let fake_device_id = testing::random_id()
+do:
+  get_raw_device(fake_device_id)

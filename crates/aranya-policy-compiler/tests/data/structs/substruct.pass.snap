@@ -1,0 +1,93 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <fn 'convert'>: 1,
+    },
+    action_defs: {},
+    command_defs: {},
+    fact_defs: {},
+    struct_defs: {
+        "CommonStruct": [
+            FieldDefinition {
+                identifier: "n" @ 26..27,
+                field_type: Int @ 28..31,
+            },
+        ],
+        "Input": [
+            FieldDefinition {
+                identifier: "x" @ 93..94,
+                field_type: Int @ 95..98,
+            },
+            FieldDefinition {
+                identifier: "y" @ 104..105,
+                field_type: Bool @ 106..110,
+            },
+            FieldDefinition {
+                identifier: "z" @ 116..117,
+                field_type: String @ 118..124,
+            },
+            FieldDefinition {
+                identifier: "w" @ 130..131,
+                field_type: Struct(
+                    "CommonStruct" @ 139..151,
+                ) @ 132..151,
+            },
+            FieldDefinition {
+                identifier: "v" @ 157..158,
+                field_type: Enum(
+                    "CommonEnum" @ 164..174,
+                ) @ 159..174,
+            },
+        ],
+        "Output": [
+            FieldDefinition {
+                identifier: "x" @ 199..200,
+                field_type: Int @ 201..204,
+            },
+            FieldDefinition {
+                identifier: "y" @ 210..211,
+                field_type: Bool @ 212..216,
+            },
+            FieldDefinition {
+                identifier: "w" @ 222..223,
+                field_type: Struct(
+                    "CommonStruct" @ 231..243,
+                ) @ 224..243,
+            },
+            FieldDefinition {
+                identifier: "v" @ 249..250,
+                field_type: Enum(
+                    "CommonEnum" @ 256..266,
+                ) @ 251..266,
+            },
+        ],
+    },
+    enum_defs: {
+        "CommonEnum": {
+            "No": 0,
+            "Yes": 1,
+        },
+    },
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'convert'>:
+    def 'input'
+    save SP
+    struct.new 'Output'
+    get 'input'
+    ident 'x'
+    ident 'y'
+    ident 'w'
+    ident 'v'
+    mstruct.get 4
+    mstruct.set 4
+    restore SP
+    return
+    exit panic

@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-fact literal does not match definition: Invalid key: expected j, got i at line 3 col 5:
-	check exists Foo[i: 1, i: 2]
+error: fact literal does not match definition: Invalid key: expected j, got i
+  |
+1 | fact Foo[i int, j int] => {a string}
+  |                 - expected because of this
+2 | action test() {
+3 |     check exists Foo[i: 1, i: 2]
+  |                            ^ Invalid key: expected j, got i

@@ -46,6 +46,9 @@ audit-as-crates-io = false
 [policy.aranya-capi-macro]
 audit-as-crates-io = false
 
+[policy.aranya-core]
+audit-as-crates-io = false
+
 [policy.aranya-crypto]
 audit-as-crates-io = false
 

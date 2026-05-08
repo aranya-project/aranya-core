@@ -4,7 +4,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{FactCountType, Ident, Span, Spanned, Text, VType, span::spanned};
+use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType, span::spanned};
 
 spanned! {
 /// A fact and its key/value field values.
@@ -65,7 +65,7 @@ pub enum InternalFunction {
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
     // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function
@@ -127,7 +127,7 @@ impl Spanned for Expression {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal
@@ -152,6 +152,8 @@ pub enum ExprKind {
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
+    /// `expr or expr` — optional coalescing
+    Coalesce(Box<Expression>, Box<Expression>),
     /// expr.expr`
     Dot(Box<Expression>, Ident),
     /// `expr` == `expr`
@@ -208,32 +210,14 @@ pub struct CheckStatement {
 }
 }
 
-/// Result pattern for matching Ok/Err in Result types
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResultPattern {
-    /// Match Ok(identifier)
-    Ok(Ident),
-    /// Match Err(identifier)
-    Err(Ident),
-}
-
-impl Spanned for ResultPattern {
-    fn span(&self) -> Span {
-        match self {
-            Self::Ok(ident) | Self::Err(ident) => ident.span(),
-        }
-    }
-}
-
 /// Match arm pattern
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
     /// List of values to match
+    /// Can include Ok(x) and Err(e) for Result matching.
     Values(Vec<Expression>),
-    /// Result pattern (Ok or Err)
-    ResultPattern(ResultPattern),
 }
 
 impl Spanned for MatchPattern {
@@ -241,7 +225,6 @@ impl Spanned for MatchPattern {
         match self {
             Self::Default(span) => *span,
             Self::Values(values) => values.span(),
-            Self::ResultPattern(pattern) => pattern.span(),
         }
     }
 }

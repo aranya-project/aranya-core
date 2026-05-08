@@ -34,33 +34,33 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
             }
         }
 
-        impl ::core::convert::TryFrom<::aranya_policy_ifgen::Fields> for #ident {
-            type Error = ::aranya_policy_ifgen::EffectsParseError;
-            fn try_from(value: ::aranya_policy_ifgen::Fields) -> ::core::result::Result<Self, Self::Error> {
+        impl ::core::convert::TryFrom<aranya_policy_ifgen::Fields> for #ident {
+            type Error = aranya_policy_ifgen::EffectsParseError;
+            fn try_from(value: aranya_policy_ifgen::Fields) -> ::core::result::Result<Self, Self::Error> {
                 let fields = &mut value
                     .into_iter()
                     .map(|kv| kv.into())
-                    .collect::<::aranya_policy_ifgen::FieldMap>();
+                    .collect::<aranya_policy_ifgen::FieldMap>();
                 let parsed = Self { #(
                     #field_idents:
-                        ::aranya_policy_ifgen::TryFromValue::try_from_value(
+                        aranya_policy_ifgen::TryFromValue::try_from_value(
                             fields.remove(#field_names)
-                                .ok_or(::aranya_policy_ifgen::EffectsParseError::MissingField)?,
+                                .ok_or(aranya_policy_ifgen::EffectsParseError::MissingField)?,
                         )
-                        .map_err(|_| ::aranya_policy_ifgen::EffectsParseError::FieldTypeMismatch)?,
+                        .map_err(|_| aranya_policy_ifgen::EffectsParseError::FieldTypeMismatch)?,
                 )* };
                 if !fields.is_empty() {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::EffectsParseError::ExtraFields);
+                    return ::core::result::Result::Err(aranya_policy_ifgen::EffectsParseError::ExtraFields);
                 }
                 ::core::result::Result::Ok(parsed)
             }
         }
 
-        impl ::core::convert::TryFrom<::aranya_policy_ifgen::VmEffect> for #ident {
-            type Error = ::aranya_policy_ifgen::EffectsParseError;
-            fn try_from(eff: ::aranya_policy_ifgen::VmEffect) -> ::core::result::Result<Self, Self::Error> {
+        impl ::core::convert::TryFrom<aranya_policy_ifgen::VmEffect> for #ident {
+            type Error = aranya_policy_ifgen::EffectsParseError;
+            fn try_from(eff: aranya_policy_ifgen::VmEffect) -> ::core::result::Result<Self, Self::Error> {
                 if eff.name != #name {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::EffectsParseError::UnknownEffectName);
+                    return ::core::result::Result::Err(aranya_policy_ifgen::EffectsParseError::UnknownEffectName);
                 }
                 Self::try_from(eff.fields)
             }

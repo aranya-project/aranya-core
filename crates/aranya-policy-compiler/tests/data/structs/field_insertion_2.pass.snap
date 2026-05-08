@@ -23,16 +23,16 @@ Module {
         ],
         "Foo": [
             FieldDefinition {
-                identifier: "a" @ 0..0,
-                field_type: Int @ 0..0,
+                identifier: "a" @ 13..14,
+                field_type: Int @ 15..18,
             },
             FieldDefinition {
-                identifier: "b" @ 0..0,
-                field_type: String @ 0..0,
+                identifier: "b" @ 62..63,
+                field_type: String @ 64..70,
             },
             FieldDefinition {
-                identifier: "c" @ 0..0,
-                field_type: Bool @ 0..0,
+                identifier: "c" @ 34..35,
+                field_type: Bool @ 36..40,
             },
         ],
     },

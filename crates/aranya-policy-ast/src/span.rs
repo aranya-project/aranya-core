@@ -6,6 +6,116 @@ use core::{
 
 use serde_derive::{Deserialize, Serialize};
 
+/// Wraps a type to add a [`Span`].
+///
+/// The span is treated as metadata: it is **not** considered for equality,
+/// hashing, or ordering — only the inner value is. This lets `WithSpan<T>`
+/// be used as a map key that behaves like `T`.
+#[derive(
+    Clone, Copy, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
+)]
+#[must_use]
+pub struct WithSpan<T> {
+    /// The inner value.
+    pub inner: T,
+    /// The span.
+    pub span: Span,
+}
+
+impl<T: PartialEq> PartialEq for WithSpan<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<T: Eq> Eq for WithSpan<T> {}
+
+impl<T: core::hash::Hash> core::hash::Hash for WithSpan<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for WithSpan<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+impl<T: Ord> Ord for WithSpan<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+impl<T> WithSpan<T> {
+    /// Create a new `WithSpan`.
+    ///
+    /// See also [`WithSpanExt::at`].
+    pub fn new(inner: T, span: Span) -> Self {
+        Self { inner, span }
+    }
+
+    /// Erase this `WithSpan`'s span.
+    pub fn with_no_span(mut self) -> Self {
+        self.span = Span::empty();
+        self
+    }
+}
+
+impl<T> Spanned for WithSpan<T> {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl<T> core::ops::Deref for WithSpan<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.inner.fmt(f)?;
+        write!(f, " @ {:?}", self.span)?;
+        Ok(())
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for WithSpan<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
+/// Extension trait to wrap `T` into [`WithSpan<T>`].
+pub trait WithSpanExt: Sized {
+    /// Wrap with the given span.
+    ///
+    /// ```
+    /// use aranya_policy_ast::{TypeKind, VType, WithSpanExt};
+    ///
+    /// let vtype: VType = TypeKind::Int.at(10..13);
+    /// ```
+    fn at(self, span: impl Into<Span>) -> WithSpan<Self> {
+        WithSpan::new(self, span.into())
+    }
+
+    /// Wrap with an empty span.
+    ///
+    /// ```
+    /// use aranya_policy_ast::{TypeKind, VType, WithSpanExt};
+    ///
+    /// let vtype: VType = TypeKind::Int.nowhere();
+    /// ```
+    fn nowhere(self) -> WithSpan<Self> {
+        WithSpan::new(self, Span::empty())
+    }
+}
+impl<T> WithSpanExt for T {}
+
 /// A range in the source text.
 #[derive(
     Clone,
@@ -13,6 +123,8 @@ use serde_derive::{Deserialize, Serialize};
     PartialEq,
     Eq,
     Hash,
+    PartialOrd,
+    Ord,
     Serialize,
     Deserialize,
     rkyv::Archive,
@@ -270,6 +382,7 @@ macro_rules! spanned {
                 spans
                     .iter()
                     .copied()
+                    .filter(|span| !span.is_empty())
                     .reduce(|acc, span| acc.merge(span))
                     .unwrap_or_default()
             }

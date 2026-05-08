@@ -16,7 +16,7 @@ impl FieldDefinition {
     /// Is this a hashable type?
     pub fn is_hashable(&self) -> bool {
         matches!(
-            &self.field_type.kind,
+            &self.field_type.inner,
             TypeKind::Int | TypeKind::Bool | TypeKind::String | TypeKind::Id | TypeKind::Enum(_)
         )
     }
@@ -25,7 +25,7 @@ impl FieldDefinition {
 impl Expression {
     /// Is this a literal expression?
     pub fn is_literal(&self) -> bool {
-        match &self.kind {
+        match &self.inner {
             ExprKind::Int(_)
             | ExprKind::String(_)
             | ExprKind::Bool(_)
