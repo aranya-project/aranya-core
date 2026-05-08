@@ -488,16 +488,16 @@ impl CompileState<'_> {
                 }
                 InternalFunction::Deserialize(e) => {
                     // A bit hacky, but you can't manually define a function named "open".
-                    let struct_name = match self.get_statement_context()?.clone() {
+                    let struct_name = match self.get_statement_context()? {
                         StatementContext::PureFunction(FunctionDefinition {
                             identifier,
                             return_type:
                                 VType {
-                                    inner: TypeKind::Struct(struct_name),
+                                    inner: TypeKind::Struct(name),
                                     ..
                                 },
                             ..
-                        }) if identifier == "open" => struct_name,
+                        }) if identifier == "open" => name.clone(),
                         ctx => {
                             let note =
                                 "'deserialize' can only be used in the 'open' block of a command";
@@ -679,18 +679,20 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Return(ret_expr) => {
-                let ctx = self.get_statement_context()?.clone();
-                let StatementContext::PureFunction(fd) = ctx else {
-                    // TODO(Steve): Add 'InvalidReturn' error.
-                    let note = "return expressions can't be used in this context";
-                    return Err(self.err(InvalidExpression(note, expression.clone(), None)));
+                let return_type = match self.get_statement_context()? {
+                    StatementContext::PureFunction(fd) => fd.return_type.clone(),
+                    _ => {
+                        // TODO(Steve): Add 'InvalidReturn' error.
+                        let note = "return expressions can't be used in this context";
+                        return Err(self.err(InvalidExpression(note, expression.clone(), None)));
+                    }
                 };
                 // ensure return expression type matches function signature
                 let et = self.lower_expression(ret_expr)?;
-                if !et.vtype.fits_type(&fd.return_type) {
+                if !et.vtype.fits_type(&return_type) {
                     let err = InvalidType::new(
-                        fd.return_type.to_string(),
-                        Some(fd.return_type.span),
+                        return_type.to_string(),
+                        Some(return_type.span),
                         et.vtype.to_string(),
                         et.span,
                     );
