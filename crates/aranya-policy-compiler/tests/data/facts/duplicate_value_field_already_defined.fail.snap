@@ -2,4 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: a at line 1 col 1:
+error: the name `a` is defined multiple times
+  |
+1 | fact F[i int] => {a int, a bool}
+  |                   -      ^ re-defined here
+  |                   |
+  |                   previous defintion here

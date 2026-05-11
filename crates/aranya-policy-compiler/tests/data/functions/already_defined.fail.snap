@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: f at line 5 col 1:
-	function f() int {}
+error: the name `f` is defined multiple times
+  |
+1 | function f(x int) int {
+  |          - previous defintion here
+...
+5 | function f() int {}
+  |          ^ re-defined here

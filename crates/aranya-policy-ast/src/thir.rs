@@ -4,7 +4,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{FactCountType, Ident, Span, Spanned, Text, VType, span::spanned};
+use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType, span::spanned};
 
 spanned! {
 /// A fact and its key/value field values.
@@ -65,7 +65,7 @@ pub enum InternalFunction {
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
     // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function
@@ -127,7 +127,7 @@ impl Spanned for Expression {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal

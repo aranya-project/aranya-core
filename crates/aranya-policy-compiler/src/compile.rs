@@ -15,8 +15,8 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
-    FieldDefinition, Ident, Identifier, LanguageContext, NamedStruct, Param, Span, Statement,
-    StructItem, TypeKind, VType, WithSpanExt as _, ident, thir,
+    FieldDefinition, Ident, Identifier, IntLiteral, LanguageContext, NamedStruct, Param, Span,
+    Spanned, Statement, StructItem, TypeKind, VType, WithSpanExt as _, ident, thir,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
@@ -29,11 +29,13 @@ use buggy::{BugExt as _, bug};
 use indexmap::IndexMap;
 use tracing::warn;
 
-pub use self::{
-    error::{CompileError, CompileErrorType, InvalidCallColor},
-    target::PolicyInterface,
-};
+pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
+    error::{
+        AlreadyDefined, BadArgument, BugError, DuplicateSourceFields, InvalidExpression,
+        InvalidType, NoOpStructComp, NoReturn, NotDefined, SourceStructNotSubsetOfBase,
+        StructCompositionTypeMismatch, TodoFound, UnknownError,
+    },
     target::CompileTarget,
     topo::TopoSort,
     types::{IdentifierTypeStack, UserType},
@@ -106,13 +108,13 @@ macro_rules! typekind {
     };
     (struct $name:ident) => {
         TypeKind::Struct(Ident {
-            name: ident!(stringify!($name)),
+            inner: ident!(stringify!($name)),
             span: Span::empty(),
         })
     };
     (enum $name:ident) => {
         TypeKind::Enum(Ident {
-            name: ident!(stringify!($name)),
+            inner: ident!(stringify!($name)),
             span: Span::empty(),
         })
     };
@@ -154,7 +156,19 @@ pub enum StatementContext {
     /// A pure function
     PureFunction(ast::FunctionDefinition),
     /// A finish function or finish block
-    Finish,
+    Finish(Span),
+}
+
+impl Spanned for StatementContext {
+    fn span(&self) -> Span {
+        match self {
+            Self::Action(def) => def.span,
+            Self::CommandPolicy(def) => def.policy.span(),
+            Self::CommandRecall(def) => def.recall.span(),
+            Self::PureFunction(def) => def.span,
+            Self::Finish(span) => *span,
+        }
+    }
 }
 
 impl fmt::Display for StatementContext {
@@ -164,7 +178,7 @@ impl fmt::Display for StatementContext {
             Self::CommandPolicy(_) => write!(f, "command policy block"),
             Self::CommandRecall(_) => write!(f, "command recall block"),
             Self::PureFunction(_) => write!(f, "pure function"),
-            Self::Finish => write!(f, "finish block/function"),
+            Self::Finish(_) => write!(f, "finish block/function"),
         }
     }
 }
@@ -184,7 +198,7 @@ struct CompileState<'a> {
     c: usize,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
-    function_signatures: BTreeMap<Identifier, FunctionSignature>,
+    function_signatures: BTreeMap<Ident, FunctionSignature>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
     /// The last span seen, for imprecise source locating.
@@ -222,8 +236,8 @@ impl<'a> CompileState<'a> {
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
     }
 
-    fn append_var(&mut self, identifier: Identifier, vtype: VType) -> Result<(), CompileError> {
-        self.append_instruction(Instruction::Def(identifier.clone()));
+    fn append_var(&mut self, identifier: Ident, vtype: VType) -> Result<(), CompileError> {
+        self.append_instruction(Instruction::Def(identifier.inner.clone()));
         self.identifier_types
             .add(identifier, vtype)
             .map_err(|e| self.err(e))?;
@@ -232,9 +246,10 @@ impl<'a> CompileState<'a> {
 
     /// Inserts a fact definition
     fn define_fact(&mut self, fact: &FactDefinition) -> Result<(), CompileError> {
-        if self.m.fact_defs.contains_key(&fact.identifier.inner) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(
-                fact.identifier.to_string(),
+        if let Some((existing_fact, _)) = self.m.fact_defs.get_key_value(&fact.identifier.inner) {
+            return Err(self.err(AlreadyDefined::new(
+                fact.identifier.clone(),
+                existing_fact.clone(),
             )));
         }
 
@@ -242,30 +257,36 @@ impl<'a> CompileState<'a> {
         let mut identifiers = BTreeSet::new();
         for key in &fact.key {
             if !key.is_hashable() {
-                return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "Fact `{}` key field `{}` is not orderable; must be int, bool, string, or id",
-                    fact.identifier, key.identifier
-                ))));
+                // TODO(Steve): Create a new error type
+                let err = InvalidType::new(
+                    "int, bool, string, or id".to_owned(),
+                    None,
+                    key.field_type.to_string(),
+                    key.identifier.span,
+                );
+                return Err(self.err(err));
             }
-            if !identifiers.insert(&key.identifier.inner) {
-                return Err(self.err(CompileErrorType::AlreadyDefined(
-                    key.identifier.inner.to_string(),
+            if let Some(existing_ident) = identifiers.replace(&key.identifier) {
+                return Err(self.err(AlreadyDefined::new(
+                    key.identifier.clone(),
+                    existing_ident.clone(),
                 )));
             }
         }
 
         // ensure value identifiers are unique
         for value in &fact.value {
-            if !identifiers.insert(&value.identifier.inner) {
-                return Err(self.err(CompileErrorType::AlreadyDefined(
-                    value.identifier.to_string(),
+            if let Some(existing_ident) = identifiers.replace(&value.identifier) {
+                return Err(self.err(AlreadyDefined::new(
+                    value.identifier.clone(),
+                    existing_ident.clone(),
                 )));
             }
         }
 
         self.m
             .fact_defs
-            .insert(fact.identifier.inner.clone(), fact.to_owned());
+            .insert(fact.identifier.clone(), fact.to_owned());
         Ok(())
     }
 
@@ -275,33 +296,22 @@ impl<'a> CompileState<'a> {
         identifier: Ident,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        let has_struct_refs = items
-            .iter()
-            .any(|item| matches!(item, StructItem::StructRef(_)));
-
         // Add explicitly-defined fields and those from struct insertions
         let mut field_definitions = Vec::new();
         for item in items {
             match item {
                 StructItem::Field(field) => {
-                    if field_definitions
+                    if let Some(existing_field) = field_definitions
                         .iter()
-                        .any(|f: &FieldDefinition| f.identifier.inner == field.identifier.inner)
+                        .find(|f: &&FieldDefinition| f.identifier.inner == field.identifier.inner)
                     {
-                        return Err(self.err(CompileErrorType::AlreadyDefined(
-                            field.identifier.to_string(),
+                        return Err(self.err(AlreadyDefined::new(
+                            field.identifier.clone(),
+                            existing_field.identifier.clone(),
                         )));
                     }
 
-                    // TODO(eric): Use `Span::default()`?
-                    if has_struct_refs {
-                        field_definitions.push(FieldDefinition {
-                            identifier: field.identifier.clone().with_no_span(),
-                            field_type: field.field_type.clone().with_no_span(),
-                        });
-                    } else {
-                        field_definitions.push(field.clone());
-                    }
+                    field_definitions.push(field.clone());
                 }
                 StructItem::StructRef(field_type_ident) => {
                     let other = self
@@ -310,22 +320,24 @@ impl<'a> CompileState<'a> {
                         .struct_defs
                         .get(&field_type_ident.inner)
                         .ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(field_type_ident.to_string()))
+                            let note = format!("struct {} is not defined", field_type_ident);
+                            self.err(NotDefined(note, field_type_ident.span()))
                         })?;
                     for field in other {
-                        if field_definitions
-                            .iter()
-                            .any(|f: &FieldDefinition| f.identifier.inner == field.identifier.inner)
+                        if let Some(existing_def) =
+                            field_definitions.iter().find(|f: &&FieldDefinition| {
+                                f.identifier.inner == field.identifier.inner
+                            })
                         {
-                            return Err(self.err(CompileErrorType::AlreadyDefined(
-                                field.identifier.to_string(),
+                            return Err(self.err(AlreadyDefined::new(
+                                field.identifier.clone(),
+                                existing_def.identifier.clone(),
                             )));
                         }
-                        // TODO(eric): Use `Span::default()`?
-                        field_definitions.push(FieldDefinition {
-                            identifier: field.identifier.clone().with_no_span(),
-                            field_type: field.field_type.clone().with_no_span(),
-                        });
+                        // TODO(Steve): We'll likely need a better way to handle complex StructRef nesting.
+                        // e.g. Imagine `struct Foo {+Bar, +Bun}` erroring out because `Bun` also has `+Bar`.
+                        // Having a the same span for the duplicate field appear in the error could be confusing.
+                        field_definitions.push(field.clone());
                     }
                 }
             }
@@ -338,7 +350,7 @@ impl<'a> CompileState<'a> {
         self.m
             .interface
             .struct_defs
-            .insert(identifier.inner, field_definitions);
+            .insert(identifier, field_definitions);
         Ok(())
     }
 
@@ -348,21 +360,22 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let enum_name = &enum_def.identifier;
         // ensure enum name is unique
-        if self.m.interface.enum_defs.contains_key(&enum_name.inner) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(
-                enum_name.inner.to_string(),
-            )));
+        if let Some((existing_def, _)) = self.m.interface.enum_defs.get_key_value(&enum_name.inner)
+        {
+            let err = AlreadyDefined::new(enum_name.clone(), existing_def.clone());
+            return Err(self.err(err));
         }
 
         // Add values to enum, checking for duplicates
         let mut values = IndexMap::new();
         for (i, value_name) in enum_def.variants.iter().enumerate() {
-            match values.entry(value_name.inner.clone()) {
-                indexmap::map::Entry::Occupied(_) => {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(format!(
-                        "{}::{}",
-                        enum_name.inner, value_name.inner
-                    ))));
+            match values.entry(value_name.clone()) {
+                indexmap::map::Entry::Occupied(e) => {
+                    let existing_variant = e.key();
+                    return Err(self.err(AlreadyDefined::new(
+                        existing_variant.clone(),
+                        value_name.clone(),
+                    )));
                 }
                 indexmap::map::Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
@@ -374,10 +387,7 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m
-            .interface
-            .enum_defs
-            .insert(enum_name.inner.clone(), values);
+        self.m.interface.enum_defs.insert(enum_name.clone(), values);
 
         Ok(())
     }
@@ -387,26 +397,26 @@ impl<'a> CompileState<'a> {
     fn define_function_signature(
         &mut self,
         function_node: &'a ast::FunctionDefinition,
-    ) -> Result<&FunctionSignature, CompileError> {
+    ) -> Result<(), CompileError> {
         let def = function_node;
-        match self.function_signatures.entry(def.identifier.inner.clone()) {
+        match self.function_signatures.entry(def.identifier.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def.arguments.clone(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
-                Ok(e.insert(signature))
+                e.insert(signature);
+                Ok(())
             }
-            Entry::Occupied(_) => {
-                let mut name = def.identifier.to_string();
-                if self.builtin_functions.contains_key(def.identifier.as_str()) {
-                    name.push_str(" (builtin)");
-                }
-                Err(CompileError::from_span(
-                    CompileErrorType::AlreadyDefined(name),
-                    def.span,
-                    self.m.codemap.as_ref(),
-                ))
+            Entry::Occupied(e) => {
+                // TODO(Steve): This is a bit of a regression. We should indicate if a user defined function overlaps with a builtin.
+                // let mut name = def.identifier.to_string();
+                // if self.builtin_functions.contains_key(def.identifier.as_str()) {
+                //     name.push_str(" (builtin)");
+                // }
+                let existing_function = e.key();
+                let err = AlreadyDefined::new(existing_function.clone(), def.identifier.clone());
+                Err(self.err(err))
             }
         }
     }
@@ -416,26 +426,26 @@ impl<'a> CompileState<'a> {
     fn define_finish_function_signature(
         &mut self,
         function_node: &'a ast::FinishFunctionDefinition,
-    ) -> Result<&FunctionSignature, CompileError> {
+    ) -> Result<(), CompileError> {
         let def = function_node;
-        match self.function_signatures.entry(def.identifier.inner.clone()) {
+        match self.function_signatures.entry(def.identifier.clone()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def.arguments.clone(),
                     color: FunctionColor::Finish,
                 };
-                Ok(e.insert(signature))
+                e.insert(signature);
+                Ok(())
             }
-            Entry::Occupied(_) => {
-                let mut name = def.identifier.to_string();
-                if self.builtin_functions.contains_key(def.identifier.as_str()) {
-                    name.push_str(" (builtin)");
-                }
-                Err(CompileError::from_span(
-                    CompileErrorType::AlreadyDefined(name),
-                    def.span,
-                    self.m.codemap.as_ref(),
-                ))
+            Entry::Occupied(e) => {
+                // TODO(Steve): This is a bit of a regression. We should indicate if a user defined function overlaps with a builtin.
+                // let mut name = def.identifier.to_string();
+                // if self.builtin_functions.contains_key(def.identifier.as_str()) {
+                //     name.push_str(" (builtin)");
+                // }
+                let existing_function = e.key();
+                let err = AlreadyDefined::new(existing_function.clone(), def.identifier.clone());
+                Err(self.err(err))
             }
         }
     }
@@ -448,7 +458,9 @@ impl<'a> CompileState<'a> {
                 Ok(())
             }
             Entry::Occupied(_) => {
-                Err(self.err(CompileErrorType::AlreadyDefined(label.name.to_string())))
+                // Note: Should probably use `Bug` but that only allows for string literals.
+                let err_msg = format!("Label {}:{} defined twice!", label.name, label.ltype);
+                Err(self.err(UnknownError(err_msg, None)))
             }
         }
     }
@@ -468,14 +480,15 @@ impl<'a> CompileState<'a> {
             return Ok(());
         };
         codemap.map_instruction(self.wp, span).map_err(|_| {
-            self.err_loc(
-                CompileErrorType::Unknown(format!(
+            // Note: Should probably use `Bug` but that only allows for string literals.
+            self.err(UnknownError(
+                format!(
                     "could not map address {} to text range {}",
                     self.wp,
                     span.start()
-                )),
-                span,
-            )
+                ),
+                None,
+            ))
         })?;
         Ok(())
     }
@@ -490,7 +503,7 @@ impl<'a> CompileState<'a> {
         match target.clone() {
             Target::Unresolved(s) => {
                 let addr = labels.get(&s).ok_or_else(|| {
-                    CompileError::new(CompileErrorType::BadTarget(s.name.clone()))
+                    CompileError::new(BugError(buggy::Bug::new("bad branch target")), None)
                 })?;
 
                 *target = Target::Resolved(*addr);
@@ -527,12 +540,8 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn err(&self, err_type: CompileErrorType) -> CompileError {
-        self.err_loc(err_type, self.last_span)
-    }
-
-    fn err_loc(&self, err_type: CompileErrorType, span: Span) -> CompileError {
-        CompileError::from_span(err_type, span, self.m.codemap.as_ref())
+    fn err(&self, err_type: impl error::rendering::Error) -> CompileError {
+        CompileError::new(err_type, Some(self.policy.text.clone()))
     }
 
     /// Compile instructions to construct a fact literal
@@ -557,7 +566,7 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         match expression.kind {
             thir::ExprKind::Int(n) => {
-                self.append_instruction(Instruction::Const(ConstValue::Int(n)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(*n)));
             }
             thir::ExprKind::String(s) => {
                 self.append_instruction(Instruction::Const(ConstValue::String(s)));
@@ -615,8 +624,8 @@ impl<'a> CompileState<'a> {
                     self.compile_typed_expression(*e)?;
                     self.append_instruction(Instruction::Deserialize);
                 }
-                thir::InternalFunction::Todo(_) => {
-                    let err = self.err(CompileErrorType::TodoFound);
+                thir::InternalFunction::Todo(span) => {
+                    let err = self.err(TodoFound(span));
                     if self.is_debug {
                         warn!("{err}");
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -665,10 +674,8 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::Substruct(lhs, sub) => {
                 let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.inner) else {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "Struct `{}` not defined",
-                        sub
-                    ))));
+                    let note = format!("struct `{}` not defined", sub);
+                    return Err(self.err(NotDefined(note, sub.span())));
                 };
                 let field_names: Vec<Identifier> = sub_field_defns
                     .iter()
@@ -836,13 +843,12 @@ impl<'a> CompileState<'a> {
             .enum_defs
             .get(&e.identifier.inner)
             .ok_or_else(|| {
-                self.err(CompileErrorType::NotDefined(e.identifier.inner.to_string()))
+                let note = format!("enum `{}` not defined", e.identifier);
+                self.err(NotDefined(note, e.identifier.span))
             })?;
         let value = enum_def.get(&e.value.inner).ok_or_else(|| {
-            self.err(CompileErrorType::NotDefined(format!(
-                "{}::{}",
-                e.identifier.inner, e.value.inner
-            )))
+            let note = format!("variant `{}::{}` not defined", e.identifier, e.value);
+            self.err(NotDefined(note, e.value.span))
         })?;
         Ok(*value)
     }
@@ -926,7 +932,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Return);
             }
             thir::StmtKind::Finish(s) => {
-                self.enter_statement_context(StatementContext::Finish);
+                self.enter_statement_context(StatementContext::Finish(statement.span));
                 self.append_instruction(Instruction::Meta(Meta::Finish(true)));
                 self.compile_typed_statements(s, Scope::Layered)?;
                 self.exit_statement_context();
@@ -1021,12 +1027,14 @@ impl<'a> CompileState<'a> {
             | TypeKind::String => {}
             TypeKind::Struct(name) => {
                 if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.inner) {
-                    return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
+                    let note = format!("struct `{name}` not defined");
+                    return Err(self.err(NotDefined(note, name.span)));
                 }
             }
             TypeKind::Enum(name) => {
                 if !self.m.interface.enum_defs.contains_key(&name.inner) {
-                    return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
+                    let note = format!("enum `{name}` not defined");
+                    return Err(self.err(NotDefined(note, name.span)));
                 }
             }
             TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
@@ -1060,7 +1068,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
-        self.enter_statement_context(StatementContext::Finish);
+        self.enter_statement_context(StatementContext::Finish(function_node.span));
         self.compile_function_like(
             &function_node.arguments,
             None,
@@ -1093,11 +1101,9 @@ impl<'a> CompileState<'a> {
     fn define_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         let mut params = NamedMap::new();
         for param in &action_node.arguments {
-            params.insert(param.clone()).map_err(|_| {
-                self.err_loc(
-                    CompileErrorType::AlreadyDefined(param.name.to_string()),
-                    action_node.span,
-                )
+            params.insert(param.clone()).map_err(|e| {
+                let err = AlreadyDefined::new(e.existing, param.name.clone());
+                self.err(err)
             })?;
         }
 
@@ -1109,9 +1115,10 @@ impl<'a> CompileState<'a> {
                 persistence: action_node.persistence.clone(),
                 params,
             })
-            .map_err(|_| {
-                self.err(CompileErrorType::AlreadyDefined(
-                    action_node.identifier.to_string(),
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    action_node.identifier.clone(),
+                    e.existing,
                 ))
             })?;
 
@@ -1145,17 +1152,19 @@ impl<'a> CompileState<'a> {
         let value = self.expression_value(expression)?;
         let vt = value.vtype();
 
-        match self.m.interface.globals.entry(identifier.inner.clone()) {
+        match self.m.interface.globals.entry(identifier.clone()) {
             Entry::Vacant(e) => {
                 e.insert(value);
             }
-            Entry::Occupied(_) => {
-                return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
+            Entry::Occupied(e) => {
+                let existing = e.key();
+                let err = AlreadyDefined::new(existing.clone(), identifier.clone());
+                return Err(self.err(err));
             }
         }
 
         self.identifier_types
-            .add_global(identifier.inner.clone(), vt.nowhere())
+            .add_global(identifier.clone(), vt.nowhere())
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -1243,7 +1252,7 @@ impl<'a> CompileState<'a> {
             arguments: args.to_vec(),
             return_type: ret.clone(),
             statements: vec![],
-            span: command.span,
+            span,
         };
 
         self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
@@ -1272,7 +1281,7 @@ impl<'a> CompileState<'a> {
             arguments: args.to_vec(),
             return_type: ret.clone(),
             statements: vec![],
-            span: command.span,
+            span,
         };
 
         self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
@@ -1299,17 +1308,15 @@ impl<'a> CompileState<'a> {
         self.define_label(label, self.wp)?;
         self.map_range(span)?;
 
-        if let Some(identifier) = find_duplicate(params, |p| &p.name) {
-            return Err(self.err_loc(
-                CompileErrorType::AlreadyDefined(identifier.to_string()),
-                span,
-            ));
+        if let Some((ident1, ident2)) = find_duplicate(params, |p| &p.name) {
+            let err = AlreadyDefined::new(ident1.clone(), ident2.clone());
+            return Err(self.err(err));
         }
 
         self.identifier_types.enter_function();
         for param in params.iter().rev() {
             self.ensure_type_is_defined(&param.ty)?;
-            self.append_var(param.name.inner.clone(), param.ty.clone())?;
+            self.append_var(param.name.clone(), param.ty.clone())?;
         }
         if let Some(return_type) = ret {
             self.ensure_type_is_defined(return_type)?;
@@ -1322,7 +1329,7 @@ impl<'a> CompileState<'a> {
             // Check that there is a return statement somewhere in the compiled instructions.
             if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return))
             {
-                return Err(self.err_loc(CompileErrorType::NoReturn, span));
+                return Err(self.err(NoReturn(span)));
             }
             // If execution does not hit a return statement, it will panic here.
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1342,8 +1349,8 @@ impl<'a> CompileState<'a> {
 
         self.compile_command_policy(command)?;
         self.compile_command_recall(command)?;
-        self.compile_command_seal(command, command.span)?;
-        self.compile_command_open(command, command.span)?;
+        self.compile_command_seal(command, command.seal.span())?;
+        self.compile_command_open(command, command.open.span())?;
 
         // attributes
         let mut attributes = NamedMap::new();
@@ -1354,29 +1361,17 @@ impl<'a> CompileState<'a> {
                     name: name.clone(),
                     value,
                 })
-                .map_err(|_| self.err(CompileErrorType::AlreadyDefined(name.to_string())))?;
+                .map_err(|e| self.err(AlreadyDefined::new(name.clone(), e.existing)))?;
         }
 
         // fields
         let mut fields = NamedMap::new();
 
-        let has_struct_refs = command
-            .fields
-            .iter()
-            .any(|item| matches!(item, StructItem::StructRef(_)));
-
         for si in &command.fields {
             match si {
                 StructItem::Field(f) => {
                     // TODO(eric): Use `Span::default()`?
-                    let field_type = if has_struct_refs {
-                        VType {
-                            inner: f.field_type.inner.clone(),
-                            span: Span::default(),
-                        }
-                    } else {
-                        f.field_type.clone()
-                    };
+                    let field_type = f.field_type.clone();
                     fields
                         .insert(Field {
                             name: f.identifier.clone(),
@@ -1391,11 +1386,11 @@ impl<'a> CompileState<'a> {
                         .struct_defs
                         .get(&ref_name.inner)
                         .ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                            let note = format!("struct `{}` not defined", ref_name);
+                            self.err(NotDefined(note, ref_name.span()))
                         })?;
                     for fd in struct_def {
-                        // Fields from struct refs always get normalized spans
-                        let field_type = fd.field_type.clone().with_no_span();
+                        let field_type = fd.field_type.clone();
                         fields
                             .insert(Field {
                                 name: fd.identifier.clone(),
@@ -1415,11 +1410,7 @@ impl<'a> CompileState<'a> {
                 attributes,
                 fields,
             })
-            .map_err(|_| {
-                self.err(CompileErrorType::AlreadyDefined(
-                    command.identifier.to_string(),
-                ))
-            })?;
+            .map_err(|e| self.err(AlreadyDefined::new(command.identifier.clone(), e.existing)))?;
 
         Ok(())
     }
@@ -1427,20 +1418,21 @@ impl<'a> CompileState<'a> {
     fn compile_counting_function(
         &mut self,
         cmp_type: FactCountType,
-        limit: i64,
+        limit: IntLiteral,
         fact: thir::FactLiteral,
     ) -> Result<(), CompileError> {
-        if limit <= 0 {
-            return Err(self.err(CompileErrorType::BadArgument(
+        if *limit <= 0 {
+            return Err(self.err(BadArgument(
                 "count limit must be greater than zero".to_string(),
+                limit.span(),
             )));
         }
         self.compile_fact_literal(fact)?;
         match cmp_type {
-            FactCountType::UpTo(_) => self.append_instruction(Instruction::FactCount(limit)),
+            FactCountType::UpTo(_) => self.append_instruction(Instruction::FactCount(*limit)),
             FactCountType::AtLeast(_) => {
-                self.append_instruction(Instruction::FactCount(limit));
-                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
+                self.append_instruction(Instruction::FactCount(*limit));
+                self.append_instruction(Instruction::Const(ConstValue::Int(*limit)));
                 self.append_instruction(Instruction::Lt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1448,7 +1440,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(*limit)));
                 self.append_instruction(Instruction::Gt);
                 self.append_instruction(Instruction::Not);
             }
@@ -1456,7 +1448,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::FactCount(
                     limit.checked_add(1).assume("fact count too large")?,
                 ));
-                self.append_instruction(Instruction::Const(ConstValue::Int(limit)));
+                self.append_instruction(Instruction::Const(ConstValue::Int(*limit)));
                 self.append_instruction(Instruction::Eq);
             }
         }
@@ -1660,16 +1652,21 @@ impl<'a> CompileState<'a> {
     fn sorted_type_definitions(
         &self,
     ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
-        // TODO(Steve): Use span information so a better error message can be created
-        let mut type_defs: HashMap<&Identifier, _> = HashMap::new();
-        let mut insert_type_def = |ident, def| {
+        let mut type_defs: HashMap<Ident, _> = HashMap::new();
+        let mut insert_type_def = |ident: Ident, def| {
+            use std::collections::hash_map::Entry as E;
             // Check for duplicate type names.
             // struct Foo { .. }
             // effect Foo { .. }
-            if type_defs.insert(ident, def).is_some() {
-                return Err(self.err(CompileErrorType::AlreadyDefined(ident.to_string())));
+            match type_defs.entry(ident.clone()) {
+                E::Occupied(e) => {
+                    let existing_type = e.key();
+                    return Err(self.err(AlreadyDefined::new(ident, existing_type.clone())));
+                }
+                E::Vacant(e) => {
+                    e.insert(def);
+                }
             }
-
             Ok(())
         };
 
@@ -1687,10 +1684,10 @@ impl<'a> CompileState<'a> {
         // Create dependency graph.
         for struct_def in &self.policy.structs {
             let deps = struct_def.items.iter().filter_map(extract_struct_ident);
-            let ident = &struct_def.identifier.inner;
+            let ident = &struct_def.identifier;
 
-            insert_type_def(ident, UserType::Struct(struct_def))?;
-            topo.insert(ident, deps);
+            insert_type_def(ident.clone(), UserType::Struct(struct_def))?;
+            topo.insert(&ident.inner, deps);
         }
 
         for effect_def in &self.policy.effects {
@@ -1700,28 +1697,28 @@ impl<'a> CompileState<'a> {
                 // { field_name struct Foo }
                 StructItem::Field(field) => field.field_type.as_struct().map(|ident| &ident.inner),
             });
-            let ident = &effect_def.identifier.inner;
+            let ident = &effect_def.identifier;
 
-            insert_type_def(ident, UserType::Effect(effect_def))?;
-            topo.insert(ident, deps);
+            insert_type_def(ident.clone(), UserType::Effect(effect_def))?;
+            topo.insert(&ident.inner, deps);
         }
 
         for fact_def in &self.policy.facts {
             let deps = fact_def
                 .fields()
                 .filter_map(|def| def.field_type.as_struct().map(|ident| &ident.inner));
-            let ident = &fact_def.identifier.inner;
+            let ident = &fact_def.identifier;
 
-            insert_type_def(ident, UserType::Fact(fact_def))?;
-            topo.insert(ident, deps);
+            insert_type_def(ident.clone(), UserType::Fact(fact_def))?;
+            topo.insert(&ident.inner, deps);
         }
 
         for command_def in &self.policy.commands {
             let deps = command_def.fields.iter().filter_map(extract_struct_ident);
-            let ident = &command_def.identifier.inner;
+            let ident = &command_def.identifier;
 
-            insert_type_def(ident, UserType::Command(command_def))?;
-            topo.insert(ident, deps);
+            insert_type_def(ident.clone(), UserType::Command(command_def))?;
+            topo.insert(&ident.inner, deps);
         }
 
         for ffi_mod in self.ffi_modules {
@@ -1740,17 +1737,25 @@ impl<'a> CompileState<'a> {
                     .iter()
                     // struct field insertion is not implemented for FFI structs so we can't check for it
                     .filter_map(|field| match field.vtype {
+                        // TODO(Steve): We don't have any relevant span info to pass in here because these types are defined outside of the policy.
+                        // Come up with a better way to handle this.
                         ffi::Type::Struct(ref ident) => Some(ident),
                         _ => None,
                     });
-                let ident = &ffi_struct_def.name;
+                let ident = Ident {
+                    inner: ffi_struct_def.name.clone(),
+                    span: Span::empty(),
+                };
 
                 insert_type_def(ident, UserType::FFIStruct(ffi_struct_def))?;
-                topo.insert(ident, deps);
+                topo.insert(&ffi_struct_def.name, deps);
             }
         }
 
-        let sorted_idents = topo.sort().map_err(|err| self.err(err.into()))?;
+        let sorted_idents = topo.sort().map_err(|cycle_err| {
+            let compile_err = cycle_err.into_compile_error(&type_defs);
+            self.err(compile_err)
+        })?;
 
         let sorted_defs = sorted_idents
             .into_iter()
@@ -1783,10 +1788,7 @@ impl<'a> CompileState<'a> {
                         })
                         .collect();
                     self.define_struct(effect.identifier.clone(), &fields)?;
-                    self.m
-                        .interface
-                        .effects
-                        .insert(effect.identifier.inner.clone());
+                    self.m.interface.effects.insert(effect.identifier.clone());
                 }
                 UserType::Fact(fact) => {
                     let fields: Vec<StructItem<FieldDefinition>> =
@@ -1809,8 +1811,7 @@ impl<'a> CompileState<'a> {
                             })
                         })
                         .collect();
-                    let ident = s.name.clone().nowhere();
-                    self.define_struct(ident, &fields)?;
+                    self.define_struct(s.name.clone().nowhere(), &fields)?;
                 }
             }
         }
@@ -1879,7 +1880,7 @@ impl<'a> CompileState<'a> {
     /// Get expression value, e.g. ExprKind::Int => ConstValue::Int
     fn expression_value(&self, e: &Expression) -> Result<ConstValue, CompileError> {
         match &e.inner {
-            ExprKind::Int(v) => Ok(ConstValue::Int(*v)),
+            ExprKind::Int(v) => Ok(ConstValue::Int(**v)),
             ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
             ExprKind::String(v) => Ok(ConstValue::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
@@ -1889,10 +1890,8 @@ impl<'a> CompileState<'a> {
                     .struct_defs
                     .get(&struct_ast.identifier.inner)
                 else {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "Struct `{}` not defined",
-                        struct_ast.identifier.inner,
-                    ))));
+                    let note = format!("struct `{}` not defined", struct_ast.identifier);
+                    return Err(self.err(NotDefined(note, struct_ast.identifier.span)));
                 };
 
                 let struct_ast = self.evaluate_sources(struct_ast, struct_def)?;
@@ -1928,8 +1927,18 @@ impl<'a> CompileState<'a> {
                         }
                         _ => None,
                     })
-                    .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(e.clone()))),
-                _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
+                    .ok_or_else(|| {
+                        // TODO(Steve): The policy book doesn't mention what a const context is. We should probably update the book to describe compile-time evaluation.
+                        let note =
+                            "'dot' expressions in a const context can only refer to global values";
+                        self.err(InvalidExpression(note, e.clone(), None))
+                    }),
+                _ => {
+                    // TODO(Steve): The policy book doesn't mention what a const context is. We should probably update the book to describe compile-time evaluation.
+                    let note =
+                        "The LHS of 'dot' expressions in a const context must be an identifier";
+                    Err(self.err(InvalidExpression(note, e.clone(), None)))
+                }
             },
             ExprKind::Optional(opt) => Ok(ConstValue::Option(match opt {
                 Some(e) => Some(Box::new(self.expression_value(e)?)),
@@ -1937,7 +1946,11 @@ impl<'a> CompileState<'a> {
             })),
             ExprKind::Ok(e) => Ok(ConstValue::Result(Ok(Box::new(self.expression_value(e)?)))),
             ExprKind::Err(e) => Ok(ConstValue::Result(Err(Box::new(self.expression_value(e)?)))),
-            _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
+            _ => {
+                // TODO(Steve): The policy book doesn't mention what a const context is. We should probably update the book to describe compile-time evaluation.
+                let note = "This expression is not valid in a const context";
+                Err(self.err(InvalidExpression(note, e.clone(), None)))
+            }
         }
     }
 
@@ -1953,7 +1966,7 @@ impl<'a> CompileState<'a> {
 
         // If the struct is already full, there ought to be no sources.
         if base_struct.fields.len() == base_struct_defns.len() {
-            return Err(self.err(CompileErrorType::NoOpStructComp));
+            return Err(self.err(NoOpStructComp(base_struct.span())));
         }
 
         let base_fields: HashSet<&str> = base_struct
@@ -1966,15 +1979,19 @@ impl<'a> CompileState<'a> {
 
         for src_var_name in &base_struct.sources {
             // Look up source's type. It should be a struct.
-            let src_type = self
-                .identifier_types
-                .get(src_var_name)
-                .map_err(|err| self.err(err))?;
+            let src_type = self.identifier_types.get(src_var_name).map_err(|_err| {
+                let note = format!("'{}' not in scope", src_var_name);
+                self.err(NotDefined(note, src_var_name.span))
+            })?;
 
             let src_struct_type_name = src_type.as_struct().ok_or_else(|| {
-                self.err(CompileErrorType::InvalidType(format!(
-                    "Expected `{src_var_name}` to be a struct, but it's a(n) {src_type}",
-                )))
+                let e = InvalidType::new(
+                    "struct T".to_owned(),
+                    None,
+                    src_type.to_string(),
+                    src_var_name.span,
+                );
+                self.err(e)
             })?;
             let src_field_defns = self
                 .m
@@ -1982,7 +1999,7 @@ impl<'a> CompileState<'a> {
                 .struct_defs
                 .get(&src_struct_type_name.inner)
                 .assume("identifier with a struct type has that struct already defined")
-                .map_err(|err| self.err(err.into()))?;
+                .map_err(|err| self.err(BugError(err)))?;
 
             for src_field_defn in src_field_defns {
                 // Don't resolve fields already in the base struct.
@@ -1991,13 +2008,14 @@ impl<'a> CompileState<'a> {
                 }
 
                 // Ensure we haven't already resolved this field from another source.
-                if let Some(other) = seen.insert(
+                if let Some((other_type, other_source)) = seen.insert(
                     &src_field_defn.identifier.inner,
-                    src_struct_type_name.clone(),
+                    (src_struct_type_name.clone(), src_var_name.clone()),
                 ) {
-                    return Err(self.err(CompileErrorType::DuplicateSourceFields(
-                        src_struct_type_name.inner.clone(),
-                        other.inner,
+                    return Err(self.err(DuplicateSourceFields::new(
+                        (other_type.inner.to_string(), other_source.span),
+                        (src_struct_type_name.to_string(), src_var_name.span),
+                        base_struct.span(),
                     )));
                 }
 
@@ -2006,19 +2024,26 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .find(|b_defn| b_defn.identifier.inner == src_field_defn.identifier.inner)
                     .ok_or_else(|| {
-                        self.err(CompileErrorType::SourceStructNotSubsetOfBase(
-                            src_struct_type_name.inner.clone(),
-                            base_struct.identifier.inner.clone(),
+                        self.err(SourceStructNotSubsetOfBase::new(
+                            (src_struct_type_name.to_string(), src_var_name.span),
+                            base_struct.identifier.to_string(),
+                            base_struct.span(),
                         ))
                     })?;
                 if !base_struct_defn
                     .field_type
                     .matches(&src_field_defn.field_type)
                 {
-                    return Err(self.err(CompileErrorType::InvalidType(format!(
-                        "Expected field `{}` of `{}` to be a `{}`",
-                        &src_field_defn.identifier, src_var_name, base_struct_defn.field_type
-                    ))));
+                    let err = StructCompositionTypeMismatch {
+                        field_name: src_field_defn.identifier.inner.to_string(),
+                        expected_type: base_struct_defn.field_type.to_string(),
+                        expected_span: base_struct_defn.span(),
+                        found_type: src_field_defn.field_type.to_string(),
+                        found_span: src_field_defn.span(),
+                        composition_span: src_var_name.span,
+                        literal_span: base_struct.span(),
+                    };
+                    return Err(self.err(err));
                 }
 
                 // Add field to resolved struct from source.
@@ -2093,17 +2118,27 @@ impl<'a> CompileState<'a> {
         (name, signature): (Identifier, FunctionSignature),
         handler: BuiltinHandler,
     ) -> Result<(), CompileError> {
-        let Entry::Vacant(e) = self.function_signatures.entry(name.clone()) else {
-            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
-                name.to_string(),
-            )));
+        // TODO(Steve): There's no relevant span information for "builtin"s so this should probably be handled with a special error.
+        let name = Ident {
+            inner: name,
+            span: Span::empty(),
         };
-        e.insert(signature);
 
-        let Entry::Vacant(e) = self.builtin_functions.entry(name.clone()) else {
-            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
-                name.to_string(),
-            )));
+        match self.function_signatures.entry(name.clone()) {
+            Entry::Vacant(e) => {
+                e.insert(signature);
+            }
+            Entry::Occupied(e) => {
+                let existing_function = e.key().clone();
+                return Err(self.err(AlreadyDefined::new(existing_function, name)));
+            }
+        }
+
+        let Entry::Vacant(e) = self.builtin_functions.entry(name.inner) else {
+            let err = buggy::Bug::new(
+                "this should be unreachable. If an existing 'builtin' was found then that case would've been handled when checking for duplicate function signatures above.",
+            );
+            return Err(self.err(BugError(err)));
         };
         e.insert(handler);
 
@@ -2193,10 +2228,10 @@ impl<'a> Compiler<'a> {
     }
 }
 
-/// Checks whether a vector has duplicate values, and returns the first one, if found.
+/// Checks whether a vector has duplicate values, and returns the pair of the first and second ones, if found.
 ///
 /// Not suitable for large vectors, because complexity is O(n^2).
-fn find_duplicate<T, F, E>(vec: &[T], value: F) -> Option<&E>
+fn find_duplicate<T, F, E>(vec: &[T], value: F) -> Option<(&E, &E)>
 where
     F: Fn(&T) -> &E,
     E: PartialEq,
@@ -2208,7 +2243,8 @@ where
     for (i, v1) in vec.iter().enumerate() {
         for v2 in &vec[..i] {
             if value(v1) == value(v2) {
-                return Some(value(v1));
+                let pair = (value(v1), value(v2));
+                return Some(pair);
             }
         }
     }

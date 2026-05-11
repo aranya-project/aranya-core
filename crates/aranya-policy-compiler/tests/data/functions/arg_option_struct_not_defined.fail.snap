@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-not defined: struct UndefinedStruct at line 1 col 1:
-	function baz(x option[struct UndefinedStruct]) bool {
-    return true
-}
+error: a thing being referenced is not in scope
+  |
+1 | function baz(x option[struct UndefinedStruct]) bool {
+  |                              ^^^^^^^^^^^^^^^ struct `UndefinedStruct` not defined

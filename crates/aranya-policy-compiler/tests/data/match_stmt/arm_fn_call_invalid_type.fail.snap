@@ -2,8 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: match pattern 1 is not a valid expression at line 3 col 5:
-	match x {
-        f() => {}
-        _ => {}
-    }
+error: invalid expression
+  |
+4 |         f() => {}
+  |         ^^^ match pattern must be a literal expression

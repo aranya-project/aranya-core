@@ -18,16 +18,16 @@ Module {
             attributes: {},
             fields: {
                 Field {
-                    name: "a" @ 0..0,
-                    ty: Int @ 0..0,
+                    name: "a" @ 13..14,
+                    ty: Int @ 15..18,
                 },
                 Field {
-                    name: "b" @ 0..0,
-                    ty: String @ 0..0,
+                    name: "b" @ 40..41,
+                    ty: String @ 42..48,
                 },
                 Field {
                     name: "c" @ 100..101,
-                    ty: Bool @ 0..0,
+                    ty: Bool @ 102..106,
                 },
             },
         },
@@ -42,26 +42,26 @@ Module {
         ],
         "Baz": [
             FieldDefinition {
-                identifier: "a" @ 0..0,
-                field_type: Int @ 0..0,
+                identifier: "a" @ 13..14,
+                field_type: Int @ 15..18,
             },
             FieldDefinition {
-                identifier: "b" @ 0..0,
-                field_type: String @ 0..0,
+                identifier: "b" @ 40..41,
+                field_type: String @ 42..48,
             },
         ],
         "Foo": [
             FieldDefinition {
-                identifier: "a" @ 0..0,
-                field_type: Int @ 0..0,
+                identifier: "a" @ 13..14,
+                field_type: Int @ 15..18,
             },
             FieldDefinition {
-                identifier: "b" @ 0..0,
-                field_type: String @ 0..0,
+                identifier: "b" @ 40..41,
+                field_type: String @ 42..48,
             },
             FieldDefinition {
-                identifier: "c" @ 0..0,
-                field_type: Bool @ 0..0,
+                identifier: "c" @ 100..101,
+                field_type: Bool @ 102..106,
             },
         ],
     },

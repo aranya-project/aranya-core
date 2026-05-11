@@ -2,4 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: Foo at line 1 col 1:
+error: the name `Foo` is defined multiple times
+  |
+2 | struct Foo {}
+  |        --- previous defintion here
+3 | fact Foo[]=>{}
+  |      ^^^ re-defined here
