@@ -48,7 +48,7 @@ impl Error for InvalidStatement {
         );
     }
     fn description(&self) -> String {
-        format!("statement doesn't make sense in {} context", self.0)
+        format!("statement not allowed in {} context", self.0)
     }
 }
 

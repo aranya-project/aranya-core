@@ -405,7 +405,6 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
     where
         M: MachineIO<MachineStack>,
     {
-        // NOTE Can recall actually fail?
         match rs.call_command_recall(this_data, envelope.into(), recall_block_name) {
             Ok(ExitReason::Normal) => Err(PolicyError::Check),
             Ok(ExitReason::Yield) => bug!("unexpected yield"),

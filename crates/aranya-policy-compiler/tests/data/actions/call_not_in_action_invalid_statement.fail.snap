@@ -6,7 +6,7 @@ error: invalid statement
   |
 2 | function foo() int {
 3 |     action bar()
-  |     ^^^^^^^^^^^^ statement doesn't make sense in pure function context
+  |     ^^^^^^^^^^^^ statement not allowed in pure function context
 4 |     return 0
 5 | }
   |

@@ -711,8 +711,10 @@ impl CompileState<'_> {
                 let cmd = match self.get_statement_context()? {
                     StatementContext::CommandPolicy(cmd) => cmd.clone(),
                     _ => {
-                        return Err(self.err(UnknownError(
-                            String::from("`recall` is only valid in command `policy` blocks"),
+                        let note = "`recall` is only valid in command `policy` blocks";
+                        return Err(self.err(InvalidExpression(
+                            note,
+                            expression.clone(),
                             Some(expression.span),
                         )));
                     }
@@ -1153,10 +1155,9 @@ impl CompileState<'_> {
         let arg_defs = recall_block.arguments.as_slice();
 
         let mut arguments = Vec::new();
-        for (i, (param, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
+        for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
             let arg_te = self.lower_expression(arg_e)?;
             if !arg_te.vtype.fits_type(&param.ty) {
-                let _ = i; // index unused beyond optional context
                 let err = InvalidType::new(
                     DisplayType(&param.ty).to_string(),
                     Some(param.ty.span),
@@ -1924,9 +1925,9 @@ impl CompileState<'_> {
                     }
 
                     let mut args = Vec::new();
-                    for (i, arg) in fc.arguments.iter().enumerate() {
+                    for (arg, expected_arg) in fc.arguments.iter().zip(action_def.arguments.iter())
+                    {
                         let arg = self.lower_expression(arg)?;
-                        let expected_arg = &action_def.arguments[i];
                         if !arg.vtype.fits_type(&expected_arg.ty) {
                             // TODO(Steve): Replace with an 'InvalidType' error to make it consistent with calls to pure functions
                             let note = format!(
@@ -1948,12 +1949,6 @@ impl CompileState<'_> {
                 (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
                     let fc_thir = self.lower_recall_call(fc, cmd)?;
                     thir::StmtKind::Recall(fc_thir)
-                }
-                (StmtKind::Recall(_), _) => {
-                    return Err(self.err(UnknownError(
-                        String::from("`recall` is only valid in command `policy` blocks"),
-                        Some(statement.span),
-                    )));
                 }
                 (StmtKind::DebugAssert(e), _) => {
                     let e = self.lower_expression(e)?;

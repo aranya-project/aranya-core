@@ -1,8 +1,0 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
-error: unknown error
-  |
-9 |         check true or recall foo()
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ The `or recall` clause is only valid in command `policy`.

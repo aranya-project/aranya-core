@@ -7,4 +7,4 @@ error: invalid statement
 1 |   finish function foo() {
 2 | /     let x = 3
 3 | | }
-  | |_^ statement doesn't make sense in finish block/function context
+  | |_^ statement not allowed in finish block/function context
