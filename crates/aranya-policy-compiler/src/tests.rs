@@ -301,7 +301,7 @@ fn test_recall_blocks() {
                 recall foo() {
                 }
             }"#,
-            "recall block 'foo'",
+            "name `foo` is defined multiple times",
         ),
         // Command with two default recall blocks
         (
@@ -318,7 +318,7 @@ fn test_recall_blocks() {
                 recall default() {
                 }
             }"#,
-            "recall block 'default'",
+            "name `default` is defined multiple times",
         ),
     ];
 

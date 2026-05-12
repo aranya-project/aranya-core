@@ -16,7 +16,7 @@ use std::{
 use aranya_policy_ast::{
     self as ast, EnumDefinition, ExprKind, Expression, FactCountType, FactDefinition,
     FieldDefinition, Ident, Identifier, IntLiteral, LanguageContext, NamedStruct, Param, Span,
-    Spanned, Statement, StructItem, TypeKind, VType, WithSpanExt as _, ident, thir,
+    Spanned, Statement, StructItem, TypeKind, VType, WithSpan, WithSpanExt as _, ident, thir,
 };
 use aranya_policy_module::{
     ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
@@ -1272,26 +1272,19 @@ impl<'a> CompileState<'a> {
         &mut self,
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        let mut named_blocks = HashSet::new();
+        let mut named_blocks: HashSet<WithSpan<Identifier>> = HashSet::new();
 
         // Compile each recall block
         for recall_block in &command.recalls {
             let full_name =
                 self.command_recall_name(&command.identifier, &recall_block.identifier)?;
-            if !named_blocks.insert(full_name.clone()) {
-                return Err(self.err(UnknownError(
-                    format!(
-                        "recall block '{}' for command '{}' defined more than once",
-                        full_name
-                            .as_str()
-                            .split('_')
-                            .next_back()
-                            .expect("should have recall name"),
-                        command.identifier.as_str()
-                    ),
-                    Some(recall_block.span),
+            if let Some(prev) = named_blocks.get(&recall_block.identifier) {
+                return Err(self.err(AlreadyDefined::new(
+                    prev.clone(),
+                    recall_block.identifier.clone(),
                 )));
             }
+            named_blocks.insert(recall_block.identifier.clone());
 
             let params = recall_block
                 .arguments
