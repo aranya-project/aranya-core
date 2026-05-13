@@ -87,29 +87,37 @@ struct ModuleSnapshotWrapper(Module);
 
 impl fmt::Debug for ModuleSnapshotWrapper {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (version, labels, action_defs, command_defs, fact_defs, struct_defs, enum_defs, globals) =
-            match &self.0.data {
-                ModuleData::V0(m) => (
-                    "0",
-                    &m.labels,
-                    &m.action_defs,
-                    &m.command_defs,
-                    &m.fact_defs,
-                    &m.struct_defs,
-                    &m.enum_defs,
-                    &m.globals,
-                ),
-                ModuleData::V1(m) => (
-                    "1",
-                    &m.labels,
-                    &m.action_defs,
-                    &m.command_defs,
-                    &m.fact_defs,
-                    &m.struct_defs,
-                    &m.enum_defs,
-                    &m.globals,
-                ),
-            };
+        let (
+            version,
+            labels,
+            action_defs,
+            command_defs,
+            fact_defs,
+            struct_defs,
+            enum_defs,
+            globals,
+        ) = match &self.0.data {
+            ModuleData::V0(m) => (
+                "0",
+                &m.labels,
+                &m.action_defs,
+                &m.command_defs,
+                &m.fact_defs,
+                &m.struct_defs,
+                &m.enum_defs,
+                &m.globals,
+            ),
+            ModuleData::V1(m) => (
+                "1",
+                &m.labels,
+                &m.action_defs,
+                &m.command_defs,
+                &m.fact_defs,
+                &m.struct_defs,
+                &m.enum_defs,
+                &m.globals,
+            ),
+        };
 
         f.debug_struct("Module")
             .field("version", &version)

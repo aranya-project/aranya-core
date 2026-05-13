@@ -10,7 +10,8 @@ use core::fmt::{self, Display};
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module, ModuleContract, ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap
+    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
+    ModuleContract, ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;

@@ -8,13 +8,13 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{self as ast, Ident, Identifier, Param};
+pub use contract::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     CodeMap, ConstValue, Instruction, Label,
     named::{NamedMap, named},
 };
-pub use contract::*;
 
 /// Identifies a [`Module`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]

@@ -5,7 +5,8 @@ use std::{
 
 use aranya_policy_ast::{self as ast, Ident, Identifier, TypeKind};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, FfiContract, Instruction, Label, Module, ModuleContract, ModuleData, ModuleV1, ffi::ModuleSchema, named::NamedMap
+    ActionDef, CodeMap, CommandDef, ConstValue, FfiContract, Instruction, Label, Module,
+    ModuleContract, ModuleData, ModuleV1, ffi::ModuleSchema, named::NamedMap,
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
