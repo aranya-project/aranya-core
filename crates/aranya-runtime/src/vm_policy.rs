@@ -121,8 +121,9 @@ use core::fmt;
 
 use aranya_crypto::BaseId;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
+    ActionContext, CommandContext, CommandDef, ConstValue, ContractValidationError, ExitReason,
+    KVPair, Machine, MachineIO, MachineStack, OpenContext, PolicyContext, RunState, Stack as _,
+    Struct, Value,
     ast::{Identifier, Persistence},
 };
 use buggy::{BugExt as _, bug};
@@ -208,22 +209,16 @@ impl<CE> VmPolicy<CE> {
         if let Some(contract) = &machine.contract {
             // validate FFI schema against machine
             if contract.ffis.len() != ffis.len() {
-                error!(
-                    "Machine and VM have different FFI module count: {} != {}",
-                    contract.ffis.len(),
-                    ffis.len()
-                );
-                return Err(VmPolicyError::ContractMismatch);
+                return Err(VmPolicyError::ContractValidation(ContractValidationError(
+                    alloc::format!(
+                        "Module has {} FFI modules but VM implementation expects {}",
+                        contract.ffis.len(),
+                        ffis.len()
+                    ),
+                )));
             }
-            for (mod_ffi, vm_ffi) in contract
-                .ffis
-                .iter()
-                .zip(ffis.iter().map(|m| m.schema().name))
-            {
-                if mod_ffi != &vm_ffi {
-                    error!("FFI mismatch: {mod_ffi} != {vm_ffi}");
-                    return Err(VmPolicyError::ContractMismatch);
-                }
+            for (mod_ffi, vm_ffi) in contract.ffis.iter().zip(ffis.iter().map(|m| m.schema())) {
+                mod_ffi.validate(&vm_ffi)?;
             }
         } else {
             tracing::warn!("Module does not have contract; cannot validate FFI");

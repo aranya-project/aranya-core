@@ -9,9 +9,7 @@ use aranya_crypto::{
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
-    Machine,
-    ffi::{FfiModule as _, ModuleSchema},
-    ident,
+    ContractValidationError, Machine, ModuleContract, TypeContract, ffi::FfiModule as _, ident,
 };
 use aranya_runtime::{
     VmPolicy, VmPolicyError,
@@ -50,43 +48,72 @@ fn test_effect_metadata() {
     vm::test_effect_metadata(new_policy_store(), new_policy_store()).unwrap();
 }
 
-#[test]
-fn test_ffi_mismatch() {
+fn contract_tester<F: FnOnce(&mut ModuleContract)>(contract_mutator: F, expect_error: &str) {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap_or_else(|e| panic!("{e}"));
     let module = Compiler::new(&ast)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
         .unwrap_or_else(|e| panic!("{e}"));
-    let machine = Machine::from_module(module).expect("module conversion failed");
-    let (eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
-    let r = VmPolicy::new(machine, eng, Vec::new());
-    assert!(matches!(r, Err(VmPolicyError::ContractMismatch)));
-
-    let module = Compiler::new(&ast)
-        .ffi_modules(&[
-            TestFfiEnvelope::SCHEMA,
-            ModuleSchema {
-                name: ident!("fake"),
-                functions: &[],
-                structs: &[],
-                enums: &[],
-            },
-        ])
-        .compile()
-        .unwrap_or_else(|e| panic!("{e}"));
-    let machine = Machine::from_module(module).expect("module conversion failed");
+    let mut machine = Machine::from_module(module).expect("module conversion failed");
+    contract_mutator(machine.contract.as_mut().unwrap());
     let (eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
     let r = VmPolicy::new(
         machine,
         eng,
-        vec![
-            Box::from(TestFfiEnvelope {
-                device: DeviceId::random(Rng),
-            }),
-            Box::from(TestFfiEnvelope {
-                device: DeviceId::random(Rng),
-            }),
-        ],
+        vec![Box::from(TestFfiEnvelope {
+            device: DeviceId::random(Rng),
+        })],
     );
-    assert!(matches!(r, Err(VmPolicyError::ContractMismatch)));
+    let Err(VmPolicyError::ContractValidation(ContractValidationError(got_error))) = r else {
+        panic!("Did not get Contract Validation error")
+    };
+    assert_eq!(got_error, expect_error);
+}
+
+#[test]
+fn test_ffi_missing() {
+    contract_tester(
+        |c| c.ffis.clear(),
+        "Module has 0 FFI modules but VM implementation expects 1",
+    );
+}
+
+#[test]
+fn test_ffi_mismatch() {
+    contract_tester(
+        |c| c.ffis[0].name = ident!("fake"),
+        "FFI module `fake` != `envelope`",
+    );
+}
+
+#[test]
+fn test_ffi_function_missing() {
+    contract_tester(
+        |c| c.ffis[0].functions.clear(),
+        "Loaded FFI module `envelope` has 0 functions but module specifies 2",
+    );
+}
+
+#[test]
+fn test_ffi_function_args_wrong_name() {
+    contract_tester(
+        |c| c.ffis[0].functions[0].args[0].name = ident!("blah"),
+        "FFI module `envelope`, function `do_seal` arg `blah`, `blah` != `payload`",
+    );
+}
+
+#[test]
+fn test_ffi_function_args_wrong_type() {
+    contract_tester(
+        |c| c.ffis[0].functions[0].args[0].vtype = TypeContract::Bool,
+        "FFI module `envelope`, function `do_seal` arg `payload`, type Bool != Bytes",
+    );
+}
+
+#[test]
+fn test_ffi_function_return_wrong_type() {
+    contract_tester(
+        |c| c.ffis[0].functions[0].return_type = TypeContract::Bool,
+        "FFI module `envelope`, function `do_seal` return type, Bool != Struct(\"Envelope\")",
+    );
 }

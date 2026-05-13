@@ -14,7 +14,7 @@ use crate::{
     CodeMap, ConstValue, Instruction, Label,
     named::{NamedMap, named},
 };
-pub use contract::ModuleContract;
+pub use contract::*;
 
 /// Identifies a [`Module`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]

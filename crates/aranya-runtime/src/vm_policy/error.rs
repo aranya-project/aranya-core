@@ -1,4 +1,5 @@
 use alloc::{format, string::String};
+use aranya_policy_vm::ContractValidationError;
 
 use crate::{policy::PolicyError, storage::StorageError};
 
@@ -21,7 +22,7 @@ pub enum VmPolicyError {
     /// The Machine contract does not match the VM's expectations.
     #[error("contract mismatch")]
     // TODO(chip): Add more information about what has mismatched
-    ContractMismatch,
+    ContractValidation(#[from] ContractValidationError),
     /// Some other happened and we don't know what it is.
     #[error("unknown error")]
     Unknown,

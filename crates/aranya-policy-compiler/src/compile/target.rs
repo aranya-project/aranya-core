@@ -5,8 +5,7 @@ use std::{
 
 use aranya_policy_ast::{self as ast, Ident, Identifier, TypeKind};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, Instruction, Label, Module, ModuleContract,
-    ModuleData, ModuleV1, ffi::ModuleSchema, named::NamedMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, FfiContract, Instruction, Label, Module, ModuleContract, ModuleData, ModuleV1, ffi::ModuleSchema, named::NamedMap
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
@@ -43,7 +42,7 @@ impl CompileTarget {
             fact_defs: BTreeMap::new(),
             codemap: Some(codemap),
             contract: ModuleContract {
-                ffis: ffi_schemas.iter().map(|m| m.name.clone()).collect(),
+                ffis: ffi_schemas.iter().map(FfiContract::from).collect(),
             },
             interface: PolicyInterface::new(),
         }
