@@ -1,3 +1,6 @@
+extern crate alloc;
+
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::fmt;
 
 use aranya_policy_ast::Identifier;
@@ -19,7 +22,7 @@ impl<T> PrependError for Result<T, ContractValidationError> {
 }
 
 impl fmt::Display for ContractValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Contract Validation Error: {}", self.0)
     }
 }
