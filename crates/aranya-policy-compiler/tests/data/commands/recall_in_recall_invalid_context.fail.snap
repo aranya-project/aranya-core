@@ -1,8 +1,0 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
-error: invalid expression
-  |
-9 |         check true else recall foo()
-  |                         ^^^^^^^^^^^^ `recall` is only valid in command `policy` blocks
