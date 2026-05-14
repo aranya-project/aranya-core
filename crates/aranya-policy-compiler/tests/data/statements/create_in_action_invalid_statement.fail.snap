@@ -6,6 +6,6 @@ error: invalid statement
   |
 1 | action foo() {
 2 |     create Foo[]=>{}
-  |     ^^^^^^^^^^^^^^^^ statement doesn't make sense in action context
+  |     ^^^^^^^^^^^^^^^^ statement not allowed in action context
 3 | }
   |
