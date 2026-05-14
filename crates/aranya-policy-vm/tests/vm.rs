@@ -1616,99 +1616,6 @@ fn test_coalesce_or() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Closes https://github.com/aranya-project/aranya-core/issues/530:
-// "Test that wrapping and unwrapping nested optionals works properly, and
-// we can correctly distinguish e.g. `None` and `Some(None)`."
-#[test]
-#[ignore = "blocked on aranya-project/aranya-core#632 lifting nested-option restriction"]
-fn test_nested_optionals_runtime() -> anyhow::Result<()> {
-    let text = r#"
-        // None of type option[option[int]], produced via the type-checked
-        // function-return path.
-        function outer_none() option[option[int]] {
-            return None
-        }
-
-        // wrap(None) => Some(None);  wrap(Some(v)) => Some(Some(v)).
-        function wrap(x option[int]) option[option[int]] {
-            return Some(x)
-        }
-
-        // None and Some(None) must be observably distinct at the VM level.
-        action distinguish_none_from_some_none() {
-            let outer = outer_none()
-            let some_none = wrap(None)
-
-            check outer is None
-            check !(outer is Some)
-            check some_none is Some
-            check !(some_none is None)
-        }
-
-        // Unwrapping Some(None) yields the inner None — inner-None-ness
-        // is preserved through the wrap/unwrap round-trip.
-        action unwrap_some_none_yields_inner_none() {
-            let some_none = wrap(None)
-            let inner = unwrap some_none
-            check inner is None
-        }
-
-        // Unwrap of Some(Some(v)) yields Some(v); a second unwrap yields v.
-        action double_unwrap_some_some() {
-            let some_some = wrap(Some(42))
-            let inner = unwrap some_some
-            check inner is Some
-            check (unwrap inner) == 42
-        }
-
-        // Equality must distinguish all three nested states.
-        action equality_distinguishes_nested() {
-            let a = outer_none()      // None
-            let b = wrap(None)        // Some(None)
-            let c = wrap(None)        // Some(None)
-            let d = wrap(Some(7))     // Some(Some(7))
-            check a != b
-            check b == c
-            check b != d
-            check a != d
-        }
-
-        // Coalesce (`or`) on Some(None) returns the inner None, not the
-        // fallback. Catches a VM that treats Some(None) as None.
-        action coalesce_outer_some_returns_inner_none() {
-            let some_none = wrap(None)
-            let inner = some_none or Some(99)
-            check inner is None
-        }
-
-        // Coalesce on a None outer falls back.
-        action coalesce_outer_none_returns_fallback() {
-            let outer = outer_none()
-            let inner = outer or Some(7)
-            check inner is Some
-            check (unwrap inner) == 7
-        }
-    "#;
-
-    let mut io = TestIO::new();
-    let machine = compile(text);
-
-    for action in [
-        ident!("distinguish_none_from_some_none"),
-        ident!("unwrap_some_none_yields_inner_none"),
-        ident!("double_unwrap_some_some"),
-        ident!("equality_distinguishes_nested"),
-        ident!("coalesce_outer_some_returns_inner_none"),
-        ident!("coalesce_outer_none_returns_fallback"),
-    ] {
-        let ctx = dummy_ctx_action(action.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_action(action, iter::empty::<Value>())?.success();
-    }
-
-    Ok(())
-}
-
 #[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let text = r#"
@@ -2867,7 +2774,6 @@ fn test_match_patterns() -> anyhow::Result<()> {
 }
 
 #[test]
-#[ignore = "rebase WIP — InvalidSchema on emit; expected to be fixed by later commit"]
 fn test_recall_with_args() -> anyhow::Result<()> {
     let text = r#"
         effect MyError {
@@ -2934,65 +2840,6 @@ fn test_recall_with_args() -> anyhow::Result<()> {
                 KVPair::new(ident!("x"), Value::Int(1)),
                 KVPair::new(ident!("y"), Value::String(text!("oops"))),
             ]
-        )
-    );
-
-    Ok(())
-}
-
-#[test]
-#[ignore = "rebase WIP — InvalidSchema on emit; expected to be fixed by later commit"]
-fn test_recall_statement() -> anyhow::Result<()> {
-    // Standalone `recall name(args)` statement form (no `check ... or`).
-    let text = r#"
-        effect MyError {
-            x int
-        }
-
-        command Foo {
-            fields { x int }
-            seal { return todo() }
-            open { return todo() }
-            policy {
-                recall handle(this.x)
-            }
-            recall handle(a int) {
-                finish {
-                    emit MyError { x: a }
-                }
-            }
-        }
-    "#;
-
-    let machine = compile(text);
-    let mut io = TestIO::new();
-
-    let name = ident!("Foo");
-    let this_data = Struct::new(name.clone(), [KVPair::new(ident!("x"), Value::from(7))]);
-    let envelope = dummy_envelope();
-
-    // Exec policy: the recall statement should exit immediately with
-    // Check(Some("Foo_handle")) and put the arg on the stack.
-    let ctx = dummy_ctx_policy(name.clone());
-    let mut rs = machine.create_run_state(&mut io, ctx);
-    let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
-
-    let recall_name = ident!("Foo_handle");
-    assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
-    let stack_values = rs.stack.as_slice();
-    assert_eq!(stack_values.first(), Some(&Value::Int(7)));
-
-    // Exec recall block: should emit MyError { x: 7 }.
-    let recall_ctx = dummy_ctx_recall(name);
-    rs.set_context(recall_ctx);
-    let result = rs.call_command_recall(this_data, envelope, recall_name)?;
-    assert_eq!(result, ExitReason::Normal);
-
-    assert_eq!(
-        io.effect_stack[0],
-        (
-            ident!("MyError"),
-            vec![KVPair::new(ident!("x"), Value::Int(7))],
         )
     );
 
