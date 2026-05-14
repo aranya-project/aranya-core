@@ -4,5 +4,5 @@ expression: err
 ---
 error: Invalid string
   |
-1 | let x = "a␀b"
-  |           ^ string contains null byte
+1 | let x = "a\b"
+  |           ^^ unknown character escape: `b`

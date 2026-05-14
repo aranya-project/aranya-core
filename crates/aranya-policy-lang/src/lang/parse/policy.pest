@@ -134,11 +134,9 @@ function_arguments = { "(" ~ field_definition_list? ~ ")" }
 // ## Atoms
 // An int is a sequence of one or more digits
 int_literal = @{ "-"? ~ ASCII_DIGIT+ }
-// A hex escape is an x followed by a two-digit hexadecimal number
-hex_escape = _{ "x" ~ ASCII_HEX_DIGIT{2} }
 // A string literal is text surrounded by double-quotes.
 // Escapes allowed: \n, \", \\, and two-digit hex escapes (e.g. \xf7)
-string_literal = @{ "\"" ~ (("\\" ~ (hex_escape | "n" | "\\" | "\"")) | (!("\"" | "\\") ~ ANY))* ~ "\"" }
+string_literal = @{ "\"" ~ (("\\" ~ ANY) | (!("\"" | "\\") ~ ANY))* ~ "\"" }
 // A bool is either true or false
 btrue = { "true" }
 bfalse = { "false" }

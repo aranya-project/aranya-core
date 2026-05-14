@@ -1,9 +1,8 @@
 ---
 source: crates/aranya-policy-lang/tests/tests.rs
-assertion_line: 99
 expression: err
 ---
 error: Invalid string
    |
-11 |     let y = "a\\0b"
-   |             ^^^^^^^ invalid escape: \
+11 |     let y = "a\0b"
+   |               ^^ unknown character escape: `0`
