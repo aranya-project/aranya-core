@@ -1,0 +1,12 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: cycle found: [Foo, Bar, Fum]
+  |
+1 | struct Fum { b struct Bar, f struct Foo }
+  |        ---
+2 | struct Bar { f struct Foo }
+  |        ---
+3 | struct Foo { fum struct Fum } // cycle
+  |        ---

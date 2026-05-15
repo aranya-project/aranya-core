@@ -96,7 +96,7 @@ command Increment {
     open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
-        check stuff.y > 0
+        check stuff.y > 0 else recall default()
         let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -104,7 +104,7 @@ command Increment {
         }
     }
 
-    recall {
+    recall default() {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         finish {
             emit OutOfRange {
@@ -131,7 +131,7 @@ ephemeral command IncrementEphemeral {
     open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
-        check stuff.y > 0
+        check stuff.y > 0 else recall default()
         let new_y = unwrap add(stuff.y, this.amount)
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -139,7 +139,7 @@ ephemeral command IncrementEphemeral {
         }
     }
 
-    recall {
+    recall default() {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         finish {
             emit OutOfRange {

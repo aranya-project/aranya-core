@@ -3,18 +3,43 @@
 //! It is used in the compiler to find the order for compiling type definitions.
 //!
 //! A [`CycleError`] will be returned when values cannot be sorted topologically.
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
+use aranya_policy_ast::Ident;
 use petgraph::{
     algo::TarjanScc,
     graphmap::{DiGraphMap, NodeTrait},
 };
 
-use crate::CompileErrorType;
+use crate::compile::{error::CyclicTypeDefinitions, types::UserType};
 
 /// Indicates that a cycle was found while sorting values.
 #[derive(Debug)]
 pub struct CycleError(Vec<Vec<String>>);
+
+impl CycleError {
+    // This is messy. It'd be better to create a TopoSort<&Ident> but it's tricky to create references that live long enough
+    // for structs defined in FFI modules.
+    pub(super) fn into_compile_error(
+        self,
+        ctx: &HashMap<Ident, UserType<'_>>,
+    ) -> CyclicTypeDefinitions {
+        let note = self.to_string();
+        let idents = self
+            .0
+            .into_iter()
+            .map(|strings| {
+                strings
+                    .into_iter()
+                    .filter_map(|s| ctx.get_key_value(s.as_str()))
+                    .map(|(ident, _)| ident.clone())
+                    .collect()
+            })
+            .collect();
+
+        CyclicTypeDefinitions(note, idents)
+    }
+}
 
 impl Display for CycleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -30,12 +55,6 @@ impl Display for CycleError {
             "Found cyclic dependencies when compiling structs:\n- {}",
             cycles.join("\n- ")
         )
-    }
-}
-
-impl From<CycleError> for CompileErrorType {
-    fn from(value: CycleError) -> Self {
-        Self::Unknown(value.to_string())
     }
 }
 

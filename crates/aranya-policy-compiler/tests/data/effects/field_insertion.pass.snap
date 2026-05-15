@@ -17,26 +17,26 @@ Module {
         ],
         "Baz": [
             FieldDefinition {
-                identifier: "i" @ 0..0,
-                field_type: Int @ 0..0,
+                identifier: "i" @ 65..66,
+                field_type: Int @ 67..70,
             },
             FieldDefinition {
-                identifier: "b" @ 0..0,
-                field_type: Bool @ 0..0,
+                identifier: "b" @ 13..14,
+                field_type: Bool @ 15..19,
             },
             FieldDefinition {
-                identifier: "s" @ 0..0,
-                field_type: String @ 0..0,
+                identifier: "s" @ 41..42,
+                field_type: String @ 43..49,
             },
         ],
         "Foo": [
             FieldDefinition {
-                identifier: "b" @ 0..0,
-                field_type: Bool @ 0..0,
+                identifier: "b" @ 13..14,
+                field_type: Bool @ 15..19,
             },
             FieldDefinition {
-                identifier: "s" @ 0..0,
-                field_type: String @ 0..0,
+                identifier: "s" @ 41..42,
+                field_type: String @ 43..49,
             },
         ],
     },

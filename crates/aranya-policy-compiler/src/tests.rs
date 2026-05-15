@@ -101,7 +101,7 @@ fn test_validate_publish() {
                 policy {
                     finish {}
                 }
-                recall {
+                recall default() {
                     finish {}
                 }
             }

@@ -2,9 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: duplicate match arm default value at line 2 col 5:
-	match i {
-        1 => {}
-        _ => {}
-        _ => {}
-    }
+error: duplicate match patterns found
+  |
+4 |         _ => {}
+  |         - first defined here
+5 |         _ => {}
+  |         ^ duplicate pattern

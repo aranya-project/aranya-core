@@ -11,19 +11,19 @@ use std::{
     net::{Shutdown, SocketAddr, TcpListener, TcpStream},
     ops::DerefMut as _,
     sync::{Arc, Mutex, mpsc},
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientState, Command as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
-    SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder, SyncType,
+    SubscribeResponse, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
 use buggy::{BugExt as _, bug};
-use heapless::{FnvIndexMap, Vec};
+use heapless::FnvIndexMap;
 use tracing::error;
 
 /// FNVIndexMap requires that the size be a power of 2.
@@ -68,7 +68,7 @@ where
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let mut req = std::vec::Vec::new();
+    let mut req = Vec::new();
     stream.read_to_end(&mut req)?;
     let (peer_address, req) = postcard::take_from_bytes::<SocketAddr>(&req)?;
     let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -95,7 +95,7 @@ where
     subscriptions: FnvIndexMap<(SocketAddr, GraphId), Subscription, MAXIMUM_SUBSCRIPTIONS>,
     client_state: Arc<Mutex<ClientState<PS, SP>>>,
     sink: Arc<Mutex<S>>,
-    return_address: std::vec::Vec<u8>,
+    return_address: Vec<u8>,
     rt_buffers: RuntimeBuffers<SP::Segment>,
     /// Directory where braid/convergence spill files are created.
     spill_dir: std::path::PathBuf,
@@ -162,7 +162,7 @@ where
         stream.write_all(&self.return_address)?;
         stream.write_all(&buffer)?;
         stream.shutdown(Shutdown::Write)?;
-        let mut received_data = std::vec::Vec::new();
+        let mut received_data = Vec::new();
         stream.read_to_end(&mut received_data)?;
         // An empty response means we're up to date and there's nothing to sync.
         if !received_data.is_empty()
@@ -219,10 +219,9 @@ where
         if buffer.is_empty() {
             return Ok(());
         }
-        let result: SubscribeResult = postcard::from_bytes(&buffer)?;
-        match result {
-            SubscribeResult::Success => Ok(()),
-            SubscribeResult::TooManySubscriptions => bug!("TooManySubscriptions"),
+        match SubscribeResponse::decode(&buffer)? {
+            SubscribeResponse::Success => Ok(()),
+            SubscribeResponse::TooManySubscriptions => bug!("TooManySubscriptions"),
         }
     }
 
@@ -251,13 +250,12 @@ where
         data: &[u8],
         target: &mut [u8],
     ) -> Result<usize> {
-        let (sync_type, remaining): (SyncType, &[u8]) = postcard::take_from_bytes(data)?;
-        let len = match sync_type {
-            SyncType::Poll { request } => {
+        let len = match SyncIncoming::decode(data)? {
+            SyncIncoming::Poll(poll) => {
                 let response_cache = self.remote_heads.entry(peer_address).or_default();
                 let mut client = self.client_state.lock().expect("poisoned");
                 let mut response_syncer = SyncResponder::new();
-                response_syncer.receive(request)?;
+                response_syncer.receive(poll)?;
                 assert!(response_syncer.ready());
 
                 response_syncer.poll(
@@ -267,46 +265,39 @@ where
                     &mut self.rt_buffers.traversal,
                 )?
             }
-            SyncType::Subscribe {
-                remain_open,
-                max_bytes,
-                commands,
-                graph_id,
-            } => {
+            SyncIncoming::Subscribe(sub) => {
                 self.subscriptions.retain(|_, s| !s.expired());
                 match self.subscriptions.insert(
-                    (peer_address, graph_id),
+                    (peer_address, sub.graph_id()),
                     Subscription {
                         close_time: SystemTime::now()
-                            .checked_add(Duration::from_secs(remain_open))
+                            .checked_add(sub.remain_open())
                             .assume("must not overflow")?,
-                        remaining_bytes: max_bytes,
+                        remaining_bytes: sub.max_bytes(),
                     },
                 ) {
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(peer_address).or_default();
                         let mut client = self.client_state.lock().expect("poisoned");
                         client.update_heads(
-                            graph_id,
-                            commands.as_slice().iter().copied(),
+                            sub.graph_id(),
+                            sub.heads().iter(),
                             response_cache,
                             &mut self.rt_buffers.traversal.primary,
                         )?;
-                        postcard::to_slice(&SubscribeResult::Success, target)?.len()
+                        SubscribeResponse::Success.encode_to(target)?
                     }
-                    Err(_) => {
-                        postcard::to_slice(&SubscribeResult::TooManySubscriptions, target)?.len()
-                    }
+                    Err(_) => SubscribeResponse::TooManySubscriptions.encode_to(target)?,
                 }
             }
-            SyncType::Unsubscribe { graph_id } => {
-                self.subscriptions.remove(&(peer_address, graph_id));
+            SyncIncoming::Unsubscribe(unsub) => {
+                self.subscriptions.remove(&(peer_address, unsub.graph_id()));
                 0
             }
-            SyncType::Push { message, graph_id } => {
-                let mut sync_requester =
-                    SyncRequester::new_session_id(graph_id, message.session_id());
-                if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)?
+            SyncIncoming::Push(push) => {
+                let graph_id = push.graph_id();
+                let mut sync_requester = SyncRequester::new_session_id(graph_id, push.session_id());
+                if let Some(cmds) = sync_requester.receive_push(push)?
                     && !cmds.is_empty()
                 {
                     {
@@ -336,7 +327,7 @@ where
                 }
                 0
             }
-            SyncType::Hello(_) => {
+            SyncIncoming::Hello(_) => {
                 // Hello messages are fire-and-forget, no response needed
                 0
             }
@@ -357,16 +348,7 @@ where
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
             let mut response_syncer = SyncResponder::new();
-            let mut commands = Vec::new();
-            commands
-                .extend_from_slice(response_cache.heads())
-                .expect("infallible error");
-            response_syncer.receive(SyncRequestMessage::SyncRequest {
-                session_id,
-                graph_id,
-                max_bytes: 0,
-                commands,
-            })?;
+            response_syncer.start_session(session_id, graph_id, 0, response_cache.heads())?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_syncer.push(

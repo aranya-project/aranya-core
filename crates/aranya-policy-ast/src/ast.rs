@@ -19,12 +19,39 @@ impl Ident {
     }
 }
 
-impl<T> PartialEq<T> for Ident
-where
-    T: AsRef<str> + ?Sized,
-{
-    fn eq(&self, other: &T) -> bool {
-        self.inner == other.as_ref()
+impl PartialEq<str> for Ident {
+    fn eq(&self, other: &str) -> bool {
+        self.inner == other
+    }
+}
+
+impl PartialEq<&str> for Ident {
+    fn eq(&self, other: &&str) -> bool {
+        self.inner == *other
+    }
+}
+
+impl PartialEq<Identifier> for Ident {
+    fn eq(&self, other: &Identifier) -> bool {
+        &self.inner == other
+    }
+}
+
+impl AsRef<str> for Ident {
+    fn as_ref(&self) -> &str {
+        self.inner.as_str()
+    }
+}
+
+impl core::borrow::Borrow<Identifier> for Ident {
+    fn borrow(&self) -> &Identifier {
+        &self.inner
+    }
+}
+
+impl core::borrow::Borrow<str> for Ident {
+    fn borrow(&self) -> &str {
+        self.inner.as_str()
     }
 }
 
@@ -415,7 +442,6 @@ pub struct FunctionCall {
 }
 }
 
-spanned! {
 /// A named struct literal
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
@@ -425,7 +451,14 @@ pub struct NamedStruct {
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
+    /// The source location of this struct literal
+    pub span: Span,
 }
+
+impl Spanned for NamedStruct {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -498,8 +531,7 @@ pub enum InternalFunction {
     /// An `exists` fact query
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
-    // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function
@@ -538,6 +570,9 @@ pub struct ForeignFunctionCall {
 }
 }
 
+/// Integer value with span information.
+pub type IntLiteral = WithSpan<i64>;
+
 /// All of the things which can be in an expression.
 pub type Expression = WithSpan<ExprKind>;
 
@@ -545,7 +580,7 @@ pub type Expression = WithSpan<ExprKind>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal
@@ -566,6 +601,8 @@ pub enum ExprKind {
     ForeignFunctionCall(ForeignFunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
+    /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
+    Recall(FunctionCall),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -649,7 +686,7 @@ impl ExprKind {
             }
 
             // Function call
-            (Self::FunctionCall(a), Self::FunctionCall(b)) => {
+            (Self::FunctionCall(a), Self::FunctionCall(b)) | (Self::Recall(a), Self::Recall(b)) => {
                 a.identifier.matches(&b.identifier)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
@@ -946,6 +983,9 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
+    /// Optional expression to evaluate if the check fails. Must be a terminal expression
+    /// (type `Never`), e.g. `return Err(..)` or `recall foo()`.
+    pub else_expression: Option<Expression>,
 }
 }
 
@@ -1148,6 +1188,8 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// A `recall name(args)` statement. Valid only in `policy` blocks.
+    Recall(FunctionCall),
 }
 
 /// A schema definition for a fact
@@ -1272,6 +1314,25 @@ impl<T: Spanned> Spanned for StructItem<T> {
     }
 }
 
+/// A recall block definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecallBlockDefinition {
+    /// The name of the recall block
+    pub identifier: Ident,
+    /// The arguments to the recall block
+    pub arguments: Vec<Param>,
+    /// The recall rule statements for this block
+    pub statements: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for RecallBlockDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
@@ -1289,8 +1350,8 @@ pub struct CommandDefinition {
     pub open: Vec<Statement>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
-    /// The recall rule statements for this command
-    pub recall: Vec<Statement>,
+    /// The named recall blocks for this command
+    pub recalls: Vec<RecallBlockDefinition>,
     /// The source location of this definition
     pub span: Span,
 }

@@ -5,4 +5,4 @@ expression: err
 error: Invalid string
   |
 1 | let x = "a␀b"
-  |         ^^^^^ string contained null byte
+  |           ^ string contains null byte

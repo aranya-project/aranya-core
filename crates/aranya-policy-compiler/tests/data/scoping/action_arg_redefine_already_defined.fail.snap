@@ -2,5 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-already defined: n at line 2 col 5:
-	let n = n
+error: the name `n` is defined multiple times
+  |
+1 | action foo(n int) {
+  |            - previous defintion here
+2 |     let n = n
+  |         ^ re-defined here

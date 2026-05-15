@@ -4,7 +4,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{FactCountType, Ident, Span, Spanned, Text, VType, span::spanned};
+use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType, span::spanned};
 
 spanned! {
 /// A fact and its key/value field values.
@@ -32,6 +32,19 @@ pub struct FunctionCall {
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
+}
+
+spanned! {
+    /// Call to a command's recall block.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct RecallCall {
+        /// the command being recalled
+        pub command_name: Ident,
+        /// the name of the recall block
+        pub recall_name: Ident,
+        /// recall arguments
+        pub arguments: Vec<Expression>,
+    }
 }
 
 spanned! {
@@ -65,7 +78,7 @@ pub enum InternalFunction {
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
     // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function
@@ -127,7 +140,7 @@ impl Spanned for Expression {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal
@@ -144,6 +157,8 @@ pub enum ExprKind {
     ForeignFunctionCall(ForeignFunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
+    /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
+    Recall(RecallCall),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -207,6 +222,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
+    /// Optional expression to evaluate if the check fails.
+    pub else_expression: Option<Expression>,
 }
 }
 
@@ -398,4 +415,6 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// A `recall name(args)` statement. Valid only in `policy` blocks.
+    Recall(RecallCall),
 }

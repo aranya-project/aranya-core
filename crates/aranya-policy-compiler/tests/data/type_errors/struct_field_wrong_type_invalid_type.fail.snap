@@ -2,5 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: `Struct Foo` field `a` is not int at line 3 col 5:
-	return Foo{a: false}
+error: invalid type: bool
+  |
+1 | struct Foo {a int}
+  |             ----- expected because of this
+2 | function g(x struct Foo) bool {
+3 |     return Foo{a: false}
+  |                   ^^^^^ expected `int` but found `bool`
