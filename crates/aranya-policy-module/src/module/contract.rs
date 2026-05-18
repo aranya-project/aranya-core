@@ -77,7 +77,9 @@ impl TypeContract {
     fn validate(&self, other: &ffi::Type<'_>) -> Result<(), ContractValidationError> {
         let other_tc = other.into();
         if self != &other_tc {
-            return Err(ContractValidationError(format!("{self:?} but VM expected {other_tc:?}")));
+            return Err(ContractValidationError(format!(
+                "{self:?} but VM expected {other_tc:?}"
+            )));
         }
         Ok(())
     }
