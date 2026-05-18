@@ -217,6 +217,30 @@ pub struct StructContract {
     pub fields: Vec<ArgContract>,
 }
 
+impl StructContract {
+    fn validate(&self, other: &ffi::Struct<'_>) -> Result<(), ContractValidationError> {
+        if self.name != other.name {
+            return Err(ContractValidationError(format!(
+                "struct `{}` != `{}`",
+                self.name, other.name
+            )));
+        }
+        if self.fields.len() != other.fields.len() {
+            return Err(ContractValidationError(format!(
+                "struct `{}` has a {} fields but VM expects {}",
+                self.name,
+                self.fields.len(),
+                other.fields.len()
+            )));
+        }
+        for (f1, f2) in self.fields.iter().zip(other.fields.iter()) {
+            f1.validate(f2)
+                .prepend(format!("struct `{}` field `{}`,", self.name, f1.name))?;
+        }
+        Ok(())
+    }
+}
+
 impl From<&ffi::Struct<'_>> for StructContract {
     fn from(value: &ffi::Struct<'_>) -> Self {
         Self {
@@ -245,6 +269,34 @@ pub struct EnumContract {
     pub name: Identifier,
     /// Enum variants
     pub variants: Vec<Identifier>,
+}
+
+impl EnumContract {
+    fn validate(&self, other: &ffi::Enum<'_>) -> Result<(), ContractValidationError> {
+        if self.name != other.name {
+            return Err(ContractValidationError(format!(
+                "enum `{}` != `{}`",
+                self.name, other.name
+            )));
+        }
+        if self.variants.len() != other.variants.len() {
+            return Err(ContractValidationError(format!(
+                "enum `{}` has {} variants but VM expects {}",
+                self.name,
+                self.variants.len(),
+                other.variants.len()
+            )));
+        }
+        for (v1, v2) in self.variants.iter().zip(other.variants.iter()) {
+            if v1 != v2 {
+                return Err(ContractValidationError(format!(
+                    "enum `{}` variant `{}` is not `{}`",
+                    self.name, v1, v2
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl From<&ffi::Enum<'_>> for EnumContract {
@@ -290,9 +342,10 @@ impl FfiContract {
                 self.name, other.name
             )));
         }
+
         if self.functions.len() != other.functions.len() {
             return Err(ContractValidationError(format!(
-                "Loaded FFI module `{}` has {} functions but module specifies {}",
+                "FFI module `{}` has {} functions but module specifies {}",
                 self.name,
                 self.functions.len(),
                 other.functions.len()
@@ -300,6 +353,32 @@ impl FfiContract {
         }
         for (f1, f2) in self.functions.iter().zip(other.functions.iter()) {
             f1.validate(f2)
+                .prepend(format!("FFI module `{}`,", self.name))?;
+        }
+
+        if self.structs.len() != other.structs.len() {
+            return Err(ContractValidationError(format!(
+                "FFI module `{}` has {} structs but module specifies {}",
+                self.name,
+                self.structs.len(),
+                other.structs.len()
+            )));
+        }
+        for (s1, s2) in self.structs.iter().zip(other.structs.iter()) {
+            s1.validate(s2)
+                .prepend(format!("FFI module `{}`,", self.name))?;
+        }
+
+        if self.enums.len() != other.enums.len() {
+            return Err(ContractValidationError(format!(
+                "FFI module `{}` has {} enums but module specifies {}",
+                self.name,
+                self.enums.len(),
+                other.enums.len()
+            )));
+        }
+        for (e1, e2) in self.enums.iter().zip(other.enums.iter()) {
+            e1.validate(e2)
                 .prepend(format!("FFI module `{}`,", self.name))?;
         }
         Ok(())

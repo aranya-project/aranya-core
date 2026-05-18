@@ -29,6 +29,13 @@ struct Envelope {
     // bindings.
     signature bytes,
 }
+
+// This exists only for FFI contract testing purposes
+enum TestEnum {
+    True,
+    False,
+    FileNotFound,
+}
 "#
 )]
 impl TestFfiEnvelope {

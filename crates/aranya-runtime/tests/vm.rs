@@ -90,7 +90,7 @@ fn test_ffi_mismatch() {
 fn test_ffi_function_missing() {
     contract_tester(
         |c| c.ffis[0].functions.clear(),
-        "Loaded FFI module `envelope` has 0 functions but module specifies 2",
+        "FFI module `envelope` has 0 functions but module specifies 2",
     );
 }
 
@@ -115,5 +115,77 @@ fn test_ffi_function_return_wrong_type() {
     contract_tester(
         |c| c.ffis[0].functions[0].return_type = TypeContract::Bool,
         "FFI module `envelope`, function `do_seal` return type, Bool != Struct(\"Envelope\")",
+    );
+}
+
+#[test]
+fn test_ffi_struct_wrong_count() {
+    contract_tester(
+        |c| c.ffis[0].structs.clear(),
+        "FFI module `envelope` has 0 structs but module specifies 1",
+    );
+}
+
+#[test]
+fn test_ffi_struct_wrong_name() {
+    contract_tester(
+        |c| c.ffis[0].structs[0].name = ident!("Fail"),
+        "FFI module `envelope`, struct `Fail` != `Envelope`",
+    );
+}
+
+#[test]
+fn test_ffi_struct_wrong_field_count() {
+    contract_tester(
+        |c| c.ffis[0].structs[0].fields.clear(),
+        "FFI module `envelope`, struct `Envelope` has a 0 fields but VM expects 5",
+    );
+}
+
+#[test]
+fn test_ffi_struct_wrong_field_name() {
+    contract_tester(
+        |c| c.ffis[0].structs[0].fields[0].name = ident!("fail"),
+        "FFI module `envelope`, struct `Envelope` field `fail`, `fail` != `parent_id`",
+    );
+}
+
+#[test]
+fn test_ffi_struct_wrong_field_type() {
+    contract_tester(
+        |c| c.ffis[0].structs[0].fields[0].vtype = TypeContract::Bool,
+        "FFI module `envelope`, struct `Envelope` field `parent_id`, type Bool != Id",
+    );
+}
+
+#[test]
+fn test_ffi_enum_wrong_count() {
+    contract_tester(
+        |c| c.ffis[0].enums.clear(),
+        "FFI module `envelope` has 0 enums but module specifies 1",
+    );
+}
+
+#[test]
+fn test_ffi_enum_wrong_name() {
+    contract_tester(
+        |c| c.ffis[0].enums[0].name = ident!("Fail"),
+        "FFI module `envelope`, enum `Fail` != `TestEnum`",
+    );
+}
+
+#[test]
+fn test_ffi_enum_wrong_variant_count() {
+    contract_tester(
+        |c| c.ffis[0].enums[0].variants.clear(),
+        "FFI module `envelope`, enum `TestEnum` has 0 variants but VM expects 3",
+    );
+}
+
+#[test]
+fn test_ffi_enum_wrong_variant_name() {
+    contract_tester(
+        |c| c.ffis[0].enums[0].variants[0] = ident!("Blonk"),
+        "FFI module `envelope`, enum `TestEnum` variant `Blonk` is not `True`",
     );
 }
