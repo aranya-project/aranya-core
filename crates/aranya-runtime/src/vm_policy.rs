@@ -211,7 +211,7 @@ impl<CE> VmPolicy<CE> {
             if contract.ffis.len() != ffis.len() {
                 return Err(VmPolicyError::ContractValidation(ContractValidationError(
                     alloc::format!(
-                        "Module has {} FFI modules but VM implementation expects {}",
+                        "Module has {} FFI modules but VM expects {}",
                         contract.ffis.len(),
                         ffis.len()
                     ),

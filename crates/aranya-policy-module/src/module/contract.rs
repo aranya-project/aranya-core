@@ -77,7 +77,7 @@ impl TypeContract {
     fn validate(&self, other: &ffi::Type<'_>) -> Result<(), ContractValidationError> {
         let other_tc = other.into();
         if self != &other_tc {
-            return Err(ContractValidationError(format!("{self:?} != {other_tc:?}")));
+            return Err(ContractValidationError(format!("{self:?} but VM expected {other_tc:?}")));
         }
         Ok(())
     }
@@ -126,8 +126,8 @@ impl ArgContract {
     fn validate(&self, other: &ffi::Arg<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError(format!(
-                "`{}` != `{}`",
-                self.name, other.name
+                "VM expected `{}`",
+                other.name
             )));
         }
         self.vtype.validate(&other.vtype).prepend("type")?;
@@ -171,7 +171,7 @@ impl FunctionContract {
     fn validate(&self, other: &ffi::Func<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError(format!(
-                "function `{}` != `{}`",
+                "function `{}`, VM expected `{}`",
                 self.name, other.name
             )));
         }
@@ -181,7 +181,7 @@ impl FunctionContract {
         }
         self.return_type
             .validate(&other.return_type)
-            .prepend(format!("function `{}` return type,", self.name))?;
+            .prepend(format!("function `{}` return type", self.name))?;
         Ok(())
     }
 }
@@ -221,13 +221,13 @@ impl StructContract {
     fn validate(&self, other: &ffi::Struct<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError(format!(
-                "struct `{}` != `{}`",
+                "`struct {}`, VM expected `struct {}`",
                 self.name, other.name
             )));
         }
         if self.fields.len() != other.fields.len() {
             return Err(ContractValidationError(format!(
-                "struct `{}` has a {} fields but VM expects {}",
+                "`struct {}` has {} fields but VM expects {}",
                 self.name,
                 self.fields.len(),
                 other.fields.len()
@@ -235,7 +235,7 @@ impl StructContract {
         }
         for (f1, f2) in self.fields.iter().zip(other.fields.iter()) {
             f1.validate(f2)
-                .prepend(format!("struct `{}` field `{}`,", self.name, f1.name))?;
+                .prepend(format!("`struct {}` field `{}`,", self.name, f1.name))?;
         }
         Ok(())
     }
@@ -275,13 +275,13 @@ impl EnumContract {
     fn validate(&self, other: &ffi::Enum<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError(format!(
-                "enum `{}` != `{}`",
+                "`enum {}`, VM expected `enum {}`",
                 self.name, other.name
             )));
         }
         if self.variants.len() != other.variants.len() {
             return Err(ContractValidationError(format!(
-                "enum `{}` has {} variants but VM expects {}",
+                "`enum {}` has {} variants but VM expects {}",
                 self.name,
                 self.variants.len(),
                 other.variants.len()
@@ -290,7 +290,7 @@ impl EnumContract {
         for (v1, v2) in self.variants.iter().zip(other.variants.iter()) {
             if v1 != v2 {
                 return Err(ContractValidationError(format!(
-                    "enum `{}` variant `{}` is not `{}`",
+                    "`enum {}` has variant `{}` but VM expected `{}`",
                     self.name, v1, v2
                 )));
             }
@@ -338,14 +338,14 @@ impl FfiContract {
     pub fn validate(&self, other: &ffi::ModuleSchema<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError(format!(
-                "FFI module `{}` != `{}`",
+                "FFI module `{}`, VM expected `{}`",
                 self.name, other.name
             )));
         }
 
         if self.functions.len() != other.functions.len() {
             return Err(ContractValidationError(format!(
-                "FFI module `{}` has {} functions but module specifies {}",
+                "FFI module `{}` has {} functions but VM expects {}",
                 self.name,
                 self.functions.len(),
                 other.functions.len()
@@ -358,7 +358,7 @@ impl FfiContract {
 
         if self.structs.len() != other.structs.len() {
             return Err(ContractValidationError(format!(
-                "FFI module `{}` has {} structs but module specifies {}",
+                "FFI module `{}` has {} structs but VM expects {}",
                 self.name,
                 self.structs.len(),
                 other.structs.len()
@@ -371,7 +371,7 @@ impl FfiContract {
 
         if self.enums.len() != other.enums.len() {
             return Err(ContractValidationError(format!(
-                "FFI module `{}` has {} enums but module specifies {}",
+                "FFI module `{}` has {} enums but VM expects {}",
                 self.name,
                 self.enums.len(),
                 other.enums.len()
