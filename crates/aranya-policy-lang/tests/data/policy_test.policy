@@ -54,7 +54,7 @@ command Add {
             }
         }
     }
-    recall {
+    recall default() {
         let envelope_id = envelope::command_id(envelope)
         let author = envelope::author_id(envelope)
         let new_x = add2(x, count)
