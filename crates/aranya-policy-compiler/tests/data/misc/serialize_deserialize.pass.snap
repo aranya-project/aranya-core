@@ -3,7 +3,7 @@ source: crates/aranya-policy-compiler/tests/tests.rs
 expression: module
 ---
 Module {
-    version: "0",
+    version: "1",
     labels: {
         <policy 'Foo'>: 1,
         <recall 'Foo'>: 8,
