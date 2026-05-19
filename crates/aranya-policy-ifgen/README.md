@@ -19,7 +19,9 @@ aranya-policy-ifgen-build = { ... }
 
 fn main() {
     println!("cargo:rerun-if-changed=src/policy.md");
-    aranya_policy_ifgen_build::generate("src/policy.md", "src/policy.rs").unwrap();
+    aranya_policy_ifgen_build::InterfaceGeneratorBuilder::new("src/policy.md", "src/policy.rs")
+        .generate()
+        .unwrap();
 }
 ```
 
