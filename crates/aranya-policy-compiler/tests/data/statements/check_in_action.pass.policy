@@ -1,0 +1,5 @@
+function test_check() int {
+    check true
+    check false else return 0
+    return 1
+}

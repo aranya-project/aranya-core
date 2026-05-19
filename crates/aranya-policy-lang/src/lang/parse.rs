@@ -400,74 +400,123 @@ impl ChunkParser<'_> {
     ///
     /// Processes \\, \n, and \xNN escapes.
     fn parse_string_literal(&self, string: Pair<'_, Rule>) -> Result<Text, ParseError> {
-        let src = string.as_str();
-        let it = &mut src.chars();
-        let mut out = String::new();
-        // consume the first quote character
-        if it.next() != Some('"') {
-            return Err(ParseError::new(
-                ParseErrorKind::InvalidString,
-                format!("bad string: {}", src),
-                Some(self.to_ast_span(string.as_span())?),
-            ));
-        }
-        while let Some(c) = it.next() {
-            match c {
-                '\\' => {
-                    if let Some(next) = it.next() {
-                        match next {
-                            'x' => {
-                                let s: String = it.take(2).collect();
-                                let v = u8::from_str_radix(&s, 16).map_err(|e| {
-                                    self.to_ast_span(string.as_span()).map_or_else(
-                                        |err| err,
-                                        |span| {
-                                            ParseError::new(
-                                                ParseErrorKind::InvalidNumber,
-                                                format!("{}: {}", s, e),
-                                                Some(span),
-                                            )
-                                        },
-                                    )
-                                })?;
-                                out.push(v as char);
+        #![allow(
+            clippy::arithmetic_side_effects,
+            reason = "span calculations are all valid since they are subspans of the full string span"
+        )]
+
+        let contents = {
+            let full_str = string.as_str();
+            &full_str[1..full_str.len() - 1]
+        };
+
+        let content_span_start = {
+            let full_span = self.to_ast_span(string.as_span())?;
+            full_span.start() + 1
+        };
+
+        let mut it = contents.bytes().enumerate();
+        let mut out: Vec<u8> = Vec::new();
+        while let Some((idx0, byte0)) = it.next() {
+            let byte0_span_start = content_span_start + idx0;
+            match byte0 {
+                b'\\' => {
+                    let (idx1, byte1) = it.next().assume("byte must follow escape")?;
+                    match byte1 {
+                        b'x' => {
+                            let mut value = 0_u8;
+
+                            for nibble_idx in 0..2 {
+                                let Some((hex_idx, hex_byte)) = it.next() else {
+                                    let span = ast::Span::new(
+                                        byte0_span_start,
+                                        byte0_span_start + 2 + nibble_idx,
+                                    );
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::InvalidString,
+                                        String::from("hex character escape is too short"),
+                                        Some(span),
+                                    ));
+                                };
+                                let Some(nibble) = hex_char_to_nibble(hex_byte) else {
+                                    let nonhex_char_length = contents[hex_idx..]
+                                        .chars()
+                                        .next()
+                                        .assume("char is present")?
+                                        .len_utf8();
+                                    let start = content_span_start + hex_idx;
+                                    let span = ast::Span::new(start, start + nonhex_char_length);
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::InvalidString,
+                                        String::from("invalid character in hex character escape"),
+                                        Some(span),
+                                    ));
+                                };
+                                value = value << 4 | nibble;
                             }
-                            'n' => {
-                                out.push('\n');
-                            }
-                            _ => {
+
+                            if !(0x01..=0x7F).contains(&value) {
+                                let span = ast::Span::new(byte0_span_start, byte0_span_start + 4);
                                 return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
-                                    format!("invalid escape: {}", next),
-                                    Some(self.to_ast_span(string.as_span())?),
+                                    String::from(
+                                        "hex character escape is out of range [0x01, 0x7F]",
+                                    ),
+                                    Some(span),
                                 ));
                             }
+                            out.push(value);
                         }
-                    } else {
-                        return Err(ParseError::new(
-                            ParseErrorKind::InvalidString,
-                            String::from("end of string while processing escape"),
-                            Some(self.to_ast_span(string.as_span())?),
-                        ));
+                        b'n' => {
+                            out.push(b'\n');
+                        }
+                        b'\\' => {
+                            out.push(b'\\');
+                        }
+                        b'"' => {
+                            out.push(b'"');
+                        }
+                        b'\n' => {
+                            let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidString,
+                                String::from("cannot end line with escape"),
+                                Some(span),
+                            ));
+                        }
+                        _ => {
+                            let bad_escape_char =
+                                contents[idx1..].chars().next().assume("char is present")?;
+                            let end = byte0_span_start + 1 + bad_escape_char.len_utf8();
+                            let span = ast::Span::new(byte0_span_start, end);
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidString,
+                                format!(
+                                    "unknown character escape: `{}`",
+                                    bad_escape_char.escape_default()
+                                ),
+                                Some(span),
+                            ));
+                        }
                     }
                 }
-                '"' => break,
-                _ => out.push(c),
+                b'\0' => {
+                    let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidString,
+                        String::from("string contains null byte"),
+                        Some(span),
+                    ));
+                }
+                b'"' => break,
+                _ => out.push(byte0),
             }
         }
 
-        out.try_into().map_err(|_| {
-            self.to_ast_span(string.as_span()).map_or_else(
-                |err| err,
-                |span| {
-                    ParseError::new(
-                        ParseErrorKind::InvalidString,
-                        String::from("string contained null byte"),
-                        Some(span),
-                    )
-                },
-            )
-        })
+        Ok(str::from_utf8(&out)
+            .assume("valid utf8")?
+            .parse()
+            .assume("valid text")?)
     }
 
     /// Parse a match pattern from a match_arm_expression token.
@@ -514,6 +563,14 @@ impl ChunkParser<'_> {
             identifier,
             arguments,
         })
+    }
+
+    /// Parses the inner `function_call` out of a `recall_statement` or
+    /// `recall_expression` rule. The body of both rules is identical.
+    fn parse_recall_call(&self, recall: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
+        let pc = self.descend(recall);
+        let fc_token = pc.consume_of_type(Rule::function_call)?;
+        self.parse_function_call(fc_token)
     }
 
     fn parse_foreign_function_call(
@@ -688,6 +745,10 @@ impl ChunkParser<'_> {
                     let pc = self.descend(primary);
                     let expression = pc.consume_expression(self)?;
                     Ok(Expression{inner:ExprKind::Return(Box::new(expression)),span})
+                }
+                Rule::recall_expression => {
+                    let fc = self.parse_recall_call(primary)?;
+                    Ok(Expression { inner: ExprKind::Recall(fc), span })
                 }
                 Rule::enum_reference => {
                     let er = self.parse_enum_reference(primary)?;
@@ -1151,10 +1212,15 @@ impl ChunkParser<'_> {
     /// Parse a Rule::check_statement into a CheckStatement.
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
-        let token = pc.consume()?;
-        let expression = self.parse_expression(token)?;
-
-        Ok(CheckStatement { expression })
+        let expression = pc.consume_expression(self)?;
+        let else_expression = pc
+            .consume_optional(Rule::expression)
+            .map(|token| self.parse_expression(token))
+            .transpose()?;
+        Ok(CheckStatement {
+            expression,
+            else_expression,
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
@@ -1306,6 +1372,7 @@ impl ChunkParser<'_> {
                     let expression = self.parse_expression(inner_expr_token)?;
                     StmtKind::Return(ReturnStatement { expression })
                 }
+                Rule::recall_statement => StmtKind::Recall(self.parse_recall_call(statement)?),
                 s => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
@@ -1591,12 +1658,43 @@ impl ChunkParser<'_> {
         let token = pc.consume_of_type(Rule::policy_block)?;
         let policy = self.parse_statement_list(token.into_inner())?;
 
-        // 6. Optional recall block
-        let recall = if let Some(token) = pc.consume_optional(Rule::recall_block) {
-            self.parse_statement_list(token.into_inner())?
-        } else {
-            vec![]
-        };
+        // 6. Optional recall blocks (zero or more)
+        let recalls = pc
+            .into_inner()
+            .map(|token| {
+                if token.as_rule() != Rule::recall_block {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!("expected recall block, found `{:?}`", token.as_rule()),
+                        Some(self.to_ast_span(token.as_span())?),
+                    ));
+                }
+
+                let recall_span = self.to_ast_span(token.as_span())?;
+                let recall_pc = self.descend(token);
+
+                // Parse identifier
+                let recall_identifier =
+                    self.parse_ident(recall_pc.consume_of_type(Rule::identifier)?)?;
+
+                // Parse arguments
+                let recall_arguments = recall_pc
+                    .consume_of_type(Rule::function_arguments)?
+                    .into_inner()
+                    .map(|field| self.parse_parameter(field))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                // Parse recall block statements
+                let statements = self.parse_statement_list(recall_pc.into_inner())?;
+
+                Ok(ast::RecallBlockDefinition {
+                    identifier: recall_identifier,
+                    arguments: recall_arguments,
+                    statements,
+                    span: recall_span,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ast::CommandDefinition {
             persistence,
@@ -1606,7 +1704,7 @@ impl ChunkParser<'_> {
             seal,
             open,
             policy,
-            recall,
+            recalls,
             span,
         })
     }
@@ -1949,6 +2047,16 @@ enum TypeStyle {
     Unknown,
     Old,
     New,
+}
+
+fn hex_char_to_nibble(ch: u8) -> Option<u8> {
+    #[allow(clippy::arithmetic_side_effects)]
+    Some(match ch {
+        b'0'..=b'9' => ch - b'0',
+        b'a'..=b'f' => ch - b'a' + 10,
+        b'A'..=b'F' => ch - b'A' + 10,
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
