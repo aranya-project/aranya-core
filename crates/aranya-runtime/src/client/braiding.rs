@@ -91,14 +91,7 @@ pub(super) fn braid<S: Storage>(
         'location: for location in prior {
             for other in strands.iter() {
                 trace!("checking {}", other.next);
-                let same_segment_check =
-                    location.same_segment(other.next) && location.max_cut <= other.next.max_cut;
-                if same_segment_check {
-                    trace!("same segment");
-                    continue 'location;
-                }
-
-                if storage.is_ancestor(location, &other.segment, buffer)? {
+                if storage.is_ancestor(location, other.next, buffer)? {
                     trace!("found ancestor");
                     continue 'location;
                 }

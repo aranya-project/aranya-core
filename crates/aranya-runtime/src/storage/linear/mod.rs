@@ -552,7 +552,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         debug_assert!(
             self.is_ancestor(
                 self.get_head()?,
-                &segment,
+                segment.head_location()?,
                 #[allow(unused_allocation, reason = "box large type to reduce stack usage")]
                 Box::new(TraversalBuffer::new()).as_mut()
             )?,
