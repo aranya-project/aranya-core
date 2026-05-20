@@ -2,5 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid expression: FunctionCall(FunctionCall { identifier: "saturating_add" @ 149..163, arguments: [Int(1) @ 164..165, Int(2) @ 167..168] }) @ 149..169 at line 7 col 31:
-	saturating_add(1, 2)
+error: invalid expression
+  |
+7 |             create Foo[]=>{x: saturating_add(1, 2)}
+  |                               ^^^^^^^^^^^^^^^^^^^^ This expression is invalid in finish blocks/functions

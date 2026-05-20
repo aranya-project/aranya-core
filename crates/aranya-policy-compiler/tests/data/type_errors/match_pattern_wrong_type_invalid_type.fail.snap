@@ -2,9 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-invalid type: match pattern 1 has type string, expected type int at line 2 col 5:
-	match x {
-        "foo" => {
-        }
-        _ => {}
-    }
+error: invalid type: string
+  |
+3 |         "foo" => {
+  |         ^^^^^ expected `int` but found `string`

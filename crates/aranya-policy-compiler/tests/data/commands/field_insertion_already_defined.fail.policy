@@ -1,3 +1,4 @@
+let context = "place this here so the struct defintion goes down a line"
 struct Bar { a int }
 command Foo {
     fields {

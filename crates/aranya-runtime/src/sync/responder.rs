@@ -3,11 +3,13 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
-    SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PollIncoming,
+    SEGMENT_BUFFER_MAX, SyncError,
+    requester::SyncRequestMessage,
+    wire::{CommandMeta, SyncType},
 };
 use crate::{
-    StorageError, SyncType,
+    LocatedAddress, StorageError,
     command::{Address, CmdId, Command as _},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
@@ -17,7 +19,7 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct PeerCache {
-    heads: Vec<Address, { PEER_HEAD_MAX }>,
+    heads: Vec<LocatedAddress, { PEER_HEAD_MAX }>,
 }
 
 impl PeerCache {
@@ -25,15 +27,14 @@ impl PeerCache {
         Self { heads: Vec::new() }
     }
 
-    pub fn heads(&self) -> &[Address] {
+    pub fn heads(&self) -> &[LocatedAddress] {
         &self.heads
     }
 
     pub fn add_command<S>(
         &mut self,
         storage: &S,
-        command: Address,
-        cmd_loc: Location,
+        new: LocatedAddress,
         buffer: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
@@ -41,36 +42,23 @@ impl PeerCache {
     {
         let mut add_command = true;
 
-        let mut retain_head = |request_head: &Address, new_head: Location| {
-            let new_head_seg = storage.get_segment(new_head)?;
-            let req_head_loc = storage
-                .get_location(*request_head, buffer)?
-                .assume("location must exist")?;
-            let req_head_seg = storage.get_segment(req_head_loc)?;
-            if request_head.id
-                == new_head_seg
-                    .get_command(new_head)
-                    .assume("location must exist")?
-                    .address()?
-                    .id
-            {
+        let mut retain_head = |old: &LocatedAddress| -> Result<bool, StorageError> {
+            if old.id == new.id || storage.is_ancestor(new.location(), old.location(), buffer)? {
+                // Don't add this command, keep existing command
                 add_command = false;
+                return Ok(true);
             }
-            // If the new head is an ancestor of the request head, don't add it
-            if (new_head.same_segment(req_head_loc) && new_head.max_cut <= req_head_loc.max_cut)
-                || storage.is_ancestor(new_head, &req_head_seg, buffer)?
-            {
-                add_command = false;
+            if storage.is_ancestor(old.location(), new.location(), buffer)? {
+                // Remove existing head.
+                return Ok(false);
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffer)?)
+            // Just keep existing head.
+            Ok(true)
         };
-        self.heads
-            .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
-        if add_command && !self.heads.is_full() {
-            self.heads
-                .push(command)
-                .ok()
-                .assume("command locations should not be full")?;
+        self.heads.retain(|h| retain_head(h).unwrap_or(false));
+        if add_command {
+            // TODO(jdygert): Replace an old head when full?
+            self.heads.push(new).ok();
         }
 
         Ok(())
@@ -85,7 +73,7 @@ impl PeerCache {
 /// Messages sent from the responder to the requester.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum SyncResponseMessage {
+pub(crate) enum SyncResponseMessage {
     /// Sent in response to a `SyncRequest`
     SyncResponse {
         /// A random-value produced by a cryptographically secure RNG.
@@ -130,7 +118,7 @@ pub enum SyncResponseMessage {
 }
 
 impl SyncResponseMessage {
-    pub fn session_id(&self) -> u128 {
+    pub(crate) fn session_id(&self) -> u128 {
         match self {
             Self::SyncResponse { session_id, .. } => *session_id,
             Self::SyncEnd { session_id, .. } => *session_id,
@@ -244,8 +232,11 @@ impl SyncResponder {
                     if let Some(cmd_loc) = storage.get_location(*command, &mut buffers.primary)? {
                         response_cache.add_command(
                             storage,
-                            *command,
-                            cmd_loc,
+                            LocatedAddress {
+                                id: command.id,
+                                segment: cmd_loc.segment,
+                                max_cut: command.max_cut,
+                            },
                             &mut buffers.primary,
                         )?;
                     }
@@ -267,8 +258,38 @@ impl SyncResponder {
         Ok(length)
     }
 
-    /// Receive a sync message. Updates the responders state for later polling.
-    pub fn receive(&mut self, message: SyncRequestMessage) -> Result<(), SyncError> {
+    /// Receive a sync poll. Updates the responder's state for later polling.
+    pub fn receive(&mut self, poll: PollIncoming) -> Result<(), SyncError> {
+        self.dispatch(poll.message)
+    }
+
+    /// Begin a new session in-process, without going through the wire.
+    ///
+    /// Used by transports that need to push out an unsolicited update to a
+    /// subscribed peer: instead of round-tripping a `SyncRequest` through the
+    /// network, the transport seeds the responder directly with the heads it
+    /// already knows about.
+    pub fn start_session(
+        &mut self,
+        session_id: u128,
+        graph_id: GraphId,
+        max_bytes: u64,
+        heads: impl IntoIterator<Item = Address>,
+    ) -> Result<(), SyncError> {
+        let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
+        heads
+            .into_iter()
+            .try_for_each(|head| commands.push(head).ok())
+            .ok_or(SyncError::CommandOverflow)?;
+        self.dispatch(SyncRequestMessage::SyncRequest {
+            session_id,
+            graph_id,
+            max_bytes,
+            commands,
+        })
+    }
+
+    fn dispatch(&mut self, message: SyncRequestMessage) -> Result<(), SyncError> {
         if self.session_id.is_none() {
             self.session_id = Some(message.session_id());
         }

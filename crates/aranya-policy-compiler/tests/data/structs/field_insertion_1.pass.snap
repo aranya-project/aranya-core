@@ -17,12 +17,12 @@ Module {
         ],
         "Foo": [
             FieldDefinition {
-                identifier: "a" @ 0..0,
-                field_type: Int @ 0..0,
+                identifier: "a" @ 13..14,
+                field_type: Int @ 15..18,
             },
             FieldDefinition {
-                identifier: "b" @ 0..0,
-                field_type: String @ 0..0,
+                identifier: "b" @ 40..41,
+                field_type: String @ 42..48,
             },
         ],
     },

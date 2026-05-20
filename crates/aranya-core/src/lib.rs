@@ -35,14 +35,11 @@ pub use aranya_runtime::{
 pub mod storage {
     //! Storage providers and low-level I/O for the graph.
     //!
-    //! [`LinearStorageProvider`] is the stock append-only storage backend
-    //! used by [`crate::ClientState`]; construct one with
-    //! [`LinearStorageProvider::new`]. It is parameterized over an
-    //! [`IoManager`] implementation — the user-swappable piece that owns
-    //! how bytes are actually persisted. [`FileManager`] is the file-backed
-    //! reference [`IoManager`] (available under the `libc` feature); custom
-    //! backends implement [`IoManager`] (and the associated [`Read`]/
-    //! [`Write`] traits) to plug in alternative storage.
+    //! [`LinearStorageProvider`] is the stock append-only storage backend used by
+    //! [`crate::ClientState`]; construct one with [`LinearStorageProvider::new`]. It is
+    //! parameterized over an `IoManager` implementation to control how bytes are actually
+    //! persisted. [`FileManager`] is the file-backed reference implementation (available under the
+    //! `libc` feature).
 
     #[cfg(feature = "libc")]
     #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
@@ -51,7 +48,7 @@ pub mod storage {
     #[doc(inline)]
     pub use aranya_runtime::{
         StorageError,
-        storage::linear::{IoManager, LinearStorage, LinearStorageProvider, Read, Write},
+        storage::linear::{LinearStorage, LinearStorageProvider},
     };
 }
 
@@ -135,13 +132,16 @@ pub mod sync {
     //! Peer-to-peer sync protocol for replicating graph state.
     //!
     //! A [`SyncRequester`] polls a peer; a [`SyncResponder`] serves the polled
-    //! request. Messages up to [`MAX_SYNC_MESSAGE_SIZE`] bytes are exchanged
-    //! as [`SyncType`] envelopes over any transport the caller provides.
+    //! request. Transports decode incoming bytes with [`SyncIncoming::decode`]
+    //! and dispatch on the returned variant; messages up to
+    //! [`MAX_SYNC_MESSAGE_SIZE`] bytes are exchanged over any transport the
+    //! caller provides.
 
     #[doc(inline)]
     pub use aranya_runtime::sync::{
-        COMMAND_RESPONSE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PeerCache,
-        SubscribeResult, SyncCommand, SyncError, SyncHelloType, SyncRequestMessage, SyncRequester,
-        SyncResponder, SyncResponseMessage, SyncType,
+        COMMAND_RESPONSE_MAX, HelloNotification, HelloSubscribe, HelloUnsubscribe,
+        MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PeerCache, PollIncoming, PushIncoming,
+        SubscribeIncoming, SubscribeResponse, SyncCommand, SyncError, SyncHeads, SyncHello,
+        SyncIncoming, SyncRequester, SyncResponder, UnsubscribeIncoming,
     };
 }
