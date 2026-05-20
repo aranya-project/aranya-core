@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.22.0...aranya-runtime-v0.23.0) - 2026-05-19
+
+### Other
+
+- Merge branch 'main' into simplify-ancestor
+- 641 multiple recalls ([#642](https://github.com/aranya-project/aranya-core/pull/642))
+- hide wire format ([#675](https://github.com/aranya-project/aranya-core/pull/675))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+- reuse segments when finding LCA ([#663](https://github.com/aranya-project/aranya-core/pull/663))
+- forward `StorageProvider` and `PolicyStore` impls ([#659](https://github.com/aranya-project/aranya-core/pull/659))
+
 ## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.21.0...aranya-runtime-v0.22.0) - 2026-03-31
 
 ### Other

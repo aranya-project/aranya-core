@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.15.0...aranya-policy-ifgen-build-v0.16.0) - 2026-05-19
+
+### Other
+
+- ifgen build flag for import ([#673](https://github.com/aranya-project/aranya-core/pull/673))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.14.0...aranya-policy-ifgen-build-v0.15.0) - 2026-03-31
 
 ### Other

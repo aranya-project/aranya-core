@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-macro-v0.7.0...aranya-policy-ifgen-macro-v0.8.0) - 2026-05-19
+
+### Other
+
+- ifgen build flag for import ([#673](https://github.com/aranya-project/aranya-core/pull/673))
+
 ## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-macro-v0.6.0...aranya-policy-ifgen-macro-v0.7.0) - 2026-03-17
 
 ### Other
