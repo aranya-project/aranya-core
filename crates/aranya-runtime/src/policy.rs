@@ -13,7 +13,8 @@ use crate::{
 };
 
 /// An error returned by a runtime policy store or policy.
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PolicyError {
     #[error("read error")]
     Read,
