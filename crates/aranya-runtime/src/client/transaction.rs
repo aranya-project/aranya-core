@@ -682,7 +682,7 @@ mod test {
             let mut max_cuts = HashMap::new();
             let mut buffer = TraversalBuffer::new();
             for (max_cut, &id) in ids.iter().enumerate() {
-                let max_cut = MaxCut(max_cut);
+                let max_cut = MaxCut::new(max_cut as u64);
                 let cmd = SeqCommand::new(id, prior, max_cut);
                 trx.add_commands(
                     &[cmd],
@@ -848,7 +848,7 @@ mod test {
         use crate::Query as _;
         let head = storage.get_head().unwrap();
         let p = storage.get_fact_perspective(head).unwrap();
-        p.query(name, &Keys::default()).unwrap()
+        p.query(name, &[]).unwrap()
     }
 
     #[test]
@@ -868,7 +868,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "simple");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(3));
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(3));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -902,7 +902,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "complex");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(15));
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(15));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -935,7 +935,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "duplicates");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(4));
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(4));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -957,7 +957,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "mid_braid_1");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(7));
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(7));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -979,7 +979,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "mid_braid_2");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(7));
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(7));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1004,7 +1004,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "finalize_success");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut(9));
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(9));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();

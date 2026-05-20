@@ -39,7 +39,7 @@ pub trait Write {
     /// A function is used to allow the item to contain its offset.
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
     where
-        F: FnOnce(usize) -> T,
+        F: FnOnce(u64) -> T,
         T: Serialize;
 
     /// Set the commit head.
@@ -49,7 +49,7 @@ pub trait Write {
 /// A share-able reader for a linear storage graph.
 pub trait Read: Clone {
     /// Fetch an item written by `Write::append`.
-    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
+    fn fetch<T>(&self, offset: u64) -> Result<T, StorageError>
     where
         T: DeserializeOwned;
 }

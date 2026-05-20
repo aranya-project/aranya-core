@@ -53,7 +53,7 @@ where
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
         // TODO: (Scott) Implement once `add_policy` method is implemented in the policy_vm
         // For now return dummy PolicyId
-        Ok(PolicyId::new(policy[0] as usize))
+        Ok(PolicyId::new(policy[0].into()))
     }
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
