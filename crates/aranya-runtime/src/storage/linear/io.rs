@@ -6,9 +6,10 @@
 //! example, accidentally running two instances of the program will cause
 //! issues.
 
+use alloc::vec::Vec;
 use core::ops::Deref;
 
-use rkyv::{Archive, Serialize, bytecheck::CheckBytes};
+use rkyv::{Archive, bytecheck::CheckBytes};
 use stable_deref_trait::StableDeref;
 use yoke::Yoke;
 
@@ -47,14 +48,7 @@ pub trait Write {
     ) -> Result<<Self::ReadOnly as Read>::Handle<T>, StorageError>
     where
         F: FnOnce(u64) -> T,
-        T: Readable
-            + for<'a> Serialize<
-                rkyv::api::high::HighSerializer<
-                    rkyv::util::AlignedVec,
-                    rkyv::ser::allocator::ArenaHandle<'a>,
-                    rkyv::rancor::Error,
-                >,
-            >;
+        T: Writable + Readable;
 
     /// Set the commit head.
     fn commit(&mut self, head: Location) -> Result<(), StorageError>;
@@ -68,11 +62,55 @@ pub trait Read: Clone {
     fn fetch<T: Readable>(&self, offset: u64) -> Result<Self::Handle<T>, StorageError>;
 }
 
+mod private {
+    pub trait Sealed {}
+}
+
+impl private::Sealed for super::SegmentRepr {}
+impl private::Sealed for super::FactIndexRepr {}
+
+pub trait Writable: private::Sealed {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+    where
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>;
+
+    fn to_bytes(&self) -> Result<Vec<u8>, StorageError> {
+        self.to_writer(Vec::new())
+    }
+
+    fn to_slice(&self, buf: &mut [u8]) -> Result<usize, StorageError> {
+        self.to_writer(rkyv::ser::writer::Buffer::from(buf))
+            .map(|b| b.len())
+    }
+}
+
+impl Writable for super::SegmentRepr {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+    where
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+    {
+        rkyv::api::high::to_bytes_in(self, writer)
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+    }
+}
+
+impl Writable for super::FactIndexRepr {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+    where
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+    {
+        rkyv::api::high::to_bytes_in(self, writer)
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+    }
+}
+
 /// A type that can be read from archived bytes.
 ///
 /// This is just a convenience over using
 /// `Archive<Archived: for<'a> CheckBytes<HighValidator<'a, Error>>> + 'static`
-pub trait Readable: Archive + 'static {
+pub trait Readable: private::Sealed + 'static {
+    type Archived;
+
     /// Read the archived type from the bytes of `cart` and attach it.
     ///
     /// The returned [`Yoke`] is static but can accessed `&Self::Archived`.
@@ -83,9 +121,12 @@ pub trait Readable: Archive + 'static {
 
 impl<T> Readable for T
 where
+    T: private::Sealed,
     T: Archive + 'static,
     T::Archived: for<'a> CheckBytes<rkyv::api::high::HighValidator<'a, rkyv::rancor::Error>>,
 {
+    type Archived = <Self as Archive>::Archived;
+
     fn yoke<C>(cart: C) -> Result<Yoke<&'static Self::Archived, C>, StorageError>
     where
         C: StableDeref<Target = [u8]>,

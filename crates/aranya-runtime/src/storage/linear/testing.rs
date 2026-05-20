@@ -7,7 +7,7 @@ use spin::mutex::Mutex;
 use stable_deref_trait::StableDeref;
 use yoke::Yoke;
 
-use super::{Read, Readable, io};
+use super::{Read, Readable, Writable, io};
 use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError};
 
 /// Alias for memory-backed storage provider commonly used in tests.
@@ -114,18 +114,11 @@ impl io::Write for Writer {
     fn append<F, T>(&mut self, builder: F) -> Result<Handle<T>, StorageError>
     where
         F: FnOnce(u64) -> T,
-        T: Readable
-            + for<'a> rkyv::Serialize<
-                rkyv::api::high::HighSerializer<
-                    AlignedVec,
-                    rkyv::ser::allocator::ArenaHandle<'a>,
-                    rkyv::rancor::Error,
-                >,
-            >,
+        T: Writable + Readable,
     {
         let offset = self.shared.items.lock().len() as u64;
         let item = builder(offset);
-        let bytes = rkyv::to_bytes(&item).map_err(|_| StorageError::IoError)?;
+        let bytes = item.to_writer(AlignedVec::new())?;
         self.shared.items.lock().push(bytes);
         self.readonly().fetch(offset)
     }

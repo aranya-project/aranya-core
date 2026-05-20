@@ -14,7 +14,7 @@ use super::error::Error;
 use crate::{
     GraphId, Location, MaxCut, SegmentIndex, StorageError,
     linear::{
-        Readable,
+        Readable, Writable,
         io::{IoManager, Read, Write},
         libc::IdPath,
     },
@@ -197,7 +197,7 @@ impl Writer {
 
         // Write other side if needed (corrupted or outdated)
         if let Some(offset) = overwrite {
-            file.dump(offset, &root)?;
+            file.dump_root(offset, &root)?;
         }
 
         Ok(Self { file, root })
@@ -240,14 +240,7 @@ impl Write for Writer {
     fn append<F, T>(&mut self, builder: F) -> Result<Handle<T>, StorageError>
     where
         F: FnOnce(u64) -> T,
-        T: Readable
-            + for<'a> Serialize<
-                rkyv::api::high::HighSerializer<
-                    rkyv::util::AlignedVec,
-                    rkyv::ser::allocator::ArenaHandle<'a>,
-                    rkyv::rancor::Error,
-                >,
-            >,
+        T: Writable + Readable,
     {
         let offset = self.root.free_offset;
         let offset_u64 = u64::try_from(offset).assume("free_offset can be converted to u64")?;
@@ -404,15 +397,9 @@ impl File {
 
     fn dump<T>(&self, offset: i64, value: &T) -> Result<i64, StorageError>
     where
-        T: for<'a> Serialize<
-            rkyv::api::high::HighSerializer<
-                rkyv::util::AlignedVec,
-                rkyv::ser::allocator::ArenaHandle<'a>,
-                rkyv::rancor::Error,
-            >,
-        >,
+        T: Writable,
     {
-        let bytes = rkyv::to_bytes(value).map_err(|err| {
+        let bytes = value.to_bytes().map_err(|err| {
             error!(?err, "dump");
             StorageError::IoError
         })?;
