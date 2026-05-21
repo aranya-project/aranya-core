@@ -79,10 +79,10 @@ impl io::Write for Writer {
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
     where
-        F: FnOnce(usize) -> T,
+        F: FnOnce(u64) -> T,
         T: serde::Serialize,
     {
-        let offset = self.shared.items.lock().len();
+        let offset = self.shared.items.lock().len() as u64;
         let item = builder(offset);
         let bytes = postcard::to_allocvec(&item)
             .map_err(|_| StorageError::IoError)?
@@ -98,16 +98,17 @@ impl io::Write for Writer {
 }
 
 impl io::Read for Reader {
-    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
+    fn fetch<T>(&self, offset: u64) -> Result<T, StorageError>
     where
         T: serde::de::DeserializeOwned,
     {
         let items = self.shared.items.lock();
-        let bytes = items
-            .get(offset)
+        let bytes = usize::try_from(offset)
+            .ok()
+            .and_then(|offset| items.get(offset))
             .ok_or(StorageError::SegmentOutOfBounds(Location::new(
-                SegmentIndex(offset),
-                MaxCut(usize::MAX), // Not right but this is just for testing...
+                SegmentIndex::new(offset),
+                MaxCut::new(u64::MAX), // Not right but this is just for testing...
             )))?;
         postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
     }

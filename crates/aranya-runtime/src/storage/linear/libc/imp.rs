@@ -237,7 +237,7 @@ impl Write for Writer {
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
     where
-        F: FnOnce(usize) -> T,
+        F: FnOnce(u64) -> T,
         T: Serialize,
     {
         let offset = self.root.free_offset;
@@ -245,7 +245,7 @@ impl Write for Writer {
         let item = builder(
             offset
                 .try_into()
-                .assume("`free_offset` can be converted to `usize`")?,
+                .assume("`free_offset` can be converted to `u64`")?,
         );
         let new_offset = self.file.dump(offset, &item)?;
 
@@ -280,7 +280,7 @@ impl Root {
     fn new() -> Self {
         Self {
             generation: 0,
-            head: Location::new(SegmentIndex(usize::MAX), MaxCut(usize::MAX)),
+            head: Location::new(SegmentIndex::new(u64::MAX), MaxCut::new(u64::MAX)),
             free_offset: FREE_START,
             checksum: 0,
         }
@@ -289,8 +289,8 @@ impl Root {
     fn calc_checksum(&self) -> u64 {
         let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
-        hasher.write_u64(self.head.segment.0 as u64);
-        hasher.write_u64(self.head.max_cut.0 as u64);
+        hasher.write_u64(self.head.segment.get());
+        hasher.write_u64(self.head.max_cut.get());
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }
@@ -311,7 +311,7 @@ pub struct Reader {
 }
 
 impl Read for Reader {
-    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
+    fn fetch<T>(&self, offset: u64) -> Result<T, StorageError>
     where
         T: DeserializeOwned,
     {
