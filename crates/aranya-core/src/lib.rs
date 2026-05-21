@@ -28,8 +28,8 @@ pub mod id;
 pub use aranya_policy_ifgen as ifgen;
 #[doc(inline)]
 pub use aranya_runtime::{
-    Address, BraidBuffer, ClientError, ClientState, CmdId, Command, GraphId, RuntimeBuffers,
-    Session, Sink, Transaction, TraversalBuffer, TraversalBuffers,
+    Address, ClientError, ClientState, CmdId, Command, GraphId, RuntimeBuffers, Session, Sink,
+    Transaction, TraversalBuffer, TraversalBuffers,
 };
 
 pub mod storage {

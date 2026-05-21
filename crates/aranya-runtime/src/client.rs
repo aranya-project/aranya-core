@@ -15,7 +15,8 @@ pub(crate) mod convergence_map; // exposed for `buffers.rs` (ConvergenceStorage)
 mod session;
 mod transaction;
 
-pub use buffers::{BraidBuffer, RuntimeBuffers};
+pub(crate) use buffers::BraidBuffer;
+pub use buffers::RuntimeBuffers;
 
 pub use self::{session::Session, transaction::Transaction};
 

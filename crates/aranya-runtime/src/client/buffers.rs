@@ -15,13 +15,13 @@ use crate::{
 ///
 /// Generic over the [`Segment`] type because the strand-heap cache
 /// stores segments inline.
-pub struct BraidBuffer<S> {
+pub(crate) struct BraidBuffer<S> {
     pub strands: StrandHeap<S>,
     pub convergence: ConvergenceStorage,
 }
 
 impl<S: Segment> BraidBuffer<S> {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             strands: StrandHeap::new(),
             convergence: ConvergenceStorage::new(),
@@ -50,7 +50,7 @@ impl<S: Segment> Default for BraidBuffer<S> {
 /// Construct once per long-lived component and reuse across calls.
 pub struct RuntimeBuffers<S> {
     pub traversal: TraversalBuffers,
-    pub braid: BraidBuffer<S>,
+    pub(crate) braid: BraidBuffer<S>,
 }
 
 impl<S: Segment> RuntimeBuffers<S> {
