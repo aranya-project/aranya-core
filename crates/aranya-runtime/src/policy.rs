@@ -36,10 +36,12 @@ impl From<core::convert::Infallible> for PolicyError {
 }
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PolicyId(usize);
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct PolicyId(u64);
 
 impl PolicyId {
-    pub fn new(id: usize) -> Self {
+    pub fn new(id: u64) -> Self {
         Self(id)
     }
 }

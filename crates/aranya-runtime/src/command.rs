@@ -51,7 +51,7 @@ pub trait Command {
     /// Return this command's max cut. Max cut is the maximum distance to the init command.
     fn max_cut(&self) -> Result<MaxCut, Bug> {
         match self.parent() {
-            Prior::None => Ok(MaxCut(0)),
+            Prior::None => Ok(MaxCut::new(0)),
             Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
             Prior::Merge(l, r) => Ok(l
                 .max_cut
@@ -115,7 +115,7 @@ impl Prior<Address> {
     /// Returns the max cut for the command that is after this prior.
     pub fn next_max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(match self {
-            Self::None => MaxCut(1),
+            Self::None => MaxCut::new(1),
             Self::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
             Self::Merge(l, r) => l
                 .max_cut

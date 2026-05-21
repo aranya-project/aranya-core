@@ -146,7 +146,7 @@ impl<'a, F: Spill> BraidIter<'a, F> {
         self.disk_buf
             .resize(
                 count,
-                Location::new(crate::SegmentIndex(0), crate::MaxCut(0)),
+                Location::new(crate::SegmentIndex::new(0), crate::MaxCut::new(0)),
             )
             .map_err(|()| ClientError::from(StorageError::Bug(Bug::new("disk buf overflow"))))?;
         self.file
@@ -502,7 +502,7 @@ mod braid_result_tests {
     type TestBraidResult = BraidResult<MemSpill>;
 
     fn loc(seg: usize, cut: usize) -> Location {
-        Location::new(SegmentIndex(seg), MaxCut(cut))
+        Location::new(SegmentIndex::new(seg as u64), MaxCut::new(cut as u64))
     }
 
     #[test]
