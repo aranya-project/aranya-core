@@ -7,4 +7,4 @@ error: invalid statement
 1 |   function foo(x int) int {
 2 | /     publish Bar{}
 3 | | }
-  | |_^ statement doesn't make sense in pure function context
+  | |_^ statement not allowed in pure function context

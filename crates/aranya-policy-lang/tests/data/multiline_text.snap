@@ -1,0 +1,26 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [
+        GlobalLetStatement {
+            identifier: "x" @ 4..5,
+            expression: String(
+                "foo\n    bar",
+            ) @ 8..21,
+            span: 0..22,
+        },
+    ],
+    text: "let x = \"foo\n    bar\"\n",
+}

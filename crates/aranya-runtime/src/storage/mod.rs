@@ -292,8 +292,9 @@ aranya_crypto::custom_id! {
 }
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct SegmentIndex(pub usize);
+pub struct SegmentIndex(u64);
 
 impl fmt::Display for SegmentIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -301,9 +302,20 @@ impl fmt::Display for SegmentIndex {
     }
 }
 
+impl SegmentIndex {
+    pub fn new(val: u64) -> Self {
+        Self(val)
+    }
+
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
+
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct MaxCut(pub usize);
+pub struct MaxCut(u64);
 
 impl fmt::Display for MaxCut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -312,22 +324,30 @@ impl fmt::Display for MaxCut {
 }
 
 impl MaxCut {
+    pub fn new(val: u64) -> Self {
+        Self(val)
+    }
+
+    pub fn get(self) -> u64 {
+        self.0
+    }
+
     /// Adds an amount to the max cut, returning `None` on overflow.
     #[must_use]
-    pub fn checked_add(self, other: usize) -> Option<Self> {
-        self.0.checked_add(other).map(Self)
+    pub fn checked_add(self, other: u64) -> Option<Self> {
+        self.get().checked_add(other).map(Self::new)
     }
 
     /// Gets a max cut one lower than this, returning `None` on overflow.
     #[must_use]
     pub fn decremented(self) -> Option<Self> {
-        self.0.checked_sub(1).map(Self)
+        self.get().checked_sub(1).map(Self::new)
     }
 
     /// Gets the distance between two max cuts, returning `None` on overflow.
     #[must_use]
-    pub fn distance_from(self, other: Self) -> Option<usize> {
-        self.0.checked_sub(other.0)
+    pub fn distance_from(self, other: Self) -> Option<u64> {
+        self.get().checked_sub(other.get())
     }
 }
 
@@ -363,6 +383,29 @@ impl Location {
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.segment, self.max_cut)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LocatedAddress {
+    pub id: CmdId,
+    pub segment: SegmentIndex,
+    pub max_cut: MaxCut,
+}
+
+impl LocatedAddress {
+    pub fn address(self) -> Address {
+        Address {
+            id: self.id,
+            max_cut: self.max_cut,
+        }
+    }
+
+    pub fn location(self) -> Location {
+        Location {
+            segment: self.segment,
+            max_cut: self.max_cut,
+        }
     }
 }
 
@@ -565,32 +608,19 @@ pub trait Storage {
         fact_perspective: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError>;
 
-    /// Determine whether the given location is an ancestor of the given segment.
+    /// Determine whether the given location is an ancestor of the given location.
     fn is_ancestor(
         &self,
         search_location: Location,
-        segment: &Self::Segment,
+        start_location: Location,
         buffer: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
-        let queue = buffer.get();
-
-        // Try to use skip list to jump directly backward.
-        // Skip list is sorted by max_cut ascending, so first valid skip
-        // jumps as far back as possible.
-        if let Some(&skip) = segment
-            .skip_list()
-            .iter()
-            .find(|skip| skip.max_cut >= search_location.max_cut)
-        {
-            queue.push(skip)?;
-        } else {
-            // No valid skip - add prior locations to queue
-            for prior in segment.prior() {
-                if prior.max_cut >= search_location.max_cut {
-                    queue.push(prior)?;
-                }
-            }
+        if search_location.max_cut > start_location.max_cut || search_location == start_location {
+            return Ok(false);
         }
+
+        let queue = buffer.get();
+        queue.push(start_location)?;
 
         while let Some(loc) = queue.pop()? {
             debug_assert!(
@@ -944,7 +974,7 @@ mod queue_tests {
     use super::*;
 
     fn loc(seg: usize, mc: usize) -> Location {
-        Location::new(SegmentIndex(seg), MaxCut(mc))
+        Location::new(SegmentIndex::new(seg as u64), MaxCut::new(mc as u64))
     }
 
     #[test]
@@ -1002,7 +1032,7 @@ mod queue_tests {
         queue.push(loc(0, 5)).unwrap();
         queue.push(loc(0, 8)).unwrap();
         let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(queue.is_empty());
     }
 
@@ -1013,7 +1043,7 @@ mod queue_tests {
         // Higher max_cut uncovered: segment head moved beyond covered point.
         queue.push_covered(loc(0, 8), false).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
     }
 
@@ -1024,7 +1054,7 @@ mod queue_tests {
         // Lower max_cut should not change anything.
         queue.push_covered(loc(0, 3), true).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
     }
 
@@ -1034,7 +1064,7 @@ mod queue_tests {
         queue.push_covered(loc(0, 5), true).unwrap();
         // pop() should return only the location.
         let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(5));
+        assert_eq!(l.max_cut, MaxCut::new(5));
         assert!(queue.is_empty());
     }
 
@@ -1058,19 +1088,19 @@ mod queue_tests {
 
         let mut result: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
-            .drain_above(MaxCut(4), |loc| {
+            .drain_above(MaxCut::new(4), |loc| {
                 let _ = result.push(loc);
             })
             .unwrap();
 
         // Entries with max_cut > 4 should be drained.
         assert_eq!(result.len(), 2);
-        assert!(result.iter().any(|l| l.max_cut == MaxCut(7)));
-        assert!(result.iter().any(|l| l.max_cut == MaxCut(5)));
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(7)));
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(5)));
 
         // Only max_cut=3 should remain in the queue.
         let remaining = queue.pop().unwrap().unwrap();
-        assert_eq!(remaining.max_cut, MaxCut(3));
+        assert_eq!(remaining.max_cut, MaxCut::new(3));
         assert!(queue.is_empty());
     }
 
@@ -1086,15 +1116,15 @@ mod queue_tests {
 
         let mut drained: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
-            .drain_above(MaxCut(4), |loc| {
+            .drain_above(MaxCut::new(4), |loc| {
                 let _ = drained.push(loc);
             })
             .unwrap();
 
         // Only uncovered entries above threshold should be passed to f.
         assert_eq!(drained.len(), 2);
-        assert!(drained.iter().any(|l| l.segment == SegmentIndex(1)));
-        assert!(drained.iter().any(|l| l.segment == SegmentIndex(4)));
+        assert!(drained.iter().any(|l| l.segment.get() == 1));
+        assert!(drained.iter().any(|l| l.segment.get() == 4));
 
         // Covered entry above threshold (seg=2) should be discarded.
         // Entries below threshold should remain: seg=0 (uncovered), seg=3 (covered).
@@ -1103,7 +1133,7 @@ mod queue_tests {
             remaining.push((l.segment, covered));
         }
         assert_eq!(remaining.len(), 2);
-        assert!(remaining.contains(&(SegmentIndex(0), false)));
-        assert!(remaining.contains(&(SegmentIndex(3), true)));
+        assert!(remaining.contains(&(SegmentIndex::new(0), false)));
+        assert!(remaining.contains(&(SegmentIndex::new(3), true)));
     }
 }

@@ -330,7 +330,12 @@ where
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
             let mut response_syncer = SyncResponder::new();
-            response_syncer.start_session(session_id, graph_id, 0, response_cache.heads())?;
+            response_syncer.start_session(
+                session_id,
+                graph_id,
+                0,
+                response_cache.heads().iter().map(|h| h.address()),
+            )?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_syncer.push(

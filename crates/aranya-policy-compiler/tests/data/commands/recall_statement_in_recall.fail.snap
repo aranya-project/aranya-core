@@ -1,0 +1,21 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid statement
+   |
+ 1 | command Cmd {
+ 2 |     fields {}
+ 3 |     seal { return todo() }
+ 4 |     open { return todo() }
+ 5 |     policy {
+ 6 |         finish {}
+ 7 |     }
+ 8 |     recall handle() {
+ 9 |         recall other()
+   |         ^^^^^^^^^^^^^^ statement not allowed in command recall block context
+10 |     }
+11 |     recall other() {
+12 |     }
+13 | }
+   |

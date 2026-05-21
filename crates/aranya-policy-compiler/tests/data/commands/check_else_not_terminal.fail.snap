@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: int
+  |
+6 |         check true else 0
+  |                         ^ expected `check else must be terminal (e.g. `return`, `recall`)` but found `int`

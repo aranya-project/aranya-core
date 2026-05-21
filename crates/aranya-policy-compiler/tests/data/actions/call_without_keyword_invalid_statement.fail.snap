@@ -6,6 +6,6 @@ error: invalid statement
   |
 2 | action foo() {
 3 |     bar()
-  |     ^^^^^ statement doesn't make sense in action context
+  |     ^^^^^ statement not allowed in action context
 4 | }
   |

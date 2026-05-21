@@ -1,0 +1,13 @@
+command Cmd {
+    fields { x int }
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        if this.x < 0 {
+            recall handle(this.x)
+        }
+        finish {}
+    }
+    recall handle(x int) {
+    }
+}
