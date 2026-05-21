@@ -1617,6 +1617,42 @@ fn test_coalesce_or() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_nested_optionals() -> anyhow::Result<()> {
+    // One check per action so a failure points at the specific case.
+    let checks = [
+        "Some(None) != None",
+        "Some(None) == Some(None)",
+        "Some(None) is Some",
+        "Some(Some(5)) is Some",
+        "Some(Some(5)) == Some(Some(5))",
+        "Some(Some(5)) != Some(Some(1))",
+        "(unwrap Some(None)) is None",
+        "(unwrap Some(Some(5))) == Some(5)",
+        "(unwrap unwrap Some(Some(5))) == 5",
+    ];
+
+    let actions = checks
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("action c{i}() {{ check {c} }}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let machine = compile(&actions);
+
+    for (i, c) in checks.iter().enumerate() {
+        let mut io = TestIO::new();
+        let name: Identifier = format!("c{i}").try_into().expect("valid ident");
+        let ctx = dummy_ctx_action(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let exit = rs
+            .call_action(name, iter::empty::<Value>())
+            .unwrap_or_else(|e| panic!("check {i} `{c}` errored: {e}"));
+        assert_eq!(exit, ExitReason::Normal, "check {i} `{c}` failed: {exit:?}");
+    }
+    Ok(())
+}
+
+#[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let text = r#"
         struct Envelope {
