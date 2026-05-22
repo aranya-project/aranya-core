@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.14.1...aranya-policy-lang-v0.15.0) - 2026-05-19
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.14.1...aranya-policy-lang-v0.15.0) - 2026-05-22
 
 ### Other
 

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.14.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.14.0...aranya-crypto-v0.14.1) - 2026-05-19
+## [0.14.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.14.0...aranya-crypto-v0.14.1) - 2026-05-22
 
 ### Other
 

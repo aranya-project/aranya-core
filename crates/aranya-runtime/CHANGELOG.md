@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.22.0...aranya-runtime-v0.23.0) - 2026-05-19
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.22.0...aranya-runtime-v0.23.0) - 2026-05-22
 
 ### Other
 
-- Merge branch 'main' into simplify-ancestor
+- Braid convergence ([#653](https://github.com/aranya-project/aranya-core/pull/653))
+- make error enums nonexhaustive ([#689](https://github.com/aranya-project/aranya-core/pull/689))
+- breaking changes for rkyv support with u64 ([#688](https://github.com/aranya-project/aranya-core/pull/688))
+- simplify ancestor checks and improve peer cache ([#594](https://github.com/aranya-project/aranya-core/pull/594))
 - 641 multiple recalls ([#642](https://github.com/aranya-project/aranya-core/pull/642))
 - hide wire format ([#675](https://github.com/aranya-project/aranya-core/pull/675))
 - add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
