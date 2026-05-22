@@ -6,11 +6,10 @@
 //! [`Perspective`]s, which represent a slice of state.
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref};
+use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize};
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use rkyv::rend::u64_le;
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
@@ -385,16 +384,23 @@ aranya_crypto::custom_id! {
     Eq,
     PartialOrd,
     Ord,
-    Serialize,
-    Deserialize,
-    IntoBytes,
-    FromBytes,
-    Immutable,
-    KnownLayout,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
 )]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
 #[serde(transparent)]
 #[repr(transparent)]
-pub struct SegmentIndex(u64);
+pub struct SegmentIndex(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for SegmentIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -404,11 +410,11 @@ impl fmt::Display for SegmentIndex {
 
 impl SegmentIndex {
     pub const fn new(val: u64) -> Self {
-        Self(val)
+        Self(u64_le::from_native(val))
     }
 
     pub const fn get(self) -> u64 {
-        self.0
+        self.0.to_native()
     }
 }
 
@@ -421,16 +427,23 @@ impl SegmentIndex {
     Eq,
     PartialOrd,
     Ord,
-    Serialize,
-    Deserialize,
-    IntoBytes,
-    FromBytes,
-    Immutable,
-    KnownLayout,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
 )]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
 #[serde(transparent)]
 #[repr(transparent)]
-pub struct MaxCut(u64);
+pub struct MaxCut(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for MaxCut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -440,11 +453,11 @@ impl fmt::Display for MaxCut {
 
 impl MaxCut {
     pub const fn new(val: u64) -> Self {
-        Self(val)
+        Self(u64_le::from_native(val))
     }
 
     pub const fn get(self) -> u64 {
-        self.0
+        self.0.to_native()
     }
 
     /// Adds an amount to the max cut, returning `None` on overflow.
@@ -475,13 +488,20 @@ impl MaxCut {
     Eq,
     PartialOrd,
     Ord,
-    Serialize,
-    Deserialize,
-    IntoBytes,
-    FromBytes,
-    Immutable,
-    KnownLayout,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
 )]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
 #[repr(C)]
 pub struct Location {
     pub max_cut: MaxCut,
@@ -933,7 +953,7 @@ pub trait Revertable {
     fn checkpoint(&self) -> Checkpoint;
 
     /// Revert the perspective to the state it was at when the checkpoint was created.
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug>;
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError>;
 }
 
 /// A checkpoint used to revert perspectives.
@@ -950,7 +970,7 @@ pub struct Checkpoint {
 /// `(k_1, k_2, ..., k_n)`, where each `k` is a sequence of bytes. The fact value is also a sequence of bytes.
 pub trait Query {
     /// Look up a named fact by an exact match of the compound key.
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError>;
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError>;
 
     /// Iterator for [`Query::query_prefix`].
     type QueryIterator: Iterator<Item = Result<Fact, StorageError>>;
@@ -962,7 +982,7 @@ pub trait Query {
     fn query_prefix(
         &self,
         name: &str,
-        prefix: &[Box<[u8]>],
+        prefix: &[Bytes],
     ) -> Result<Self::QueryIterator, StorageError>;
 }
 
@@ -972,7 +992,7 @@ pub struct Fact {
     /// The sequence of keys.
     pub key: Keys,
     /// The bytes of the value.
-    pub value: Box<[u8]>,
+    pub value: Bytes,
 }
 
 /// Can mutate facts by inserting and deleting them.
@@ -982,10 +1002,10 @@ pub trait QueryMut: Query {
     /// Insert a fact labeled by a name, with a given compound key and a value.
     ///
     /// This fact can later be looked up by [`Query`] methods, using the name and keys.
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>);
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError>;
 
     /// Delete any fact associated to the compound key, under the given name.
-    fn delete(&mut self, name: String, keys: Keys);
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
 }
 
 // TODO(jdygert): Expose this?
@@ -998,25 +1018,42 @@ pub(crate) trait FactIndexExtra {
 }
 
 /// A sequence of byte-based keys, used for facts.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Keys(Box<[Box<[u8]>]>);
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+pub struct Keys(Box<[Bytes]>);
 
 impl Deref for Keys {
-    type Target = [Box<[u8]>];
-    fn deref(&self) -> &[Box<[u8]>] {
+    type Target = [Bytes];
+    fn deref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl AsRef<[Box<[u8]>]> for Keys {
-    fn as_ref(&self) -> &[Box<[u8]>] {
+impl AsRef<[Bytes]> for Keys {
+    fn as_ref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl core::borrow::Borrow<[Box<[u8]>]> for Keys {
-    fn borrow(&self) -> &[Box<[u8]>] {
+impl Borrow<[Bytes]> for Keys {
+    fn borrow(&self) -> &[Bytes] {
         self.0.as_ref()
+    }
+}
+
+impl From<Vec<Bytes>> for Keys {
+    fn from(value: Vec<Bytes>) -> Self {
+        Self(value.into_boxed_slice())
     }
 }
 
@@ -1026,17 +1063,27 @@ impl From<&[&[u8]]> for Keys {
     }
 }
 
-impl Keys {
-    fn starts_with(&self, prefix: &[Box<[u8]>]) -> bool {
-        self.as_ref().starts_with(prefix)
-    }
-}
-
-impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
+impl<B: Into<Bytes>> FromIterator<B> for Keys {
     fn from_iter<T: IntoIterator<Item = B>>(iter: T) -> Self {
         Self(iter.into_iter().map(Into::into).collect())
     }
 }
+
+impl<'a> IntoIterator for &'a Keys {
+    type Item = &'a Bytes;
+    type IntoIter = core::slice::Iter<'a, Bytes>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl ArchivedKeys {
+    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.0.iter().map(AsRef::as_ref)
+    }
+}
+
+pub type Bytes = Box<[u8]>;
 
 mod impls {
     use alloc::boxed::Box;

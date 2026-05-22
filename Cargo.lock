@@ -583,20 +583,23 @@ dependencies = [
  "aranya-policy-vm",
  "aranya-runtime",
  "buggy",
+ "criterion",
  "dot-writer",
  "heapless",
  "postcard",
  "proptest",
+ "rend",
+ "rkyv",
  "serde",
  "serde_json",
  "spideroak-base58",
  "spin",
+ "stable_deref_trait",
  "tempfile",
  "test-log",
  "thiserror 2.0.7",
  "tracing",
  "tracing-subscriber",
- "vec1",
  "yoke",
  "zerocopy 0.8.25",
 ]
@@ -2061,6 +2064,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a35e8a6bf28cd121053a66aa2e6a2e3eaffad4a60012179f0e864aa5ffeff215"
 dependencies = [
  "bytecheck",
+ "zerocopy 0.8.25",
+ "zerocopy-derive 0.8.25",
 ]
 
 [[package]]
@@ -2864,15 +2869,6 @@ name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
-
-[[package]]
-name = "vec1"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eab68b56840f69efb0fefbe3ab6661499217ffdc58e2eef7c3f6f69835386322"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "version_check"

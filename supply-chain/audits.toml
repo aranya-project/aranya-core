@@ -118,6 +118,11 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.8.13 -> 0.8.16"
 
+[[audits.rkyv_impl]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.2.2"
+
 [[audits.rstest]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"

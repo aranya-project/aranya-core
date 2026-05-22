@@ -23,22 +23,25 @@
 //! means.
 
 pub mod libc;
+mod triemap;
 
 #[cfg(feature = "testing")]
 pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
-use core::ops::Bound;
 
 use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
-use serde::{Deserialize, Serialize};
-use vec1::Vec1;
+use rkyv::{
+    Archive, Archived, Deserialize, Serialize, option::ArchivedOption, tuple::ArchivedTuple3,
+};
 
+use self::triemap::TrieMap;
 use crate::{
-    Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    Address, Bytes, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys,
+    Location, MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
     SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer,
+    util::{DeserInfallible as _, NonEmpty},
 };
 
 pub mod io;
@@ -67,12 +70,12 @@ pub struct LinearStorage<W> {
 }
 
 #[derive(Debug)]
-pub struct LinearSegment<R> {
-    repr: SegmentRepr,
+pub struct LinearSegment<R: Read> {
+    repr: R::Handle<SegmentRepr>,
     reader: R,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Archive, Serialize)]
 struct SegmentRepr {
     /// Self offset in file.
     offset: SegmentIndex,
@@ -81,12 +84,12 @@ struct SegmentRepr {
     policy: PolicyId,
     /// Offset in file to associated fact index.
     facts: u64,
-    commands: Vec1<CommandData>,
+    commands: NonEmpty<CommandData>,
     max_cut: MaxCut,
     skip_list: Vec<Location>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Archive, Serialize)]
 struct CommandData {
     id: CmdId,
     priority: Priority,
@@ -104,19 +107,16 @@ pub struct LinearCommand<'a> {
     max_cut: MaxCut,
 }
 
-type Bytes = Box<[u8]>;
-
 type Update = (String, Keys, Option<Bytes>);
-type FactMap = BTreeMap<Keys, Option<Box<[u8]>>>;
-type NamedFactMap = BTreeMap<String, FactMap>;
+type NamedFactMap = BTreeMap<String, TrieMap>;
 
 #[derive(Debug)]
-pub struct LinearFactIndex<R> {
-    repr: FactIndexRepr,
+pub struct LinearFactIndex<R: Read> {
+    repr: R::Handle<FactIndexRepr>,
     reader: R,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Archive, Serialize, Deserialize)]
 struct FactIndexRepr {
     /// Self offset in file.
     offset: u64,
@@ -166,7 +166,7 @@ impl<R> LinearPerspective<R> {
 
 #[derive(Debug)]
 pub struct LinearFactPerspective<R> {
-    map: BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>,
+    map: NamedFactMap,
     prior: FactPerspectivePrior<R>,
 }
 
@@ -294,11 +294,9 @@ impl<W: Write> LinearStorage<W> {
             }
             // Assumes skip list is sorted in ascending order.
             // We always want to skip as close to the root as possible.
-            for skip in head.skip_list() {
-                if skip.max_cut <= max_cut {
-                    head = self.get_segment(*skip)?;
-                    continue 'outer;
-                }
+            if let Some(&skip) = head.skip_list().iter().find(|skip| skip.max_cut <= max_cut) {
+                head = self.get_segment(skip)?;
+                continue 'outer;
             }
             head = match head.prior() {
                 Prior::None | Prior::Merge(_, _) => {
@@ -326,7 +324,8 @@ impl<W: Write> LinearStorage<W> {
                 depth: 1,
                 facts: map,
             })?
-            .offset;
+            .offset
+            .to_native();
 
         let commands = init
             .commands
@@ -347,13 +346,7 @@ impl<W: Write> LinearStorage<W> {
             segment.offset,
             segment
                 .max_cut
-                .checked_add(
-                    segment
-                        .commands
-                        .len()
-                        .checked_sub(1)
-                        .assume("vec1 length >= 1")? as u64,
-                )
+                .checked_add(segment.commands.last_index() as u64)
                 .assume("valid max cut")?,
         );
 
@@ -368,23 +361,28 @@ impl<W: Write> LinearStorage<W> {
         Ok(Self { writer })
     }
 
-    fn compact(&mut self, mut repr: FactIndexRepr) -> Result<FactIndexRepr, StorageError> {
+    fn compact(
+        &mut self,
+        mut repr: <W::ReadOnly as Read>::Handle<FactIndexRepr>,
+    ) -> Result<<W::ReadOnly as Read>::Handle<FactIndexRepr>, StorageError> {
         let mut map = NamedFactMap::new();
         let reader = self.writer.readonly();
         loop {
-            for (name, kv) in repr.facts {
-                let sub = map.entry(name).or_default();
+            for (name, kv) in repr.facts.iter() {
+                let sub = map.entry(name.as_str().into()).or_default();
                 for (k, v) in kv {
-                    sub.entry(k).or_insert(v);
+                    sub.try_insert_with(k, || v.map(Bytes::from))?;
                 }
             }
-            let Some(offset) = repr.prior else { break };
+            let Some(offset) = repr.prior.deser_infallible() else {
+                break;
+            };
             repr = reader.fetch(offset)?;
         }
 
         // Since there's no prior, we can remove tombstones
         map.retain(|_, kv| {
-            kv.retain(|_, v| v.is_some());
+            kv.prune();
             !kv.is_empty()
         });
 
@@ -408,23 +406,22 @@ impl<F: Write> Storage for LinearStorage<F> {
         let command = segment
             .get_command(parent)
             .ok_or(StorageError::CommandOutOfBounds(parent))?;
-        let policy = segment.repr.policy;
         let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location()? {
             FactPerspectivePrior::FactIndex {
-                offset: segment.repr.facts,
+                offset: segment.repr.facts.to_native(),
                 reader: self.writer.readonly(),
             }
         } else {
             let prior = match segment.facts()?.repr.prior {
-                Some(offset) => FactPerspectivePrior::FactIndex {
-                    offset,
+                ArchivedOption::Some(offset) => FactPerspectivePrior::FactIndex {
+                    offset: offset.to_native(),
                     reader: self.writer.readonly(),
                 },
-                None => FactPerspectivePrior::None,
+                ArchivedOption::None => FactPerspectivePrior::None,
             };
             let mut facts = LinearFactPerspective::new(prior);
             for data in &segment.repr.commands[..=segment.repr.cmd_index(parent.max_cut)?] {
-                facts.apply_updates(&data.updates);
+                facts.apply_archived_updates(&data.updates)?;
             }
             if facts.prior.is_none() {
                 facts.map.retain(|_, kv| !kv.is_empty());
@@ -440,7 +437,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         let perspective = LinearPerspective::new(
             prior,
             Prior::Single(command.address()?),
-            policy,
+            segment.repr.policy,
             prior_facts,
             command
                 .max_cut()?
@@ -469,22 +466,22 @@ impl<F: Write> Storage for LinearStorage<F> {
         {
             return Ok(LinearFactPerspective::new(
                 FactPerspectivePrior::FactIndex {
-                    offset: segment.repr.facts,
+                    offset: segment.repr.facts.to_native(),
                     reader: self.writer.readonly(),
                 },
             ));
         }
 
         let prior = match segment.facts()?.repr.prior {
-            Some(offset) => FactPerspectivePrior::FactIndex {
-                offset,
+            ArchivedOption::Some(offset) => FactPerspectivePrior::FactIndex {
+                offset: offset.to_native(),
                 reader: self.writer.readonly(),
             },
-            None => FactPerspectivePrior::None,
+            ArchivedOption::None => FactPerspectivePrior::None,
         };
         let mut facts = LinearFactPerspective::new(prior);
         for data in &segment.repr.commands[..=segment.repr.cmd_index(location.max_cut)?] {
-            facts.apply_updates(&data.updates);
+            facts.apply_archived_updates(&data.updates)?;
         }
 
         Ok(facts)
@@ -522,7 +519,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             parent,
             policy_id,
             FactPerspectivePrior::FactIndex {
-                offset: braid.repr.offset,
+                offset: braid.repr.offset.to_native(),
                 reader: braid.reader,
             },
             left_command
@@ -565,9 +562,9 @@ impl<F: Write> Storage for LinearStorage<F> {
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {
         // TODO(jdygert): Validate prior?
 
-        let facts = self.write_facts(perspective.facts)?.repr.offset;
+        let facts = self.write_facts(perspective.facts)?.repr.offset.to_native();
 
-        let commands: Vec1<CommandData> = perspective
+        let commands: NonEmpty<CommandData> = perspective
             .commands
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
@@ -653,7 +650,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             if p.depth > MAX_FACT_INDEX_DEPTH - 1 {
                 p = self.compact(p)?;
             }
-            prior.insert(p).depth
+            prior.insert(p).depth.to_native()
         } else {
             0
         };
@@ -666,7 +663,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
         let repr = self.writer.append(|offset| FactIndexRepr {
             offset,
-            prior: prior.map(|p| p.offset),
+            prior: prior.map(|p| p.offset.to_native()),
             depth,
             facts: facts.map,
         })?;
@@ -726,7 +723,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         Some(LinearCommand {
             id: &data.id,
             parent,
-            priority: data.priority.clone(),
+            priority: data.priority.deser_infallible(),
             policy: data.policy.as_deref(),
             data: &data.data,
             max_cut: location.max_cut,
@@ -735,7 +732,7 @@ impl<R: Read> Segment for LinearSegment<R> {
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
         Ok(LinearFactIndex {
-            repr: self.reader.fetch(self.repr.facts)?,
+            repr: self.reader.fetch(self.repr.facts.to_native())?,
             reader: self.reader.clone(),
         })
     }
@@ -752,18 +749,12 @@ impl<R: Read> Segment for LinearSegment<R> {
         Ok(self
             .repr
             .max_cut
-            .checked_add(
-                self.repr
-                    .commands
-                    .len()
-                    .checked_sub(1)
-                    .assume("must not overflow")? as u64,
-            )
+            .checked_add(self.repr.commands.last_index() as u64)
             .assume("must not overflow")?)
     }
 }
 
-impl SegmentRepr {
+impl ArchivedSegmentRepr {
     fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
         max_cut
             .distance_from(self.max_cut)
@@ -787,6 +778,7 @@ impl<R: Read> crate::storage::FactIndexExtra for LinearFactIndex<R> {
     fn prior(&self) -> Result<Option<Self>, StorageError> {
         self.repr
             .prior
+            .deser_infallible()
             .map(|p| {
                 let repr = self.reader.fetch(p)?;
                 Ok(Self {
@@ -798,7 +790,7 @@ impl<R: Read> crate::storage::FactIndexExtra for LinearFactIndex<R> {
     }
 }
 
-type MapIter = alloc::collections::btree_map::IntoIter<Keys, Option<Bytes>>;
+type MapIter = <TrieMap as IntoIterator>::IntoIter;
 pub struct QueryIterator {
     it: MapIter,
 }
@@ -815,32 +807,43 @@ impl Iterator for QueryIterator {
         loop {
             // filter out tombstones
             if let (key, Some(value)) = self.it.next()? {
-                return Some(Ok(Fact { key, value }));
+                return Some(Ok(Fact {
+                    key: key.into(),
+                    value,
+                }));
             }
         }
     }
 }
 
+impl From<triemap::InvalidDepth> for StorageError {
+    fn from(error: triemap::InvalidDepth) -> Self {
+        tracing::error!(?error);
+        Self::IoError
+    }
+}
+
 impl<R: Read> Query for LinearFactIndex<R> {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
-            if let Some(v) = facts.facts.get(name).and_then(|m| m.get(keys)) {
-                return Ok(v.clone());
+            if let Some(m) = facts.facts.get(name)
+                && let Some(v) = m.get(keys.as_ref())?
+            {
+                return Ok(v.map(Bytes::from));
             }
-            slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
+            slot = match facts.prior {
+                ArchivedOption::None => None,
+                ArchivedOption::Some(offset) => Some(self.reader.fetch(offset.to_native())?),
+            };
             prior = slot.as_ref();
         }
         Ok(None)
     }
 
     type QueryIterator = QueryIterator;
-    fn query_prefix(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<QueryIterator, StorageError> {
+    fn query_prefix(&self, name: &str, prefix: &[Bytes]) -> Result<QueryIterator, StorageError> {
         Ok(QueryIterator::new(
             self.query_prefix_inner(name, prefix)?.into_iter(),
         ))
@@ -848,24 +851,21 @@ impl<R: Read> Query for LinearFactIndex<R> {
 }
 
 impl<R: Read> LinearFactIndex<R> {
-    fn query_prefix_inner(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<FactMap, StorageError> {
-        let mut matches = BTreeMap::new();
+    fn query_prefix_inner(&self, name: &str, prefix: &[Bytes]) -> Result<TrieMap, StorageError> {
+        let mut matches: TrieMap = TrieMap::new();
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(map) = facts.facts.get(name) {
-                for (k, v) in find_prefixes(map, prefix) {
+                for (k, v) in map.get_by_prefix(prefix.as_ref())? {
                     // don't override, if we've already found the fact (including deletions)
-                    if !matches.contains_key(k) {
-                        matches.insert(k.clone(), v.map(Into::into));
-                    }
+                    matches.try_insert_with(k.iter(), || v.map(Bytes::from))?;
                 }
             }
-            slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
+            slot = match facts.prior {
+                ArchivedOption::None => None,
+                ArchivedOption::Some(offset) => Some(self.reader.fetch(offset.to_native())?),
+            };
             prior = slot.as_ref();
         }
         Ok(matches)
@@ -877,41 +877,68 @@ impl<R> LinearFactPerspective<R> {
         self.map.clear();
     }
 
-    fn apply_updates(&mut self, updates: &[Update]) {
-        for (name, key, value) in updates {
+    fn apply_archived_updates(&mut self, updates: &[Archived<Update>]) -> Result<(), StorageError> {
+        for ArchivedTuple3(name, keys, value) in updates {
+            if self.prior.is_none() {
+                if let ArchivedOption::Some(value) = value {
+                    self.map
+                        .entry(name.deser_infallible())
+                        .or_default()
+                        .insert(keys.iter(), Some(value.as_ref().into()))?;
+                } else if let Some(e) = self.map.get_mut(name.as_str()) {
+                    e.remove(keys.iter());
+                }
+            } else {
+                let value = match value {
+                    ArchivedOption::None => None,
+                    ArchivedOption::Some(v) => Some(v.as_ref().into()),
+                };
+                self.map
+                    .entry(name.deser_infallible())
+                    .or_default()
+                    .insert(keys.iter(), value)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn apply_updates(&mut self, updates: &[Update]) -> Result<(), StorageError> {
+        for (name, keys, value) in updates {
             if self.prior.is_none() {
                 if let Some(value) = value {
                     self.map
                         .entry(name.clone())
                         .or_default()
-                        .insert(key.clone(), Some(value.clone()));
+                        .insert(keys, Some(value.clone()))?;
                 } else if let Some(e) = self.map.get_mut(name) {
-                    e.remove(key);
+                    e.remove(keys);
                 }
             } else {
                 self.map
                     .entry(name.clone())
                     .or_default()
-                    .insert(key.clone(), value.clone());
+                    .insert(keys, value.clone())?;
             }
         }
+        Ok(())
     }
 }
 
 impl<R: Read> FactPerspective for LinearFactPerspective<R> {}
 
 impl<R: Read> Query for LinearFactPerspective<R> {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
-        if let Some(wrapped) = self.map.get(name).and_then(|m| m.get(keys)) {
-            return Ok(wrapped.as_deref().map(Box::from));
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
+        if let Some(m) = self.map.get(name)
+            && let Some(wrapped) = m.get(keys.as_ref())?
+        {
+            return Ok(wrapped.map(Bytes::from));
         }
         match &self.prior {
             FactPerspectivePrior::None => Ok(None),
             FactPerspectivePrior::FactPerspective(prior) => prior.query(name, keys),
             FactPerspectivePrior::FactIndex { offset, reader } => {
-                let repr: FactIndexRepr = reader.fetch(*offset)?;
                 let prior = LinearFactIndex {
-                    repr,
+                    repr: reader.fetch(*offset)?,
                     reader: reader.clone(),
                 };
                 prior.query(name, keys)
@@ -920,11 +947,7 @@ impl<R: Read> Query for LinearFactPerspective<R> {
     }
 
     type QueryIterator = QueryIterator;
-    fn query_prefix(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<QueryIterator, StorageError> {
+    fn query_prefix(&self, name: &str, prefix: &[Bytes]) -> Result<QueryIterator, StorageError> {
         Ok(QueryIterator::new(
             self.query_prefix_inner(name, prefix)?.into_iter(),
         ))
@@ -932,29 +955,24 @@ impl<R: Read> Query for LinearFactPerspective<R> {
 }
 
 impl<R: Read> LinearFactPerspective<R> {
-    fn query_prefix_inner(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<FactMap, StorageError> {
+    fn query_prefix_inner(&self, name: &str, prefix: &[Bytes]) -> Result<TrieMap, StorageError> {
         let mut matches = match &self.prior {
-            FactPerspectivePrior::None => BTreeMap::new(),
+            FactPerspectivePrior::None => TrieMap::new(),
             FactPerspectivePrior::FactPerspective(prior) => {
                 prior.query_prefix_inner(name, prefix)?
             }
             FactPerspectivePrior::FactIndex { offset, reader } => {
-                let repr: FactIndexRepr = reader.fetch(*offset)?;
                 let prior = LinearFactIndex {
-                    repr,
+                    repr: reader.fetch(*offset)?,
                     reader: reader.clone(),
                 };
                 prior.query_prefix_inner(name, prefix)?
             }
         };
         if let Some(map) = self.map.get(name) {
-            for (k, v) in find_prefixes(map, prefix) {
+            for (k, v) in map.get_by_prefix(prefix.as_ref())? {
                 // overwrite "earlier" facts
-                matches.insert(k.clone(), v.map(Into::into));
+                matches.insert(k.iter(), v.map(Bytes::from))?;
             }
         }
         Ok(matches)
@@ -962,48 +980,55 @@ impl<R: Read> LinearFactPerspective<R> {
 }
 
 impl<R: Read> QueryMut for LinearFactPerspective<R> {
-    fn insert(&mut self, name: String, keys: Keys, value: Bytes) {
-        self.map.entry(name).or_default().insert(keys, Some(value));
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
+        self.map
+            .entry(name)
+            .or_default()
+            .insert(keys.as_ref(), Some(value))?;
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
         if self.prior.is_none() {
             // No need for tombstones with no prior.
             if let Some(kv) = self.map.get_mut(&name) {
                 kv.remove(&keys);
             }
         } else {
-            self.map.entry(name).or_default().insert(keys, None);
+            self.map
+                .entry(name)
+                .or_default()
+                .insert(keys.as_ref(), None)?;
         }
+        Ok(())
     }
 }
 
 impl<R: Read> FactPerspective for LinearPerspective<R> {}
 
 impl<R: Read> Query for LinearPerspective<R> {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
         self.facts.query(name, keys)
     }
 
     type QueryIterator = QueryIterator;
-    fn query_prefix(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<QueryIterator, StorageError> {
+    fn query_prefix(&self, name: &str, prefix: &[Bytes]) -> Result<QueryIterator, StorageError> {
         self.facts.query_prefix(name, prefix)
     }
 }
 
 impl<R: Read> QueryMut for LinearPerspective<R> {
-    fn insert(&mut self, name: String, keys: Keys, value: Bytes) {
-        self.facts.insert(name.clone(), keys.clone(), value.clone());
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
+        self.facts
+            .insert(name.clone(), keys.clone(), value.clone())?;
         self.current_updates.push((name, keys, Some(value)));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
-        self.facts.delete(name.clone(), keys.clone());
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
+        self.facts.delete(name.clone(), keys.clone())?;
         self.current_updates.push((name, keys, None));
+        Ok(())
     }
 }
 
@@ -1014,7 +1039,7 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
         if checkpoint.index == self.commands.len() {
             return Ok(());
         }
@@ -1029,7 +1054,7 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         self.facts.clear();
         self.current_updates.clear();
         for data in &self.commands {
-            self.facts.apply_updates(&data.updates);
+            self.facts.apply_updates(&data.updates)?;
         }
 
         Ok(())
@@ -1049,7 +1074,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         self.commands.push(CommandData {
             id: command.id(),
             priority: command.priority(),
-            policy: command.policy().map(Box::from),
+            policy: command.policy().map(Bytes::from),
             data: command.bytes().into(),
             updates: core::mem::take(&mut self.current_updates),
         });
@@ -1116,15 +1141,6 @@ impl Command for LinearCommand<'_> {
     }
 }
 
-fn find_prefixes<'m, 'p: 'm>(
-    map: &'m FactMap,
-    prefix: &'p [Box<[u8]>],
-) -> impl Iterator<Item = (&'m Keys, Option<&'m [u8]>)> + 'm {
-    map.range::<[Box<[u8]>], _>((Bound::Included(prefix), Bound::Unbounded))
-        .take_while(|(k, _)| k.starts_with(prefix))
-        .map(|(k, v)| (k, v.as_deref()))
-}
-
 #[cfg(test)]
 mod test {
     use testing::Manager;
@@ -1147,7 +1163,7 @@ mod test {
         ];
         let keys: Vec<Keys> = keys
             .iter()
-            .map(|ks| ks.iter().map(|k| k.as_bytes()).collect())
+            .map(|ks| ks.iter().map(|k| Bytes::from(k.as_bytes())).collect())
             .collect();
 
         for ks in &keys {
@@ -1155,7 +1171,8 @@ mod test {
                 name.into(),
                 ks.clone(),
                 format!("{ks:?}").into_bytes().into(),
-            );
+            )
+            .unwrap();
         }
 
         let prefixes: &[&[&str]] = &[
@@ -1166,11 +1183,10 @@ mod test {
             &["bb", ""],
             &["bb", "ccc"],
             &["bc", ""],
-            &["bc", "", ""],
         ];
 
         for prefix in prefixes {
-            let prefix: Keys = prefix.iter().map(|k| k.as_bytes()).collect();
+            let prefix: Keys = prefix.iter().map(|k| Bytes::from(k.as_bytes())).collect();
             let found: Vec<_> = fp.query_prefix(name, &prefix).unwrap().collect();
             let mut expected: Vec<_> = keys.iter().filter(|k| k.starts_with(&prefix)).collect();
             expected.sort();
@@ -1180,6 +1196,12 @@ mod test {
                 assert_eq!(&a.key, b);
                 assert_eq!(a.value.as_ref(), format!("{b:?}").as_bytes());
             }
+        }
+
+        {
+            let prefix = &["bc", "", ""];
+            let prefix: Keys = prefix.iter().map(|k| Bytes::from(k.as_bytes())).collect();
+            assert!(fp.query_prefix(name, &prefix).is_err());
         }
     }
 
