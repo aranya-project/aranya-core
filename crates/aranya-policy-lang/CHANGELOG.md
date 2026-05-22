@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.14.1...aranya-policy-lang-v0.15.0) - 2026-05-22
+
+### Other
+
+- 641 multiple recalls ([#642](https://github.com/aranya-project/aranya-core/pull/642))
+- improve string parsing ([#668](https://github.com/aranya-project/aranya-core/pull/668))
+- Improve error messages ([#632](https://github.com/aranya-project/aranya-core/pull/632))
+- Close #656: Implement optional-coalescing operator. ([#657](https://github.com/aranya-project/aranya-core/pull/657))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+- Policy Runner ([#549](https://github.com/aranya-project/aranya-core/pull/549))
+- Close #574: Result cardinality ([#611](https://github.com/aranya-project/aranya-core/pull/611))
+
 ## [0.14.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.14.0...aranya-policy-lang-v0.14.1) - 2026-03-31
 
 ### Other
