@@ -541,7 +541,9 @@ impl LocatedAddress {
 }
 
 /// An error returned by [`Storage`] or [`StorageProvider`].
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[non_exhaustive]
 pub enum StorageError {
     #[error("storage already exists")]
     StorageExists,

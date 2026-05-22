@@ -22,6 +22,7 @@ pub use self::{session::Session, transaction::Transaction};
 
 /// An error returned by the runtime client.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ClientError {
     #[error("no such parent: {0}")]
     NoSuchParent(CmdId),
