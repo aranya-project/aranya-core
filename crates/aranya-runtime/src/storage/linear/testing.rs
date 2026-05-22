@@ -74,6 +74,9 @@ struct SharedItem {
     item: *const [u8],
 }
 
+unsafe impl Send for SharedItem {}
+unsafe impl Sync for SharedItem {}
+
 impl Deref for SharedItem {
     type Target = [u8];
 
@@ -133,9 +136,9 @@ impl Read for Reader {
     type Handle<T: Readable> = Handle<T>;
 
     fn fetch<T: Readable>(&self, offset: u64) -> Result<Handle<T>, StorageError> {
-        let bytes = self
-            .shared
-            .get(offset as usize)
+        let bytes = usize::try_from(offset)
+            .ok()
+            .and_then(|offset| self.shared.get(offset))
             .ok_or(StorageError::SegmentOutOfBounds(Location::new(
                 SegmentIndex::new(offset),
                 MaxCut::new(u64::MAX), // Not right but this is just for testing...

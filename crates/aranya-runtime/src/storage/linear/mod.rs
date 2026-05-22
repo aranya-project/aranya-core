@@ -758,11 +758,11 @@ impl ArchivedSegmentRepr {
     fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
         max_cut
             .distance_from(self.max_cut)
+            .and_then(|x| usize::try_from(x).ok())
             .ok_or(StorageError::CommandOutOfBounds(Location::new(
                 self.offset,
                 max_cut,
             )))
-            .map(|x| x as usize)
     }
 }
 
