@@ -55,7 +55,7 @@ pub use io::*;
 /// 16 is our initial guess for balance.
 ///
 /// This must be at least 2.
-const MAX_FACT_INDEX_DEPTH: usize = 16;
+const MAX_FACT_INDEX_DEPTH: u64 = 16;
 
 pub struct LinearStorageProvider<FM: IoManager> {
     manager: FM,
@@ -80,7 +80,7 @@ struct SegmentRepr {
     parents: Prior<Address>,
     policy: PolicyId,
     /// Offset in file to associated fact index.
-    facts: usize,
+    facts: u64,
     commands: Vec1<CommandData>,
     max_cut: MaxCut,
     skip_list: Vec<Location>,
@@ -119,13 +119,13 @@ pub struct LinearFactIndex<R> {
 #[derive(Debug, Serialize, Deserialize)]
 struct FactIndexRepr {
     /// Self offset in file.
-    offset: usize,
+    offset: u64,
     /// Offset of prior fact index.
-    prior: Option<usize>,
+    prior: Option<u64>,
     /// Depth of this fact index.
     ///
     /// `prior.depth + 1`, or just `1` if no prior
-    depth: usize,
+    depth: u64,
     /// Facts in sorted order
     facts: NamedFactMap,
 }
@@ -183,7 +183,7 @@ impl<R> LinearFactPerspective<R> {
 enum FactPerspectivePrior<R> {
     None,
     FactPerspective(Box<LinearFactPerspective<R>>),
-    FactIndex { offset: usize, reader: R },
+    FactIndex { offset: u64, reader: R },
 }
 
 impl<R> FactPerspectivePrior<R> {
@@ -221,7 +221,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             Prior::None,
             policy_id,
             FactPerspectivePrior::None,
-            MaxCut(0),
+            MaxCut::new(0),
             None,
         )
     }
@@ -333,13 +333,13 @@ impl<W: Write> LinearStorage<W> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
         let segment = writer.append(|offset| SegmentRepr {
-            offset: SegmentIndex(offset),
+            offset: SegmentIndex::new(offset),
             prior: Prior::None,
             parents: Prior::None,
             policy: init.policy,
             facts,
             commands,
-            max_cut: MaxCut(0),
+            max_cut: MaxCut::new(0),
             skip_list: vec![],
         })?;
 
@@ -352,7 +352,7 @@ impl<W: Write> LinearStorage<W> {
                         .commands
                         .len()
                         .checked_sub(1)
-                        .assume("vec1 length >= 1")?,
+                        .assume("vec1 length >= 1")? as u64,
                 )
                 .assume("valid max cut")?,
         );
@@ -538,7 +538,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
         let reader = self.writer.readonly();
-        let repr = reader.fetch(location.segment.0)?;
+        let repr = reader.fetch(location.segment.get())?;
         let seg = LinearSegment { repr, reader };
 
         Ok(seg)
@@ -577,8 +577,8 @@ impl<F: Write> Storage for LinearStorage<F> {
             let mut skips = vec![];
             for _ in 0..count {
                 let segment = self.get_segment(l)?;
-                if l.max_cut > MaxCut(0) {
-                    let max_cut = MaxCut(rng.gen_range(0..l.max_cut.0));
+                if l.max_cut > MaxCut::new(0) {
+                    let max_cut = MaxCut::new(rng.gen_range(0..l.max_cut.get()));
                     if let Some(skip) = self.get_skip(segment, max_cut)? {
                         if !skips.contains(&skip) {
                             skips.push(skip);
@@ -611,7 +611,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             }
         };
         let repr = self.writer.append(|offset| SegmentRepr {
-            offset: SegmentIndex(offset),
+            offset: SegmentIndex::new(offset),
             prior: perspective.prior,
             parents: perspective.parents,
             policy: perspective.policy,
@@ -712,7 +712,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
         let data = self.repr.commands.get(cmd_idx)?;
         let parent = if let Some(prev) = usize::checked_sub(cmd_idx, 1) {
-            if let Some(max_cut) = self.repr.max_cut.checked_add(prev) {
+            if let Some(max_cut) = self.repr.max_cut.checked_add(prev as u64) {
                 Prior::Single(Address {
                     id: self.repr.commands[prev].id,
                     max_cut,
@@ -757,7 +757,7 @@ impl<R: Read> Segment for LinearSegment<R> {
                     .commands
                     .len()
                     .checked_sub(1)
-                    .assume("must not overflow")?,
+                    .assume("must not overflow")? as u64,
             )
             .assume("must not overflow")?)
     }
@@ -767,6 +767,7 @@ impl SegmentRepr {
     fn cmd_index(&self, max_cut: MaxCut) -> Result<usize, StorageError> {
         max_cut
             .distance_from(self.max_cut)
+            .and_then(|x| usize::try_from(x).ok())
             .ok_or(StorageError::CommandOutOfBounds(Location::new(
                 self.offset,
                 max_cut,
@@ -1069,7 +1070,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
                         self.commands
                             .len()
                             .checked_sub(1)
-                            .assume("must not overflow")?,
+                            .assume("must not overflow")? as u64,
                     )
                     .assume("must not overflow")?,
             })

@@ -102,7 +102,7 @@ impl PolicyStore for TestPolicyStore {
     type Effect = TestEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
-        Ok(PolicyId::new(policy[0] as usize))
+        Ok(PolicyId::new(policy[0].into()))
     }
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
@@ -307,7 +307,7 @@ impl Policy for TestPolicy {
         let parent = match facts.head_address()? {
             Prior::None => Address {
                 id: CmdId::default(),
-                max_cut: MaxCut(0),
+                max_cut: MaxCut::new(0),
             },
             Prior::Single(id) => id,
             Prior::Merge(_, _) => bug!("cannot get merge command in call_action"),
