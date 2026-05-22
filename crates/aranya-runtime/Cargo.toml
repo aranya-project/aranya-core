@@ -26,6 +26,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 vec1 = { version = "1.10.1", default-features = false, features = ["serde"] }
 yoke = { version = "0.8", features = ["derive"] }
+zerocopy = { workspace = true, features = ["derive"] }
 
 # Used by `testing`.
 aranya-policy-module = { version = "0.20.0", path = "../aranya-policy-module", optional = true }

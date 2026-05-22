@@ -10,8 +10,8 @@ use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    TraversalBuffers, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
+    RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
@@ -580,7 +580,7 @@ fn test_sync<PS, P, S>(
     cs1: &mut ClientState<PS, P>,
     cs2: &mut ClientState<PS, P>,
     sink: &mut S,
-    buffers: &mut TraversalBuffers,
+    rt_buffers: &mut RuntimeBuffers<P::Segment>,
 ) where
     P: StorageProvider,
     PS: PolicyStore,
@@ -597,7 +597,7 @@ fn test_sync<PS, P, S>(
                 &mut buffer,
                 cs2.provider(),
                 &mut PeerCache::new(),
-                &mut buffers.primary,
+                &mut rt_buffers.traversal.primary,
             )
             .expect("sync req->res");
 
@@ -607,17 +607,17 @@ fn test_sync<PS, P, S>(
             &mut target,
             cs1.provider(),
             &mut PeerCache::new(),
-            buffers,
+            &mut rt_buffers.traversal,
         )
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds, &mut buffers.primary)
+            cs2.add_commands(&mut req_transaction, sink, &cmds, rt_buffers, MemSpill::new)
                 .expect("add commands");
         }
     }
 
-    cs2.commit(req_transaction, sink, &mut buffers.primary)
+    cs2.commit(req_transaction, sink, rt_buffers, MemSpill::new)
         .expect("commit");
 }
 
@@ -629,7 +629,7 @@ pub fn test_effect_metadata(
     policy_store_1: TestPolicyStore,
     policy_store_2: TestPolicyStore,
 ) -> Result<(), VmPolicyError> {
-    let mut buffers = TraversalBuffers::new();
+    let mut rt_buffers = RuntimeBuffers::<_>::new();
 
     // create client 1 and initialize it with a nonce of 1
     let provider = MemStorageProvider::default();
@@ -650,7 +650,7 @@ pub fn test_effect_metadata(
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::default();
     let mut cs2 = ClientState::new(policy_store_2, provider);
-    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut buffers);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut rt_buffers);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();
 
@@ -673,7 +673,7 @@ pub fn test_effect_metadata(
     // Sync client 1 to client 2. Should produce a recall because `Invalidate` is
     // prioritized before `Increment`. Now that the counter value is starting with `-1`, the
     // check will fail, and recall will be executed. This produces an OutOfRange effect.
-    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut buffers);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut rt_buffers);
     assert_eq!(
         sink.last(),
         &vm_effect!(OutOfRange {
