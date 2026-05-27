@@ -219,7 +219,6 @@ pub mod crypto;
 pub mod errno;
 mod error;
 mod header;
-pub(crate) mod lender;
 pub mod memory;
 mod mutex;
 pub mod rust;

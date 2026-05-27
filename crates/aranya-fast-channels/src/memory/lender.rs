@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use core::{
     cell::UnsafeCell,
     fmt,
@@ -99,7 +100,7 @@ impl<S, X> Drop for Owner<S, X> {
 }
 
 impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Owner<S, X> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Owner")
             .field("shared", self.shared())
             .field("exclusive", self.exclusive_ref().map_or(&"<lent>", |x| x))
@@ -153,7 +154,7 @@ impl<S, X> Drop for Lent<S, X> {
 }
 
 impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Lent<S, X> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("Lent");
         match self.get_ref() {
             Some((shared, exclusive)) => s

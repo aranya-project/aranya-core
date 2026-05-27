@@ -5,6 +5,8 @@
 
 extern crate alloc;
 
+mod lender;
+
 use alloc::{collections::btree_map::BTreeMap, sync::Arc};
 
 use aranya_crypto::{
@@ -18,7 +20,6 @@ use derive_where::derive_where;
 use crate::{
     ChannelDirection, LocalChannelId, RemoveIfParams,
     error::Error,
-    lender,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
 };
