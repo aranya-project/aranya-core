@@ -16,24 +16,43 @@ use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use crate::{
-    LocalChannelId, RemoveIfParams,
+    ChannelDirection, LocalChannelId, RemoveIfParams,
     error::Error,
+    lender,
     mutex::StdMutex,
     state::{AfcState, AranyaState, Directed},
 };
 
-#[derive_where(Debug)]
-struct ChanMapValue<CS: CipherSuite> {
-    keys: Directed<SealKey<CS>, OpenKey<CS>>,
+#[derive(Debug)]
+struct SharedValue {
+    direction: ChannelDirection,
     label_id: LabelId,
     peer_id: DeviceId,
+}
+
+#[derive_where(Debug)]
+struct ExclusiveValue<CS: CipherSuite> {
+    keys: Directed<SealKey<CS>, OpenKey<CS>>,
+}
+
+/// Seal channel context.
+#[derive_where(Debug)]
+pub struct SealCtx<CS: CipherSuite> {
+    id: LocalChannelId,
+    handle: lender::Lent<SharedValue, ExclusiveValue<CS>>,
+}
+
+/// Open channel context.
+#[derive_where(Debug)]
+pub struct OpenCtx<CS: CipherSuite> {
+    id: LocalChannelId,
+    handle: lender::Lent<SharedValue, ExclusiveValue<CS>>,
 }
 
 #[derive_where(Debug, Default)]
 struct Inner<CS: CipherSuite> {
     next_chan_id: u64,
-    #[allow(clippy::type_complexity)]
-    chans: BTreeMap<LocalChannelId, ChanMapValue<CS>>,
+    chans: BTreeMap<LocalChannelId, lender::Owner<SharedValue, ExclusiveValue<CS>>>,
 }
 
 /// An im-memory implementation of [`AfcState`] and
@@ -56,28 +75,37 @@ where
 {
     type CipherSuite = CS;
 
-    type SealCtx = LocalChannelId;
+    type SealCtx = SealCtx<CS>;
 
-    type OpenCtx = LocalChannelId;
+    type OpenCtx = OpenCtx<CS>;
 
     fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
-        Ok(id)
+        let mut inner = self.inner.lock().assume("poisoned")?;
+        let val = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+        if val.shared().direction != ChannelDirection::Seal {
+            return Err(Error::NotFound(id));
+        }
+        let handle = val.lend().ok_or(Error::NotFound(id))?;
+        Ok(SealCtx { id, handle })
     }
 
     fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
-        Ok(id)
+        let mut inner = self.inner.lock().assume("poisoned")?;
+        let val = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+        if val.shared().direction != ChannelDirection::Open {
+            return Err(Error::NotFound(id));
+        }
+        let handle = val.lend().ok_or(Error::NotFound(id))?;
+        Ok(OpenCtx { id, handle })
     }
 
     fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
-        let id = *ctx;
-        let mut inner = self.inner.lock().assume("poisoned")?;
-        let ChanMapValue { keys, label_id, .. } =
-            inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
-
-        let key = keys.seal_mut().ok_or(Error::NotFound(id))?;
+        let (SharedValue { label_id, .. }, ExclusiveValue { keys, .. }) =
+            ctx.handle.get_mut().ok_or(Error::NotFound(ctx.id))?;
+        let key = keys.seal_mut().ok_or(Error::NotFound(ctx.id))?;
         Ok(f(key, *label_id))
     }
 
@@ -85,11 +113,9 @@ where
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
-        let inner = self.inner.lock().assume("poisoned")?;
-        let ChanMapValue { keys, label_id, .. } =
-            inner.chans.get(ctx).ok_or(Error::NotFound(*ctx))?;
-        let key = keys.open().ok_or(Error::NotFound(*ctx))?;
-
+        let (SharedValue { label_id, .. }, ExclusiveValue { keys, .. }) =
+            ctx.handle.get_mut().ok_or(Error::NotFound(ctx.id))?;
+        let key = keys.open().ok_or(Error::NotFound(ctx.id))?;
         Ok(f(key, *label_id))
     }
 
@@ -127,11 +153,14 @@ where
             .assume("should not overflow")?;
         inner.chans.insert(
             id,
-            ChanMapValue {
-                keys,
-                label_id,
-                peer_id,
-            },
+            lender::Owner::new(
+                SharedValue {
+                    direction: keys.direction(),
+                    label_id,
+                    peer_id,
+                },
+                ExclusiveValue { keys },
+            ),
         );
         Ok(id)
     }
@@ -147,21 +176,18 @@ where
     }
 
     fn remove_if(&self, mut f: impl FnMut(RemoveIfParams) -> bool) -> Result<(), Self::Error> {
-        self.inner.lock().assume("poisoned")?.chans.retain(
-            |&id,
-             ChanMapValue {
-                 label_id,
-                 peer_id,
-                 keys,
-             }| {
-                !f(RemoveIfParams::new(
-                    id,
-                    *label_id,
-                    *peer_id,
-                    keys.direction(),
-                ))
-            },
-        );
+        self.inner
+            .lock()
+            .assume("poisoned")?
+            .chans
+            .retain(|&id, value| {
+                let &SharedValue {
+                    direction,
+                    label_id,
+                    peer_id,
+                } = value.shared();
+                !f(RemoveIfParams::new(id, label_id, peer_id, direction))
+            });
         Ok(())
     }
 
