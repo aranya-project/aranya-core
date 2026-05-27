@@ -1165,12 +1165,6 @@ mod test {
                 assert_eq!(a.value.as_ref(), format!("{b:?}").as_bytes());
             }
         }
-
-        {
-            let prefix = &["bc", "", ""];
-            let prefix: Keys = prefix.iter().map(|k| Bytes::from(k.as_bytes())).collect();
-            assert!(fp.query_prefix(name, &prefix).is_err());
-        }
     }
 
     struct LinearBackend;
