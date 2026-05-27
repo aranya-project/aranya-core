@@ -129,7 +129,10 @@ impl TestPolicy {
         let key = group.to_be_bytes();
         let value = count.to_be_bytes();
 
-        facts.insert("payload".into(), Keys::from_iter([key]), value.into());
+        facts
+            .insert("payload".into(), Keys::from_iter([key]), value.into())
+            .map_err(|_| PolicyError::Write)?;
+
         Ok(())
     }
 
