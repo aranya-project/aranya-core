@@ -4,7 +4,7 @@
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
 use buggy::Bug;
-use rkyv::rend::u64_le;
+use rend::u64_le;
 
 use crate::{
     Address,

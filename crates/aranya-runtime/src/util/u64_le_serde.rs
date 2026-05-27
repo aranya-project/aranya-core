@@ -1,4 +1,4 @@
-use rkyv::rend::u64_le;
+use rend::u64_le;
 use serde::{Deserialize as _, Serialize as _, de::Deserializer, ser::Serializer};
 
 pub fn serialize<S>(val: &u64_le, serializer: S) -> Result<S::Ok, S::Error>

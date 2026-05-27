@@ -9,7 +9,7 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
-use rkyv::rend::u64_le;
+use rend::u64_le;
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
