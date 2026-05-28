@@ -17,23 +17,6 @@ use crate::{
     },
 };
 
-/// Could not unify a pair of types.
-pub struct TypeUnifyError {
-    /// The left type which could not be unified
-    pub left: VType,
-    /// The right type which could not be unified
-    pub right: VType,
-    /// Context message for the cause of the unify error.
-    pub ctx: &'static str,
-}
-
-impl Display for TypeUnifyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { left, right, ctx } = self;
-        write!(f, "{ctx}: {left} != {right}")
-    }
-}
-
 pub(crate) enum UserType<'a> {
     Struct(&'a ast::StructDefinition),
     Fact(&'a ast::FactDefinition),
@@ -158,22 +141,19 @@ impl Display for IdentNotDefined {
 /// Otherwise, it will keep its value the type kind matches the target,
 /// or error out otherwise.
 #[allow(clippy::result_large_err)]
-pub fn check_type(
-    ty: VType,
-    target_type: VType,
-    errmsg: &'static str,
-) -> Result<VType, TypeUnifyError> {
+pub fn check_type(ty: VType, target_type: VType) -> Result<VType, InvalidType> {
     match ty.inner {
         TypeKind::Never => Ok(target_type),
         _ => {
             if ty.fits_type(&target_type) {
                 Ok(ty)
             } else {
-                Err(TypeUnifyError {
-                    left: ty,
-                    right: target_type,
-                    ctx: errmsg,
-                })
+                Err(InvalidType::new(
+                    target_type.to_string(),
+                    Some(target_type.span()),
+                    ty.to_string(),
+                    ty.span,
+                ))
             }
         }
     }
@@ -241,7 +221,7 @@ impl CompileState<'_> {
 }
 
 #[allow(clippy::result_large_err)]
-pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyError> {
+pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, InvalidType> {
     match (&left.inner, &right.inner) {
         (_, TypeKind::Never) => Ok(left),
         (TypeKind::Never, _) => Ok(right),
@@ -264,11 +244,12 @@ pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyEr
             if left.matches(&right) {
                 Ok(left)
             } else {
-                Err(TypeUnifyError {
-                    left,
-                    right,
-                    ctx: "type mismatch",
-                })
+                Err(InvalidType::new(
+                    left.to_string(),
+                    Some(left.span()),
+                    right.to_string(),
+                    right.span(),
+                ))
             }
         }
     }
@@ -281,22 +262,9 @@ pub(super) fn unify_pair_as(
     left_type: VType,
     right_type: VType,
     target_type: VType,
-    span: Span,
 ) -> Result<VType, InvalidType> {
     unify_pair(
-        check_type(left_type, target_type.clone(), "").map_err(|err| {
-            InvalidType::new(err.right.to_string(), None, err.left.to_string(), span)
-        })?,
-        check_type(right_type, target_type, "").map_err(|err| {
-            InvalidType::new(err.right.to_string(), None, err.left.to_string(), span)
-        })?,
+        check_type(left_type, target_type.clone())?,
+        check_type(right_type, target_type)?,
     )
-    .map_err(|err| {
-        InvalidType::new(
-            err.right.to_string(),
-            None,
-            err.left.to_string(),
-            err.right.span(),
-        )
-    })
 }
