@@ -33,8 +33,13 @@ unsafe impl<S: Send, X: Send> Send for Lent<S, X> {}
 unsafe impl<S: Sync, X: Sync> Sync for Lent<S, X> {}
 
 struct Inner<S, X> {
+    /// Shared data which can be accessed as `&S` by both [`Owner`] and [`Lent`].
     shared: S,
+    /// Exclusive data which can be accessed as `&X` or `&mut X` only by [`Lent`].
+    ///
+    /// `Unsafe` cell is needed to allow `&Inner<S, X> -> &mut X`.
     exclusive: UnsafeCell<X>,
+    /// State for tracking whether the data is unshared, shared, or closed.
     state: AtomicU8,
 }
 
@@ -66,6 +71,7 @@ impl<S, X> Owner<S, X> {
     ///
     /// Only one `Lent` can be live at a time.
     pub fn lend(&self) -> Option<Lent<S, X>> {
+        // We must be UNSHARED or SHARED. If we transition to SHARED here, then we can create a `Lent`.
         if self.inner().state.swap(STATE_SHARED, Ordering::AcqRel) != STATE_UNSHARED {
             return None;
         }
@@ -80,6 +86,8 @@ impl<S, X> Owner<S, X> {
 
 impl<S, X> Drop for Owner<S, X> {
     fn drop(&mut self) {
+        // We must be UNSHARED or SHARED. We transition to CLOSED to revoke access.
+        // If we were UNSHARED then there is no `Lent` so we are the sole holder of the data.
         if self.inner().state.swap(STATE_CLOSED, Ordering::AcqRel) == STATE_UNSHARED {
             // SAFETY: The data is not lent out, so we can immediately drop it.
             unsafe { free(self.inner) }
@@ -107,10 +115,11 @@ impl<S, X> Lent<S, X> {
     /// drop the `Lent` when this occurs, to drop the underlying data.
     pub fn get_ref(&self) -> Option<(&S, &X)> {
         let inner = self.inner();
+        // We must be SHARED or CLOSED. If we are CLOSED, then access has been revoked.
         if inner.state.load(Ordering::Acquire) == STATE_CLOSED {
             return None;
         }
-        // SAFETY: `Lent` has exclusive access.
+        // SAFETY: Only `Lent` accesses exclusive, so we can borrow it as if we held it directly.
         let exclusive = unsafe { &*inner.exclusive.get() };
         Some((&inner.shared, exclusive))
     }
@@ -121,10 +130,11 @@ impl<S, X> Lent<S, X> {
     /// drop the `Lent` when this occurs, to drop the underlying data.
     pub fn get_mut(&mut self) -> Option<(&S, &mut X)> {
         let inner = self.inner();
+        // We must be SHARED or CLOSED. If we are CLOSED, then access has been revoked.
         if inner.state.load(Ordering::Acquire) == STATE_CLOSED {
             return None;
         }
-        // SAFETY: `Lent` has exclusive access and this method is `&mut`.
+        // SAFETY: Only `Lent` accesses exclusive, so we can borrow it as if we held it directly.
         let exclusive = unsafe { &mut *inner.exclusive.get() };
         Some((&inner.shared, exclusive))
     }
@@ -132,6 +142,11 @@ impl<S, X> Lent<S, X> {
 
 impl<S, X> Drop for Lent<S, X> {
     fn drop(&mut self) {
+        // We must be SHARED or CLOSED. We will transition back to UNSHARED here.
+        // - If we were SHARED, this will allow the `Owner` to lend again.
+        // - If we were CLOSED, the `Owner` has already dropped, so it's fine that we
+        //   are erasing the CLOSED state because nobody else can see it. We are the sole
+        //   holder of the data so we must free it.
         if self.inner().state.swap(STATE_UNSHARED, Ordering::AcqRel) == STATE_CLOSED {
             // SAFETY: `Owner` was already dropped, but didn't free the data
             // since it was lent out, so we can free it now.
@@ -153,6 +168,7 @@ impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Lent<S, X> {
     }
 }
 
+/// Allocate a value on the heap.
 fn allocate<T>(val: T) -> NonNull<T> {
     let ptr = Box::into_raw(Box::new(val));
     // SAFETY: `Box::into_raw` returns a non-null pointer.
