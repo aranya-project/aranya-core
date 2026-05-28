@@ -64,6 +64,7 @@ pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RES
 
 /// An error returned by the syncer.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SyncError {
     #[error("sync session ID does not match")]
     SessionMismatch,
