@@ -51,6 +51,7 @@ mod prior;
 pub mod storage;
 pub mod sync;
 pub mod testing;
+pub(crate) mod util;
 pub mod vm_policy;
 
 pub use crate::{
