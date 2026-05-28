@@ -76,18 +76,6 @@ impl<S, X> Owner<S, X> {
     pub fn shared(&self) -> &S {
         &self.inner().shared
     }
-
-    /// Accesses the exclusive data `X`.
-    ///
-    /// Returns `None` if access is currently lent via [`Self::lend`].
-    pub fn exclusive_ref(&self) -> Option<&X> {
-        let inner = self.inner();
-        if inner.state.load(Ordering::Acquire) == STATE_SHARED {
-            return None;
-        }
-        // SAFETY: The data is not lent.
-        Some(unsafe { &*inner.exclusive.get() })
-    }
 }
 
 impl<S, X> Drop for Owner<S, X> {
@@ -103,8 +91,7 @@ impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Owner<S, X> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Owner")
             .field("shared", self.shared())
-            .field("exclusive", self.exclusive_ref().map_or(&"<lent>", |x| x))
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
