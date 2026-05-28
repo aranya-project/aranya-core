@@ -1,11 +1,11 @@
-// This file contains the extracted keywords from policy.pest from keyword_extraction.pl
+// This file contains the extracted keywords from policy.pest by extract_keywords.sh
 
-pub const KEYWORDS: [&str; 61] = [
+pub const KEYWORDS: &[&str] = &[
     "action",
     "as",
+    "attributes",
     "at_least",
     "at_most",
-    "attributes",
     "base",
     "bool",
     "bytes",
