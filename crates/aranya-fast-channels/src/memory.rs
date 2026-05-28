@@ -17,6 +17,7 @@ use aranya_crypto::{
 use buggy::BugExt as _;
 use derive_where::derive_where;
 
+use self::lender::{Lender, Loan};
 use crate::{
     ChannelDirection, LocalChannelId, RemoveIfParams,
     error::Error,
@@ -40,20 +41,20 @@ struct ExclusiveValue<CS: CipherSuite> {
 #[derive_where(Debug)]
 pub struct SealCtx<CS: CipherSuite> {
     id: LocalChannelId,
-    handle: lender::Lent<SharedValue, ExclusiveValue<CS>>,
+    handle: Loan<SharedValue, ExclusiveValue<CS>>,
 }
 
 /// Open channel context.
 #[derive_where(Debug)]
 pub struct OpenCtx<CS: CipherSuite> {
     id: LocalChannelId,
-    handle: lender::Lent<SharedValue, ExclusiveValue<CS>>,
+    handle: Loan<SharedValue, ExclusiveValue<CS>>,
 }
 
 #[derive_where(Debug, Default)]
 struct Inner<CS: CipherSuite> {
     next_chan_id: u64,
-    chans: BTreeMap<LocalChannelId, lender::Owner<SharedValue, ExclusiveValue<CS>>>,
+    chans: BTreeMap<LocalChannelId, Lender<SharedValue, ExclusiveValue<CS>>>,
 }
 
 /// An im-memory implementation of [`AfcState`] and
@@ -154,7 +155,7 @@ where
             .assume("should not overflow")?;
         inner.chans.insert(
             id,
-            lender::Owner::new(
+            Lender::new(
                 SharedValue {
                     direction: keys.direction(),
                     label_id,
