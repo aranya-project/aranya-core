@@ -25,36 +25,48 @@ use crate::{
     state::{AfcState, AranyaState, Directed},
 };
 
+/// Shared channel data accessed by both sides of the state.
+///
+/// The aranya state needs all of these for `remove_if`, while the afc state
+/// needs `label_id` for the seal/open operation.
 #[derive(Debug)]
-struct SharedValue {
+struct SharedChannelData {
     direction: ChannelDirection,
     label_id: LabelId,
     peer_id: DeviceId,
 }
 
+/// Exclusive state used for the seal/open operation.
+///
+/// We need mutable access to the seal key to update the sequence number.
 #[derive_where(Debug)]
-struct ExclusiveValue<CS: CipherSuite> {
+struct ExclusiveChannelData<CS: CipherSuite> {
     keys: Directed<SealKey<CS>, OpenKey<CS>>,
 }
 
-/// Seal channel context.
+/// Seal channel context, passed in when sealing.
 #[derive_where(Debug)]
 pub struct SealCtx<CS: CipherSuite> {
     id: LocalChannelId,
-    handle: Loan<SharedValue, ExclusiveValue<CS>>,
+    handle: Loan<SharedChannelData, ExclusiveChannelData<CS>>,
 }
 
-/// Open channel context.
+/// Open channel context, passed in when opening.
 #[derive_where(Debug)]
 pub struct OpenCtx<CS: CipherSuite> {
     id: LocalChannelId,
-    handle: Loan<SharedValue, ExclusiveValue<CS>>,
+    handle: Loan<SharedChannelData, ExclusiveChannelData<CS>>,
 }
 
 #[derive_where(Debug, Default)]
 struct Inner<CS: CipherSuite> {
     next_chan_id: u64,
-    chans: BTreeMap<LocalChannelId, Lender<SharedValue, ExclusiveValue<CS>>>,
+    /// Map of data for each channel.
+    ///
+    /// We wrap the channel data in [`Lender`] so we can give out a [`Loan`]
+    /// in the channel context, allowing the fast path direct access to the
+    /// channel data after only an atomic load validity check.
+    chans: BTreeMap<LocalChannelId, Lender<SharedChannelData, ExclusiveChannelData<CS>>>,
 }
 
 /// An im-memory implementation of [`AfcState`] and
@@ -83,20 +95,28 @@ where
 
     fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
         let mut inner = self.inner.lock().assume("poisoned")?;
+        // Find the channel for this ID.
         let val = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+        // Ensure this is a seal channel.
         if val.shared().direction != ChannelDirection::Seal {
             return Err(Error::NotFound(id));
         }
+        // Loan out a handle to the channel data for fast access on later seal operations.
+        // The caller is responsible to not call this twice, but we return an error here anyways.
         let handle = val.lend().ok_or(Error::NotFound(id))?;
         Ok(SealCtx { id, handle })
     }
 
     fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
         let mut inner = self.inner.lock().assume("poisoned")?;
+        // Find the channel for this ID.
         let val = inner.chans.get_mut(&id).ok_or(Error::NotFound(id))?;
+        // Ensure this is an open channel.
         if val.shared().direction != ChannelDirection::Open {
             return Err(Error::NotFound(id));
         }
+        // Loan out a handle to the channel data for fast access on later open operations.
+        // The caller is responsible to not call this twice, but we return an error here anyways.
         let handle = val.lend().ok_or(Error::NotFound(id))?;
         Ok(OpenCtx { id, handle })
     }
@@ -105,9 +125,10 @@ where
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
-        let (SharedValue { label_id, .. }, ExclusiveValue { keys, .. }) =
+        // Load the channel data, failing if it was revoked.
+        let (SharedChannelData { label_id, .. }, ExclusiveChannelData { keys, .. }) =
             ctx.handle.get_mut().ok_or(Error::NotFound(ctx.id))?;
-        let key = keys.seal_mut().ok_or(Error::NotFound(ctx.id))?;
+        let key = keys.seal_mut().assume("seal context holds seal key")?;
         Ok(f(key, *label_id))
     }
 
@@ -115,9 +136,10 @@ where
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
     {
-        let (SharedValue { label_id, .. }, ExclusiveValue { keys, .. }) =
+        // Load the channel data, failing if it was revoked.
+        let (SharedChannelData { label_id, .. }, ExclusiveChannelData { keys, .. }) =
             ctx.handle.get_mut().ok_or(Error::NotFound(ctx.id))?;
-        let key = keys.open().ok_or(Error::NotFound(ctx.id))?;
+        let key = keys.open().assume("open context holds open key")?;
         Ok(f(key, *label_id))
     }
 
@@ -156,12 +178,12 @@ where
         inner.chans.insert(
             id,
             Lender::new(
-                SharedValue {
+                SharedChannelData {
                     direction: keys.direction(),
                     label_id,
                     peer_id,
                 },
-                ExclusiveValue { keys },
+                ExclusiveChannelData { keys },
             ),
         );
         Ok(id)
@@ -183,7 +205,7 @@ where
             .assume("poisoned")?
             .chans
             .retain(|&id, value| {
-                let &SharedValue {
+                let &SharedChannelData {
                     direction,
                     label_id,
                     peer_id,
