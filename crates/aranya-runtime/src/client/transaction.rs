@@ -593,6 +593,7 @@ mod test {
         type Action<'a> = &'a str;
         type Effect = ();
         type Command<'a> = SeqCommand;
+        type ActionReturn = ();
 
         fn serial(&self) -> u32 {
             0

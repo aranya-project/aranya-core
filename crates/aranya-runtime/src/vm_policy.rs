@@ -547,6 +547,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     type Action<'a> = VmAction<'a>;
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;
+    type ActionReturn = Result<(), Value>;
 
     fn serial(&self) -> u32 {
         // TODO(chip): Implement an actual serial number
@@ -650,7 +651,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         action_placement: ActionPlacement,
-    ) -> Result<(), PolicyError> {
+    ) -> Result<Result<(), Value>, PolicyError> {
         let VmAction { name, args } = action;
 
         let def = self.machine.action_defs.get(&name).ok_or_else(|| {
@@ -702,7 +703,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                 match exit_reason {
                     ExitReason::Normal => {
                         // Action completed
-                        break;
+                        let ret: Result<(), Value> = todo!("get action return from stack");
+                        break Ok(ret);
                     }
                     ExitReason::Yield => {
                         // Command was published.
@@ -813,8 +815,6 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                 }
             }
         }
-
-        Ok(())
     }
 
     fn merge<'a>(
