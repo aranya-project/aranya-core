@@ -40,6 +40,8 @@ struct Inner<S, X> {
     /// `Unsafe` cell is needed to allow `&Inner<S, X> -> &mut X`.
     exclusive: UnsafeCell<X>,
     /// State for tracking whether the data is unshared, shared, or closed.
+    ///
+    /// See `./lender.md` for a state diagram.
     state: AtomicU8,
 }
 
