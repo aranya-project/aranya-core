@@ -369,7 +369,65 @@ impl SyncResponder {
 
         // heads queue: segments to process, popped by highest max_cut.
         let heads = buffers.primary.get();
-        heads.push(storage.get_head()?)?;
+
+        // Jump from head toward highest_have + SEGMENT_BUFFER_MAX using
+        // skip lists. Walk backward, taking any skip that doesn't go below
+        // the target. Stop when the next step (prior or skip) would go below.
+        let head = storage.get_head()?;
+        let highest_have = have_locations
+            .first()
+            .map(|l| l.max_cut)
+            .unwrap_or(MaxCut::new(0));
+        let skip_target = highest_have
+            .checked_add(SEGMENT_BUFFER_MAX as u64)
+            .assume("skip target overflow")?;
+
+        let start = if head.max_cut > skip_target {
+            let mut current = head;
+            loop {
+                let seg = storage.get_segment(current)?;
+
+                // Try skip: find the entry closest to target that stays >= target.
+                let mut best: Option<Location> = None;
+                for &skip in seg.skip_list() {
+                    if skip.max_cut >= skip_target && skip.max_cut < current.max_cut {
+                        best = Some(match best {
+                            Some(b) if skip.max_cut < b.max_cut => skip,
+                            None => skip,
+                            Some(b) => b,
+                        });
+                    }
+                }
+                if let Some(skip) = best {
+                    current = skip;
+                    continue;
+                }
+
+                // No useful skip. Check if prior would go below target.
+                let prior_below = match seg.prior() {
+                    crate::Prior::Single(p) => p.max_cut < skip_target,
+                    crate::Prior::Merge(a, b) => {
+                        a.max_cut < skip_target || b.max_cut < skip_target
+                    }
+                    crate::Prior::None => true,
+                };
+
+                if prior_below {
+                    // Stop here — next step would go below target.
+                    break current;
+                }
+
+                // Prior stays above target, follow it.
+                match seg.prior() {
+                    crate::Prior::Single(p) => current = p,
+                    _ => break current,
+                }
+            }
+        } else {
+            head
+        };
+
+        heads.push(start)?;
 
         // pending queue: segments tentatively needed by the peer.
         let pending = buffers.secondary.get();

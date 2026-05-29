@@ -30,7 +30,6 @@ pub mod testing;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::ops::Bound;
 
-use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
@@ -273,40 +272,6 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
         &mut self,
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
         self.manager.list()
-    }
-}
-
-impl<W: Write> LinearStorage<W> {
-    fn get_skip(
-        &self,
-        segment: <Self as Storage>::Segment,
-        max_cut: MaxCut,
-    ) -> Result<Option<Location>, StorageError> {
-        let mut head = segment;
-        let mut current = None;
-        'outer: loop {
-            if max_cut > head.longest_max_cut()? {
-                return Ok(current);
-            }
-            current = Some(head.first_location());
-            if max_cut >= head.shortest_max_cut() {
-                return Ok(current);
-            }
-            // Assumes skip list is sorted in ascending order.
-            // We always want to skip as close to the root as possible.
-            for skip in head.skip_list() {
-                if skip.max_cut <= max_cut {
-                    head = self.get_segment(*skip)?;
-                    continue 'outer;
-                }
-            }
-            head = match head.prior() {
-                Prior::None | Prior::Merge(_, _) => {
-                    return Ok(current);
-                }
-                Prior::Single(l) => self.get_segment(l)?,
-            }
-        }
     }
 }
 
@@ -572,43 +537,143 @@ impl<F: Write> Storage for LinearStorage<F> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
-        let get_skips = |l: Location, count: usize| -> Result<Vec<Location>, StorageError> {
-            let mut rng = Rng;
-            let mut skips = vec![];
-            for _ in 0..count {
-                let segment = self.get_segment(l)?;
-                if l.max_cut > MaxCut::new(0) {
-                    let max_cut = MaxCut::new(rng.gen_range(0..l.max_cut.get()));
-                    if let Some(skip) = self.get_skip(segment, max_cut)? {
-                        if !skips.contains(&skip) {
-                            skips.push(skip);
-                        }
-                    } else {
+        // Minimum gap between skip targets. Below this, individual segment
+        // walks are cheap enough that skip entries aren't needed.
+        const MIN_SKIP_GAP: u64 = 10;
+
+        // Determine the walk start and whether LCA must be included.
+        let (walk_start, lca) = match perspective.prior {
+            Prior::None => (None, None),
+            Prior::Merge(_, _) => {
+                let lca = perspective.last_common_ancestor.assume("lca must exist")?;
+                (Some(lca), Some(lca))
+            }
+            Prior::Single(l) => (Some(l), None),
+        };
+
+        let skip_list = if let Some(walk_start) = walk_start {
+            let n = perspective.max_cut.get();
+
+            // If a nearby ancestor (within MIN_SKIP_GAP) already has a
+            // rich skip list, defer to it. `len() > 1` excludes the
+            // LCA-only list every merge segment carries, which isn't a
+            // strong enough anchor on its own. Walk through merges via
+            // their LCA.
+            let mut needs_skip_list = true;
+            {
+                let mut check = walk_start;
+                for _ in 0..MIN_SKIP_GAP {
+                    let seg = self.get_segment(check)?;
+                    if seg.skip_list().len() > 1 {
+                        needs_skip_list = false;
                         break;
+                    }
+                    match seg.prior() {
+                        Prior::Single(p) => check = p,
+                        Prior::Merge(_, _) => {
+                            check = seg
+                                .skip_list()
+                                .last()
+                                .copied()
+                                .assume("merge skip list must end with LCA")?;
+                        }
+                        Prior::None => break,
                     }
                 }
             }
-            Ok(skips)
-        };
 
-        let skip_list = match perspective.prior {
-            Prior::None => vec![],
-            Prior::Merge(_, _) => {
-                let lca = perspective.last_common_ancestor.assume("lca must exist")?;
-                let mut skips = get_skips(lca, 2)?;
-                if !skips.contains(&lca) {
+            if !needs_skip_list || n < MIN_SKIP_GAP {
+                // No skip list needed, but merges always include the LCA.
+                lca.into_iter().collect()
+            } else {
+                // Build skip targets at N/2, 3N/4, 7N/8, 15N/16, ...
+                // until the gap is <= MIN_SKIP_GAP.
+                //
+                // Loop invariant: 0 < boundary < n. boundary starts at n/2
+                // (positive because the n < MIN_SKIP_GAP case returned
+                // above), and each iteration adds at most gap/2 < gap, so
+                // boundary stays strictly below n.
+                let mut targets = vec![];
+                {
+                    let mut boundary = n / 2;
+                    while boundary > 0 {
+                        targets.push(MaxCut::new(boundary));
+                        let gap = n
+                            .checked_sub(boundary)
+                            .assume("boundary < n by loop invariant")?;
+                        if gap <= MIN_SKIP_GAP {
+                            break;
+                        }
+                        boundary = boundary
+                            .checked_add(gap / 2)
+                            .assume("boundary + gap/2 <= n <= u64::MAX")?;
+                    }
+                }
+
+                // Walk backwards from walk_start using skip lists,
+                // collecting skip entries as we cross each target boundary.
+                // For merges, walk starts at the LCA so targets above the
+                // LCA are naturally unreachable.
+                //
+                // `targets` is ascending; consume highest-first via `pop()`.
+                let mut skips = vec![];
+                let mut current = walk_start;
+
+                'walk: loop {
+                    let seg = self.get_segment(current)?;
+                    let seg_min = seg.shortest_max_cut();
+
+                    // Record any targets we've reached or passed.
+                    while let Some(&t) = targets.last() {
+                        if t >= seg_min {
+                            skips.push(seg.first_location());
+                            targets.pop();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let Some(&next_target) = targets.last() else {
+                        break;
+                    };
+
+                    // Try skip: best entry at or above next_target.
+                    let mut best: Option<Location> = None;
+                    for &skip in seg.skip_list() {
+                        if skip.max_cut >= next_target && skip.max_cut < current.max_cut {
+                            best = Some(match best {
+                                Some(b) if skip.max_cut < b.max_cut => skip,
+                                None => skip,
+                                Some(b) => b,
+                            });
+                        }
+                    }
+                    if let Some(skip) = best {
+                        current = skip;
+                        continue;
+                    }
+
+                    match seg.prior() {
+                        Prior::Single(p) if p.max_cut >= next_target => {
+                            current = p;
+                        }
+                        _ => break 'walk,
+                    }
+                }
+
+                // Always include the LCA for merge segments.
+                if let Some(lca) = lca
+                    && !skips.contains(&lca)
+                {
                     skips.push(lca);
                 }
-                // Sort by max_cut ascending so we can jump as far back as possible
+
                 skips.sort_by_key(|loc| loc.max_cut);
+                skips.dedup();
                 skips
             }
-            Prior::Single(l) => {
-                let mut skips = get_skips(l, 3)?;
-                // Sort by max_cut ascending so we can jump as far back as possible
-                skips.sort_by_key(|loc| loc.max_cut);
-                skips
-            }
+        } else {
+            vec![]
         };
         let repr = self.writer.append(|offset| SegmentRepr {
             offset: SegmentIndex::new(offset),
