@@ -1,10 +1,86 @@
-use alloc::boxed::Box;
-use core::{
-    cell::UnsafeCell,
-    fmt,
-    ptr::NonNull,
-    sync::atomic::{AtomicU8, Ordering},
-};
+use core::{cell::UnsafeCell, fmt};
+
+mod biarc {
+    use alloc::boxed::Box;
+    use core::{
+        ptr::NonNull,
+        sync::atomic::{AtomicBool, Ordering},
+    };
+
+    // BiArc is an Arc-like type which supports 1 or 2 handles.
+    pub struct BiArc<T>(NonNull<BiArcInner<T>>);
+
+    // SAFETY: BiArc is thread-safe.
+    unsafe impl<T: Send> Send for BiArc<T> {}
+    // SAFETY: BiArc is thread-safe.
+    unsafe impl<T: Sync> Sync for BiArc<T> {}
+
+    struct BiArcInner<T> {
+        /// Indicates whether a second `BiArc` points to this.
+        state: AtomicBool,
+        value: T,
+    }
+
+    /// Only one [`BiArc`] handle to this instance exists.
+    const STATE_UNSHARED: bool = false;
+    /// Two [`BiArc`] handles to this instance exist.
+    const STATE_SHARED: bool = true;
+
+    impl<T> BiArc<T> {
+        pub fn new(value: T) -> Self {
+            let ptr = Box::into_raw(Box::new(BiArcInner {
+                state: AtomicBool::new(STATE_UNSHARED),
+                value,
+            }));
+            // SAFETY: `Box::into_raw` returns a non-null pointer.
+            let ptr = unsafe { NonNull::new_unchecked(ptr) };
+            Self(ptr)
+        }
+
+        fn inner(&self) -> &BiArcInner<T> {
+            // SAFETY: `inner` is valid while this is live.
+            unsafe { self.0.as_ref() }
+        }
+
+        /// Try to create a second handle, if it doesn't already exist.
+        pub fn try_clone(&self) -> Option<Self> {
+            // Try to transition to SHARED.
+            match self.inner().state.swap(STATE_SHARED, Ordering::AcqRel) {
+                // We were not already shared so we can create another handle.
+                STATE_UNSHARED => Some(Self(self.0)),
+                // We were already shared so we can't create a third handle.
+                STATE_SHARED => None,
+            }
+        }
+
+        /// Get the inner data unconditionally.
+        pub fn get_unconditional(&self) -> &T {
+            &self.inner().value
+        }
+
+        /// Get the inner data only if there is currently a second handle.
+        pub fn get_if_shared(&self) -> Option<&T> {
+            match self.inner().state.load(Ordering::Acquire) {
+                STATE_UNSHARED => None,
+                STATE_SHARED => Some(&self.inner().value),
+            }
+        }
+    }
+
+    impl<T> Drop for BiArc<T> {
+        fn drop(&mut self) {
+            // We transition to UNSHARED since there will no longer be multiple BiArcs active.
+            // If we were already UNSHARED then we are the sole holder of the data.
+            if self.inner().state.swap(STATE_UNSHARED, Ordering::AcqRel) == STATE_UNSHARED {
+                // SAFETY: The data is not shared, so we can immediately drop it.
+                unsafe {
+                    drop(Box::from_raw(self.0.as_ptr()));
+                }
+            }
+        }
+    }
+}
+use biarc::BiArc;
 
 /// `Lender<S, X>` holds shared data `S` and exclusive data `X`.
 ///
@@ -13,87 +89,47 @@ use core::{
 /// Dropping `Lender` will revoke access from `Loan`. If there is an active `Loan`,
 /// the data will not be dropped until the `Loan` is dropped.
 pub struct Lender<S, X> {
-    inner: NonNull<Inner<S, X>>,
+    data: BiArc<Data<S, X>>,
 }
-
-// SAFETY: Lender is thread-safe.
-unsafe impl<S: Send, X: Send> Send for Lender<S, X> {}
-// SAFETY: Lender is thread-safe.
-unsafe impl<S: Sync, X: Sync> Sync for Lender<S, X> {}
 
 /// `Loan<S, X>` can access shared data `S` and exclusive data `X` while the
 /// [`Lender`] is alive.
 pub struct Loan<S, X> {
-    inner: NonNull<Inner<S, X>>,
+    data: BiArc<Data<S, X>>,
 }
 
-// SAFETY: Loan is thread-safe.
-unsafe impl<S: Send, X: Send> Send for Loan<S, X> {}
-// SAFETY: Loan is thread-safe.
-unsafe impl<S: Sync, X: Sync> Sync for Loan<S, X> {}
-
-struct Inner<S, X> {
+struct Data<S, X> {
     /// Shared data which can be accessed as `&S` by both [`Lender`] and [`Loan`].
     shared: S,
     /// Exclusive data which can be accessed as `&X` or `&mut X` only by [`Loan`].
     ///
     /// `Unsafe` cell is needed to allow `&Inner<S, X> -> &mut X`.
     exclusive: UnsafeCell<X>,
-    /// State for tracking whether the data is unshared, shared, or closed.
-    ///
-    /// See `./lender.md` for a state diagram.
-    state: AtomicU8,
 }
-
-/// Only [`Lender`] has access to the data.
-const STATE_UNSHARED: u8 = 0;
-/// [`Lender`] has lent access to [`Loan`].
-const STATE_SHARED: u8 = 1;
-/// [`Lender`] has dropped and revoked access from a potential [`Loan`].
-const STATE_CLOSED: u8 = 2;
 
 impl<S, X> Lender<S, X> {
     /// Creates a new [`Lender`] of some shared and exclusive data.
     pub fn new(shared: S, exclusive: X) -> Self {
         Self {
-            inner: allocate(Inner {
+            data: BiArc::new(Data {
                 shared,
                 exclusive: UnsafeCell::new(exclusive),
-                state: AtomicU8::new(STATE_UNSHARED),
             }),
         }
-    }
-
-    fn inner(&self) -> &Inner<S, X> {
-        // SAFETY: `inner` is valid while `Lender` is live.
-        unsafe { self.inner.as_ref() }
     }
 
     /// Lends access to the data.
     ///
     /// Only one `Loan` can be live at a time.
     pub fn lend(&self) -> Option<Loan<S, X>> {
-        // We must be UNSHARED or SHARED. If we transition to SHARED here, then we can create a `Loan`.
-        if self.inner().state.swap(STATE_SHARED, Ordering::AcqRel) != STATE_UNSHARED {
-            return None;
-        }
-        Some(Loan { inner: self.inner })
+        Some(Loan {
+            data: self.data.try_clone()?,
+        })
     }
 
     /// Accesses the shared data `S`.
     pub fn shared(&self) -> &S {
-        &self.inner().shared
-    }
-}
-
-impl<S, X> Drop for Lender<S, X> {
-    fn drop(&mut self) {
-        // We must be UNSHARED or SHARED. We transition to CLOSED to revoke access.
-        // If we were UNSHARED then there is no `Loan` so we are the sole holder of the data.
-        if self.inner().state.swap(STATE_CLOSED, Ordering::AcqRel) == STATE_UNSHARED {
-            // SAFETY: The data is not lent out, so we can immediately drop it.
-            unsafe { free(self.inner) }
-        }
+        &self.data.get_unconditional().shared
     }
 }
 
@@ -106,24 +142,15 @@ impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Lender<S, X> {
 }
 
 impl<S, X> Loan<S, X> {
-    fn inner(&self) -> &Inner<S, X> {
-        // SAFETY: `inner` is valid while `Loan` is live.
-        unsafe { self.inner.as_ref() }
-    }
-
     /// Accesses the shared and exclusive data.
     ///
     /// Returns `None` if the `Lender` has been dropped. You are encouraged to
     /// drop the `Loan` when this occurs, to drop the underlying data.
     pub fn get_ref(&self) -> Option<(&S, &X)> {
-        let inner = self.inner();
-        // We must be SHARED or CLOSED. If we are CLOSED, then access has been revoked.
-        if inner.state.load(Ordering::Acquire) == STATE_CLOSED {
-            return None;
-        }
-        // SAFETY: Only `Loan` accesses exclusive, so we can borrow it as if we held it directly.
-        let exclusive = unsafe { &*inner.exclusive.get() };
-        Some((&inner.shared, exclusive))
+        let data = self.data.get_if_shared()?;
+        // SAFETY: Only `Loan` accesses `exclusive`, so we can borrow it as if we held it directly.
+        let exclusive = unsafe { &*data.exclusive.get() };
+        Some((&data.shared, exclusive))
     }
 
     /// Accesses the shared and exclusive data.
@@ -131,29 +158,10 @@ impl<S, X> Loan<S, X> {
     /// Returns `None` if the `Lender` has been dropped. You are encouraged to
     /// drop the `Loan` when this occurs, to drop the underlying data.
     pub fn get_mut(&mut self) -> Option<(&S, &mut X)> {
-        let inner = self.inner();
-        // We must be SHARED or CLOSED. If we are CLOSED, then access has been revoked.
-        if inner.state.load(Ordering::Acquire) == STATE_CLOSED {
-            return None;
-        }
-        // SAFETY: Only `Loan` accesses exclusive, so we can borrow it as if we held it directly.
-        let exclusive = unsafe { &mut *inner.exclusive.get() };
-        Some((&inner.shared, exclusive))
-    }
-}
-
-impl<S, X> Drop for Loan<S, X> {
-    fn drop(&mut self) {
-        // We must be SHARED or CLOSED. We will transition back to UNSHARED here.
-        // - If we were SHARED, this will allow the `Lender` to lend again.
-        // - If we were CLOSED, the `Lender` has already dropped, so it's fine that we
-        //   are erasing the CLOSED state because nobody else can see it. We are the sole
-        //   holder of the data so we must free it.
-        if self.inner().state.swap(STATE_UNSHARED, Ordering::AcqRel) == STATE_CLOSED {
-            // SAFETY: `Lender` was already dropped, but didn't free the data
-            // since it was lent out, so we can free it now.
-            unsafe { free(self.inner) }
-        }
+        let data = self.data.get_if_shared()?;
+        // SAFETY: Only `Loan` accesses `exclusive`, so we can borrow it as if we held it directly.
+        let exclusive = unsafe { &mut *data.exclusive.get() };
+        Some((&data.shared, exclusive))
     }
 }
 
@@ -167,20 +175,5 @@ impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Loan<S, X> {
                 .finish(),
             None => s.finish_non_exhaustive(),
         }
-    }
-}
-
-/// Allocate a value on the heap.
-fn allocate<T>(val: T) -> NonNull<T> {
-    let ptr = Box::into_raw(Box::new(val));
-    // SAFETY: `Box::into_raw` returns a non-null pointer.
-    unsafe { NonNull::new_unchecked(ptr) }
-}
-
-/// Free a pointer from `allocate`.
-unsafe fn free<T>(ptr: NonNull<T>) {
-    // SAFETY: Passed in pointer must be valid.
-    unsafe {
-        drop(Box::from_raw(ptr.as_ptr()));
     }
 }
