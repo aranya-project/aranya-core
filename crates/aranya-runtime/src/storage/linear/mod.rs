@@ -36,8 +36,8 @@ use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Address, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    Address, Bytes, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys,
+    Location, MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
     SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer,
 };
 
@@ -103,8 +103,6 @@ pub struct LinearCommand<'a> {
     data: &'a [u8],
     max_cut: MaxCut,
 }
-
-type Bytes = Box<[u8]>;
 
 type Update = (String, Keys, Option<Bytes>);
 type FactMap = BTreeMap<Keys, Option<Box<[u8]>>>;
@@ -424,7 +422,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             };
             let mut facts = LinearFactPerspective::new(prior);
             for data in &segment.repr.commands[..=segment.repr.cmd_index(parent.max_cut)?] {
-                facts.apply_updates(&data.updates);
+                facts.apply_updates(&data.updates)?;
             }
             if facts.prior.is_none() {
                 facts.map.retain(|_, kv| !kv.is_empty());
@@ -484,7 +482,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         };
         let mut facts = LinearFactPerspective::new(prior);
         for data in &segment.repr.commands[..=segment.repr.cmd_index(location.max_cut)?] {
-            facts.apply_updates(&data.updates);
+            facts.apply_updates(&data.updates)?;
         }
 
         Ok(facts)
@@ -822,7 +820,7 @@ impl Iterator for QueryIterator {
 }
 
 impl<R: Read> Query for LinearFactIndex<R> {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
@@ -836,11 +834,7 @@ impl<R: Read> Query for LinearFactIndex<R> {
     }
 
     type QueryIterator = QueryIterator;
-    fn query_prefix(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<QueryIterator, StorageError> {
+    fn query_prefix(&self, name: &str, prefix: &[Bytes]) -> Result<QueryIterator, StorageError> {
         Ok(QueryIterator::new(
             self.query_prefix_inner(name, prefix)?.into_iter(),
         ))
@@ -848,11 +842,7 @@ impl<R: Read> Query for LinearFactIndex<R> {
 }
 
 impl<R: Read> LinearFactIndex<R> {
-    fn query_prefix_inner(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<FactMap, StorageError> {
+    fn query_prefix_inner(&self, name: &str, prefix: &[Bytes]) -> Result<FactMap, StorageError> {
         let mut matches = BTreeMap::new();
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
@@ -877,33 +867,34 @@ impl<R> LinearFactPerspective<R> {
         self.map.clear();
     }
 
-    fn apply_updates(&mut self, updates: &[Update]) {
-        for (name, key, value) in updates {
+    fn apply_updates(&mut self, updates: &[Update]) -> Result<(), StorageError> {
+        for (name, keys, value) in updates {
             if self.prior.is_none() {
                 if let Some(value) = value {
                     self.map
                         .entry(name.clone())
                         .or_default()
-                        .insert(key.clone(), Some(value.clone()));
+                        .insert(keys.clone(), Some(value.clone()));
                 } else if let Some(e) = self.map.get_mut(name) {
-                    e.remove(key);
+                    e.remove(keys);
                 }
             } else {
                 self.map
                     .entry(name.clone())
                     .or_default()
-                    .insert(key.clone(), value.clone());
+                    .insert(keys.clone(), value.clone());
             }
         }
+        Ok(())
     }
 }
 
 impl<R: Read> FactPerspective for LinearFactPerspective<R> {}
 
 impl<R: Read> Query for LinearFactPerspective<R> {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
         if let Some(wrapped) = self.map.get(name).and_then(|m| m.get(keys)) {
-            return Ok(wrapped.as_deref().map(Box::from));
+            return Ok(wrapped.as_deref().map(Bytes::from));
         }
         match &self.prior {
             FactPerspectivePrior::None => Ok(None),
@@ -920,11 +911,7 @@ impl<R: Read> Query for LinearFactPerspective<R> {
     }
 
     type QueryIterator = QueryIterator;
-    fn query_prefix(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<QueryIterator, StorageError> {
+    fn query_prefix(&self, name: &str, prefix: &[Bytes]) -> Result<QueryIterator, StorageError> {
         Ok(QueryIterator::new(
             self.query_prefix_inner(name, prefix)?.into_iter(),
         ))
@@ -932,11 +919,7 @@ impl<R: Read> Query for LinearFactPerspective<R> {
 }
 
 impl<R: Read> LinearFactPerspective<R> {
-    fn query_prefix_inner(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<FactMap, StorageError> {
+    fn query_prefix_inner(&self, name: &str, prefix: &[Bytes]) -> Result<FactMap, StorageError> {
         let mut matches = match &self.prior {
             FactPerspectivePrior::None => BTreeMap::new(),
             FactPerspectivePrior::FactPerspective(prior) => {
@@ -962,11 +945,12 @@ impl<R: Read> LinearFactPerspective<R> {
 }
 
 impl<R: Read> QueryMut for LinearFactPerspective<R> {
-    fn insert(&mut self, name: String, keys: Keys, value: Bytes) {
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
         self.map.entry(name).or_default().insert(keys, Some(value));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
         if self.prior.is_none() {
             // No need for tombstones with no prior.
             if let Some(kv) = self.map.get_mut(&name) {
@@ -975,35 +959,35 @@ impl<R: Read> QueryMut for LinearFactPerspective<R> {
         } else {
             self.map.entry(name).or_default().insert(keys, None);
         }
+        Ok(())
     }
 }
 
 impl<R: Read> FactPerspective for LinearPerspective<R> {}
 
 impl<R: Read> Query for LinearPerspective<R> {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
         self.facts.query(name, keys)
     }
 
     type QueryIterator = QueryIterator;
-    fn query_prefix(
-        &self,
-        name: &str,
-        prefix: &[Box<[u8]>],
-    ) -> Result<QueryIterator, StorageError> {
+    fn query_prefix(&self, name: &str, prefix: &[Bytes]) -> Result<QueryIterator, StorageError> {
         self.facts.query_prefix(name, prefix)
     }
 }
 
 impl<R: Read> QueryMut for LinearPerspective<R> {
-    fn insert(&mut self, name: String, keys: Keys, value: Bytes) {
-        self.facts.insert(name.clone(), keys.clone(), value.clone());
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
+        self.facts
+            .insert(name.clone(), keys.clone(), value.clone())?;
         self.current_updates.push((name, keys, Some(value)));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
-        self.facts.delete(name.clone(), keys.clone());
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
+        self.facts.delete(name.clone(), keys.clone())?;
         self.current_updates.push((name, keys, None));
+        Ok(())
     }
 }
 
@@ -1014,7 +998,7 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
         if checkpoint.index == self.commands.len() {
             return Ok(());
         }
@@ -1029,7 +1013,7 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         self.facts.clear();
         self.current_updates.clear();
         for data in &self.commands {
-            self.facts.apply_updates(&data.updates);
+            self.facts.apply_updates(&data.updates)?;
         }
 
         Ok(())
@@ -1049,7 +1033,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         self.commands.push(CommandData {
             id: command.id(),
             priority: command.priority(),
-            policy: command.policy().map(Box::from),
+            policy: command.policy().map(Bytes::from),
             data: command.bytes().into(),
             updates: core::mem::take(&mut self.current_updates),
         });
@@ -1118,9 +1102,9 @@ impl Command for LinearCommand<'_> {
 
 fn find_prefixes<'m, 'p: 'm>(
     map: &'m FactMap,
-    prefix: &'p [Box<[u8]>],
+    prefix: &'p [Bytes],
 ) -> impl Iterator<Item = (&'m Keys, Option<&'m [u8]>)> + 'm {
-    map.range::<[Box<[u8]>], _>((Bound::Included(prefix), Bound::Unbounded))
+    map.range::<[Bytes], _>((Bound::Included(prefix), Bound::Unbounded))
         .take_while(|(k, _)| k.starts_with(prefix))
         .map(|(k, v)| (k, v.as_deref()))
 }
@@ -1147,7 +1131,7 @@ mod test {
         ];
         let keys: Vec<Keys> = keys
             .iter()
-            .map(|ks| ks.iter().map(|k| k.as_bytes()).collect())
+            .map(|ks| ks.iter().map(|k| Bytes::from(k.as_bytes())).collect())
             .collect();
 
         for ks in &keys {
@@ -1155,7 +1139,8 @@ mod test {
                 name.into(),
                 ks.clone(),
                 format!("{ks:?}").into_bytes().into(),
-            );
+            )
+            .unwrap();
         }
 
         let prefixes: &[&[&str]] = &[
@@ -1166,11 +1151,10 @@ mod test {
             &["bb", ""],
             &["bb", "ccc"],
             &["bc", ""],
-            &["bc", "", ""],
         ];
 
         for prefix in prefixes {
-            let prefix: Keys = prefix.iter().map(|k| k.as_bytes()).collect();
+            let prefix: Keys = prefix.iter().map(|k| Bytes::from(k.as_bytes())).collect();
             let found: Vec<_> = fp.query_prefix(name, &prefix).unwrap().collect();
             let mut expected: Vec<_> = keys.iter().filter(|k| k.starts_with(&prefix)).collect();
             expected.sort();
