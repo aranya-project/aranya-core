@@ -341,7 +341,6 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: CommandContext,
-        placement: CommandPlacement,
     ) -> Result<(), PolicyError>
     where
         P: FactPerspective,
@@ -349,39 +348,13 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, fields);
-        match rs.call_command_policy(this_data.clone(), envelope.clone().into()) {
+        match rs.call_command_policy(this_data, envelope.into()) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check(recall_block) => {
-                    info!("Check {recall_block:?}: {}", self.source_location(&rs));
-
-                    let Some(recall_block) = recall_block else {
-                        // No recall block specified — immediate failure.
-                        return Err(PolicyError::Check);
-                    };
-
-                    match placement {
-                        CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
-                            // Immediate check failure.
-                            return Err(PolicyError::Check);
-                        }
-                        CommandPlacement::OnGraphInBraid => {
-                            // Perform recall.
-                        }
-                    }
-
-                    // Construct a new recall context from the policy context
-                    let CommandContext::Policy(policy_ctx) = rs.get_context() else {
-                        error!(
-                            "Non-policy context while evaluating rule: {:?}",
-                            rs.get_context()
-                        );
-                        return Err(PolicyError::InternalError);
-                    };
-                    let recall_ctx = CommandContext::Recall(policy_ctx.clone());
-                    rs.set_context(recall_ctx);
-                    self.recall_internal(&mut rs, this_data, envelope, recall_block)
+                ExitReason::Check => {
+                    info!("Check: {}", self.source_location(&rs));
+                    Err(PolicyError::Check)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -391,34 +364,6 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
             Err(e) => {
                 error!("\n{e}");
                 Err(PolicyError::InternalError)
-            }
-        }
-    }
-
-    fn recall_internal<M>(
-        &self,
-        rs: &mut RunState<'_, M>,
-        this_data: Struct,
-        envelope: Envelope<'_>,
-        recall_block_name: Identifier,
-    ) -> Result<(), PolicyError>
-    where
-        M: MachineIO<MachineStack>,
-    {
-        match rs.call_command_recall(this_data, envelope.into(), recall_block_name) {
-            Ok(ExitReason::Normal) => Err(PolicyError::Check),
-            Ok(ExitReason::Yield) => bug!("unexpected yield"),
-            Ok(ExitReason::Check(recall_block)) => {
-                info!(
-                    "Recall failed: {}: {:?}",
-                    self.source_location(rs),
-                    recall_block
-                );
-                Err(PolicyError::Check)
-            }
-            Ok(ExitReason::Panic) | Err(_) => {
-                info!("Recall panicked: {}", self.source_location(rs));
-                Err(PolicyError::Panic)
             }
         }
     }
@@ -451,8 +396,8 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                     })?)
                 }
                 ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check(recall) => {
-                    info!("Check {}: {:?}", self.source_location(&rs), recall);
+                ExitReason::Check => {
+                    info!("Check: {}", self.source_location(&rs));
                     Err(PolicyError::Check)
                 }
                 ExitReason::Panic => {
@@ -630,15 +575,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             author: author_id,
             version: BaseId::default(),
         });
-        self.evaluate_rule(
-            kind,
-            fields.as_slice(),
-            envelope,
-            facts,
-            sink,
-            ctx,
-            placement,
-        )?;
+        self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx)?;
 
         Ok(())
     }
@@ -719,7 +656,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             PolicyError::Panic
                         })? {
                             ExitReason::Normal => (),
-                            r @ (ExitReason::Yield | ExitReason::Check(_) | ExitReason::Panic) => {
+                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
                                 error!("Could not seal command: {}", r);
                                 return Err(PolicyError::Panic);
                             }
@@ -801,7 +738,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             PolicyError::InternalError
                         })?;
                     }
-                    ExitReason::Check(_) => {
+                    ExitReason::Check => {
                         // Can't recall outside a command context
                         info!("Check {}", self.source_location(&rs));
                         return Err(PolicyError::Check);

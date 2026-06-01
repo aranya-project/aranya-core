@@ -1158,27 +1158,6 @@ where
         self.run()
     }
 
-    /// Call a command policy loaded into the VM by name. Accepts a
-    /// `Struct` containing the Command's data. Returns a Vec of effect
-    /// structs or a MachineError.
-    pub fn call_command_recall(
-        &mut self,
-        this_data: Struct,
-        envelope: Struct,
-        recall_block_name: Identifier,
-    ) -> Result<ExitReason, MachineError> {
-        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_command(
-            Label::new(recall_block_name, LabelType::CommandRecall),
-            this_data,
-        )?;
-        self.ipush(envelope)?;
-        self.run()
-    }
-
     fn setup_function(&mut self, label: &Label) -> Result<(), MachineError> {
         self.set_pc_by_label(label)?;
         self.call_state.clear();
