@@ -2,7 +2,7 @@ use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     FunctionDefinition, Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern,
     MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind,
-    VType, ident, thir,
+    VType, WithSpanExt as _, ident, thir,
 };
 use buggy::{BugExt as _, bug};
 use tracing::warn;
@@ -189,7 +189,7 @@ impl CompileState<'_> {
                     if !e.vtype.fits_type(def_field_type) {
                         let err = InvalidType::new(
                             def_field_type.to_string(),
-                            Some(def_field_type.span),
+                            Some(schema_key.span()),
                             e.vtype.to_string(),
                             e.span,
                         );
@@ -253,7 +253,7 @@ impl CompileState<'_> {
                 if !e.vtype.fits_type(def_field_type) {
                     let err = InvalidType::new(
                         def_field_type.to_string(),
-                        Some(schema_value.identifier.span),
+                        Some(schema_value.span()),
                         e.vtype.to_string(),
                         e.span,
                     );
@@ -416,15 +416,8 @@ impl CompileState<'_> {
 
                     // The type of `if` is whatever the subexpressions
                     // are, as long as they are the same type
-                    let ty = types::unify_pair(t.vtype.clone(), f.vtype.clone()).map_err(|e| {
-                        let err = InvalidType::new(
-                            e.left.to_string(),
-                            Some(e.left.span()),
-                            e.right.to_string(),
-                            e.right.span(),
-                        );
-                        self.err(err)
-                    })?;
+                    let ty = types::unify_pair(t.vtype.clone(), f.vtype.clone())
+                        .map_err(|err| self.err(err))?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::If(
                             Box::new(cond),
@@ -730,10 +723,13 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Identifier(i) => {
-                let ty = self.identifier_types.get(i).map_err(|_| {
+                let mut ty = self.identifier_types.get(i).map_err(|_| {
                     let note = format!("'{}' not in scope", i);
                     self.err(NotDefined(note, i.span))
                 })?;
+                // This makes type errors point to where the identifier is used, rather than where its type is determined.
+                // TODO: Add the type determination as a a third span to those errors?
+                ty.span = expression.span;
                 thir::Expression {
                     kind: thir::ExprKind::Identifier(i.clone()),
                     vtype: ty,
@@ -959,25 +955,12 @@ impl CompileState<'_> {
                 let b = self.lower_expression(b)?;
 
                 let _operand_type = match expected_type {
-                    Some(kind) => types::unify_pair_as(
-                        a.vtype.clone(),
-                        b.vtype.clone(),
-                        VType {
-                            inner: kind,
-                            span: expression.span,
-                        },
-                        expression.span,
-                    )
-                    .map_err(|e| self.err(e))?,
-                    None => types::unify_pair(a.vtype.clone(), b.vtype.clone()).map_err(|e| {
-                        let err = InvalidType::new(
-                            e.left.to_string(),
-                            Some(e.left.span()),
-                            e.right.to_string(),
-                            e.right.span(),
-                        );
-                        self.err(err)
-                    })?,
+                    Some(kind) => {
+                        types::unify_pair_as(a.vtype.clone(), b.vtype.clone(), kind.nowhere())
+                            .map_err(|e| self.err(e))?
+                    }
+                    None => types::unify_pair(a.vtype.clone(), b.vtype.clone())
+                        .map_err(|err| self.err(err))?,
                 };
 
                 thir::Expression {
@@ -993,18 +976,8 @@ impl CompileState<'_> {
                 // Evaluate the expression
                 let e = self.lower_expression(e)?;
 
-                let ty = types::check_type(
-                    e.vtype.clone(),
-                    VType {
-                        inner: TypeKind::Bool,
-                        span: expression.span,
-                    },
-                    "",
-                )
-                .map_err(|err| {
-                    InvalidType::new(err.right.to_string(), None, err.left.to_string(), e.span)
-                })
-                .map_err(|e| self.err(e))?;
+                let ty = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
+                    .map_err(|e| self.err(e))?;
 
                 thir::Expression {
                     kind: thir::ExprKind::Not(Box::new(e)),
@@ -1119,7 +1092,7 @@ impl CompileState<'_> {
             if !arg_te.vtype.fits_type(&param.ty) {
                 let err = InvalidType::new(
                     param.ty.to_string(),
-                    Some(param.ty.span),
+                    Some(param.span()),
                     arg_te.vtype.to_string(),
                     arg_e.span,
                 );
@@ -1321,14 +1294,6 @@ impl CompileState<'_> {
                             // Literal pattern (including Result patterns with literal inner values)
                             let arm_t = self.lower_expression(value)?;
                             scrutinee_type = types::unify_pair(scrutinee_type, arm_t.vtype.clone())
-                                .map_err(|err| {
-                                    InvalidType::new(
-                                        err.left.to_string(),
-                                        None,
-                                        err.right.to_string(),
-                                        value.span,
-                                    )
-                                })
                                 .map_err(|err| self.err(err))?;
                             values_out.push(arm_t);
                         } else {
@@ -1538,18 +1503,8 @@ impl CompileState<'_> {
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(t) => {
-                            expr_type = Some(
-                                types::unify_pair(t, etype)
-                                    .map_err(|err| {
-                                        InvalidType::new(
-                                            err.left.to_string(),
-                                            Some(err.left.span),
-                                            err.right.to_string(),
-                                            e.span,
-                                        )
-                                    })
-                                    .map_err(|err| self.err(err))?,
-                            );
+                            expr_type =
+                                Some(types::unify_pair(t, etype).map_err(|err| self.err(err))?);
                         }
                     }
                     arms.push(thir::MatchExpressionArm {
@@ -1952,18 +1907,8 @@ impl CompileState<'_> {
                 }
                 (StmtKind::DebugAssert(e), _) => {
                     let e = self.lower_expression(e)?;
-                    let _: VType = types::check_type(
-                        e.vtype.clone(),
-                        VType {
-                            inner: TypeKind::Bool,
-                            span: e.span,
-                        },
-                        "",
-                    )
-                    .map_err(|err| {
-                        InvalidType::new(err.right.to_string(), None, err.left.to_string(), e.span)
-                    })
-                    .map_err(|e| self.err(e))?;
+                    let _: VType = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
+                        .map_err(|e| self.err(e))?;
                     thir::StmtKind::DebugAssert(e)
                 }
                 (_, _) => {

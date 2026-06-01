@@ -4,5 +4,7 @@ expression: error
 ---
 error: invalid type: string
   |
+2 |     match x {
+  |           - expected because of this
 3 |         "foo" => {
   |         ^^^^^ expected `int` but found `string`
