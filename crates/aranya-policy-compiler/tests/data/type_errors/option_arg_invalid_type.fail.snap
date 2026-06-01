@@ -5,7 +5,7 @@ expression: error
 error: invalid type: option[int]
   |
 1 | function bar(x int) bool {
-  |                --- expected because of this
+  |              ----- expected because of this
 ...
 5 |     return bar(Some(3))
   |                ^^^^^^^ expected `int` but found `option[int]`
