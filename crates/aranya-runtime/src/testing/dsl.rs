@@ -84,6 +84,65 @@ fn default_max_syncs() -> u64 {
     1
 }
 
+fn default_max_cascade_depth() -> u64 {
+    100
+}
+
+fn default_notify_interval() -> u64 {
+    1
+}
+
+/// Tracks per-subscriber state for hello sync debouncing.
+#[derive(Clone, Debug)]
+struct HelloSub {
+    /// Notify after this many graph changes.
+    notify_interval: u64,
+    /// Graph changes since last notification.
+    changes_since_notify: u64,
+}
+
+/// Determines how GenerateGraph synchronizes clients.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum SyncMethod {
+    /// Explicit poll-based sync (existing behavior).
+    Poll {
+        /// Probability weight for generating a sync action.
+        sync_chance: u64,
+        /// Probability weight for generating a command action.
+        add_command_chance: u64,
+    },
+    /// Hello notification-driven sync.
+    HelloSync {
+        /// Notify after this many graph changes (debounce).
+        #[serde(default = "default_notify_interval")]
+        notify_interval: u64,
+        /// How clients are connected for hello notifications.
+        #[serde(default)]
+        topology: HelloTopology,
+    },
+    /// No syncing during command generation. Commands are distributed
+    /// evenly (round-robin) across the participating clients and only
+    /// propagated to the rest during convergence. Useful for benchmarking
+    /// sync performance against a large graph.
+    None {
+        /// If true, client 0 participates in the round-robin distribution.
+        /// If false, client 0 is excluded and commands are split across
+        /// clients 1..N only.
+        #[serde(default)]
+        add_commands_to_client_zero: bool,
+    },
+}
+
+/// Client connection topology for hello sync.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum HelloTopology {
+    /// Client 0 is the hub; all others subscribe to it and it subscribes to all.
+    #[default]
+    HubAndSpoke,
+    /// Each client subscribes to the next: 0→1, 1→2, ..., N-1→0.
+    Ring,
+}
+
 /// Dispatches the sync message contained in data.
 /// This function is only for testing using polling. In production
 /// usage the syncer implementation will handle this.
@@ -107,6 +166,110 @@ pub fn dispatch(
         SyncIncoming::Hello(_) => unimplemented!(),
     };
     Ok(len)
+}
+
+/// Processes hello sync notifications cascading from a graph change.
+///
+/// When a client's graph changes, all subscribers are notified and sync
+/// from the changed client. If a subscriber receives new data, it becomes
+/// a "changed client" and its own subscribers are notified. This repeats
+/// until no new data flows or `max_depth` is exceeded.
+#[allow(clippy::too_many_arguments)]
+fn process_hello_notifications<SP: StorageProvider>(
+    graph: u64,
+    initial_changed: u64,
+    subscriptions: &mut BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>>,
+    graph_id: GraphId,
+    clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
+    client_heads: &mut BTreeMap<(u64, u64, u64), RefCell<PeerCache>>,
+    sink: &mut TestSink,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
+    max_depth: u64,
+) -> Result<(), TestError> {
+    let mut changed: BTreeSet<u64> = BTreeSet::new();
+    changed.insert(initial_changed);
+    for depth in 0..max_depth {
+        let mut next_changed: BTreeSet<u64> = BTreeSet::new();
+
+        for &publisher in &changed {
+            // Collect subscribers that are ready to be notified.
+            let ready: Vec<u64> = match subscriptions.get_mut(&(graph, publisher)) {
+                Some(subs) => subs
+                    .iter_mut()
+                    .filter_map(|(&subscriber, sub)| {
+                        sub.changes_since_notify += 1;
+                        if sub.changes_since_notify >= sub.notify_interval {
+                            sub.changes_since_notify = 0;
+                            Some(subscriber)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                None => continue,
+            };
+
+            for subscriber in ready {
+                debug!(
+                    depth,
+                    publisher, subscriber, "hello sync: notifying subscriber"
+                );
+
+                client_heads
+                    .entry((graph, subscriber, publisher))
+                    .or_default();
+                client_heads
+                    .entry((graph, publisher, subscriber))
+                    .or_default();
+
+                let mut request_cache = client_heads
+                    .get(&(graph, subscriber, publisher))
+                    .assume("cache must exist")?
+                    .borrow_mut();
+                let mut response_cache = client_heads
+                    .get(&(graph, publisher, subscriber))
+                    .assume("cache must exist")?
+                    .borrow_mut();
+
+                let mut request_client = clients
+                    .get(&subscriber)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+                let mut response_client = clients
+                    .get(&publisher)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+
+                let (_, received) = sync::<SP>(
+                    (&mut request_cache, &mut request_client),
+                    (&mut response_cache, &mut response_client),
+                    sink,
+                    graph_id,
+                    rt_buffers,
+                )?;
+
+                if received > 0 {
+                    debug!(
+                        depth,
+                        subscriber, received, "hello sync: subscriber received new data"
+                    );
+                    next_changed.insert(subscriber);
+                }
+            }
+        }
+
+        if next_changed.is_empty() {
+            debug!(depth, "hello sync: cascade complete");
+            return Ok(());
+        }
+
+        changed = next_changed;
+    }
+
+    #[allow(clippy::panic)]
+    {
+        panic!("hello sync cascade exceeded max depth of {max_depth}");
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -162,10 +325,11 @@ pub enum TestRule {
         clients: u64,
         graph: u64,
         commands: u64,
-        add_command_chance: u64,
-        sync_chance: u64,
+        #[serde(default)]
+        policy: u64,
         #[serde(default)]
         sync_client_zero: bool,
+        sync_method: SyncMethod,
     },
     SetupClientsAndGraph {
         clients: u64,
@@ -185,6 +349,18 @@ pub enum TestRule {
         graph: u64,
         clients: u64,
         max_syncs: u64,
+    },
+    HelloSubscribe {
+        client: u64,
+        peer: u64,
+        graph: u64,
+        #[serde(default = "default_notify_interval")]
+        notify_interval: u64,
+    },
+    HelloUnsubscribe {
+        client: u64,
+        peer: u64,
+        graph: u64,
     },
 }
 
@@ -274,13 +450,13 @@ impl Display for TestRule {
                 clients,
                 graph,
                 commands,
-                add_command_chance,
-                sync_chance,
+                policy,
                 sync_client_zero,
+                sync_method,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {}, "sync_client_zero": {} }} }},"#,
-                clients, graph, commands, add_command_chance, sync_chance, sync_client_zero,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}" }} }},"#,
+                clients, graph, commands, policy, sync_client_zero, sync_method,
             ),
             Self::IgnoreExpectations { ignore } => write!(
                 f,
@@ -334,6 +510,25 @@ impl Display for TestRule {
                 r#"{{"ConvergeAll": {{ "graph": {}, "clients": {}, "max_syncs": {} }} }},"#,
                 graph, clients, max_syncs,
             ),
+            Self::HelloSubscribe {
+                client,
+                peer,
+                graph,
+                notify_interval,
+            } => write!(
+                f,
+                r#"{{"HelloSubscribe": {{ "client": {}, "peer": {}, "graph": {}, "notify_interval": {} }} }},"#,
+                client, peer, graph, notify_interval,
+            ),
+            Self::HelloUnsubscribe {
+                client,
+                peer,
+                graph,
+            } => write!(
+                f,
+                r#"{{"HelloUnsubscribe": {{ "client": {}, "peer": {}, "graph": {} }} }},"#,
+                client, peer, graph,
+            ),
         }
     }
 }
@@ -385,67 +580,30 @@ where
                     clients,
                     graph,
                     commands,
-                    add_command_chance,
-                    sync_chance,
+                    policy,
                     sync_client_zero,
+                    sync_method,
                 } => {
-                    let min_clients = if sync_client_zero { 2 } else { 3 };
-                    assert!(
-                        clients >= min_clients,
-                        "There must be at least {min_clients} clients"
-                    );
-                    assert!(
-                        add_command_chance > 0,
-                        "There must be a positive command chance or it will never exit"
-                    );
-                    // Calculate the maximum number of syncs needed to send all commands.
-                    // We add 100 to account for extra syncs needed for merge commands.
-                    let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                    // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
-                    let command_ceiling: u64 = add_command_chance;
-                    let sync_ceiling = command_ceiling + sync_chance;
-                    generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
-                    let client_start = if sync_client_zero { 0 } else { 1 };
-                    let mut count = 0;
-                    // Randomly generate actions and syncs. This will create a graph with many branches.
-                    while count < commands {
-                        let client = rng.gen_range(client_start..clients);
-                        match rng.gen_range(0..sync_ceiling) {
-                            x if x < command_ceiling => {
-                                generated_actions.push(TestRule::ActionSet {
-                                    client,
-                                    graph,
-                                    key: 0,
-                                    value: rng.gen_range(0..10),
-                                    repeat: 1,
-                                });
-                                count += 1;
-                            }
-                            x if x < sync_ceiling => {
-                                let mut from = (client + 1) % clients;
-                                if !sync_client_zero && from == 0 {
-                                    from += 1;
-                                }
-                                generated_actions.push(TestRule::Sync {
-                                    graph,
-                                    client,
-                                    from,
-                                    must_send: None,
-                                    must_receive: None,
-                                    max_syncs: 1,
-                                });
-                            }
-                            _ => {}
-                        }
+                    for i in 0..clients {
+                        generated_actions.push(TestRule::AddClient { id: i });
                     }
-                    // Converge all clients by syncing every pair in both
-                    // directions until no client receives new commands.
-                    generated_actions.push(TestRule::ConvergeAll {
-                        graph,
-                        clients,
-                        max_syncs,
+                    generated_actions.push(TestRule::NewGraph {
+                        client: 0,
+                        id: graph,
+                        policy,
                     });
-                    // Verify all graphs are identical after convergence.
+                    for i in 1..clients {
+                        generated_actions.push(TestRule::Sync {
+                            graph,
+                            client: i,
+                            from: 0,
+                            must_send: None,
+                            must_receive: None,
+                            max_syncs: 100000,
+                        });
+                    }
                     for i in 1..clients {
                         generated_actions.push(TestRule::CompareGraphs {
                             clienta: 0,
@@ -454,8 +612,201 @@ where
                             equal: true,
                         });
                     }
-                    generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
-                    generated_actions
+
+                    match sync_method {
+                        SyncMethod::Poll {
+                            sync_chance,
+                            add_command_chance,
+                        } => {
+                            let min_clients = if sync_client_zero { 2 } else { 3 };
+                            assert!(
+                                clients >= min_clients,
+                                "There must be at least {min_clients} clients"
+                            );
+                            assert!(
+                                add_command_chance > 0,
+                                "There must be a positive command chance or it will never exit"
+                            );
+                            // Calculate the maximum number of syncs needed to send all commands.
+                            // We add 100 to account for extra syncs needed for merge commands.
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                            let command_ceiling: u64 = add_command_chance;
+                            let sync_ceiling = command_ceiling + sync_chance;
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+                            let client_start = if sync_client_zero { 0 } else { 1 };
+                            let mut count = 0;
+                            // Randomly generate actions and syncs. This will create a graph with many branches.
+                            while count < commands {
+                                let client = rng.gen_range(client_start..clients);
+                                match rng.gen_range(0..sync_ceiling) {
+                                    x if x < command_ceiling => {
+                                        generated_actions.push(TestRule::ActionSet {
+                                            client,
+                                            graph,
+                                            key: 0,
+                                            value: rng.gen_range(0..10),
+                                            repeat: 1,
+                                        });
+                                        count += 1;
+                                    }
+                                    x if x < sync_ceiling => {
+                                        let mut from = (client + 1) % clients;
+                                        if !sync_client_zero && from == 0 {
+                                            from += 1;
+                                        }
+                                        generated_actions.push(TestRule::Sync {
+                                            graph,
+                                            client,
+                                            from,
+                                            must_send: None,
+                                            must_receive: None,
+                                            max_syncs: 1,
+                                        });
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            // Converge all clients by syncing every pair in both
+                            // directions until no client receives new commands.
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
+                            // Verify all graphs are identical after convergence.
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                        SyncMethod::HelloSync {
+                            notify_interval,
+                            topology,
+                        } => {
+                            assert!(clients >= 2, "HelloSync requires at least 2 clients");
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+
+                            match topology {
+                                HelloTopology::HubAndSpoke => {
+                                    // Client 0 is the hub; all others subscribe
+                                    // to it and it subscribes to all.
+                                    for i in 1..clients {
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: i,
+                                            peer: 0,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: 0,
+                                            peer: i,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                    }
+                                }
+                                HelloTopology::Ring => {
+                                    // Each client subscribes to the next:
+                                    // 0→1, 1→2, ..., N-1→0.
+                                    for i in 0..clients {
+                                        let next = (i + 1) % clients;
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: i,
+                                            peer: next,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                    }
+                                }
+                            }
+
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+
+                            let mut count = 0;
+
+                            // Generate rounds. Each round, every client
+                            // adds a command.
+                            while count < commands {
+                                for client in 0..clients {
+                                    generated_actions.push(TestRule::ActionSet {
+                                        client,
+                                        graph,
+                                        key: 0,
+                                        value: rng.gen_range(0..10),
+                                        repeat: 1,
+                                    });
+                                    count += 1;
+                                    if count >= commands {
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Converge all clients as safety net.
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
+                            // Verify all graphs are identical.
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                        SyncMethod::None {
+                            add_commands_to_client_zero,
+                        } => {
+                            assert!(clients >= 2, "None sync requires at least 2 clients");
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                            let participating: Vec<u64> = if add_commands_to_client_zero {
+                                (0..clients).collect()
+                            } else {
+                                (1..clients).collect()
+                            };
+
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+
+                            for i in 0..commands {
+                                let client = participating[(i as usize) % participating.len()];
+                                generated_actions.push(TestRule::ActionSet {
+                                    client,
+                                    graph,
+                                    key: 0,
+                                    value: rng.gen_range(0..10),
+                                    repeat: 1,
+                                });
+                            }
+
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                    }
                 }
                 TestRule::SetupClientsAndGraph {
                     clients,
@@ -528,6 +879,7 @@ where
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
     let mut rt_buffers = RuntimeBuffers::<<SB::StorageProvider as StorageProvider>::Segment>::new();
+    let mut subscriptions: BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>> = BTreeMap::new();
 
     for rule in actions {
         debug!(?rule);
@@ -622,6 +974,21 @@ where
                     assert_eq!(total_sent, ms);
                 }
 
+                if total_received > 0 && !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        default_max_cascade_depth(),
+                    )?;
+                }
+
                 assert_eq!(0, sink.count());
             }
 
@@ -658,6 +1025,22 @@ where
                 }
 
                 assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        default_max_cascade_depth(),
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
             }
 
             TestRule::PrintGraph { client, graph } => {
@@ -808,6 +1191,31 @@ where
                 let expected_ids: BTreeSet<GraphId> = ids.iter().map(|id| graphs[id]).collect();
 
                 assert_eq!(actual_ids, expected_ids);
+            }
+            TestRule::HelloSubscribe {
+                client,
+                peer,
+                graph,
+                notify_interval,
+            } => {
+                debug!(client, peer, graph, notify_interval, "hello subscribe");
+                subscriptions.entry((graph, peer)).or_default().insert(
+                    client,
+                    HelloSub {
+                        notify_interval,
+                        changes_since_notify: 0,
+                    },
+                );
+            }
+            TestRule::HelloUnsubscribe {
+                client,
+                peer,
+                graph,
+            } => {
+                debug!(client, peer, graph, "hello unsubscribe");
+                if let Some(subs) = subscriptions.get_mut(&(graph, peer)) {
+                    subs.remove(&client);
+                }
             }
             _ => {}
         }
@@ -1189,6 +1597,8 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
+    generate_graph_hello_sync,
+    hello_sync,
     no_such_parent,
     exponential_traversal_regression,
     find_needed_segments_queue_max,
@@ -1200,6 +1610,7 @@ test_vectors! {
     missing_parent_after_sync,
     remove_graph,
     skip_list,
+    sync_all_at_once,
     sync_graph_larger_than_command_max,
     three_client_branch,
     three_client_compare_graphs,
