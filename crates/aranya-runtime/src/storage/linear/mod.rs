@@ -279,9 +279,11 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
 const MIN_SKIP_GAP: u64 = 10;
 
 /// Skip-list target boundaries for a segment of length `n`: `n/2`, `3n/4`,
-/// `7n/8`, ..., halving the remaining gap each step until the gap to `n`
-/// drops to [`MIN_SKIP_GAP`]. Returned ascending; callers walk backwards
-/// and pop highest-first. Empty when `n < 2`.
+/// `7n/8`, ..., halving the remaining gap each step. Continues until the
+/// gap from the final boundary to `n` is ≤ [`MIN_SKIP_GAP`], so the walk
+/// from head to the first skip entry never exceeds the cheap-walk
+/// threshold. Returned ascending; callers walk backwards and pop
+/// highest-first. Empty when `n < 2`.
 fn skip_target_boundaries(n: u64) -> Result<Vec<MaxCut>, StorageError> {
     let mut targets = vec![];
     let mut boundary = n / 2;
