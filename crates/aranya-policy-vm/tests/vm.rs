@@ -66,15 +66,6 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     })
 }
 
-fn dummy_ctx_recall(name: Identifier) -> CommandContext {
-    CommandContext::Recall(PolicyContext {
-        name,
-        id: CmdId::default(),
-        author: DeviceId::default(),
-        version: BaseId::default(),
-    })
-}
-
 fn dummy_envelope() -> Struct {
     Struct {
         name: ident!("Envelope"),

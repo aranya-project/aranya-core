@@ -6,9 +6,9 @@ Module {
     version: "0",
     labels: {
         <policy 'Cmd'>: 1,
-        <seal 'Cmd'>: 14,
-        <open 'Cmd'>: 20,
-        <recall 'Cmd_handle'>: 10,
+        <seal 'Cmd'>: 13,
+        <open 'Cmd'>: 19,
+        <recall 'Cmd_handle'>: 9,
     },
     action_defs: {},
     command_defs: {
@@ -46,7 +46,6 @@ Module {
     struct.get 'x'
     get 'this'
     get 'envelope'
-    enter_recall
     call <recall 'Cmd_handle'>
     exit panic
 <recall 'Cmd_handle'>:

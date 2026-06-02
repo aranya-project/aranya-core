@@ -6,9 +6,9 @@ Module {
     version: "0",
     labels: {
         <policy 'Cmd'>: 1,
-        <seal 'Cmd'>: 11,
-        <open 'Cmd'>: 17,
-        <recall 'Cmd_handle'>: 8,
+        <seal 'Cmd'>: 10,
+        <open 'Cmd'>: 16,
+        <recall 'Cmd_handle'>: 7,
     },
     action_defs: {},
     command_defs: {
@@ -34,7 +34,6 @@ Module {
     def 'this'
     get 'this'
     get 'envelope'
-    enter_recall
     call <recall 'Cmd_handle'>
     exit panic
 <recall 'Cmd_handle'>:
