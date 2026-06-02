@@ -649,7 +649,7 @@ where
                                         });
                                         count += 1;
                                     }
-                                    x if x < sync_ceiling => {
+                                    _ => {
                                         let mut from = (client + 1) % clients;
                                         if !sync_client_zero && from == 0 {
                                             from += 1;
@@ -663,7 +663,6 @@ where
                                             max_syncs: 1,
                                         });
                                     }
-                                    _ => {}
                                 }
                             }
                             // Converge all clients by syncing every pair in both
