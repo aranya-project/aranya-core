@@ -959,7 +959,12 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_statements(s, Scope::Layered)?;
                 self.exit_statement_context();
                 // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
-                self.append_instruction(Instruction::Exit(ExitReason::Normal));
+                // finish in recall block exits with Check, otherwise Normal
+                let exit_reason = match self.get_statement_context() {
+                    Ok(StatementContext::CommandRecall(_)) => ExitReason::Check,
+                    _ => ExitReason::Normal,
+                };
+                self.append_instruction(Instruction::Exit(exit_reason));
             }
             thir::StmtKind::Map(map_stmt) => {
                 // Execute query and store results
