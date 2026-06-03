@@ -11,9 +11,9 @@ mod biarc {
     pub struct BiArc<T>(NonNull<BiArcInner<T>>);
 
     // SAFETY: BiArc is thread-safe.
-    unsafe impl<T: Send> Send for BiArc<T> {}
+    unsafe impl<T: Send + Sync> Send for BiArc<T> {}
     // SAFETY: BiArc is thread-safe.
-    unsafe impl<T: Sync> Sync for BiArc<T> {}
+    unsafe impl<T: Send + Sync> Sync for BiArc<T> {}
 
     struct BiArcInner<T> {
         /// Indicates whether a second `BiArc` points to this.
@@ -106,6 +106,10 @@ struct Data<S, X> {
     /// `Unsafe` cell is needed to allow `&Inner<S, X> -> &mut X`.
     exclusive: UnsafeCell<X>,
 }
+
+// SAFETY: `UnsafeCell: !Sync` but we provide the "synchronization" by
+// accessing it only from `Loan`.
+unsafe impl<S: Sync, X: Sync> Sync for Data<S, X> {}
 
 impl<S, X> Lender<S, X> {
     /// Creates a new [`Lender`] of some shared and exclusive data.
