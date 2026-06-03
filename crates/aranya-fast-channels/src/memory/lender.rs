@@ -181,3 +181,38 @@ impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Loan<S, X> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_it() {
+        let lender = Lender::new("shared".to_owned(), "exclusive".to_owned());
+        assert_eq!(lender.shared(), "shared");
+
+        {
+            let mut loan = lender.lend().expect("can lend first");
+            assert!(lender.lend().is_none(), "cannot have two loans");
+
+            assert_eq!(lender.shared(), "shared");
+
+            let (a, b) = loan.get_mut().expect("not revoked");
+            assert_eq!(a, "shared");
+            assert_eq!(b, "exclusive");
+            b.push('!');
+            assert_eq!(b, "exclusive!");
+        }
+
+        let mut loan = lender.lend().expect("can lend after old loan dropped");
+
+        {
+            let (a, b) = loan.get_mut().expect("not revoked");
+            assert_eq!(a, "shared");
+            assert_eq!(b, "exclusive!");
+        }
+
+        drop(lender);
+        assert!(loan.get_mut().is_none(), "access revoked");
+    }
+}
