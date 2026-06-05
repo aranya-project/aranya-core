@@ -596,6 +596,16 @@ where
                     return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                 }
                 Target::Resolved(n) => {
+                    // Set context to Recall before invoking recall block - it affects emitted effects
+                    if self
+                        .machine
+                        .labels
+                        .iter()
+                        .any(|(label, &a)| a == n && label.ltype == LabelType::CommandRecall)
+                        && let CommandContext::Policy(c) = &self.ctx
+                    {
+                        self.ctx = CommandContext::Recall(c.clone());
+                    }
                     self.scope.enter_function();
                     // Store the current PC. The PC will be incremented after return,
                     // so there's no need to increment here.
