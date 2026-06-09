@@ -6,14 +6,34 @@
 //! [`Perspective`]s, which represent a slice of state.
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref};
+use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize};
+use rend::u64_le;
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
 pub mod linear;
+
+#[cfg(any(feature = "libc", feature = "testing"))]
+mod spill;
+#[cfg(feature = "libc")]
+pub use spill::LibcSpill;
+#[cfg(feature = "testing")]
+pub use spill::MemSpill;
+
+/// Byte-addressable overflow storage for braid and convergence data.
+///
+/// Implemented by [`LibcSpill`] (file-backed) and [`MemSpill`] (in-memory);
+/// each backend has its own constructor signature (paths, etc.), matching
+/// how [`IoManager`](linear::io::IoManager) backends are constructed.
+/// Callers build a spill and pass it in.
+pub trait Spill {
+    /// Write `data` at the given byte offset.
+    fn write_at(&mut self, offset: usize, data: &[u8]) -> Result<(), StorageError>;
+    /// Read exactly `data.len()` bytes starting at the given byte offset.
+    fn read_at(&mut self, offset: usize, data: &mut [u8]) -> Result<(), StorageError>;
+}
 
 /// Default capacity for the traversal queue.
 ///
@@ -115,6 +135,29 @@ impl TraversalQueue {
         Ok(())
     }
 
+    /// Enqueues a location without deduplication.
+    ///
+    /// Unlike [`Self::push`], each call adds a new entry even if the location
+    /// is already present. Used by the convergence pre-pass where
+    /// duplicate tracking is needed.
+    pub fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
+        self.entries
+            .push(loc)
+            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
+        // All duplicate entries are uncovered.
+        let last = self
+            .entries
+            .len()
+            .checked_sub(1)
+            .assume("just pushed, len must be >= 1")?;
+        self.entries.swap(self.partition, last);
+        self.partition = self
+            .partition
+            .checked_add(1)
+            .assume("partition must not overflow")?;
+        Ok(())
+    }
+
     /// Pop the location with the highest max cut, discarding the covered flag.
     pub fn pop(&mut self) -> Result<Option<Location>, StorageError> {
         Ok(self.pop_covered()?.map(|(loc, _)| loc))
@@ -143,6 +186,47 @@ impl TraversalQueue {
             .assume("partition must be >= 1 when uncovered entry exists")?;
         self.entries.swap(i, self.partition);
         Ok(self.entries.swap_remove(self.partition))
+    }
+
+    /// Returns the entry with the highest `max_cut` without removing it.
+    pub fn peek(&self) -> Option<&Location> {
+        self.entries.iter().max_by_key(|loc| *loc)
+    }
+
+    /// Pop the entry with the highest `max_cut`, removing all entries
+    /// at that exact location. Returns `(location, count)`.
+    ///
+    /// Used by the convergence pre-pass. Entries are matched by full
+    /// `Location` equality (segment + max_cut), not just max_cut.
+    pub fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
+        let Some(location) = self.entries.iter().max_by_key(|loc| *loc).copied() else {
+            return Ok(None);
+        };
+
+        // Remove all entries matching this location.
+        // Count them as we go. Iterate backward to avoid index shifts.
+        let mut count: usize = 0;
+        let mut j = self.entries.len();
+        while j > 0 {
+            j = j.checked_sub(1).assume("j > 0 checked in loop condition")?;
+            if self.entries[j] == location {
+                count = count
+                    .checked_add(1)
+                    .assume("count bounded by QUEUE_CAPACITY")?;
+                if j < self.partition {
+                    self.partition = self
+                        .partition
+                        .checked_sub(1)
+                        .assume("partition >= 1 when uncovered entry at j < partition")?;
+                    self.entries.swap(j, self.partition);
+                    self.entries.swap_remove(self.partition);
+                } else {
+                    self.entries.swap_remove(j);
+                }
+            }
+        }
+
+        Ok(Some((location, count)))
     }
 
     /// Returns true if all entries are covered (uncovered partition is empty).
@@ -291,9 +375,32 @@ aranya_crypto::custom_id! {
     pub struct GraphId;
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct SegmentIndex(pub usize);
+pub struct SegmentIndex(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for SegmentIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -301,9 +408,42 @@ impl fmt::Display for SegmentIndex {
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+impl SegmentIndex {
+    pub const fn new(val: u64) -> Self {
+        Self(u64_le::from_native(val))
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0.to_native()
+    }
+}
+
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct MaxCut(pub usize);
+pub struct MaxCut(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for MaxCut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -312,26 +452,57 @@ impl fmt::Display for MaxCut {
 }
 
 impl MaxCut {
+    pub const fn new(val: u64) -> Self {
+        Self(u64_le::from_native(val))
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0.to_native()
+    }
+
     /// Adds an amount to the max cut, returning `None` on overflow.
     #[must_use]
-    pub fn checked_add(self, other: usize) -> Option<Self> {
-        self.0.checked_add(other).map(Self)
+    pub fn checked_add(self, other: u64) -> Option<Self> {
+        self.get().checked_add(other).map(Self::new)
     }
 
     /// Gets a max cut one lower than this, returning `None` on overflow.
     #[must_use]
     pub fn decremented(self) -> Option<Self> {
-        self.0.checked_sub(1).map(Self)
+        self.get().checked_sub(1).map(Self::new)
     }
 
     /// Gets the distance between two max cuts, returning `None` on overflow.
     #[must_use]
-    pub fn distance_from(self, other: Self) -> Option<usize> {
-        self.0.checked_sub(other.0)
+    pub fn distance_from(self, other: Self) -> Option<u64> {
+        self.get().checked_sub(other.get())
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(C)]
 pub struct Location {
     pub max_cut: MaxCut,
     pub segment: SegmentIndex,
@@ -366,8 +537,33 @@ impl fmt::Display for Location {
     }
 }
 
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LocatedAddress {
+    pub id: CmdId,
+    pub segment: SegmentIndex,
+    pub max_cut: MaxCut,
+}
+
+impl LocatedAddress {
+    pub fn address(self) -> Address {
+        Address {
+            id: self.id,
+            max_cut: self.max_cut,
+        }
+    }
+
+    pub fn location(self) -> Location {
+        Location {
+            segment: self.segment,
+            max_cut: self.max_cut,
+        }
+    }
+}
+
 /// An error returned by [`Storage`] or [`StorageProvider`].
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[non_exhaustive]
 pub enum StorageError {
     #[error("storage already exists")]
     StorageExists,
@@ -385,6 +581,10 @@ pub enum StorageError {
     EmptyPerspective,
     #[error("traversal queue overflow (capacity {0})")]
     TraversalQueueOverflow(usize),
+    #[error("strand heap overflow (capacity {0})")]
+    StrandHeapOverflow(usize),
+    #[error("convergence root index overflow (capacity {0})")]
+    ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
     #[error(transparent)]
@@ -565,32 +765,19 @@ pub trait Storage {
         fact_perspective: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError>;
 
-    /// Determine whether the given location is an ancestor of the given segment.
+    /// Determine whether the given location is an ancestor of the given location.
     fn is_ancestor(
         &self,
         search_location: Location,
-        segment: &Self::Segment,
+        start_location: Location,
         buffer: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
-        let queue = buffer.get();
-
-        // Try to use skip list to jump directly backward.
-        // Skip list is sorted by max_cut ascending, so first valid skip
-        // jumps as far back as possible.
-        if let Some(&skip) = segment
-            .skip_list()
-            .iter()
-            .find(|skip| skip.max_cut >= search_location.max_cut)
-        {
-            queue.push(skip)?;
-        } else {
-            // No valid skip - add prior locations to queue
-            for prior in segment.prior() {
-                if prior.max_cut >= search_location.max_cut {
-                    queue.push(prior)?;
-                }
-            }
+        if search_location.max_cut > start_location.max_cut || search_location == start_location {
+            return Ok(false);
         }
+
+        let queue = buffer.get();
+        queue.push(start_location)?;
 
         while let Some(loc) = queue.pop()? {
             debug_assert!(
@@ -766,7 +953,7 @@ pub trait Revertable {
     fn checkpoint(&self) -> Checkpoint;
 
     /// Revert the perspective to the state it was at when the checkpoint was created.
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug>;
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError>;
 }
 
 /// A checkpoint used to revert perspectives.
@@ -783,7 +970,7 @@ pub struct Checkpoint {
 /// `(k_1, k_2, ..., k_n)`, where each `k` is a sequence of bytes. The fact value is also a sequence of bytes.
 pub trait Query {
     /// Look up a named fact by an exact match of the compound key.
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError>;
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError>;
 
     /// Iterator for [`Query::query_prefix`].
     type QueryIterator: Iterator<Item = Result<Fact, StorageError>>;
@@ -795,7 +982,7 @@ pub trait Query {
     fn query_prefix(
         &self,
         name: &str,
-        prefix: &[Box<[u8]>],
+        prefix: &[Bytes],
     ) -> Result<Self::QueryIterator, StorageError>;
 }
 
@@ -805,7 +992,7 @@ pub struct Fact {
     /// The sequence of keys.
     pub key: Keys,
     /// The bytes of the value.
-    pub value: Box<[u8]>,
+    pub value: Bytes,
 }
 
 /// Can mutate facts by inserting and deleting them.
@@ -815,10 +1002,10 @@ pub trait QueryMut: Query {
     /// Insert a fact labeled by a name, with a given compound key and a value.
     ///
     /// This fact can later be looked up by [`Query`] methods, using the name and keys.
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>);
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError>;
 
     /// Delete any fact associated to the compound key, under the given name.
-    fn delete(&mut self, name: String, keys: Keys);
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
 }
 
 // TODO(jdygert): Expose this?
@@ -831,25 +1018,44 @@ pub(crate) trait FactIndexExtra {
 }
 
 /// A sequence of byte-based keys, used for facts.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Keys(Box<[Box<[u8]>]>);
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+pub struct Keys(Box<[Bytes]>);
 
 impl Deref for Keys {
-    type Target = [Box<[u8]>];
-    fn deref(&self) -> &[Box<[u8]>] {
+    type Target = [Bytes];
+    fn deref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl AsRef<[Box<[u8]>]> for Keys {
-    fn as_ref(&self) -> &[Box<[u8]>] {
+impl AsRef<[Bytes]> for Keys {
+    fn as_ref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl core::borrow::Borrow<[Box<[u8]>]> for Keys {
-    fn borrow(&self) -> &[Box<[u8]>] {
+impl Borrow<[Bytes]> for Keys {
+    fn borrow(&self) -> &[Bytes] {
         self.0.as_ref()
+    }
+}
+
+impl From<Vec<Bytes>> for Keys {
+    fn from(value: Vec<Bytes>) -> Self {
+        Self(value.into_boxed_slice())
     }
 }
 
@@ -859,17 +1065,27 @@ impl From<&[&[u8]]> for Keys {
     }
 }
 
-impl Keys {
-    fn starts_with(&self, prefix: &[Box<[u8]>]) -> bool {
-        self.as_ref().starts_with(prefix)
-    }
-}
-
-impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
+impl<B: Into<Bytes>> FromIterator<B> for Keys {
     fn from_iter<T: IntoIterator<Item = B>>(iter: T) -> Self {
         Self(iter.into_iter().map(Into::into).collect())
     }
 }
+
+impl<'a> IntoIterator for &'a Keys {
+    type Item = &'a Bytes;
+    type IntoIter = core::slice::Iter<'a, Bytes>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl ArchivedKeys {
+    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.0.iter().map(AsRef::as_ref)
+    }
+}
+
+pub type Bytes = Box<[u8]>;
 
 mod impls {
     use alloc::boxed::Box;
@@ -944,7 +1160,7 @@ mod queue_tests {
     use super::*;
 
     fn loc(seg: usize, mc: usize) -> Location {
-        Location::new(SegmentIndex(seg), MaxCut(mc))
+        Location::new(SegmentIndex::new(seg as u64), MaxCut::new(mc as u64))
     }
 
     #[test]
@@ -1002,7 +1218,7 @@ mod queue_tests {
         queue.push(loc(0, 5)).unwrap();
         queue.push(loc(0, 8)).unwrap();
         let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(queue.is_empty());
     }
 
@@ -1013,7 +1229,7 @@ mod queue_tests {
         // Higher max_cut uncovered: segment head moved beyond covered point.
         queue.push_covered(loc(0, 8), false).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
     }
 
@@ -1024,7 +1240,7 @@ mod queue_tests {
         // Lower max_cut should not change anything.
         queue.push_covered(loc(0, 3), true).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(8));
+        assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
     }
 
@@ -1034,7 +1250,7 @@ mod queue_tests {
         queue.push_covered(loc(0, 5), true).unwrap();
         // pop() should return only the location.
         let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut(5));
+        assert_eq!(l.max_cut, MaxCut::new(5));
         assert!(queue.is_empty());
     }
 
@@ -1058,19 +1274,19 @@ mod queue_tests {
 
         let mut result: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
-            .drain_above(MaxCut(4), |loc| {
+            .drain_above(MaxCut::new(4), |loc| {
                 let _ = result.push(loc);
             })
             .unwrap();
 
         // Entries with max_cut > 4 should be drained.
         assert_eq!(result.len(), 2);
-        assert!(result.iter().any(|l| l.max_cut == MaxCut(7)));
-        assert!(result.iter().any(|l| l.max_cut == MaxCut(5)));
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(7)));
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(5)));
 
         // Only max_cut=3 should remain in the queue.
         let remaining = queue.pop().unwrap().unwrap();
-        assert_eq!(remaining.max_cut, MaxCut(3));
+        assert_eq!(remaining.max_cut, MaxCut::new(3));
         assert!(queue.is_empty());
     }
 
@@ -1086,15 +1302,15 @@ mod queue_tests {
 
         let mut drained: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
-            .drain_above(MaxCut(4), |loc| {
+            .drain_above(MaxCut::new(4), |loc| {
                 let _ = drained.push(loc);
             })
             .unwrap();
 
         // Only uncovered entries above threshold should be passed to f.
         assert_eq!(drained.len(), 2);
-        assert!(drained.iter().any(|l| l.segment == SegmentIndex(1)));
-        assert!(drained.iter().any(|l| l.segment == SegmentIndex(4)));
+        assert!(drained.iter().any(|l| l.segment.get() == 1));
+        assert!(drained.iter().any(|l| l.segment.get() == 4));
 
         // Covered entry above threshold (seg=2) should be discarded.
         // Entries below threshold should remain: seg=0 (uncovered), seg=3 (covered).
@@ -1103,7 +1319,72 @@ mod queue_tests {
             remaining.push((l.segment, covered));
         }
         assert_eq!(remaining.len(), 2);
-        assert!(remaining.contains(&(SegmentIndex(0), false)));
-        assert!(remaining.contains(&(SegmentIndex(3), true)));
+        assert!(remaining.contains(&(SegmentIndex::new(0), false)));
+        assert!(remaining.contains(&(SegmentIndex::new(3), true)));
+    }
+
+    #[test]
+    fn test_push_duplicate_keeps_separate_entries() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        let first = queue.pop().unwrap();
+        assert!(first.is_some());
+        let second = queue.pop().unwrap();
+        assert!(second.is_some());
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn test_push_duplicate_overflow() {
+        let mut queue = TraversalQueue::new();
+        for i in 0..QUEUE_CAPACITY {
+            queue.push_duplicate(loc(0, i)).unwrap();
+        }
+        let result = queue.push_duplicate(loc(0, 999));
+        assert_eq!(
+            result.unwrap_err(),
+            StorageError::TraversalQueueOverflow(QUEUE_CAPACITY)
+        );
+    }
+
+    #[test]
+    fn test_pop_duplicates_returns_count() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(1, 3)).unwrap();
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(location, loc(0, 5));
+        assert_eq!(count, 2);
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(location, loc(1, 3));
+        assert_eq!(count, 1);
+
+        assert!(queue.pop_duplicates().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pop_duplicates_different_segments_same_max_cut() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(1, 5)).unwrap();
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(location.max_cut, MaxCut::new(5));
+
+        let (_, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(count, 1);
+
+        assert!(queue.pop_duplicates().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pop_duplicates_empty() {
+        let mut queue = TraversalQueue::new();
+        assert!(queue.pop_duplicates().unwrap().is_none());
     }
 }

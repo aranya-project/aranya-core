@@ -28,22 +28,23 @@ pub mod id;
 pub use aranya_policy_ifgen as ifgen;
 #[doc(inline)]
 pub use aranya_runtime::{
-    Address, ClientError, ClientState, CmdId, Command, GraphId, Session, Sink, Transaction,
-    TraversalBuffer, TraversalBuffers,
+    Address, ClientError, ClientState, CmdId, Command, GraphId, RuntimeBuffers, Session, Sink,
+    Transaction, TraversalBuffer, TraversalBuffers,
 };
 
 pub mod storage {
     //! Storage providers and low-level I/O for the graph.
     //!
-    //! [`LinearStorageProvider`] is the stock append-only storage backend
-    //! used by [`crate::ClientState`]; construct one with
-    //! [`LinearStorageProvider::new`]. It is parameterized over an
-    //! [`IoManager`] implementation — the user-swappable piece that owns
-    //! how bytes are actually persisted. [`FileManager`] is the file-backed
-    //! reference [`IoManager`] (available under the `libc` feature); custom
-    //! backends implement [`IoManager`] (and the associated [`Read`]/
-    //! [`Write`] traits) to plug in alternative storage.
+    //! [`LinearStorageProvider`] is the stock append-only storage backend used by
+    //! [`crate::ClientState`]; construct one with [`LinearStorageProvider::new`]. It is
+    //! parameterized over an `IoManager` implementation to control how bytes are actually
+    //! persisted. [`FileManager`] is the file-backed reference implementation (available under the
+    //! `libc` feature).
 
+    #[cfg(feature = "libc")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
+    #[doc(inline)]
+    pub use aranya_runtime::LibcSpill;
     #[cfg(feature = "libc")]
     #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
     #[doc(inline)]
@@ -51,7 +52,7 @@ pub mod storage {
     #[doc(inline)]
     pub use aranya_runtime::{
         StorageError,
-        storage::linear::{IoManager, LinearStorage, LinearStorageProvider, Read, Write},
+        storage::linear::{LinearStorage, LinearStorageProvider},
     };
 }
 

@@ -4,7 +4,7 @@
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
 use buggy::Bug;
-use serde::{Deserialize, Serialize};
+use rend::u64_le;
 
 use crate::{
     Address,
@@ -13,7 +13,8 @@ use crate::{
 };
 
 /// An error returned by a runtime policy store or policy.
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PolicyError {
     #[error("read error")]
     Read,
@@ -35,12 +36,31 @@ impl From<core::convert::Infallible> for PolicyError {
     }
 }
 
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PolicyId(usize);
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Ord,
+    PartialOrd,
+    Eq,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct PolicyId(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl PolicyId {
-    pub fn new(id: usize) -> Self {
-        Self(id)
+    pub fn new(id: u64) -> Self {
+        Self(id.into())
     }
 }
 

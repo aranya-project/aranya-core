@@ -4,8 +4,9 @@ use aranya_policy_vm::ContractValidationError;
 
 use crate::{policy::PolicyError, storage::StorageError};
 
-#[derive(Debug, thiserror::Error)]
 /// Errors that can occur because of creation or use of VmPolicy.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum VmPolicyError {
     /// An error happened while deserializing a command struct. Stores an interior
     /// [postcard::Error].

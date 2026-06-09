@@ -88,7 +88,12 @@ where
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
         let value = ser_values(value)?;
-        self.facts.insert(name.as_str().to_owned(), keys, value);
+        self.facts
+            .insert(name.as_str().to_owned(), keys, value)
+            .map_err(|err| {
+                tracing::error!(?err);
+                MachineIOError::Internal
+            })?;
         Ok(())
     }
 
@@ -98,7 +103,13 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
-        self.facts.delete(name.as_str().to_owned(), keys);
+        self.facts
+            .delete(name.as_str().to_owned(), keys)
+            .map_err(|err| {
+                tracing::error!(?err);
+                MachineIOError::Internal
+            })?;
+
         Ok(())
     }
 

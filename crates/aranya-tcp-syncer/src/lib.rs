@@ -17,8 +17,8 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientState, Command as _, MAX_SYNC_MESSAGE_SIZE, PeerCache, SubscribeResponse, SyncError,
-    SyncIncoming, SyncRequester, SyncResponder, TraversalBuffers,
+    ClientState, Command as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
+    SubscribeResponse, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -37,6 +37,7 @@ pub fn run_syncer<PS, SP, S>(
 ) where
     PS: PolicyStore,
     SP: StorageProvider,
+    SP::Segment: Send,
     S: Sink<<PS as PolicyStore>::Effect>,
     Syncer<PS, SP, S>: Send,
 {
@@ -95,7 +96,9 @@ where
     client_state: Arc<Mutex<ClientState<PS, SP>>>,
     sink: Arc<Mutex<S>>,
     return_address: Vec<u8>,
-    buffers: TraversalBuffers,
+    rt_buffers: RuntimeBuffers<SP::Segment>,
+    /// Directory where braid/convergence spill files are created.
+    spill_dir: std::path::PathBuf,
 }
 
 impl<PS, SP, S> Syncer<PS, SP, S>
@@ -105,11 +108,15 @@ where
     S: Sink<<PS as PolicyStore>::Effect>,
 {
     /// Create a sync client with the given certificate chain.
+    ///
+    /// `spill_dir` is the directory where braid/convergence spill files
+    /// are created when in-memory capacity overflows.
     pub fn new(
         client_state: Arc<Mutex<ClientState<PS, SP>>>,
         sink: Arc<Mutex<S>>,
         sender: mpsc::Sender<GraphId>,
         return_address: SocketAddr,
+        spill_dir: &std::path::Path,
     ) -> Result<Self> {
         let return_address = postcard::to_allocvec(&return_address)?;
         Ok(Self {
@@ -119,7 +126,8 @@ where
             client_state,
             sink,
             return_address,
-            buffers: TraversalBuffers::new(),
+            rt_buffers: RuntimeBuffers::new(),
+            spill_dir: spill_dir.to_path_buf(),
         })
     }
 
@@ -141,7 +149,7 @@ where
             &mut buffer,
             client.provider(),
             heads,
-            &mut self.buffers.primary,
+            &mut self.rt_buffers.traversal.primary,
         )?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
@@ -162,13 +170,15 @@ where
         {
             received = cmds.len();
             let mut trx = client.transaction(graph_id);
-            client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
-            client.commit(trx, sink, &mut self.buffers.primary)?;
+            let spill_dir = self.spill_dir.as_path();
+            let make_spill = || LibcSpill::new(spill_dir);
+            client.add_commands(&mut trx, sink, &cmds, &mut self.rt_buffers, make_spill)?;
+            client.commit(trx, sink, &mut self.rt_buffers, make_spill)?;
             client.update_heads(
                 graph_id,
                 cmds.iter().filter_map(|cmd| cmd.address().ok()),
                 heads,
-                &mut self.buffers.primary,
+                &mut self.rt_buffers.traversal.primary,
             )?;
             self.push(graph_id)?;
         }
@@ -194,7 +204,7 @@ where
             heads,
             remain_open,
             max_bytes,
-            &mut self.buffers.primary,
+            &mut self.rt_buffers.traversal.primary,
         )?;
 
         let mut stream = TcpStream::connect(peer_addr)?;
@@ -252,7 +262,7 @@ where
                     target,
                     client.provider(),
                     response_cache,
-                    &mut self.buffers,
+                    &mut self.rt_buffers.traversal,
                 )?
             }
             SyncIncoming::Subscribe(sub) => {
@@ -273,7 +283,7 @@ where
                             sub.graph_id(),
                             sub.heads().iter(),
                             response_cache,
-                            &mut self.buffers.primary,
+                            &mut self.rt_buffers.traversal.primary,
                         )?;
                         SubscribeResponse::Success.encode_to(target)?
                     }
@@ -296,13 +306,21 @@ where
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().expect("poisoned");
                         let sink = sink_guard.deref_mut();
-                        client.add_commands(&mut trx, sink, &cmds, &mut self.buffers.primary)?;
-                        client.commit(trx, sink, &mut self.buffers.primary)?;
+                        let spill_dir = self.spill_dir.as_path();
+                        let make_spill = || LibcSpill::new(spill_dir);
+                        client.add_commands(
+                            &mut trx,
+                            sink,
+                            &cmds,
+                            &mut self.rt_buffers,
+                            make_spill,
+                        )?;
+                        client.commit(trx, sink, &mut self.rt_buffers, make_spill)?;
                         client.update_heads(
                             graph_id,
                             cmds.iter().filter_map(|cmd| cmd.address().ok()),
                             response_cache,
-                            &mut self.buffers.primary,
+                            &mut self.rt_buffers.traversal.primary,
                         )?;
                     }
                     self.push(graph_id)?;
@@ -330,13 +348,18 @@ where
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
             let mut response_syncer = SyncResponder::new();
-            response_syncer.start_session(session_id, graph_id, 0, response_cache.heads())?;
+            response_syncer.start_session(
+                session_id,
+                graph_id,
+                0,
+                response_cache.heads().iter().map(|h| h.address()),
+            )?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_syncer.push(
                 &mut target,
                 self.client_state.lock().expect("poisoned").provider(),
-                &mut self.buffers,
+                &mut self.rt_buffers.traversal,
             )?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {
