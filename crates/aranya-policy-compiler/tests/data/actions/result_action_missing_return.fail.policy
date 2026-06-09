@@ -1,0 +1,4 @@
+// A result-typed action must return on every path.
+action oops(x int) result[int, string] {
+    let y = x
+}

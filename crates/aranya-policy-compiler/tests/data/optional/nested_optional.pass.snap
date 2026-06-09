@@ -13,6 +13,7 @@ Module {
             name: "a" @ 70..71,
             persistence: Persistent,
             params: {},
+            result_type: None,
         },
     },
     command_defs: {},

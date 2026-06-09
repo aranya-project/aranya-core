@@ -12,6 +12,7 @@ Module {
             name: "pets" @ 40..44,
             persistence: Persistent,
             params: {},
+            result_type: None,
         },
     },
     command_defs: {},

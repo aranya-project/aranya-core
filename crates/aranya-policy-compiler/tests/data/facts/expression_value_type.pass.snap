@@ -12,6 +12,7 @@ Module {
             name: "test" @ 34..38,
             persistence: Persistent,
             params: {},
+            result_type: None,
         },
     },
     command_defs: {},

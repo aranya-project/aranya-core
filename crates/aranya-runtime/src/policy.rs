@@ -3,6 +3,7 @@
 //! A [`PolicyStore`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+use aranya_policy_vm::Value;
 use buggy::Bug;
 use rend::u64_le;
 
@@ -20,8 +21,10 @@ pub enum PolicyError {
     Read,
     #[error("write error")]
     Write,
+    /// A check failed. Carries an optional error value: actions that return
+    /// `Err(value)` populate it; command/recall checks leave it `None`.
     #[error("check error")]
-    Check,
+    Check(Option<Value>),
     #[error("panic")]
     Panic,
     #[error("internal error")]
