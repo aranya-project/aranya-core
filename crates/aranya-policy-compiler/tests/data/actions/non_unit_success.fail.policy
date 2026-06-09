@@ -1,0 +1,4 @@
+// An action's success type must be `unit` (currently `int` placeholder).
+action bad() result[string, string] {
+    return Err("e")
+}

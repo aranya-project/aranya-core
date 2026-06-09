@@ -395,8 +395,8 @@ ephemeral_modifier = { "ephemeral" }
 immutable_modifier = { "immutable" }
 use_definition = { "use" ~ identifier }
 fact_definition = { immutable_modifier? ~ "fact" ~ fact_signature }
-// [ephemeral] action foo(a int) { ... }
-action_definition = { ephemeral_modifier? ~ "action" ~ identifier ~ function_arguments ~ statement_block }
+// [ephemeral] action foo(a int) [result[unit, T]] { ... }
+action_definition = { ephemeral_modifier? ~ "action" ~ identifier ~ function_arguments ~ result_t? ~ statement_block }
 // effect Foo { bar id }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // struct Foo { bar id }

@@ -1715,6 +1715,36 @@ impl CompileState<'_> {
                     }
                     thir::StmtKind::Return(thir::ReturnStatement { expression: e })
                 }
+                (StmtKind::Return(s), StatementContext::Action(action)) => {
+                    // Only actions declaring a result type may return.
+                    let Some(result_type) = &action.return_type else {
+                        return Err(self.err(UnknownError(
+                            "cannot return from an infallible action; declare a `result[unit, E]` return type".to_owned(),
+                            Some(statement.span),
+                        )));
+                    };
+                    // The success type is limited to `unit` (currently `int`).
+                    if !matches!(result_type.ok.inner, TypeKind::Int) {
+                        return Err(self.err(UnknownError(
+                            "an action's success type must be `unit` (use `int` placeholder)"
+                                .to_owned(),
+                            Some(result_type.ok.span),
+                        )));
+                    }
+                    // Ensure the return expression fits the action's `result[unit, E]` type.
+                    let return_type = TypeKind::Result(Box::new(result_type.clone())).nowhere();
+                    let e = self.lower_expression(&s.expression)?;
+                    if !e.vtype.fits_type(&return_type) {
+                        let err = InvalidType::new(
+                            return_type.to_string(),
+                            Some(return_type.span),
+                            e.vtype.to_string(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
+                    }
+                    thir::StmtKind::Return(thir::ReturnStatement { expression: e })
+                }
                 (
                     StmtKind::Finish(s),
                     StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),

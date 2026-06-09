@@ -235,13 +235,13 @@ impl Error for NoReturn {
                 Snippet::source(input).annotation(
                     AnnotationKind::Primary
                         .span(self.0.into())
-                        .label("No return found in this function body"),
+                        .label("no return found in this body"),
                 ),
             ),
         );
     }
     fn description(&self) -> String {
-        "pure function has no return statement".to_owned()
+        "missing return statement".to_owned()
     }
 }
 

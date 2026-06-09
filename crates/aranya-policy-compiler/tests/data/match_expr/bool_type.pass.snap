@@ -17,6 +17,7 @@ Module {
                     ty: Int @ 11..14,
                 },
             },
+            result_type: None,
         },
     },
     command_defs: {},

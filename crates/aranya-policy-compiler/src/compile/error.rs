@@ -118,7 +118,7 @@ impl InvalidFactLiteral {
     }
 }
 
-/// A pure function has no return statement.
+/// A callable with a return type has no return statement.
 pub(crate) struct NoReturn(pub Span);
 
 /// Source structs in struct composition have overlapping fields.

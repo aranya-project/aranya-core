@@ -10,7 +10,7 @@ use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
+    ClientError, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
     RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
@@ -120,6 +120,15 @@ action increment() {
         key: 1,
         amount: 1
     }
+}
+
+// A result-typed action: returns `Ok(unit)` on success or `Err(reason)` on
+// failure. (Success type uses an `int` placeholder until `unit` lands.)
+ephemeral action try_result(fail bool) result[int, string] {
+    if fail {
+        return Err("boom")
+    }
+    return Ok(0)
 }
 
 ephemeral command IncrementEphemeral {
@@ -411,6 +420,50 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");
     // And check that it matches the value we expect.
     assert_eq!(expected_value, value);
+
+    Ok(())
+}
+
+/// Tests that a result-typed action surfaces success and failure to the caller.
+///
+/// The [`TestPolicyStore`] must be instantiated with [`TEST_POLICY_1`].
+pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let provider = MemStorageProvider::default();
+    let mut cs = ClientState::new(policy_store, provider);
+
+    let graph = cs
+        .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
+        .expect("could not create graph");
+
+    // `try_result` is ephemeral, so run it in a session.
+    let mut session = cs.session(graph).expect("should be able to create session");
+
+    // `return Ok(unit)` => the action succeeds.
+    session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            vm_action!(try_result(false)),
+        )
+        .expect("Ok action should succeed");
+
+    // `return Err(reason)` => `Check(Some(value))` surfaces the reason to the caller.
+    let err = session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            vm_action!(try_result(true)),
+        )
+        .expect_err("Err action should fail");
+    assert!(
+        matches!(
+            &err,
+            ClientError::PolicyError(PolicyError::Check(Some(Value::String(s)))) if s == "boom"
+        ),
+        "expected Check(Some(\"boom\")), got {err:?}"
+    );
 
     Ok(())
 }
