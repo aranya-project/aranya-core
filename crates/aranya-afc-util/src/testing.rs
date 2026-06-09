@@ -281,15 +281,10 @@ impl<T: TestImpl> Device<T> {
     /// Tests the case where `label` has not been assigned to
     /// `sealer`.
     fn test_wrong_direction(sealer: &mut Self, channel_id: LocalChannelId) {
-        const GOLDEN: &str = "hello, world!";
-        let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Afc>::OVERHEAD];
-        let mut ctx = sealer
-            .afc_client
-            .setup_seal_ctx(channel_id)
-            .expect("can set up ctx");
         let err = sealer
             .afc_client
-            .seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())
+            .setup_seal_ctx(channel_id)
+            .map(|_| ())
             .expect_err("should have failed");
         assert_eq!(err, aranya_fast_channels::Error::NotFound(channel_id));
     }
