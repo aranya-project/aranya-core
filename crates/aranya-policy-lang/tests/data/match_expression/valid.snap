@@ -16,6 +16,7 @@ Policy {
                     ty: Int @ 13..16,
                 },
             ],
+            return_type: None,
             statements: [
                 Let(
                     LetStatement {

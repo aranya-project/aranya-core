@@ -11,6 +11,7 @@ Policy {
             persistence: Persistent,
             identifier: "ping" @ 7..11,
             arguments: [],
+            return_type: None,
             statements: [],
             span: 0..16,
         },
@@ -18,6 +19,7 @@ Policy {
             persistence: Persistent,
             identifier: "pong" @ 24..28,
             arguments: [],
+            return_type: None,
             statements: [
                 ActionCall(
                     FunctionCall {
