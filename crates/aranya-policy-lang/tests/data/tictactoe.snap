@@ -96,6 +96,7 @@ Policy {
                     ty: Id @ 641..643,
                 },
             ],
+            return_type: None,
             statements: [
                 Let(
                     LetStatement {
@@ -148,6 +149,7 @@ Policy {
                     ty: Int @ 1550..1553,
                 },
             ],
+            return_type: None,
             statements: [
                 Let(
                     LetStatement {

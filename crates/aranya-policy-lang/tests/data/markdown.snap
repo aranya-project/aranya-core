@@ -19,6 +19,7 @@ Policy {
             persistence: Persistent,
             identifier: "foo" @ 125..128,
             arguments: [],
+            return_type: None,
             statements: [
                 Publish(
                     NamedStruct(

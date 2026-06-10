@@ -11,6 +11,7 @@ Policy {
             persistence: Persistent,
             identifier: "foo" @ 7..10,
             arguments: [],
+            return_type: None,
             statements: [
                 Let(
                     LetStatement {

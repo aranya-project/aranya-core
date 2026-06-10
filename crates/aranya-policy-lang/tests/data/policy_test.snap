@@ -42,6 +42,7 @@ Policy {
                     ty: Int @ 168..171,
                 },
             ],
+            return_type: None,
             statements: [
                 Let(
                     LetStatement {
@@ -77,6 +78,7 @@ Policy {
             ),
             identifier: "a" @ 1916..1917,
             arguments: [],
+            return_type: None,
             statements: [],
             span: 1899..1922,
         },
