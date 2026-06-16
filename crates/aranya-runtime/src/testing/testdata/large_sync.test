@@ -7,10 +7,7 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 3,
-      "repeat": 1
-    }
+    "AddExpectation": 3
   },
   {
     "ActionSet": {
@@ -22,10 +19,7 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 4,
-      "repeat": 1
-    }
+    "AddExpectation": 4
   },
   {
     "ActionSet": {
@@ -37,16 +31,10 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 3,
-      "repeat": 1
-    }
+    "AddExpectation": 3
   },
   {
-    "AddExpectations": {
-      "expectation": 4,
-      "repeat": 1
-    }
+    "AddExpectation": 4
   },
   {
     "Sync": {
@@ -59,10 +47,10 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 4,
-      "repeat": 2
-    }
+    "AddExpectation": 4
+  },
+  {
+    "AddExpectation": 4
   },
   {
     "Sync": {
@@ -75,10 +63,307 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 1,
-      "repeat": 101
-    }
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
   },
   {
     "ActionSet": {
@@ -100,23 +385,317 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 1,
-      "repeat": 100
-    }
-  },
-  {
     "PrintGraph": {
       "client": 0,
       "graph": 0
     }
   },
   {
+    "AddExpectation": 4
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
     "Sync": {
       "graph": 0,
       "client": 1,
       "from": 0,
-      "must_send": 1,
+      "must_send": 2,
       "must_receive": null,
       "max_syncs": 1
     }
@@ -132,10 +711,10 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 1,
-      "repeat": 1
-    }
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
   },
   {
     "Sync": {
@@ -166,28 +745,316 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 4,
-      "repeat": 1
-    }
+    "AddExpectation": 4
   },
   {
-    "AddExpectations": {
-      "expectation": 3,
-      "repeat": 1
-    }
+    "AddExpectation": 3
   },
   {
-    "AddExpectations": {
-      "expectation": 4,
-      "repeat": 1
-    }
+    "AddExpectation": 4
   },
   {
-    "AddExpectations": {
-      "expectation": 1,
-      "repeat": 101
-    }
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
+  },
+  {
+    "AddExpectation": 1
   },
   {
     "Sync": {

@@ -355,6 +355,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
     let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
     // TestSink implements the Sink interface to consume Effects. TestSink is borrowed from
     // the tests in protocol.rs. Here we
     let mut sink = TestSink::new();
@@ -373,15 +374,27 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(create_action(3)),
+        &mut buffers,
+        MemSpill::new,
+    )
+    .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(graph_id, &mut sink, vm_action!(increment()))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(increment()),
+        &mut buffers,
+        MemSpill::new,
+    )
+    .expect("could not call action");
 
     // Everything past this point is validation that the facts exist and were created
     // correctly. Direct access to the storage provider should not be necessary in normal
@@ -390,8 +403,6 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     // Get the storage provider and get the storage associated with our graph ID to peek
     // into its graph.
     let storage = cs.provider().get_storage(graph_id)?;
-    // Find the head Location.
-    let head = storage.get_head()?;
 
     // Serialize the keys of the fact we created/updated in the previous actions.
     let fact_name = "Stuff";
@@ -399,10 +410,10 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
 
     // This is the value part of the fact that we expect to retrieve.
     let expected_value = vec![KVPair::new(ident!("y"), Value::Int(4))];
-    // Get a perspective for the head ID we got earlier. It should contain the facts we
-    // seek.
-    let perspective = storage.get_fact_perspective(head).expect("perspective");
-    // Query the perspective using our key.
+    // Read the merged fact cache for the current head set. It should contain the
+    // facts we seek.
+    let perspective = storage.fact_cache().expect("fact cache");
+    // Query the merged facts using our key.
     let result = perspective
         .query(fact_name, &fact_keys)
         .expect("query")
@@ -422,13 +433,20 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
 pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
 
     let graph = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
         .expect("could not create graph");
 
-    cs.action(graph, &mut NullSink, vm_action!(create_action(1)))
-        .expect("can create");
+    cs.action(
+        graph,
+        &mut NullSink,
+        vm_action!(create_action(1)),
+        &mut buffers,
+        MemSpill::new,
+    )
+    .expect("can create");
 
     let mut session = cs.session(graph).expect("should be able to create session");
 
@@ -461,6 +479,7 @@ pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPoli
 pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
 
@@ -478,15 +497,27 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(create_action(3)),
+        &mut buffers,
+        MemSpill::new,
+    )
+    .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(graph_id, &mut sink, vm_action!(increment()))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(increment()),
+        &mut buffers,
+        MemSpill::new,
+    )
+    .expect("could not call action");
 
     {
         let msgs = {
@@ -537,8 +568,14 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
         sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
 
         // Call the increment action
-        cs.action(graph_id, &mut sink, vm_action!(increment()))
-            .expect("could not call action");
+        cs.action(
+            graph_id,
+            &mut sink,
+            vm_action!(increment()),
+            &mut buffers,
+            MemSpill::new,
+        )
+        .expect("could not call action");
 
         {
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 6 }));
@@ -557,13 +594,12 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
     // Verify that the graph was not affected by the ephemeral commands.
 
     let storage = cs.provider().get_storage(graph_id)?;
-    let head = storage.get_head()?;
 
     let fact_name = "Stuff";
     let fact_keys = ser_keys([FactKey::new(ident!("x"), HashableValue::Int(1))]);
 
     let expected_value = vec![KVPair::new(ident!("y"), Value::Int(5))];
-    let perspective = storage.get_fact_perspective(head).expect("perspective");
+    let perspective = storage.fact_cache().expect("fact cache");
     let result = perspective
         .query(fact_name, &fact_keys)
         .expect("query")
@@ -640,8 +676,14 @@ pub fn test_effect_metadata(
         .expect("could not create graph");
 
     // Create a new counter with a value of 1
-    cs1.action(graph_id, &mut sink, vm_action!(create_action(1)))
-        .expect("could not call action");
+    cs1.action(
+        graph_id,
+        &mut sink,
+        vm_action!(create_action(1)),
+        &mut rt_buffers,
+        MemSpill::new,
+    )
+    .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     assert_ne!(sink.last().command, CmdId::default());
     assert!(!sink.last().recalled);
@@ -656,8 +698,14 @@ pub fn test_effect_metadata(
 
     // At this point, clients are fully synced. Client 2 adds an Increment command, which
     // brings the counter to 2 from their perspective.
-    cs2.action(graph_id, &mut sink, vm_action!(increment()))
-        .expect("could not call action");
+    cs2.action(
+        graph_id,
+        &mut sink,
+        vm_action!(increment()),
+        &mut rt_buffers,
+        MemSpill::new,
+    )
+    .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 2 }));
     let increment_cmd_id = sink.last().command;
     sink.clear();
@@ -665,8 +713,14 @@ pub fn test_effect_metadata(
     // MEANWHILE, IN A PARALLEL UNIVERSE - client 1 adds the Invalidate command, which sets
     // the counter value to a negative number. This will cause the check to fail in the
     // Increment command, preventing any further use of this counter.
-    cs1.action(graph_id, &mut sink, vm_action!(invalidate()))
-        .expect("could not call action");
+    cs1.action(
+        graph_id,
+        &mut sink,
+        vm_action!(invalidate()),
+        &mut rt_buffers,
+        MemSpill::new,
+    )
+    .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: -1 }));
     sink.clear();
 

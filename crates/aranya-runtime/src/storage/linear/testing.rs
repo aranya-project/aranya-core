@@ -1,10 +1,9 @@
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
-use buggy::BugExt as _;
 use spin::mutex::Mutex;
 
 use super::io;
-use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError};
+use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError, storage::HeadSet};
 
 /// Alias for memory-backed storage provider commonly used in tests.
 pub type MemStorageProvider = super::LinearStorageProvider<Manager>;
@@ -28,7 +27,8 @@ impl io::IoManager for Manager {
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
         self.graph_ids.push(id);
         Ok(Writer {
-            head: Mutex::default(),
+            heads: Mutex::default(),
+            fact_cache: Mutex::default(),
             shared: Arc::default(),
         })
     }
@@ -54,7 +54,8 @@ struct Shared {
 }
 
 pub struct Writer {
-    head: Mutex<Option<Location>>,
+    heads: Mutex<Option<HeadSet>>,
+    fact_cache: Mutex<Option<u64>>,
     shared: Arc<Shared>,
 }
 
@@ -72,9 +73,12 @@ impl io::Write for Writer {
         }
     }
 
-    fn head(&self) -> Result<Location, StorageError> {
-        let head = *self.head.lock();
-        Ok(head.assume("head exists")?)
+    fn heads(&self) -> Result<HeadSet, StorageError> {
+        self.heads.lock().clone().ok_or(StorageError::NoSuchStorage)
+    }
+
+    fn fact_cache(&self) -> Result<u64, StorageError> {
+        (*self.fact_cache.lock()).ok_or(StorageError::NoSuchStorage)
     }
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
@@ -91,8 +95,9 @@ impl io::Write for Writer {
         Ok(item)
     }
 
-    fn commit(&mut self, head: Location) -> Result<(), StorageError> {
-        *self.head.lock() = Some(head);
+    fn commit(&mut self, heads: &HeadSet, fact_cache: u64) -> Result<(), StorageError> {
+        *self.heads.lock() = Some(heads.clone());
+        *self.fact_cache.lock() = Some(fact_cache);
         Ok(())
     }
 }

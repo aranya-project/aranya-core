@@ -92,7 +92,7 @@
     "MaxCut": {
       "client": 1,
       "graph": 0,
-      "max_cut": 3
+      "max_cut": 2
     }
   }
 ]

@@ -170,7 +170,7 @@
       "graph": 0,
       "client": 2,
       "from": 1,
-      "must_receive": 6,
+      "must_receive": 5,
       "max_syncs": 1
     }
   }

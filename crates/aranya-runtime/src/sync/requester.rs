@@ -370,9 +370,14 @@ impl SyncRequester {
                             .map_err(|_| SyncError::CommandOverflow)?;
                     }
                 }
-                // Start traversal from graph head and work backwards until we hit a PeerCache head
-                let head = storage.get_head()?;
-                let mut current = vec![head];
+                // Start traversal from every graph head and work backwards
+                // until we hit a PeerCache head. The graph may be multi-head
+                // (lazy merges), so seed from all heads.
+                let mut current: vec::Vec<Location> = storage
+                    .get_heads()?
+                    .iter()
+                    .map(crate::LocatedAddress::location)
+                    .collect();
 
                 // Here we just get the first command from the most recent
                 // COMMAND_SAMPLE_MAX segments in the graph. This is probably

@@ -13,6 +13,9 @@ use rend::u64_le;
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
+pub mod head_set;
+pub use head_set::HeadSet;
+
 pub mod linear;
 
 #[cfg(any(feature = "libc", feature = "testing"))]
@@ -40,6 +43,11 @@ pub trait Spill {
 /// This should be large enough to hold the maximum expected "active frontier"
 /// during backward traversal, which is bounded by peer count.
 pub const QUEUE_CAPACITY: usize = 512;
+
+/// Maximum number of concurrent graph heads, equal to the traversal/strand
+/// bound. Sync ingestion past this returns an error rather than forcing a
+/// merge.
+pub const MAX_HEADS: usize = QUEUE_CAPACITY;
 
 /// Type for the queue used in traversal operations.
 ///
@@ -537,7 +545,9 @@ impl fmt::Display for Location {
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct LocatedAddress {
     pub id: CmdId,
     pub segment: SegmentIndex,
@@ -587,6 +597,10 @@ pub enum StorageError {
     ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
+    #[error("head set full (max {0})")]
+    HeadSetFull(usize),
+    #[error("graph has multiple heads ({0}); no single head to report")]
+    MultipleHeads(usize),
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -655,7 +669,14 @@ pub trait Storage {
         address: Address,
         buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address, buffer)
+        // The graph may be multi-head (lazy merges). Search from each head until
+        // the command is found.
+        for head in self.get_heads()?.iter() {
+            if let Some(found) = self.get_location_from(head.location(), address, buffer)? {
+                return Ok(Some(found));
+            }
+        }
+        Ok(None)
     }
 
     /// Returns the location of Command with id by searching from the given location.
@@ -742,19 +763,40 @@ pub trait Storage {
     /// Returns the segment at the given location.
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError>;
 
-    /// Returns the location of head of the graph.
-    fn get_head(&self) -> Result<Location, StorageError>;
-
-    /// Returns the address of the head of the graph.
-    fn get_head_address(&self) -> Result<Address, StorageError> {
-        self.get_command_address(self.get_head()?)
-    }
-
-    /// Sets the given segment as the head of the graph.
+    /// Returns the committed head set.
     ///
-    /// The given segment must be a descendant of the current graph head.
-    /// Implementations may rely on this for correctness, but not for safety.
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
+    /// Borrows an in-memory cache, so this is cheap to call repeatedly on hot
+    /// paths (no per-call deserialize or copy). Callers that need an owned set
+    /// should clone the returned reference.
+    fn get_heads(&self) -> Result<&HeadSet, StorageError>;
+
+    /// Returns the cached merged fact index for the current head set.
+    fn fact_cache(&self) -> Result<Self::FactIndex, StorageError>;
+
+    /// Commit the given head set with its rebuilt fact cache.
+    fn commit_heads(
+        &mut self,
+        heads: HeadSet,
+        fact_cache: Self::FactIndex,
+    ) -> Result<(), StorageError>;
+
+    /// Returns the address of the sole graph head.
+    ///
+    /// Errors with [`StorageError::MultipleHeads`] on a multi-head (lazy-merge)
+    /// graph, where there is no single head to report. Callers that may face a
+    /// multi-head graph should use [`get_heads`](Self::get_heads) instead.
+    ///
+    /// An initialized graph always has at least one head, so an empty head set
+    /// is treated as an invariant violation (a [`Bug`]).
+    fn get_head_address(&self) -> Result<Address, StorageError> {
+        let heads = self.get_heads()?;
+        let mut it = heads.iter();
+        let first = it.next().assume("initialized graph always has >= 1 head")?;
+        if it.next().is_some() {
+            return Err(StorageError::MultipleHeads(heads.len()));
+        }
+        Ok(first.address())
+    }
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;

@@ -35,9 +35,9 @@ use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Address, Bytes, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, Keys,
-    Location, MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
-    SegmentIndex, Storage, StorageError, StorageProvider, TraversalBuffer,
+    Address, Bytes, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, HeadSet,
+    Keys, LocatedAddress, Location, MaxCut, Perspective, PolicyId, Prior, Priority, Query,
+    QueryMut, Revertable, Segment, SegmentIndex, Storage, StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -63,6 +63,10 @@ pub struct LinearStorageProvider<FM: IoManager> {
 
 pub struct LinearStorage<W> {
     writer: W,
+    /// In-memory copy of the committed head set, kept in sync on every commit.
+    /// Lets [`get_heads`](Storage::get_heads) hand out a borrow without
+    /// re-reading or deserializing the set on hot paths.
+    cached_heads: HeadSet,
 }
 
 #[derive(Debug)]
@@ -335,29 +339,41 @@ impl<W: Write> LinearStorage<W> {
             skip_list: vec![],
         })?;
 
-        let head = Location::new(
-            segment.offset,
-            segment
-                .max_cut
-                .checked_add(
-                    segment
-                        .commands
-                        .len()
-                        .checked_sub(1)
-                        .assume("vec1 length >= 1")? as u64,
-                )
-                .assume("valid max cut")?,
-        );
+        let max_cut = segment
+            .max_cut
+            .checked_add(
+                segment
+                    .commands
+                    .len()
+                    .checked_sub(1)
+                    .assume("vec1 length >= 1")? as u64,
+            )
+            .assume("valid max cut")?;
+        let head = LocatedAddress {
+            id: segment.commands.last().id,
+            segment: segment.offset,
+            max_cut,
+        };
 
-        writer.commit(head)?;
+        // Seed both the one-element head set and the fact cache (the init
+        // segment's fact index, stored at `facts`).
+        let cached_heads = HeadSet::single(head);
+        writer.commit(&cached_heads, facts)?;
 
-        let storage = Self { writer };
+        let storage = Self {
+            writer,
+            cached_heads,
+        };
 
         Ok(storage)
     }
 
     fn open(writer: W) -> Result<Self, StorageError> {
-        Ok(Self { writer })
+        let cached_heads = writer.heads()?;
+        Ok(Self {
+            writer,
+            cached_heads,
+        })
     }
 
     fn compact(&mut self, mut repr: FactIndexRepr) -> Result<FactIndexRepr, StorageError> {
@@ -659,22 +675,26 @@ impl<F: Write> Storage for LinearStorage<F> {
         Ok(seg)
     }
 
-    fn get_head(&self) -> Result<Location, StorageError> {
-        self.writer.head()
+    fn get_heads(&self) -> Result<&HeadSet, StorageError> {
+        Ok(&self.cached_heads)
     }
 
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        debug_assert!(
-            self.is_ancestor(
-                self.get_head()?,
-                segment.head_location()?,
-                #[allow(unused_allocation, reason = "box large type to reduce stack usage")]
-                Box::new(TraversalBuffer::new()).as_mut()
-            )?,
-            "new head segment must be descendant of old head"
-        );
+    fn fact_cache(&self) -> Result<Self::FactIndex, StorageError> {
+        let offset = self.writer.fact_cache()?;
+        Ok(LinearFactIndex {
+            repr: self.writer.readonly().fetch(offset)?,
+            reader: self.writer.readonly(),
+        })
+    }
 
-        self.writer.commit(segment.head_location()?)
+    fn commit_heads(
+        &mut self,
+        heads: HeadSet,
+        fact_cache: Self::FactIndex,
+    ) -> Result<(), StorageError> {
+        self.writer.commit(&heads, fact_cache.repr.offset)?;
+        self.cached_heads = heads;
+        Ok(())
     }
 
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {

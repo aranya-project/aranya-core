@@ -178,6 +178,9 @@
     }
   },
   {
+    "AddExpectation": 1
+  },
+  {
     "AddExpectation": 3
   },
   {
@@ -301,9 +304,6 @@
       "graph": 0,
       "equal": false
     }
-  },
-  {
-    "AddExpectation": 5
   },
   {
     "AddExpectation": 5

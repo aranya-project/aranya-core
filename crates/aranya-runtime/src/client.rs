@@ -5,8 +5,10 @@ use tracing::error;
 
 use crate::{
     Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,
-    PolicyError, PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffer,
-    policy::ActionPlacement, storage::Spill,
+    PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError, StorageProvider,
+    TraversalBuffer,
+    policy::ActionPlacement,
+    storage::{HeadSet, Spill},
 };
 
 pub(crate) mod braiding; // exposed for `buffers.rs` (StrandHeap)
@@ -234,15 +236,34 @@ where
     }
 
     /// Performs an `action`, writing the results to `sink`.
-    pub fn action(
+    ///
+    /// `make_spill` is called whenever collapsing a multi-head graph needs
+    /// byte-addressable overflow storage for an internal braid. See
+    /// [`Self::commit`].
+    pub fn action<F, MS>(
         &mut self,
         graph_id: GraphId,
         sink: &mut impl Sink<PS::Effect>,
         action: <PS::Policy as Policy>::Action<'_>,
-    ) -> Result<(), ClientError> {
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: MS,
+    ) -> Result<(), ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         let storage = self.provider.get_storage(graph_id)?;
 
-        let head = storage.get_head()?;
+        // A new command needs a single parent: collapse the head set, which may
+        // run a braid (hence the buffers and spill).
+        let heads = storage.get_heads()?.clone();
+        let head = transaction::collapse_heads::<_, PS, F, _>(
+            storage,
+            &mut self.policy_store,
+            heads,
+            buffers,
+            &make_spill,
+        )?;
 
         let mut perspective = storage.get_linear_perspective(head)?;
 
@@ -256,7 +277,13 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment)?;
+                let new_head = LocatedAddress {
+                    id: segment.head_id(),
+                    segment: segment.index(),
+                    max_cut: segment.longest_max_cut()?,
+                };
+                let fact_cache = segment.facts()?;
+                storage.commit_heads(HeadSet::single(new_head), fact_cache)?;
                 sink.commit();
                 Ok(())
             }

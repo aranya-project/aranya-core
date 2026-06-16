@@ -66,15 +66,26 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
-    RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncIncoming,
-    SyncRequester, SyncResponder, TraversalBuffer, TraversalBuffers,
+    Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
+    Keys, Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
+    Query as _, RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError,
+    SyncIncoming, SyncRequester, SyncResponder, Transaction, TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
     },
 };
+
+/// Fact names written by the DSL test policies.
+///
+/// The DSL harness runs `TestPolicy` (see `testing::protocol`), whose only
+/// fact write is `insert("payload", ...)` (in `origin_check_message`). The
+/// VM test policy (`testing::vm`) writes `"Stuff"`. We enumerate these known
+/// names because the [`Query`] API only supports lookups by a known fact name
+/// (`query` / `query_prefix`); there is no API to enumerate fact names. For
+/// the DSL tests this is FULL coverage of the merged fact state, since
+/// `"payload"` is the only name those tests ever write.
+const TEST_FACT_NAMES: &[&str] = &["payload", "Stuff", "seq", "stuff"];
 
 fn default_repeat() -> u64 {
     1
@@ -240,13 +251,18 @@ fn process_hello_notifications<SP: StorageProvider>(
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
+                // The hello cascade needs committed state to serve onward, so
+                // commit per exchange here.
+                let mut trx = request_client.transaction(graph_id);
                 let (_, received) = sync::<SP>(
+                    &mut trx,
                     (&mut request_cache, &mut request_client),
                     (&mut response_cache, &mut response_client),
                     sink,
                     graph_id,
                     rt_buffers,
                 )?;
+                request_client.commit(trx, sink, rt_buffers, MemSpill::new)?;
 
                 if received > 0 {
                     debug!(
@@ -361,6 +377,13 @@ pub enum TestRule {
         client: u64,
         peer: u64,
         graph: u64,
+    },
+    /// Asserts a client's graph holds exactly `count` heads. With lazy merges a
+    /// divergent graph holds multiple heads; this checks the lazy property.
+    HeadCount {
+        client: u64,
+        graph: u64,
+        count: usize,
     },
 }
 
@@ -528,6 +551,15 @@ impl Display for TestRule {
                 f,
                 r#"{{"HelloUnsubscribe": {{ "client": {}, "peer": {}, "graph": {} }} }},"#,
                 client, peer, graph,
+            ),
+            Self::HeadCount {
+                client,
+                graph,
+                count,
+            } => write!(
+                f,
+                r#"{{"HeadCount": {{ "client": {}, "graph": {}, "count": {} }} }},"#,
+                client, graph, count,
             ),
         }
     }
@@ -938,6 +970,10 @@ where
 
                 let mut total_sent = 0;
                 let mut total_received = 0;
+                // One transaction held open across every exchange in this Sync,
+                // committed once after the loop (one fact-cache braid instead of
+                // one per exchange).
+                let mut trx = request_client.transaction(*graph_id);
                 for _ in 0..max_syncs {
                     client_heads.entry((graph, client, from)).or_default();
                     client_heads.entry((graph, from, client)).or_default();
@@ -951,6 +987,7 @@ where
                         .borrow_mut();
 
                     let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                        &mut trx,
                         (&mut request_cache, &mut request_client),
                         (&mut response_cache, &mut response_client),
                         &mut sink,
@@ -964,6 +1001,7 @@ where
                         break;
                     }
                 }
+                request_client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
 
                 if let Some(mr) = must_receive {
                     assert_eq!(total_received, mr);
@@ -1020,7 +1058,7 @@ where
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(*graph_id, &mut sink, set)?;
+                    state.action(*graph_id, &mut sink, set, &mut rt_buffers, MemSpill::new)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -1050,8 +1088,9 @@ where
 
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
-                let head = storage.get_head()?;
-                print_graph(storage, head, &mut rt_buffers.traversal.primary)?;
+                for head in storage.get_heads()?.iter() {
+                    print_graph(storage, head.location(), &mut rt_buffers.traversal.primary)?;
+                }
             }
 
             TestRule::CompareGraphs {
@@ -1077,12 +1116,24 @@ where
 
                 let same = graph_eq(storage_a, storage_b);
                 if same != equal {
-                    let head_a = storage_a.get_head()?;
-                    let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a, &mut rt_buffers.traversal.primary)?;
+                    let mut cmds_a = BTreeSet::new();
+                    for head in storage_a.get_heads()?.iter() {
+                        cmds_a.extend(print_graph(
+                            storage_a,
+                            head.location(),
+                            &mut rt_buffers.traversal.primary,
+                        )?);
+                    }
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b, &mut rt_buffers.traversal.primary)?;
+                    let mut cmds_b = BTreeSet::new();
+                    for head in storage_b.get_heads()?.iter() {
+                        cmds_b.extend(print_graph(
+                            storage_b,
+                            head.location(),
+                            &mut rt_buffers.traversal.primary,
+                        )?);
+                    }
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -1110,8 +1161,15 @@ where
                     .borrow_mut();
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
-                let head = storage.get_head()?;
-                assert_eq!(max_cut, head.max_cut);
+                // Lazy merges keep the graph multi-head, so compare against the
+                // greatest max_cut across all heads (the depth of the graph).
+                let actual = storage
+                    .get_heads()?
+                    .iter()
+                    .map(|la| la.max_cut)
+                    .max()
+                    .assume("graph has at least one head")?;
+                assert_eq!(max_cut, actual);
             }
             TestRule::ConvergeAll {
                 graph,
@@ -1119,6 +1177,19 @@ where
                 max_syncs,
             } => {
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                // One transaction per client, held open across an entire outer
+                // pass (the full mesh of i<->j exchanges) so a client's whole
+                // catch-up from every peer in a pass is one fact-cache braid
+                // instead of one per exchange. We commit at the END OF EACH
+                // PASS, not at the very end: the responder serves from COMMITTED
+                // storage (`get_heads`), so an intermediate node can only relay
+                // data it received in a prior pass once that data is committed.
+                // Committing per pass preserves the iterative-convergence
+                // semantics while still collapsing the heavy initial fetch
+                // (which happens within a single pass) to one braid.
+                let mut trxs: Vec<Option<Transaction<<SB as StorageBackend>::StorageProvider, TestPolicyStore>>> =
+                    (0..client_count).map(|_| None).collect();
 
                 loop {
                     let mut any_received = false;
@@ -1137,6 +1208,12 @@ where
                                 .ok_or(TestError::MissingClient)?
                                 .borrow_mut();
 
+                            let slot = trxs.get_mut(i as usize).assume("trx slot exists")?;
+                            if slot.is_none() {
+                                *slot = Some(request_client.transaction(*graph_id));
+                            }
+                            let request_trx = slot.as_mut().assume("trx just created")?;
+
                             for _ in 0..max_syncs {
                                 client_heads.entry((graph, i, j)).or_default();
                                 client_heads.entry((graph, j, i)).or_default();
@@ -1150,6 +1227,7 @@ where
                                     .borrow_mut();
 
                                 let (_, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                                    request_trx,
                                     (&mut request_cache, &mut request_client),
                                     (&mut response_cache, &mut response_client),
                                     &mut sink,
@@ -1166,6 +1244,23 @@ where
                             }
                         }
                     }
+
+                    // Commit each client's accumulated transaction for this pass
+                    // so the data becomes visible to serve onward next pass.
+                    for i in 0..client_count {
+                        if let Some(trx) = trxs
+                            .get_mut(i as usize)
+                            .assume("trx slot exists")?
+                            .take()
+                        {
+                            let mut client = clients
+                                .get(&i)
+                                .ok_or(TestError::MissingClient)?
+                                .borrow_mut();
+                            client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                        }
+                    }
+
                     if !any_received {
                         break;
                     }
@@ -1215,6 +1310,23 @@ where
                 if let Some(subs) = subscriptions.get_mut(&(graph, peer)) {
                     subs.remove(&client);
                 }
+            }
+            TestRule::HeadCount {
+                client,
+                graph,
+                count,
+            } => {
+                let mut state = clients
+                    .get(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
+                let actual = storage.get_heads()?.len();
+                assert_eq!(
+                    count, actual,
+                    "client {client} graph {graph}: expected {count} heads, got {actual}"
+                );
             }
             _ => {}
         }
@@ -1383,7 +1495,17 @@ where
     result
 }
 
+/// Perform a single sync exchange, ingesting received commands into the
+/// caller-owned `request_trx` (held open across many exchanges so a whole
+/// graph is committed once instead of per exchange).
+///
+/// Does NOT commit. Instead, after ingesting, it flushes the open transaction
+/// and advances the requester's `PeerCache` from the transaction's accumulated
+/// frontier (committed + received-but-uncommitted tips). `get_commands`
+/// incorporates `peer_cache.heads()`, so this is what makes progressive
+/// multi-exchange fetch advance without a per-exchange commit.
 fn sync<SP: StorageProvider>(
+    request_trx: &mut Transaction<SP, TestPolicyStore>,
     (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     sink: &mut TestSink,
@@ -1392,8 +1514,6 @@ fn sync<SP: StorageProvider>(
 ) -> Result<(usize, usize), TestError> {
     let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
-
-    let mut request_trx = request_state.transaction(graph_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(
@@ -1419,14 +1539,21 @@ fn sync<SP: StorageProvider>(
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received =
-            request_state.add_commands(&mut request_trx, sink, &cmds, rt_buffers, MemSpill::new)?;
-        request_state.commit(request_trx, sink, rt_buffers, MemSpill::new)?;
-        request_state.update_heads(
-            graph_id,
-            cmds.iter().filter_map(|cmd| cmd.address().ok()),
-            request_cache,
-            &mut rt_buffers.traversal.primary,
-        )?;
+            request_state.add_commands(request_trx, sink, &cmds, rt_buffers, MemSpill::new)?;
+
+        // Persist any in-flight perspective so every accumulated command lives
+        // in a written segment with a real location.
+        request_trx.flush(request_state.provider())?;
+
+        // Advance the requester's have-set from the transaction's accumulated
+        // frontier. `PeerCache::add_command` prunes ancestors via `is_ancestor`
+        // over the now-written segments. This replaces the old `update_heads`
+        // (which only saw committed state) and is what lets progressive fetch
+        // advance across exchanges while the transaction stays open.
+        let storage = request_state.provider().get_storage(graph_id)?;
+        for head in request_trx.in_flight_heads() {
+            request_cache.add_command(storage, head, &mut rt_buffers.traversal.primary)?;
+        }
     }
 
     Ok((sent, received))
@@ -1485,41 +1612,132 @@ where
 }
 
 /// Walk the graph and yield all visited IDs.
+///
+/// Lazy merges keep the graph multi-head, so seed the walk from every head.
 fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
     let mut visited = BTreeSet::new();
-    let mut stack = vec![storage.get_head().unwrap()];
+    let mut stack: Vec<Location> = storage
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(crate::LocatedAddress::location)
+        .collect();
+    // Sort so the multi-head walk order is deterministic across peers.
+    stack.sort();
     let mut segment = None;
 
     iter::from_fn(move || {
-        let loc = stack.pop()?;
-        if visited.contains(&loc) {
-            return None;
+        loop {
+            let loc = stack.pop()?;
+            if !visited.insert(loc) {
+                // Already visited (e.g. a shared ancestor of two heads); skip
+                // it and continue rather than ending the whole walk.
+                segment = None;
+                continue;
+            }
+
+            let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
+            let id = seg.get_command(loc).unwrap().id();
+
+            if let Some(previous) = seg.previous(loc) {
+                // We will visit the segment again.
+                stack.push(previous);
+            } else {
+                // We have exhausted this segment.
+                stack.extend(seg.prior());
+                segment = None;
+            }
+
+            return Some(id);
         }
-        visited.insert(loc);
-
-        let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
-        let id = seg.get_command(loc).unwrap().id();
-
-        if let Some(previous) = seg.previous(loc) {
-            // We will visit the segment again.
-            stack.push(previous);
-        } else {
-            // We have exhausted this segment.
-            stack.extend(seg.prior());
-            segment = None;
-        }
-
-        Some(id)
     })
 }
 
-fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
-    for (a, b) in iter::zip(walk(storage_a), walk(storage_b)) {
-        if a != b {
-            error!(a = %short_b58(a), b = %short_b58(b), "graph mismatch");
-            return false;
+/// Collects the full set of `(name, keys, value)` fact entries from a peer's
+/// merged fact cache, for every fact name the test policies are known to write.
+///
+/// Uses [`Query::query_prefix`] with an empty prefix to enumerate all keys
+/// under each name (the empty prefix matches every key). There is no API to
+/// enumerate fact names, so we iterate [`TEST_FACT_NAMES`]; for the DSL tests
+/// the only written name is `"payload"`, so this captures the entire merged
+/// fact state.
+fn collect_facts<S: Storage>(
+    storage: &S,
+) -> Result<BTreeMap<(&'static str, Keys), Bytes>, StorageError> {
+    let cache = storage.fact_cache()?;
+    let mut facts = BTreeMap::new();
+    for &name in TEST_FACT_NAMES {
+        for fact in cache.query_prefix(name, &[])? {
+            let fact = fact?;
+            facts.insert((name, fact.key), fact.value);
         }
     }
+    Ok(facts)
+}
+
+/// Asserts the merged fact state of two peers is identical.
+///
+/// This is the load-bearing convergence artifact for lazy merges: two peers
+/// that hold the same commands must braid them into the same merged facts.
+fn fact_cache_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
+    let facts_a = collect_facts(storage_a).unwrap();
+    let facts_b = collect_facts(storage_b).unwrap();
+    if facts_a != facts_b {
+        for key in facts_a.keys().chain(facts_b.keys()) {
+            let (a, b) = (facts_a.get(key), facts_b.get(key));
+            if a != b {
+                error!(
+                    name = key.0,
+                    "merged fact-cache mismatch: A={:?} B={:?}", a, b
+                );
+            }
+        }
+        return false;
+    }
+    true
+}
+
+fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
+    // Lazy merges keep graphs multi-head, and two converged peers may store the
+    // same commands under different segment layouts. Convergence means the same
+    // set of reachable commands and the same head set (head sets are sorted, so
+    // equality is order-independent).
+    let cmds_a: BTreeSet<CmdId> = walk(storage_a).collect();
+    let cmds_b: BTreeSet<CmdId> = walk(storage_b).collect();
+    if cmds_a != cmds_b {
+        for id in cmds_a.symmetric_difference(&cmds_b) {
+            error!(id = %short_b58(*id), "graph command-set mismatch");
+        }
+        return false;
+    }
+
+    // Compare heads by command id: segment indices are local storage layout and
+    // may legitimately differ between converged peers.
+    let heads_a: BTreeSet<CmdId> = storage_a
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(|la| la.id)
+        .collect();
+    let heads_b: BTreeSet<CmdId> = storage_b
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(|la| la.id)
+        .collect();
+    if heads_a != heads_b {
+        error!("graph head-set mismatch");
+        return false;
+    }
+
+    // Strengthened convergence oracle: peers with the same commands + heads must
+    // also braid them into the same MERGED FACT STATE. This converts the
+    // previously-inferred fact-cache equality into a directly checked invariant.
+    if !fact_cache_eq(storage_a, storage_b) {
+        error!("merged fact-cache mismatch");
+        return false;
+    }
+
     true
 }
 
@@ -1603,6 +1821,7 @@ test_vectors! {
     find_needed_segments_queue_max,
     four_seventy_three_failure,
     large_sync,
+    lazy_merge_converge,
     list_multiple_graph_ids,
     many_branches,
     max_cut,

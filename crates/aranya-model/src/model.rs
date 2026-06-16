@@ -454,7 +454,13 @@ where
 
         let mut sink = VecSink::new();
 
-        state.action(*graph_id, &mut sink, action)?;
+        state.action(
+            *graph_id,
+            &mut sink,
+            action,
+            &mut self.rt_buffers,
+            MemSpill::new,
+        )?;
 
         Ok(sink.effects)
     }

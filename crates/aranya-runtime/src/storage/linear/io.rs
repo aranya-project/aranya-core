@@ -8,7 +8,7 @@
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{GraphId, Location, StorageError};
+use crate::{GraphId, StorageError, storage::HeadSet};
 
 /// IO manager for creating and opening writers for a graph.
 pub trait IoManager {
@@ -31,8 +31,11 @@ pub trait Write {
     /// Get a [`Read`]er for this writer's shared data.
     fn readonly(&self) -> Self::ReadOnly;
 
-    /// Get the commit head.
-    fn head(&self) -> Result<Location, StorageError>;
+    /// Get the committed head set.
+    fn heads(&self) -> Result<HeadSet, StorageError>;
+
+    /// Get the file offset of the cached merged fact index.
+    fn fact_cache(&self) -> Result<u64, StorageError>;
 
     /// Append an item (e.g. segment or fact-index) onto the writer.
     ///
@@ -42,8 +45,8 @@ pub trait Write {
         F: FnOnce(u64) -> T,
         T: Serialize;
 
-    /// Set the commit head.
-    fn commit(&mut self, head: Location) -> Result<(), StorageError>;
+    /// Commit the head set and fact-cache offset atomically.
+    fn commit(&mut self, heads: &HeadSet, fact_cache: u64) -> Result<(), StorageError>;
 }
 
 /// A share-able reader for a linear storage graph.
