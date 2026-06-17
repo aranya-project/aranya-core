@@ -179,4 +179,39 @@ function verify(
             Err(InvalidCmdId(()).into())
         }
     }
+
+    /// Verifies the signature created over `command` by
+    /// `author_sign_pk`.
+    #[ffi_export(def = r#"
+function verify_ephemeral(
+    author_sign_pk bytes,
+    parent_id id,
+    command_bytes bytes,
+    signature bytes,
+) bytes
+"#)]
+    pub(crate) fn verify_ephemeral<E: Engine>(
+        &self,
+        ctx: &CommandContext,
+        _eng: &E,
+        author_sign_pk: Vec<u8>,
+        parent_id: CmdId,
+        command_bytes: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Result<Vec<u8>, Error> {
+        let CommandContext::Open(ctx) = ctx else {
+            return Err(WrongContext("`crypto::verify` used outside of an `open` block").into());
+        };
+
+        let pk: VerifyingKey<E::CS> = postcard::from_bytes(&author_sign_pk)?;
+        let signature = Signature::<E::CS>::from_bytes(&signature)?;
+
+        let cmd = Cmd {
+            data: &command_bytes,
+            name: ctx.name.as_str(),
+            parent_id: &parent_id,
+        };
+        let _id = pk.verify_cmd(cmd, &signature)?;
+        Ok(command_bytes)
+    }
 }
