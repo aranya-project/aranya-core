@@ -46,7 +46,7 @@ Module {
     struct.get 'x'
     get 'this'
     get 'envelope'
-    call <recall 'Cmd_handle'>
+    recall <recall 'Cmd_handle'>
     exit panic
 <recall 'Cmd_handle'>:
     def 'envelope'

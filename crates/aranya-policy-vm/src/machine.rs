@@ -596,16 +596,29 @@ where
                     return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                 }
                 Target::Resolved(n) => {
-                    // Set context to Recall before invoking recall block - it affects emitted effects
-                    if self
-                        .machine
-                        .labels
-                        .iter()
-                        .any(|(label, &a)| a == n && label.ltype == LabelType::CommandRecall)
-                        && let CommandContext::Policy(c) = &self.ctx
-                    {
-                        self.ctx = CommandContext::Recall(c.clone());
-                    }
+                    self.scope.enter_function();
+                    // Store the current PC. The PC will be incremented after return,
+                    // so there's no need to increment here.
+                    self.call_state.push(self.pc);
+                    self.pc = n;
+                    return Ok(MachineStatus::Executing);
+                }
+            },
+            Instruction::Recall(t) => match t {
+                Target::Unresolved(label) => {
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
+                }
+                Target::Resolved(n) => {
+                    // Switch from policy to recall context so effects emitted by the
+                    // recall block are marked as recalled.
+                    let CommandContext::Policy(c) = &self.ctx else {
+                        return Err(
+                            self.err(MachineErrorType::BadState("recall: wrong command context"))
+                        );
+                    };
+                    let c = c.clone();
+                    self.ctx = CommandContext::Recall(c);
+
                     self.scope.enter_function();
                     // Store the current PC. The PC will be incremented after return,
                     // so there's no need to increment here.

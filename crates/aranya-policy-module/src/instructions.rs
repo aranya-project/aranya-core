@@ -166,6 +166,8 @@ pub enum Instruction {
     Last,
     /// Call regular function at target
     Call(Target),
+    /// Invoke the named recall block
+    Recall(Target),
     /// Call external function (FFI), specified by module, procedure indices. The FFI modules should be added to the MachineIO.
     ExtCall(usize, usize),
     /// Return to the last address on the control flow stack
@@ -262,6 +264,7 @@ impl Display for Instruction {
             Self::Next => write!(f, "next"),
             Self::Last => write!(f, "last"),
             Self::Call(t) => write!(f, "call {t}"),
+            Self::Recall(t) => write!(f, "recall {t}"),
             Self::ExtCall(module, proc) => write!(f, "extcall {module} {proc}"),
             Self::Return => write!(f, "return"),
             Self::Exit(reason) => write!(f, "exit {reason}"),

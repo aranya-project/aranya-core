@@ -53,7 +53,7 @@ Module {
     struct.get 'x'
     get 'this'
     get 'envelope'
-    call <recall 'Cmd_handle'>
+    recall <recall 'Cmd_handle'>
     end
     jump 17
 <17>:

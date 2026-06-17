@@ -526,7 +526,10 @@ impl<'a> CompileState<'a> {
     pub fn resolve_targets(&mut self) -> Result<(), CompileError> {
         for ref mut instr in &mut self.m.progmem {
             match instr {
-                Instruction::Branch(t) | Instruction::Jump(t) | Instruction::Call(t) => {
+                Instruction::Branch(t)
+                | Instruction::Jump(t)
+                | Instruction::Call(t)
+                | Instruction::Recall(t) => {
                     Self::resolve_target(t, &mut self.m.labels)?;
                 }
                 _ => (),
@@ -1241,7 +1244,8 @@ impl<'a> CompileState<'a> {
             self.command_recall_name(&recall.command_name, &recall.recall_name)?,
             LabelType::CommandRecall,
         );
-        self.append_instruction(Instruction::Call(Target::Unresolved(recall_label)));
+        // `recall` switches to recall context, then calls the named recall block.
+        self.append_instruction(Instruction::Recall(Target::Unresolved(recall_label)));
         Ok(())
     }
 
