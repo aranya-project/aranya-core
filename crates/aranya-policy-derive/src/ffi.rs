@@ -729,6 +729,7 @@ impl ToTokens for VTypeTokens<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let vm = self.vm;
         let item = match &self.vtype.inner {
+            TypeKind::Unit => quote!(Unit),
             TypeKind::String => quote!(String),
             TypeKind::Bytes => quote!(Bytes),
             TypeKind::Int => quote!(Int),
@@ -783,6 +784,7 @@ impl ToTokens for TypeTokens<'_> {
         let crypto = self.crypto;
         let vm = self.vm;
         let item = match &self.vtype.inner {
+            TypeKind::Unit => quote!(()),
             TypeKind::String => quote!(#vm::Text),
             TypeKind::Bytes => quote!(#alloc::vec::Vec<u8>),
             TypeKind::Int => quote!(i64),

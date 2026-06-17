@@ -51,6 +51,8 @@ impl ValueConversionError {
 /// All of the value types allowed in the VM
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Value {
+    /// Unit value
+    Unit,
     /// Integer (64-bit signed)
     Int(i64),
     /// Boolean
@@ -138,6 +140,7 @@ impl Value {
     /// Returns a string representing the value's type.
     pub fn type_name(&self) -> String {
         match self {
+            Self::Unit => String::from("Unit"),
             Self::Int(_) => String::from("Int"),
             Self::Bool(_) => String::from("Bool"),
             Self::String(_) => String::from("String"),
@@ -170,6 +173,7 @@ impl Value {
     pub fn fits_type(&self, expected_type: &VType) -> bool {
         use aranya_policy_ast::TypeKind;
         match (self, &expected_type.inner) {
+            (Self::Unit, TypeKind::Unit) => true,
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
@@ -193,6 +197,7 @@ impl Value {
 impl From<ConstValue> for Value {
     fn from(value: ConstValue) -> Self {
         match value {
+            ConstValue::Unit => Self::Unit,
             ConstValue::Int(n) => Self::Int(n),
             ConstValue::Bool(b) => Self::Bool(b),
             ConstValue::String(text) => Self::String(text),
@@ -219,6 +224,12 @@ impl<T: Into<Self>, E: Into<Self>> From<Result<T, E>> for Value {
             Ok(v) => Self::Result(Ok(Box::new(v.into()))),
             Err(v) => Self::Result(Err(Box::new(v.into()))),
         }
+    }
+}
+
+impl From<()> for Value {
+    fn from((): ()) -> Self {
+        Self::Unit
     }
 }
 
@@ -273,6 +284,21 @@ impl From<Fact> for Value {
 impl<Tag: IdTag> From<Id<Tag>> for Value {
     fn from(id: Id<Tag>) -> Self {
         Self::Id(id.as_base())
+    }
+}
+
+impl TryFrom<Value> for () {
+    type Error = ValueConversionError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Unit = value {
+            return Ok(());
+        }
+        Err(ValueConversionError::invalid_type(
+            "Unit",
+            value.type_name(),
+            "Value -> ()",
+        ))
     }
 }
 
@@ -470,6 +496,7 @@ impl TryAsMut<Fact> for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unit => write!(f, "()"),
             Self::Int(i) => write!(f, "{}", i),
             Self::Bool(b) => write!(f, "{}", b),
             Self::String(s) => write!(f, "\"{}\"", s),

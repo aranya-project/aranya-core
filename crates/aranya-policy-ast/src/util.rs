@@ -26,7 +26,8 @@ impl Expression {
     /// Is this a literal expression?
     pub fn is_literal(&self) -> bool {
         match &self.inner {
-            ExprKind::Int(_)
+            ExprKind::Unit
+            | ExprKind::Int(_)
             | ExprKind::String(_)
             | ExprKind::Bool(_)
             | ExprKind::EnumReference(_) => true,

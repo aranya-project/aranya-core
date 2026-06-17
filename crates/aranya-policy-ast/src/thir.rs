@@ -139,6 +139,8 @@ impl Spanned for Expression {
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    /// A unit literal
+    Unit,
     /// A 64-bit signed integer
     Int(IntLiteral),
     /// A text string

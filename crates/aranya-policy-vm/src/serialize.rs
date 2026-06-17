@@ -102,6 +102,7 @@ impl SerializeCtx<'_> {
 
     fn serialize_value(&mut self, v: &Value) -> Result<(), SerializeError> {
         match v {
+            Value::Unit => {}
             Value::Int(x) => postcard_core::ser::try_push_i64(self, *x)?,
             Value::Bool(x) => postcard_core::ser::try_push_bool(self, *x)?,
             Value::String(x) => postcard_core::ser::try_push_str(self, x)?,
@@ -180,6 +181,7 @@ impl DeserializeCtx<'_> {
         use DeserializeError::BadInput as Bad;
 
         Ok(match kind {
+            TypeKind::Unit => Value::Unit,
             TypeKind::String => {
                 let x = postcard_core::de::try_take_str_temp(self)?.ok_or(Bad)?;
                 let x = x.parse().map_err(|_| Bad)?;

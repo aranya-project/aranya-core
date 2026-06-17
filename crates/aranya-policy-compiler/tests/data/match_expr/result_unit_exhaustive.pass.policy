@@ -1,0 +1,7 @@
+function f(res result[unit, bool]) int {
+    return match res {
+        Ok(Unit) => 0
+        Err(true) => 1
+        Err(false) => 2
+    }
+}
