@@ -329,10 +329,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
-        let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F, MS>(
+        let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
-            left_loc,
-            right_loc,
+            &[left_loc, right_loc],
             sink,
             policy,
             &mut buffers.traversal.primary,
@@ -586,35 +585,6 @@ where
 
     let (_, loc) = q.pop_front().assume("head set non-empty")?;
     Ok(loc)
-}
-
-/// Run the braid algorithm and evaluate the sequence to create a braided fact index.
-#[allow(clippy::too_many_arguments)]
-fn make_braid_segment<S, PS, F, MS>(
-    storage: &mut S,
-    left: Location,
-    right: Location,
-    sink: &mut impl Sink<PS::Effect>,
-    policy: &PS::Policy,
-    traversal: &mut TraversalBuffer,
-    braid_buf: &mut BraidBuffer<S::Segment>,
-    make_spill: &MS,
-) -> Result<(S::FactIndex, Location), ClientError>
-where
-    S: Storage,
-    PS: PolicyStore,
-    F: Spill,
-    MS: Fn() -> Result<F, StorageError>,
-{
-    evaluate_braid::<S, PS, F, MS>(
-        storage,
-        &[left, right],
-        sink,
-        policy,
-        traversal,
-        braid_buf,
-        make_spill,
-    )
 }
 
 /// Select the policy from two locations with the greatest serial value.
