@@ -26,8 +26,8 @@ Module {
             },
             result_type: Some(
                 ResultTypeKind {
-                    ok: Int @ 180..183,
-                    err: String @ 185..191,
+                    ok: Unit @ 180..184,
+                    err: String @ 186..192,
                 },
             ),
         },
@@ -52,7 +52,7 @@ Module {
     not
     branch 16
     block
-    const 0
+    const ()
     wrap ok
     restore SP
     return

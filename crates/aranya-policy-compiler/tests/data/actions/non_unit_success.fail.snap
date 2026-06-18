@@ -5,4 +5,4 @@ expression: error
 error: unknown error
   |
 2 | action bad() result[string, string] {
-  |                     ^^^^^^ an action's success type must be `unit` (use `int` placeholder)
+  |                     ^^^^^^ an action's success type must be `unit`
