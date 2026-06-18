@@ -4,7 +4,7 @@ expression: error
 ---
 error: missing return statement
   |
-2 | / action oops(x int) result[int, string] {
+2 | / action oops(x int) result[unit, string] {
 3 | |     let y = x
 4 | | }
   | |_^ no return found in this body

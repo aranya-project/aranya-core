@@ -1,4 +1,4 @@
 // A result-typed action must return on every path.
-action oops(x int) result[int, string] {
+action oops(x int) result[unit, string] {
     let y = x
 }

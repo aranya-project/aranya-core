@@ -1723,11 +1723,10 @@ impl CompileState<'_> {
                             Some(statement.span),
                         )));
                     };
-                    // The success type is limited to `unit` (currently `int`).
-                    if !matches!(result_type.ok.inner, TypeKind::Int) {
+                    // The success type is limited to `unit`.
+                    if !matches!(result_type.ok.inner, TypeKind::Unit) {
                         return Err(self.err(UnknownError(
-                            "an action's success type must be `unit` (use `int` placeholder)"
-                                .to_owned(),
+                            "an action's success type must be `unit`".to_owned(),
                             Some(result_type.ok.span),
                         )));
                     }

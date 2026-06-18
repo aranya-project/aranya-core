@@ -123,12 +123,12 @@ action increment() {
 }
 
 // A result-typed action: returns `Ok(unit)` on success or `Err(reason)` on
-// failure. (Success type uses an `int` placeholder until `unit` lands.)
-ephemeral action try_result(fail bool) result[int, string] {
+// failure.
+ephemeral action try_result(fail bool) result[unit, string] {
     if fail {
         return Err("boom")
     }
-    return Ok(0)
+    return Ok(Unit)
 }
 
 ephemeral command IncrementEphemeral {
