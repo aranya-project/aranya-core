@@ -1,20 +1,16 @@
 [
   {
-    "SetupClientsAndGraph": {
-      "clients": 3,
-      "graph": 0,
-      "policy": 0
-    }
-  },
-  {
     "GenerateGraph": {
-      "clients": 3,
+      "clients": 2,
       "graph": 0,
       "commands": 100,
-      "add_command_chance": 70,
-      "sync_client_zero": false,
-      "sync_chance": 30
+      "sync_client_zero": true,
+      "sync_method": {
+        "Poll": {
+          "add_command_chance": 50,
+          "sync_chance": 50
+        }
+      }
     }
   }
 ]
-
