@@ -4,7 +4,7 @@ assertion_line: 199
 expression: module
 ---
 Module {
-    version: "0",
+    version: "1",
     labels: {
         <fn 'f'>: 1,
     },

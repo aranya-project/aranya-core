@@ -2,10 +2,13 @@
 
 extern crate alloc;
 
+mod contract;
+
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{self as ast, Ident, Identifier, Param};
+pub use contract::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -18,6 +21,8 @@ use crate::{
 pub enum Version {
     /// Version 0.
     V0,
+    /// Version 1.
+    V1,
 }
 
 impl Version {
@@ -25,6 +30,7 @@ impl Version {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::V0 => "V0",
+            Self::V1 => "V1",
         }
     }
 }
@@ -64,6 +70,7 @@ impl Module {
     pub const fn version(&self) -> Version {
         match self.data {
             ModuleData::V0(_) => Version::V0,
+            ModuleData::V1(_) => Version::V1,
         }
     }
 }
@@ -84,6 +91,8 @@ impl Module {
 pub enum ModuleData {
     /// Version 0
     V0(ModuleV0),
+    /// Version 1
+    V1(ModuleV1),
 }
 
 /// The Version 0 module format
@@ -118,6 +127,58 @@ pub struct ModuleV0 {
     pub codemap: Option<CodeMap>,
     /// Global static data
     pub globals: BTreeMap<Identifier, ConstValue>,
+}
+
+/// The Version 1 module format
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleV1 {
+    /// Program memory
+    pub progmem: Box<[Instruction]>,
+    /// Labels
+    pub labels: BTreeMap<Label, usize>,
+    /// Action definitions
+    pub action_defs: NamedMap<ActionDef>,
+    /// Command definitions
+    pub command_defs: NamedMap<CommandDef>,
+    /// Fact definitions
+    pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
+    /// Struct definitions
+    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    /// Enum definitions
+    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
+    /// Code map
+    pub codemap: Option<CodeMap>,
+    /// Global static data
+    pub globals: BTreeMap<Identifier, ConstValue>,
+    /// Module contract metadata
+    pub contract: ModuleContract,
+}
+
+impl From<ModuleV1> for ModuleV0 {
+    fn from(value: ModuleV1) -> Self {
+        Self {
+            progmem: value.progmem,
+            labels: value.labels,
+            action_defs: value.action_defs,
+            command_defs: value.command_defs,
+            fact_defs: value.fact_defs,
+            struct_defs: value.struct_defs,
+            enum_defs: value.enum_defs,
+            codemap: value.codemap,
+            globals: value.globals,
+        }
+    }
 }
 
 /// An action definition.
