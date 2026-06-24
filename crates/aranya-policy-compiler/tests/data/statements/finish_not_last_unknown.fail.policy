@@ -4,7 +4,7 @@ command Foo {
     seal { return todo() }
     open { return todo() }
     policy {
-        check true
+        check true else recall reject()
         finish {
             delete Blah[]
         } // finish must be the last statement in policy
@@ -12,5 +12,8 @@ command Foo {
             delete Blah[]
         }
         let a = 5
+    }
+    recall reject() {
+        finish {}
     }
 }

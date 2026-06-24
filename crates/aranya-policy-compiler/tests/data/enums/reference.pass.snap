@@ -12,7 +12,12 @@ Module {
             name: "test" @ 31..35,
             persistence: Persistent,
             params: {},
-            result_type: None,
+            result_type: Some(
+                ResultTypeKind {
+                    ok: Unit @ 45..49,
+                    err: String @ 51..57,
+                },
+            ),
         },
     },
     command_defs: {},
@@ -30,39 +35,50 @@ Module {
 ---
     exit panic
 <action 'test'>:
+    save SP
     const Result::0
     def 'ok'
     get 'ok'
     const Result::0
     eq
-    branch 8
-    exit check
-<8>:
+    branch 12
+    const "check failed"
+    wrap err
+    restore SP
+    return
+<12>:
     get 'ok'
     const Result::1
     eq
     not
-    branch 14
-    exit check
-<14>:
+    branch 21
+    const "check failed"
+    wrap err
+    restore SP
+    return
+<21>:
     get 'ok'
     dup
     const Result::0
     eq
-    branch 23
+    branch 30
     dup
     const Result::1
     eq
-    branch 27
-<23>:
+    branch 34
+<30>:
     block
     pop
     end
-    jump 31
-<27>:
+    jump 38
+<34>:
     block
     pop
     end
-    jump 31
-<31>:
+    jump 38
+<38>:
+    const ()
+    wrap ok
+    restore SP
     return
+    exit panic

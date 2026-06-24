@@ -26,31 +26,43 @@ Policy {
                                             expression: Int(
                                                 1 @ 41..42,
                                             ) @ 41..42,
-                                            else_expression: None,
+                                            else_expression: Return(
+                                                Err(
+                                                    String(
+                                                        "check failed",
+                                                    ) @ 59..73,
+                                                ) @ 55..74,
+                                            ) @ 48..79,
                                         },
-                                    ) @ 35..47,
+                                    ) @ 35..79,
                                 ],
                             ),
                         ],
                         fallback: None,
                     },
-                ) @ 20..54,
+                ) @ 20..86,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Int(
-                                    0 @ 57..58,
-                                ) @ 57..58,
+                                    0 @ 89..90,
+                                ) @ 89..90,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1 @ 75..76,
-                                            ) @ 75..76,
-                                            else_expression: None,
+                                                1 @ 107..108,
+                                            ) @ 107..108,
+                                            else_expression: Return(
+                                                Err(
+                                                    String(
+                                                        "check failed",
+                                                    ) @ 125..139,
+                                                ) @ 121..140,
+                                            ) @ 114..145,
                                         },
-                                    ) @ 69..81,
+                                    ) @ 101..145,
                                 ],
                             ),
                         ],
@@ -59,79 +71,103 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         expression: Int(
-                                            2 @ 104..105,
-                                        ) @ 104..105,
-                                        else_expression: None,
+                                            2 @ 168..169,
+                                        ) @ 168..169,
+                                        else_expression: Return(
+                                            Err(
+                                                String(
+                                                    "check failed",
+                                                ) @ 186..200,
+                                            ) @ 182..201,
+                                        ) @ 175..206,
                                     },
-                                ) @ 98..110,
+                                ) @ 162..206,
                             ],
                         ),
                     },
-                ) @ 54..111,
+                ) @ 86..207,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Int(
-                                    0 @ 120..121,
-                                ) @ 120..121,
+                                    0 @ 216..217,
+                                ) @ 216..217,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1 @ 138..139,
-                                            ) @ 138..139,
-                                            else_expression: None,
+                                                1 @ 234..235,
+                                            ) @ 234..235,
+                                            else_expression: Return(
+                                                Err(
+                                                    String(
+                                                        "check failed",
+                                                    ) @ 252..266,
+                                                ) @ 248..267,
+                                            ) @ 241..276,
                                         },
-                                    ) @ 132..148,
+                                    ) @ 228..276,
                                     Let(
                                         LetStatement {
-                                            identifier: "c" @ 152..153,
+                                            identifier: "c" @ 280..281,
                                             expression: FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "add" @ 156..159,
+                                                    identifier: "add" @ 284..287,
                                                     arguments: [
                                                         Int(
-                                                            1 @ 160..161,
-                                                        ) @ 160..161,
+                                                            1 @ 288..289,
+                                                        ) @ 288..289,
                                                         Int(
-                                                            1 @ 163..164,
-                                                        ) @ 163..164,
+                                                            1 @ 291..292,
+                                                        ) @ 291..292,
                                                     ],
                                                 },
-                                            ) @ 156..165,
+                                            ) @ 284..293,
                                         },
-                                    ) @ 148..170,
+                                    ) @ 276..298,
                                 ],
                             ),
                             (
                                 Int(
-                                    2 @ 180..181,
-                                ) @ 180..181,
+                                    2 @ 308..309,
+                                ) @ 308..309,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                3 @ 198..199,
-                                            ) @ 198..199,
-                                            else_expression: None,
+                                                3 @ 326..327,
+                                            ) @ 326..327,
+                                            else_expression: Return(
+                                                Err(
+                                                    String(
+                                                        "check failed",
+                                                    ) @ 344..358,
+                                                ) @ 340..359,
+                                            ) @ 333..364,
                                         },
-                                    ) @ 192..204,
+                                    ) @ 320..364,
                                 ],
                             ),
                             (
                                 Int(
-                                    4 @ 214..215,
-                                ) @ 214..215,
+                                    4 @ 374..375,
+                                ) @ 374..375,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                5 @ 232..233,
-                                            ) @ 232..233,
-                                            else_expression: None,
+                                                5 @ 392..393,
+                                            ) @ 392..393,
+                                            else_expression: Return(
+                                                Err(
+                                                    String(
+                                                        "check failed",
+                                                    ) @ 410..424,
+                                                ) @ 406..425,
+                                            ) @ 399..430,
                                         },
-                                    ) @ 226..238,
+                                    ) @ 386..430,
                                 ],
                             ),
                         ],
@@ -140,17 +176,23 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         expression: Int(
-                                            6 @ 261..262,
-                                        ) @ 261..262,
-                                        else_expression: None,
+                                            6 @ 453..454,
+                                        ) @ 453..454,
+                                        else_expression: Return(
+                                            Err(
+                                                String(
+                                                    "check failed",
+                                                ) @ 471..485,
+                                            ) @ 467..486,
+                                        ) @ 460..491,
                                     },
-                                ) @ 255..267,
+                                ) @ 447..491,
                             ],
                         ),
                     },
-                ) @ 117..268,
+                ) @ 213..492,
             ],
-            span: 0..270,
+            span: 0..494,
         },
     ],
     effects: [],
@@ -160,5 +202,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action test() {\n    if 0 {\n        check 1\n    }\n\n    if 0 {\n        check 1\n    } else {\n        check 2\n    }\n\n    if 0 {\n        check 1\n        let c = add(1, 1)\n    } else if 2 {\n        check 3\n    } else if 4 {\n        check 5\n    } else {\n        check 6\n    }\n}\n",
+    text: "action test() {\n    if 0 {\n        check 1 else return Err(\"check failed\")\n    }\n\n    if 0 {\n        check 1 else return Err(\"check failed\")\n    } else {\n        check 2 else return Err(\"check failed\")\n    }\n\n    if 0 {\n        check 1 else return Err(\"check failed\")\n        let c = add(1, 1)\n    } else if 2 {\n        check 3 else return Err(\"check failed\")\n    } else if 4 {\n        check 5 else return Err(\"check failed\")\n    } else {\n        check 6 else return Err(\"check failed\")\n    }\n}\n",
 }

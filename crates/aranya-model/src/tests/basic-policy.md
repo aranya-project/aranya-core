@@ -71,10 +71,11 @@ command Init {
 
     // The policy block contains statements which query data and check its validity.
     policy {
-        check this.nonce > 0
+        check this.nonce > 0 else recall reject()
         // The finish block contains statements which mutate facts.
         finish {}
     }
+    recall reject() {}
 }
 
 // The `create` action takes a value and passes it to the `Create` command. For
@@ -160,13 +161,14 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
         let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        check new_x < 25 else recall reject()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
             emit StuffHappened{a: this.key_a, x: new_x}
         }
     }
+    recall reject() {}
 }
 
 ephemeral action increment_ephemeral(v int) {
@@ -188,13 +190,14 @@ ephemeral command IncrementEphemeral {
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
         let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        check new_x < 25 else recall reject()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
             emit StuffHappened{a: this.key_a, x: new_x}
         }
     }
+    recall reject() {}
 }
 
 // The `decrement` action takes a value and passes it to the `Decrement` command.
@@ -342,11 +345,12 @@ ephemeral command VerifyGreeting {
         let greeting = unwrap query Message[msg: this.key]=>{value: ?}
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value
+        check greeting.value == this.value else recall reject()
         finish {
             emit Success{value: true}
         }
     }
+    recall reject() {}
 }
 
 action verify_hello_on_graph() {
@@ -371,11 +375,12 @@ command VerifyGreetingOnGraph {
 
     policy {
         let greeting = unwrap query Message[msg: this.key]=>{value: ?}
-        check greeting.value == this.value
+        check greeting.value == this.value else recall reject()
         finish {
             emit Success{value: true}
         }
     }
+    recall reject() {}
 }
 
 

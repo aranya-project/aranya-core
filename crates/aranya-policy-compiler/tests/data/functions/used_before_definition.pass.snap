@@ -6,7 +6,7 @@ Module {
     version: "0",
     labels: {
         <fn 'divide'>: 141,
-        <fn 'divide0'>: 174,
+        <fn 'divide0'>: 176,
         <fn 'double'>: 67,
         <fn 'is_odd'>: 54,
         <fn 'multiply'>: 75,
@@ -18,16 +18,16 @@ Module {
     struct_defs: {
         "Division": [
             FieldDefinition {
-                identifier: "d" @ 886..887,
-                field_type: Int @ 888..891,
+                identifier: "d" @ 900..901,
+                field_type: Int @ 902..905,
             },
             FieldDefinition {
-                identifier: "q" @ 913..914,
-                field_type: Int @ 915..918,
+                identifier: "q" @ 927..928,
+                field_type: Int @ 929..932,
             },
             FieldDefinition {
-                identifier: "r" @ 961..962,
-                field_type: Int @ 963..966,
+                identifier: "r" @ 975..976,
+                field_type: Int @ 977..980,
             },
         ],
     },
@@ -196,21 +196,23 @@ Module {
     get 'y'
     const 0
     gt
-    branch 149
-    exit check
-<149>:
+    branch 151
+    const 0
+    restore SP
+    return
+<151>:
     get 'x'
     get 'y'
     lt
     not
-    branch 160
+    branch 162
     block
     const 0
     restore SP
     return
     end
-    jump 160
-<160>:
+    jump 162
+<162>:
     struct.new 'Division'
     get 'y'
     struct.set 'd'
@@ -240,14 +242,22 @@ Module {
     get 'd'
     const 0
     gt
-    branch 190
-    exit check
-<190>:
+    branch 200
+    struct.new 'Division'
+    get 'd'
+    struct.set 'd'
+    get 'q'
+    struct.set 'q'
+    get 'r'
+    struct.set 'r'
+    restore SP
+    return
+<200>:
     get 'r'
     get 'd'
     lt
     not
-    branch 207
+    branch 217
     block
     struct.new 'Division'
     get 'd'
@@ -259,8 +269,8 @@ Module {
     restore SP
     return
     end
-    jump 207
-<207>:
+    jump 217
+<217>:
     struct.new 'Division'
     get 'd'
     struct.set 'd'
