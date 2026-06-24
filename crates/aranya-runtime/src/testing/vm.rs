@@ -167,20 +167,22 @@ ephemeral action increment_ephemeral() {
 }
 
 
-ephemeral action incrementFour(n int) {
-    check n == 4
+ephemeral action incrementFour(n int) result[unit, string] {
+    check n == 4 else return Err("n must be 4")
     publish IncrementEphemeral {
         key: 1,
         amount: n,
     }
+    return Ok(Unit)
 }
 
-ephemeral action lookup(k int, v int, expected bool) {
+ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
-        true => { check f is Some }
-        false => { check f is None }
+        true => { check f is Some else return Err("expected Some") }
+        false => { check f is None else return Err("expected None") }
     }
+    return Ok(Unit)
 }
 
 command Invalidate {

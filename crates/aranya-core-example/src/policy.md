@@ -154,7 +154,7 @@ command Init {
 
     policy {
         let author_id = envelope::author_id(envelope)
-        check author_id == idam::derive_device_id(this.owner_keys.ident_key)
+        check author_id == idam::derive_device_id(this.owner_keys.ident_key) else recall reject()
 
         let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
 
@@ -167,6 +167,7 @@ command Init {
             emit Initialized{device_id: author_id}
         }
     }
+    recall reject() {}
 }
 ```
 
@@ -191,10 +192,10 @@ command AddDevice {
     policy {
         let author_id = envelope::author_id(envelope)
         let owner = unwrap query Owner[]
-        check author_id == owner.device_id
+        check author_id == owner.device_id else recall reject()
 
         let new_device_id = idam::derive_device_id(this.device_keys.ident_key)
-        check !exists DeviceSignPubKey[device_id: new_device_id]
+        check !exists DeviceSignPubKey[device_id: new_device_id] else recall reject()
 
         let new_sign_key_id = idam::derive_sign_key_id(this.device_keys.sign_key)
 
@@ -206,6 +207,7 @@ command AddDevice {
             emit DeviceAdded{device_id: new_device_id}
         }
     }
+    recall reject() {}
 }
 ```
 

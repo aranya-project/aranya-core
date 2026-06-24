@@ -917,10 +917,7 @@ impl<'a> CompileState<'a> {
                     check_succeeded_label.clone(),
                 )));
 
-                match s.else_expression {
-                    Some(else_expression) => self.compile_typed_expression(else_expression)?,
-                    None => self.append_instruction(Instruction::Exit(ExitReason::Check)),
-                }
+                self.compile_typed_expression(s.else_expression)?;
                 self.define_label(check_succeeded_label, self.wp)?;
             }
             thir::StmtKind::Match(s) => {

@@ -1,0 +1,7 @@
+// A `check ... else return <expr>` terminal in an action must return the
+// action's `result[unit, E]` type. Returning a bare `int` is a type error
+// (exercises the return-expression type check in action context).
+action f() result[unit, string] {
+    check false else return 5
+    return Ok(Unit)
+}

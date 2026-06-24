@@ -1,11 +1,12 @@
 enum Result { OK, Err }
-action test() {
+action test() result[unit, string] {
     let ok = Result::OK
-    check ok == Result::OK
-    check ok != Result::Err
+    check ok == Result::OK else return Err("check failed")
+    check ok != Result::Err else return Err("check failed")
 
     match ok {
         Result::OK => {}
         Result::Err => {}
     }
+    return Ok(Unit)
 }
