@@ -1,0 +1,30 @@
+name: "Coverage"
+
+on:
+  push:
+    branches: ["main"]
+  # Not run on pull_request automatically; use workflow_dispatch to run
+  # coverage manually on a PR branch when needed.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REV: ${{ github.run_id }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup
+
+      - name: Branch coverage
+        run: cargo make coverage
