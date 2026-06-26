@@ -75,24 +75,19 @@ function Role_Device() string {
 // Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the DeviceId.)
-function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
+function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[struct NewDevice, unit] {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    check got_device_id == device_keys.device_id else return NewDevice {
-        device_id: device_keys.device_id,
-        ident_pk: device_keys.ident_pk,
-        sign_pk_id: device_keys.device_id,
-        sign_pk: device_keys.sign_pk,
-    }
+    check got_device_id == device_keys.device_id else return Err(Unit)
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
-    return NewDevice {
+    return Ok(NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
         sign_pk_id: sign_pk_id,
         sign_pk: device_keys.sign_pk,
-    }
+    })
 }
 
 // Seals a serialized basic command into an envelope, using the stored signing key for this device.
@@ -258,7 +253,10 @@ command AddDeviceKeys {
             sign_pk: this.sign_pk,
         }
 
-        let device = authorized_device_key_ids(device_keys)
+        let device = match authorized_device_key_ids(device_keys) {
+            Ok(d) => d
+            Err(e) => recall reject()
+        }
 
         finish {
             create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
