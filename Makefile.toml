@@ -52,18 +52,18 @@ args = ["run", "-p", "aranya-core-example"]
 # Coverage
 [tasks.coverage]
 category = "test"
-description = "Branch coverage report for aranya-runtime (per-file table to terminal)"
+description = "Branch coverage report (per-file table to terminal)"
 toolchain = "nightly"
 command = "cargo"
-args = ["llvm-cov", "--branch", "-p", "aranya-runtime"]
+args = ["llvm-cov", "--branch"]
 dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 
 [tasks.coverage-html]
 category = "test"
-description = "Branch coverage HTML report for aranya-runtime (target/llvm-cov/html/index.html)"
+description = "Branch coverage HTML report (target/llvm-cov/html/index.html)"
 toolchain = "nightly"
 command = "cargo"
-args = ["llvm-cov", "--branch", "-p", "aranya-runtime", "--html"]
+args = ["llvm-cov", "--branch", "--html"]
 dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 
 [tasks.install-cargo-llvm-cov]
