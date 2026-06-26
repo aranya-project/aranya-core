@@ -659,7 +659,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
 
 #[cfg(test)]
 mod tests {
-    use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust, signer::Signer};
+    use spideroak_crypto::{ed25519::Ed25519, kem::Kem, rust, signer::Signer};
 
     use super::*;
     use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
