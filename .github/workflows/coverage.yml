@@ -3,8 +3,8 @@ name: "Coverage"
 on:
   push:
     branches: ["main"]
-  # Not run on pull_request automatically; use workflow_dispatch to run
-  # coverage manually on a PR branch when needed.
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
