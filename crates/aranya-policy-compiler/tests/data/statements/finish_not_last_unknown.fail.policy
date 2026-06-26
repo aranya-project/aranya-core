@@ -13,7 +13,5 @@ command Foo {
         }
         let a = 5
     }
-    recall reject() {
-        finish {}
-    }
+    recall reject() {}
 }
