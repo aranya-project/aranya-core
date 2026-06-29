@@ -518,7 +518,6 @@ where
 }
 
 /// Pairwise-merge a head set down to a single head, writing merge segments.
-/// Uses `NullSink` because these commands' effects were already delivered.
 /// Returns the resulting single head location. A one-element set is returned
 /// as-is (no merge).
 pub(crate) fn collapse_heads<S, PS, F, MS>(
@@ -537,6 +536,11 @@ where
     let mut q: VecDeque<(CmdId, Location)> =
         heads.iter().map(|la| (la.id, la.location())).collect();
 
+    // The multi-head state being collapsed was produced by a `commit` that
+    // already braided these same heads and emitted their effects in converged
+    // order. Re-braiding the identical head set yields no new effects (braid
+    // order is a stable global sort by `(priority, id)`), so emitting again
+    // would only duplicate what `commit` delivered.
     let mut null = NullSink;
     while q.len() > 1 {
         let (left_id, mut left_loc) = q.pop_front().assume("len > 1")?;
