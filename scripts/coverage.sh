@@ -93,24 +93,16 @@ crates_for() {
 # The value returned is one big alternation -- one term per non-bucket crate,
 # OR-ed together with `|`. For the `capi` bucket it looks like:
 #
-#     (^|/)aranya-policy-runner/|(^|/)aranya-policy-compiler/|...|(^|/)aranya-policy-vm-explorer/
+#     /crates/aranya-policy-runner/|/crates/aranya-policy-compiler/|...|/crates/aranya-policy-vm-explorer/
 #
-# Each term `(^|/)<crate>/` matches that crate's directory as a *whole* path
-# component:
+# Each term `/crates/<crate>/` matches that crate's source directory:
 #
-#   (^|/)     a boundary immediately before the component -- either the start
-#             of the string (relative paths, "aranya-foo/src/lib.rs") or a
-#             slash (absolute paths, "/work/crates/aranya-foo/src/lib.rs"); so
-#             the term matches whichever form llvm-cov hands us.
+#   /crates/  every workspace member lives under crates/, so this pins the match
+#             to the crate directory itself.
 #   <crate>/  the directory name plus a trailing slash, so the match spans the
-#             entire component. That trailing slash is the part that stops
-#             `aranya-core` from also matching `aranya-core-example` (there is
-#             no slash right after "core" there) -- likewise aranya-policy-vm
-#             vs aranya-policy-vm-explorer, aranya-id vs aranya-idam-ffi, etc.
-#
-# llvm-cov applies the pattern as a search (it matches anywhere in the path),
-# so anchoring each term as a full component is what keeps crates whose names
-# share a prefix from bleeding into each other's reports.
+#             whole component -- `aranya-core` does not also match
+#             `aranya-core-example` (no slash after "core" there), likewise
+#             aranya-policy-vm vs *-vm-explorer, aranya-id vs aranya-idam-ffi.
 ignore_regex_for() {
 	local keep re="" c
 	# Space-pad the bucket's crate list ("<sp>name<sp>name<sp>...") so the glob
@@ -124,7 +116,7 @@ ignore_regex_for() {
 			# `${re:+$re|}` expands to "<re>|" only when re is already non-empty,
 			# which OR-joins the terms while leaving the first one without a
 			# leading "|".
-			*) re="${re:+$re|}(^|/)$c/" ;;
+			*) re="${re:+$re|}/crates/$c/" ;;
 		esac
 	done
 	printf '%s' "$re"
