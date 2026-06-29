@@ -1218,7 +1218,7 @@ fn test_match_optional_binding() -> anyhow::Result<()> {
 
     // Some(n) binding arm
     let mut rs = machine.create_run_state(&mut io, dummy_ctx_action(name.clone()));
-    call_action(&mut rs, &mut published, name.clone(), [Some(42)])?.success();
+    call_action(&mut rs, &mut published, name, [Some(42)])?.success();
     assert_eq!(published, [vm_struct!(F { x: 42 })],);
 
     Ok(())
