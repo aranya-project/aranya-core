@@ -1,6 +1,11 @@
 
 # cargo-vet audits file
 
+[[audits.anyhow]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.0.100 -> 1.0.103"
+
 [[audits.bytes]]
 who = "gknopf <gknopf@spideroak.com>"
 criteria = "safe-to-deploy"
