@@ -916,6 +916,105 @@ mod test {
     }
 
     #[test]
+    fn test_ephemeral_command_with_priority() {
+        // An ephemeral command must not carry any priority-related attributes.
+        // This exercises the `attrs != PriorityAttrs::default()` error branch in
+        // `get_command_priorities`.
+        let cases = [
+            "priority: 1",
+            "init: true",
+            "finalize: true",
+        ];
+
+        for attrs in cases {
+            let policy = format!(
+                r#"
+                ephemeral command Test {{
+                    attributes {{
+                        {attrs}
+                    }}
+                    fields {{ }}
+                    seal {{ return todo() }}
+                    open {{ return todo() }}
+                    policy {{ }}
+                }}
+                "#
+            );
+            let ast = parse_policy_str(&policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+            let module = Compiler::new(&ast)
+                .compile()
+                .unwrap_or_else(|e| panic!("{e}"));
+            let machine = Machine::from_module(module).expect("can create machine");
+            let err = get_command_priorities(&machine).expect_err("should fail");
+            assert_eq!(
+                err,
+                AttributeError("ephemeral command must not have priority".into())
+            );
+        }
+    }
+
+    #[test]
+    fn test_ephemeral_command_without_priority() {
+        // An ephemeral command with no priority-related attributes is allowed and
+        // is simply omitted from the priority map. This exercises the
+        // `attrs == PriorityAttrs::default()` (skip) path in `get_command_priorities`.
+        let policy = r#"
+            ephemeral command Test {
+                fields { }
+                seal { return todo() }
+                open { return todo() }
+                policy { }
+            }
+        "#;
+        let ast = parse_policy_str(policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+        let module = Compiler::new(&ast)
+            .compile()
+            .unwrap_or_else(|e| panic!("{e}"));
+        let machine = Machine::from_module(module).expect("can create machine");
+        let priorities = get_command_priorities(&machine).expect("should succeed");
+        assert!(priorities.get("Test").is_none());
+    }
+
+    #[test]
+    fn test_vm_effect_partial_eq() {
+        use aranya_policy_vm::ident;
+
+        let name: Identifier = ident!("Foo");
+        let other_name: Identifier = ident!("Bar");
+        let field = KVPair::new(ident!("x"), Value::Int(1));
+        let other_field = KVPair::new(ident!("x"), Value::Int(2));
+
+        let effect = VmEffect {
+            name: name.clone(),
+            fields: vec![field.clone()],
+            command: CmdId::default(),
+            recalled: false,
+        };
+        let data_eq = VmEffectData {
+            name: name.clone(),
+            fields: vec![field.clone()],
+        };
+        let data_diff_fields = VmEffectData {
+            name: name.clone(),
+            fields: vec![other_field.clone()],
+        };
+        let data_diff_name = VmEffectData {
+            name: other_name.clone(),
+            fields: vec![field.clone()],
+        };
+
+        // `VmEffectData == VmEffect`: exercise both sides of the `&&`.
+        assert!(data_eq == effect); // name eq && fields eq
+        assert!(!(data_diff_fields == effect)); // name eq && fields ne
+        assert!(!(data_diff_name == effect)); // name ne (short circuit)
+
+        // `VmEffect == VmEffectData`: exercise both sides of the `&&`.
+        assert!(effect == data_eq); // name eq && fields eq
+        assert!(!(effect == data_diff_fields)); // name eq && fields ne
+        assert!(!(effect == data_diff_name)); // name ne (short circuit)
+    }
+
+    #[test]
     fn test_get_command_priorities() {
         fn process(attrs: &str) -> Result<VmPriority, AttributeError> {
             let policy = format!(
