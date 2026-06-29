@@ -66,28 +66,48 @@ command = "cargo"
 args = ["llvm-cov", "--branch", "--html"]
 dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 
-# CI coverage: run the instrumented test suite once, then emit every report
-# format from the stored profdata (avoids rebuilding/retesting per format).
-# Outputs land in target/llvm-cov/ for the CI job to upload as artifacts:
-#   coverage.txt  - per-file branch coverage table (the data)
-#   html/         - browsable HTML report (the chart)
-#   lcov.info     - machine-readable lcov (for downstream tooling)
+# Per-bucket branch coverage tables (terminal). Each runs the full instrumented
+# suite, then prints only its bucket; see scripts/coverage.sh for the crate map.
+[tasks.coverage-capi]
+category = "test"
+description = "Branch coverage for the C API crates (capi-core/codegen/macro)"
+script_runner = "@shell"
+script = "scripts/coverage.sh local capi"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.coverage-tools]
+category = "test"
+description = "Branch coverage for the tools (policy-runner)"
+script_runner = "@shell"
+script = "scripts/coverage.sh local tools"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.coverage-compiler]
+category = "test"
+description = "Branch coverage for the policy compiler (compiler/lang/ast/module)"
+script_runner = "@shell"
+script = "scripts/coverage.sh local compiler"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.coverage-core-prod]
+category = "test"
+description = "Branch coverage for core production code (runtime, vm, crypto, ...)"
+script_runner = "@shell"
+script = "scripts/coverage.sh local core-prod"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+# CI coverage: run the instrumented test suite once, then emit a text table,
+# HTML report, and lcov for every bucket from the stored profdata (avoids
+# rebuilding/retesting per bucket). Outputs land in target/llvm-cov/<bucket>/
+# for the CI job to upload as one artifact each:
+#   <bucket>/coverage.txt  - per-file branch coverage table (the data)
+#   <bucket>/html/         - browsable HTML report (the chart)
+#   <bucket>/lcov.info     - machine-readable lcov (for downstream tooling)
 [tasks.coverage-ci]
 category = "test"
-description = "Branch coverage reports for CI (text table, HTML, lcov)"
+description = "Per-bucket branch coverage reports for CI (text table, HTML, lcov)"
 script_runner = "@shell"
-script = '''
-set -eu
-# Build with branch instrumentation and run the whole test suite once.
-cargo +nightly llvm-cov --branch --no-report
-mkdir -p target/llvm-cov
-# Per-file branch coverage table (the data); also echo it to the build log.
-cargo +nightly llvm-cov report --branch | tee target/llvm-cov/coverage.txt
-# Browsable HTML report (the chart) -> target/llvm-cov/html/index.html.
-cargo +nightly llvm-cov report --branch --html --output-dir target/llvm-cov
-# Machine-readable lcov for downstream tooling.
-cargo +nightly llvm-cov report --branch --lcov --output-path target/llvm-cov/lcov.info
-'''
+script = "scripts/coverage.sh ci"
 dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 
 [tasks.install-cargo-llvm-cov]

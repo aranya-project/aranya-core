@@ -31,19 +31,39 @@ jobs:
 
       - name: Coverage summary
         run: |
-          {
-            echo '### Branch coverage'
-            echo '```'
-            cat target/llvm-cov/coverage.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          for bucket in capi tools compiler core-prod; do
+            {
+              echo "### Branch coverage: ${bucket}"
+              echo '```'
+              cat "target/llvm-cov/${bucket}/coverage.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
 
-      - name: Upload coverage report
+      - name: Upload C API coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: |
-            target/llvm-cov/coverage.txt
-            target/llvm-cov/lcov.info
-            target/llvm-cov/html
+          name: coverage-capi
+          path: target/llvm-cov/capi
+          if-no-files-found: error
+
+      - name: Upload tools coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-tools
+          path: target/llvm-cov/tools
+          if-no-files-found: error
+
+      - name: Upload policy compiler coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-compiler
+          path: target/llvm-cov/compiler
+          if-no-files-found: error
+
+      - name: Upload core production coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-core-prod
+          path: target/llvm-cov/core-prod
           if-no-files-found: error
