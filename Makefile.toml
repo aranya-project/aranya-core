@@ -66,6 +66,30 @@ command = "cargo"
 args = ["llvm-cov", "--branch", "--html"]
 dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 
+# CI coverage: run the instrumented test suite once, then emit every report
+# format from the stored profdata (avoids rebuilding/retesting per format).
+# Outputs land in target/llvm-cov/ for the CI job to upload as artifacts:
+#   coverage.txt  - per-file branch coverage table (the data)
+#   html/         - browsable HTML report (the chart)
+#   lcov.info     - machine-readable lcov (for downstream tooling)
+[tasks.coverage-ci]
+category = "test"
+description = "Branch coverage reports for CI (text table, HTML, lcov)"
+script_runner = "@shell"
+script = '''
+set -eu
+# Build with branch instrumentation and run the whole test suite once.
+cargo +nightly llvm-cov --branch --no-report
+mkdir -p target/llvm-cov
+# Per-file branch coverage table (the data); also echo it to the build log.
+cargo +nightly llvm-cov report --branch | tee target/llvm-cov/coverage.txt
+# Browsable HTML report (the chart) -> target/llvm-cov/html/index.html.
+cargo +nightly llvm-cov report --branch --html --output-dir target/llvm-cov
+# Machine-readable lcov for downstream tooling.
+cargo +nightly llvm-cov report --branch --lcov --output-path target/llvm-cov/lcov.info
+'''
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
 [tasks.install-cargo-llvm-cov]
 private = true
 toolchain = "stable"
