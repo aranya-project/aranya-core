@@ -85,7 +85,12 @@ where
 
 impl From<Bug> for Error {
     fn from(err: Bug) -> Self {
-        <Self as keystore::Error>::other(err)
+        // Construct the `Bug` variant directly rather than routing
+        // through `Repr::new`. A `Bug` can only be created via
+        // `buggy::Bug::new`, which panics in debug builds, so a
+        // runtime `downcast_ref::<Bug>` branch in `Repr::new` could
+        // never be exercised under coverage.
+        Self(Repr::Bug(err))
     }
 }
 
@@ -127,8 +132,6 @@ impl Repr {
                 cbor::de::Error::Semantic(x, y) => cbor::de::Error::Semantic(*x, y.clone()),
                 cbor::de::Error::RecursionLimitExceeded => cbor::de::Error::RecursionLimitExceeded,
             })
-        } else if let Some(err) = err.downcast_ref::<Bug>() {
-            Self::Bug(err.clone())
         } else if let Some(err) = err.downcast_ref::<RootDeleted>() {
             Self::RootDeleted(err.clone())
         } else {
