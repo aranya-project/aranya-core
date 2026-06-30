@@ -77,8 +77,10 @@ Signs and verifies commands using the author's DeviceSignPubKey fact.
 function seal_command(payload bytes) struct Envelope {
     let parent_id = perspective::head_id()
     let author_id = device::current_device_id()
-    let author_sign_pk = check_unwrap query DeviceSignPubKey[device_id: author_id]
-
+    let author_sign_pk = match query DeviceSignPubKey[device_id: author_id] {
+        Some(author_sign_pk) => author_sign_pk
+        None => return Err(Unit)
+    }
     let signed = crypto::sign(author_sign_pk.key_id, payload)
     return envelope::new(
         parent_id,
@@ -92,8 +94,10 @@ function seal_command(payload bytes) struct Envelope {
 // Opens an envelope using the author's public Device Signing Key.
 function open_envelope(sealed_envelope struct Envelope) bytes {
     let author_id = envelope::author_id(sealed_envelope)
-    let author_sign_pk = check_unwrap query DeviceSignPubKey[device_id: author_id]
-
+    let author_sign_pk = match query DeviceSignPubKey[device_id: author_id] {
+        Some(author_sign_pk) => author_sign_pk
+        None => return Err(Unit)
+    }
     let verified_command = crypto::verify(
         author_sign_pk.key,
         envelope::parent_id(sealed_envelope),

@@ -12,6 +12,3 @@ help: you should use an arithmetic function
 2 -     return 3 + 4
 2 +     return saturating_add(3, 4)
   |
-2 -     return 3 + 4
-2 +     return check_unwrap add(3, 4)
-  |

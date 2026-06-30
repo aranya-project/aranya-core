@@ -268,11 +268,9 @@ infix_op = _{
 // ## Prefix operators
 not = { "!" }
 unwrap = { "unwrap" }
-check_unwrap = { "check_unwrap" }
 prefix_op = _{
     | not
     | unwrap
-    | check_unwrap
 }
 
 // ## Postfix operators

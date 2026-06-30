@@ -64,7 +64,10 @@ function open_command(e struct Envelope, key bytes) bytes {
 // This assumes that this mapping exists, and a proper implementation should check for errors.
 function current_device_key() bytes {
     let author_id = device::current_device_id()
-    let author_dev = check_unwrap query Device[dev: author_id]
+    let author_dev = match query Device[dev: author_id] {
+        Some(author_dev) => author_dev
+        None => return Err(Unit)
+    }
     return author_dev.key
 }
 
@@ -73,7 +76,10 @@ function current_device_key() bytes {
 // malicious command could have an author ID not in our database.
 function envelope_author_key(envelope struct Envelope) bytes {
     let author_id = envelope::author_id(envelope)
-    let author_dev = check_unwrap query Device[dev: author_id]
+    let author_dev = match query Device[dev: author_id] {
+        Some(author_dev) => author_dev
+        None => return Err(Unit)
+    }
     return author_dev.key
 }
 ```

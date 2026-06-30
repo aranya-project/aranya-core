@@ -1015,9 +1015,6 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Unwrap(e) => self.lower_unwrap(e, thir::ExprKind::Unwrap, expression.span)?,
-            ExprKind::CheckUnwrap(e) => {
-                self.lower_unwrap(e, thir::ExprKind::CheckUnwrap, expression.span)?
-            }
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let e = self.lower_expression(e)?;
@@ -1178,10 +1175,10 @@ impl CompileState<'_> {
         })
     }
 
-    /// Lowers a (check) unwrap expression.
+    /// Lowers an unwrap expression.
     ///
-    /// The `constructor` param is used to wrap the inner expression in either
-    /// [`thir::ExprKind::Unwrap`] or [`thir::ExprKind::CheckUnwrap`].
+    /// The `constructor` param is used to wrap the inner expression in
+    /// [`thir::ExprKind::Unwrap`].
     fn lower_unwrap(
         &mut self,
         e: &Expression,

@@ -94,7 +94,10 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
 function seal_basic_command(payload bytes) struct Envelope {
     let parent_id = perspective::head_id()
     let author_id = device::current_device_id()
-    let author_sign_sk_id = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+    let author_sign_sk_id = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
+        Some(author_sign_sk_id) => author_sign_sk_id
+        None => return Err(Unit)
+    }
     let signed = crypto::sign(
         author_sign_sk_id.key_id,
         payload,
@@ -112,7 +115,10 @@ function seal_basic_command(payload bytes) struct Envelope {
 // Opens a basic command from an envelope, using the author's stored signing key.
 function open_basic_command(envelope_input struct Envelope) bytes {
     let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+    let author_sign_pk = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
+        Some(author_sign_pk) => author_sign_pk
+        None => return Err(Unit)
+    }
     let parent_id = envelope::parent_id(envelope_input)
 
     let crypto_command = crypto::verify(

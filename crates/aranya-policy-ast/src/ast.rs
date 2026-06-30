@@ -641,8 +641,6 @@ pub enum ExprKind {
     Not(Box<Expression>),
     /// `unwrap expr`
     Unwrap(Box<Expression>),
-    /// Similar to Unwrap, but exits with a Check, instead of a Panic
-    CheckUnwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
@@ -781,8 +779,7 @@ impl ExprKind {
             // Single expression variants
             (Self::Return(a), Self::Return(b))
             | (Self::Not(a), Self::Not(b))
-            | (Self::Unwrap(a), Self::Unwrap(b))
-            | (Self::CheckUnwrap(a), Self::CheckUnwrap(b)) => a.inner.matches(&b.inner),
+            | (Self::Unwrap(a), Self::Unwrap(b)) => a.inner.matches(&b.inner),
 
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))

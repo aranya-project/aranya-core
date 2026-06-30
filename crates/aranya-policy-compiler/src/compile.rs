@@ -828,9 +828,6 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Not);
             }
             thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
-            thir::ExprKind::CheckUnwrap(e) => {
-                self.compile_unwrap_option(*e, ExitReason::Check)?;
-            }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
