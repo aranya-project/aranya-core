@@ -187,8 +187,6 @@ pub enum ExprKind {
     Not(Box<Expression>),
     /// `unwrap expr`
     Unwrap(Box<Expression>),
-    /// Similar to Unwrap, but exits with a Check, instead of a Panic
-    CheckUnwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression

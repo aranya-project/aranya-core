@@ -851,7 +851,6 @@ impl ChunkParser<'_> {
                 let kind = match op.as_rule() {
                     Rule::not => ExprKind::Not(Box::new(rhs)),
                     Rule::unwrap => ExprKind::Unwrap(Box::new(rhs)),
-                    Rule::check_unwrap => ExprKind::CheckUnwrap(Box::new(rhs)),
                     _ => {
                         return Err(ParseError::new(
                             ParseErrorKind::Expression,
@@ -2017,7 +2016,7 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// |----------|----|
 /// | 1        | `.` |
 /// | 2        | `substruct`, `as` (infix) |
-/// | 3        | `!`, `unwrap`, `check_unwrap` |
+/// | 3        | `!`, `unwrap` |
 /// | 4        | `%` |
 /// | 5        | `>`, `<`, `>=`, `<=`, `is` |
 /// | 6        | `==`, `!=` |
@@ -2034,7 +2033,7 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
         .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
-        .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
+        .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap))
         .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
         .op(Op::postfix(Rule::dot))
 }

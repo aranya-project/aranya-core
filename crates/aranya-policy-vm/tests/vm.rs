@@ -1382,7 +1382,7 @@ fn test_check_errors() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_check_unwrap() -> anyhow::Result<()> {
+fn test_query_match() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i int]=>{x int}
 
@@ -1403,14 +1403,20 @@ fn test_check_unwrap() -> anyhow::Result<()> {
             }
         }
 
-        action test_existing() {
-            let f = check_unwrap query Foo[i: 1]
+        action test_existing() result[unit, string] {
+            let f = match query Foo[i: 1] {
+                Some(f) => f
+                None => return Err("missing Foo")
+            }
             check f.x == 1 else test_fail()
         }
 
-        action test_nonexistent() {
-            let f = check_unwrap query Foo[i: 0]
-            check false else test_fail()
+        action test_nonexistent() result[unit, unit] {
+            let f = match query Foo[i: 0] {
+                Some(f) => f
+                None => return Err(Unit)
+            }
+            check f.x == 1 else test_fail()
         }
     "#;
 
