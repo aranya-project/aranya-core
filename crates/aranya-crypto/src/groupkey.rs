@@ -2,7 +2,6 @@
 
 use core::{cell::OnceCell, iter, marker::PhantomData, result::Result};
 
-use buggy::Bug;
 use derive_where::derive_where;
 use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
@@ -162,14 +161,8 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
-            let required = self
-                .overhead()
-                .checked_add(plaintext.len())
-                .ok_or(Error::Bug(Bug::new(
-                    "overhead + plaintext length must not wrap",
-                )))?;
             return Err(Error::Seal(SealError::BufferTooSmall(BufferTooSmallError(
-                Some(required),
+                self.overhead().checked_add(plaintext.len()),
             ))));
         }
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
@@ -316,4 +309,74 @@ custom_id! {
 pub struct EncryptedGroupKey<CS: CipherSuite> {
     pub(crate) ciphertext: GenericArray<u8, U64>,
     pub(crate) tag: Tag<CS::Aead>,
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::arithmetic_side_effects)]
+
+    use super::*;
+    use crate::{Rng, SigningKey, default::DefaultCipherSuite};
+
+    type CS = DefaultCipherSuite;
+
+    fn author() -> VerifyingKey<CS> {
+        SigningKey::<CS>::new(Rng)
+            .public()
+            .expect("signing key should be valid")
+    }
+
+    fn ctx<'a>(author: &'a VerifyingKey<CS>) -> Context<'a, CS> {
+        Context {
+            label: "test",
+            parent: CmdId::default(),
+            author_sign_pk: author,
+        }
+    }
+
+    /// Exercises both the happy path and the "`dst` too small"
+    /// error path of [`GroupKey::seal`].
+    #[test]
+    fn test_seal_dst_too_small() {
+        let author = author();
+        let key = GroupKey::<CS>::new(Rng);
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        // Happy path: `dst` is large enough.
+        let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal(Rng, &mut dst, MESSAGE, ctx(&author))
+            .expect("`seal` should succeed");
+
+        // Error path: `dst` is shorter than `overhead()`.
+        let mut small = [0u8; 1];
+        let err = key
+            .seal(Rng, &mut small, MESSAGE, ctx(&author))
+            .expect_err("`seal` should fail when `dst` is too small");
+        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+    }
+
+    /// Exercises both the happy path and the "`ciphertext` too
+    /// short" error path of [`GroupKey::open`].
+    #[test]
+    fn test_open_ciphertext_too_short() {
+        let author = author();
+        let key = GroupKey::<CS>::new(Rng);
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        let mut ciphertext = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal(Rng, &mut ciphertext, MESSAGE, ctx(&author))
+            .expect("`seal` should succeed");
+
+        // Happy path: decrypt the full ciphertext.
+        let mut plaintext = vec![0u8; ciphertext.len() - key.overhead()];
+        key.open(&mut plaintext, &ciphertext, ctx(&author))
+            .expect("`open` should succeed");
+        assert_eq!(plaintext, MESSAGE);
+
+        // Error path: `ciphertext` is shorter than `overhead()`.
+        let err = key
+            .open(&mut plaintext, b"short", ctx(&author))
+            .expect_err("`open` should fail when `ciphertext` is too short");
+        assert!(matches!(err, Error::Open(_)), "got {err:?}");
+    }
 }
