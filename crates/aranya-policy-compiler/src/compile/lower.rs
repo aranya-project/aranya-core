@@ -1210,12 +1210,14 @@ impl CompileState<'_> {
         let mut all_values: Vec<(ExprKind, Span)> = Vec::new();
         let mut seen_ok_binding = false;
         let mut seen_err_binding = false;
+        let mut seen_some_binding = false;
         for pattern in &patterns {
             let MatchPattern::Values(values) = pattern else {
                 continue;
             };
             let mut seen_ok_literal = false;
             let mut seen_err_literal = false;
+            let mut seen_some_literal = false;
             for v in values {
                 let value = &v.inner;
                 let v_span = v.span();
@@ -1258,6 +1260,20 @@ impl CompileState<'_> {
                     }
                     ExprKind::Err(_) => {
                         seen_err_literal = true;
+                    }
+                    ExprKind::Optional(Some(inner))
+                        if matches!(inner.inner, ExprKind::Identifier(_)) =>
+                    {
+                        if seen_some_literal {
+                            return Err(self.redundant_match_arm_error(v_span));
+                        }
+                        seen_some_binding = true;
+                    }
+                    ExprKind::Optional(Some(_)) if seen_some_binding => {
+                        return Err(self.unreachable_match_arm_error(v_span));
+                    }
+                    ExprKind::Optional(Some(_)) => {
+                        seen_some_literal = true;
                     }
                     _ => {}
                 }
@@ -1348,6 +1364,38 @@ impl CompileState<'_> {
                                     };
                                     values_out.push(outer);
                                 }
+                                ExprKind::Optional(Some(inner)) => {
+                                    // Binding pattern: Some(x) where x is an identifier
+                                    let TypeKind::Optional(inner_type) = &scrutinee_type.inner
+                                    else {
+                                        return Err(self.err(InvalidType::new(
+                                            "option[T]".to_owned(),
+                                            None,
+                                            scrutinee_type.to_string(),
+                                            value.span(),
+                                        )));
+                                    };
+                                    let inner_type = inner_type.as_ref().clone();
+                                    let ExprKind::Identifier(ident) = &inner.inner else {
+                                        return Err(self.err(InvalidType::new(
+                                            "identifier".to_owned(),
+                                            None,
+                                            "non-identifier expression".to_owned(),
+                                            inner.span(),
+                                        )));
+                                    };
+                                    let inner = thir::Expression {
+                                        kind: thir::ExprKind::Identifier(ident.clone()),
+                                        vtype: inner_type,
+                                        span: inner.span(),
+                                    };
+                                    let outer = thir::Expression {
+                                        kind: thir::ExprKind::Optional(Some(Box::new(inner))),
+                                        vtype: scrutinee_type.clone(),
+                                        span: value.span(),
+                                    };
+                                    values_out.push(outer);
+                                }
                                 _ => {
                                     // Anything else is not a valid pattern. For example, an
                                     // identifier without Ok/Err, function call, property access,
@@ -1418,8 +1466,44 @@ impl CompileState<'_> {
             false
         };
 
+        // Optional-pattern exhaustiveness mirrors the Result case:
+        // - a `Some(x)` binding pattern covers all Some values
+        // - a literal `None` covers the None case
+        // - literal `Some(..)` patterns cover only specific values, so we compare
+        //   against inner-type cardinality when finite.
+        let optional_exhaustive = if let TypeKind::Optional(inner_type) = &scrutinee_type.inner {
+            let mut has_some_binding = false;
+            let mut has_none = false;
+            // Can't use sets because ExprKind doesn't impl Hash/Eq
+            let mut some_literals: Vec<ExprKind> = Vec::new();
+
+            for (v, _) in &all_values {
+                match v {
+                    ExprKind::Optional(Some(inner))
+                        if matches!(inner.inner, ExprKind::Identifier(_)) =>
+                    {
+                        has_some_binding = true;
+                    }
+                    ExprKind::Optional(Some(inner)) => some_literals.push(inner.inner.clone()),
+                    ExprKind::Optional(None) => has_none = true,
+                    _ => {}
+                }
+            }
+
+            let some_exhaustive = has_some_binding
+                || self
+                    .m
+                    .cardinality(&inner_type.inner)
+                    .is_some_and(|c| c == some_literals.len() as u64);
+
+            has_none && some_exhaustive
+        } else {
+            false
+        };
+
         let missing_default = default_count == 0
             && !result_exhaustive
+            && !optional_exhaustive
             && self
                 .m
                 .cardinality(&scrutinee_type.inner)
@@ -1442,11 +1526,14 @@ impl CompileState<'_> {
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
 
-                    // For Result patterns (Ok(x)/Err(e) in Values), add the binding to scope
+                    // For binding patterns (Ok(x)/Err(e)/Some(x) in Values), add the
+                    // binding to scope
                     if let thir::MatchPattern::Values(values) = &pattern {
                         for value in values {
                             match &value.kind {
-                                thir::ExprKind::Ok(inner) | thir::ExprKind::Err(inner) => {
+                                thir::ExprKind::Ok(inner)
+                                | thir::ExprKind::Err(inner)
+                                | thir::ExprKind::Optional(Some(inner)) => {
                                     if let thir::ExprKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
                                             .add(ident.clone(), inner.vtype.clone())
@@ -1487,11 +1574,14 @@ impl CompileState<'_> {
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
 
-                    // For Result patterns (Ok(x)/Err(e) in Values), add the binding to scope
+                    // For binding patterns (Ok(x)/Err(e)/Some(x) in Values), add the
+                    // binding to scope
                     if let thir::MatchPattern::Values(values) = &pattern {
                         for value in values {
                             match &value.kind {
-                                thir::ExprKind::Ok(inner) | thir::ExprKind::Err(inner) => {
+                                thir::ExprKind::Ok(inner)
+                                | thir::ExprKind::Err(inner)
+                                | thir::ExprKind::Optional(Some(inner)) => {
                                     if let thir::ExprKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
                                             .add(ident.clone(), inner.vtype.clone())
