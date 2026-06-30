@@ -66,15 +66,6 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     })
 }
 
-fn dummy_ctx_recall(name: Identifier) -> CommandContext {
-    CommandContext::Recall(PolicyContext {
-        name,
-        id: CmdId::default(),
-        author: DeviceId::default(),
-        version: BaseId::default(),
-    })
-}
-
 fn dummy_envelope() -> Struct {
     Struct {
         name: ident!("Envelope"),
@@ -932,7 +923,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check(None));
+    assert_eq!(result, ExitReason::Check);
 
     Ok(())
 }
@@ -1409,8 +1400,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
 #[test]
 fn test_check_errors() -> anyhow::Result<()> {
     let cases = [
-        (
-            r#"command Foo {
+        r#"command Foo {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
@@ -1420,10 +1410,7 @@ fn test_check_errors() -> anyhow::Result<()> {
                 recall default() {
                 }
             }"#,
-            ident!("Foo_default"),
-        ),
-        (
-            r#"command Foo {
+        r#"command Foo {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
@@ -1433,11 +1420,9 @@ fn test_check_errors() -> anyhow::Result<()> {
                 recall bar() {
                 }
             }"#,
-            ident!("Foo_bar"),
-        ),
     ];
 
-    for (input, expected) in cases {
+    for input in cases {
         let policy = parse_policy_str(input, Version::V2)?;
         let mut io = TestIO::new();
         let module = Compiler::new(&policy).compile()?;
@@ -1451,7 +1436,7 @@ fn test_check_errors() -> anyhow::Result<()> {
         };
         let result = rs.call_command_policy(self_struct, dummy_envelope())?;
 
-        assert_eq!(result, ExitReason::Check(Some(expected)));
+        assert_eq!(result, ExitReason::Check);
     }
     Ok(())
 }
@@ -1518,7 +1503,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check(None));
+        assert_eq!(status, ExitReason::Check);
     }
 
     Ok(())
@@ -1659,6 +1644,8 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             payload bytes
         }
 
+        effect Recalled {}
+
         command Foo {
             fields {
                 test bytes
@@ -1667,13 +1654,14 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             open { return todo() }
 
             policy {
-                check envelope.payload == this.test
-                finish {}
+                check false else recall default()
             }
 
             recall default() {
                 check envelope.payload == this.test
-                finish {}
+                finish {
+                    emit Recalled {}
+                }
             }
         }
     "#;
@@ -1682,40 +1670,22 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let machine = compile(text);
     let test_data = "thing".as_bytes().to_vec();
 
-    {
-        let name = ident!("Foo");
-        let ctx = dummy_ctx_policy(name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(
-            Struct::new(
-                ident!("Foo"),
-                [KVPair::new(ident!("test"), test_data.clone().into())],
-            ),
-            Struct::new(
-                ident!("Envelope"),
-                [KVPair::new(ident!("payload"), test_data.clone().into())],
-            ),
-        )?
-        .success();
-    }
-
-    {
-        let name = ident!("Foo");
-        let ctx = dummy_ctx_recall(name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_recall(
-            Struct::new(
-                ident!("Foo"),
-                [KVPair::new(ident!("test"), test_data.clone().into())],
-            ),
-            Struct::new(
-                ident!("Envelope"),
-                [KVPair::new(ident!("payload"), test_data.into())],
-            ),
-            ident!("Foo_default"),
-        )?
-        .success();
-    }
+    let name = ident!("Foo");
+    let ctx = dummy_ctx_policy(name);
+    let mut rs = machine.create_run_state(&mut io, ctx);
+    let result = rs.call_command_policy(
+        Struct::new(
+            ident!("Foo"),
+            [KVPair::new(ident!("test"), test_data.clone().into())],
+        ),
+        Struct::new(
+            ident!("Envelope"),
+            [KVPair::new(ident!("payload"), test_data.into())],
+        ),
+    )?;
+    assert_eq!(result, ExitReason::Check);
+    // Recall body ran with `envelope` and `this` in scope, reached `finish`.
+    assert_eq!(io.effect_stack[0].0, ident!("Recalled"));
 
     Ok(())
 }
@@ -2442,7 +2412,7 @@ fn test_boolean_short_circuit() {
     // So `Panic` means `todo()` evaluated; `Check(None)` means the check failed
     // without `todo()` running; `Normal` means the check passed.
     assert_eq!(run("true && todo()"), ExitReason::Panic); // todo runs in &&
-    assert_eq!(run("false && todo()"), ExitReason::Check(None)); // && short-circuits → check fails
+    assert_eq!(run("false && todo()"), ExitReason::Check); // && short-circuits → check fails
     assert_eq!(run("true || todo()"), ExitReason::Normal); // || short-circuits, check passes
     assert_eq!(run("false || todo()"), ExitReason::Panic); // todo runs in ||
 }
@@ -2558,7 +2528,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check(None));
+    assert_eq!(result, ExitReason::Check);
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
@@ -2943,25 +2913,12 @@ fn test_recall_with_args() -> anyhow::Result<()> {
     let envelope = dummy_envelope();
 
     // Exec command
-    let ctx = dummy_ctx_policy(name.clone());
+    let ctx = dummy_ctx_policy(name);
     let mut rs = machine.create_run_state(&mut io, ctx);
-    let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
+    let result = rs.call_command_policy(this_data, envelope)?;
+    assert_eq!(result, ExitReason::Check);
 
-    // Should exit with Check, and args should be on stack
-    let recall_name = ident!("Foo_test");
-    assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
-    let stack_values = rs.stack.as_slice();
-    assert_eq!(stack_values.first(), Some(&Value::Int(1)));
-    assert_eq!(stack_values.get(1), Some(&Value::String(text!("oops"))));
-
-    // Exec recall
-    let recall_ctx = dummy_ctx_recall(name);
-    rs.set_context(recall_ctx);
-
-    let result = rs.call_command_recall(this_data, envelope, recall_name)?;
-    assert_eq!(result, ExitReason::Normal);
-
-    // Check that the effect was emitted with correct args
+    // Effect should be emitted from the inline recall body with the supplied args.
     assert_eq!(
         io.effect_stack[0],
         (

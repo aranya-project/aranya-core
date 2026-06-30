@@ -6,9 +6,9 @@ Module {
     version: "0",
     labels: {
         <policy 'Cmd'>: 1,
-        <seal 'Cmd'>: 24,
-        <open 'Cmd'>: 30,
-        <recall 'Cmd_handle'>: 20,
+        <seal 'Cmd'>: 26,
+        <open 'Cmd'>: 32,
+        <recall 'Cmd_handle'>: 22,
     },
     action_defs: {},
     command_defs: {
@@ -47,14 +47,16 @@ Module {
     const 0
     lt
     not
-    branch 15
+    branch 17
     block
     get 'this'
     struct.get 'x'
-    exit check: Cmd_handle
+    get 'this'
+    get 'envelope'
+    recall <recall 'Cmd_handle'>
     end
-    jump 15
-<15>:
+    jump 17
+<17>:
     meta: finish enabled
     block
     end
@@ -64,7 +66,7 @@ Module {
     def 'envelope'
     def 'this'
     def 'x'
-    exit normal
+    exit check
 <seal 'Cmd'>:
     def 'this'
     save SP

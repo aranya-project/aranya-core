@@ -193,7 +193,7 @@ impl TraceAnalyzer<'_> {
                         successful_branch_paths.append(&mut success_branches);
                     }
                 }
-                Instruction::Call(t) => {
+                Instruction::Call(t) | Instruction::Recall(t) => {
                     let next_addr = *match t {
                         Target::Unresolved(l) => self
                             .ct
