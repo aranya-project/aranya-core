@@ -30,7 +30,6 @@ pub mod testing;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::ops::Bound;
 
-use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
 use buggy::{Bug, BugExt as _, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
@@ -81,6 +80,8 @@ struct SegmentRepr {
     policy: PolicyId,
     /// Offset in file to associated fact index.
     facts: u64,
+    /// Prior fact offset used to reconstruct facts within segment.
+    prior_facts: Option<u64>,
     commands: Vec1<CommandData>,
     max_cut: MaxCut,
     skip_list: Vec<Location>,
@@ -274,38 +275,33 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
     }
 }
 
-impl<W: Write> LinearStorage<W> {
-    fn get_skip(
-        &self,
-        segment: <Self as Storage>::Segment,
-        max_cut: MaxCut,
-    ) -> Result<Option<Location>, StorageError> {
-        let mut head = segment;
-        let mut current = None;
-        'outer: loop {
-            if max_cut > head.longest_max_cut()? {
-                return Ok(current);
-            }
-            current = Some(head.first_location());
-            if max_cut >= head.shortest_max_cut() {
-                return Ok(current);
-            }
-            // Assumes skip list is sorted in ascending order.
-            // We always want to skip as close to the root as possible.
-            for skip in head.skip_list() {
-                if skip.max_cut <= max_cut {
-                    head = self.get_segment(*skip)?;
-                    continue 'outer;
-                }
-            }
-            head = match head.prior() {
-                Prior::None | Prior::Merge(_, _) => {
-                    return Ok(current);
-                }
-                Prior::Single(l) => self.get_segment(l)?,
-            }
+/// Maximum segment-walk distance for skip-list construction. Below this
+/// threshold the segments are cheap enough to walk one-by-one, so neither
+/// the rich-anchor probe nor a freshly built skip list pay for themselves.
+const MIN_SKIP_GAP: u64 = 10;
+
+/// Skip-list target boundaries for a segment of length `n`: `n/2`, `3n/4`,
+/// `7n/8`, ..., halving the remaining gap each step. Continues until the
+/// gap from the final boundary to `n` is ≤ [`MIN_SKIP_GAP`], so the walk
+/// from head to the first skip entry never exceeds the cheap-walk
+/// threshold. Returned ascending; callers walk backwards and pop
+/// highest-first. Empty when `n < 2`.
+fn skip_target_boundaries(n: u64) -> Result<Vec<MaxCut>, StorageError> {
+    let mut targets = vec![];
+    let mut boundary = n / 2;
+    while boundary > 0 {
+        targets.push(MaxCut::new(boundary));
+        let gap = n
+            .checked_sub(boundary)
+            .assume("boundary < n by loop invariant")?;
+        if gap <= MIN_SKIP_GAP {
+            break;
         }
+        boundary = boundary
+            .checked_add(gap / 2)
+            .assume("boundary + gap/2 <= n <= u64::MAX")?;
     }
+    Ok(targets)
 }
 
 impl<W: Write> LinearStorage<W> {
@@ -336,6 +332,7 @@ impl<W: Write> LinearStorage<W> {
             parents: Prior::None,
             policy: init.policy,
             facts,
+            prior_facts: None,
             commands,
             max_cut: MaxCut::new(0),
             skip_list: vec![],
@@ -393,6 +390,186 @@ impl<W: Write> LinearStorage<W> {
             })?
             .repr)
     }
+
+    /// Whether an ancestor within [`MIN_SKIP_GAP`] segments of `start` already
+    /// carries a rich skip list (`len > 1`). The walk crosses merges via the
+    /// LCA recorded as the sole entry in a merge segment's LCA-only skip list,
+    /// so a rich anchor past a merge is still reachable.
+    fn has_nearby_rich_anchor(&self, start: Location) -> Result<bool, StorageError> {
+        let mut check = start;
+        for _ in 0..MIN_SKIP_GAP {
+            let seg = self.get_segment(check)?;
+            if seg.skip_list().len() > 1 {
+                return Ok(true);
+            }
+            match seg.prior() {
+                Prior::Single(p) => check = p,
+                Prior::Merge(_, _) => {
+                    check = seg
+                        .skip_list()
+                        .last()
+                        .copied()
+                        .assume("merge skip list must end with LCA")?;
+                }
+                Prior::None => return Ok(false),
+            }
+        }
+        Ok(false)
+    }
+
+    /// Build the skip list for a new segment with the given `prior`,
+    /// `last_common_ancestor` (required for merges), and length `n`.
+    ///
+    /// Returns:
+    /// - empty for `Prior::None`,
+    /// - `[lca]` (or empty for non-merges) when a nearby ancestor already
+    ///   has a rich skip list or `n < MIN_SKIP_GAP`,
+    /// - otherwise, a list of skip targets at `n/2, 3n/4, 7n/8, ...` plus
+    ///   the LCA for merges. See [`skip_target_boundaries`].
+    fn build_skip_list(
+        &self,
+        prior: Prior<Location>,
+        last_common_ancestor: Option<Location>,
+        n: u64,
+    ) -> Result<Vec<Location>, StorageError> {
+        let (walk_start, lca) = match prior {
+            Prior::None => return Ok(vec![]),
+            Prior::Merge(_, _) => {
+                let lca = last_common_ancestor.assume("lca must exist")?;
+                (lca, Some(lca))
+            }
+            Prior::Single(l) => (l, None),
+        };
+
+        if self.has_nearby_rich_anchor(walk_start)? || n < MIN_SKIP_GAP {
+            return Ok(lca.into_iter().collect());
+        }
+
+        let targets = skip_target_boundaries(n)?;
+        let mut skips = self.walk_collecting_skips(walk_start, targets)?;
+
+        // Always include the LCA for merge segments.
+        if let Some(lca) = lca
+            && !skips.contains(&lca)
+        {
+            skips.push(lca);
+        }
+
+        skips.sort_by_key(|loc| loc.max_cut);
+        skips.dedup();
+        Ok(skips)
+    }
+
+    /// Walk backwards from `start`, recording the `first_location` of each
+    /// segment as it crosses a target in `targets` (ascending; consumed
+    /// highest-first via `pop`). At each segment, jump along the smallest
+    /// available skip entry that still stays at or above the next target;
+    /// otherwise step to the parent. Stops when targets are exhausted or
+    /// no further progress toward them is possible.
+    fn walk_collecting_skips(
+        &self,
+        start: Location,
+        mut targets: Vec<MaxCut>,
+    ) -> Result<Vec<Location>, StorageError> {
+        let mut skips = vec![];
+        let mut current = start;
+
+        loop {
+            let seg = self.get_segment(current)?;
+            let seg_min = seg.shortest_max_cut();
+
+            // Record any targets we've reached or passed.
+            while let Some(&t) = targets.last() {
+                if t >= seg_min {
+                    skips.push(seg.first_location());
+                    targets.pop();
+                } else {
+                    break;
+                }
+            }
+
+            let Some(&next_target) = targets.last() else {
+                break;
+            };
+
+            // Smallest skip entry at or above next_target (and below
+            // current), i.e. the tightest jump that still makes progress.
+            let best = seg
+                .skip_list()
+                .iter()
+                .copied()
+                .filter(|s| s.max_cut >= next_target && s.max_cut < current.max_cut)
+                .min_by_key(|s| s.max_cut);
+            if let Some(skip) = best {
+                current = skip;
+                continue;
+            }
+
+            match seg.prior() {
+                Prior::Single(p) if p.max_cut >= next_target => current = p,
+                _ => break,
+            }
+        }
+
+        Ok(skips)
+    }
+
+    /// Write a fact perspective out if non-empty, returning it with the prior fact offset to be stored in the segment.
+    fn write_facts_with_prior(
+        &mut self,
+        facts: <Self as Storage>::FactPerspective,
+    ) -> Result<(<Self as Storage>::FactIndex, Option<u64>), StorageError> {
+        let mut prior = match facts.prior {
+            FactPerspectivePrior::None => None,
+            FactPerspectivePrior::FactPerspective(prior) => {
+                let prior = self.write_facts(*prior)?;
+                if facts.map.is_empty() {
+                    let offset = prior.repr.offset;
+                    return Ok((prior, Some(offset)));
+                }
+                Some(prior.repr)
+            }
+            FactPerspectivePrior::FactIndex { offset, reader } => {
+                let repr: FactIndexRepr = reader.fetch(offset)?;
+                if facts.map.is_empty() {
+                    let offset = repr.offset;
+                    return Ok((LinearFactIndex { repr, reader }, Some(offset)));
+                }
+                Some(repr)
+            }
+        };
+
+        let depth = if let Some(mut p) = prior.take() {
+            if p.depth > MAX_FACT_INDEX_DEPTH - 1 {
+                p = self.compact(p)?;
+            }
+            prior.insert(p).depth
+        } else {
+            0
+        };
+
+        let depth = depth.checked_add(1).assume("depth won't overflow")?;
+
+        if depth > MAX_FACT_INDEX_DEPTH {
+            bug!("fact index too deep");
+        }
+
+        let prior_offset = prior.map(|p| p.offset);
+        let repr = self.writer.append(|offset| FactIndexRepr {
+            offset,
+            prior: prior_offset,
+            depth,
+            facts: facts.map,
+        })?;
+
+        Ok((
+            LinearFactIndex {
+                repr,
+                reader: self.writer.readonly(),
+            },
+            prior_offset,
+        ))
+    }
 }
 
 impl<F: Write> Storage for LinearStorage<F> {
@@ -413,7 +590,7 @@ impl<F: Write> Storage for LinearStorage<F> {
                 reader: self.writer.readonly(),
             }
         } else {
-            let prior = match segment.facts()?.repr.prior {
+            let prior = match segment.repr.prior_facts {
                 Some(offset) => FactPerspectivePrior::FactIndex {
                     offset,
                     reader: self.writer.readonly(),
@@ -473,7 +650,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             ));
         }
 
-        let prior = match segment.facts()?.repr.prior {
+        let prior = match segment.repr.prior_facts {
             Some(offset) => FactPerspectivePrior::FactIndex {
                 offset,
                 reader: self.writer.readonly(),
@@ -563,57 +740,27 @@ impl<F: Write> Storage for LinearStorage<F> {
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {
         // TODO(jdygert): Validate prior?
 
-        let facts = self.write_facts(perspective.facts)?.repr.offset;
+        let (facts, prior_facts) = self.write_facts_with_prior(perspective.facts)?;
+        let facts = facts.repr.offset;
 
         let commands: Vec1<CommandData> = perspective
             .commands
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
-        let get_skips = |l: Location, count: usize| -> Result<Vec<Location>, StorageError> {
-            let mut rng = Rng;
-            let mut skips = vec![];
-            for _ in 0..count {
-                let segment = self.get_segment(l)?;
-                if l.max_cut > MaxCut::new(0) {
-                    let max_cut = MaxCut::new(rng.gen_range(0..l.max_cut.get()));
-                    if let Some(skip) = self.get_skip(segment, max_cut)? {
-                        if !skips.contains(&skip) {
-                            skips.push(skip);
-                        }
-                    } else {
-                        break;
-                    }
-                }
-            }
-            Ok(skips)
-        };
+        let skip_list = self.build_skip_list(
+            perspective.prior,
+            perspective.last_common_ancestor,
+            perspective.max_cut.get(),
+        )?;
 
-        let skip_list = match perspective.prior {
-            Prior::None => vec![],
-            Prior::Merge(_, _) => {
-                let lca = perspective.last_common_ancestor.assume("lca must exist")?;
-                let mut skips = get_skips(lca, 2)?;
-                if !skips.contains(&lca) {
-                    skips.push(lca);
-                }
-                // Sort by max_cut ascending so we can jump as far back as possible
-                skips.sort_by_key(|loc| loc.max_cut);
-                skips
-            }
-            Prior::Single(l) => {
-                let mut skips = get_skips(l, 3)?;
-                // Sort by max_cut ascending so we can jump as far back as possible
-                skips.sort_by_key(|loc| loc.max_cut);
-                skips
-            }
-        };
         let repr = self.writer.append(|offset| SegmentRepr {
             offset: SegmentIndex::new(offset),
             prior: perspective.prior,
             parents: perspective.parents,
             policy: perspective.policy,
             facts,
+            prior_facts,
             commands,
             max_cut: perspective.max_cut,
             skip_list,
@@ -629,50 +776,8 @@ impl<F: Write> Storage for LinearStorage<F> {
         &mut self,
         facts: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError> {
-        let mut prior = match facts.prior {
-            FactPerspectivePrior::None => None,
-            FactPerspectivePrior::FactPerspective(prior) => {
-                let prior = self.write_facts(*prior)?;
-                if facts.map.is_empty() {
-                    return Ok(prior);
-                }
-                Some(prior.repr)
-            }
-            FactPerspectivePrior::FactIndex { offset, reader } => {
-                let repr = reader.fetch(offset)?;
-                if facts.map.is_empty() {
-                    return Ok(LinearFactIndex { repr, reader });
-                }
-                Some(repr)
-            }
-        };
-
-        let depth = if let Some(mut p) = prior.take() {
-            if p.depth > MAX_FACT_INDEX_DEPTH - 1 {
-                p = self.compact(p)?;
-            }
-            prior.insert(p).depth
-        } else {
-            0
-        };
-
-        let depth = depth.checked_add(1).assume("depth won't overflow")?;
-
-        if depth > MAX_FACT_INDEX_DEPTH {
-            bug!("fact index too deep");
-        }
-
-        let repr = self.writer.append(|offset| FactIndexRepr {
-            offset,
-            prior: prior.map(|p| p.offset),
-            depth,
-            facts: facts.map,
-        })?;
-
-        Ok(LinearFactIndex {
-            repr,
-            reader: self.writer.readonly(),
-        })
+        self.write_facts_with_prior(facts)
+            .map(|(fact_index, _)| fact_index)
     }
 }
 

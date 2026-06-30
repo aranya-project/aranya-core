@@ -9,7 +9,7 @@ use super::{
     wire::{CommandMeta, SyncType},
 };
 use crate::{
-    LocatedAddress, StorageError,
+    LocatedAddress, Prior, StorageError,
     command::{Address, CmdId, Command as _},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
@@ -169,6 +169,51 @@ fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
             .expect("non-empty");
         if loc.max_cut < v[max_idx].max_cut {
             v[max_idx] = loc;
+        }
+    }
+}
+
+/// Walk backwards from `head` along the skip list, taking any skip entry
+/// that stays at or above `target`, until the next step would drop below
+/// `target`. Returns the segment we stopped at — the entry point for the
+/// per-round traversal in `find_needed_segments`.
+fn skip_jump<S: Storage>(
+    storage: &S,
+    head: Location,
+    target: MaxCut,
+) -> Result<Location, StorageError> {
+    if head.max_cut <= target {
+        return Ok(head);
+    }
+    let mut current = head;
+    loop {
+        let seg = storage.get_segment(current)?;
+
+        // Smallest skip entry at or above target (and below current).
+        let best = seg
+            .skip_list()
+            .iter()
+            .copied()
+            .filter(|s| s.max_cut >= target && s.max_cut < current.max_cut)
+            .min_by_key(|s| s.max_cut);
+        if let Some(skip) = best {
+            current = skip;
+            continue;
+        }
+
+        // No useful skip. If any prior would drop below target, stop here.
+        let prior_below = match seg.prior() {
+            Prior::Single(p) => p.max_cut < target,
+            Prior::Merge(a, b) => a.max_cut < target || b.max_cut < target,
+            Prior::None => true,
+        };
+        if prior_below {
+            return Ok(current);
+        }
+
+        match seg.prior() {
+            Prior::Single(p) => current = p,
+            _ => return Ok(current),
         }
     }
 }
@@ -369,7 +414,20 @@ impl SyncResponder {
 
         // heads queue: segments to process, popped by highest max_cut.
         let heads = buffers.primary.get();
-        heads.push(storage.get_head()?)?;
+
+        // Jump from head toward highest_have + SEGMENT_BUFFER_MAX before
+        // starting the main traversal, so per-round cost is O(log n) instead
+        // of O(n).
+        let head = storage.get_head()?;
+        let highest_have = have_locations
+            .first()
+            .map(|l| l.max_cut)
+            .unwrap_or(MaxCut::new(0));
+        let skip_target = highest_have
+            .checked_add(SEGMENT_BUFFER_MAX as u64)
+            .assume("skip target overflow")?;
+        let start = skip_jump(storage, head, skip_target)?;
+        heads.push(start)?;
 
         // pending queue: segments tentatively needed by the peer.
         let pending = buffers.secondary.get();
