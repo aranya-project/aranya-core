@@ -87,22 +87,12 @@ crates_for() {
 # Build the `--ignore-filename-regex` for a bucket: a regex matching the source
 # path of every crate that is NOT in the bucket, so llvm-cov drops those files
 # and the report is left with only the bucket's crates. (llvm-cov has no
-# positive "include" filter, and the regex engine has no negative lookahead, so
-# "keep only X" has to be written as "ignore the whole complement of X".)
+# positive "include" filter.
 #
 # The value returned is one big alternation -- one term per non-bucket crate,
 # OR-ed together with `|`. For the `capi` bucket it looks like:
 #
 #     /crates/aranya-policy-runner/|/crates/aranya-policy-compiler/|...|/crates/aranya-policy-vm-explorer/
-#
-# Each term `/crates/<crate>/` matches that crate's source directory:
-#
-#   /crates/  every workspace member lives under crates/, so this pins the match
-#             to the crate directory itself.
-#   <crate>/  the directory name plus a trailing slash, so the match spans the
-#             whole component -- `aranya-core` does not also match
-#             `aranya-core-example` (no slash after "core" there), likewise
-#             aranya-policy-vm vs *-vm-explorer, aranya-id vs aranya-idam-ffi.
 ignore_regex_for() {
 	local keep re="" c
 	# Space-pad the bucket's crate list ("<sp>name<sp>name<sp>...") so the glob
