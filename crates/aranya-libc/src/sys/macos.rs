@@ -14,6 +14,13 @@ pub fn fallocate(_fd: BorrowedFd<'_>, _mode: c_int, _off: i64, _len: i64) -> Res
     Ok(())
 }
 
+/// See `fdatasync(2)`.
+///
+/// macOS has no distinct `fdatasync`, so fall back to `fsync`.
+pub fn fdatasync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
+    super::unix::fsync(fd)
+}
+
 /// See `read(2)`.
 pub fn pread(fd: BorrowedFd<'_>, buf: &mut [u8], off: i64) -> Result<usize, Errno> {
     // SAFETY: FFI call, no invariants.
