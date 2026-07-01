@@ -92,6 +92,10 @@ fn default_notify_interval() -> u64 {
     1
 }
 
+fn default_sync_interval() -> u64 {
+    1
+}
+
 /// Tracks per-subscriber state for hello sync debouncing.
 #[derive(Clone, Debug)]
 struct HelloSub {
@@ -130,6 +134,29 @@ pub enum SyncMethod {
         /// clients 1..N only.
         #[serde(default)]
         add_commands_to_client_zero: bool,
+    },
+    /// Deterministic tick-driven generation. On each tick, every client
+    /// whose write interval divides the tick writes one command; then,
+    /// if the tick is a sync tick, the peers sync bidirectionally.
+    /// A branch forms whenever multiple clients write on the same tick,
+    /// giving controlled branching. Uses no randomness, so the generated
+    /// rule sequence is fully reproducible.
+    Tick {
+        /// Client `i` writes a command every `write_intervals[i]` ticks.
+        /// An interval of 0 means the client never writes (pure
+        /// subscriber). Length must equal `clients`; at least one entry
+        /// must be nonzero.
+        write_intervals: Vec<u64>,
+        /// Bidirectional pairwise sync every `sync_interval` ticks.
+        /// Ignored when `hello_notify_interval` is set.
+        #[serde(default = "default_sync_interval")]
+        sync_interval: u64,
+        /// If set, sync via hello notifications instead of explicit
+        /// per-tick pair syncs: the peers subscribe to each other with
+        /// this notify (debounce) interval and sync only when notified
+        /// of a change.
+        #[serde(default)]
+        hello_notify_interval: Option<u64>,
     },
 }
 
@@ -754,6 +781,102 @@ where
                                 max_syncs,
                             });
                             // Verify all graphs are identical.
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                        SyncMethod::Tick {
+                            write_intervals,
+                            sync_interval,
+                            hello_notify_interval,
+                        } => {
+                            assert!(
+                                clients == 2,
+                                "Tick sync currently supports exactly 2 clients"
+                            );
+                            assert_eq!(
+                                write_intervals.len(),
+                                clients as usize,
+                                "write_intervals must have one entry per client"
+                            );
+                            assert!(
+                                write_intervals.iter().any(|&interval| interval >= 1),
+                                "at least one write interval must be nonzero"
+                            );
+                            assert!(sync_interval >= 1, "sync_interval must be at least 1");
+                            if let Some(notify_interval) = hello_notify_interval {
+                                assert!(
+                                    notify_interval >= 1,
+                                    "hello_notify_interval must be at least 1"
+                                );
+                                // The peers subscribe to each other; syncs are
+                                // then driven by change notifications instead
+                                // of explicit Sync rules.
+                                for client in 0..clients {
+                                    let peer = (client + 1) % clients;
+                                    generated_actions.push(TestRule::HelloSubscribe {
+                                        client,
+                                        peer,
+                                        graph,
+                                        notify_interval,
+                                    });
+                                }
+                            }
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+
+                            let mut count = 0;
+                            let mut tick: u64 = 0;
+                            while count < commands {
+                                tick += 1;
+                                // Writes first: clients due on the same tick
+                                // commit on the same head, creating a branch.
+                                for (i, &interval) in write_intervals.iter().enumerate() {
+                                    if count < commands && tick.is_multiple_of(interval) {
+                                        generated_actions.push(TestRule::ActionSet {
+                                            client: i as u64,
+                                            graph,
+                                            key: 0,
+                                            value: tick % 10,
+                                            repeat: 1,
+                                        });
+                                        count += 1;
+                                    }
+                                }
+                                // Then sync both directions; the receiver of
+                                // two heads commits a merge and the back-sync
+                                // propagates it. With hello sync the runtime
+                                // syncs on notification instead.
+                                if hello_notify_interval.is_none()
+                                    && tick.is_multiple_of(sync_interval)
+                                {
+                                    for client in 0..clients {
+                                        let from = (client + 1) % clients;
+                                        generated_actions.push(TestRule::Sync {
+                                            graph,
+                                            client,
+                                            from,
+                                            must_send: None,
+                                            must_receive: None,
+                                            max_syncs: 1,
+                                        });
+                                    }
+                                }
+                            }
+
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
                             for i in 1..clients {
                                 generated_actions.push(TestRule::CompareGraphs {
                                     clienta: 0,
@@ -1597,6 +1720,8 @@ test_vectors! {
     empty_sync,
     generate_graph,
     generate_graph_hello_sync,
+    generate_graph_no_branching,
+    generate_graph_small_branching,
     hello_sync,
     no_such_parent,
     exponential_traversal_regression,
