@@ -27,7 +27,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Branch coverage
-        run: cargo make coverage-ci
+        run: cargo make coverage
 
       - name: Coverage summary
         run: |
