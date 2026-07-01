@@ -71,10 +71,10 @@
     }
   },
   {
-    "AddExpectation": 1
-  },
-  {
-    "AddExpectation": 1
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 2
+    }
   },
   {
     "AddExpectation": 3

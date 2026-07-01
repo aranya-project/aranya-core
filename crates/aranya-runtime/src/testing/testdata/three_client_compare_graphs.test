@@ -131,10 +131,10 @@
     }
   },
   {
-    "AddExpectation": 1
-  },
-  {
-    "AddExpectation": 1
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 2
+    }
   },
   {
     "Sync": {
@@ -228,10 +228,10 @@
     }
   },
   {
-    "AddExpectation": 5
-  },
-  {
-    "AddExpectation": 5
+    "AddExpectations": {
+      "expectation": 5,
+      "repeat": 2
+    }
   },
   {
     "Sync": {
@@ -306,10 +306,10 @@
     }
   },
   {
-    "AddExpectation": 5
-  },
-  {
-    "AddExpectation": 5
+    "AddExpectations": {
+      "expectation": 5,
+      "repeat": 2
+    }
   },
   {
     "Sync": {
