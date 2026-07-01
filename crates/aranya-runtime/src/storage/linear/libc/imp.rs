@@ -153,6 +153,14 @@ pub struct Writer {
     /// `fallocate`. Appends stay within this bound so `fdatasync`
     /// doesn't have to flush a file-size change on every commit.
     alloc_end: i64,
+    /// Root slot (`ROOT_A`/`ROOT_B`) to write on the next commit.
+    /// We ping-pong between the two so the previously committed root
+    /// stays intact until the new one is durable.
+    next_root: i64,
+    /// Whether data has been appended since the last durability
+    /// barrier, i.e. whether the next commit must flush data before
+    /// writing the root.
+    data_dirty: bool,
 }
 
 /// An estimated page size for spacing the control data.
@@ -166,6 +174,11 @@ const ROOT_B: i64 = PAGE * 2;
 
 /// Starting offset for segment/fact data
 const FREE_START: i64 = PAGE * 3;
+
+/// Returns the other root slot, for ping-ponging between the two.
+fn other_root(slot: i64) -> i64 {
+    if slot == ROOT_A { ROOT_B } else { ROOT_A }
+}
 
 /// Granularity by which the file is grown ahead of the write
 /// frontier. Preallocating in large chunks keeps the file size
@@ -187,31 +200,29 @@ impl Writer {
             file,
             root: Root::new(),
             alloc_end,
+            next_root: ROOT_A,
+            data_dirty: false,
         })
     }
 
     fn open(fd: OwnedFd) -> Result<Self, StorageError> {
         let file = File { fd: Arc::new(fd) };
 
-        // Pick the latest valid root.
-        let (root, overwrite) = match (
+        // Pick the latest valid root and remember which slot it came
+        // from; the next commit writes to the other slot so this one
+        // survives until the new root is durable.
+        let (root, chosen) = match (
             file.load(ROOT_A).and_then(Root::validate),
             file.load(ROOT_B).and_then(Root::validate),
         ) {
             (Ok(root_a), Ok(root_b)) => match root_a.generation.cmp(&root_b.generation) {
-                Ordering::Equal => (root_a, None),
-                Ordering::Greater => (root_a, Some(ROOT_B)),
-                Ordering::Less => (root_b, Some(ROOT_A)),
+                Ordering::Less => (root_b, ROOT_B),
+                Ordering::Equal | Ordering::Greater => (root_a, ROOT_A),
             },
-            (Ok(root_a), Err(_)) => (root_a, Some(ROOT_B)),
-            (Err(_), Ok(root_b)) => (root_b, Some(ROOT_A)),
+            (Ok(root_a), Err(_)) => (root_a, ROOT_A),
+            (Err(_), Ok(root_b)) => (root_b, ROOT_B),
             (Err(e), Err(_)) => return Err(e),
         };
-
-        // Write other side if needed (corrupted or outdated)
-        if let Some(offset) = overwrite {
-            file.dump(offset, &root)?;
-        }
 
         // Everything up to the write frontier is known to be
         // allocated; `ensure_capacity` grows from here as needed.
@@ -221,6 +232,8 @@ impl Writer {
             file,
             root,
             alloc_end,
+            next_root: other_root(chosen),
+            data_dirty: false,
         })
     }
 
@@ -248,14 +261,16 @@ impl Writer {
             .generation
             .checked_add(1)
             .assume("generation will not overflow u64")?;
+        self.root.checksum = self.root.calc_checksum();
 
-        // Write roots one at a time, flushing afterward to
-        // ensure one is always valid.
-        for offset in [ROOT_A, ROOT_B] {
-            self.root.checksum = self.root.calc_checksum();
-            self.file.dump(offset, &self.root)?;
-            self.file.sync()?;
-        }
+        // Write to the inactive slot and flush. The other slot still
+        // holds the previously committed root, so a crash mid-write
+        // leaves at least one valid root on disk. Ping-pong for next
+        // time.
+        let slot = self.next_root;
+        self.file.dump(slot, &self.root)?;
+        self.file.sync()?;
+        self.next_root = other_root(slot);
 
         Ok(())
     }
@@ -302,13 +317,26 @@ impl Write for Writer {
         self.ensure_capacity(end)?;
         let new_offset = self.file.dump_bytes(offset, &bytes)?;
 
+        // The write frontier is advanced in memory only; it is made
+        // durable (along with the committed head) by `commit`. Data
+        // appended past the last committed `free_offset` is unreachable
+        // and safely overwritten after a crash.
         self.root.free_offset = new_offset;
-        self.write_root()?;
+        self.data_dirty = true;
 
         Ok(item)
     }
 
     fn commit(&mut self, head: Location) -> Result<(), StorageError> {
+        // Barrier 1: ensure the appended data is durable before the
+        // root that references it, so a crash can't leave the head
+        // pointing at data that never reached disk.
+        if self.data_dirty {
+            self.file.sync()?;
+            self.data_dirty = false;
+        }
+
+        // Barrier 2: durably record the new head and write frontier.
         self.root.head = head;
         self.write_root()?;
         Ok(())
