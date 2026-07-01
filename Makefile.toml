@@ -49,11 +49,10 @@ command = "cargo"
 args = ["run", "-p", "aranya-core-example"]
 
 
-# Coverage
 [tasks.coverage-full]
 category = "test"
 description = "Whole-workspace branch coverage report (per-file table to terminal)"
-toolchain = "nightly"
+env.RUSTC_BOOTSTRAP = "1"
 command = "cargo"
 args = ["llvm-cov", "--branch"]
 dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
@@ -61,7 +60,7 @@ dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 [tasks.coverage-html]
 category = "test"
 description = "Branch coverage HTML report (target/llvm-cov/html/index.html)"
-toolchain = "nightly"
+env.RUSTC_BOOTSTRAP = "1"
 command = "cargo"
 args = ["llvm-cov", "--branch", "--html"]
 dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
@@ -118,8 +117,8 @@ install_crate = { crate_name = "cargo-llvm-cov", version = "0.6.20", binary = "c
 
 [tasks.install-llvm-tools]
 private = true
-description = "Install nightly + llvm-tools-preview (required for branch coverage)"
-script = "rustup toolchain install nightly --profile minimal --component llvm-tools-preview"
+description = "Install llvm-tools-preview (required for branch coverage)"
+script = "rustup component add llvm-tools-preview"
 
 
 # Security

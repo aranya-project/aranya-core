@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -79,9 +80,11 @@ EXCLUDED_CRATES = [
 # order the buckets are declared above.
 ALL_CRATES = [c for crates in BUCKETS.values() for c in crates] + EXCLUDED_CRATES
 
-# `cargo +nightly llvm-cov` -- nightly + llvm-tools-preview are required for
-# branch coverage; see the install-* tasks in Makefile.toml.
-LLVM_COV = ["cargo", "+nightly", "llvm-cov"]
+# Branch coverage (`--branch`) is unstable; RUSTC_BOOTSTRAP=1 lets the pinned
+# stable toolchain accept it (cargo-llvm-cov honors it too), so no nightly is
+# needed. llvm-tools-preview comes from the install-* tasks in Makefile.toml.
+os.environ["RUSTC_BOOTSTRAP"] = "1"
+LLVM_COV = ["cargo", "llvm-cov"]
 
 
 def ignore_regex_for(bucket: str) -> str:
