@@ -8,7 +8,9 @@ use crate::{
     Address, BraidBuffer, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH,
     MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior,
     Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError, StorageProvider,
-    TraversalBuffer, policy::CommandPlacement, storage::Spill,
+    TraversalBuffer,
+    policy::{ActionPlacement, CommandPlacement},
+    storage::Spill,
 };
 
 /// Transaction used to receive many commands at once.
@@ -267,6 +269,57 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         }
 
         Ok(count)
+    }
+
+    /// Run an `action` within this transaction.
+    ///
+    /// The action's command(s) are accumulated in the transaction's
+    /// open perspective without being written to storage. Durability
+    /// is deferred until [`Transaction::commit`], so a batch of
+    /// actions shares a single durable commit (and thus a single pair
+    /// of `fsync`s) instead of paying for one per action.
+    pub(super) fn action(
+        &mut self,
+        provider: &mut SP,
+        policy_store: &mut PS,
+        sink: &mut impl Sink<PS::Effect>,
+        action: <PS::Policy as crate::Policy>::Action<'_>,
+    ) -> Result<(), ClientError> {
+        let storage = provider.get_storage(self.graph_id)?;
+
+        if self.original_head.is_none() {
+            self.original_head = Some(storage.get_head()?);
+        }
+
+        // Ensure there's an open perspective, anchored at the current
+        // transaction head, to run the action against.
+        if self.perspective.is_none() {
+            let head = storage.get_head()?;
+            self.phead = Some(storage.get_head_address()?.id);
+            self.perspective = Some(storage.get_linear_perspective(head)?);
+        }
+        let perspective = self.perspective.as_mut().assume("trx has perspective")?;
+
+        let policy_id = perspective.policy();
+        let policy = policy_store.get_policy(policy_id)?;
+
+        // Run the action, reverting its partial effects on failure so
+        // one bad action doesn't poison the rest of the batch.
+        sink.begin();
+        let checkpoint = perspective.checkpoint();
+        if let Err(e) = policy.call_action(action, perspective, sink, ActionPlacement::OnGraph) {
+            perspective.revert(checkpoint)?;
+            sink.rollback();
+            return Err(e.into());
+        }
+        sink.commit();
+
+        // Advance the perspective head to the action's last command.
+        if let Prior::Single(addr) = perspective.head_address()? {
+            self.phead = Some(addr.id);
+        }
+
+        Ok(())
     }
 
     fn add_single(

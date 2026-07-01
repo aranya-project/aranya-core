@@ -69,7 +69,7 @@ use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
     Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
     RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncIncoming,
-    SyncRequester, SyncResponder, TraversalBuffer, TraversalBuffers,
+    SyncRequester, SyncResponder, Transaction, TraversalBuffer, TraversalBuffers,
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -94,6 +94,10 @@ fn default_notify_interval() -> u64 {
 
 fn default_sync_interval() -> u64 {
     1
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Tracks per-subscriber state for hello sync debouncing.
@@ -157,6 +161,12 @@ pub enum SyncMethod {
         /// of a change.
         #[serde(default)]
         hello_notify_interval: Option<u64>,
+        /// If set, each writer batches this many of its actions into a
+        /// single durable transaction commit instead of committing
+        /// every action. Amortizes the per-commit `fsync` cost. When
+        /// `None` (default) every action commits on its own.
+        #[serde(default)]
+        writer_commit_interval: Option<u64>,
     },
 }
 
@@ -334,6 +344,13 @@ pub enum TestRule {
         value: u64,
         #[serde(default = "default_repeat")]
         repeat: u64,
+        /// If true (default), each action is durably committed on its
+        /// own. If false, the action is accumulated in a per-client
+        /// open transaction and left uncommitted until a later
+        /// `ActionSet` with `commit: true` (for the same client/graph)
+        /// flushes the whole batch in a single durable commit.
+        #[serde(default = "default_true")]
+        commit: bool,
     },
     CompareGraphs {
         clienta: u64,
@@ -448,10 +465,11 @@ impl Display for TestRule {
                 key,
                 value,
                 repeat,
+                commit,
             } => write!(
                 f,
-                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {} }} }},"#,
-                graph, client, key, value, repeat,
+                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {}, "commit": {} }} }},"#,
+                graph, client, key, value, repeat, commit,
             ),
             Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
             Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
@@ -673,6 +691,7 @@ where
                                             key: 0,
                                             value: rng.gen_range(0..10),
                                             repeat: 1,
+                                            commit: true,
                                         });
                                         count += 1;
                                     }
@@ -766,6 +785,7 @@ where
                                         key: 0,
                                         value: rng.gen_range(0..10),
                                         repeat: 1,
+                                        commit: true,
                                     });
                                     count += 1;
                                     if count >= commands {
@@ -796,11 +816,21 @@ where
                             write_intervals,
                             sync_interval,
                             hello_notify_interval,
+                            writer_commit_interval,
                         } => {
                             assert!(
                                 clients == 2,
                                 "Tick sync currently supports exactly 2 clients"
                             );
+                            if let Some(interval) = writer_commit_interval {
+                                assert!(
+                                    interval >= 1,
+                                    "writer_commit_interval must be at least 1"
+                                );
+                            }
+                            // Per-client count of writes emitted so far, used
+                            // to place transaction commit boundaries.
+                            let mut writer_counts = alloc::vec![0u64; write_intervals.len()];
                             assert_eq!(
                                 write_intervals.len(),
                                 clients as usize,
@@ -841,12 +871,19 @@ where
                                 // commit on the same head, creating a branch.
                                 for (i, &interval) in write_intervals.iter().enumerate() {
                                     if count < commands && tick.is_multiple_of(interval) {
+                                        writer_counts[i] += 1;
+                                        // Commit at each batch boundary; an
+                                        // unaligned tail is flushed at
+                                        // `ConvergeAll`.
+                                        let commit = writer_commit_interval
+                                            .is_none_or(|n| writer_counts[i].is_multiple_of(n));
                                         generated_actions.push(TestRule::ActionSet {
                                             client: i as u64,
                                             graph,
                                             key: 0,
                                             value: tick % 10,
                                             repeat: 1,
+                                            commit,
                                         });
                                         count += 1;
                                     }
@@ -909,6 +946,7 @@ where
                                     key: 0,
                                     value: rng.gen_range(0..10),
                                     repeat: 1,
+                                    commit: true,
                                 });
                             }
 
@@ -1002,6 +1040,10 @@ where
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
     let mut rt_buffers = RuntimeBuffers::<<SB::StorageProvider as StorageProvider>::Segment>::new();
     let mut subscriptions: BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>> = BTreeMap::new();
+    // Per-(client, graph) open transactions for batched (uncommitted)
+    // actions. Flushed by an `ActionSet { commit: true }` or `ConvergeAll`.
+    let mut open_txns: BTreeMap<(u64, u64), Transaction<SB::StorageProvider, TestPolicyStore>> =
+        BTreeMap::new();
 
     for rule in actions {
         debug!(?rule);
@@ -1133,17 +1175,37 @@ where
                 key,
                 value,
                 repeat,
+                commit,
             } => {
                 let state = clients
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                for _ in 0..repeat {
-                    let set = TestActions::SetValue(key, value);
-                    state.action(*graph_id, &mut sink, set)?;
+                let txn_key = (client, graph);
+                if commit && !open_txns.contains_key(&txn_key) {
+                    // Fast path: no open batch, commit each action durably.
+                    for _ in 0..repeat {
+                        let set = TestActions::SetValue(key, value);
+                        state.action(graph_id, &mut sink, set)?;
+                    }
+                } else {
+                    // Batched path: accumulate into the open transaction,
+                    // flushing with a single durable commit when `commit`.
+                    let mut txn = open_txns
+                        .remove(&txn_key)
+                        .unwrap_or_else(|| state.transaction(graph_id));
+                    for _ in 0..repeat {
+                        let set = TestActions::SetValue(key, value);
+                        state.action_transaction(&mut txn, &mut sink, set)?;
+                    }
+                    if commit {
+                        state.commit(txn, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                    } else {
+                        open_txns.insert(txn_key, txn);
+                    }
                 }
 
                 assert_eq!(0, sink.count());
@@ -1241,6 +1303,20 @@ where
                 clients: client_count,
                 max_syncs,
             } => {
+                // Flush any open batched transactions for this graph so all
+                // writes are durable before converging and comparing.
+                let open_keys: alloc::vec::Vec<(u64, u64)> =
+                    open_txns.keys().copied().filter(|&(_, g)| g == graph).collect();
+                for txn_key in open_keys {
+                    if let Some(txn) = open_txns.remove(&txn_key) {
+                        let state = clients
+                            .get_mut(&txn_key.0)
+                            .ok_or(TestError::MissingClient)?
+                            .get_mut();
+                        state.commit(txn, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                    }
+                }
+
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 loop {
@@ -1721,6 +1797,7 @@ test_vectors! {
     generate_graph,
     generate_graph_hello_sync,
     generate_graph_no_branching,
+    generate_graph_no_branching_batched,
     generate_graph_small_branching,
     hello_sync,
     no_such_parent,

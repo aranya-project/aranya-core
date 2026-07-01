@@ -1,0 +1,16 @@
+[
+  {
+    "GenerateGraph": {
+      "clients": 2,
+      "graph": 0,
+      "commands": 1000,
+      "sync_method": {
+        "Tick": {
+          "write_intervals": [0, 1],
+          "hello_notify_interval": 100,
+          "writer_commit_interval": 100
+        }
+      }
+    }
+  }
+]
