@@ -683,6 +683,19 @@ impl CompileState<'_> {
             ExprKind::Return(ret_expr) => {
                 let return_type = match self.get_statement_context()? {
                     StatementContext::PureFunction(fd) => fd.return_type.clone(),
+                    // A `return` in an action (e.g. a `check ... else return Err(..)`
+                    // terminal) returns the action's `result[unit, E]` type.
+                    StatementContext::Action(action) => {
+                        let Some(result_type) = &action.return_type else {
+                            let msg = "cannot return from an infallible action; declare a `result[unit, E]` return type";
+                            return Err(self.err(InvalidExpression(msg, expression.clone(), None)));
+                        };
+                        if !matches!(result_type.ok.inner, TypeKind::Unit) {
+                            let msg = "an action's success type must be `unit`";
+                            return Err(self.err(InvalidExpression(msg, expression.clone(), None)));
+                        }
+                        TypeKind::Result(Box::new(result_type.clone())).nowhere()
+                    }
                     _ => {
                         // TODO(Steve): Add 'InvalidReturn' error.
                         let note = "return expressions can't be used in this context";
@@ -1577,8 +1590,7 @@ impl CompileState<'_> {
                     StmtKind::Check(s),
                     StatementContext::Action(_)
                     | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_)
-                    | StatementContext::CommandRecall(_),
+                    | StatementContext::CommandPolicy(_),
                 ) => {
                     let et = self.lower_expression(&s.expression)?;
                     if !et.vtype.fits_type(&VType {
@@ -1594,24 +1606,16 @@ impl CompileState<'_> {
                         return Err(self.err(err));
                     }
 
-                    // The optional else expression must be a terminal
-                    // (Never type) — e.g. `return Err(..)` or `recall foo()`.
-                    let else_expression = match s.else_expression.as_ref() {
-                        Some(e) => {
-                            let lowered = self.lower_expression(e)?;
-                            if !matches!(lowered.vtype.inner, TypeKind::Never) {
-                                return Err(self.err(InvalidType::new(
-                                    "check else must be terminal (e.g. `return`, `recall`)"
-                                        .to_owned(),
-                                    None,
-                                    lowered.vtype.to_string(),
-                                    e.span,
-                                )));
-                            }
-                            Some(lowered)
-                        }
-                        None => None,
-                    };
+                    // Ensure else expression is terminal
+                    let else_expression = self.lower_expression(&s.else_expression)?;
+                    if !matches!(else_expression.vtype.inner, TypeKind::Never) {
+                        return Err(self.err(InvalidType::new(
+                            "check else must be terminal (e.g. `return`, `recall`)".to_owned(),
+                            None,
+                            else_expression.vtype.to_string(),
+                            s.else_expression.span,
+                        )));
+                    }
                     thir::StmtKind::Check(thir::CheckStatement {
                         expression: et,
                         else_expression,
@@ -1708,6 +1712,35 @@ impl CompileState<'_> {
                         let err = InvalidType::new(
                             fd.return_type.to_string(),
                             Some(fd.return_type.span),
+                            e.vtype.to_string(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
+                    }
+                    thir::StmtKind::Return(thir::ReturnStatement { expression: e })
+                }
+                (StmtKind::Return(s), StatementContext::Action(action)) => {
+                    // Only actions declaring a result type may return.
+                    let Some(result_type) = &action.return_type else {
+                        return Err(self.err(UnknownError(
+                            "cannot return from an infallible action; declare a `result[unit, E]` return type".to_owned(),
+                            Some(statement.span),
+                        )));
+                    };
+                    // The success type is limited to `unit`.
+                    if !matches!(result_type.ok.inner, TypeKind::Unit) {
+                        return Err(self.err(UnknownError(
+                            "an action's success type must be `unit`".to_owned(),
+                            Some(result_type.ok.span),
+                        )));
+                    }
+                    // Ensure the return expression fits the action's `result[unit, E]` type.
+                    let return_type = TypeKind::Result(Box::new(result_type.clone())).nowhere();
+                    let e = self.lower_expression(&s.expression)?;
+                    if !e.vtype.fits_type(&return_type) {
+                        let err = InvalidType::new(
+                            return_type.to_string(),
+                            Some(return_type.span),
                             e.vtype.to_string(),
                             e.span,
                         );

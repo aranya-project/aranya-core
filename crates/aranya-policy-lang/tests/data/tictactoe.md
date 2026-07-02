@@ -45,7 +45,7 @@ command Start {
         return todo()
     }
     policy {
-        check ProfileX != ProfileO
+        check ProfileX != ProfileO else recall reject()
         // `envelope::command_id` is an FFI-provided helper function that returns
         // the ID from the passed in `envelope`.
         let gameID = envelope::command_id(envelope)
@@ -60,6 +60,7 @@ command Start {
             }
         }
     }
+    recall reject() {}
 }
 
 action MakeMove(gameID id, x int, y int) {
@@ -125,10 +126,10 @@ command Move {
         // statements.
         // Defined variables, command fields, and common event fields can
         // be checked for validity with boolean expressions.
-        check (p == "X" && player == playerX) || (p == "O" && player == playerO)
+        check (p == "X" && player == playerX) || (p == "O" && player == playerO) else recall reject()
         // functions can be used in any expression
-        check bounds(X)
-        check bounds(Y)
+        check bounds(X) else recall reject()
+        check bounds(Y) else recall reject()
 
         // phase 2: fact updates and effects
         // Facts can be created, updated, and destroyed.
@@ -147,6 +148,7 @@ command Move {
             }
         }
     }
+    recall reject() {}
 }
 
 function game_over(gameID id, x int, y int, p string) bool {
@@ -187,10 +189,10 @@ command Move2 {
         let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
         let nextp = if p == "X" { :"O" } else { :"X" }
 
-        check !exists GameOver[gameID: gameID]=>{}
-        check bounds(X)
-        check bounds(Y)
-        check (p == "X" && player == players.x) || (p == "O" && player == players.o)
+        check !exists GameOver[gameID: gameID]=>{} else recall reject()
+        check bounds(X) else recall reject()
+        check bounds(Y) else recall reject()
+        check (p == "X" && player == players.x) || (p == "O" && player == players.o) else recall reject()
 
         match game_over(gameID, X, Y, p) {
             true => {
@@ -220,5 +222,6 @@ command Move2 {
             }
         }
     }
+    recall reject() {}
 }
 ```

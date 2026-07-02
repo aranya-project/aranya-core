@@ -1,5 +1,6 @@
 fact Pet[name string]=>{age int}
-action pets() {
-    check p == None
+action pets() result[unit, string] {
+    check p == None else return Err("check failed")
     map Pet[name:?] as p {}
+    return Ok(Unit)
 }

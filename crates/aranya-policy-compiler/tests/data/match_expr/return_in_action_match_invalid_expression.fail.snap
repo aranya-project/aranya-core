@@ -7,4 +7,4 @@ error: invalid expression
 4 |           _ => return 2
   |  ______________^
 5 | |     }
-  | |____^ return expressions can't be used in this context
+  | |____^ cannot return from an infallible action; declare a `result[unit, E]` return type

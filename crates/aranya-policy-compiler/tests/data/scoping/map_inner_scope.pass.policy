@@ -1,8 +1,9 @@
 fact Pet[name string]=>{age int}
-action pets() {
+action pets() result[unit, string] {
     let n = 42
     map Pet[name:?] as p {
-        check p.age > 0
-        check n == 42
+        check p.age > 0 else return Err("check failed")
+        check n == 42 else return Err("check failed")
     }
+    return Ok(Unit)
 }

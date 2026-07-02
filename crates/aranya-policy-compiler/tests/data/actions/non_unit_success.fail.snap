@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unknown error
+  |
+2 | action bad() result[string, string] {
+  |                     ^^^^^^ an action's success type must be `unit`

@@ -917,10 +917,7 @@ impl<'a> CompileState<'a> {
                     check_succeeded_label.clone(),
                 )));
 
-                match s.else_expression {
-                    Some(else_expression) => self.compile_typed_expression(else_expression)?,
-                    None => self.append_instruction(Instruction::Exit(ExitReason::Check)),
-                }
+                self.compile_typed_expression(s.else_expression)?;
                 self.define_label(check_succeeded_label, self.wp)?;
             }
             thir::StmtKind::Match(s) => {
@@ -1148,6 +1145,7 @@ impl<'a> CompileState<'a> {
                 name: action_node.identifier.clone(),
                 persistence: action_node.persistence.clone(),
                 params,
+                result_type: action_node.return_type.clone(),
             })
             .map_err(|e| {
                 self.err(AlreadyDefined::new(
@@ -1162,15 +1160,24 @@ impl<'a> CompileState<'a> {
     /// Compile an action function
     fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::Action(action_node.clone()));
+        let label = Label::new(action_node.identifier.inner.clone(), LabelType::Action);
+
+        let ret = action_node
+            .return_type
+            .as_ref()
+            .map(|result_type| TypeKind::Result(Box::new(result_type.clone())).nowhere());
         self.compile_function_like(
             &action_node.arguments,
-            None,
+            ret.as_ref(),
             action_node.span,
             &action_node.statements,
-            Label::new(action_node.identifier.inner.clone(), LabelType::Action),
+            label,
         )?;
-        // Actions cannot have return statements, so we add a return instruction manually.
-        self.append_instruction(Instruction::Return);
+        // An infallible action has no return statement, so add one.
+        if ret.is_none() {
+            self.append_instruction(Instruction::Return);
+        }
+
         self.exit_statement_context();
         Ok(())
     }

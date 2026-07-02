@@ -1,7 +1,8 @@
 fact Pet[name string]=>{age int}
-action pets() {
+action pets() result[unit, string] {
     map Pet[name:?] as p {
         let n = 42
     }
-    check n == 42 // should not be accessible outside the block
+    check n == 42 else return Err("check failed") // should not be accessible outside the block
+    return Ok(Unit)
 }

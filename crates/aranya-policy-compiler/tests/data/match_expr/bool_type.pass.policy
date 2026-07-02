@@ -1,7 +1,8 @@
-action f(n int) {
+action f(n int) result[unit, string] {
     let b = match n {
         0 => false
         _ => true
     }
-    check b
+    check b else return Err("check failed")
+    return Ok(Unit)
 }

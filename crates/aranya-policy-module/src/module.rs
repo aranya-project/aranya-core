@@ -139,6 +139,8 @@ pub struct ActionDef {
     pub persistence: ast::Persistence,
     /// The parameters of the action.
     pub params: NamedMap<Param>,
+    /// The optional return type.
+    pub result_type: Option<ast::ResultTypeKind>,
 }
 named!(ActionDef);
 

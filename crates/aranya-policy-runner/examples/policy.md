@@ -161,7 +161,7 @@ command AddUser {
     policy {
         let dev_id = envelope::command_id(envelope)
         // Check that this device has not already been added
-        check !exists Device[dev: dev_id]
+        check !exists Device[dev: dev_id] else recall reject()
 
         finish {
             create Device[dev: dev_id]=>{key: this.new_user_key}
@@ -170,6 +170,7 @@ command AddUser {
             }
         }
     }
+    recall reject() {}
 }
 ```
 
@@ -205,7 +206,7 @@ command AddDevice {
     }
 
     policy {
-        check !exists Device[dev: this.device_id]
+        check !exists Device[dev: this.device_id] else recall reject()
 
         finish {
             create Device[dev: this.device_id]=>{key: this.device_key}
@@ -214,6 +215,7 @@ command AddDevice {
             }
         }
     }
+    recall reject() {}
 }
 ```
 

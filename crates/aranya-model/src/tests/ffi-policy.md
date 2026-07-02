@@ -75,19 +75,19 @@ function Role_Device() string {
 // Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the DeviceId.)
-function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
+function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[struct NewDevice, unit] {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    check got_device_id == device_keys.device_id
+    check got_device_id == device_keys.device_id else return Err(Unit)
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
-    return NewDevice {
+    return Ok(NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
         sign_pk_id: sign_pk_id,
         sign_pk: device_keys.sign_pk,
-    }
+    })
 }
 
 // Seals a serialized basic command into an envelope, using the stored signing key for this device.
@@ -181,9 +181,10 @@ command Init {
     }
 
     policy {
-        check this.nonce > 0
+        check this.nonce > 0 else recall reject()
         finish {}
     }
+    recall reject() {}
 
 }
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
@@ -244,7 +245,7 @@ command AddDeviceKeys {
     policy {
         let author = envelope::author_id(envelope)
         let device_id = idam::derive_device_id(this.ident_pk)
-        check author == device_id
+        check author == device_id else recall reject()
 
         let device_keys = DeviceKeyBundle {
             device_id: author,
@@ -252,13 +253,17 @@ command AddDeviceKeys {
             sign_pk: this.sign_pk,
         }
 
-        let device = authorized_device_key_ids(device_keys)
+        let device = match authorized_device_key_ids(device_keys) {
+            Ok(d) => d
+            Err(e) => recall reject()
+        }
 
         finish {
             create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
             create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
         }
     }
+    recall reject() {}
 }
 
 action create_action(v int) {
@@ -313,13 +318,14 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
         let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        check new_x < 25 else recall reject()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
             emit StuffHappened{a: this.key_a, x: new_x}
         }
     }
+    recall reject() {}
 }
 
 action decrement(v int) {
@@ -416,11 +422,12 @@ ephemeral command VerifyGreeting {
         let greeting = unwrap query Message[msg: this.key]=>{value: ?}
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value
+        check greeting.value == this.value else recall reject()
         finish {
             emit Success{value: true}
         }
     }
+    recall reject() {}
 }
 
 action verify_no_hello() {
@@ -440,11 +447,12 @@ command VerifyNoHello {
     open { return deserialize(open_basic_command(envelope)) }
 
     policy {
-        check !exists Message[msg: ?]=>{value: ?}
+        check !exists Message[msg: ?]=>{value: ?} else recall reject()
         finish {
             emit Success{value: true}
         }
     }
+    recall reject() {}
 }
 ```
 

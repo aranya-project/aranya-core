@@ -1215,10 +1215,7 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
-        let else_expression = pc
-            .consume_optional(Rule::expression)
-            .map(|token| self.parse_expression(token))
-            .transpose()?;
+        let else_expression = pc.consume_expression(self)?;
         Ok(CheckStatement {
             expression,
             else_expression,
@@ -1467,6 +1464,17 @@ impl ChunkParser<'_> {
             arguments.push(self.parse_parameter(field)?);
         }
 
+        // Parse optional return type.
+        let return_type = match pc.consume_optional(Rule::result_t) {
+            Some(pair) => {
+                let rt = self.descend(pair);
+                let ok = rt.consume_type(self)?;
+                let err = rt.consume_type(self)?;
+                Some(ResultTypeKind { ok, err })
+            }
+            None => None,
+        };
+
         // All remaining tokens are statements
         let list = pc.into_inner();
         let statements = self.parse_statement_list(list)?;
@@ -1475,6 +1483,7 @@ impl ChunkParser<'_> {
             persistence,
             identifier,
             arguments,
+            return_type,
             statements,
             span,
         })

@@ -19,6 +19,7 @@ Module {
                     ) @ 20..32,
                 },
             },
+            result_type: None,
         },
     },
     command_defs: {},
