@@ -269,6 +269,7 @@ impl Policy for TestPolicy {
     type Effect = TestEffect;
     type Action<'a> = TestActions;
     type Command<'a> = TestProtocol<'a>;
+    type ActionReturn = ();
 
     fn serial(&self) -> u32 {
         self.serial
