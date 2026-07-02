@@ -77,10 +77,7 @@ Signs and verifies commands using the author's DeviceSignPubKey fact.
 function seal_command(payload bytes) struct Envelope {
     let parent_id = perspective::head_id()
     let author_id = device::current_device_id()
-    let author_sign_pk = match query DeviceSignPubKey[device_id: author_id] {
-        Some(author_sign_pk) => author_sign_pk
-        None => return Err(Unit)
-    }
+    let author_sign_pk = query DeviceSignPubKey[device_id: author_id] or todo()
     let signed = crypto::sign(author_sign_pk.key_id, payload)
     return envelope::new(
         parent_id,
@@ -94,10 +91,7 @@ function seal_command(payload bytes) struct Envelope {
 // Opens an envelope using the author's public Device Signing Key.
 function open_envelope(sealed_envelope struct Envelope) bytes {
     let author_id = envelope::author_id(sealed_envelope)
-    let author_sign_pk = match query DeviceSignPubKey[device_id: author_id] {
-        Some(author_sign_pk) => author_sign_pk
-        None => return Err(Unit)
-    }
+    let author_sign_pk = query DeviceSignPubKey[device_id: author_id] or todo()
     let verified_command = crypto::verify(
         author_sign_pk.key,
         envelope::parent_id(sealed_envelope),
@@ -194,7 +188,7 @@ command AddDevice {
 
     policy {
         let author_id = envelope::author_id(envelope)
-        let owner = unwrap query Owner[]
+        let owner = query Owner[] or recall reject()
         check author_id == owner.device_id else test_fail("not authorized")
 
         let new_device_id = idam::derive_device_id(this.device_keys.ident_key)
@@ -210,6 +204,8 @@ command AddDevice {
             emit DeviceAdded{device_id: new_device_id}
         }
     }
+
+    recall reject() {}
 }
 ```
 
@@ -251,14 +247,16 @@ command IncrementCounter {
     open { return deserialize(open_envelope(envelope)) }
 
     policy {
-        let counter = unwrap query Counter[name: this.name]=>{value: ?}
-        let new_value = unwrap add(counter.value, this.amount)
+        let counter = query Counter[name: this.name]=>{value: ?} or recall reject()
+        let new_value = add(counter.value, this.amount) or recall reject()
 
         finish {
             update Counter[name: this.name]=>{value: counter.value} to {value: new_value}
             emit CounterIncremented{name: this.name, value: new_value}
         }
     }
+
+    recall reject() {}
 }
 ```
 
@@ -274,7 +272,7 @@ ephemeral command GetCounter {
     open { return deserialize(open_envelope(envelope)) }
 
     policy {
-        let counter = unwrap query Counter[name: this.name]=>{value: ?}
+        let counter = query Counter[name: this.name]=>{value: ?} or todo()
         finish {
             emit CounterValue{name: this.name, value: counter.value}
         }

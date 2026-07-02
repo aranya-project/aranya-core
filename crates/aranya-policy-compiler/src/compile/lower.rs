@@ -1014,7 +1014,6 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
-            ExprKind::Unwrap(e) => self.lower_unwrap(e, thir::ExprKind::Unwrap, expression.span)?,
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let e = self.lower_expression(e)?;
@@ -1172,35 +1171,6 @@ impl CompileState<'_> {
             command_name: cmd.identifier.clone(),
             recall_name: fc.identifier.clone(),
             arguments,
-        })
-    }
-
-    /// Lowers an unwrap expression.
-    ///
-    /// The `constructor` param is used to wrap the inner expression in
-    /// [`thir::ExprKind::Unwrap`].
-    fn lower_unwrap(
-        &mut self,
-        e: &Expression,
-        constructor: impl FnOnce(Box<thir::Expression>) -> thir::ExprKind,
-        span: Span,
-    ) -> Result<thir::Expression, CompileError> {
-        let e = self.lower_expression(e)?;
-        let vtype = match &e.vtype {
-            VType {
-                inner: TypeKind::Optional(t),
-                ..
-            } => (**t).clone(),
-            _ => {
-                let err =
-                    InvalidType::new("option[T]".to_owned(), None, e.vtype.to_string(), e.span);
-                return Err(self.err(err));
-            }
-        };
-        Ok(thir::Expression {
-            kind: constructor(Box::new(e)),
-            vtype,
-            span,
         })
     }
 

@@ -639,8 +639,6 @@ pub enum ExprKind {
     LessThanOrEqual(Box<Expression>, Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
-    /// `unwrap expr`
-    Unwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
@@ -777,9 +775,9 @@ impl ExprKind {
             }
 
             // Single expression variants
-            (Self::Return(a), Self::Return(b))
-            | (Self::Not(a), Self::Not(b))
-            | (Self::Unwrap(a), Self::Unwrap(b)) => a.inner.matches(&b.inner),
+            (Self::Return(a), Self::Return(b)) | (Self::Not(a), Self::Not(b)) => {
+                a.inner.matches(&b.inner)
+            }
 
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))

@@ -52,7 +52,7 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 /// command Foo {
 ///     seal {
 ///         let author_id = device::device_id()
-///         let author_sign_sk_id = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
+///         let author_sign_sk_id = query DeviceSignKey[device_id: author_id]=>{ ... } or todo()
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
 ///             serialize(this),
@@ -67,7 +67,7 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///
 ///     open {
 ///         let author_id = envelope::author_id(envelope)
-///         let author_sign_pk = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
+///         let author_sign_pk = query DeviceSignKey[device_id: author_id]=>{ ... } or todo()
 ///         let command = crypto::verify(
 ///             author_sign_pk,
 ///             envelope::payload(envelope),

@@ -98,8 +98,6 @@ pub enum RunFileError {
     PolicyCompile(#[from] CompileError),
     #[error("Policy VM Error")]
     PolicyVm(#[from] MachineError),
-    #[error("Policy VM Check")]
-    PolicyVmCheck,
     #[error("Policy VM Panic")]
     PolicyVmPanic,
 }
@@ -280,7 +278,9 @@ impl RunFile {
             Ok(ExitReason::Normal) => {
                 unreachable!("should not be able to reach a normal exit in an action")
             }
-            Ok(ExitReason::Check) => return Err(RunFileError::PolicyVmCheck),
+            Ok(ExitReason::Check) => {
+                unreachable!("should not be able to reach a check exit in an action")
+            }
             Ok(ExitReason::Panic) => return Err(RunFileError::PolicyVmPanic),
             Ok(ExitReason::Yield) => {}
             Err(err) => {
@@ -442,20 +442,5 @@ preamble:
         let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
         let r = rf.get_preamble_values(&mut ce, &mut ks);
         assert!(matches!(r, Err(RunFileError::PolicyVmPanic)));
-    }
-
-    #[test]
-    fn preamble_policy_lang_vm_check() {
-        let text = r#"
-preamble:
-    check false else return Err(Unit)
-        "#
-        .trim();
-
-        let (mut ce, mut ks) = test_prereqs();
-
-        let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
-        let r = rf.get_preamble_values(&mut ce, &mut ks);
-        assert!(matches!(r, Err(RunFileError::PolicyVmCheck)));
     }
 }

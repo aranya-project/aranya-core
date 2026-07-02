@@ -663,7 +663,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
         // This tests the implicitly defined struct as a return type
         function get_foo(a int) struct Foo {
-            let foo = unwrap query Foo[a: a]=>{b: ?}
+            let foo = query Foo[a: a]=>{b: ?} or todo()
 
             return foo
         }
@@ -774,23 +774,23 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Foo[i: 1, j: ?]
+            let f = query Foo[i: 1, j: ?] or todo()
             check f.x == 1 else test_fail()
-            let f2 = unwrap query Foo[i: ?, j: ?]
+            let f2 = query Foo[i: ?, j: ?] or todo()
             check f2.x == 1 else test_fail()
-            let f3 = unwrap query Foo[i:2, j:?]
+            let f3 = query Foo[i:2, j:?] or todo()
             check f3.x == 3 else test_fail()
 
             // bind value
-            let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
+            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or todo()
             check f4.x == 3 else test_fail()
             // bind key and value
-            let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
+            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or todo()
             check f5.x == 3 else test_fail()
         }
 
         action test_nonexistent() {
-            let f = unwrap query Foo[i:?, j:?]
+            let f = query Foo[i:?, j:?] or todo()
         }
 
         action test_exists() {
@@ -854,7 +854,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Bar[i:Foo::A] => {x: ?}
+            let f = query Bar[i:Foo::A] => {x: ?} or todo()
             check f.x == Foo::A else test_fail()
         }
     "#;
@@ -1172,10 +1172,7 @@ fn test_match_optional_binding() -> anyhow::Result<()> {
             policy {}
         }
         action foo(o option[int]) {
-            let y = match o {
-                Some(n) => n
-                None => 0
-            }
+            let y = o or 0
             publish F { x: y }
         }
     "#;
@@ -1271,7 +1268,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         function f(x int) int {
-            return unwrap add(x, 1)
+            return add(x, 1) or todo()
         }
 
         action foo(x int) {
@@ -1485,18 +1482,13 @@ fn test_query_match() -> anyhow::Result<()> {
         }
 
         action test_existing() result[unit, string] {
-            let f = match query Foo[i: 1] {
-                Some(f) => f
-                None => return Err("missing Foo")
-            }
+            let f = query Foo[i: 1] or return Err("missing Foo")
             check f.x == 1 else test_fail()
+            return Ok(Unit)
         }
 
         action test_nonexistent() result[unit, unit] {
-            let f = match query Foo[i: 0] {
-                Some(f) => f
-                None => return Err(Unit)
-            }
+            let f = query Foo[i: 0] or return Err(Unit)
             check f.x == 1 else test_fail()
         }
     "#;
@@ -1530,7 +1522,7 @@ fn test_query_match() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check);
+        assert_eq!(status, ExitReason::Normal);
     }
 
     Ok(())
@@ -1638,9 +1630,6 @@ fn test_nested_optionals() -> anyhow::Result<()> {
         "Some(Some(5)) is Some",
         "Some(Some(5)) == Some(Some(5))",
         "Some(Some(5)) != Some(Some(1))",
-        "(unwrap Some(None)) is None",
-        "(unwrap Some(Some(5))) == Some(5)",
-        "(unwrap unwrap Some(Some(5))) == 5",
     ];
 
     let actions = checks
@@ -1825,7 +1814,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
 
         action foo() {
-            let a = unwrap add(x, 1)
+            let a = add(x, 1) or todo()
             let b = y
             let c = !z
             publish Result {
@@ -2041,8 +2030,8 @@ fields {}
 seal { return todo() }
 open { return todo() }
 policy {
-    let r = unwrap query Foo[]=>{x: ?}
-    let new_x = unwrap add(r.x, 1)
+    let r = query Foo[]=>{x: ?} or todo()
+    let new_x = add(r.x, 1) or todo()
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
         emit Update{value: new_x}

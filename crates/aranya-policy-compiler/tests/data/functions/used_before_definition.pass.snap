@@ -18,16 +18,16 @@ Module {
     struct_defs: {
         "Division": [
             FieldDefinition {
-                identifier: "d" @ 921..922,
-                field_type: Int @ 923..926,
+                identifier: "d" @ 941..942,
+                field_type: Int @ 943..946,
             },
             FieldDefinition {
-                identifier: "q" @ 948..949,
-                field_type: Int @ 950..953,
+                identifier: "q" @ 968..969,
+                field_type: Int @ 970..973,
             },
             FieldDefinition {
-                identifier: "r" @ 996..997,
-                field_type: Int @ 998..1001,
+                identifier: "r" @ 1016..1017,
+                field_type: Int @ 1018..1021,
             },
         ],
     },
@@ -173,13 +173,14 @@ Module {
     get 'y'
     add
     dup
-    const None
-    eq
-    not
+    is some
     branch 131
+    pop
     exit panic
+    jump 132
 <131>:
     unwrap some
+<132>:
     get 'x'
     get 'y'
     const 1

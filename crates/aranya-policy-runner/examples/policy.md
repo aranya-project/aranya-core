@@ -64,10 +64,7 @@ function open_command(e struct Envelope, key bytes) bytes {
 // This assumes that this mapping exists, and a proper implementation should check for errors.
 function current_device_key() bytes {
     let author_id = device::current_device_id()
-    let author_dev = match query Device[dev: author_id] {
-        Some(author_dev) => author_dev
-        None => return Err(Unit)
-    }
+    let author_dev = query Device[dev: author_id] or todo()
     return author_dev.key
 }
 
@@ -76,10 +73,7 @@ function current_device_key() bytes {
 // malicious command could have an author ID not in our database.
 function envelope_author_key(envelope struct Envelope) bytes {
     let author_id = envelope::author_id(envelope)
-    let author_dev = match query Device[dev: author_id] {
-        Some(author_dev) => author_dev
-        None => return Err(Unit)
-    }
+    let author_dev = query Device[dev: author_id] or todo()
     return author_dev.key
 }
 ```
@@ -261,19 +255,20 @@ command GetDevice {
     }
 
     policy {
-        let device_q = query Device[dev: this.device_id]
-        if device_q is Some {
-            let device_info = unwrap device_q
-            finish {
-                emit DeviceInfo {
-                    device_id: device_info.dev,
-                    device_key: device_info.key,
+        match query Device[dev: this.device_id] {
+            Some(device_info) => {
+                finish {
+                    emit DeviceInfo {
+                        device_id: device_info.dev,
+                        device_key: device_info.key,
+                    }
                 }
             }
-        } else {
-            finish {
-                emit DeviceNotFound {
-                    device_id: this.device_id,
+            None => {
+                finish {
+                    emit DeviceNotFound {
+                        device_id: this.device_id,
+                    }
                 }
             }
         }

@@ -158,8 +158,8 @@ command Increment {
     open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or todo()
+        let new_x = add(stuff.x, this.value) or todo()
         check new_x < 25 else test_fail("new_x out of range")
 
         finish {
@@ -186,8 +186,8 @@ ephemeral command IncrementEphemeral {
     open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or todo()
+        let new_x = add(stuff.x, this.value) or todo()
         check new_x < 25 else test_fail("new_x out of range")
 
         finish {
@@ -222,8 +222,8 @@ command Decrement {
     open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap sub(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or todo()
+        let new_x = sub(stuff.x, this.value) or todo()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -250,7 +250,7 @@ ephemeral command GetStuff {
     open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
-        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        let stuff = query Stuff[a: 1]=>{x: ?} or todo()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
         }
@@ -276,7 +276,7 @@ command GetStuffOnGraph {
     open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
-        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        let stuff = query Stuff[a: 1]=>{x: ?} or todo()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
         }
@@ -339,7 +339,7 @@ ephemeral command VerifyGreeting {
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or todo()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
         check greeting.value == this.value else test_fail("greeting mismatch")
@@ -370,7 +370,7 @@ command VerifyGreetingOnGraph {
     open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or todo()
         check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}

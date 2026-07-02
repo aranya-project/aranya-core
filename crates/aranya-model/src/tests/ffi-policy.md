@@ -94,10 +94,7 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
 function seal_basic_command(payload bytes) struct Envelope {
     let parent_id = perspective::head_id()
     let author_id = device::current_device_id()
-    let author_sign_sk_id = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
-        Some(author_sign_sk_id) => author_sign_sk_id
-        None => return Err(Unit)
-    }
+    let author_sign_sk_id = query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} or todo()
     let signed = crypto::sign(
         author_sign_sk_id.key_id,
         payload,
@@ -115,10 +112,7 @@ function seal_basic_command(payload bytes) struct Envelope {
 // Opens a basic command from an envelope, using the author's stored signing key.
 function open_basic_command(envelope_input struct Envelope) bytes {
     let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
-        Some(author_sign_pk) => author_sign_pk
-        None => return Err(Unit)
-    }
+    let author_sign_pk = query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} or todo()
     let parent_id = envelope::parent_id(envelope_input)
 
     let crypto_command = crypto::verify(
@@ -321,8 +315,8 @@ command Increment {
     open { return deserialize(open_basic_command(envelope)) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or todo()
+        let new_x = add(stuff.x, this.value) or todo()
         check new_x < 25 else test_fail("new_x out of range")
 
         finish {
@@ -354,8 +348,8 @@ command Decrement {
 
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap sub(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or todo()
+        let new_x = sub(stuff.x, this.value) or todo()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -423,7 +417,7 @@ ephemeral command VerifyGreeting {
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or todo()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
         check greeting.value == this.value else test_fail("greeting mismatch")
