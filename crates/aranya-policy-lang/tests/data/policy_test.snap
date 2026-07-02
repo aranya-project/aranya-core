@@ -74,13 +74,13 @@ Policy {
         },
         ActionDefinition {
             persistence: Ephemeral(
-                1987..1996,
+                2029..2038,
             ),
-            identifier: "a" @ 2004..2005,
+            identifier: "a" @ 2046..2047,
             arguments: [],
             return_type: Unit @ 0..0,
             statements: [],
-            span: 1987..2010,
+            span: 2029..2052,
         },
     ],
     effects: [
@@ -665,15 +665,15 @@ Policy {
         },
         CommandDefinition {
             persistence: Ephemeral(
-                1861..1870,
+                1903..1912,
             ),
             attributes: [],
-            identifier: "C" @ 1879..1880,
+            identifier: "C" @ 1921..1922,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "x" @ 1904..1905,
-                        field_type: Int @ 1906..1909,
+                        identifier: "x" @ 1946..1947,
+                        field_type: Int @ 1948..1951,
                     },
                 ),
             ],
@@ -682,26 +682,26 @@ Policy {
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                1934..1940,
+                                1976..1982,
                             ),
-                        ) @ 1934..1940,
+                        ) @ 1976..1982,
                     },
-                ) @ 1927..1941,
+                ) @ 1969..1983,
             ],
             open: [
                 Return(
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                1961..1967,
+                                2003..2009,
                             ),
-                        ) @ 1961..1967,
+                        ) @ 2003..2009,
                     },
-                ) @ 1954..1968,
+                ) @ 1996..2010,
             ],
             policy: [],
             recalls: [],
-            span: 1861..1985,
+            span: 1903..2027,
         },
     ],
     functions: [
@@ -717,57 +717,86 @@ Policy {
             ],
             return_type: Bool @ 1722..1726,
             statements: [
-                Let(
-                    LetStatement {
-                        identifier: "x" @ 1737..1738,
-                        expression: Unwrap(
-                            Identifier(
-                                "v" @ 1748..1749,
-                            ) @ 1748..1749,
-                        ) @ 1741..1749,
-                    },
-                ) @ 1733..1754,
                 Return(
                     ReturnStatement {
-                        expression: GreaterThan(
-                            Identifier(
-                                "x" @ 1761..1762,
-                            ) @ 1761..1762,
-                            Int(
-                                0 @ 1765..1766,
-                            ) @ 1765..1766,
-                        ) @ 1761..1766,
+                        expression: Match(
+                            MatchExpression {
+                                scrutinee: Identifier(
+                                    "v" @ 1746..1747,
+                                ) @ 1746..1747,
+                                arms: [
+                                    MatchExpressionArm {
+                                        pattern: Values(
+                                            [
+                                                Optional(
+                                                    Some(
+                                                        Identifier(
+                                                            "x" @ 1763..1764,
+                                                        ) @ 1763..1764,
+                                                    ),
+                                                ) @ 1758..1765,
+                                            ],
+                                        ),
+                                        expression: GreaterThan(
+                                            Identifier(
+                                                "x" @ 1769..1770,
+                                            ) @ 1769..1770,
+                                            Int(
+                                                0 @ 1773..1774,
+                                            ) @ 1773..1774,
+                                        ) @ 1769..1774,
+                                        span: 1758..1783,
+                                    },
+                                    MatchExpressionArm {
+                                        pattern: Values(
+                                            [
+                                                Optional(
+                                                    None,
+                                                ) @ 1783..1787,
+                                            ],
+                                        ),
+                                        expression: InternalFunction(
+                                            TestFail(
+                                                None,
+                                                1791..1802,
+                                            ),
+                                        ) @ 1791..1802,
+                                        span: 1783..1807,
+                                    },
+                                ],
+                            },
+                        ) @ 1740..1808,
                     },
-                ) @ 1754..1767,
+                ) @ 1733..1809,
             ],
-            span: 1689..1768,
+            span: 1689..1810,
         },
     ],
     finish_functions: [
         FinishFunctionDefinition {
-            identifier: "next" @ 1786..1790,
+            identifier: "next" @ 1828..1832,
             arguments: [
                 Param {
-                    name: "x" @ 1791..1792,
-                    ty: Int @ 1793..1796,
+                    name: "x" @ 1833..1834,
+                    ty: Int @ 1835..1838,
                 },
             ],
             statements: [
                 Create(
                     CreateStatement {
                         fact: FactLiteral {
-                            identifier: "Next" @ 1811..1815,
+                            identifier: "Next" @ 1853..1857,
                             key_fields: [],
                             value_fields: Some(
                                 [],
                             ),
                         },
                     },
-                ) @ 1804..1821,
+                ) @ 1846..1863,
             ],
-            span: 1770..1823,
+            span: 1812..1865,
         },
     ],
     global_lets: [],
-    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v string]=>{x int, y bool}\n\naction add2(x int, y int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x int dynamic,\n    y int,\n}\n\ncommand Add {\n    fields {\n        count int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{} else recall default()\n        match x {\n            0 => {\n                check positive(Some(new_x)) else recall default()\n            }\n            1 => {\n                check positive(None) else recall default()\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10 else recall default()\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default() {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v option[int]) bool {\n    let x = unwrap v\n    return x > 0\n}\n\nfinish function next(x int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nephemeral command C {\n    fields {\n        x int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {}\n}\n\nephemeral action a() {}\n",
+    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v string]=>{x int, y bool}\n\naction add2(x int, y int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x int dynamic,\n    y int,\n}\n\ncommand Add {\n    fields {\n        count int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{} else recall default()\n        match x {\n            0 => {\n                check positive(Some(new_x)) else recall default()\n            }\n            1 => {\n                check positive(None) else recall default()\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10 else recall default()\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default() {\n        let envelope_id = envelope::command_id(envelope)\n        let author = envelope::author_id(envelope)\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x: x, y: saturating_sub(0, x)}\n            update F[]=>{x: x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v option[int]) bool {\n    return match v {\n        Some(x) => x > 0\n        None => test_fail()\n    }\n}\n\nfinish function next(x int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nephemeral command C {\n    fields {\n        x int\n    }\n    seal { return todo() }\n    open { return todo() }\n    policy {}\n}\n\nephemeral action a() {}\n",
 }

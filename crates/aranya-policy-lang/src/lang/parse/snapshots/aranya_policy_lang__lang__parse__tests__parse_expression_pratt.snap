@@ -2,43 +2,43 @@
 source: crates/aranya-policy-lang/src/lang/parse/tests.rs
 expression: expr_parsed
 ---
-Unwrap(
+Not(
     FunctionCall(
         FunctionCall {
-            identifier: "call" @ 7..11,
+            identifier: "call" @ 1..5,
             arguments: [
-                Unwrap(
+                Not(
                     FunctionCall(
                         FunctionCall {
-                            identifier: "add" @ 19..22,
+                            identifier: "add" @ 7..10,
                             arguments: [
                                 Int(
-                                    3 @ 23..24,
-                                ) @ 23..24,
+                                    3 @ 11..12,
+                                ) @ 11..12,
                                 Int(
-                                    7 @ 26..27,
-                                ) @ 26..27,
+                                    7 @ 14..15,
+                                ) @ 14..15,
                             ],
                         },
-                    ) @ 19..28,
-                ) @ 12..28,
+                    ) @ 7..16,
+                ) @ 6..16,
                 FunctionCall(
                     FunctionCall {
-                        identifier: "saturating_sub" @ 30..44,
+                        identifier: "saturating_sub" @ 18..32,
                         arguments: [
                             Int(
-                                0 @ 45..46,
-                            ) @ 45..46,
+                                0 @ 33..34,
+                            ) @ 33..34,
                             Identifier(
-                                "b" @ 48..49,
-                            ) @ 48..49,
+                                "b" @ 36..37,
+                            ) @ 36..37,
                         ],
                     },
-                ) @ 30..50,
+                ) @ 18..38,
                 String(
                     "foo{",
-                ) @ 52..61,
+                ) @ 40..49,
             ],
         },
-    ) @ 7..62,
-) @ 0..62
+    ) @ 1..50,
+) @ 0..50

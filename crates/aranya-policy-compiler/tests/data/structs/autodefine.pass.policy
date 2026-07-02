@@ -1,7 +1,7 @@
 fact Foo[a int]=>{b int}
 
 function get_foo(a int) struct Foo {
-    let foo = unwrap query Foo[a: a]=>{b: ?}
+    let foo = query Foo[a: a]=>{b: ?} or test_fail()
 
     return foo
 }

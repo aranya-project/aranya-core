@@ -827,7 +827,6 @@ impl<'a> CompileState<'a> {
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
-            thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
@@ -1219,33 +1218,6 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add_global(identifier.clone(), vt)
             .map_err(|e| self.err(e))?;
-
-        Ok(())
-    }
-
-    /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
-    fn compile_unwrap_option(
-        &mut self,
-        e: thir::Expression,
-        exit_reason: ExitReason,
-    ) -> Result<(), CompileError> {
-        let not_none = self.anonymous_label();
-        // evaluate the expression
-        self.compile_typed_expression(e)?;
-        // Duplicate value for testing
-        self.append_instruction(Instruction::Dup);
-        // Push a None to compare against
-        self.append_instruction(Instruction::Const(ConstValue::NONE));
-        // Is the value not equal to None?
-        self.append_instruction(Instruction::Eq);
-        self.append_instruction(Instruction::Not);
-        // Then branch over the Panic
-        self.append_instruction(Instruction::Branch(Target::Unresolved(not_none.clone())));
-        // If the value is equal to None, panic
-        self.append_instruction(Instruction::Exit(exit_reason));
-        // Define the target of the branch as the instruction after the Panic
-        self.define_label(not_none, self.wp)?;
-        self.append_instruction(Instruction::Unwrap(WrapType::Some));
 
         Ok(())
     }

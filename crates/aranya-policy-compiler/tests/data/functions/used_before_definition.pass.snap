@@ -177,13 +177,14 @@ Module {
     get 'y'
     add
     dup
-    const None
-    eq
-    not
+    is some
     branch 131
+    pop
     exit panic
+    jump 132
 <131>:
     unwrap some
+<132>:
     get 'x'
     get 'y'
     const 1

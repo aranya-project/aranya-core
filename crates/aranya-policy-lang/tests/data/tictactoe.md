@@ -111,12 +111,12 @@ command Move {
         let player = envelope::author_id(envelope)
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
-        // values marked with ?, or None. The unwrap expression returns the
-        // value inside an Optional or terminates rule execution.
-        let result = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
+        // values marked with ?, or None. Matching on the result binds the
+        // value inside an Optional; the None arm recalls to reject the command.
+        let result = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or todo()
         let playerX = result.x
         let playerO = result.o
-        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or todo()
         // the if expression works like a ternary expression, where both
         // branches must be specified.
         let nextp = if p == "X" { :"O" } else { :"X" }
@@ -183,8 +183,8 @@ command Move2 {
     }
     policy {
         let player = envelope::author_id(envelope)
-        let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
-        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
+        let players = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or todo()
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or todo()
         let nextp = if p == "X" { :"O" } else { :"X" }
 
         check !exists GameOver[gameID: gameID]=>{} else test_fail("game is over")

@@ -73,8 +73,8 @@ command Increment {
     seal { return todo() }
     open { return todo() }
     policy {
-        let r = unwrap query Foo[]=>{x: ?}
-        let new_x = unwrap add(r.x, 1)
+        let r = query Foo[]=>{x: ?} or todo()
+        let new_x = add(r.x, 1) or todo()
         finish {
             update Foo[]=>{x: r.x} to {x: new_x}
             emit Update{value: new_x}
@@ -105,8 +105,8 @@ command Increment {
     seal { return todo() }
     open { return todo() }
     policy {
-        let r = unwrap query Foo[]=>{x: ?}
-        let new_x = unwrap add(r.x, 1)
+        let r = query Foo[]=>{x: ?} or todo()
+        let new_x = add(r.x, 1) or todo()
         finish {
             update Foo[]=>{x: 0} to {x: new_x}
         }
@@ -155,11 +155,9 @@ pub const POLICY_IS: &str = r#"
         policy {}
     }
     action check_none(x option[int]) {
-        if x is None {
-            publish Empty { }
-        }
-        if x is Some {
-            publish Result { x: unwrap x }
+        match x {
+            None => { publish Empty { } }
+            Some(y) => { publish Result { x: y } }
         }
     }
 "#;
