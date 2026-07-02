@@ -188,6 +188,16 @@ pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
     imp::fsync(fd.as_fd())
 }
 
+/// See `fdatasync(2)`.
+///
+/// Unlike [`fsync`], this only flushes the metadata required to
+/// read the data back (e.g. file size, block mapping), omitting
+/// non-essential metadata such as timestamps. Platforms without
+/// a distinct `fdatasync` fall back to [`fsync`].
+pub fn fdatasync(fd: impl AsFd) -> Result<(), Errno> {
+    imp::fdatasync(fd.as_fd())
+}
+
 /// See `unlinkat(2)`.
 pub fn unlinkat(fd: impl AsAtRoot, path: impl AsRef<Path>, flags: c_int) -> Result<(), Errno> {
     imp::unlinkat(fd.as_root(), path.as_ref(), flags)
