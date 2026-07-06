@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -7,40 +8,49 @@ Module {
     labels: {
         <fn 'ret_bar'>: 1,
     },
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [
-            FieldDefinition {
-                identifier: "s" @ 185..186,
-                field_type: String @ 187..193,
-            },
-            FieldDefinition {
-                identifier: "num" @ 148..151,
-                field_type: Int @ 152..155,
-            },
-            FieldDefinition {
-                identifier: "f" @ 157..158,
-                field_type: Struct(
-                    "Fum" @ 166..169,
-                ) @ 159..169,
-            },
-        ],
-        "Foo": [
-            FieldDefinition {
-                identifier: "s" @ 185..186,
-                field_type: String @ 187..193,
-            },
-        ],
-        "Fum": [
-            FieldDefinition {
-                identifier: "b" @ 120..121,
-                field_type: Bool @ 122..126,
-            },
-        ],
-    },
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [
+                Field {
+                    name: "s",
+                    ty: String,
+                },
+                Field {
+                    name: "num",
+                    ty: Int,
+                },
+                Field {
+                    name: "f",
+                    ty: Struct(
+                        "Fum",
+                    ),
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "s",
+                    ty: String,
+                },
+            ],
+        },
+        StructDef {
+            name: "Fum",
+            items: [
+                Field {
+                    name: "b",
+                    ty: Bool,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

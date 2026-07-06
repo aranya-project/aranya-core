@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -8,17 +9,17 @@ Module {
         <action 'a'>: 8,
         <fn 'f'>: 1,
     },
-    action_defs: {
+    action_defs: [
         ActionDef {
-            name: "a" @ 70..71,
+            name: "a",
             persistence: Persistent,
-            params: {},
+            params: [],
         },
-    },
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
+    ],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
     globals: {},
     ..
 }

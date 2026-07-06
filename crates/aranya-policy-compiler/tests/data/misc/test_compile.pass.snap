@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -10,49 +11,52 @@ Module {
         <open 'Foo'>: 14,
         <action 'foo'>: 20,
     },
-    action_defs: {
+    action_defs: [
         ActionDef {
-            name: "foo" @ 162..165,
+            name: "foo",
             persistence: Persistent,
-            params: {
-                Param {
-                    name: "b" @ 166..167,
-                    ty: Int @ 168..171,
+            params: [
+                Field {
+                    name: "b",
+                    ty: Int,
                 },
-            },
+            ],
         },
-    },
-    command_defs: {
+    ],
+    command_defs: [
         CommandDef {
-            name: "Foo" @ 8..11,
+            name: "Foo",
             persistence: Persistent,
-            attributes: {},
-            fields: {
+            attributes: [],
+            fields: [
                 Field {
-                    name: "a" @ 35..36,
-                    ty: Int @ 37..40,
+                    name: "a",
+                    ty: Int,
                 },
                 Field {
-                    name: "b" @ 50..51,
-                    ty: Int @ 52..55,
+                    name: "b",
+                    ty: Int,
                 },
-            },
+            ],
         },
-    },
-    fact_defs: {},
-    struct_defs: {
-        "Foo": [
-            FieldDefinition {
-                identifier: "a" @ 35..36,
-                field_type: Int @ 37..40,
-            },
-            FieldDefinition {
-                identifier: "b" @ 50..51,
-                field_type: Int @ 52..55,
-            },
-        ],
-    },
-    enum_defs: {},
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "a",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: Int,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

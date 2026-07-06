@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -10,54 +11,60 @@ Module {
         <open 'Bar'>: 14,
         <action 'convert'>: 20,
     },
-    action_defs: {
+    action_defs: [
         ActionDef {
-            name: "convert" @ 206..213,
+            name: "convert",
             persistence: Persistent,
-            params: {},
+            params: [],
         },
-    },
-    command_defs: {
+    ],
+    command_defs: [
         CommandDef {
-            name: "Bar" @ 48..51,
+            name: "Bar",
             persistence: Persistent,
-            attributes: {},
-            fields: {
+            attributes: [],
+            fields: [
                 Field {
-                    name: "a" @ 75..76,
-                    ty: Int @ 77..80,
+                    name: "a",
+                    ty: Int,
                 },
                 Field {
-                    name: "b" @ 90..91,
-                    ty: String @ 92..98,
+                    name: "b",
+                    ty: String,
                 },
-            },
+            ],
         },
-    },
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [
-            FieldDefinition {
-                identifier: "a" @ 75..76,
-                field_type: Int @ 77..80,
-            },
-            FieldDefinition {
-                identifier: "b" @ 90..91,
-                field_type: String @ 92..98,
-            },
-        ],
-        "Foo": [
-            FieldDefinition {
-                identifier: "a" @ 17..18,
-                field_type: Int @ 19..22,
-            },
-            FieldDefinition {
-                identifier: "b" @ 28..29,
-                field_type: String @ 30..36,
-            },
-        ],
-    },
-    enum_defs: {},
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [
+                Field {
+                    name: "a",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: String,
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "a",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: String,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

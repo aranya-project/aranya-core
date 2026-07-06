@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -9,48 +10,53 @@ Module {
         <seal 'Test'>: 15,
         <open 'Test'>: 21,
     },
-    action_defs: {},
-    command_defs: {
+    action_defs: [],
+    command_defs: [
         CommandDef {
-            name: "Test" @ 38..42,
+            name: "Test",
             persistence: Persistent,
-            attributes: {},
-            fields: {},
+            attributes: [],
+            fields: [],
         },
-    },
-    fact_defs: {
-        "Foo": FactDefinition {
-            immutable: false,
-            identifier: "Foo" @ 5..8,
+    ],
+    fact_defs: [
+        FactDef {
+            name: "Foo",
             key: [
-                FieldDefinition {
-                    identifier: "i" @ 9..10,
-                    field_type: Int @ 11..14,
+                Field {
+                    name: "i",
+                    ty: Int,
                 },
             ],
             value: [
-                FieldDefinition {
-                    identifier: "a" @ 20..21,
-                    field_type: String @ 22..28,
+                Field {
+                    name: "a",
+                    ty: String,
                 },
             ],
-            span: 0..29,
+            immutable: false,
         },
-    },
-    struct_defs: {
-        "Foo": [
-            FieldDefinition {
-                identifier: "i" @ 9..10,
-                field_type: Int @ 11..14,
-            },
-            FieldDefinition {
-                identifier: "a" @ 20..21,
-                field_type: String @ 22..28,
-            },
-        ],
-        "Test": [],
-    },
-    enum_defs: {},
+    ],
+    struct_defs: [
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "i",
+                    ty: Int,
+                },
+                Field {
+                    name: "a",
+                    ty: String,
+                },
+            ],
+        },
+        StructDef {
+            name: "Test",
+            items: [],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

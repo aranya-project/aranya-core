@@ -1,42 +1,52 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
     version: "0",
     labels: {},
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [
-            FieldDefinition {
-                identifier: "a" @ 13..14,
-                field_type: Int @ 15..18,
-            },
-        ],
-        "Baz": [
-            FieldDefinition {
-                identifier: "c" @ 34..35,
-                field_type: Bool @ 36..40,
-            },
-        ],
-        "Foo": [
-            FieldDefinition {
-                identifier: "a" @ 13..14,
-                field_type: Int @ 15..18,
-            },
-            FieldDefinition {
-                identifier: "b" @ 62..63,
-                field_type: String @ 64..70,
-            },
-            FieldDefinition {
-                identifier: "c" @ 34..35,
-                field_type: Bool @ 36..40,
-            },
-        ],
-    },
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [
+                Field {
+                    name: "a",
+                    ty: Int,
+                },
+            ],
+        },
+        StructDef {
+            name: "Baz",
+            items: [
+                Field {
+                    name: "c",
+                    ty: Bool,
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "a",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: String,
+                },
+                Field {
+                    name: "c",
+                    ty: Bool,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }
