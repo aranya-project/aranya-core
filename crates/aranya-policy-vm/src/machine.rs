@@ -8,10 +8,10 @@ use alloc::{
 use core::fmt::{self, Display};
 
 use aranya_crypto::policy::CmdId;
-use aranya_policy_ast::{self as ast, Identifier, ident};
+use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, ExitReason, Instruction, Label, LabelType, Module,
-    ModuleData, ModuleV0, Target, UnsupportedVersion, WrapType, named::NamedMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, Instruction, Label,
+    LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion, WrapType,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -32,37 +32,29 @@ const STACK_SIZE: usize = 100;
 
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
-fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
-    if fact.name != schema.identifier.inner {
+fn validate_fact_schema(fact: &Fact, schema: &FactDef) -> bool {
+    if fact.name != schema.name {
         return false;
     }
 
     for key in &fact.keys {
-        let Some(key_value) = schema
-            .key
-            .iter()
-            .find(|k| k.identifier.inner == key.identifier)
-        else {
+        let Some(key_value) = schema.key.iter().find(|k| k.name == key.identifier) else {
             return false;
         };
 
-        if !key.value.fits_type(&key_value.field_type) {
+        if !key.value.fits_type(&key_value.ty) {
             return false;
         }
     }
 
     for value in &fact.values {
         // Ensure named value exists in schema
-        let Some(schema_value) = schema
-            .value
-            .iter()
-            .find(|v| v.identifier.inner == value.identifier)
-        else {
+        let Some(schema_value) = schema.value.iter().find(|v| v.name == value.identifier) else {
             return false;
         };
 
         // Ensure fact value type matches schema
-        if !value.value.fits_type(&schema_value.field_type) {
+        if !value.value.fits_type(&schema_value.ty) {
             return false;
         }
     }
@@ -129,15 +121,15 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: NamedMap<ActionDef>,
+    pub action_defs: BTreeMap<Identifier, ActionDef>,
     /// Command definitions
-    pub command_defs: NamedMap<CommandDef>,
+    pub command_defs: BTreeMap<Identifier, CommandDef>,
     /// Fact schemas
-    pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
+    pub fact_defs: BTreeMap<Identifier, FactDef>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, StructDef>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
+    pub enum_defs: BTreeMap<Identifier, EnumDef>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -153,8 +145,8 @@ impl Machine {
         Self {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
-            action_defs: NamedMap::new(),
-            command_defs: NamedMap::new(),
+            action_defs: BTreeMap::new(),
+            command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
@@ -168,8 +160,8 @@ impl Machine {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: NamedMap::new(),
-            command_defs: NamedMap::new(),
+            action_defs: BTreeMap::new(),
+            command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
@@ -184,30 +176,33 @@ impl Machine {
             ModuleData::V0(m) => Ok(Self {
                 progmem: m.progmem.into(),
                 labels: m.labels,
-                action_defs: m.action_defs,
-                command_defs: m.command_defs,
-                fact_defs: m.fact_defs,
-                struct_defs: m.struct_defs,
-                enum_defs: m.enum_defs,
+                action_defs: m
+                    .action_defs
+                    .into_iter()
+                    .map(|a| (a.name.clone(), a))
+                    .collect(),
+                command_defs: m
+                    .command_defs
+                    .into_iter()
+                    .map(|c| (c.name.clone(), c))
+                    .collect(),
+                fact_defs: m
+                    .fact_defs
+                    .into_iter()
+                    .map(|i| (i.name.clone(), i))
+                    .collect(),
+                struct_defs: m
+                    .struct_defs
+                    .into_iter()
+                    .map(|i| (i.name.clone(), i))
+                    .collect(),
+                enum_defs: m
+                    .enum_defs
+                    .into_iter()
+                    .map(|i| (i.name.clone(), i))
+                    .collect(),
                 codemap: m.codemap,
                 globals: m.globals,
-            }),
-        }
-    }
-
-    /// Converts the `Machine` into a `Module`.
-    pub fn into_module(self) -> Module {
-        Module {
-            data: ModuleData::V0(ModuleV0 {
-                progmem: self.progmem.into_boxed_slice(),
-                labels: self.labels,
-                action_defs: self.action_defs,
-                command_defs: self.command_defs,
-                fact_defs: self.fact_defs,
-                struct_defs: self.struct_defs,
-                enum_defs: self.enum_defs,
-                codemap: self.codemap,
-                globals: self.globals,
             }),
         }
     }
@@ -230,7 +225,7 @@ impl Machine {
             MachineErrorType::NotDefined(alloc::format!("no value `{variant}` in enum `{name}`"))
         })?;
 
-        Ok(Value::Enum(name.clone(), *int_value))
+        Ok(Value::Enum(name.clone(), int_value))
     }
 
     /// Create a RunState associated with this Machine.
@@ -473,16 +468,16 @@ where
                 // Check for struct fields that do not exist in the
                 // definition.
                 for f in &s.fields {
-                    if !fields.iter().any(|v| &v.identifier.inner == f.0) {
+                    if !fields.items.iter().any(|v| &v.name == f.0) {
                         return Err(mk_err());
                     }
                 }
                 // Ensure all defined fields exist and have the same
                 // types.
-                for f in fields {
-                    match s.fields.get(&f.identifier.inner) {
+                for f in &fields.items {
+                    match s.fields.get(&f.name) {
                         Some(v) => {
-                            if !v.fits_type(&f.field_type) {
+                            if !v.fits_type(&f.ty) {
                                 return Err(mk_err());
                             }
                         }
@@ -708,10 +703,7 @@ where
                     .struct_defs
                     .get(&s.name)
                     .ok_or_else(|| self.err(MachineErrorType::InvalidSchema(s.name.clone())))?;
-                if !struct_def_fields
-                    .iter()
-                    .any(|f| f.identifier.inner == field_name)
-                {
+                if !struct_def_fields.items.iter().any(|f| f.name == field_name) {
                     return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
                 s.fields.insert(field_name, value);
@@ -744,13 +736,14 @@ where
 
                 for (field_name, field_val) in field_name_value_pairs {
                     let Some(field_defn) = struct_def_fields
+                        .items
                         .iter()
-                        .find(|f| f.identifier.inner == field_name)
+                        .find(|f| f.name == field_name)
                     else {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     };
 
-                    if !field_val.fits_type(&field_defn.field_type) {
+                    if !field_val.fits_type(&field_defn.ty) {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     }
 
@@ -1007,12 +1000,12 @@ where
                             })?;
 
                         // Check that all required fields exist and have matching types
-                        for field in rhs_struct {
-                            let field_name = &field.identifier;
-                            let field_type = &field.field_type;
+                        for field in &rhs_struct.items {
+                            let field_name = &field.name;
+                            let field_type = &field.ty;
 
                             // Check if the source struct has this field
-                            let value = s.fields.get(&field_name.inner).ok_or_else(|| {
+                            let value = s.fields.get(field_name).ok_or_else(|| {
                                 self.err(MachineErrorType::Unknown(alloc::format!(
                                     "cannot cast to `struct {}`: missing field `{}`",
                                     identifier,
@@ -1116,7 +1109,8 @@ where
         for (name, value) in &this_data.fields {
             let expected_type = &command_def
                 .fields
-                .get(name)
+                .iter()
+                .find(|f| &f.name == name)
                 .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?
                 .ty;
 

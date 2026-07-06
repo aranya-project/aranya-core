@@ -10,6 +10,7 @@ mod codemap;
 mod data;
 pub mod ffi;
 mod instructions;
+pub mod interface;
 mod label;
 mod module;
 pub mod named;
