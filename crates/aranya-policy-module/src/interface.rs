@@ -1,6 +1,9 @@
 //! Types specific to the policy interface. This really should be defined in
 //! `aranya-policy-compiler`, but the required `Named` machinery only exists here.
 
+extern crate alloc;
+use alloc::vec::Vec;
+
 use aranya_policy_ast::{self as ast, Ident, Param, Persistence};
 use serde::{Deserialize, Serialize};
 
