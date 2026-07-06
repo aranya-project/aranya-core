@@ -1599,7 +1599,8 @@ impl CompileState<'_> {
                     StmtKind::Check(s),
                     StatementContext::Action(_)
                     | StatementContext::PureFunction(_)
-                    | StatementContext::CommandPolicy(_),
+                    | StatementContext::CommandPolicy(_)
+                    | StatementContext::CommandRecall(_),
                 ) => {
                     let et = self.lower_expression(&s.expression)?;
                     if !et.vtype.fits_type(&VType {

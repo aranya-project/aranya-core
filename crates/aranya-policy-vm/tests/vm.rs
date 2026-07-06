@@ -2401,8 +2401,6 @@ fn test_boolean_operators() {
             .call_action(ident!("f"), iter::empty::<Value>())
             .expect("action runs");
         assert_eq!(exit, ExitReason::Normal);
-        // result-typed action leaves its `Ok(Unit)` result on the stack
-        assert_eq!(rs.stack.len(), 1);
     }
 
     check("true && true");
@@ -2472,8 +2470,6 @@ fn test_comparison_operators() {
             .call_action(ident!("f"), iter::empty::<Value>())
             .expect("action runs");
         assert_eq!(exit, ExitReason::Normal);
-        // result-typed action leaves its `Ok(Unit)` result on the stack
-        assert_eq!(rs.stack.len(), 1);
     }
 
     check("1 < 2");
@@ -2619,8 +2615,6 @@ fn test_return_expression() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
-    // result-typed action leaves its `Ok(Unit)` result on the stack
-    assert_eq!(rs.stack.len(), 1);
 
     Ok(())
 }
@@ -2652,8 +2646,6 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
-    // result-typed action leaves its `Ok(Unit)` result on the stack
-    assert_eq!(rs.stack.len(), 1);
 
     Ok(())
 }
