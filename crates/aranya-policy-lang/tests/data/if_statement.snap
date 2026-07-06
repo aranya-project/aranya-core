@@ -16,12 +16,7 @@ Policy {
                     ty: Int @ 14..17,
                 },
             ],
-            return_type: Some(
-                ResultTypeKind {
-                    ok: Unit @ 26..30,
-                    err: String @ 32..38,
-                },
-            ),
+            return_type: None,
             statements: [
                 If(
                     IfStatement {
@@ -29,50 +24,48 @@ Policy {
                             (
                                 Bool(
                                     false,
-                                ) @ 49..54,
+                                ) @ 28..33,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1 @ 71..72,
-                                            ) @ 71..72,
-                                            else_expression: Return(
-                                                Err(
-                                                    String(
-                                                        "check failed",
-                                                    ) @ 89..103,
-                                                ) @ 85..104,
-                                            ) @ 78..109,
+                                                1 @ 50..51,
+                                            ) @ 50..51,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    "check failed",
+                                                    57..82,
+                                                ),
+                                            ) @ 57..82,
                                         },
-                                    ) @ 65..109,
+                                    ) @ 44..87,
                                 ],
                             ),
                         ],
                         fallback: None,
                     },
-                ) @ 46..116,
+                ) @ 25..94,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Bool(
                                     false,
-                                ) @ 119..124,
+                                ) @ 97..102,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1 @ 141..142,
-                                            ) @ 141..142,
-                                            else_expression: Return(
-                                                Err(
-                                                    String(
-                                                        "check failed",
-                                                    ) @ 159..173,
-                                                ) @ 155..174,
-                                            ) @ 148..179,
+                                                1 @ 119..120,
+                                            ) @ 119..120,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    "check failed",
+                                                    126..151,
+                                                ),
+                                            ) @ 126..151,
                                         },
-                                    ) @ 135..179,
+                                    ) @ 113..156,
                                 ],
                             ),
                         ],
@@ -81,113 +74,109 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         expression: Int(
-                                            2 @ 202..203,
-                                        ) @ 202..203,
-                                        else_expression: Return(
-                                            Err(
-                                                String(
-                                                    "check failed",
-                                                ) @ 220..234,
-                                            ) @ 216..235,
-                                        ) @ 209..240,
+                                            2 @ 179..180,
+                                        ) @ 179..180,
+                                        else_expression: InternalFunction(
+                                            TestFail(
+                                                "check failed",
+                                                186..211,
+                                            ),
+                                        ) @ 186..211,
                                     },
-                                ) @ 196..240,
+                                ) @ 173..216,
                             ],
                         ),
                     },
-                ) @ 116..241,
+                ) @ 94..217,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Bool(
                                     false,
-                                ) @ 250..255,
+                                ) @ 226..231,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                1 @ 272..273,
-                                            ) @ 272..273,
-                                            else_expression: Return(
-                                                Err(
-                                                    String(
-                                                        "check failed",
-                                                    ) @ 290..304,
-                                                ) @ 286..305,
-                                            ) @ 279..314,
+                                                1 @ 248..249,
+                                            ) @ 248..249,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    "check failed",
+                                                    255..280,
+                                                ),
+                                            ) @ 255..280,
                                         },
-                                    ) @ 266..314,
+                                    ) @ 242..289,
                                     Let(
                                         LetStatement {
-                                            identifier: "c" @ 318..319,
+                                            identifier: "c" @ 293..294,
                                             expression: FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "add" @ 322..325,
+                                                    identifier: "add" @ 297..300,
                                                     arguments: [
                                                         Int(
-                                                            1 @ 326..327,
-                                                        ) @ 326..327,
+                                                            1 @ 301..302,
+                                                        ) @ 301..302,
                                                         Int(
-                                                            1 @ 329..330,
-                                                        ) @ 329..330,
+                                                            1 @ 304..305,
+                                                        ) @ 304..305,
                                                     ],
                                                 },
-                                            ) @ 322..331,
+                                            ) @ 297..306,
                                         },
-                                    ) @ 314..336,
+                                    ) @ 289..311,
                                 ],
                             ),
                             (
                                 Equal(
                                     Identifier(
-                                        "n" @ 346..347,
-                                    ) @ 346..347,
+                                        "n" @ 321..322,
+                                    ) @ 321..322,
                                     Int(
-                                        2 @ 351..352,
-                                    ) @ 351..352,
-                                ) @ 346..352,
+                                        2 @ 326..327,
+                                    ) @ 326..327,
+                                ) @ 321..327,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                3 @ 369..370,
-                                            ) @ 369..370,
-                                            else_expression: Return(
-                                                Err(
-                                                    String(
-                                                        "check failed",
-                                                    ) @ 387..401,
-                                                ) @ 383..402,
-                                            ) @ 376..407,
+                                                3 @ 344..345,
+                                            ) @ 344..345,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    "check failed",
+                                                    351..376,
+                                                ),
+                                            ) @ 351..376,
                                         },
-                                    ) @ 363..407,
+                                    ) @ 338..381,
                                 ],
                             ),
                             (
                                 Equal(
                                     Identifier(
-                                        "n" @ 417..418,
-                                    ) @ 417..418,
+                                        "n" @ 391..392,
+                                    ) @ 391..392,
                                     Int(
-                                        4 @ 422..423,
-                                    ) @ 422..423,
-                                ) @ 417..423,
+                                        4 @ 396..397,
+                                    ) @ 396..397,
+                                ) @ 391..397,
                                 [
                                     Check(
                                         CheckStatement {
                                             expression: Int(
-                                                5 @ 440..441,
-                                            ) @ 440..441,
-                                            else_expression: Return(
-                                                Err(
-                                                    String(
-                                                        "check failed",
-                                                    ) @ 458..472,
-                                                ) @ 454..473,
-                                            ) @ 447..478,
+                                                5 @ 414..415,
+                                            ) @ 414..415,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    "check failed",
+                                                    421..446,
+                                                ),
+                                            ) @ 421..446,
                                         },
-                                    ) @ 434..478,
+                                    ) @ 408..451,
                                 ],
                             ),
                         ],
@@ -196,30 +185,22 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         expression: Int(
-                                            6 @ 501..502,
-                                        ) @ 501..502,
-                                        else_expression: Return(
-                                            Err(
-                                                String(
-                                                    "check failed",
-                                                ) @ 519..533,
-                                            ) @ 515..534,
-                                        ) @ 508..539,
+                                            6 @ 474..475,
+                                        ) @ 474..475,
+                                        else_expression: InternalFunction(
+                                            TestFail(
+                                                "check failed",
+                                                481..506,
+                                            ),
+                                        ) @ 481..506,
                                     },
-                                ) @ 495..539,
+                                ) @ 468..511,
                             ],
                         ),
                     },
-                ) @ 247..540,
-                Return(
-                    ReturnStatement {
-                        expression: Ok(
-                            Unit @ 555..559,
-                        ) @ 552..560,
-                    },
-                ) @ 545..561,
+                ) @ 223..512,
             ],
-            span: 0..562,
+            span: 0..514,
         },
     ],
     effects: [],
@@ -229,5 +210,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action test(n int) result[unit, string] {\n    if false {\n        check 1 else return Err(\"check failed\")\n    }\n\n    if false {\n        check 1 else return Err(\"check failed\")\n    } else {\n        check 2 else return Err(\"check failed\")\n    }\n\n    if false {\n        check 1 else return Err(\"check failed\")\n        let c = add(1, 1)\n    } else if n == 2 {\n        check 3 else return Err(\"check failed\")\n    } else if n == 4 {\n        check 5 else return Err(\"check failed\")\n    } else {\n        check 6 else return Err(\"check failed\")\n    }\n    return Ok(Unit)\n}\n",
+    text: "action test(n int) {\n    if false {\n        check 1 else test_fail(\"check failed\")\n    }\n\n    if false {\n        check 1 else test_fail(\"check failed\")\n    } else {\n        check 2 else test_fail(\"check failed\")\n    }\n\n    if false {\n        check 1 else test_fail(\"check failed\")\n        let c = add(1, 1)\n    } else if n == 2 {\n        check 3 else test_fail(\"check failed\")\n    } else if n == 4 {\n        check 5 else test_fail(\"check failed\")\n    } else {\n        check 6 else test_fail(\"check failed\")\n    }\n}\n",
 }

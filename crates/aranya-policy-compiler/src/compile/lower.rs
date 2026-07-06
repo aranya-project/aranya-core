@@ -5,7 +5,6 @@ use aranya_policy_ast::{
     VType, WithSpanExt as _, ident, thir,
 };
 use buggy::{BugExt as _, bug};
-use tracing::warn;
 
 use super::{
     CompileError, CompileState, FunctionColor, Scope, StatementContext,
@@ -13,7 +12,7 @@ use super::{
         AlreadyDefined, BadArgument, DuplicateMatchPatterns, InvalidCallColor,
         InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidStatement,
         InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm,
-        TodoFound, UnknownError, UnreachableMatchArm,
+        UnknownError, UnreachableMatchArm,
     },
     find_duplicate,
     types::{self, DisplayType},
@@ -535,13 +534,23 @@ impl CompileState<'_> {
                     }
                 }
                 InternalFunction::Todo(span) => {
-                    let err: CompileError = self.err(TodoFound(*span));
-                    if !self.is_debug {
-                        return Err(err);
-                    }
-                    warn!("{err}");
+                    self.require_debug_mode("todo()", *span)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Todo(*span)),
+                        vtype: VType {
+                            inner: TypeKind::Never,
+                            span: Span::empty(),
+                        },
+                        span: expression.span,
+                    }
+                }
+                InternalFunction::TestFail(msg, span) => {
+                    self.require_debug_mode("test_fail()", *span)?;
+                    thir::Expression {
+                        kind: thir::ExprKind::InternalFunction(thir::InternalFunction::TestFail(
+                            msg.clone(),
+                            *span,
+                        )),
                         vtype: VType {
                             inner: TypeKind::Never,
                             span: Span::empty(),

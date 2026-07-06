@@ -2,7 +2,6 @@ command Foo {
     seal { return todo() }
     open { return todo() }
     policy {
-        check 0 else recall reject()
+        check 0 else test_fail("should fail")
     }
-    recall reject() {}
 }

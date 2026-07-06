@@ -1,5 +1,4 @@
 fact Foo[i int] => {a string}
-action test() result[unit, string] {
-    check exists Foo[] else return Err("check failed")
-    return Ok(Unit)
+action test() {
+    check exists Foo[] else test_fail("check failed")
 }

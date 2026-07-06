@@ -12,12 +12,7 @@ Module {
             name: "pets" @ 40..44,
             persistence: Persistent,
             params: {},
-            result_type: Some(
-                ResultTypeKind {
-                    ok: Unit @ 54..58,
-                    err: String @ 60..66,
-                },
-            ),
+            result_type: None,
         },
     },
     command_defs: {},
@@ -59,40 +54,29 @@ Module {
 ---
     exit panic
 <action 'pets'>:
-    save SP
     const 42
     def 'n'
     fact.new 'Pet'
     query.start
-<6>:
+<5>:
     block
     query.next 'p'
-    branch 28
+    branch 21
     get 'p'
     struct.get 'age'
     const 0
     gt
-    branch 18
-    const "check failed"
-    wrap err
-    restore SP
-    return
-<18>:
+    branch 14
+    exit panic
+<14>:
     get 'n'
     const 42
     eq
-    branch 26
-    const "check failed"
-    wrap err
-    restore SP
-    return
-<26>:
-    end
-    jump 6
-<28>:
-    end
-    const ()
-    wrap ok
-    restore SP
-    return
+    branch 19
     exit panic
+<19>:
+    end
+    jump 5
+<21>:
+    end
+    return

@@ -181,10 +181,9 @@ command Init {
     }
 
     policy {
-        check this.nonce > 0 else recall reject()
+        check this.nonce > 0 else test_fail("nonce must be positive")
         finish {}
     }
-    recall reject() {}
 
 }
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
@@ -245,7 +244,7 @@ command AddDeviceKeys {
     policy {
         let author = envelope::author_id(envelope)
         let device_id = idam::derive_device_id(this.ident_pk)
-        check author == device_id else recall reject()
+        check author == device_id else test_fail("author must be device")
 
         let device_keys = DeviceKeyBundle {
             device_id: author,
@@ -318,14 +317,13 @@ command Increment {
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
         let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25 else recall reject()
+        check new_x < 25 else test_fail("new_x out of range")
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
             emit StuffHappened{a: this.key_a, x: new_x}
         }
     }
-    recall reject() {}
 }
 
 action decrement(v int) {
@@ -422,12 +420,11 @@ ephemeral command VerifyGreeting {
         let greeting = unwrap query Message[msg: this.key]=>{value: ?}
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value else recall reject()
+        check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}
         }
     }
-    recall reject() {}
 }
 
 action verify_no_hello() {
@@ -447,12 +444,11 @@ command VerifyNoHello {
     open { return deserialize(open_basic_command(envelope)) }
 
     policy {
-        check !exists Message[msg: ?]=>{value: ?} else recall reject()
+        check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")
         finish {
             emit Success{value: true}
         }
     }
-    recall reject() {}
 }
 ```
 

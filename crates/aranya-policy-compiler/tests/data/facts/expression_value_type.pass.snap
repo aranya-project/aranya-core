@@ -12,12 +12,7 @@ Module {
             name: "test" @ 34..38,
             persistence: Persistent,
             params: {},
-            result_type: Some(
-                ResultTypeKind {
-                    ok: Unit @ 48..52,
-                    err: String @ 54..60,
-                },
-            ),
+            result_type: None,
         },
     },
     command_defs: {},
@@ -59,7 +54,6 @@ Module {
 ---
     exit panic
 <action 'test'>:
-    save SP
     fact.new 'Foo'
     const 1
     fact.kset 'i'
@@ -71,14 +65,7 @@ Module {
     const None
     eq
     not
-    branch 18
-    const "check failed"
-    wrap err
-    restore SP
-    return
-<18>:
-    const ()
-    wrap ok
-    restore SP
-    return
+    branch 14
     exit panic
+<14>:
+    return

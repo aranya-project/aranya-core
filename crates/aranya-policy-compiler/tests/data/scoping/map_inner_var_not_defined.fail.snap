@@ -4,5 +4,5 @@ expression: error
 ---
 error: a thing being referenced is not in scope
   |
-6 |     check n == 42 else return Err("check failed") // should not be accessible outside the block
+6 |     check n == 42 else test_fail("check failed") // should not be accessible outside the block
   |           ^ 'n' not in scope

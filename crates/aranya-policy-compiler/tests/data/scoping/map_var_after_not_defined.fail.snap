@@ -4,5 +4,5 @@ expression: error
 ---
 error: a thing being referenced is not in scope
   |
-4 |     check p == None else return Err("check failed")
+4 |     check p == None else test_fail("check failed")
   |           ^ 'p' not in scope

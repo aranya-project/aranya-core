@@ -4,5 +4,5 @@ expression: error
 ---
 error: fact literal does not match definition: leading bind values not allowed
   |
-3 |     check exists Foo[x: ?, y: 42] => {} else return Err("check failed")
+3 |     check exists Foo[x: ?, y: 42] => {} else test_fail("check failed")
   |                         ^ leading bind values not allowed

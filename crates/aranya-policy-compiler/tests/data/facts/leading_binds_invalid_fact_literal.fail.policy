@@ -1,5 +1,4 @@
 fact Foo[x int, y int] => {}
-action test() result[unit, string] {
-    check exists Foo[x: ?, y: 42] => {} else return Err("check failed")
-    return Ok(Unit)
+action test() {
+    check exists Foo[x: ?, y: 42] => {} else test_fail("check failed")
 }

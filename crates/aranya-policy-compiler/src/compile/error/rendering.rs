@@ -2,11 +2,11 @@ use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::Spanned as _;
 
 use super::{
-    AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DuplicateMatchPatterns,
-    DuplicateSourceFields, InvalidCallColor, InvalidCast, InvalidExpression, InvalidFactLiteral,
-    InvalidStatement, InvalidSubstruct, InvalidType, MissingDefaultPattern, NoOpStructComp,
-    NoReturn, NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase,
-    StructCompositionTypeMismatch, TodoFound, UnknownError, UnreachableMatchArm,
+    AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
+    DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
+    InvalidExpression, InvalidFactLiteral, InvalidStatement, InvalidSubstruct, InvalidType,
+    MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm,
+    SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError, UnreachableMatchArm,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -401,7 +401,7 @@ impl Error for RedundantMatchArm {
     }
 }
 
-impl Error for TodoFound {
+impl Error for DebugModeRequired {
     fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
         let title = Level::ERROR.primary_title(self.description());
 
@@ -409,14 +409,14 @@ impl Error for TodoFound {
             title.element(
                 Snippet::source(input).annotation(
                     AnnotationKind::Primary
-                        .span(self.0.into())
+                        .span(self.span.into())
                         .highlight_source(true),
                 ),
             ),
         );
     }
     fn description(&self) -> String {
-        "`todo()` found with debug mode disabled".to_owned()
+        format!("`{}` found with debug mode disabled", self.name)
     }
 }
 

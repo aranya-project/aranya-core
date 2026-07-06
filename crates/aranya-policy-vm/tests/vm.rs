@@ -491,22 +491,20 @@ fn test_fact_exists() -> anyhow::Result<()> {
         }
     }
 
-    action testExists() result[unit, string] {
-        check exists Foo[] => {x: 3} else return Err("check failed")
-        check exists Foo[] else return Err("check failed")
-        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else return Err("check failed")
+    action testExists() {
+        check exists Foo[] => {x: 3} else test_fail("check failed")
+        check exists Foo[] else test_fail("check failed")
+        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail("check failed")
 
-        check exists Foo[] => {x: ?} else return Err("check failed")
-        check exists Bar[i: ?] => {s: ?, b: Bool::True} else return Err("check failed")
+        check exists Foo[] => {x: ?} else test_fail("check failed")
+        check exists Bar[i: ?] => {s: ?, b: Bool::True} else test_fail("check failed")
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else return Err("check failed")
-        check !exists Bar[i:1] => {s:"", b:Bool::True} else return Err("check failed")
-        check !exists Bar[i: ?]=>{s: "ab", b: ?} else return Err("check failed")
-
-        return Ok(Unit)
+        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else test_fail("check failed")
+        check !exists Bar[i:1] => {s:"", b:Bool::True} else test_fail("check failed")
+        check !exists Bar[i: ?]=>{s: "ab", b: ?} else test_fail("check failed")
     }
     "#;
 
@@ -787,34 +785,30 @@ fn test_query_partial_key() -> anyhow::Result<()> {
             }
         }
 
-        action test_query() result[unit, string] {
+        action test_query() {
             let f = unwrap query Foo[i: 1, j: ?]
-            check f.x == 1 else return Err("check failed")
+            check f.x == 1 else test_fail("check failed")
             let f2 = unwrap query Foo[i: ?, j: ?]
-            check f2.x == 1 else return Err("check failed")
+            check f2.x == 1 else test_fail("check failed")
             let f3 = unwrap query Foo[i:2, j:?]
-            check f3.x == 3 else return Err("check failed")
+            check f3.x == 3 else test_fail("check failed")
 
             // bind value
             let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
-            check f4.x == 3 else return Err("check failed")
+            check f4.x == 3 else test_fail("check failed")
             // bind key and value
             let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
-            check f5.x == 3 else return Err("check failed")
-
-            return Ok(Unit)
+            check f5.x == 3 else test_fail("check failed")
         }
 
         action test_nonexistent() {
             let f = unwrap query Foo[i:?, j:?]
         }
 
-        action test_exists() result[unit, string] {
-            check exists Foo[i:1, j:?] else return Err("check failed")
-            check exists Foo[i:-1, j:?] == false else return Err("check failed")
-            check !exists Foo[i:1, j:?] => {x:-1, s:?} else return Err("check failed")
-
-            return Ok(Unit)
+        action test_exists() {
+            check exists Foo[i:1, j:?] else test_fail("check failed")
+            check exists Foo[i:-1, j:?] == false else test_fail("check failed")
+            check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail("check failed")
         }
     "#;
 
@@ -871,11 +865,9 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
             }
         }
 
-        action test_query() result[unit, string] {
+        action test_query() {
             let f = unwrap query Bar[i:Foo::A] => {x: ?}
-            check f.x == Foo::A else return Err("check failed")
-
-            return Ok(Unit)
+            check f.x == Foo::A else test_fail("check failed")
         }
     "#;
 
@@ -911,9 +903,8 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 #[test]
 fn test_not_operator() -> anyhow::Result<()> {
     let text = r#"
-        action test() result[unit, string] {
-            check !false else return Err("check failed")
-            return Ok(Unit)
+        action test() {
+            check !false else test_fail("check failed")
         }
     "#;
 
@@ -987,21 +978,20 @@ fn test_if_branches() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo(x int) result[unit, string] {
+        action foo(x int) {
             if x == 0 {
-                check true else return Err("check failed")
+                check true else test_fail("check failed")
                 publish Result { s: "0" }
-                check true else return Err("check failed")
+                check true else test_fail("check failed")
             } else if x == 1 {
                 publish Result { s: "1" }
             } else if x == 2 {
-                check true else return Err("check failed")
+                check true else test_fail("check failed")
                 publish Result { s: "2" }
             } else {
                 publish Result { s: "3" }
-                check true else return Err("check failed")
+                check true else test_fail("check failed")
             }
-            return Ok(Unit)
         }
     "#;
 
@@ -1152,9 +1142,8 @@ fn test_match_default() -> anyhow::Result<()> {
 #[test]
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
-        action foo(val int) result[unit, string] {
-            check val == bar() else return Err("check failed")
-            return Ok(Unit)
+        action foo(val int) {
+            check val == bar() else test_fail("check failed")
         }
 
         function bar() int {
@@ -1246,14 +1235,13 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 #[test]
 fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
-    action foo(x bool, y bool) result[unit, string] {
+    action foo(x bool, y bool) {
         if x {
-            check x else return Err("check failed")
+            check x else test_fail("check failed")
         }
         if !y {
-            check !y else return Err("check failed")
+            check !y else test_fail("check failed")
         }
-        return Ok(Unit)
     }
     "#;
     let name = ident!("foo");
@@ -1493,10 +1481,9 @@ fn test_check_unwrap() -> anyhow::Result<()> {
             }
         }
 
-        action test_existing() result[unit, string] {
+        action test_existing() {
             let f = check_unwrap query Foo[i: 1]
-            check f.x == 1 else return Err("check failed")
-            return Ok(Unit)
+            check f.x == 1 else test_fail("check failed")
         }
 
         action test_nonexistent() result[unit, string] {
@@ -1557,28 +1544,24 @@ fn test_coalesce_or() -> anyhow::Result<()> {
             }
         }
 
-        action test_some_or() result[unit, string] {
+        action test_some_or() {
             let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
-            check f.x == 42 else return Err("check failed")
-            return Ok(Unit)
+            check f.x == 42 else test_fail("check failed")
         }
 
-        action test_none_or() result[unit, string] {
+        action test_none_or() {
             let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
-            check f.x == 99 else return Err("check failed")
-            return Ok(Unit)
+            check f.x == 99 else test_fail("check failed")
         }
 
-        action test_chain() result[unit, string] {
+        action test_chain() {
             let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
-            check f.x == 77 else return Err("check failed")
-            return Ok(Unit)
+            check f.x == 77 else test_fail("check failed")
         }
 
-        action test_chain_first_some() result[unit, string] {
+        action test_chain_first_some() {
             let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
-            check f.x == 42 else return Err("check failed")
-            return Ok(Unit)
+            check f.x == 42 else test_fail("check failed")
         }
     "#;
 
@@ -1655,7 +1638,7 @@ fn test_nested_optionals() -> anyhow::Result<()> {
     let actions = checks
         .iter()
         .enumerate()
-        .map(|(i, c)| format!("action c{i}() result[unit, string] {{ check {c} else return Err(\"check failed\") return Ok(Unit) }}"))
+        .map(|(i, c)| format!("action c{i}() {{ check {c} else test_fail(\"check failed\") }}"))
         .collect::<Vec<_>>()
         .join("\n");
     let machine = compile(&actions);
@@ -2409,7 +2392,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 fn test_boolean_operators() {
     fn check(expr: &str) {
         let machine = compile(&format!(
-            "action f() result[unit, string] {{ check {expr} else return Err(\"check failed\") return Ok(Unit) }}"
+            "action f() {{ check {expr} else test_fail(\"check failed\") }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2457,10 +2440,30 @@ fn test_boolean_short_circuit() {
 }
 
 #[test]
+fn test_test_fail() {
+    fn run(cond: &str) -> ExitReason {
+        let machine = compile(&format!(
+            "action f() {{ check {cond} else test_fail(\"check failed\") }}"
+        ));
+        let mut io = TestIO::new();
+        let ctx = dummy_ctx_action(ident!("f"));
+        let mut rs = machine.create_run_state(&mut io, ctx);
+
+        rs.call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs")
+    }
+
+    // Passing check should continue
+    assert_eq!(run("true"), ExitReason::Normal);
+    // Failing check should panic
+    assert_eq!(run("false"), ExitReason::Panic);
+}
+
+#[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
         let machine = compile(&format!(
-            "action f() result[unit, string] {{ check {expr} else return Err(\"check failed\") return Ok(Unit) }}"
+            "action f() {{ check {expr} else test_fail(\"check failed\") }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2592,9 +2595,8 @@ fn test_source_lookup() -> anyhow::Result<()> {
 #[test]
 fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
-        action foo() result[unit, string] {
-            check 42 == bar() else return Err("check failed")
-            return Ok(Unit)
+        action foo() {
+            check 42 == bar() else test_fail("check failed")
         }
 
         function bar() int {
@@ -2626,9 +2628,8 @@ fn test_return_expression() -> anyhow::Result<()> {
 #[test]
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
-        action foo() result[unit, string] {
-            check 42 == bar() else return Err("check failed")
-            return Ok(Unit)
+        action foo() {
+            check 42 == bar() else test_fail("check failed")
         }
 
         function bar() int {

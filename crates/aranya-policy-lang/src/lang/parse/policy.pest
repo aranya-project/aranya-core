@@ -191,6 +191,9 @@ serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
 // Indicates a not yet implemented panic
 todo = { "todo()" }
+// Panics with a message. Like `todo()`, but for expressing test
+// expectations of the policy vm/compiler, e.g. `check c else test_fail("...")`.
+test_fail = { "test_fail(" ~ string_literal ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
@@ -204,6 +207,7 @@ internal_function = _{
     | serialize
     | deserialize
     | todo
+    | test_fail
 }
 // The return expression returns from a function
 return_expression = { "return" ~ expression }

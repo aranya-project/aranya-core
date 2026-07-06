@@ -17,12 +17,7 @@ Module {
                     ty: Int @ 11..14,
                 },
             },
-            result_type: Some(
-                ResultTypeKind {
-                    ok: Unit @ 23..27,
-                    err: String @ 29..35,
-                },
-            ),
+            result_type: None,
         },
     },
     command_defs: {},
@@ -36,36 +31,28 @@ Module {
     exit panic
 <action 'f'>:
     def 'n'
-    save SP
     get 'n'
     dup
     const 0
     eq
-    branch 9
-    jump 14
-<9>:
+    branch 8
+    jump 13
+<8>:
     block
     pop
     const false
     end
-    jump 19
-<14>:
+    jump 18
+<13>:
     block
     pop
     const true
     end
-    jump 19
-<19>:
+    jump 18
+<18>:
     def 'b'
     get 'b'
-    branch 26
-    const "check failed"
-    wrap err
-    restore SP
-    return
-<26>:
-    const ()
-    wrap ok
-    restore SP
-    return
+    branch 22
     exit panic
+<22>:
+    return

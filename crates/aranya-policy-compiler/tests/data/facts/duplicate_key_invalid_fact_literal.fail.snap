@@ -6,6 +6,6 @@ error: fact literal does not match definition: Invalid key: expected j, got i
   |
 1 | fact Foo[i int, j int] => {a string}
   |                 - expected because of this
-2 | action test() result[unit, string] {
-3 |     check exists Foo[i: 1, i: 2] else return Err("check failed")
+2 | action test() {
+3 |     check exists Foo[i: 1, i: 2] else test_fail("check failed")
   |                            ^ Invalid key: expected j, got i

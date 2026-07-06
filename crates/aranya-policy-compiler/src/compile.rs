@@ -32,9 +32,9 @@ use tracing::warn;
 pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
     error::{
-        AlreadyDefined, BadArgument, BugError, DuplicateSourceFields, InvalidExpression,
-        InvalidType, NoOpStructComp, NoReturn, NotDefined, SourceStructNotSubsetOfBase,
-        StructCompositionTypeMismatch, TodoFound, UnknownError,
+        AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
+        InvalidExpression, InvalidType, NoOpStructComp, NoReturn, NotDefined,
+        SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -556,6 +556,17 @@ impl<'a> CompileState<'a> {
         CompileError::new(err_type, Some(self.policy.text.clone()))
     }
 
+    /// Ensure debug mode is on, or return a [`DebugModeRequired`] error.
+    fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
+        let err = self.err(DebugModeRequired { name, span });
+        if self.is_debug {
+            warn!("{err}");
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
+
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: thir::FactLiteral) -> Result<(), CompileError> {
         self.append_instruction(Instruction::FactNew(f.identifier.inner.clone()));
@@ -640,13 +651,12 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Deserialize);
                 }
                 thir::InternalFunction::Todo(span) => {
-                    let err = self.err(TodoFound(span));
-                    if self.is_debug {
-                        warn!("{err}");
-                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                    } else {
-                        return Err(err);
-                    }
+                    self.require_debug_mode("todo()", span)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                }
+                thir::InternalFunction::TestFail(_msg, span) => {
+                    self.require_debug_mode("test_fail()", span)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
             },
             thir::ExprKind::FunctionCall(f) => {

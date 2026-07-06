@@ -545,6 +545,8 @@ pub enum InternalFunction {
     Deserialize(Box<Expression>),
     /// Not yet implemented panic
     Todo(Span),
+    /// Panics with a message, for expressing test expectations
+    TestFail(Text, Span),
 }
 
 impl Spanned for InternalFunction {
@@ -556,6 +558,7 @@ impl Spanned for InternalFunction {
             Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
             Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
             Self::Todo(span) => *span,
+            Self::TestFail(_, span) => *span,
         }
     }
 }
@@ -766,6 +769,9 @@ impl ExprKind {
                     (InternalFunction::Serialize(e1), InternalFunction::Serialize(e2))
                     | (InternalFunction::Deserialize(e1), InternalFunction::Deserialize(e2)) => {
                         e1.inner.matches(&e2.inner)
+                    }
+                    (InternalFunction::TestFail(t1, _), InternalFunction::TestFail(t2, _)) => {
+                        t1 == t2
                     }
                     (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
                     _ => false,
