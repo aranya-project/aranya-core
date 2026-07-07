@@ -5,12 +5,15 @@
 //! directions, outbound-subscription renewal, debounce/expiry/budget, remote
 //! input clamping — and emits a [`SyncAction`] for every outbound message,
 //! leaving I/O, clocks, storage, and crypto to the caller.
+//!
+//! Like time ([`SyncInstant`]), memory is a trait boundary: all per-peer
+//! state lives in caller-supplied [`SyncSlots`], so the machine itself
+//! allocates nothing. [`FixedSlots`] holds a fixed number of slots inline for
+//! callers without a heap; [`HeapSlots`] grows on demand and is the default
+//! where `alloc` is available.
 
-use alloc::{
-    collections::{BTreeMap, VecDeque},
-    vec::Vec,
-};
-use core::{fmt, time::Duration};
+use alloc::vec::Vec;
+use core::{fmt, marker::PhantomData, time::Duration};
 
 use rkyv::{
     api::high::{HighSerializer, HighValidator},
@@ -23,6 +26,8 @@ use rkyv::{
 
 use super::SubscribeResponse;
 use crate::storage::GraphId;
+
+mod tests;
 
 /// A monotonic point in time supplied by the caller.
 ///
@@ -119,6 +124,10 @@ pub const DEFAULT_MAX_SUB_DURATION: Duration = Duration::from_secs(24 * 60 * 60)
 /// negative reply, so a rejected subscription would be indistinguishable from
 /// an accepted one to the peer.
 ///
+/// The subscriber caps are a *policy* bound on how much of the caller's
+/// [`SyncSlots`] remote peers can occupy; the slots themselves bound total
+/// state physically.
+///
 /// Build one with the method-chain builder [`Limits::builder`]; every field
 /// is seeded from its `DEFAULT_*` constant, so set only what you need:
 /// `Limits::builder().max_push_subs(8).build()`. [`Default`] gives the
@@ -202,7 +211,7 @@ impl LimitsBuilder {
     /// `schedule_delay` / `graph_change_delay`, renewal periods). Values
     /// below it are clamped up.
     ///
-    /// Itself floored at 1 ns by [`Syncer::with_limits`], so the
+    /// Itself floored at 1 ns by [`Syncer::with_limits_in`], so the
     /// drain-termination guarantee cannot be configured away. Default
     /// [`DEFAULT_MIN_DELAY`].
     #[must_use]
@@ -338,12 +347,22 @@ impl<A> SyncAction<A> {
     }
 }
 
-/// A subscribe or hello-subscribe was rejected because we are at the cap.
+/// A subscribe or hello-subscribe was rejected because we are at the cap or
+/// out of [`SyncSlots`].
 ///
 /// Map to [`SubscribeResponse::TooManySubscriptions`] where applicable.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("subscriber limit reached")]
 pub struct SubscriberLimitReached;
+
+/// The caller-supplied [`SyncSlots`] have no room for another peer-graph
+/// pair.
+///
+/// Free a slot (`remove_*`, [`Syncer::remove_graph`]) or supply larger
+/// storage. Never returned through [`HeapSlots`], which grows on demand.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("out of syncer slots")]
+pub struct OutOfSlots;
 
 /// Error from persisting or restoring a [`Syncer`] snapshot
 /// ([`save_absolute`], [`save_relative`], [`load`]).
@@ -365,18 +384,15 @@ pub enum SnapshotError {
     /// "start fresh", not as data loss.
     #[error("unsupported syncer snapshot version: {0}")]
     UnsupportedVersion(u8),
-}
-
-/// Composite map key. Graph-first ordering keeps a graph's entries adjacent.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct PeerKey<A> {
-    graph_id: GraphId,
-    peer: A,
+    /// The snapshot holds more peer-graph pairs than the provided
+    /// [`SyncSlots`] can hold.
+    #[error("snapshot does not fit in the provided syncer slots")]
+    OutOfSlots,
 }
 
 /// Poll schedule and `sync_on_hello` registration for one peer.
 #[derive(Clone, Debug)]
-struct PollSlot<T> {
+struct PollState<T> {
     config: PeerConfig,
     next_sync: Option<T>,
 }
@@ -386,6 +402,9 @@ struct PollSlot<T> {
 struct PushSub<T> {
     expires_at: T,
     remaining_bytes: u64,
+    /// A local change queued a push at this instant; emitted (and cleared) by
+    /// the next drain. Transient — not persisted.
+    push_due: Option<T>,
 }
 
 impl<T: SyncInstant> PushSub<T> {
@@ -406,30 +425,315 @@ struct HelloSub<T> {
     next_hello: T,
 }
 
-/// A push subscription we requested from a peer (renewed until unsubscribed).
+/// A push subscription we requested from a peer.
 #[derive(Clone, Debug)]
-struct PushReq<T> {
-    remain_open_secs: u64,
-    max_bytes: u64,
-    renew_at: T,
+enum PushReq<T> {
+    /// Renewed until unsubscribed.
+    Active {
+        remain_open_secs: u64,
+        max_bytes: u64,
+        renew_at: T,
+    },
+    /// Torn down: emit one [`SyncAction::Unsubscribe`] at `due`, then drop
+    /// the record. Transient — not persisted.
+    Cancel { due: T },
 }
 
-/// A hello subscription we requested from a peer (renewed until unsubscribed).
+/// A hello subscription we requested from a peer.
 #[derive(Clone, Debug)]
-struct HelloReq<T> {
-    graph_change_delay: Duration,
-    duration: Duration,
-    schedule_delay: Duration,
-    renew_at: T,
+enum HelloReq<T> {
+    /// Renewed until unsubscribed.
+    Active {
+        graph_change_delay: Duration,
+        duration: Duration,
+        schedule_delay: Duration,
+        renew_at: T,
+    },
+    /// Torn down: emit one [`SyncAction::HelloUnsubscribe`] at `due`, then
+    /// drop the record. Transient — not persisted.
+    Cancel { due: T },
 }
 
-/// Which timer source the earliest-due scheduled item came from.
+/// One peer-graph pair's sync state: an entry in the caller-supplied
+/// [`SyncSlots`].
+///
+/// A slot bundles every role the pair can hold at once — polled peer, push
+/// subscriber, hello subscriber, and our outbound push/hello subscription
+/// requests to it — so a pair occupies one slot no matter how many roles are
+/// active. The contents are private; [`SyncSlots`] implementations only
+/// construct empty slots ([`new`](Self::new)) and order or look them up by
+/// [`graph_id`](Self::graph_id) and [`peer`](Self::peer).
+#[derive(Clone, Debug)]
+pub struct SyncSlot<A, T> {
+    graph_id: GraphId,
+    peer: A,
+    poll: Option<PollState<T>>,
+    push_sub: Option<PushSub<T>>,
+    hello_sub: Option<HelloSub<T>>,
+    push_req: Option<PushReq<T>>,
+    hello_req: Option<HelloReq<T>>,
+}
+
+impl<A, T> SyncSlot<A, T> {
+    /// Creates an empty slot for `(graph_id, peer)` — what
+    /// [`SyncSlots::get_or_insert`] implementations insert on a miss.
+    #[must_use]
+    pub fn new(graph_id: GraphId, peer: A) -> Self {
+        Self {
+            graph_id,
+            peer,
+            poll: None,
+            push_sub: None,
+            hello_sub: None,
+            push_req: None,
+            hello_req: None,
+        }
+    }
+
+    /// Returns the graph this slot tracks.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns the peer this slot tracks.
+    pub fn peer(&self) -> &A {
+        &self.peer
+    }
+
+    /// Returns whether no role is active. The syncer removes a slot as soon
+    /// as it becomes empty, so implementations never accumulate dead entries.
+    pub fn is_empty(&self) -> bool {
+        self.poll.is_none()
+            && self.push_sub.is_none()
+            && self.hello_sub.is_none()
+            && self.push_req.is_none()
+            && self.hello_req.is_none()
+    }
+}
+
+/// Backing memory for a [`Syncer`]'s per-peer state, supplied by the caller.
+///
+/// Like time ([`SyncInstant`]), memory is a trait boundary: the syncer holds
+/// one [`SyncSlot`] per peer-graph pair in whatever storage the caller
+/// provides and never allocates itself. Use [`FixedSlots`] to place a fixed
+/// number of slots inline (`no_std`, no heap), [`HeapSlots`] to grow on
+/// demand, or implement this trait for your own storage.
+///
+/// # Contract
+///
+/// - Slots are keyed by the `(graph_id, peer)` pair; at most one slot per
+///   pair.
+/// - [`for_each`](Self::for_each) and [`retain`](Self::retain) visit every
+///   slot in a **stable, deterministic order** (the provided implementations
+///   iterate graph-first, then by peer). Equal deadlines fire in visit
+///   order, so an unstable order yields an unstable action order.
+/// - [`get_or_insert`](Self::get_or_insert) inserts [`SyncSlot::new`] on a
+///   miss and fails with [`OutOfSlots`] only when no space remains.
+pub trait SyncSlots<A, T> {
+    /// Returns the slot for `(graph_id, peer)`, if present.
+    fn get(&self, graph_id: GraphId, peer: &A) -> Option<&SyncSlot<A, T>>;
+
+    /// Returns the slot for `(graph_id, peer)` mutably, if present.
+    fn get_mut(&mut self, graph_id: GraphId, peer: &A) -> Option<&mut SyncSlot<A, T>>;
+
+    /// Returns the slot for `(graph_id, peer)`, inserting an empty one
+    /// ([`SyncSlot::new`]) if absent.
+    fn get_or_insert(
+        &mut self,
+        graph_id: GraphId,
+        peer: &A,
+    ) -> Result<&mut SyncSlot<A, T>, OutOfSlots>;
+
+    /// Removes the slot for `(graph_id, peer)`, if present.
+    fn remove(&mut self, graph_id: GraphId, peer: &A);
+
+    /// Visits every slot in the table's stable order.
+    fn for_each(&self, f: impl FnMut(&SyncSlot<A, T>));
+
+    /// Visits every slot mutably in the table's stable order, removing those
+    /// for which `f` returns `false`.
+    fn retain(&mut self, f: impl FnMut(&mut SyncSlot<A, T>) -> bool);
+}
+
+/// Locates `(graph_id, peer)` in a slice of slots sorted graph-first.
+fn search_slots<A: Ord, T>(
+    slots: &[SyncSlot<A, T>],
+    graph_id: GraphId,
+    peer: &A,
+) -> Result<usize, usize> {
+    slots.binary_search_by(|slot| {
+        slot.graph_id
+            .cmp(&graph_id)
+            .then_with(|| slot.peer.cmp(peer))
+    })
+}
+
+/// [`SyncSlots`] with capacity for `N` peer-graph pairs, stored inline —
+/// no allocation, for `no_std` callers without a heap.
+///
+/// The caller supplies the memory by placing the value (and the [`Syncer`]
+/// around it) wherever it wants — a `static`, the stack, or a heap box.
+/// Kept sorted graph-first, then by peer.
+///
+/// Size `N` for the distinct `(graph_id, peer)` pairs in play at once: a
+/// pair occupies one slot however many roles (poll, push, hello, either
+/// direction) it holds. When full, slot-creating calls fail ([`OutOfSlots`],
+/// or [`SubscriberLimitReached`] for the remote-driven subscriber adds).
+///
+/// ```
+/// use core::time::Duration;
+///
+/// use aranya_runtime::{FixedSlots, Syncer};
+///
+/// // Eight peer-graph pairs, no allocation.
+/// let syncer: Syncer<&str, Duration, FixedSlots<&str, Duration, 8>> =
+///     Syncer::new_in(FixedSlots::new());
+/// # let _ = syncer;
+/// ```
+#[derive(Debug)]
+pub struct FixedSlots<A, T, const N: usize> {
+    slots: heapless::Vec<SyncSlot<A, T>, N>,
+}
+
+impl<A, T, const N: usize> FixedSlots<A, T, N> {
+    /// Creates an empty table.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            slots: heapless::Vec::new(),
+        }
+    }
+}
+
+impl<A, T, const N: usize> Default for FixedSlots<A, T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<A: Clone + Ord, T, const N: usize> SyncSlots<A, T> for FixedSlots<A, T, N> {
+    fn get(&self, graph_id: GraphId, peer: &A) -> Option<&SyncSlot<A, T>> {
+        let at = search_slots(&self.slots, graph_id, peer).ok()?;
+        self.slots.get(at)
+    }
+
+    fn get_mut(&mut self, graph_id: GraphId, peer: &A) -> Option<&mut SyncSlot<A, T>> {
+        let at = search_slots(&self.slots, graph_id, peer).ok()?;
+        self.slots.get_mut(at)
+    }
+
+    fn get_or_insert(
+        &mut self,
+        graph_id: GraphId,
+        peer: &A,
+    ) -> Result<&mut SyncSlot<A, T>, OutOfSlots> {
+        let at = match search_slots(&self.slots, graph_id, peer) {
+            Ok(at) => at,
+            Err(at) => {
+                self.slots
+                    .insert(at, SyncSlot::new(graph_id, peer.clone()))
+                    .map_err(|_| OutOfSlots)?;
+                at
+            }
+        };
+        self.slots.get_mut(at).ok_or(OutOfSlots)
+    }
+
+    fn remove(&mut self, graph_id: GraphId, peer: &A) {
+        if let Ok(at) = search_slots(&self.slots, graph_id, peer) {
+            self.slots.remove(at);
+        }
+    }
+
+    fn for_each(&self, mut f: impl FnMut(&SyncSlot<A, T>)) {
+        for slot in &self.slots {
+            f(slot);
+        }
+    }
+
+    fn retain(&mut self, f: impl FnMut(&mut SyncSlot<A, T>) -> bool) {
+        self.slots.retain_mut(f);
+    }
+}
+
+/// [`SyncSlots`] that grow on demand (requires `alloc`) — the default
+/// storage, never [`OutOfSlots`].
+///
+/// Kept sorted graph-first, then by peer. Remote peers cannot grow it
+/// unboundedly: the subscriber tables are capped by [`Limits`], and every
+/// other slot is created by a local call.
+#[derive(Debug)]
+pub struct HeapSlots<A, T> {
+    slots: Vec<SyncSlot<A, T>>,
+}
+
+impl<A, T> HeapSlots<A, T> {
+    /// Creates an empty table.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { slots: Vec::new() }
+    }
+}
+
+impl<A, T> Default for HeapSlots<A, T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<A: Clone + Ord, T> SyncSlots<A, T> for HeapSlots<A, T> {
+    fn get(&self, graph_id: GraphId, peer: &A) -> Option<&SyncSlot<A, T>> {
+        let at = search_slots(&self.slots, graph_id, peer).ok()?;
+        self.slots.get(at)
+    }
+
+    fn get_mut(&mut self, graph_id: GraphId, peer: &A) -> Option<&mut SyncSlot<A, T>> {
+        let at = search_slots(&self.slots, graph_id, peer).ok()?;
+        self.slots.get_mut(at)
+    }
+
+    fn get_or_insert(
+        &mut self,
+        graph_id: GraphId,
+        peer: &A,
+    ) -> Result<&mut SyncSlot<A, T>, OutOfSlots> {
+        let at = match search_slots(&self.slots, graph_id, peer) {
+            Ok(at) => at,
+            Err(at) => {
+                self.slots.insert(at, SyncSlot::new(graph_id, peer.clone()));
+                at
+            }
+        };
+        self.slots.get_mut(at).ok_or(OutOfSlots)
+    }
+
+    fn remove(&mut self, graph_id: GraphId, peer: &A) {
+        if let Ok(at) = search_slots(&self.slots, graph_id, peer) {
+            self.slots.remove(at);
+        }
+    }
+
+    fn for_each(&self, mut f: impl FnMut(&SyncSlot<A, T>)) {
+        for slot in &self.slots {
+            f(slot);
+        }
+    }
+
+    fn retain(&mut self, f: impl FnMut(&mut SyncSlot<A, T>) -> bool) {
+        self.slots.retain_mut(f);
+    }
+}
+
+/// Which timer the earliest-due scheduled item came from.
 #[derive(Copy, Clone, Debug)]
 enum DueKind {
     Poll,
+    Push,
     ScheduledHello,
     PushRenewal,
+    PushCancel,
     HelloRenewal,
+    HelloCancel,
 }
 
 /// Renewal cadence for an outbound subscription: half its lifetime, floored
@@ -441,16 +745,7 @@ fn renew_period(lifetime: Duration, min_delay: Duration) -> Duration {
         .max(min_delay)
 }
 
-/// Enqueues `action` unless an equal action is already queued, so a burst of
-/// events before a drain yields one action per subscriber and `pending` stays
-/// bounded by live subscribers plus outstanding one-shot requests.
-fn enqueue<A: PartialEq>(pending: &mut VecDeque<SyncAction<A>>, action: SyncAction<A>) {
-    if !pending.contains(&action) {
-        pending.push_back(action);
-    }
-}
-
-/// A sans-I/O, transport- and clock-agnostic syncer state machine.
+/// A sans-I/O, transport-, clock-, and memory-agnostic syncer state machine.
 ///
 /// `Syncer` is the orchestration layer above the sync protocol primitives
 /// ([`SyncRequester`], [`SyncResponder`], [`SyncIncoming`]): it decides *when
@@ -458,13 +753,17 @@ fn enqueue<A: PartialEq>(pending: &mut VecDeque<SyncAction<A>>, action: SyncActi
 /// and hello — for both the requester and responder roles, including the
 /// requester-side subscription lifecycle (request, renew, tear down).
 ///
-/// It performs no I/O and reads no clock. The caller feeds *events* (the
-/// methods below) and the current *time*, drains [`SyncAction`]s describing
-/// the I/O to perform — each action names the primitive call to make — and
-/// sleeps until [`next_deadline`](Self::next_deadline). Time is a trait
-/// boundary ([`SyncInstant`]) and the peer-address type `A` is generic, so
-/// the machine works in `no_std` (with `alloc`). (It stores future deadlines,
-/// which is why the instant type `T` is a struct-level parameter.)
+/// It performs no I/O, reads no clock, and allocates no memory. The caller
+/// feeds *events* (the methods below) and the current *time*, drains
+/// [`SyncAction`]s describing the I/O to perform — each action names the
+/// primitive call to make — and sleeps until
+/// [`next_deadline`](Self::next_deadline). Time is a trait boundary
+/// ([`SyncInstant`]), the peer-address type `A` is generic, and the backing
+/// memory is caller-supplied [`SyncSlots`] (`S`): with [`FixedSlots`] the
+/// machine runs in `no_std` without a heap, and methods that need a new slot
+/// report [`OutOfSlots`] when the storage is full. [`HeapSlots`], the
+/// default `S`, grows on demand. (The machine stores future deadlines, which
+/// is why the instant type `T` is a struct-level parameter.)
 ///
 /// Every duration a peer supplies is clamped into configurable [`Limits`]
 /// before it can drive a timer, so a hostile or buggy peer cannot stall or
@@ -488,16 +787,20 @@ fn enqueue<A: PartialEq>(pending: &mut VecDeque<SyncAction<A>>, action: SyncActi
 /// use aranya_runtime::{GraphId, PeerConfig, SyncAction, Syncer};
 ///
 /// // `Duration` as duration-since-start; any `SyncInstant` type works.
+/// // `Syncer::new` uses `HeapSlots`; pass `FixedSlots` (or your own
+/// // `SyncSlots`) to `Syncer::new_in` to supply the memory yourself.
 /// let mut syncer: Syncer<&str, Duration> = Syncer::new();
 /// let graph_id = GraphId::default();
 /// let mut now = Duration::ZERO;
 ///
-/// syncer.add_peer(
-///     "peer-a",
-///     graph_id,
-///     PeerConfig::periodic(Duration::from_secs(30)),
-///     now,
-/// );
+/// syncer
+///     .add_peer(
+///         "peer-a",
+///         graph_id,
+///         PeerConfig::periodic(Duration::from_secs(30)),
+///         now,
+///     )
+///     .expect("HeapSlots never runs out");
 ///
 /// // Drain due actions, performing each one's I/O.
 /// while let Some(action) = syncer.poll_action(now) {
@@ -517,50 +820,67 @@ fn enqueue<A: PartialEq>(pending: &mut VecDeque<SyncAction<A>>, action: SyncActi
 /// ));
 /// ```
 #[derive(Debug)]
-pub struct Syncer<A, T> {
-    /// Poll schedule and `sync_on_hello` registrations.
-    peers: BTreeMap<PeerKey<A>, PollSlot<T>>,
-    /// Peers we push to.
-    push_subs: BTreeMap<PeerKey<A>, PushSub<T>>,
-    /// Peers we send hellos to.
-    hello_subs: BTreeMap<PeerKey<A>, HelloSub<T>>,
-    /// Peers we asked to push to us.
-    push_reqs: BTreeMap<PeerKey<A>, PushReq<T>>,
-    /// Peers we asked to hello us.
-    hello_reqs: BTreeMap<PeerKey<A>, HelloReq<T>>,
-    /// Deduped one-shot actions awaiting a drain.
-    pending: VecDeque<SyncAction<A>>,
+pub struct Syncer<A, T, S = HeapSlots<A, T>> {
+    /// One slot per peer-graph pair, holding every role and timer.
+    slots: S,
     limits: Limits,
-}
-
-impl<A: Clone + Ord, T: SyncInstant> Default for Syncer<A, T> {
-    fn default() -> Self {
-        Self::new()
-    }
+    marker: PhantomData<(A, T)>,
 }
 
 impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
-    /// Creates a syncer with [`Limits::default`].
+    /// Creates a syncer with [`Limits::default`], backed by [`HeapSlots`].
     #[must_use]
     pub fn new() -> Self {
-        Self::with_limits(Limits::default())
+        Self::new_in(HeapSlots::new())
     }
 
-    /// Creates a syncer with the given limits.
+    /// Creates a syncer with the given limits, backed by [`HeapSlots`].
+    #[must_use]
+    pub fn with_limits(limits: Limits) -> Self {
+        Self::with_limits_in(limits, HeapSlots::new())
+    }
+
+    /// Reconstructs a syncer from a snapshot blob into fresh [`HeapSlots`];
+    /// see [`load_in`](Self::load_in).
+    pub fn load(bytes: &[u8], now: T) -> Result<Self, SnapshotError>
+    where
+        A: rkyv::Archive,
+        A::Archived: for<'a> CheckBytes<HighValidator<'a, RancorError>>
+            + rkyv::Deserialize<A, Strategy<Pool, RancorError>>,
+        T: rkyv::Archive,
+        T::Archived: for<'a> CheckBytes<HighValidator<'a, RancorError>>
+            + rkyv::Deserialize<T, Strategy<Pool, RancorError>>,
+    {
+        Self::load_in(bytes, now, HeapSlots::new())
+    }
+}
+
+impl<A: Clone + Ord, T: SyncInstant, S: SyncSlots<A, T> + Default> Default for Syncer<A, T, S> {
+    fn default() -> Self {
+        Self::new_in(S::default())
+    }
+}
+
+impl<A: Clone + Ord, T: SyncInstant, S: SyncSlots<A, T>> Syncer<A, T, S> {
+    /// Creates a syncer with [`Limits::default`], storing its state in the
+    /// caller-supplied `slots`.
+    #[must_use]
+    pub fn new_in(slots: S) -> Self {
+        Self::with_limits_in(Limits::default(), slots)
+    }
+
+    /// Creates a syncer with the given limits, storing its state in the
+    /// caller-supplied `slots`.
     ///
     /// `min_delay` is floored at 1 ns so the drain-termination guarantee
     /// cannot be configured away.
     #[must_use]
-    pub fn with_limits(mut limits: Limits) -> Self {
+    pub fn with_limits_in(mut limits: Limits, slots: S) -> Self {
         limits.min_delay = limits.min_delay.max(Duration::from_nanos(1));
         Self {
-            peers: BTreeMap::new(),
-            push_subs: BTreeMap::new(),
-            hello_subs: BTreeMap::new(),
-            push_reqs: BTreeMap::new(),
-            hello_reqs: BTreeMap::new(),
-            pending: VecDeque::new(),
+            slots,
             limits,
+            marker: PhantomData,
         }
     }
 
@@ -568,8 +888,15 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     ///
     /// A recurring `interval` is floored at the configured `min_delay`. With
     /// [`sync_now`](PeerConfig::sync_now) the first poll is due immediately;
-    /// otherwise one interval from `now` (if recurring).
-    pub fn add_peer(&mut self, peer: A, graph_id: GraphId, cfg: PeerConfig, now: T) {
+    /// otherwise one interval from `now` (if recurring). Errors when a new
+    /// slot is needed and the storage is full.
+    pub fn add_peer(
+        &mut self,
+        peer: A,
+        graph_id: GraphId,
+        cfg: PeerConfig,
+        now: T,
+    ) -> Result<(), OutOfSlots> {
         let config = PeerConfig {
             interval: cfg.interval.map(|iv| self.limits.clamp_delay(iv)),
             ..cfg
@@ -579,31 +906,31 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
         } else {
             config.interval.map(|iv| now.saturating_add(iv))
         };
-        self.peers
-            .insert(PeerKey { graph_id, peer }, PollSlot { config, next_sync });
+        let slot = self.slots.get_or_insert(graph_id, &peer)?;
+        slot.poll = Some(PollState { config, next_sync });
+        Ok(())
     }
 
     /// Unregisters `peer` from poll scheduling. Returns whether it was
     /// registered.
     pub fn remove_peer(&mut self, peer: &A, graph_id: GraphId) -> bool {
-        self.peers
-            .remove(&PeerKey {
-                graph_id,
-                peer: peer.clone(),
-            })
-            .is_some()
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return false;
+        };
+        let removed = slot.poll.take().is_some();
+        self.drop_if_empty(graph_id, peer);
+        removed
     }
 
     /// Schedules an immediate poll of `peer`, keeping any recurring
     /// interval. Returns whether the peer is registered.
     pub fn sync_now(&mut self, peer: &A, graph_id: GraphId, now: T) -> bool {
-        let key = PeerKey {
-            graph_id,
-            peer: peer.clone(),
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return false;
         };
-        match self.peers.get_mut(&key) {
-            Some(slot) => {
-                slot.next_sync = Some(now);
+        match &mut slot.poll {
+            Some(state) => {
+                state.next_sync = Some(now);
                 true
             }
             None => false,
@@ -616,8 +943,10 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     /// subscription stays alive without caller involvement.
     ///
     /// `remain_open` is rounded up to whole wire seconds (minimum 1 s) and
-    /// capped at `max_sub_duration`. Feed the peer's reply to
-    /// [`on_subscribe_response`](Self::on_subscribe_response).
+    /// capped at `max_sub_duration`. The initial [`SyncAction::Subscribe`] is
+    /// due immediately — drain [`poll_action`](Self::poll_action). Feed the
+    /// peer's reply to [`on_subscribe_response`](Self::on_subscribe_response).
+    /// Errors when a new slot is needed and the storage is full.
     pub fn subscribe(
         &mut self,
         peer: A,
@@ -625,44 +954,25 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
         remain_open: Duration,
         max_bytes: u64,
         now: T,
-    ) {
+    ) -> Result<(), OutOfSlots> {
         let remain_open_secs = self.limits.clamp_remain_open_secs(remain_open);
-        let lifetime = Duration::from_secs(remain_open_secs);
-        let renew_at = now.saturating_add(renew_period(lifetime, self.limits.min_delay));
-        self.push_reqs.insert(
-            PeerKey {
-                graph_id,
-                peer: peer.clone(),
-            },
-            PushReq {
-                remain_open_secs,
-                max_bytes,
-                renew_at,
-            },
-        );
-        enqueue(
-            &mut self.pending,
-            SyncAction::Subscribe {
-                peer,
-                graph_id,
-                remain_open_secs,
-                max_bytes,
-            },
-        );
+        let slot = self.slots.get_or_insert(graph_id, &peer)?;
+        slot.push_req = Some(PushReq::Active {
+            remain_open_secs,
+            max_bytes,
+            renew_at: now,
+        });
+        Ok(())
     }
 
-    /// Cancels our push subscription with `peer`: drops the tracked request
-    /// (renewals stop) and emits a [`SyncAction::Unsubscribe`] — even if
-    /// untracked, for idempotent teardown.
-    pub fn unsubscribe(&mut self, peer: A, graph_id: GraphId) {
-        self.push_reqs.remove(&PeerKey {
-            graph_id,
-            peer: peer.clone(),
-        });
-        enqueue(
-            &mut self.pending,
-            SyncAction::Unsubscribe { peer, graph_id },
-        );
+    /// Cancels our push subscription with `peer`: renewals stop and a
+    /// [`SyncAction::Unsubscribe`] is due immediately — even if untracked,
+    /// for idempotent teardown (which is when a free slot may be needed, and
+    /// the storage being full is an error).
+    pub fn unsubscribe(&mut self, peer: A, graph_id: GraphId, now: T) -> Result<(), OutOfSlots> {
+        let slot = self.slots.get_or_insert(graph_id, &peer)?;
+        slot.push_req = Some(PushReq::Cancel { due: now });
+        Ok(())
     }
 
     /// Feeds the peer's reply to our [`SyncAction::Subscribe`] back in.
@@ -679,10 +989,13 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
         match response {
             SubscribeResponse::Success => {}
             SubscribeResponse::TooManySubscriptions => {
-                self.push_reqs.remove(&PeerKey {
-                    graph_id,
-                    peer: peer.clone(),
-                });
+                let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+                    return;
+                };
+                if matches!(slot.push_req, Some(PushReq::Active { .. })) {
+                    slot.push_req = None;
+                    self.drop_if_empty(graph_id, peer);
+                }
             }
         }
     }
@@ -693,7 +1006,7 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     ///
     /// `remain_open` is capped at `max_sub_duration`; `max_bytes` is the push
     /// byte budget (a zero budget is already exhausted). Errors if a new
-    /// entry would exceed `max_push_subs` — map to
+    /// entry would exceed `max_push_subs` or the slots are full — map to
     /// [`SubscribeResponse::TooManySubscriptions`].
     pub fn add_push_subscriber(
         &mut self,
@@ -703,19 +1016,27 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
         max_bytes: u64,
         now: T,
     ) -> Result<(), SubscriberLimitReached> {
-        self.push_subs.retain(|_, sub| sub.is_live(now));
-        let key = PeerKey { graph_id, peer };
-        if !self.push_subs.contains_key(&key) && self.push_subs.len() >= self.limits.max_push_subs {
+        self.prune(now);
+        let replacing = self
+            .slots
+            .get(graph_id, &peer)
+            .is_some_and(|slot| slot.push_sub.is_some());
+        if !replacing && self.count_push_subs() >= self.limits.max_push_subs {
             return Err(SubscriberLimitReached);
         }
         let expires_at = now.saturating_add(self.limits.clamp_lifetime(remain_open));
-        self.push_subs.insert(
-            key,
-            PushSub {
-                expires_at,
-                remaining_bytes: max_bytes,
-            },
-        );
+        let slot = self
+            .slots
+            .get_or_insert(graph_id, &peer)
+            .map_err(|OutOfSlots| SubscriberLimitReached)?;
+        // A queued-but-undrained push survives the replacement, like any
+        // other pending action whose subscription is still live at drain.
+        let push_due = slot.push_sub.take().and_then(|sub| sub.push_due);
+        slot.push_sub = Some(PushSub {
+            expires_at,
+            remaining_bytes: max_bytes,
+            push_due,
+        });
         Ok(())
     }
 
@@ -723,26 +1044,30 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     /// [`SyncIncoming::Unsubscribe`](super::SyncIncoming::Unsubscribe).
     /// Returns whether one was present.
     pub fn remove_push_subscriber(&mut self, peer: &A, graph_id: GraphId) -> bool {
-        self.push_subs
-            .remove(&PeerKey {
-                graph_id,
-                peer: peer.clone(),
-            })
-            .is_some()
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return false;
+        };
+        let removed = slot.push_sub.take().is_some();
+        self.drop_if_empty(graph_id, peer);
+        removed
     }
 
     /// Records `bytes` pushed to subscriber `peer`, consuming its budget.
     /// The subscription is dropped when the budget reaches zero.
     pub fn record_push(&mut self, peer: &A, graph_id: GraphId, bytes: u64) {
-        let key = PeerKey {
-            graph_id,
-            peer: peer.clone(),
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return;
         };
-        if let Some(sub) = self.push_subs.get_mut(&key) {
-            sub.remaining_bytes = sub.remaining_bytes.saturating_sub(bytes);
-            if sub.remaining_bytes == 0 {
-                self.push_subs.remove(&key);
+        let exhausted = match &mut slot.push_sub {
+            Some(sub) => {
+                sub.remaining_bytes = sub.remaining_bytes.saturating_sub(bytes);
+                sub.remaining_bytes == 0
             }
+            None => false,
+        };
+        if exhausted {
+            slot.push_sub = None;
+            self.drop_if_empty(graph_id, peer);
         }
     }
 
@@ -755,7 +1080,9 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     /// The delays are floored at `min_delay` and `duration` is capped at
     /// `max_sub_duration`: requesting within our own limits keeps the request
     /// inside what a same-configured peer would grant, so half-life renewal
-    /// stays timely.
+    /// stays timely. The initial [`SyncAction::HelloSubscribe`] is due
+    /// immediately — drain [`poll_action`](Self::poll_action). Errors when a
+    /// new slot is needed and the storage is full.
     pub fn hello_subscribe(
         &mut self,
         peer: A,
@@ -764,47 +1091,33 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
         duration: Duration,
         schedule_delay: Duration,
         now: T,
-    ) {
+    ) -> Result<(), OutOfSlots> {
         let graph_change_delay = self.limits.clamp_delay(graph_change_delay);
         let schedule_delay = self.limits.clamp_delay(schedule_delay);
         let duration = self.limits.clamp_lifetime(duration);
-        let renew_at = now.saturating_add(renew_period(duration, self.limits.min_delay));
-        self.hello_reqs.insert(
-            PeerKey {
-                graph_id,
-                peer: peer.clone(),
-            },
-            HelloReq {
-                graph_change_delay,
-                duration,
-                schedule_delay,
-                renew_at,
-            },
-        );
-        enqueue(
-            &mut self.pending,
-            SyncAction::HelloSubscribe {
-                peer,
-                graph_id,
-                graph_change_delay,
-                duration,
-                schedule_delay,
-            },
-        );
+        let slot = self.slots.get_or_insert(graph_id, &peer)?;
+        slot.hello_req = Some(HelloReq::Active {
+            graph_change_delay,
+            duration,
+            schedule_delay,
+            renew_at: now,
+        });
+        Ok(())
     }
 
-    /// Cancels our hello subscription with `peer`: drops the tracked request
-    /// (renewals stop) and emits a [`SyncAction::HelloUnsubscribe`] — even if
-    /// untracked, for idempotent teardown.
-    pub fn hello_unsubscribe(&mut self, peer: A, graph_id: GraphId) {
-        self.hello_reqs.remove(&PeerKey {
-            graph_id,
-            peer: peer.clone(),
-        });
-        enqueue(
-            &mut self.pending,
-            SyncAction::HelloUnsubscribe { peer, graph_id },
-        );
+    /// Cancels our hello subscription with `peer`: renewals stop and a
+    /// [`SyncAction::HelloUnsubscribe`] is due immediately — even if
+    /// untracked, for idempotent teardown (which is when a free slot may be
+    /// needed, and the storage being full is an error).
+    pub fn hello_unsubscribe(
+        &mut self,
+        peer: A,
+        graph_id: GraphId,
+        now: T,
+    ) -> Result<(), OutOfSlots> {
+        let slot = self.slots.get_or_insert(graph_id, &peer)?;
+        slot.hello_req = Some(HelloReq::Cancel { due: now });
+        Ok(())
     }
 
     /// Handles a hello from `peer` for a head we lack: if the peer is
@@ -814,13 +1127,12 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     /// The caller does the "do I already have this head?" storage check
     /// before calling this.
     pub fn on_hello(&mut self, peer: &A, graph_id: GraphId, now: T) -> bool {
-        let key = PeerKey {
-            graph_id,
-            peer: peer.clone(),
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return false;
         };
-        match self.peers.get_mut(&key) {
-            Some(slot) if slot.config.sync_on_hello => {
-                slot.next_sync = Some(now);
+        match &mut slot.poll {
+            Some(state) if state.config.sync_on_hello => {
+                state.next_sync = Some(now);
                 true
             }
             _ => false,
@@ -829,12 +1141,13 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
 
     /// Registers `peer` as a hello subscriber, from a decoded
     /// [`SyncHello::Subscribe`](super::SyncHello::Subscribe). Re-subscribing
-    /// replaces the existing entry.
+    /// replaces the existing entry (and resets its hello schedule).
     ///
     /// `graph_change_delay` and `schedule_delay` are floored at `min_delay`
     /// and `duration` is capped at `max_sub_duration`. The first scheduled
     /// hello is due one `schedule_delay` from `now`; the first local change
-    /// always notifies. Errors if a new entry would exceed `max_hello_subs`.
+    /// always notifies. Errors if a new entry would exceed `max_hello_subs`
+    /// or the slots are full.
     pub fn add_hello_subscriber(
         &mut self,
         peer: A,
@@ -844,24 +1157,29 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
         schedule_delay: Duration,
         now: T,
     ) -> Result<(), SubscriberLimitReached> {
-        self.hello_subs.retain(|_, sub| sub.expires_at > now);
-        let key = PeerKey { graph_id, peer };
-        if !self.hello_subs.contains_key(&key)
-            && self.hello_subs.len() >= self.limits.max_hello_subs
-        {
+        self.prune(now);
+        let replacing = self
+            .slots
+            .get(graph_id, &peer)
+            .is_some_and(|slot| slot.hello_sub.is_some());
+        if !replacing && self.count_hello_subs() >= self.limits.max_hello_subs {
             return Err(SubscriberLimitReached);
         }
+        let graph_change_debounce = self.limits.clamp_delay(graph_change_delay);
         let schedule_delay = self.limits.clamp_delay(schedule_delay);
-        self.hello_subs.insert(
-            key,
-            HelloSub {
-                graph_change_debounce: self.limits.clamp_delay(graph_change_delay),
-                schedule_delay,
-                next_change_allowed: None,
-                expires_at: now.saturating_add(self.limits.clamp_lifetime(duration)),
-                next_hello: now.saturating_add(schedule_delay),
-            },
-        );
+        let expires_at = now.saturating_add(self.limits.clamp_lifetime(duration));
+        let next_hello = now.saturating_add(schedule_delay);
+        let slot = self
+            .slots
+            .get_or_insert(graph_id, &peer)
+            .map_err(|OutOfSlots| SubscriberLimitReached)?;
+        slot.hello_sub = Some(HelloSub {
+            graph_change_debounce,
+            schedule_delay,
+            next_change_allowed: None,
+            expires_at,
+            next_hello,
+        });
         Ok(())
     }
 
@@ -869,253 +1187,307 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     /// [`SyncHello::Unsubscribe`](super::SyncHello::Unsubscribe). Returns
     /// whether one was present.
     pub fn remove_hello_subscriber(&mut self, peer: &A, graph_id: GraphId) -> bool {
-        self.hello_subs
-            .remove(&PeerKey {
-                graph_id,
-                peer: peer.clone(),
-            })
-            .is_some()
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return false;
+        };
+        let removed = slot.hello_sub.take().is_some();
+        self.drop_if_empty(graph_id, peer);
+        removed
     }
 
-    /// Reacts to a local change of `graph_id`: enqueues a [`SyncAction::Push`]
-    /// to every live push subscriber of the graph and a
-    /// [`SyncAction::SendHello`] to every hello subscriber past its debounce.
+    /// Reacts to a local change of `graph_id`: a [`SyncAction::Push`] to
+    /// every live push subscriber of the graph and a [`SyncAction::SendHello`]
+    /// to every hello subscriber past its debounce become due immediately.
     ///
-    /// Enqueues dedupe against already-queued actions, so a burst of calls
-    /// before a drain yields one action per subscriber. Drain
+    /// Re-notifying before a drain is idempotent — one action per subscriber,
+    /// however many changes accumulated. Drain
     /// [`poll_action`](Self::poll_action) after feeding the event.
     pub fn notify_local_change(&mut self, graph_id: GraphId, now: T) {
-        let Self {
-            push_subs,
-            hello_subs,
-            pending,
-            ..
-        } = self;
-        push_subs.retain(|key, sub| {
-            if !sub.is_live(now) {
-                return false;
+        self.slots.retain(|slot| {
+            if slot.push_sub.as_ref().is_some_and(|sub| !sub.is_live(now)) {
+                slot.push_sub = None;
             }
-            if key.graph_id == graph_id {
-                enqueue(
-                    pending,
-                    SyncAction::Push {
-                        peer: key.peer.clone(),
-                        graph_id,
-                    },
-                );
+            if slot
+                .hello_sub
+                .as_ref()
+                .is_some_and(|sub| sub.expires_at <= now)
+            {
+                slot.hello_sub = None;
             }
-            true
-        });
-        hello_subs.retain(|key, sub| {
-            if sub.expires_at <= now {
-                return false;
+            if slot.graph_id() == graph_id {
+                if let Some(sub) = &mut slot.push_sub {
+                    // Keep the earliest queued instant; a burst of changes
+                    // collapses into one push.
+                    sub.push_due.get_or_insert(now);
+                }
+                if let Some(sub) = &mut slot.hello_sub
+                    && sub.next_change_allowed.is_none_or(|at| at <= now)
+                {
+                    // Pull the scheduled hello forward to fire at the
+                    // drain; the sent-hello reset happens there.
+                    sub.next_hello = sub.next_hello.min(now);
+                }
             }
-            if key.graph_id == graph_id && sub.next_change_allowed.is_none_or(|at| at <= now) {
-                enqueue(
-                    pending,
-                    SyncAction::SendHello {
-                        peer: key.peer.clone(),
-                        graph_id,
-                    },
-                );
-                // Any sent hello resets both timers: the change-triggered
-                // hello also satisfies the keepalive, so the next scheduled
-                // hello waits a full period instead of re-sending the same
-                // head moments later.
-                sub.next_change_allowed = Some(now.saturating_add(sub.graph_change_debounce));
-                sub.next_hello = now.saturating_add(sub.schedule_delay);
-            }
-            true
+            !slot.is_empty()
         });
     }
 
     /// Drops all state for `graph_id`: poll schedule, subscriptions in both
-    /// directions, tracked outbound requests, and queued actions.
+    /// directions, tracked outbound requests, and due actions.
     pub fn remove_graph(&mut self, graph_id: GraphId) {
-        self.peers.retain(|key, _| key.graph_id != graph_id);
-        self.push_subs.retain(|key, _| key.graph_id != graph_id);
-        self.hello_subs.retain(|key, _| key.graph_id != graph_id);
-        self.push_reqs.retain(|key, _| key.graph_id != graph_id);
-        self.hello_reqs.retain(|key, _| key.graph_id != graph_id);
-        self.pending.retain(|action| action.graph_id() != graph_id);
+        self.slots.retain(|slot| slot.graph_id() != graph_id);
     }
 
     /// Returns the next action the caller should perform, or `None` when
     /// nothing is due at `now`.
     ///
-    /// Scheduled work (polls, scheduled hellos, subscription renewals) comes
-    /// first, earliest-due item first; each is rescheduled *before* it is
+    /// The earliest-due timer fires first — recurring work (polls, scheduled
+    /// hellos, subscription renewals) and one-shots (pushes and hellos queued
+    /// by [`notify_local_change`](Self::notify_local_change), initial
+    /// subscribes, teardowns) share one schedule, one-shots being due at the
+    /// instant of the event that queued them. Exact ties fire in the slot
+    /// table's order. Each item is rescheduled (or cleared) *before* it is
     /// returned, so — with the enforced `min_delay` floor — an item fires at
-    /// most once per drain and the drain terminates. Queued one-shots follow;
-    /// a queued [`Push`](SyncAction::Push) or
-    /// [`SendHello`](SyncAction::SendHello) whose subscription was removed,
-    /// expired, or ran out of budget since it was enqueued is skipped.
+    /// most once per drain and the drain terminates. A `Push` or `SendHello`
+    /// whose subscription expired, ran out of budget, or was removed since it
+    /// was queued is dropped silently, as is an expired hello subscription
+    /// when its timer comes due (no farewell hello).
     ///
     /// Drain until `None` after feeding events, then sleep until
     /// [`next_deadline`](Self::next_deadline).
     pub fn poll_action(&mut self, now: T) -> Option<SyncAction<A>> {
-        if let Some(action) = self.poll_scheduled(now) {
-            return Some(action);
-        }
-        self.poll_pending(now)
-    }
-
-    /// Finds the earliest-due scheduled item, reschedules it, and returns its
-    /// action. An expired hello subscription is dropped silently (no farewell
-    /// hello) when the scan reaches it, and the scan continues.
-    fn poll_scheduled(&mut self, now: T) -> Option<SyncAction<A>> {
         loop {
-            let mut due: Option<(T, DueKind, PeerKey<A>)> = None;
-            {
-                let mut consider = |at: T, kind: DueKind, key: &PeerKey<A>| {
+            let mut due: Option<(T, DueKind, GraphId, A)> = None;
+            self.slots.for_each(|slot| {
+                // The fixed role order below breaks exact ties.
+                let mut consider = |at: T, kind: DueKind| {
                     if at <= now && due.as_ref().is_none_or(|&(best, ..)| at < best) {
-                        due = Some((at, kind, key.clone()));
+                        due = Some((at, kind, slot.graph_id(), slot.peer().clone()));
                     }
                 };
-                for (key, slot) in &self.peers {
-                    if let Some(at) = slot.next_sync {
-                        consider(at, DueKind::Poll, key);
+                if let Some(at) = slot.poll.as_ref().and_then(|state| state.next_sync) {
+                    consider(at, DueKind::Poll);
+                }
+                if let Some(at) = slot.push_sub.as_ref().and_then(|sub| sub.push_due) {
+                    consider(at, DueKind::Push);
+                }
+                if let Some(sub) = &slot.hello_sub {
+                    consider(sub.next_hello, DueKind::ScheduledHello);
+                }
+                match &slot.push_req {
+                    Some(PushReq::Active { renew_at, .. }) => {
+                        consider(*renew_at, DueKind::PushRenewal);
                     }
+                    Some(PushReq::Cancel { due }) => consider(*due, DueKind::PushCancel),
+                    None => {}
                 }
-                for (key, sub) in &self.hello_subs {
-                    consider(sub.next_hello, DueKind::ScheduledHello, key);
+                match &slot.hello_req {
+                    Some(HelloReq::Active { renew_at, .. }) => {
+                        consider(*renew_at, DueKind::HelloRenewal);
+                    }
+                    Some(HelloReq::Cancel { due }) => consider(*due, DueKind::HelloCancel),
+                    None => {}
                 }
-                for (key, req) in &self.push_reqs {
-                    consider(req.renew_at, DueKind::PushRenewal, key);
-                }
-                for (key, req) in &self.hello_reqs {
-                    consider(req.renew_at, DueKind::HelloRenewal, key);
-                }
-            }
-            let (_, kind, key) = due?;
+            });
+            let (_, kind, graph_id, peer) = due?;
             let min_delay = self.limits.min_delay;
+            let Some(slot) = self.slots.get_mut(graph_id, &peer) else {
+                continue;
+            };
             match kind {
                 DueKind::Poll => {
-                    let Some(slot) = self.peers.get_mut(&key) else {
+                    let Some(state) = &mut slot.poll else {
                         continue;
                     };
-                    slot.next_sync = slot.config.interval.map(|iv| now.saturating_add(iv));
-                    return Some(SyncAction::Poll {
-                        peer: key.peer,
-                        graph_id: key.graph_id,
-                    });
+                    state.next_sync = state.config.interval.map(|iv| now.saturating_add(iv));
+                    return Some(SyncAction::Poll { peer, graph_id });
+                }
+                DueKind::Push => {
+                    if slot.push_sub.as_ref().is_some_and(|sub| sub.is_live(now)) {
+                        if let Some(sub) = &mut slot.push_sub {
+                            sub.push_due = None;
+                        }
+                        return Some(SyncAction::Push { peer, graph_id });
+                    }
+                    // Died between queue and drain: drop silently.
+                    slot.push_sub = None;
+                    self.drop_if_empty(graph_id, &peer);
                 }
                 DueKind::ScheduledHello => {
-                    let Some(sub) = self.hello_subs.get_mut(&key) else {
-                        continue;
-                    };
-                    if sub.expires_at <= now {
-                        self.hello_subs.remove(&key);
+                    let expired = slot
+                        .hello_sub
+                        .as_ref()
+                        .is_none_or(|sub| sub.expires_at <= now);
+                    if expired {
+                        // No farewell hello; the scan continues.
+                        slot.hello_sub = None;
+                        self.drop_if_empty(graph_id, &peer);
                         continue;
                     }
-                    // The sent-hello reset (see `notify_local_change`).
-                    sub.next_change_allowed = Some(now.saturating_add(sub.graph_change_debounce));
-                    sub.next_hello = now.saturating_add(sub.schedule_delay);
-                    return Some(SyncAction::SendHello {
-                        peer: key.peer,
-                        graph_id: key.graph_id,
-                    });
+                    if let Some(sub) = &mut slot.hello_sub {
+                        // Any sent hello resets both timers: it also
+                        // satisfies the keepalive, so the next scheduled
+                        // hello waits a full period instead of re-sending
+                        // the same head moments later.
+                        sub.next_change_allowed =
+                            Some(now.saturating_add(sub.graph_change_debounce));
+                        sub.next_hello = now.saturating_add(sub.schedule_delay);
+                    }
+                    return Some(SyncAction::SendHello { peer, graph_id });
                 }
                 DueKind::PushRenewal => {
-                    let Some(req) = self.push_reqs.get_mut(&key) else {
+                    let Some(PushReq::Active {
+                        remain_open_secs,
+                        max_bytes,
+                        renew_at,
+                    }) = &mut slot.push_req
+                    else {
                         continue;
                     };
-                    let lifetime = Duration::from_secs(req.remain_open_secs);
-                    req.renew_at = now.saturating_add(renew_period(lifetime, min_delay));
+                    let (remain_open_secs, max_bytes) = (*remain_open_secs, *max_bytes);
+                    *renew_at = now.saturating_add(renew_period(
+                        Duration::from_secs(remain_open_secs),
+                        min_delay,
+                    ));
                     return Some(SyncAction::Subscribe {
-                        peer: key.peer,
-                        graph_id: key.graph_id,
-                        remain_open_secs: req.remain_open_secs,
-                        max_bytes: req.max_bytes,
+                        peer,
+                        graph_id,
+                        remain_open_secs,
+                        max_bytes,
                     });
+                }
+                DueKind::PushCancel => {
+                    if !matches!(slot.push_req, Some(PushReq::Cancel { .. })) {
+                        continue;
+                    }
+                    slot.push_req = None;
+                    self.drop_if_empty(graph_id, &peer);
+                    return Some(SyncAction::Unsubscribe { peer, graph_id });
                 }
                 DueKind::HelloRenewal => {
-                    let Some(req) = self.hello_reqs.get_mut(&key) else {
+                    let Some(HelloReq::Active {
+                        graph_change_delay,
+                        duration,
+                        schedule_delay,
+                        renew_at,
+                    }) = &mut slot.hello_req
+                    else {
                         continue;
                     };
-                    req.renew_at = now.saturating_add(renew_period(req.duration, min_delay));
+                    let (graph_change_delay, duration, schedule_delay) =
+                        (*graph_change_delay, *duration, *schedule_delay);
+                    *renew_at = now.saturating_add(renew_period(duration, min_delay));
                     return Some(SyncAction::HelloSubscribe {
-                        peer: key.peer,
-                        graph_id: key.graph_id,
-                        graph_change_delay: req.graph_change_delay,
-                        duration: req.duration,
-                        schedule_delay: req.schedule_delay,
+                        peer,
+                        graph_id,
+                        graph_change_delay,
+                        duration,
+                        schedule_delay,
                     });
                 }
+                DueKind::HelloCancel => {
+                    if !matches!(slot.hello_req, Some(HelloReq::Cancel { .. })) {
+                        continue;
+                    }
+                    slot.hello_req = None;
+                    self.drop_if_empty(graph_id, &peer);
+                    return Some(SyncAction::HelloUnsubscribe { peer, graph_id });
+                }
             }
         }
     }
 
-    /// Pops queued one-shots, skipping (and pruning) a `Push`/`SendHello`
-    /// whose subscription died between enqueue and drain.
-    fn poll_pending(&mut self, now: T) -> Option<SyncAction<A>> {
-        while let Some(action) = self.pending.pop_front() {
-            match &action {
-                SyncAction::Push { peer, graph_id } => {
-                    let key = PeerKey {
-                        graph_id: *graph_id,
-                        peer: peer.clone(),
-                    };
-                    let live = self.push_subs.get(&key).is_some_and(|sub| sub.is_live(now));
-                    if !live {
-                        self.push_subs.remove(&key);
-                        continue;
-                    }
-                }
-                SyncAction::SendHello { peer, graph_id } => {
-                    let key = PeerKey {
-                        graph_id: *graph_id,
-                        peer: peer.clone(),
-                    };
-                    let live = self
-                        .hello_subs
-                        .get(&key)
-                        .is_some_and(|sub| sub.expires_at > now);
-                    if !live {
-                        self.hello_subs.remove(&key);
-                        continue;
-                    }
-                }
-                _ => {}
-            }
-            return Some(action);
-        }
-        None
-    }
-
-    /// Returns the earliest scheduled timer — the next poll, scheduled
-    /// hello, or renewal — i.e. when [`poll_action`](Self::poll_action) next
-    /// has work. Sleep until then (or until the next event).
+    /// Returns the earliest timer — the next poll, scheduled hello, renewal,
+    /// or already-due one-shot — i.e. when [`poll_action`](Self::poll_action)
+    /// next has work. Sleep until then (or until the next event).
     pub fn next_deadline(&self) -> Option<T> {
         let mut deadline: Option<T> = None;
-        {
+        self.slots.for_each(|slot| {
             let mut consider = |at: T| {
                 if deadline.is_none_or(|best| at < best) {
                     deadline = Some(at);
                 }
             };
-            for slot in self.peers.values() {
-                if let Some(at) = slot.next_sync {
-                    consider(at);
-                }
+            if let Some(at) = slot.poll.as_ref().and_then(|state| state.next_sync) {
+                consider(at);
             }
-            for sub in self.hello_subs.values() {
+            if let Some(at) = slot.push_sub.as_ref().and_then(|sub| sub.push_due) {
+                consider(at);
+            }
+            if let Some(sub) = &slot.hello_sub {
                 consider(sub.next_hello);
             }
-            for req in self.push_reqs.values() {
-                consider(req.renew_at);
+            match &slot.push_req {
+                Some(PushReq::Active { renew_at, .. }) => consider(*renew_at),
+                Some(PushReq::Cancel { due }) => consider(*due),
+                None => {}
             }
-            for req in self.hello_reqs.values() {
-                consider(req.renew_at);
+            match &slot.hello_req {
+                Some(HelloReq::Active { renew_at, .. }) => consider(*renew_at),
+                Some(HelloReq::Cancel { due }) => consider(*due),
+                None => {}
             }
-        }
+        });
         deadline
+    }
+
+    /// Clears expired push and hello subscriber roles, dropping slots that
+    /// end up empty.
+    fn prune(&mut self, now: T) {
+        self.slots.retain(|slot| {
+            if slot.push_sub.as_ref().is_some_and(|sub| !sub.is_live(now)) {
+                slot.push_sub = None;
+            }
+            if slot
+                .hello_sub
+                .as_ref()
+                .is_some_and(|sub| sub.expires_at <= now)
+            {
+                slot.hello_sub = None;
+            }
+            !slot.is_empty()
+        });
+    }
+
+    /// Removes the slot for `(graph_id, peer)` once no role remains, so
+    /// empty slots never pin storage.
+    fn drop_if_empty(&mut self, graph_id: GraphId, peer: &A) {
+        if self
+            .slots
+            .get(graph_id, peer)
+            .is_some_and(SyncSlot::is_empty)
+        {
+            self.slots.remove(graph_id, peer);
+        }
+    }
+
+    /// Counts slots holding a push-subscriber role.
+    fn count_push_subs(&self) -> usize {
+        let mut n: usize = 0;
+        self.slots.for_each(|slot| {
+            if slot.push_sub.is_some() {
+                n = n.saturating_add(1);
+            }
+        });
+        n
+    }
+
+    /// Counts slots holding a hello-subscriber role.
+    fn count_hello_subs(&self) -> usize {
+        let mut n: usize = 0;
+        self.slots.for_each(|slot| {
+            if slot.hello_sub.is_some() {
+                n = n.saturating_add(1);
+            }
+        });
+        n
     }
 
     /// Serializes durable state — schedules, subscriptions in both
     /// directions, tracked outbound requests, and limits — storing deadlines
     /// **as `T`**, and returns an opaque, versioned blob for
-    /// [`load`](Self::load).
+    /// [`load`](Self::load). (Persistence is the one part of the machine
+    /// that allocates: the blob is built in memory.)
     ///
     /// Correct only when `T`'s epoch is stable across restarts (wall-clock /
     /// `SystemTime`-derived instants). **A monotonic `T` saved absolutely
@@ -1144,19 +1516,21 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
         )
     }
 
-    /// Reconstructs a syncer from a snapshot blob.
+    /// Reconstructs a syncer from a snapshot blob, storing its state in the
+    /// caller-supplied `slots` (any existing contents are cleared).
     ///
     /// The version and timer mode are read from the blob: absolute deadlines
     /// are used as stored (`now` is ignored), relative offsets re-anchor onto
     /// `now` (already-due timers fire immediately). The bytes are validated
     /// (rkyv `CheckBytes`); an unrecognized version is
     /// [`SnapshotError::UnsupportedVersion`], which callers should treat as
-    /// "start fresh".
+    /// "start fresh", and a snapshot with more peer-graph pairs than `slots`
+    /// can hold is [`SnapshotError::OutOfSlots`].
     ///
-    /// Queued one-shot actions are not persisted: after a load the queue
-    /// starts empty, scheduled work regenerates from the restored timers, and
-    /// outbound subscriptions re-emit on their restored renewal schedule.
-    pub fn load(bytes: &[u8], now: T) -> Result<Self, SnapshotError>
+    /// Due-but-undrained one-shots are not persisted: after a load, scheduled
+    /// work regenerates from the restored timers and outbound subscriptions
+    /// re-emit on their restored renewal schedule.
+    pub fn load_in(bytes: &[u8], now: T, slots: S) -> Result<Self, SnapshotError>
     where
         A: rkyv::Archive,
         A::Archived: for<'a> CheckBytes<HighValidator<'a, RancorError>>
@@ -1182,12 +1556,12 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
             MODE_ABSOLUTE => {
                 let state = rkyv::from_bytes::<State<A, T>, RancorError>(&aligned)
                     .map_err(SnapshotError::Decode)?;
-                Ok(Self::from_state(state, |at| at))
+                Self::from_state(state, |at| at, slots)
             }
             MODE_RELATIVE => {
                 let state = rkyv::from_bytes::<State<A, Duration>, RancorError>(&aligned)
                     .map_err(SnapshotError::Decode)?;
-                Ok(Self::from_state(state, |offset| now.saturating_add(offset)))
+                Self::from_state(state, |offset| now.saturating_add(offset), slots)
             }
             unknown => Err(SnapshotError::Decode(RancorError::new(
                 BlobFormatError::UnknownMode(unknown),
@@ -1196,158 +1570,172 @@ impl<A: Clone + Ord, T: SyncInstant> Syncer<A, T> {
     }
 
     /// Flattens the durable state into entry vectors, converting each stored
-    /// deadline with `conv`.
-    fn to_state<Time>(&self, conv: impl Fn(T) -> Time) -> State<A, Time> {
-        State {
+    /// deadline with `conv`. Transient one-shots (queued pushes, pulled-
+    /// forward hellos, cancels) are not stored, matching how queued actions
+    /// have never been persisted.
+    fn to_state<Time>(&self, conv: impl Fn(T) -> Time) -> State<A, Time>
+    where
+        A: Clone,
+    {
+        let mut state = State {
             max_push_subs: u64::try_from(self.limits.max_push_subs).unwrap_or(u64::MAX),
             max_hello_subs: u64::try_from(self.limits.max_hello_subs).unwrap_or(u64::MAX),
             min_delay: self.limits.min_delay,
             max_sub_duration: self.limits.max_sub_duration,
-            peers: self
-                .peers
-                .iter()
-                .map(|(key, slot)| PeerEntry {
-                    graph_id: key.graph_id,
-                    peer: key.peer.clone(),
-                    interval: slot.config.interval,
-                    sync_now: slot.config.sync_now,
-                    sync_on_hello: slot.config.sync_on_hello,
-                    next_sync: slot.next_sync.map(&conv),
-                })
-                .collect(),
-            push_subs: self
-                .push_subs
-                .iter()
-                .map(|(key, sub)| PushSubEntry {
-                    graph_id: key.graph_id,
-                    peer: key.peer.clone(),
+            peers: Vec::new(),
+            push_subs: Vec::new(),
+            hello_subs: Vec::new(),
+            push_reqs: Vec::new(),
+            hello_reqs: Vec::new(),
+        };
+        self.slots.for_each(|slot| {
+            let graph_id = slot.graph_id();
+            if let Some(poll) = &slot.poll {
+                state.peers.push(PeerEntry {
+                    graph_id,
+                    peer: slot.peer().clone(),
+                    interval: poll.config.interval,
+                    sync_now: poll.config.sync_now,
+                    sync_on_hello: poll.config.sync_on_hello,
+                    next_sync: poll.next_sync.map(&conv),
+                });
+            }
+            if let Some(sub) = &slot.push_sub {
+                state.push_subs.push(PushSubEntry {
+                    graph_id,
+                    peer: slot.peer().clone(),
                     expires_at: conv(sub.expires_at),
                     remaining_bytes: sub.remaining_bytes,
-                })
-                .collect(),
-            hello_subs: self
-                .hello_subs
-                .iter()
-                .map(|(key, sub)| HelloSubEntry {
-                    graph_id: key.graph_id,
-                    peer: key.peer.clone(),
+                });
+            }
+            if let Some(sub) = &slot.hello_sub {
+                state.hello_subs.push(HelloSubEntry {
+                    graph_id,
+                    peer: slot.peer().clone(),
                     graph_change_debounce: sub.graph_change_debounce,
                     schedule_delay: sub.schedule_delay,
                     next_change_allowed: sub.next_change_allowed.map(&conv),
                     expires_at: conv(sub.expires_at),
                     next_hello: conv(sub.next_hello),
-                })
-                .collect(),
-            push_reqs: self
-                .push_reqs
-                .iter()
-                .map(|(key, req)| PushReqEntry {
-                    graph_id: key.graph_id,
-                    peer: key.peer.clone(),
-                    remain_open_secs: req.remain_open_secs,
-                    max_bytes: req.max_bytes,
-                    renew_at: conv(req.renew_at),
-                })
-                .collect(),
-            hello_reqs: self
-                .hello_reqs
-                .iter()
-                .map(|(key, req)| HelloReqEntry {
-                    graph_id: key.graph_id,
-                    peer: key.peer.clone(),
-                    graph_change_delay: req.graph_change_delay,
-                    duration: req.duration,
-                    schedule_delay: req.schedule_delay,
-                    renew_at: conv(req.renew_at),
-                })
-                .collect(),
-        }
+                });
+            }
+            if let Some(PushReq::Active {
+                remain_open_secs,
+                max_bytes,
+                renew_at,
+            }) = &slot.push_req
+            {
+                state.push_reqs.push(PushReqEntry {
+                    graph_id,
+                    peer: slot.peer().clone(),
+                    remain_open_secs: *remain_open_secs,
+                    max_bytes: *max_bytes,
+                    renew_at: conv(*renew_at),
+                });
+            }
+            if let Some(HelloReq::Active {
+                graph_change_delay,
+                duration,
+                schedule_delay,
+                renew_at,
+            }) = &slot.hello_req
+            {
+                state.hello_reqs.push(HelloReqEntry {
+                    graph_id,
+                    peer: slot.peer().clone(),
+                    graph_change_delay: *graph_change_delay,
+                    duration: *duration,
+                    schedule_delay: *schedule_delay,
+                    renew_at: conv(*renew_at),
+                });
+            }
+        });
+        state
     }
 
-    /// Rebuilds a syncer from flattened state, converting each stored
-    /// deadline with `conv`. Delays are re-clamped against the restored
-    /// limits so the drain-termination invariant holds even for a blob this
-    /// build did not write.
-    fn from_state<Time: Copy>(state: State<A, Time>, conv: impl Fn(Time) -> T) -> Self {
-        let mut syncer = Self::with_limits(Limits {
-            max_push_subs: usize::try_from(state.max_push_subs).unwrap_or(usize::MAX),
-            max_hello_subs: usize::try_from(state.max_hello_subs).unwrap_or(usize::MAX),
-            min_delay: state.min_delay,
-            max_sub_duration: state.max_sub_duration,
-        });
-        // `with_limits` floored `min_delay`; clamp with what it kept.
+    /// Rebuilds a syncer from flattened state into `slots`, converting each
+    /// stored deadline with `conv`. Delays are re-clamped against the
+    /// restored limits so the drain-termination invariant holds even for a
+    /// blob this build did not write.
+    fn from_state<Time: Copy>(
+        state: State<A, Time>,
+        conv: impl Fn(Time) -> T,
+        slots: S,
+    ) -> Result<Self, SnapshotError> {
+        let mut syncer = Self::with_limits_in(
+            Limits {
+                max_push_subs: usize::try_from(state.max_push_subs).unwrap_or(usize::MAX),
+                max_hello_subs: usize::try_from(state.max_hello_subs).unwrap_or(usize::MAX),
+                min_delay: state.min_delay,
+                max_sub_duration: state.max_sub_duration,
+            },
+            slots,
+        );
+        syncer.slots.retain(|_| false);
+        // `with_limits_in` floored `min_delay`; clamp with what it kept.
         let limits = syncer.limits;
         for entry in state.peers {
-            syncer.peers.insert(
-                PeerKey {
-                    graph_id: entry.graph_id,
-                    peer: entry.peer,
+            let slot = syncer
+                .slots
+                .get_or_insert(entry.graph_id, &entry.peer)
+                .map_err(|OutOfSlots| SnapshotError::OutOfSlots)?;
+            slot.poll = Some(PollState {
+                config: PeerConfig {
+                    interval: entry.interval.map(|iv| limits.clamp_delay(iv)),
+                    sync_now: entry.sync_now,
+                    sync_on_hello: entry.sync_on_hello,
                 },
-                PollSlot {
-                    config: PeerConfig {
-                        interval: entry.interval.map(|iv| limits.clamp_delay(iv)),
-                        sync_now: entry.sync_now,
-                        sync_on_hello: entry.sync_on_hello,
-                    },
-                    next_sync: entry.next_sync.map(&conv),
-                },
-            );
+                next_sync: entry.next_sync.map(&conv),
+            });
         }
         for entry in state.push_subs {
-            syncer.push_subs.insert(
-                PeerKey {
-                    graph_id: entry.graph_id,
-                    peer: entry.peer,
-                },
-                PushSub {
-                    expires_at: conv(entry.expires_at),
-                    remaining_bytes: entry.remaining_bytes,
-                },
-            );
+            let slot = syncer
+                .slots
+                .get_or_insert(entry.graph_id, &entry.peer)
+                .map_err(|OutOfSlots| SnapshotError::OutOfSlots)?;
+            slot.push_sub = Some(PushSub {
+                expires_at: conv(entry.expires_at),
+                remaining_bytes: entry.remaining_bytes,
+                push_due: None,
+            });
         }
         for entry in state.hello_subs {
-            syncer.hello_subs.insert(
-                PeerKey {
-                    graph_id: entry.graph_id,
-                    peer: entry.peer,
-                },
-                HelloSub {
-                    graph_change_debounce: limits.clamp_delay(entry.graph_change_debounce),
-                    schedule_delay: limits.clamp_delay(entry.schedule_delay),
-                    next_change_allowed: entry.next_change_allowed.map(&conv),
-                    expires_at: conv(entry.expires_at),
-                    next_hello: conv(entry.next_hello),
-                },
-            );
+            let slot = syncer
+                .slots
+                .get_or_insert(entry.graph_id, &entry.peer)
+                .map_err(|OutOfSlots| SnapshotError::OutOfSlots)?;
+            slot.hello_sub = Some(HelloSub {
+                graph_change_debounce: limits.clamp_delay(entry.graph_change_debounce),
+                schedule_delay: limits.clamp_delay(entry.schedule_delay),
+                next_change_allowed: entry.next_change_allowed.map(&conv),
+                expires_at: conv(entry.expires_at),
+                next_hello: conv(entry.next_hello),
+            });
         }
         for entry in state.push_reqs {
-            syncer.push_reqs.insert(
-                PeerKey {
-                    graph_id: entry.graph_id,
-                    peer: entry.peer,
-                },
-                PushReq {
-                    remain_open_secs: entry.remain_open_secs.max(1),
-                    max_bytes: entry.max_bytes,
-                    renew_at: conv(entry.renew_at),
-                },
-            );
+            let slot = syncer
+                .slots
+                .get_or_insert(entry.graph_id, &entry.peer)
+                .map_err(|OutOfSlots| SnapshotError::OutOfSlots)?;
+            slot.push_req = Some(PushReq::Active {
+                remain_open_secs: entry.remain_open_secs.max(1),
+                max_bytes: entry.max_bytes,
+                renew_at: conv(entry.renew_at),
+            });
         }
         for entry in state.hello_reqs {
-            syncer.hello_reqs.insert(
-                PeerKey {
-                    graph_id: entry.graph_id,
-                    peer: entry.peer,
-                },
-                HelloReq {
-                    graph_change_delay: limits.clamp_delay(entry.graph_change_delay),
-                    duration: limits.clamp_lifetime(entry.duration),
-                    schedule_delay: limits.clamp_delay(entry.schedule_delay),
-                    renew_at: conv(entry.renew_at),
-                },
-            );
+            let slot = syncer
+                .slots
+                .get_or_insert(entry.graph_id, &entry.peer)
+                .map_err(|OutOfSlots| SnapshotError::OutOfSlots)?;
+            slot.hello_req = Some(HelloReq::Active {
+                graph_change_delay: limits.clamp_delay(entry.graph_change_delay),
+                duration: limits.clamp_lifetime(entry.duration),
+                schedule_delay: limits.clamp_delay(entry.schedule_delay),
+                renew_at: conv(entry.renew_at),
+            });
         }
-        syncer
+        Ok(syncer)
     }
 }
 
@@ -1398,9 +1786,9 @@ where
 }
 
 /// Durable state flattened for rkyv, with deadlines of type `Time` (`T` in
-/// an absolute snapshot, offset [`Duration`]s in a relative one). Maps are
-/// stored as entry vectors and rebuilt on load, sidestepping archived-map
-/// key-ordering constraints.
+/// an absolute snapshot, offset [`Duration`]s in a relative one). The slot
+/// table is stored as per-role entry vectors and rebuilt on load,
+/// sidestepping archived-map key-ordering constraints.
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 struct State<A, Time> {
     max_push_subs: u64,
@@ -1460,970 +1848,4 @@ struct HelloReqEntry<A, Time> {
     duration: Duration,
     schedule_delay: Duration,
     renew_at: Time,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    type TestSyncer = Syncer<&'static str, Duration>;
-    type PersistentSyncer = Syncer<String, Duration>;
-
-    fn gid(n: u8) -> GraphId {
-        GraphId::from_bytes([n; 32])
-    }
-
-    fn secs(n: u64) -> Duration {
-        Duration::from_secs(n)
-    }
-
-    fn owned(peer: &str) -> String {
-        String::from(peer)
-    }
-
-    /// Drains every due action, panicking if the drain does not terminate.
-    fn drain<A: Clone + Ord + fmt::Debug>(
-        syncer: &mut Syncer<A, Duration>,
-        now: Duration,
-    ) -> Vec<SyncAction<A>> {
-        let mut actions = Vec::new();
-        for _ in 0..64 {
-            match syncer.poll_action(now) {
-                Some(action) => actions.push(action),
-                None => return actions,
-            }
-        }
-        panic!("drain did not terminate: {actions:?}");
-    }
-
-    #[test]
-    fn sync_now_fires_immediately_once() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_peer("a", g, PeerConfig::immediate(), secs(5));
-        assert_eq!(
-            drain(&mut s, secs(5)),
-            [SyncAction::Poll {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        assert_eq!(drain(&mut s, secs(100)), []);
-        assert_eq!(s.next_deadline(), None);
-    }
-
-    #[test]
-    fn periodic_peer_reschedules() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_peer("a", g, PeerConfig::periodic(secs(10)), secs(0));
-        // Immediate first poll.
-        assert_eq!(drain(&mut s, secs(0)).len(), 1);
-        assert_eq!(s.next_deadline(), Some(secs(10)));
-        // Nothing fires early.
-        assert_eq!(drain(&mut s, secs(9)), []);
-        // Due at the interval; reschedules from `now`.
-        assert_eq!(
-            drain(&mut s, secs(10)),
-            [SyncAction::Poll {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        assert_eq!(s.next_deadline(), Some(secs(20)));
-    }
-
-    #[test]
-    fn interval_without_sync_now_waits_one_period() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        let cfg = PeerConfig {
-            interval: Some(secs(10)),
-            sync_now: false,
-            sync_on_hello: false,
-        };
-        s.add_peer("a", g, cfg, secs(3));
-        assert_eq!(drain(&mut s, secs(3)), []);
-        assert_eq!(s.next_deadline(), Some(secs(13)));
-    }
-
-    #[test]
-    fn sync_now_polls_registered_peer_and_keeps_interval() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_peer("a", g, PeerConfig::periodic(secs(10)), secs(0));
-        drain(&mut s, secs(0));
-        assert!(s.sync_now(&"a", g, secs(2)));
-        assert_eq!(
-            drain(&mut s, secs(2)),
-            [SyncAction::Poll {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        // The interval is kept: rescheduled from the manual poll.
-        assert_eq!(s.next_deadline(), Some(secs(12)));
-        // Unregistered peers are reported.
-        assert!(!s.sync_now(&"b", g, secs(2)));
-        assert!(!s.sync_now(&"a", gid(2), secs(2)));
-    }
-
-    #[test]
-    fn remove_peer_cancels_schedule() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_peer("a", g, PeerConfig::periodic(secs(10)), secs(0));
-        assert!(s.remove_peer(&"a", g));
-        assert!(!s.remove_peer(&"a", g));
-        assert_eq!(drain(&mut s, secs(0)), []);
-        assert_eq!(s.next_deadline(), None);
-    }
-
-    #[test]
-    fn zero_poll_interval_is_floored() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        let cfg = PeerConfig {
-            interval: Some(Duration::ZERO),
-            sync_now: false,
-            sync_on_hello: false,
-        };
-        s.add_peer("a", g, cfg, secs(0));
-        // Floored at the default `min_delay`.
-        assert_eq!(s.next_deadline(), Some(DEFAULT_MIN_DELAY));
-        // A due poll reschedules a full `min_delay` out, so a drain at a
-        // fixed `now` terminates.
-        assert_eq!(drain(&mut s, secs(1)).len(), 1);
-        assert_eq!(s.next_deadline(), Some(secs(2)));
-    }
-
-    #[test]
-    fn remote_hello_delays_are_floored_and_drain_terminates() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        // A hostile peer supplies zero delays; both are floored at `min_delay`.
-        s.add_hello_subscriber("a", g, Duration::ZERO, secs(60), Duration::ZERO, secs(0))
-            .unwrap();
-        // The scheduled hello is due one floored `schedule_delay` out, and
-        // rescheduling pushes it a full `min_delay` ahead: the drain
-        // terminates instead of re-firing at `now` forever.
-        assert_eq!(
-            drain(&mut s, secs(1)),
-            [SyncAction::SendHello {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        assert_eq!(s.next_deadline(), Some(secs(2)));
-        // The change debounce is floored too: a change right after the sent
-        // hello is suppressed.
-        s.notify_local_change(g, secs(1));
-        assert_eq!(drain(&mut s, secs(1)), []);
-    }
-
-    #[test]
-    fn oversized_lifetimes_are_capped() {
-        let limits = Limits::builder().max_sub_duration(secs(100)).build();
-        let mut s = TestSyncer::with_limits(limits);
-        let g = gid(1);
-        // Hello `duration` is capped at 100 s: the sub expires (and is
-        // silently dropped) at t = 100 despite the far longer request.
-        s.add_hello_subscriber("a", g, secs(1), secs(1_000_000), secs(40), secs(0))
-            .unwrap();
-        assert_eq!(drain(&mut s, secs(40)).len(), 1);
-        assert_eq!(drain(&mut s, secs(80)).len(), 1);
-        // The next scheduled hello (t = 120) is past expiry: dropped.
-        assert_eq!(drain(&mut s, secs(120)), []);
-        assert_eq!(s.next_deadline(), None);
-
-        // Push `remain_open` is capped likewise: expired at t = 100.
-        s.add_push_subscriber("a", g, secs(1_000_000), 1_000, secs(0))
-            .unwrap();
-        s.notify_local_change(g, secs(100));
-        assert_eq!(drain(&mut s, secs(100)), []);
-    }
-
-    #[test]
-    fn with_limits_floors_zero_min_delay() {
-        let mut s = TestSyncer::with_limits(Limits::builder().min_delay(Duration::ZERO).build());
-        let g = gid(1);
-        s.add_hello_subscriber("a", g, Duration::ZERO, secs(60), Duration::ZERO, secs(0))
-            .unwrap();
-        // Even with `min_delay` configured to zero, the 1 ns floor keeps a
-        // due hello from rescheduling to `now` forever.
-        assert_eq!(drain(&mut s, secs(1)).len(), 1);
-        assert_eq!(s.next_deadline(), Some(Duration::new(1, 1)));
-    }
-
-    #[test]
-    fn subsecond_remain_open_rounds_up_to_one_second() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.subscribe("a", g, Duration::from_millis(300), 1_000, secs(0));
-        assert_eq!(
-            drain(&mut s, secs(0)),
-            [SyncAction::Subscribe {
-                peer: "a",
-                graph_id: g,
-                remain_open_secs: 1,
-                max_bytes: 1_000
-            }],
-        );
-    }
-
-    #[test]
-    fn fractional_remain_open_rounds_up() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.subscribe("a", g, Duration::from_millis(4_200), 1_000, secs(0));
-        match drain(&mut s, secs(0)).as_slice() {
-            [
-                SyncAction::Subscribe {
-                    remain_open_secs: 5,
-                    ..
-                },
-            ] => {}
-            other => panic!("unexpected actions: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn push_subscriber_cap_and_replace() {
-        let limits = Limits::builder().max_push_subs(2).build();
-        let mut s = TestSyncer::with_limits(limits);
-        let g = gid(1);
-        s.add_push_subscriber("a", g, secs(60), 1_000, secs(0))
-            .unwrap();
-        s.add_push_subscriber("b", g, secs(60), 1_000, secs(0))
-            .unwrap();
-        // A new key at the cap is rejected...
-        assert_eq!(
-            s.add_push_subscriber("c", g, secs(60), 1_000, secs(0)),
-            Err(SubscriberLimitReached),
-        );
-        // ...but re-subscribing an existing key replaces in place.
-        s.add_push_subscriber("b", g, secs(90), 2_000, secs(0))
-            .unwrap();
-        // Expired entries are pruned before the cap check: at t = 70 "a"
-        // (expiry t = 60) no longer holds a slot.
-        s.add_push_subscriber("c", g, secs(60), 1_000, secs(70))
-            .unwrap();
-        s.notify_local_change(g, secs(70));
-        let actions = drain(&mut s, secs(70));
-        assert_eq!(actions.len(), 2);
-        assert!(actions.contains(&SyncAction::Push {
-            peer: "b",
-            graph_id: g
-        }));
-        assert!(actions.contains(&SyncAction::Push {
-            peer: "c",
-            graph_id: g
-        }));
-    }
-
-    #[test]
-    fn push_budget_exhaustion_drops_subscriber() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_push_subscriber("a", g, secs(60), 100, secs(0))
-            .unwrap();
-        s.record_push(&"a", g, 60);
-        s.notify_local_change(g, secs(1));
-        assert_eq!(
-            drain(&mut s, secs(1)),
-            [SyncAction::Push {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        // Over-consumption saturates; the subscription drops at zero.
-        s.record_push(&"a", g, 400);
-        s.notify_local_change(g, secs(2));
-        assert_eq!(drain(&mut s, secs(2)), []);
-    }
-
-    #[test]
-    fn zero_byte_budget_is_already_exhausted() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_push_subscriber("a", g, secs(60), 0, secs(0)).unwrap();
-        s.notify_local_change(g, secs(1));
-        assert_eq!(drain(&mut s, secs(1)), []);
-    }
-
-    #[test]
-    fn notify_targets_only_the_changed_graph() {
-        let mut s = TestSyncer::new();
-        s.add_push_subscriber("a", gid(1), secs(60), 1_000, secs(0))
-            .unwrap();
-        s.add_push_subscriber("a", gid(2), secs(60), 1_000, secs(0))
-            .unwrap();
-        s.notify_local_change(gid(1), secs(1));
-        assert_eq!(
-            drain(&mut s, secs(1)),
-            [SyncAction::Push {
-                peer: "a",
-                graph_id: gid(1)
-            }],
-        );
-    }
-
-    #[test]
-    fn drain_skips_actions_whose_subscription_was_removed() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_push_subscriber("a", g, secs(60), 1_000, secs(0))
-            .unwrap();
-        s.add_hello_subscriber("b", g, secs(1), secs(60), secs(30), secs(0))
-            .unwrap();
-        s.notify_local_change(g, secs(1));
-        // Both subscriptions die between enqueue and drain.
-        s.remove_push_subscriber(&"a", g);
-        s.remove_hello_subscriber(&"b", g);
-        assert_eq!(drain(&mut s, secs(1)), []);
-    }
-
-    #[test]
-    fn drain_skips_push_expired_since_enqueue() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_push_subscriber("a", g, secs(10), 1_000, secs(0))
-            .unwrap();
-        // Queued while live, drained only after expiry.
-        s.notify_local_change(g, secs(9));
-        assert_eq!(drain(&mut s, secs(20)), []);
-    }
-
-    #[test]
-    fn hello_subscriber_cap_and_replace() {
-        let limits = Limits::builder().max_hello_subs(1).build();
-        let mut s = TestSyncer::with_limits(limits);
-        let g = gid(1);
-        s.add_hello_subscriber("a", g, secs(1), secs(60), secs(30), secs(0))
-            .unwrap();
-        assert_eq!(
-            s.add_hello_subscriber("b", g, secs(1), secs(60), secs(30), secs(0)),
-            Err(SubscriberLimitReached),
-        );
-        // Replacing the existing key is allowed at the cap.
-        s.add_hello_subscriber("a", g, secs(2), secs(90), secs(45), secs(0))
-            .unwrap();
-        // Expired entries are pruned before the cap check.
-        s.add_hello_subscriber("b", g, secs(1), secs(60), secs(30), secs(100))
-            .unwrap();
-    }
-
-    #[test]
-    fn scheduled_hellos_fire_on_cadence_until_expiry() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_hello_subscriber("a", g, secs(1), secs(70), secs(30), secs(0))
-            .unwrap();
-        assert_eq!(drain(&mut s, secs(29)), []);
-        assert_eq!(
-            drain(&mut s, secs(30)),
-            [SyncAction::SendHello {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        assert_eq!(
-            drain(&mut s, secs(60)),
-            [SyncAction::SendHello {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        // The next scheduled hello (t = 90) lands past expiry (t = 70):
-        // dropped silently, no farewell hello.
-        assert_eq!(drain(&mut s, secs(90)), []);
-        assert_eq!(s.next_deadline(), None);
-    }
-
-    #[test]
-    fn change_triggered_hello_respects_debounce() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_hello_subscriber("a", g, secs(10), secs(100), secs(60), secs(0))
-            .unwrap();
-        // The first change always fires.
-        s.notify_local_change(g, secs(1));
-        assert_eq!(drain(&mut s, secs(1)).len(), 1);
-        // Inside the debounce window: suppressed.
-        s.notify_local_change(g, secs(5));
-        assert_eq!(drain(&mut s, secs(5)), []);
-        // Window over (1 + 10 = 11): fires again.
-        s.notify_local_change(g, secs(11));
-        assert_eq!(drain(&mut s, secs(11)).len(), 1);
-    }
-
-    #[test]
-    fn sent_hello_resets_the_scheduled_cadence() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_hello_subscriber("a", g, secs(1), secs(1_000), secs(60), secs(0))
-            .unwrap();
-        // A change-triggered hello at t = 50...
-        s.notify_local_change(g, secs(50));
-        assert_eq!(drain(&mut s, secs(50)).len(), 1);
-        // ...also satisfies the keepalive: the scheduled hello moves a full
-        // period out (t = 110) instead of re-sending the same head at t = 60.
-        assert_eq!(s.next_deadline(), Some(secs(110)));
-        assert_eq!(drain(&mut s, secs(60)), []);
-        assert_eq!(drain(&mut s, secs(110)).len(), 1);
-    }
-
-    #[test]
-    fn expired_hello_sub_drops_silently_and_scan_continues() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        // `schedule_delay >= duration`: the only scheduled hello lands past
-        // expiry.
-        s.add_hello_subscriber("a", g, secs(1), secs(50), secs(60), secs(0))
-            .unwrap();
-        // A second, live subscriber whose hello is due *later* than the dead
-        // one's timer: the scan must continue past the drop to reach it.
-        s.add_hello_subscriber("b", g, secs(1), secs(1_000), secs(70), secs(0))
-            .unwrap();
-        assert_eq!(
-            drain(&mut s, secs(70)),
-            [SyncAction::SendHello {
-                peer: "b",
-                graph_id: g
-            }],
-        );
-        // "a" is gone: no timer left besides "b"'s next hello.
-        assert_eq!(s.next_deadline(), Some(secs(140)));
-    }
-
-    #[test]
-    fn change_triggered_hellos_work_up_to_expiry() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        // No keepalive fits before expiry (schedule 60 >= duration 50), but
-        // change-triggered hellos keep working for the whole lifetime.
-        s.add_hello_subscriber("a", g, secs(1), secs(50), secs(60), secs(0))
-            .unwrap();
-        s.notify_local_change(g, secs(45));
-        assert_eq!(drain(&mut s, secs(45)).len(), 1);
-        // At expiry the subscription is gone.
-        s.notify_local_change(g, secs(50));
-        assert_eq!(drain(&mut s, secs(50)), []);
-    }
-
-    #[test]
-    fn subscribe_renews_at_half_life_with_stored_params() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.subscribe("a", g, secs(100), 5_000, secs(0));
-        let expected = || SyncAction::Subscribe {
-            peer: "a",
-            graph_id: g,
-            remain_open_secs: 100,
-            max_bytes: 5_000,
-        };
-        assert_eq!(drain(&mut s, secs(0)), [expected()]);
-        // The renewal is due at half the lifetime.
-        assert_eq!(s.next_deadline(), Some(secs(50)));
-        assert_eq!(drain(&mut s, secs(50)), [expected()]);
-        // And again, rescheduled from the renewal.
-        assert_eq!(s.next_deadline(), Some(secs(100)));
-        assert_eq!(drain(&mut s, secs(100)), [expected()]);
-    }
-
-    #[test]
-    fn too_many_subscriptions_stops_renewals() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.subscribe("a", g, secs(100), 5_000, secs(0));
-        drain(&mut s, secs(0));
-        s.on_subscribe_response(&"a", g, SubscribeResponse::TooManySubscriptions);
-        assert_eq!(drain(&mut s, secs(500)), []);
-        assert_eq!(s.next_deadline(), None);
-    }
-
-    #[test]
-    fn success_response_keeps_renewals() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.subscribe("a", g, secs(100), 5_000, secs(0));
-        drain(&mut s, secs(0));
-        s.on_subscribe_response(&"a", g, SubscribeResponse::Success);
-        assert_eq!(drain(&mut s, secs(50)).len(), 1);
-    }
-
-    #[test]
-    fn unsubscribe_stops_renewals_and_emits() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.subscribe("a", g, secs(100), 5_000, secs(0));
-        drain(&mut s, secs(0));
-        s.unsubscribe("a", g);
-        assert_eq!(
-            drain(&mut s, secs(0)),
-            [SyncAction::Unsubscribe {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        assert_eq!(drain(&mut s, secs(500)), []);
-        // Idempotent teardown: emitted even when untracked.
-        s.unsubscribe("a", g);
-        assert_eq!(
-            drain(&mut s, secs(500)),
-            [SyncAction::Unsubscribe {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-    }
-
-    #[test]
-    fn hello_subscribe_renews_blindly() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.hello_subscribe("a", g, secs(5), secs(200), secs(30), secs(0));
-        let expected = || SyncAction::HelloSubscribe {
-            peer: "a",
-            graph_id: g,
-            graph_change_delay: secs(5),
-            duration: secs(200),
-            schedule_delay: secs(30),
-        };
-        assert_eq!(drain(&mut s, secs(0)), [expected()]);
-        // No reply is ever fed in; the renewal still fires at half-life.
-        assert_eq!(drain(&mut s, secs(100)), [expected()]);
-        assert_eq!(s.next_deadline(), Some(secs(200)));
-        // Until told to stop.
-        s.hello_unsubscribe("a", g);
-        assert_eq!(
-            drain(&mut s, secs(500)),
-            [SyncAction::HelloUnsubscribe {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-        assert_eq!(s.next_deadline(), None);
-    }
-
-    #[test]
-    fn hello_subscribe_params_are_clamped() {
-        let mut s = TestSyncer::with_limits(Limits::builder().max_sub_duration(secs(100)).build());
-        let g = gid(1);
-        s.hello_subscribe("a", g, Duration::ZERO, secs(1_000), Duration::ZERO, secs(0));
-        match drain(&mut s, secs(0)).as_slice() {
-            [
-                SyncAction::HelloSubscribe {
-                    graph_change_delay,
-                    duration,
-                    schedule_delay,
-                    ..
-                },
-            ] => {
-                assert_eq!(*graph_change_delay, DEFAULT_MIN_DELAY);
-                assert_eq!(*duration, secs(100));
-                assert_eq!(*schedule_delay, DEFAULT_MIN_DELAY);
-            }
-            other => panic!("unexpected actions: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn on_hello_polls_only_with_sync_on_hello() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        let armed = PeerConfig {
-            interval: None,
-            sync_now: false,
-            sync_on_hello: true,
-        };
-        let unarmed = PeerConfig {
-            interval: None,
-            sync_now: false,
-            sync_on_hello: false,
-        };
-        s.add_peer("a", g, armed, secs(0));
-        s.add_peer("b", g, unarmed, secs(0));
-        assert!(s.on_hello(&"a", g, secs(5)));
-        assert!(!s.on_hello(&"b", g, secs(5)));
-        assert!(!s.on_hello(&"unknown", g, secs(5)));
-        assert_eq!(
-            drain(&mut s, secs(5)),
-            [SyncAction::Poll {
-                peer: "a",
-                graph_id: g
-            }],
-        );
-    }
-
-    #[test]
-    fn burst_of_changes_dedupes_to_one_action_per_subscriber() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        s.add_push_subscriber("a", g, secs(60), 1_000, secs(0))
-            .unwrap();
-        s.add_hello_subscriber("b", g, secs(1), secs(60), secs(30), secs(0))
-            .unwrap();
-        s.notify_local_change(g, secs(1));
-        s.notify_local_change(g, secs(1));
-        s.notify_local_change(g, secs(1));
-        let actions = drain(&mut s, secs(1));
-        assert_eq!(actions.len(), 2);
-        assert!(actions.contains(&SyncAction::Push {
-            peer: "a",
-            graph_id: g
-        }));
-        assert!(actions.contains(&SyncAction::SendHello {
-            peer: "b",
-            graph_id: g
-        }));
-    }
-
-    #[test]
-    fn earliest_due_ordering_across_sources() {
-        let mut s = TestSyncer::new();
-        let g = gid(1);
-        // Scheduled hello due at t = 30.
-        s.add_hello_subscriber("h", g, secs(1), secs(500), secs(30), secs(0))
-            .unwrap();
-        // Push renewal due at t = 40 (half of 80 s).
-        s.subscribe("p", g, secs(80), 1_000, secs(0));
-        // Poll due at t = 50.
-        let cfg = PeerConfig {
-            interval: Some(secs(50)),
-            sync_now: false,
-            sync_on_hello: false,
-        };
-        s.add_peer("q", g, cfg, secs(0));
-        // The initial Subscribe one-shot drains first; nothing scheduled is
-        // due yet.
-        assert_eq!(drain(&mut s, secs(0)).len(), 1);
-        assert_eq!(s.next_deadline(), Some(secs(30)));
-        // At t = 50 all three are due: earliest-due first.
-        assert_eq!(
-            drain(&mut s, secs(50)),
-            [
-                SyncAction::SendHello {
-                    peer: "h",
-                    graph_id: g
-                },
-                SyncAction::Subscribe {
-                    peer: "p",
-                    graph_id: g,
-                    remain_open_secs: 80,
-                    max_bytes: 1_000
-                },
-                SyncAction::Poll {
-                    peer: "q",
-                    graph_id: g
-                },
-            ],
-        );
-    }
-
-    #[test]
-    fn remove_graph_clears_all_state() {
-        let mut s = TestSyncer::new();
-        let (g1, g2) = (gid(1), gid(2));
-        for g in [g1, g2] {
-            s.add_peer("peer", g, PeerConfig::periodic(secs(10)), secs(0));
-            s.add_push_subscriber("sub", g, secs(60), 1_000, secs(0))
-                .unwrap();
-            s.add_hello_subscriber("sub", g, secs(1), secs(60), secs(30), secs(0))
-                .unwrap();
-            s.subscribe("req", g, secs(100), 1_000, secs(0));
-            s.hello_subscribe("req", g, secs(1), secs(100), secs(10), secs(0));
-            s.notify_local_change(g, secs(0));
-        }
-        s.remove_graph(g1);
-        // Everything left belongs to g2.
-        let actions = drain(&mut s, secs(5));
-        assert!(!actions.is_empty());
-        assert!(actions.iter().all(|action| action.graph_id() == g2));
-        assert!(!s.remove_peer(&"peer", g1));
-        assert!(!s.remove_push_subscriber(&"sub", g1));
-        assert!(!s.remove_hello_subscriber(&"sub", g1));
-    }
-
-    /// Milliseconds since an arbitrary origin, as a caller-supplied instant.
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    struct Tick(u64);
-
-    impl SyncInstant for Tick {
-        fn saturating_add(self, d: Duration) -> Self {
-            let millis = u64::try_from(d.as_millis()).unwrap_or(u64::MAX);
-            Self(self.0.saturating_add(millis))
-        }
-
-        fn saturating_duration_since(self, earlier: Self) -> Duration {
-            Duration::from_millis(self.0.saturating_sub(earlier.0))
-        }
-    }
-
-    #[test]
-    fn drives_a_custom_instant_type() {
-        let mut s: Syncer<&'static str, Tick> = Syncer::new();
-        let g = gid(1);
-        s.add_peer("a", g, PeerConfig::periodic(secs(10)), Tick(500));
-        assert_eq!(
-            s.poll_action(Tick(500)),
-            Some(SyncAction::Poll {
-                peer: "a",
-                graph_id: g
-            }),
-        );
-        assert_eq!(s.poll_action(Tick(500)), None);
-        assert_eq!(s.next_deadline(), Some(Tick(10_500)));
-        assert_eq!(s.poll_action(Tick(10_499)), None);
-        assert!(s.poll_action(Tick(10_500)).is_some());
-    }
-
-    #[test]
-    fn instant_arithmetic_saturates_at_bounds() {
-        // The provided `Duration` impl clamps instead of wrapping/panicking.
-        assert_eq!(
-            SyncInstant::saturating_add(Duration::MAX, secs(1)),
-            Duration::MAX,
-        );
-        assert_eq!(
-            SyncInstant::saturating_duration_since(secs(1), secs(5)),
-            Duration::ZERO,
-        );
-        // So does a custom instant near its bounds.
-        assert_eq!(Tick(u64::MAX).saturating_add(secs(1)), Tick(u64::MAX));
-        assert_eq!(
-            Tick(u64::MAX.saturating_sub(1)).saturating_add(Duration::MAX),
-            Tick(u64::MAX),
-        );
-        assert_eq!(Tick(0).saturating_duration_since(Tick(5)), Duration::ZERO);
-    }
-
-    #[test]
-    fn absolute_snapshot_round_trips() {
-        let mut s = PersistentSyncer::new();
-        let g = gid(1);
-        s.add_peer(owned("a"), g, PeerConfig::periodic(secs(30)), secs(10));
-        s.subscribe(owned("b"), g, secs(100), 5_000, secs(10));
-        s.hello_subscribe(owned("c"), g, secs(5), secs(200), secs(20), secs(10));
-        s.add_push_subscriber(owned("d"), g, secs(300), 9_000, secs(10))
-            .unwrap();
-        s.add_hello_subscriber(owned("e"), g, secs(5), secs(300), secs(25), secs(10))
-            .unwrap();
-        // Clear the one-shots (Poll + Subscribe + HelloSubscribe).
-        assert_eq!(drain(&mut s, secs(10)).len(), 3);
-
-        let blob = s.save_absolute().unwrap();
-        assert_eq!(blob[0], SNAPSHOT_VERSION);
-        // `now` is ignored for an absolute blob.
-        let mut restored = PersistentSyncer::load(&blob, secs(9_999)).unwrap();
-        // Deadlines are preserved exactly; the earliest is the hello sub's
-        // first scheduled hello (t = 35).
-        assert_eq!(restored.next_deadline(), s.next_deadline());
-        assert_eq!(restored.next_deadline(), Some(secs(35)));
-        // Restored subscriber state drives: a local change pushes to "d" and
-        // hellos "e".
-        restored.notify_local_change(g, secs(36));
-        assert_eq!(
-            drain(&mut restored, secs(36)),
-            [
-                SyncAction::Push {
-                    peer: owned("d"),
-                    graph_id: g
-                },
-                SyncAction::SendHello {
-                    peer: owned("e"),
-                    graph_id: g
-                },
-            ],
-        );
-    }
-
-    #[test]
-    fn relative_snapshot_reanchors_offsets() {
-        let mut s = PersistentSyncer::new();
-        let g = gid(1);
-        let cfg = PeerConfig {
-            interval: Some(secs(30)),
-            sync_now: false,
-            sync_on_hello: false,
-        };
-        s.add_peer(owned("a"), g, cfg, secs(0));
-        s.subscribe(owned("b"), g, secs(100), 5_000, secs(0));
-        drain(&mut s, secs(0));
-        // Saved at t = 20, the poll (t = 30) and renewal (t = 50) become
-        // offsets of 10 and 30; loading at t' = 1000 reproduces the spacing.
-        let blob = s.save_relative(secs(20)).unwrap();
-        let mut restored = PersistentSyncer::load(&blob, secs(1_000)).unwrap();
-        assert_eq!(restored.next_deadline(), Some(secs(1_010)));
-        assert_eq!(
-            drain(&mut restored, secs(1_010)),
-            [SyncAction::Poll {
-                peer: owned("a"),
-                graph_id: g
-            }],
-        );
-        assert_eq!(
-            drain(&mut restored, secs(1_030)),
-            [SyncAction::Subscribe {
-                peer: owned("b"),
-                graph_id: g,
-                remain_open_secs: 100,
-                max_bytes: 5_000
-            }],
-        );
-    }
-
-    #[test]
-    fn relative_snapshot_fires_already_due_timers_immediately() {
-        let mut s = PersistentSyncer::new();
-        let g = gid(1);
-        // Due at t = 5, saved at t = 50: the offset saturates to zero.
-        s.add_peer(owned("a"), g, PeerConfig::immediate(), secs(5));
-        let blob = s.save_relative(secs(50)).unwrap();
-        let mut restored = PersistentSyncer::load(&blob, secs(1_000)).unwrap();
-        assert_eq!(
-            drain(&mut restored, secs(1_000)),
-            [SyncAction::Poll {
-                peer: owned("a"),
-                graph_id: g
-            }],
-        );
-    }
-
-    #[test]
-    fn debounce_window_survives_relative_snapshot() {
-        let mut s = PersistentSyncer::new();
-        let g = gid(1);
-        s.add_hello_subscriber(owned("a"), g, secs(10), secs(600), secs(300), secs(0))
-            .unwrap();
-        // Fires at t = 0; the debounce window runs to t = 10.
-        s.notify_local_change(g, secs(0));
-        drain(&mut s, secs(0));
-        // Two seconds into the window, snapshot; restore at t' = 100.
-        let blob = s.save_relative(secs(2)).unwrap();
-        let mut restored = PersistentSyncer::load(&blob, secs(100)).unwrap();
-        // Eight seconds of the window remain: still suppressed at t' + 7...
-        restored.notify_local_change(g, secs(107));
-        assert_eq!(drain(&mut restored, secs(107)), []);
-        // ...open again at t' + 8.
-        restored.notify_local_change(g, secs(108));
-        assert_eq!(
-            drain(&mut restored, secs(108)),
-            [SyncAction::SendHello {
-                peer: owned("a"),
-                graph_id: g
-            }],
-        );
-    }
-
-    #[test]
-    fn outbound_requests_survive_both_modes_and_renew() {
-        let mut s = PersistentSyncer::new();
-        let g = gid(1);
-        s.subscribe(owned("a"), g, secs(100), 5_000, secs(0));
-        s.hello_subscribe(owned("b"), g, secs(5), secs(200), secs(20), secs(0));
-        drain(&mut s, secs(0));
-        let push_renewal = || SyncAction::Subscribe {
-            peer: owned("a"),
-            graph_id: g,
-            remain_open_secs: 100,
-            max_bytes: 5_000,
-        };
-        let hello_renewal = || SyncAction::HelloSubscribe {
-            peer: owned("b"),
-            graph_id: g,
-            graph_change_delay: secs(5),
-            duration: secs(200),
-            schedule_delay: secs(20),
-        };
-
-        let absolute = PersistentSyncer::load(&s.save_absolute().unwrap(), secs(0)).unwrap();
-        let relative = PersistentSyncer::load(&s.save_relative(secs(0)).unwrap(), secs(0)).unwrap();
-        for mut restored in [absolute, relative] {
-            // The push renewal (t = 50) fires, rescheduling itself to t = 100
-            // where the hello renewal is also due.
-            assert_eq!(drain(&mut restored, secs(50)), [push_renewal()]);
-            assert_eq!(
-                drain(&mut restored, secs(100)),
-                [push_renewal(), hello_renewal()],
-            );
-        }
-    }
-
-    #[test]
-    fn pending_actions_are_not_persisted() {
-        let mut s = PersistentSyncer::new();
-        let g = gid(1);
-        s.add_push_subscriber(owned("a"), g, secs(600), 5_000, secs(0))
-            .unwrap();
-        // Queued but never drained.
-        s.notify_local_change(g, secs(0));
-        let blob = s.save_absolute().unwrap();
-        let mut restored = PersistentSyncer::load(&blob, secs(0)).unwrap();
-        assert_eq!(drain(&mut restored, secs(0)), []);
-        // The subscription itself survived; the next change pushes again.
-        restored.notify_local_change(g, secs(1));
-        assert_eq!(drain(&mut restored, secs(1)).len(), 1);
-    }
-
-    #[test]
-    fn save_relative_works_without_rkyv_instant_bounds() {
-        // `Tick` has no rkyv impls: absolute saves would have to persist
-        // `Tick`s and don't compile, but relative saves only store offsets.
-        let mut s: Syncer<String, Tick> = Syncer::new();
-        let g = gid(1);
-        s.add_peer(owned("a"), g, PeerConfig::periodic(secs(30)), Tick(0));
-        let blob = s.save_relative(Tick(10)).unwrap();
-        // A relative blob is instant-agnostic: any rkyv-capable clock can
-        // re-anchor it (the poll was already due, so it is due at load).
-        let restored: Syncer<String, Duration> = Syncer::load(&blob, Duration::ZERO).unwrap();
-        assert_eq!(restored.next_deadline(), Some(Duration::ZERO));
-    }
-
-    #[test]
-    fn unknown_snapshot_version_is_rejected_without_decoding() {
-        let mut s = PersistentSyncer::new();
-        s.add_peer(owned("a"), gid(1), PeerConfig::immediate(), secs(0));
-        let mut blob = s.save_absolute().unwrap();
-        blob[0] = 99;
-        match PersistentSyncer::load(&blob, secs(0)) {
-            Err(SnapshotError::UnsupportedVersion(99)) => {}
-            other => panic!("unexpected result: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn corrupt_snapshots_fail_cleanly() {
-        // Too short for the header.
-        assert!(matches!(
-            PersistentSyncer::load(&[], secs(0)),
-            Err(SnapshotError::Decode(_)),
-        ));
-        assert!(matches!(
-            PersistentSyncer::load(&[SNAPSHOT_VERSION], secs(0)),
-            Err(SnapshotError::Decode(_)),
-        ));
-        // An unknown timer mode.
-        assert!(matches!(
-            PersistentSyncer::load(&[SNAPSHOT_VERSION, 9], secs(0)),
-            Err(SnapshotError::Decode(_)),
-        ));
-        // A truncated payload fails validation rather than panicking.
-        let mut s = PersistentSyncer::new();
-        s.add_peer(owned("a"), gid(1), PeerConfig::immediate(), secs(0));
-        s.subscribe(owned("b"), gid(1), secs(100), 5_000, secs(0));
-        let blob = s.save_absolute().unwrap();
-        let truncated = &blob[..blob.len().saturating_sub(5)];
-        assert!(matches!(
-            PersistentSyncer::load(truncated, secs(0)),
-            Err(SnapshotError::Decode(_)),
-        ));
-        // Garbage likewise.
-        let mut garbage = vec![SNAPSHOT_VERSION, MODE_ABSOLUTE];
-        garbage.extend_from_slice(&[0xAB; 64]);
-        assert!(matches!(
-            PersistentSyncer::load(&garbage, secs(0)),
-            Err(SnapshotError::Decode(_)),
-        ));
-    }
 }

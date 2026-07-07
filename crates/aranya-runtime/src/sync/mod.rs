@@ -27,8 +27,9 @@ pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
 pub use state_machine::{
-    DEFAULT_MAX_SUB_DURATION, DEFAULT_MAX_SUBSCRIBERS, DEFAULT_MIN_DELAY, Limits, LimitsBuilder,
-    PeerConfig, SnapshotError, SubscriberLimitReached, SyncAction, SyncInstant, Syncer,
+    DEFAULT_MAX_SUB_DURATION, DEFAULT_MAX_SUBSCRIBERS, DEFAULT_MIN_DELAY, FixedSlots, HeapSlots,
+    Limits, LimitsBuilder, OutOfSlots, PeerConfig, SnapshotError, SubscriberLimitReached,
+    SyncAction, SyncInstant, SyncSlot, SyncSlots, Syncer,
 };
 use wire::{SubscribeResult, SyncHelloType, SyncType};
 
