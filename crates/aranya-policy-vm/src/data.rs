@@ -159,14 +159,11 @@ impl Value {
 
     /// Checks to see if a [`Value`] matches some [`VType`]
     /// ```
-    /// use aranya_policy_ast::{Span, TypeKind, VType};
+    /// use aranya_policy_module::TypeKind;
     /// use aranya_policy_vm::Value;
     ///
     /// let value = Value::Int(1);
-    /// let int_type = VType {
-    ///     inner: TypeKind::Int,
-    ///     span: Span::empty(),
-    /// };
+    /// let int_type = TypeKind::Int;
     ///
     /// assert!(value.fits_type(&int_type));
     /// ```
