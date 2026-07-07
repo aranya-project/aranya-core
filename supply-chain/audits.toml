@@ -148,6 +148,16 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 version = "1.0.177"
 
+[[audits.serial_test]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "3.2.0 -> 3.5.0"
+
+[[audits.serial_test_derive]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "3.2.0 -> 3.5.0"
+
 [[audits.sha3-utils]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"

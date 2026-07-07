@@ -509,14 +509,6 @@ criteria = "safe-to-deploy"
 version = "1.0.18"
 criteria = "safe-to-deploy"
 
-[[exemptions.scc]]
-version = "2.2.6"
-criteria = "safe-to-run"
-
-[[exemptions.sdd]]
-version = "3.0.5"
-criteria = "safe-to-run"
-
 [[exemptions.sec1]]
 version = "0.7.3"
 criteria = "safe-to-deploy"
