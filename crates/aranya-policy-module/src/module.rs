@@ -139,10 +139,18 @@ pub struct ActionDef {
     pub persistence: ast::Persistence,
     /// The parameters of the action.
     pub params: NamedMap<Param>,
-    /// The optional return type.
-    pub result_type: Option<ast::ResultTypeKind>,
+    /// action return type: result or unit
+    pub result_type: ast::VType,
 }
 named!(ActionDef);
+
+impl ActionDef {
+    /// Whether the action is fallible, i.e. it returns a `result[unit, E]`
+    /// value. An infallible action (return type `unit`) returns nothing.
+    pub fn is_fallible(&self) -> bool {
+        !matches!(self.result_type.inner, ast::TypeKind::Unit)
+    }
+}
 
 /// A command definition.
 #[derive(

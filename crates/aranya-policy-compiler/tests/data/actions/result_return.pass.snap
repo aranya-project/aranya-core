@@ -13,7 +13,7 @@ Module {
             name: "infallible" @ 65..75,
             persistence: Persistent,
             params: {},
-            result_type: None,
+            result_type: Unit @ 0..0,
         },
         ActionDef {
             name: "can_fail" @ 157..165,
@@ -24,12 +24,12 @@ Module {
                     ty: Int @ 168..171,
                 },
             },
-            result_type: Some(
+            result_type: Result(
                 ResultTypeKind {
                     ok: Unit @ 180..184,
                     err: String @ 186..192,
                 },
-            ),
+            ) @ 173..193,
         },
     },
     command_defs: {},

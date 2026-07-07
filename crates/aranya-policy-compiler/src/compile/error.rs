@@ -195,6 +195,14 @@ pub(crate) struct DebugModeRequired {
     pub span: Span,
 }
 
+/// A `return` that isn't allowed; `message` explains why.
+pub(crate) struct InvalidReturn {
+    /// Why the `return` is invalid.
+    pub message: String,
+    /// Span of the offending `return`.
+    pub span: Span,
+}
+
 /// Invalid cast - LHS cannot be converted to RHS.
 pub(crate) struct InvalidCast {
     /// The RHS cast target type name.

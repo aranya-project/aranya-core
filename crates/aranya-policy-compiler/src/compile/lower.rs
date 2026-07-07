@@ -1,8 +1,8 @@
 use aranya_policy_ast::{
-    ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
-    FunctionDefinition, Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern,
-    MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind,
-    VType, WithSpanExt as _, ident, thir,
+    ActionDefinition, ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral,
+    FunctionCall, FunctionDefinition, Ident, InternalFunction, LanguageContext, MatchExpression,
+    MatchPattern, MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement,
+    StmtKind, TypeKind, VType, WithSpanExt as _, ident, thir,
 };
 use buggy::{BugExt as _, bug};
 
@@ -10,13 +10,31 @@ use super::{
     CompileError, CompileState, FunctionColor, Scope, StatementContext,
     error::{
         AlreadyDefined, BadArgument, DuplicateMatchPatterns, InvalidCallColor,
-        InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidStatement,
-        InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm,
-        UnknownError, UnreachableMatchArm,
+        InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidReturn,
+        InvalidStatement, InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined,
+        RedundantMatchArm, UnknownError, UnreachableMatchArm,
     },
     find_duplicate,
     types::{self, DisplayType},
 };
+
+fn validate_action_return_type(action: &ActionDefinition) -> Result<VType, InvalidReturn> {
+    let TypeKind::Result(rt) = &action.return_type.inner else {
+        return Err(InvalidReturn {
+            message:
+                "cannot return from an infallible action; declare a `result[unit, E]` return type"
+                    .to_owned(),
+            span: action.span,
+        });
+    };
+    if !matches!(rt.ok.inner, TypeKind::Unit) {
+        return Err(InvalidReturn {
+            message: "an action's success type must be `unit`".to_owned(),
+            span: action.span,
+        });
+    }
+    Ok(action.return_type.clone())
+}
 
 impl CompileState<'_> {
     fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
@@ -692,23 +710,14 @@ impl CompileState<'_> {
             ExprKind::Return(ret_expr) => {
                 let return_type = match self.get_statement_context()? {
                     StatementContext::PureFunction(fd) => fd.return_type.clone(),
-                    // A `return` in an action (e.g. a `check ... else return Err(..)`
-                    // terminal) returns the action's `result[unit, E]` type.
                     StatementContext::Action(action) => {
-                        let Some(result_type) = &action.return_type else {
-                            let msg = "cannot return from an infallible action; declare a `result[unit, E]` return type";
-                            return Err(self.err(InvalidExpression(msg, expression.clone(), None)));
-                        };
-                        if !matches!(result_type.ok.inner, TypeKind::Unit) {
-                            let msg = "an action's success type must be `unit`";
-                            return Err(self.err(InvalidExpression(msg, expression.clone(), None)));
-                        }
-                        TypeKind::Result(Box::new(result_type.clone())).nowhere()
+                        validate_action_return_type(action).map_err(|e| self.err(e))?
                     }
                     _ => {
-                        // TODO(Steve): Add 'InvalidReturn' error.
-                        let note = "return expressions can't be used in this context";
-                        return Err(self.err(InvalidExpression(note, expression.clone(), None)));
+                        return Err(self.err(InvalidReturn {
+                            message: "return expressions can't be used in this context".to_owned(),
+                            span: expression.span,
+                        }));
                     }
                 };
                 // ensure return expression type matches function signature
@@ -1730,22 +1739,9 @@ impl CompileState<'_> {
                     thir::StmtKind::Return(thir::ReturnStatement { expression: e })
                 }
                 (StmtKind::Return(s), StatementContext::Action(action)) => {
-                    // Only actions declaring a result type may return.
-                    let Some(result_type) = &action.return_type else {
-                        return Err(self.err(UnknownError(
-                            "cannot return from an infallible action; declare a `result[unit, E]` return type".to_owned(),
-                            Some(statement.span),
-                        )));
-                    };
-                    // The success type is limited to `unit`.
-                    if !matches!(result_type.ok.inner, TypeKind::Unit) {
-                        return Err(self.err(UnknownError(
-                            "an action's success type must be `unit`".to_owned(),
-                            Some(result_type.ok.span),
-                        )));
-                    }
                     // Ensure the return expression fits the action's `result[unit, E]` type.
-                    let return_type = TypeKind::Result(Box::new(result_type.clone())).nowhere();
+                    let return_type =
+                        validate_action_return_type(action).map_err(|e| self.err(e))?;
                     let e = self.lower_expression(&s.expression)?;
                     if !e.vtype.fits_type(&return_type) {
                         let err = InvalidType::new(

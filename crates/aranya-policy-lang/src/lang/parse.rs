@@ -1480,15 +1480,22 @@ impl ChunkParser<'_> {
             arguments.push(self.parse_parameter(field)?);
         }
 
-        // Parse optional return type.
+        // Parse return type
         let return_type = match pc.consume_optional(Rule::result_t) {
             Some(pair) => {
+                let span = self.to_ast_span(pair.as_span())?;
                 let rt = self.descend(pair);
                 let ok = rt.consume_type(self)?;
                 let err = rt.consume_type(self)?;
-                Some(ResultTypeKind { ok, err })
+                VType {
+                    inner: TypeKind::Result(Box::new(ResultTypeKind { ok, err })),
+                    span,
+                }
             }
-            None => None,
+            None => VType {
+                inner: TypeKind::Unit,
+                span: ast::Span::empty(),
+            },
         };
 
         // All remaining tokens are statements

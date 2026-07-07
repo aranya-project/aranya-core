@@ -638,9 +638,9 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             loop {
                 match exit_reason {
                     ExitReason::Normal => {
-                        // Action completed. A result-typed action leaves its return
+                        // Action completed. A fallible action leaves its return
                         // value on the stack; an infallible action leaves nothing.
-                        if def.result_type.is_some() {
+                        if def.is_fallible() {
                             let value = rs.stack.pop_value().map_err(|e| {
                                 error!("expected action result value: {e}");
                                 PolicyError::InternalError

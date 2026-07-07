@@ -4,7 +4,10 @@ expression: error
 ---
 error: cannot return from an infallible action; declare a `result[unit, E]` return type
   |
-2 | / action oops() {
-3 | |     return Ok(0)
-4 | | }
+1 | / action f() {
+2 | |     let x = match 0 {
+3 | |         0 => 1
+4 | |         _ => return 2
+5 | |     }
+6 | | }
   | |_^

@@ -16,7 +16,7 @@ Policy {
                     ty: Int @ 14..17,
                 },
             ],
-            return_type: None,
+            return_type: Unit @ 0..0,
             statements: [
                 If(
                     IfStatement {

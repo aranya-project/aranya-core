@@ -1172,10 +1172,11 @@ impl<'a> CompileState<'a> {
         self.enter_statement_context(StatementContext::Action(action_node.clone()));
         let label = Label::new(action_node.identifier.inner.clone(), LabelType::Action);
 
-        let ret = action_node
-            .return_type
-            .as_ref()
-            .map(|result_type| TypeKind::Result(Box::new(result_type.clone())).nowhere());
+        let ret = if matches!(action_node.return_type.inner, TypeKind::Unit) {
+            None
+        } else {
+            Some(action_node.return_type.clone())
+        };
         self.compile_function_like(
             &action_node.arguments,
             ret.as_ref(),

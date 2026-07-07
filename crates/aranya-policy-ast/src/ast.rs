@@ -1255,9 +1255,9 @@ pub struct ActionDefinition {
     pub identifier: Ident,
     /// The arguments to the action
     pub arguments: Vec<Param>,
-    /// Optional `result[unit, E]` type the action returns. `None` means the action is infallible.
-    /// The success (ok) type is limited to `unit`.
-    pub return_type: Option<ResultTypeKind>,
+    /// The action's return type: a `result[unit, E]` for a fallible action, or
+    /// [`TypeKind::Unit`] for an infallible one.
+    pub return_type: VType,
     /// The statements executed when the action is called
     pub statements: Vec<Statement>,
     /// The source location of this definition

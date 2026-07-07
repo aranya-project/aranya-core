@@ -4,8 +4,8 @@ use aranya_policy_ast::Spanned as _;
 use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
-    InvalidExpression, InvalidFactLiteral, InvalidStatement, InvalidSubstruct, InvalidType,
-    MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm,
+    InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
+    InvalidType, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm,
     SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError, UnreachableMatchArm,
 };
 
@@ -398,6 +398,25 @@ impl Error for RedundantMatchArm {
     }
     fn description(&self) -> String {
         "redundant literal pattern in same arm — binding already matches all values".to_owned()
+    }
+}
+
+impl Error for InvalidReturn {
+    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.description());
+
+        report.push(
+            title.element(
+                Snippet::source(input).annotation(
+                    AnnotationKind::Primary
+                        .span(self.span.into())
+                        .highlight_source(true),
+                ),
+            ),
+        );
+    }
+    fn description(&self) -> String {
+        self.message.clone()
     }
 }
 

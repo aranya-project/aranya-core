@@ -19,7 +19,7 @@ Module {
                     ) @ 118..130,
                 },
             },
-            result_type: None,
+            result_type: Unit @ 0..0,
         },
     },
     command_defs: {},
