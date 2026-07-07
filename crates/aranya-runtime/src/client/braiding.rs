@@ -299,17 +299,9 @@ where
 use super::convergence_map;
 
 pub(crate) mod strand_heap {
-    use heapless::binary_heap::Max;
-
     use crate::{
         ClientError, CmdId, Command as _, Location, Priority, Segment, Storage, StorageError,
-        storage::QUEUE_CAPACITY,
     };
-
-    /// Maximum number of active strands. Equal to `QUEUE_CAPACITY` since
-    /// strand count is bounded by graph width, the same bound as the
-    /// traversal queue.
-    pub const STRAND_CAPACITY: usize = QUEUE_CAPACITY;
 
     pub struct Strand<S> {
         key: (Priority, CmdId),
@@ -359,7 +351,7 @@ pub(crate) mod strand_heap {
 
     /// A wrapper around a binary heap which is limited to one finalize command.
     pub struct StrandHeap<S> {
-        heap: heapless::BinaryHeap<Strand<S>, Max, STRAND_CAPACITY>,
+        heap: alloc::collections::BinaryHeap<Strand<S>>,
         /// Tracks whether there is a finalize command in `self.heap`.
         has_finalize: bool,
     }
@@ -373,7 +365,7 @@ pub(crate) mod strand_heap {
     impl<S> StrandHeap<S> {
         pub const fn new() -> Self {
             Self {
-                heap: heapless::BinaryHeap::new(),
+                heap: alloc::collections::BinaryHeap::new(),
                 has_finalize: false,
             }
         }
@@ -400,9 +392,7 @@ pub(crate) mod strand_heap {
                 }
                 self.has_finalize = true;
             }
-            self.heap
-                .push(strand)
-                .map_err(|_| StorageError::StrandHeapOverflow(STRAND_CAPACITY))?;
+            self.heap.push(strand);
             Ok(())
         }
 
