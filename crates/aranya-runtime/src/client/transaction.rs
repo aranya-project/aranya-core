@@ -1166,6 +1166,32 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn test_fact_convergence_bug() -> Result<(), StorageError> {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "a" "b";
+            "i" < "c";
+            "a" "c" < "m1";
+            "m1" "b" < "m2";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(mkid("i")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        graphviz::dot(g, "fact-convergence-bug");
+
+        let seq = lookup(g, "seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert!(
+            "iabc".chars().all(|c| seq.contains(c)),
+            "fact missing from {seq:?}"
+        );
+
+        Ok(())
+    }
+
     #[cfg(feature = "graphviz")]
     mod graphviz {
         #![allow(clippy::unwrap_used)]
