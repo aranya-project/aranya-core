@@ -133,10 +133,6 @@ version = "0.12.10"
 criteria = "safe-to-deploy"
 notes = "This crate is under the rust-lang Github organization"
 
-[[exemptions.anyhow]]
-version = "1.0.94"
-criteria = "safe-to-deploy"
-
 [[exemptions.base16ct]]
 version = "0.2.0"
 criteria = "safe-to-deploy"
@@ -512,14 +508,6 @@ criteria = "safe-to-deploy"
 [[exemptions.ryu]]
 version = "1.0.18"
 criteria = "safe-to-deploy"
-
-[[exemptions.scc]]
-version = "2.2.6"
-criteria = "safe-to-run"
-
-[[exemptions.sdd]]
-version = "3.0.5"
-criteria = "safe-to-run"
 
 [[exemptions.sec1]]
 version = "0.7.3"

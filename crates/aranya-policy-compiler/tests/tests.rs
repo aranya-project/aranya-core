@@ -155,6 +155,12 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
                             .expect("missing target label");
                         write!(f, "call {label:?}")
                     }
+                    Instruction::Recall(t) => {
+                        let label = labels
+                            .get(&t.resolved().expect("unresolved target"))
+                            .expect("missing target label");
+                        write!(f, "recall {label:?}")
+                    }
                     // Fall back to display impl.
                     _ => write!(f, "{ins}"),
                 }

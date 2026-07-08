@@ -599,6 +599,29 @@ where
                     return Ok(MachineStatus::Executing);
                 }
             },
+            Instruction::Recall(t) => match t {
+                Target::Unresolved(label) => {
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
+                }
+                Target::Resolved(n) => {
+                    // Switch from policy to recall context so effects emitted by the
+                    // recall block are marked as recalled.
+                    let CommandContext::Policy(c) = &self.ctx else {
+                        return Err(
+                            self.err(MachineErrorType::BadState("recall: wrong command context"))
+                        );
+                    };
+                    let c = c.clone();
+                    self.ctx = CommandContext::Recall(c);
+
+                    self.scope.enter_function();
+                    // Store the current PC. The PC will be incremented after return,
+                    // so there's no need to increment here.
+                    self.call_state.push(self.pc);
+                    self.pc = n;
+                    return Ok(MachineStatus::Executing);
+                }
+            },
             Instruction::Return => {
                 // When the outermost function completes, there is nothing left to do, so exit.
                 if self.call_state.is_empty() {
@@ -1146,27 +1169,6 @@ where
         }
         self.setup_command(
             Label::new(this_data.name.clone(), LabelType::CommandPolicy),
-            this_data,
-        )?;
-        self.ipush(envelope)?;
-        self.run()
-    }
-
-    /// Call a command policy loaded into the VM by name. Accepts a
-    /// `Struct` containing the Command's data. Returns a Vec of effect
-    /// structs or a MachineError.
-    pub fn call_command_recall(
-        &mut self,
-        this_data: Struct,
-        envelope: Struct,
-        recall_block_name: Identifier,
-    ) -> Result<ExitReason, MachineError> {
-        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_command(
-            Label::new(recall_block_name, LabelType::CommandRecall),
             this_data,
         )?;
         self.ipush(envelope)?;

@@ -260,6 +260,11 @@ where
                 );
                 continue 'location;
             }
+            // Convergence check (incremental BFS, O(1) amortized).
+            if !convergence.should_continue(storage, location)? {
+                trace!("prior {location} convergence drop");
+                continue 'location;
+            }
 
             // Same-segment check (O(1) per strand).
             for other in strands.iter() {
@@ -267,12 +272,6 @@ where
                     trace!("prior {location} same segment as {}", other.next);
                     continue 'location;
                 }
-            }
-
-            // Convergence check (incremental BFS, O(1) amortized).
-            if !convergence.should_continue(storage, location)? {
-                trace!("prior {location} convergence drop");
-                continue 'location;
             }
 
             trace!("strand at {location}");

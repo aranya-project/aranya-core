@@ -49,6 +49,78 @@ command = "cargo"
 args = ["run", "-p", "aranya-core-example"]
 
 
+[tasks.coverage-full]
+category = "test"
+description = "Whole-workspace branch coverage report (per-file table to terminal)"
+env.RUSTC_BOOTSTRAP = "1"
+command = "cargo"
+args = ["llvm-cov", "--branch"]
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.coverage-html]
+category = "test"
+description = "Branch coverage HTML report (target/llvm-cov/html/index.html)"
+env.RUSTC_BOOTSTRAP = "1"
+command = "cargo"
+args = ["llvm-cov", "--branch", "--html"]
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+# Per-bucket branch coverage tables (terminal). Each runs the full instrumented
+# suite, then prints only its bucket; see scripts/coverage.py for the crate map.
+[tasks.coverage-capi]
+category = "test"
+description = "Branch coverage for the C API crates (capi-core/codegen/macro)"
+script_runner = "@shell"
+script = "python3 scripts/coverage.py local capi"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.coverage-tools]
+category = "test"
+description = "Branch coverage for the tools (policy-runner)"
+script_runner = "@shell"
+script = "python3 scripts/coverage.py local tools"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.coverage-compiler]
+category = "test"
+description = "Branch coverage for the policy compiler (compiler/lang/ast/module)"
+script_runner = "@shell"
+script = "python3 scripts/coverage.py local compiler"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.coverage-core-prod]
+category = "test"
+description = "Branch coverage for core production code (runtime, vm, crypto, ...)"
+script_runner = "@shell"
+script = "python3 scripts/coverage.py local core-prod"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+# Default coverage: run the instrumented test suite once, then emit a text table,
+# HTML report, and lcov for every bucket from the stored profdata (avoids
+# rebuilding/retesting per bucket). This is what CI runs. Outputs land in
+# target/llvm-cov/<bucket>/ for the CI job to upload as one artifact each:
+#   <bucket>/coverage.txt  - per-file branch coverage table (the data)
+#   <bucket>/html/         - browsable HTML report (the chart)
+#   <bucket>/lcov.info     - machine-readable lcov (for downstream tooling)
+# Use `coverage-full` for a single whole-workspace report instead.
+[tasks.coverage]
+category = "test"
+description = "Per-bucket branch coverage reports (text table, HTML, lcov)"
+script_runner = "@shell"
+script = "python3 scripts/coverage.py ci"
+dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
+
+[tasks.install-cargo-llvm-cov]
+private = true
+toolchain = "stable"
+install_crate = { crate_name = "cargo-llvm-cov", version = "0.6.20", binary = "cargo-llvm-cov", test_arg = "--version" }
+
+[tasks.install-llvm-tools]
+private = true
+description = "Install llvm-tools-preview (required for branch coverage)"
+script = "rustup component add llvm-tools-preview"
+
+
 # Security
 [tasks.security]
 category = "security"
