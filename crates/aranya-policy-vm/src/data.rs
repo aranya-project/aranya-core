@@ -157,7 +157,7 @@ impl Value {
         }
     }
 
-    /// Checks to see if a [`Value`] matches some [`VType`]
+    /// Checks to see if a [`Value`] matches some [`TypeKind`]
     /// ```
     /// use aranya_policy_module::TypeKind;
     /// use aranya_policy_vm::Value;
@@ -534,7 +534,7 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Checks to see if a [`HashableValue`] matches some [`VType`]
+    /// Checks to see if a [`HashableValue`] matches some [`TypeKind`]
     pub fn fits_type(&self, expected_type: &TypeKind) -> bool {
         match (self, &expected_type) {
             (Self::Int(_), TypeKind::Int) => true,
