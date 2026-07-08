@@ -33,7 +33,7 @@ pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
-        InvalidExpression, InvalidType, NoOpStructComp, NoReturn, NotDefined,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
         SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
     },
     target::CompileTarget,
@@ -1172,10 +1172,19 @@ impl<'a> CompileState<'a> {
         self.enter_statement_context(StatementContext::Action(action_node.clone()));
         let label = Label::new(action_node.identifier.inner.clone(), LabelType::Action);
 
-        let ret = if matches!(action_node.return_type.inner, TypeKind::Unit) {
-            None
-        } else {
-            Some(action_node.return_type.clone())
+        // The return type is `unit` (infallible) or `result[unit, E]` (fallible).
+        let ret = match &action_node.return_type.inner {
+            TypeKind::Unit => None,
+            TypeKind::Result(r) => {
+                if !matches!(r.ok.inner, TypeKind::Unit) {
+                    return Err(self.err(InvalidReturn {
+                        message: "an action's success type must be `unit`".to_owned(),
+                        span: action_node.span,
+                    }));
+                }
+                Some(action_node.return_type.clone())
+            }
+            _ => unreachable!("invalid action return type should have been caught during parsing"),
         };
         self.compile_function_like(
             &action_node.arguments,
