@@ -122,8 +122,6 @@ action increment() {
     }
 }
 
-// A result-typed action: returns `Ok(unit)` on success or `Err(reason)` on
-// failure.
 ephemeral action try_result(fail bool) result[unit, string] {
     if fail {
         return Err("boom")

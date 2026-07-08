@@ -27,7 +27,6 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
-use tracing::warn;
 
 pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
@@ -558,12 +557,10 @@ impl<'a> CompileState<'a> {
 
     /// Ensure debug mode is on, or return a [`DebugModeRequired`] error.
     fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
-        let err = self.err(DebugModeRequired { name, span });
         if self.is_debug {
-            warn!("{err}");
             Ok(())
         } else {
-            Err(err)
+            Err(self.err(DebugModeRequired { name, span }))
         }
     }
 

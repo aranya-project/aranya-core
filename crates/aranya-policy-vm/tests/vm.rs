@@ -552,16 +552,13 @@ fn test_counting() -> anyhow::Result<()> {
             open { return todo() }
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
-                check count_one == 1 else recall reject()
+                check count_one == 1 else test_fail("check failed")
                 let count_two = count_up_to 2 Foo[i:?]
-                check count_two == 2 else recall reject()
+                check count_two == 2 else test_fail("check failed")
                 let count_all = count_up_to 10 Foo[i:?]
-                check count_all == 3 else recall reject()
+                check count_all == 3 else test_fail("check failed")
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
-                check count_max == 3 else recall reject()
-                finish {}
-            }
-            recall reject() {
+                check count_max == 3 else test_fail("check failed")
                 finish {}
             }
         }
@@ -570,12 +567,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_least 1 Foo[i:?] else recall reject()
-                check at_least 3 Foo[i:?] else recall reject()
-                check at_least 4 Foo[i:?] == false else recall reject()
-                finish {}
-            }
-            recall reject() {
+                check at_least 1 Foo[i:?] else test_fail("check failed")
+                check at_least 3 Foo[i:?] else test_fail("check failed")
+                check at_least 4 Foo[i:?] == false else test_fail("check failed")
                 finish {}
             }
         }
@@ -584,12 +578,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_most 1 Foo[i:?] == false else recall reject()
-                check at_most 3 Foo[i:?] else recall reject()
-                check at_most 4 Foo[i:?] else recall reject()
-                finish {}
-            }
-            recall reject() {
+                check at_most 1 Foo[i:?] == false else test_fail("check failed")
+                check at_most 3 Foo[i:?] else test_fail("check failed")
+                check at_most 4 Foo[i:?] else test_fail("check failed")
                 finish {}
             }
         }
@@ -598,12 +589,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check exactly 1 Foo[i:?] == false else recall reject()
-                check exactly 3 Foo[i:?] else recall reject()
-                check exactly 4 Foo[i:?] == false else recall reject()
-                finish {}
-            }
-            recall reject() {
+                check exactly 1 Foo[i:?] == false else test_fail("check failed")
+                check exactly 3 Foo[i:?] else test_fail("check failed")
+                check exactly 4 Foo[i:?] == false else test_fail("check failed")
                 finish {}
             }
         }
@@ -1677,8 +1665,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             }
 
             recall default() {
-                // `check` is not allowed in a recall block; the recall body
-                // runs with `envelope` and `this` in scope and emits.
+                check envelope.payload == this.test else test_fail("invalid envelope")
                 finish {
                     emit Recalled {}
                 }
