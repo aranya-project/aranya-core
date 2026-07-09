@@ -27,6 +27,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
+use tracing::warn;
 
 pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
@@ -555,9 +556,11 @@ impl<'a> CompileState<'a> {
         CompileError::new(err_type, Some(self.policy.text.clone()))
     }
 
-    /// Ensure debug mode is on, or return a [`DebugModeRequired`] error.
+    /// Ensure debug mode is on, or return a [`DebugModeRequired`] error. In debug
+    /// mode, warns that a debug-only construct (e.g. `todo()`/`test_fail`) is present.
     fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
         if self.is_debug {
+            warn!("`{name}` found in policy");
             Ok(())
         } else {
             Err(self.err(DebugModeRequired { name, span }))
