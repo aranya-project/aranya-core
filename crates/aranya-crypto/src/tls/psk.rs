@@ -429,9 +429,7 @@ mod tests {
         let group = GroupId::default();
         let sk1 = EncryptionKey::<CS>::new(Rng);
         let sk2 = EncryptionKey::<CS>::new(Rng);
-        let pk2 = sk2
-            .public()
-            .expect("encryption public key should be valid");
+        let pk2 = sk2.public().expect("encryption public key should be valid");
         let seed = PskSeed::<CS>::new(Rng, &group);
 
         // Happy path: sealing for a different peer key succeeds.
@@ -439,9 +437,7 @@ mod tests {
             .expect("`seal_psk_seed` should succeed for a different peer key");
 
         // Error path: sealing for our own public key is rejected.
-        let pk1 = sk1
-            .public()
-            .expect("encryption public key should be valid");
+        let pk1 = sk1.public().expect("encryption public key should be valid");
         let err = sk1
             .seal_psk_seed(Rng, &seed, &pk1, &group)
             .expect_err("`seal_psk_seed` should reject sealing to ourselves");
