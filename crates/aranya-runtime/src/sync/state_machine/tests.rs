@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use core::cell::RefCell;
+
 use super::*;
 
 type TestSyncer = Syncer<&'static str, Duration>;
@@ -107,6 +109,25 @@ fn sync_now_polls_registered_peer_and_keeps_interval() {
     // Unregistered peers are reported.
     assert!(!s.sync_now(&"b", g, secs(2)));
     assert!(!s.sync_now(&"a", gid(2), secs(2)));
+}
+
+#[test]
+fn sync_now_needs_the_poll_role_not_just_a_slot() {
+    let mut s = TestSyncer::new();
+    let g = gid(1);
+    // The pair holds a slot (outbound subscription) but no poll schedule.
+    s.subscribe("a", g, secs(100), 5_000, secs(0)).unwrap();
+    assert!(!s.sync_now(&"a", g, secs(1)));
+    // Only the subscription's work is emitted — no poll.
+    assert_eq!(
+        drain(&mut s, secs(1)),
+        [SyncAction::Subscribe {
+            peer: "a",
+            graph_id: g,
+            remain_open_secs: 100,
+            max_bytes: 5_000
+        }],
+    );
 }
 
 #[test]
@@ -293,6 +314,41 @@ fn zero_byte_budget_is_already_exhausted() {
     s.add_push_subscriber("a", g, secs(60), 0, secs(0)).unwrap();
     s.notify_local_change(g, secs(1));
     assert_eq!(drain(&mut s, secs(1)), []);
+}
+
+#[test]
+fn record_push_after_subscriber_left_is_a_noop() {
+    let mut s = TestSyncer::new();
+    let g = gid(1);
+    s.add_push_subscriber("a", g, secs(60), 100, secs(0))
+        .unwrap();
+    s.notify_local_change(g, secs(1));
+    assert_eq!(drain(&mut s, secs(1)).len(), 1);
+    // The push completes after the subscriber unsubscribed: the accounting
+    // lands on a pair with no slot and changes nothing.
+    assert!(s.remove_push_subscriber(&"a", g));
+    s.record_push(&"a", g, 60);
+    assert_eq!(s.next_deadline(), None);
+    s.notify_local_change(g, secs(2));
+    assert_eq!(drain(&mut s, secs(2)), []);
+}
+
+#[test]
+fn record_push_without_the_push_role_keeps_the_slot() {
+    let mut s = TestSyncer::new();
+    let g = gid(1);
+    s.add_peer("a", g, PeerConfig::periodic(secs(10)), secs(0))
+        .unwrap();
+    // Accounting against a pair that only polls: there is no budget to
+    // consume, and the slot's other roles are untouched.
+    s.record_push(&"a", g, 1_000_000);
+    assert_eq!(
+        drain(&mut s, secs(0)),
+        [SyncAction::Poll {
+            peer: "a",
+            graph_id: g
+        }],
+    );
 }
 
 #[test]
@@ -484,6 +540,28 @@ fn too_many_subscriptions_stops_renewals() {
     s.on_subscribe_response(&"a", g, SubscribeResponse::TooManySubscriptions);
     assert_eq!(drain(&mut s, secs(500)), []);
     assert_eq!(s.next_deadline(), None);
+}
+
+#[test]
+fn late_rejection_after_teardown_is_a_noop() {
+    let mut s = TestSyncer::new();
+    let g = gid(1);
+    s.subscribe("a", g, secs(100), 5_000, secs(0)).unwrap();
+    drain(&mut s, secs(0));
+    // A rejection racing an undrained teardown leaves the teardown alone...
+    s.unsubscribe("a", g, secs(1)).unwrap();
+    s.on_subscribe_response(&"a", g, SubscribeResponse::TooManySubscriptions);
+    assert_eq!(
+        drain(&mut s, secs(1)),
+        [SyncAction::Unsubscribe {
+            peer: "a",
+            graph_id: g
+        }],
+    );
+    // ...and one arriving after the teardown drained (slot gone) is a no-op.
+    s.on_subscribe_response(&"a", g, SubscribeResponse::TooManySubscriptions);
+    assert_eq!(s.next_deadline(), None);
+    assert_eq!(drain(&mut s, secs(500)), []);
 }
 
 #[test]
@@ -689,6 +767,25 @@ fn earliest_due_ordering_across_sources() {
 }
 
 #[test]
+fn next_deadline_sees_one_shot_work() {
+    let mut s = TestSyncer::new();
+    let g = gid(1);
+    // A push queued by a local change.
+    s.add_push_subscriber("a", g, secs(60), 1_000, secs(0))
+        .unwrap();
+    s.notify_local_change(g, secs(2));
+    assert_eq!(s.next_deadline(), Some(secs(2)));
+    assert_eq!(drain(&mut s, secs(2)).len(), 1);
+    // A pending push teardown.
+    s.unsubscribe("b", g, secs(3)).unwrap();
+    assert_eq!(s.next_deadline(), Some(secs(3)));
+    assert_eq!(drain(&mut s, secs(3)).len(), 1);
+    // A pending hello teardown.
+    s.hello_unsubscribe("c", g, secs(4)).unwrap();
+    assert_eq!(s.next_deadline(), Some(secs(4)));
+}
+
+#[test]
 fn remove_graph_clears_all_state() {
     let mut s = TestSyncer::new();
     let (g1, g2) = (gid(1), gid(2));
@@ -794,6 +891,16 @@ fn full_slots_reject_new_subscribers() {
 }
 
 #[test]
+fn removing_an_absent_slot_is_a_noop() {
+    let mut heap: HeapSlots<&'static str, Duration> = HeapSlots::new();
+    heap.remove(gid(1), &"nobody");
+    assert!(heap.get(gid(1), &"nobody").is_none());
+    let mut fixed: FixedSlots<&'static str, Duration, 2> = FixedSlots::new();
+    fixed.remove(gid(1), &"nobody");
+    assert!(fixed.get(gid(1), &"nobody").is_none());
+}
+
+#[test]
 fn fixed_slots_drive_the_machine() {
     // Parity smoke test: the same scheduling flows over caller-supplied
     // fixed storage.
@@ -884,6 +991,173 @@ fn instant_arithmetic_saturates_at_bounds() {
         Tick(u64::MAX),
     );
     assert_eq!(Tick(0).saturating_duration_since(Tick(5)), Duration::ZERO);
+}
+
+/// A [`SyncSlots`] implementation that violates the contract: the first
+/// `for_each` scan also reports a ghost slot that the keyed lookups cannot
+/// see. The trait is caller-supplied, so the machine treats a scan/lookup
+/// mismatch as a stale schedule entry to skip — not a panic or a livelock.
+struct GhostSlots {
+    inner: HeapSlots<&'static str, Duration>,
+    ghost: RefCell<Option<SyncSlot<&'static str, Duration>>>,
+}
+
+impl SyncSlots<&'static str, Duration> for GhostSlots {
+    fn get(
+        &self,
+        graph_id: GraphId,
+        peer: &&'static str,
+    ) -> Option<&SyncSlot<&'static str, Duration>> {
+        self.inner.get(graph_id, peer)
+    }
+
+    fn get_mut(
+        &mut self,
+        graph_id: GraphId,
+        peer: &&'static str,
+    ) -> Option<&mut SyncSlot<&'static str, Duration>> {
+        self.inner.get_mut(graph_id, peer)
+    }
+
+    fn get_or_insert(
+        &mut self,
+        graph_id: GraphId,
+        peer: &&'static str,
+    ) -> Result<&mut SyncSlot<&'static str, Duration>, OutOfSlots> {
+        self.inner.get_or_insert(graph_id, peer)
+    }
+
+    fn remove(&mut self, graph_id: GraphId, peer: &&'static str) {
+        self.inner.remove(graph_id, peer);
+    }
+
+    fn for_each(&self, mut f: impl FnMut(&SyncSlot<&'static str, Duration>)) {
+        self.inner.for_each(&mut f);
+        if let Some(ghost) = self.ghost.borrow_mut().take() {
+            f(&ghost);
+        }
+    }
+
+    fn retain(&mut self, f: impl FnMut(&mut SyncSlot<&'static str, Duration>) -> bool) {
+        self.inner.retain(f);
+    }
+}
+
+/// Drives `poll_action` over a table whose scan reported a due `role` for a
+/// pair the lookups resolve to nothing — or, with `resolves_to_empty_slot`,
+/// to a slot that no longer holds the scanned role. The stale item must be
+/// skipped and the drain must terminate.
+fn assert_stale_due_item_skipped(
+    role: impl FnOnce(&mut SyncSlot<&'static str, Duration>),
+    resolves_to_empty_slot: bool,
+) {
+    let g = gid(9);
+    let mut ghost = SyncSlot::new(g, "ghost");
+    role(&mut ghost);
+    let mut slots = GhostSlots {
+        inner: HeapSlots::new(),
+        ghost: RefCell::new(Some(ghost)),
+    };
+    if resolves_to_empty_slot {
+        slots
+            .get_or_insert(g, &"ghost")
+            .expect("heap slots have room");
+    }
+    let mut s: Syncer<&'static str, Duration, GhostSlots> = Syncer::new_in(slots);
+    assert_eq!(s.poll_action(secs(1)), None);
+    // The stale item cost nothing: the table still serves real slots
+    // through a full lifecycle.
+    s.add_peer("real", g, PeerConfig::periodic(secs(10)), secs(1))
+        .expect("heap slots have room");
+    assert_eq!(
+        s.poll_action(secs(1)),
+        Some(SyncAction::Poll {
+            peer: "real",
+            graph_id: g
+        }),
+    );
+    s.notify_local_change(g, secs(1));
+    assert!(s.remove_peer(&"real", g));
+    assert_eq!(s.next_deadline(), None);
+}
+
+#[test]
+fn drain_skips_due_item_whose_slot_is_gone() {
+    assert_stale_due_item_skipped(
+        |slot| {
+            slot.poll = Some(PollState {
+                config: PeerConfig::periodic(secs(10)),
+                next_sync: Some(Duration::ZERO),
+            });
+        },
+        false,
+    );
+}
+
+#[test]
+fn drain_skips_stale_poll_whose_role_is_gone() {
+    assert_stale_due_item_skipped(
+        |slot| {
+            slot.poll = Some(PollState {
+                config: PeerConfig::periodic(secs(10)),
+                next_sync: Some(Duration::ZERO),
+            });
+        },
+        true,
+    );
+}
+
+#[test]
+fn drain_skips_stale_push_renewal_whose_request_is_gone() {
+    assert_stale_due_item_skipped(
+        |slot| {
+            slot.push_req = Some(PushReq::Active {
+                remain_open_secs: 60,
+                max_bytes: 1_000,
+                renew_at: Duration::ZERO,
+            });
+        },
+        true,
+    );
+}
+
+#[test]
+fn drain_skips_stale_push_cancel_whose_request_is_gone() {
+    assert_stale_due_item_skipped(
+        |slot| {
+            slot.push_req = Some(PushReq::Cancel {
+                due: Duration::ZERO,
+            });
+        },
+        true,
+    );
+}
+
+#[test]
+fn drain_skips_stale_hello_renewal_whose_request_is_gone() {
+    assert_stale_due_item_skipped(
+        |slot| {
+            slot.hello_req = Some(HelloReq::Active {
+                graph_change_delay: secs(1),
+                duration: secs(60),
+                schedule_delay: secs(30),
+                renew_at: Duration::ZERO,
+            });
+        },
+        true,
+    );
+}
+
+#[test]
+fn drain_skips_stale_hello_cancel_whose_request_is_gone() {
+    assert_stale_due_item_skipped(
+        |slot| {
+            slot.hello_req = Some(HelloReq::Cancel {
+                due: Duration::ZERO,
+            });
+        },
+        true,
+    );
 }
 
 #[test]
