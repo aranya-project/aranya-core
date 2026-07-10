@@ -697,7 +697,7 @@ impl CompileState<'_> {
                         let TypeKind::Result(_) = &action.return_type.inner else {
                             return Err(self.err(InvalidReturn {
                                 message: "cannot return from an infallible action; declare a `result[unit, E]` return type".to_owned(),
-                                span: action.span,
+                                span: expression.span,
                             }));
                         };
                         action.return_type.clone()
@@ -1732,7 +1732,7 @@ impl CompileState<'_> {
                     let TypeKind::Result(_) = &action.return_type.inner else {
                         return Err(self.err(InvalidReturn {
                             message: "cannot return from an infallible action; declare a `result[unit, E]` return type".to_owned(),
-                            span: action.span,
+                            span: s.expression.span,
                         }));
                     };
                     // Ensure the return expression fits the action's `result[unit, E]` type.

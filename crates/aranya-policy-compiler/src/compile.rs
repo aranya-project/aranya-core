@@ -1179,7 +1179,7 @@ impl<'a> CompileState<'a> {
                 if !matches!(r.ok.inner, TypeKind::Unit) {
                     return Err(self.err(InvalidReturn {
                         message: "an action's success type must be `unit`".to_owned(),
-                        span: action_node.span,
+                        span: r.ok.span,
                     }));
                 }
                 Some(action_node.return_type.clone())

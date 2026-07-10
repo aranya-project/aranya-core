@@ -4,7 +4,5 @@ expression: error
 ---
 error: cannot return from an infallible action; declare a `result[unit, E]` return type
   |
-2 | / action oops() {
-3 | |     return Ok(0)
-4 | | }
-  | |_^
+3 |     return Ok(0)
+  |            ^^^^^
