@@ -823,10 +823,7 @@ where
                                 "Tick sync currently supports exactly 2 clients"
                             );
                             if let Some(interval) = writer_commit_interval {
-                                assert!(
-                                    interval >= 1,
-                                    "writer_commit_interval must be at least 1"
-                                );
+                                assert!(interval >= 1, "writer_commit_interval must be at least 1");
                             }
                             // Per-client count of writes emitted so far, used
                             // to place transaction commit boundaries.
@@ -1305,8 +1302,11 @@ where
             } => {
                 // Flush any open batched transactions for this graph so all
                 // writes are durable before converging and comparing.
-                let open_keys: alloc::vec::Vec<(u64, u64)> =
-                    open_txns.keys().copied().filter(|&(_, g)| g == graph).collect();
+                let open_keys: Vec<(u64, u64)> = open_txns
+                    .keys()
+                    .copied()
+                    .filter(|&(_, g)| g == graph)
+                    .collect();
                 for txn_key in open_keys {
                     if let Some(txn) = open_txns.remove(&txn_key) {
                         let state = clients
