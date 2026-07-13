@@ -49,7 +49,9 @@ impl HeadSet {
 
     /// Whether `location` is one of the heads.
     ///
-    /// Linear scan: `Location` is not the sort key, so binary search does not apply.
+    /// The set is sorted by `LocatedAddress` (command id first), not by
+    /// `Location`, so looking up a location is a linear scan rather than a
+    /// binary search.
     pub fn contains(&self, location: Location) -> bool {
         self.heads.iter().any(|h| h.location() == location)
     }

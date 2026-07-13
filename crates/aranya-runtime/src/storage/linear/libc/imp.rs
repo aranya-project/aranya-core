@@ -13,7 +13,7 @@ use super::error::Error;
 use crate::{
     GraphId, StorageError,
     linear::{
-        io::{IoManager, Read, Write},
+        io::{FactCacheOffset, IoManager, Read, Write},
         libc::IdPath,
     },
     storage::HeadSet,
@@ -260,16 +260,16 @@ impl Write for Writer {
 
     fn heads(&self) -> Result<HeadSet, StorageError> {
         if self.root.heads == u64::MAX {
-            return Err(StorageError::NoSuchStorage);
+            return Err(StorageError::NotInitialized);
         }
         self.fetch_owned(self.root.heads)
     }
 
-    fn fact_cache(&self) -> Result<u64, StorageError> {
+    fn fact_cache(&self) -> Result<FactCacheOffset, StorageError> {
         if self.root.fact_cache == u64::MAX {
-            return Err(StorageError::NoSuchStorage);
+            return Err(StorageError::NotInitialized);
         }
-        Ok(self.root.fact_cache)
+        Ok(FactCacheOffset::new(self.root.fact_cache))
     }
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
@@ -281,12 +281,12 @@ impl Write for Writer {
         Ok(item)
     }
 
-    fn commit(&mut self, heads: &HeadSet, fact_cache: u64) -> Result<(), StorageError> {
+    fn commit(&mut self, heads: &HeadSet, fact_cache: FactCacheOffset) -> Result<(), StorageError> {
         // Append the head set, then atomically point the root at it + the
         // fact cache.
         let (_, heads_offset) = self.append_at(|_| heads.clone())?;
         self.root.heads = heads_offset;
-        self.root.fact_cache = fact_cache;
+        self.root.fact_cache = fact_cache.get();
         self.write_root()?;
         Ok(())
     }
@@ -478,20 +478,20 @@ mod tests {
         {
             let mut writer = manager.create(graph_id).unwrap();
             // Before any commit the head set / fact cache are absent.
-            assert!(matches!(writer.heads(), Err(StorageError::NoSuchStorage)));
+            assert!(matches!(writer.heads(), Err(StorageError::NotInitialized)));
             assert!(matches!(
                 writer.fact_cache(),
-                Err(StorageError::NoSuchStorage)
+                Err(StorageError::NotInitialized)
             ));
 
-            writer.commit(&heads, 1234).unwrap();
+            writer.commit(&heads, FactCacheOffset::new(1234)).unwrap();
             assert_eq!(writer.heads().unwrap(), heads);
-            assert_eq!(writer.fact_cache().unwrap(), 1234);
+            assert_eq!(writer.fact_cache().unwrap(), FactCacheOffset::new(1234));
         }
 
         // Reopen and verify persistence.
         let writer = manager.open(graph_id).unwrap().unwrap();
         assert_eq!(writer.heads().unwrap(), heads);
-        assert_eq!(writer.fact_cache().unwrap(), 1234);
+        assert_eq!(writer.fact_cache().unwrap(), FactCacheOffset::new(1234));
     }
 }

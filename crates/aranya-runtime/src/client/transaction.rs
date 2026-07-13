@@ -77,6 +77,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
     /// Write any in-flight perspective into a segment so all accumulated commands
     /// are persisted and reflected in `self.heads`. Does NOT commit or braid.
+    ///
+    /// `commit` flushes automatically; callers only need this to make
+    /// [`Self::in_flight_heads`] reflect every accumulated command before
+    /// committing (e.g. to advertise the frontier while syncing).
     pub fn flush(&mut self, provider: &mut SP) -> Result<(), ClientError> {
         let storage = provider.get_storage(self.graph_id)?;
         if let Some(p) = Option::take(&mut self.perspective) {

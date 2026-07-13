@@ -616,6 +616,8 @@ mod test {
             match self.prior {
                 Prior::None => Priority::Init,
                 Prior::Single(_) => {
+                    // Use the last byte of the ID as priority, just so we can
+                    // properly see the effects of braiding
                     let id = self.id.as_bytes();
                     let priority = u32::from(*id.last().unwrap());
                     Priority::Basic(priority)

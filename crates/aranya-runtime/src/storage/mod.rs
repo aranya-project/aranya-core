@@ -579,6 +579,8 @@ pub enum StorageError {
     StorageExists,
     #[error("no such storage")]
     NoSuchStorage,
+    #[error("storage created but not initialized by a first commit")]
+    NotInitialized,
     #[error("segment index {} is out of bounds", .0.segment)]
     SegmentOutOfBounds(Location),
     #[error("max cut {} is out of bounds in segment {}", .0.max_cut, .0.segment)]

@@ -361,7 +361,7 @@ impl<W: Write> LinearStorage<W> {
         // Seed both the one-element head set and the fact cache (the init
         // segment's fact index, stored at `facts`).
         let cached_heads = HeadSet::single(head);
-        writer.commit(&cached_heads, facts)?;
+        writer.commit(&cached_heads, FactCacheOffset::new(facts))?;
 
         let storage = Self {
             writer,
@@ -742,7 +742,7 @@ impl<F: Write> Storage for LinearStorage<F> {
     fn fact_cache(&self) -> Result<Self::FactIndex, StorageError> {
         let offset = self.writer.fact_cache()?;
         Ok(LinearFactIndex {
-            repr: self.writer.readonly().fetch(offset)?,
+            repr: self.writer.readonly().fetch(offset.get())?,
             reader: self.writer.readonly(),
         })
     }
@@ -752,7 +752,8 @@ impl<F: Write> Storage for LinearStorage<F> {
         heads: HeadSet,
         fact_cache: Self::FactIndex,
     ) -> Result<(), StorageError> {
-        self.writer.commit(&heads, fact_cache.repr.offset)?;
+        self.writer
+            .commit(&heads, FactCacheOffset::new(fact_cache.repr.offset))?;
         self.cached_heads = heads;
         Ok(())
     }

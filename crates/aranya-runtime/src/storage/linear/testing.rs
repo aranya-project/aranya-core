@@ -55,7 +55,7 @@ struct Shared {
 
 pub struct Writer {
     heads: Mutex<Option<HeadSet>>,
-    fact_cache: Mutex<Option<u64>>,
+    fact_cache: Mutex<Option<io::FactCacheOffset>>,
     shared: Arc<Shared>,
 }
 
@@ -74,11 +74,14 @@ impl io::Write for Writer {
     }
 
     fn heads(&self) -> Result<HeadSet, StorageError> {
-        self.heads.lock().clone().ok_or(StorageError::NoSuchStorage)
+        self.heads
+            .lock()
+            .clone()
+            .ok_or(StorageError::NotInitialized)
     }
 
-    fn fact_cache(&self) -> Result<u64, StorageError> {
-        (*self.fact_cache.lock()).ok_or(StorageError::NoSuchStorage)
+    fn fact_cache(&self) -> Result<io::FactCacheOffset, StorageError> {
+        (*self.fact_cache.lock()).ok_or(StorageError::NotInitialized)
     }
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
@@ -95,7 +98,11 @@ impl io::Write for Writer {
         Ok(item)
     }
 
-    fn commit(&mut self, heads: &HeadSet, fact_cache: u64) -> Result<(), StorageError> {
+    fn commit(
+        &mut self,
+        heads: &HeadSet,
+        fact_cache: io::FactCacheOffset,
+    ) -> Result<(), StorageError> {
         *self.heads.lock() = Some(heads.clone());
         *self.fact_cache.lock() = Some(fact_cache);
         Ok(())

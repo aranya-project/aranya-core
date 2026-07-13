@@ -24,6 +24,23 @@ pub trait IoManager {
     -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
+/// File offset of the committed fact cache (a merged fact index written via
+/// [`Write::append`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FactCacheOffset(u64);
+
+impl FactCacheOffset {
+    /// Wraps a raw offset produced by [`Write::append`].
+    pub fn new(offset: u64) -> Self {
+        Self(offset)
+    }
+
+    /// The raw file offset.
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
+
 /// Exclusive writer for a linear storage graph.
 pub trait Write {
     /// A `Read`er for this writer's shared data.
@@ -35,7 +52,7 @@ pub trait Write {
     fn heads(&self) -> Result<HeadSet, StorageError>;
 
     /// Get the file offset of the cached merged fact index.
-    fn fact_cache(&self) -> Result<u64, StorageError>;
+    fn fact_cache(&self) -> Result<FactCacheOffset, StorageError>;
 
     /// Append an item (e.g. segment or fact-index) onto the writer.
     ///
@@ -46,7 +63,7 @@ pub trait Write {
         T: Serialize;
 
     /// Commit the head set and fact-cache offset atomically.
-    fn commit(&mut self, heads: &HeadSet, fact_cache: u64) -> Result<(), StorageError>;
+    fn commit(&mut self, heads: &HeadSet, fact_cache: FactCacheOffset) -> Result<(), StorageError>;
 }
 
 /// A share-able reader for a linear storage graph.
