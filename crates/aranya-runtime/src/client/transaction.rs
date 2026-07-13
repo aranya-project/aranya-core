@@ -682,24 +682,27 @@ mod test {
                 "merges shouldn't be evaluated"
             );
 
-            // For init and basic commands, append the id to the seq fact.
             let data = command.bytes();
-            if let Some(seq) = facts
-                .query("seq", &Keys::default())
-                .assume("can query")?
-                .as_deref()
-            {
-                facts
-                    .insert(
-                        "seq".into(),
-                        Keys::default(),
-                        [seq, b":", data].concat().into(),
-                    )
-                    .unwrap();
-            } else {
-                facts
-                    .insert("seq".into(), Keys::default(), data.into())
-                    .unwrap();
+            // (q)uiet commmands add no facts so we can test that.
+            if !data.starts_with(b"q") {
+                // For init and basic commands, append the id to the seq fact.
+                if let Some(seq) = facts
+                    .query("seq", &Keys::default())
+                    .assume("can query")?
+                    .as_deref()
+                {
+                    facts
+                        .insert(
+                            "seq".into(),
+                            Keys::default(),
+                            [seq, b":", data].concat().into(),
+                        )
+                        .unwrap();
+                } else {
+                    facts
+                        .insert("seq".into(), Keys::default(), data.into())
+                        .unwrap();
+                }
             }
             Ok(())
         }
@@ -851,10 +854,11 @@ mod test {
         }
 
         fn get_addr(&self, id: CmdId) -> Address {
-            Address {
-                id,
-                max_cut: self.max_cuts[&id],
-            }
+            let max_cut = *self
+                .max_cuts
+                .get(&id)
+                .unwrap_or_else(|| panic!("bad ID {id}"));
+            Address { id, max_cut }
         }
 
         pub fn line(&mut self, prev: CmdId, ids: &[CmdId]) -> Result<(), ClientError> {
@@ -1354,6 +1358,88 @@ mod test {
             )
             .unwrap();
         assert!(loc.is_some(), "flushed tip must be resolvable in storage");
+    }
+
+    #[test]
+    fn test_merge_bug() -> Result<(), StorageError> {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "j";
+            "j" < "qo1";
+            "j" < "qa1";
+            "qo1" "qa1" < "m1";
+            "m1" < "qo2";
+            "m1" < "qa2";
+            "qo2" "qa2" < "m2";
+            "m2" < "h";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(mkid("i")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        graphviz::dot(g, "merge-bug");
+
+        assert_eq!(sole_head(g).max_cut, MaxCut::new(6));
+
+        let seq = lookup(g, "seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "i:j:h");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_linear_bug() -> Result<(), StorageError> {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "j";
+            commit;
+            "j" < "qa" "qb";
+            commit;
+            "qa" < "c";
+            "qb" "c" < "m";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(mkid("i")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        graphviz::dot(g, "linear-bug");
+
+        assert_eq!(sole_head(g).max_cut, MaxCut::new(4));
+
+        let seq = lookup(g, "seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "i:j:c");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_fact_convergence_bug() -> Result<(), StorageError> {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "a" "b";
+            "i" < "c";
+            "a" "c" < "m1";
+            "m1" "b" < "m2";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(mkid("i")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        graphviz::dot(g, "fact-convergence-bug");
+
+        let seq = lookup(g, "seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert!(
+            "iabc".chars().all(|c| seq.contains(c)),
+            "fact missing from {seq:?}"
+        );
+
+        Ok(())
     }
 
     #[cfg(feature = "graphviz")]

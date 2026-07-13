@@ -526,7 +526,10 @@ impl<'a> CompileState<'a> {
     pub fn resolve_targets(&mut self) -> Result<(), CompileError> {
         for ref mut instr in &mut self.m.progmem {
             match instr {
-                Instruction::Branch(t) | Instruction::Jump(t) | Instruction::Call(t) => {
+                Instruction::Branch(t)
+                | Instruction::Jump(t)
+                | Instruction::Call(t)
+                | Instruction::Recall(t) => {
                     Self::resolve_target(t, &mut self.m.labels)?;
                 }
                 _ => (),
@@ -816,7 +819,7 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
             thir::ExprKind::CheckUnwrap(e) => {
-                self.compile_unwrap_option(*e, ExitReason::Check(None))?;
+                self.compile_unwrap_option(*e, ExitReason::Check)?;
             }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -916,7 +919,7 @@ impl<'a> CompileState<'a> {
 
                 match s.else_expression {
                     Some(else_expression) => self.compile_typed_expression(else_expression)?,
-                    None => self.append_instruction(Instruction::Exit(ExitReason::Check(None))),
+                    None => self.append_instruction(Instruction::Exit(ExitReason::Check)),
                 }
                 self.define_label(check_succeeded_label, self.wp)?;
             }
@@ -959,7 +962,12 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_statements(s, Scope::Layered)?;
                 self.exit_statement_context();
                 // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
-                self.append_instruction(Instruction::Exit(ExitReason::Normal));
+                // finish in recall block exits with Check, otherwise Normal
+                let exit_reason = match self.get_statement_context() {
+                    Ok(StatementContext::CommandRecall(_)) => ExitReason::Check,
+                    _ => ExitReason::Normal,
+                };
+                self.append_instruction(Instruction::Exit(exit_reason));
             }
             thir::StmtKind::Map(map_stmt) => {
                 // Execute query and store results
@@ -1228,9 +1236,16 @@ impl<'a> CompileState<'a> {
         for arg_e in recall.arguments {
             self.compile_typed_expression(arg_e)?;
         }
-        let recall_name =
-            Some(self.command_recall_name(&recall.command_name, &recall.recall_name)?);
-        self.append_instruction(Instruction::Exit(ExitReason::Check(recall_name)));
+        // Recall blocks take `this` and `envelope` as trailing parameters.
+        self.append_instruction(Instruction::Get(ident!("this")));
+        self.append_instruction(Instruction::Get(ident!("envelope")));
+
+        let recall_label = Label::new(
+            self.command_recall_name(&recall.command_name, &recall.recall_name)?,
+            LabelType::CommandRecall,
+        );
+        // `recall` switches to recall context, then calls the named recall block.
+        self.append_instruction(Instruction::Recall(Target::Unresolved(recall_label)));
         Ok(())
     }
 
@@ -1305,7 +1320,7 @@ impl<'a> CompileState<'a> {
                 &recall_block.statements,
                 Label::new(full_name, LabelType::CommandRecall),
             )?;
-            self.append_instruction(Instruction::Exit(ExitReason::Normal));
+            self.append_instruction(Instruction::Exit(ExitReason::Check));
             self.exit_statement_context();
         }
         Ok(())

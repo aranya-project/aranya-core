@@ -42,15 +42,15 @@ Module {
 <recall 'Cmd_foo'>:
     def 'envelope'
     def 'this'
-    exit normal
+    exit check
 <recall 'Cmd_bar'>:
     def 'envelope'
     def 'this'
-    exit normal
+    exit check
 <recall 'Cmd_baz'>:
     def 'envelope'
     def 'this'
-    exit normal
+    exit check
 <seal 'Cmd'>:
     def 'this'
     save SP

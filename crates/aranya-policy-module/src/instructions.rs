@@ -30,8 +30,8 @@ pub enum ExitReason {
     Normal,
     /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
     Yield,
-    /// Execution was aborted gracefully, due an error. The argument, if present, is the recall block to execute.
-    Check(Option<Identifier>),
+    /// Execution was aborted gracefully, due to an error. If the command had a recall block, it was already executed inline before this exit.
+    Check,
     /// Execution was aborted due to an unhandled error.
     Panic,
 }
@@ -49,8 +49,7 @@ impl Display for ExitReason {
         match self {
             Self::Normal => f.write_str("normal"),
             Self::Yield => f.write_str("yield"),
-            Self::Check(Some(recall)) => write!(f, "check: {recall}"),
-            Self::Check(None) => f.write_str("check"),
+            Self::Check => f.write_str("check"),
             Self::Panic => f.write_str("panic"),
         }
     }
@@ -167,6 +166,8 @@ pub enum Instruction {
     Last,
     /// Call regular function at target
     Call(Target),
+    /// Invoke the named recall block
+    Recall(Target),
     /// Call external function (FFI), specified by module, procedure indices. The FFI modules should be added to the MachineIO.
     ExtCall(usize, usize),
     /// Return to the last address on the control flow stack
@@ -263,6 +264,7 @@ impl Display for Instruction {
             Self::Next => write!(f, "next"),
             Self::Last => write!(f, "last"),
             Self::Call(t) => write!(f, "call {t}"),
+            Self::Recall(t) => write!(f, "recall {t}"),
             Self::ExtCall(module, proc) => write!(f, "extcall {module} {proc}"),
             Self::Return => write!(f, "return"),
             Self::Exit(reason) => write!(f, "exit {reason}"),

@@ -42,7 +42,7 @@ impl Analyzer for ValueAnalyzer {
         _m: &ModuleV0,
     ) -> Result<AnalyzerStatus, TraceError> {
         match i {
-            Instruction::Call(_) => {
+            Instruction::Call(_) | Instruction::Recall(_) => {
                 self.value_sets.push(BTreeSet::new());
             }
             Instruction::Return => {

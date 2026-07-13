@@ -84,6 +84,8 @@ struct SegmentRepr {
     policy: PolicyId,
     /// Offset in file to associated fact index.
     facts: u64,
+    /// Prior fact offset used to reconstruct facts within segment.
+    prior_facts: Option<u64>,
     commands: Vec1<CommandData>,
     max_cut: MaxCut,
     skip_list: Vec<Location>,
@@ -334,6 +336,7 @@ impl<W: Write> LinearStorage<W> {
             parents: Prior::None,
             policy: init.policy,
             facts,
+            prior_facts: None,
             commands,
             max_cut: MaxCut::new(0),
             skip_list: vec![],
@@ -526,6 +529,63 @@ impl<W: Write> LinearStorage<W> {
 
         Ok(skips)
     }
+
+    /// Write a fact perspective out if non-empty, returning it with the prior fact offset to be stored in the segment.
+    fn write_facts_with_prior(
+        &mut self,
+        facts: <Self as Storage>::FactPerspective,
+    ) -> Result<(<Self as Storage>::FactIndex, Option<u64>), StorageError> {
+        let mut prior = match facts.prior {
+            FactPerspectivePrior::None => None,
+            FactPerspectivePrior::FactPerspective(prior) => {
+                let prior = self.write_facts(*prior)?;
+                if facts.map.is_empty() {
+                    let offset = prior.repr.offset;
+                    return Ok((prior, Some(offset)));
+                }
+                Some(prior.repr)
+            }
+            FactPerspectivePrior::FactIndex { offset, reader } => {
+                let repr: FactIndexRepr = reader.fetch(offset)?;
+                if facts.map.is_empty() {
+                    let offset = repr.offset;
+                    return Ok((LinearFactIndex { repr, reader }, Some(offset)));
+                }
+                Some(repr)
+            }
+        };
+
+        let depth = if let Some(mut p) = prior.take() {
+            if p.depth > MAX_FACT_INDEX_DEPTH - 1 {
+                p = self.compact(p)?;
+            }
+            prior.insert(p).depth
+        } else {
+            0
+        };
+
+        let depth = depth.checked_add(1).assume("depth won't overflow")?;
+
+        if depth > MAX_FACT_INDEX_DEPTH {
+            bug!("fact index too deep");
+        }
+
+        let prior_offset = prior.map(|p| p.offset);
+        let repr = self.writer.append(|offset| FactIndexRepr {
+            offset,
+            prior: prior_offset,
+            depth,
+            facts: facts.map,
+        })?;
+
+        Ok((
+            LinearFactIndex {
+                repr,
+                reader: self.writer.readonly(),
+            },
+            prior_offset,
+        ))
+    }
 }
 
 impl<F: Write> Storage for LinearStorage<F> {
@@ -546,7 +606,7 @@ impl<F: Write> Storage for LinearStorage<F> {
                 reader: self.writer.readonly(),
             }
         } else {
-            let prior = match segment.facts()?.repr.prior {
+            let prior = match segment.repr.prior_facts {
                 Some(offset) => FactPerspectivePrior::FactIndex {
                     offset,
                     reader: self.writer.readonly(),
@@ -606,7 +666,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             ));
         }
 
-        let prior = match segment.facts()?.repr.prior {
+        let prior = match segment.repr.prior_facts {
             Some(offset) => FactPerspectivePrior::FactIndex {
                 offset,
                 reader: self.writer.readonly(),
@@ -700,7 +760,8 @@ impl<F: Write> Storage for LinearStorage<F> {
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {
         // TODO(jdygert): Validate prior?
 
-        let facts = self.write_facts(perspective.facts)?.repr.offset;
+        let (facts, prior_facts) = self.write_facts_with_prior(perspective.facts)?;
+        let facts = facts.repr.offset;
 
         let commands: Vec1<CommandData> = perspective
             .commands
@@ -719,6 +780,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             parents: perspective.parents,
             policy: perspective.policy,
             facts,
+            prior_facts,
             commands,
             max_cut: perspective.max_cut,
             skip_list,
@@ -734,50 +796,8 @@ impl<F: Write> Storage for LinearStorage<F> {
         &mut self,
         facts: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError> {
-        let mut prior = match facts.prior {
-            FactPerspectivePrior::None => None,
-            FactPerspectivePrior::FactPerspective(prior) => {
-                let prior = self.write_facts(*prior)?;
-                if facts.map.is_empty() {
-                    return Ok(prior);
-                }
-                Some(prior.repr)
-            }
-            FactPerspectivePrior::FactIndex { offset, reader } => {
-                let repr = reader.fetch(offset)?;
-                if facts.map.is_empty() {
-                    return Ok(LinearFactIndex { repr, reader });
-                }
-                Some(repr)
-            }
-        };
-
-        let depth = if let Some(mut p) = prior.take() {
-            if p.depth > MAX_FACT_INDEX_DEPTH - 1 {
-                p = self.compact(p)?;
-            }
-            prior.insert(p).depth
-        } else {
-            0
-        };
-
-        let depth = depth.checked_add(1).assume("depth won't overflow")?;
-
-        if depth > MAX_FACT_INDEX_DEPTH {
-            bug!("fact index too deep");
-        }
-
-        let repr = self.writer.append(|offset| FactIndexRepr {
-            offset,
-            prior: prior.map(|p| p.offset),
-            depth,
-            facts: facts.map,
-        })?;
-
-        Ok(LinearFactIndex {
-            repr,
-            reader: self.writer.readonly(),
-        })
+        self.write_facts_with_prior(facts)
+            .map(|(fact_index, _)| fact_index)
     }
 }
 
