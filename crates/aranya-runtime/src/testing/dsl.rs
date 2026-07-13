@@ -1188,8 +1188,9 @@ where
                 // Committing per pass preserves the iterative-convergence
                 // semantics while still collapsing the heavy initial fetch
                 // (which happens within a single pass) to one braid.
-                let mut trxs: Vec<Option<Transaction<<SB as StorageBackend>::StorageProvider, TestPolicyStore>>> =
-                    (0..client_count).map(|_| None).collect();
+                let mut trxs: Vec<
+                    Option<Transaction<<SB as StorageBackend>::StorageProvider, TestPolicyStore>>,
+                > = (0..client_count).map(|_| None).collect();
 
                 loop {
                     let mut any_received = false;
@@ -1248,10 +1249,8 @@ where
                     // Commit each client's accumulated transaction for this pass
                     // so the data becomes visible to serve onward next pass.
                     for i in 0..client_count {
-                        if let Some(trx) = trxs
-                            .get_mut(i as usize)
-                            .assume("trx slot exists")?
-                            .take()
+                        if let Some(trx) =
+                            trxs.get_mut(i as usize).assume("trx slot exists")?.take()
                         {
                             let mut client = clients
                                 .get(&i)

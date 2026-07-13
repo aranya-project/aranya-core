@@ -51,16 +51,13 @@ fn test_sync() -> Result<()> {
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
         sink1.lock().unwrap().add_expectation(TestEffect::Got(i));
-        client1
-            .lock()
-            .unwrap()
-            .action(
-                graph_id,
-                sink1.lock().unwrap().deref_mut(),
-                action,
-                &mut buffers,
-                make_spill,
-            )?;
+        client1.lock().unwrap().action(
+            graph_id,
+            sink1.lock().unwrap().deref_mut(),
+            action,
+            &mut buffers,
+            make_spill,
+        )?;
     }
     assert_eq!(sink1.lock().unwrap().count(), 0);
 
@@ -147,16 +144,13 @@ fn test_sync_subscribe() -> Result<()> {
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
         sink1.lock().unwrap().add_expectation(TestEffect::Got(i));
-        client1
-            .lock()
-            .unwrap()
-            .action(
-                graph_id,
-                sink1.lock().unwrap().deref_mut(),
-                action,
-                &mut buffers,
-                make_spill,
-            )?;
+        client1.lock().unwrap().action(
+            graph_id,
+            sink1.lock().unwrap().deref_mut(),
+            action,
+            &mut buffers,
+            make_spill,
+        )?;
         syncer1.lock().unwrap().push(graph_id)?;
     }
 
@@ -181,16 +175,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(
-            graph_id,
-            sink1.lock().unwrap().deref_mut(),
-            action,
-            &mut buffers,
-            make_spill,
-        )?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
@@ -217,16 +208,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(
-            graph_id,
-            sink1.lock().unwrap().deref_mut(),
-            action,
-            &mut buffers,
-            make_spill,
-        )?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
@@ -243,16 +231,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(
-            graph_id,
-            sink1.lock().unwrap().deref_mut(),
-            action,
-            &mut buffers,
-            make_spill,
-        )?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
@@ -285,16 +270,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(
-            graph_id,
-            sink1.lock().unwrap().deref_mut(),
-            action,
-            &mut buffers,
-            make_spill,
-        )?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
