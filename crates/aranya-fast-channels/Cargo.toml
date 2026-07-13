@@ -1,7 +1,7 @@
 [package]
 name = "aranya-fast-channels"
 description = "High throughput, low latency encryption protected by Aranya Policy"
-version = "0.19.2"
+version = "0.19.3"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -112,7 +112,7 @@ aranya-fast-channels = { path = ".", features = ["testing"] }
 
 criterion = { workspace = true }
 serde_test = { version = "1" }
-serial_test = { version = "3.1.1", default-features = false }
+serial_test = { version = "3.5", default-features = false }
 
 
 [[bench]]

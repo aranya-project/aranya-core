@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.23.0...aranya-runtime-v0.24.0) - 2026-07-09
+
+### Other
+
+- fix convergence map braid drop ([#722](https://github.com/aranya-project/aranya-core/pull/722))
+- Close #648: Invoke recall blocks directly from policy, without roundtrip to runtime. ([#700](https://github.com/aranya-project/aranya-core/pull/700))
+- fix prior fact index skipping bug ([#713](https://github.com/aranya-project/aranya-core/pull/713))
+- improve skip list and find-needed-segments traversal ([#699](https://github.com/aranya-project/aranya-core/pull/699))
+- add hello-sync DSL and refine GenerateGraph schema ([#698](https://github.com/aranya-project/aranya-core/pull/698))
+- rkyv support changes ([#691](https://github.com/aranya-project/aranya-core/pull/691))
+
 ## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.22.0...aranya-runtime-v0.23.0) - 2026-05-22
 
 ### Other

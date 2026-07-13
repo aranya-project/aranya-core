@@ -202,6 +202,12 @@ criteria = "safe-to-deploy"
 delta = "0.9.15 -> 0.9.18"
 notes = "Nontrivial update but mostly around dependencies and how `unsafe` code is managed. Everything looks the same shape as before."
 
+[[audits.bytecode-alliance.audits.crossbeam-epoch]]
+who = "Alex Crichton <alex@alexcrichton.com>"
+criteria = "safe-to-deploy"
+delta = "0.9.18 -> 0.9.20"
+notes = "Minor updates, nothing out of place."
+
 [[audits.bytecode-alliance.audits.crypto-common]]
 who = "Benjamin Bouvier <public@benj.me>"
 criteria = "safe-to-deploy"
