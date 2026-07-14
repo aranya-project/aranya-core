@@ -911,7 +911,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
             if x == true {
-                test_fail()
+                check false else test_fail()
             }
         }
     "#;
@@ -923,11 +923,11 @@ fn test_if_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name.clone(), [true])?;
-    assert_eq!(result, ExitReason::Normal);
+    assert_eq!(result, ExitReason::Panic);
     assert!(rs.stack.is_empty());
 
     let result = rs.call_action(name, [false])?;
-    assert_eq!(result, ExitReason::Panic);
+    assert_eq!(result, ExitReason::Normal);
     assert!(rs.stack.is_empty());
 
     Ok(())
@@ -2389,14 +2389,14 @@ fn test_boolean_short_circuit() {
             .call_action(ident!("f"), iter::empty::<Value>())
             .expect("action runs");
         assert!(rs.stack.is_empty());
-        return reason;
+        reason
     }
 
     // `todo()` panics if it runs. A failing `check` runs its `else return Err(..)`,
     // exiting `Normal`. So `Panic` means `todo()` evaluated; `Normal` means it did
     // not (the check either passed, or failed and returned Err).
     assert_eq!(run("true && todo()"), ExitReason::Panic); // todo runs in &&
-    assert_eq!(run("false && todo()"), ExitReason::Normal); // && short-circuits → check fails → return Err
+    assert_eq!(run("false && todo()"), ExitReason::Panic); // && short-circuits → check fails
     assert_eq!(run("true || todo()"), ExitReason::Normal); // || short-circuits, check passes
     assert_eq!(run("false || todo()"), ExitReason::Panic); // todo runs in ||
 }
@@ -2530,9 +2530,8 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    // `check false` fails and runs its `else return Err(..)`, exiting Normal.
-    assert_eq!(result, ExitReason::Normal);
-    assert_eq!(rs.stack.len(), 1);
+    assert_eq!(result, ExitReason::Panic);
+    assert!(rs.stack.is_empty());
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
