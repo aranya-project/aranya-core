@@ -259,17 +259,13 @@ impl Write for Writer {
     }
 
     fn heads(&self) -> Result<HeadSet, StorageError> {
-        if self.root.heads == u64::MAX {
-            return Err(StorageError::NotInitialized);
-        }
-        self.fetch_owned(self.root.heads)
+        let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
+        self.fetch_owned(offset)
     }
 
     fn fact_cache(&self) -> Result<FactCacheOffset, StorageError> {
-        if self.root.fact_cache == u64::MAX {
-            return Err(StorageError::NotInitialized);
-        }
-        Ok(FactCacheOffset::new(self.root.fact_cache))
+        let offset = self.root.fact_cache.ok_or(StorageError::NotInitialized)?;
+        Ok(FactCacheOffset::new(offset))
     }
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
@@ -285,8 +281,8 @@ impl Write for Writer {
         // Append the head set, then atomically point the root at it + the
         // fact cache.
         let (_, heads_offset) = self.append_at(|_| heads.clone())?;
-        self.root.heads = heads_offset;
-        self.root.fact_cache = fact_cache.get();
+        self.root.heads = Some(heads_offset);
+        self.root.fact_cache = Some(fact_cache.get());
         self.write_root()?;
         Ok(())
     }
@@ -297,12 +293,10 @@ impl Write for Writer {
 struct Root {
     /// Incremented each commit.
     generation: u64,
-    /// Offset of the appended `HeadSet` record (`u64::MAX` before first
-    /// commit).
-    heads: u64,
-    /// Offset of the cached merged `FactIndex` (`u64::MAX` before first
-    /// commit).
-    fact_cache: u64,
+    /// Offset of the appended `HeadSet` record (`None` before first commit).
+    heads: Option<u64>,
+    /// Offset of the cached merged `FactIndex` (`None` before first commit).
+    fact_cache: Option<u64>,
     /// Offset to write the next item at.
     free_offset: i64,
     /// Used to ensure root is valid. Write could be interrupted
@@ -314,8 +308,8 @@ impl Root {
     fn new() -> Self {
         Self {
             generation: 0,
-            heads: u64::MAX,
-            fact_cache: u64::MAX,
+            heads: None,
+            fact_cache: None,
             free_offset: FREE_START,
             checksum: 0,
         }
@@ -324,8 +318,15 @@ impl Root {
     fn calc_checksum(&self) -> u64 {
         let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
-        hasher.write_u64(self.heads);
-        hasher.write_u64(self.fact_cache);
+        for offset in [self.heads, self.fact_cache] {
+            match offset {
+                Some(offset) => {
+                    hasher.write_u8(1);
+                    hasher.write_u64(offset);
+                }
+                None => hasher.write_u8(0),
+            }
+        }
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }
