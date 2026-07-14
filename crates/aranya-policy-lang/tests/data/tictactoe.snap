@@ -345,7 +345,9 @@ Policy {
                         ) @ 1008..1028,
                         else_expression: InternalFunction(
                             TestFail(
-                                "Profiles must be different",
+                                Some(
+                                    "Profiles must be different",
+                                ),
                                 1034..1073,
                             ),
                         ) @ 1034..1073,
@@ -700,7 +702,9 @@ Policy {
                         ) @ 3606..3670,
                         else_expression: InternalFunction(
                             TestFail(
-                                "bad state: wrong player",
+                                Some(
+                                    "bad state: wrong player",
+                                ),
                                 3677..3713,
                             ),
                         ) @ 3677..3713,
@@ -720,7 +724,9 @@ Policy {
                         ) @ 3779..3788,
                         else_expression: InternalFunction(
                             TestFail(
-                                "X out of bounds",
+                                Some(
+                                    "X out of bounds",
+                                ),
                                 3794..3822,
                             ),
                         ) @ 3794..3822,
@@ -740,7 +746,9 @@ Policy {
                         ) @ 3837..3846,
                         else_expression: InternalFunction(
                             TestFail(
-                                "Y out of bounds",
+                                Some(
+                                    "Y out of bounds",
+                                ),
                                 3852..3880,
                             ),
                         ) @ 3852..3880,
@@ -1045,7 +1053,9 @@ Policy {
                         ) @ 6291..6327,
                         else_expression: InternalFunction(
                             TestFail(
-                                "game is over",
+                                Some(
+                                    "game is over",
+                                ),
                                 6333..6358,
                             ),
                         ) @ 6333..6358,
@@ -1065,7 +1075,9 @@ Policy {
                         ) @ 6373..6382,
                         else_expression: InternalFunction(
                             TestFail(
-                                "X invalid",
+                                Some(
+                                    "X invalid",
+                                ),
                                 6388..6410,
                             ),
                         ) @ 6388..6410,
@@ -1085,7 +1097,9 @@ Policy {
                         ) @ 6425..6434,
                         else_expression: InternalFunction(
                             TestFail(
-                                "Y invalid",
+                                Some(
+                                    "Y invalid",
+                                ),
                                 6440..6462,
                             ),
                         ) @ 6440..6462,
@@ -1139,7 +1153,9 @@ Policy {
                         ) @ 6478..6546,
                         else_expression: InternalFunction(
                             TestFail(
-                                "bad state: wrong player",
+                                Some(
+                                    "bad state: wrong player",
+                                ),
                                 6553..6589,
                             ),
                         ) @ 6553..6589,
