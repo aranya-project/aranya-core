@@ -7,5 +7,5 @@ error: fact literal does not match definition: The number of Fact keys don't mat
 1 | fact Foo[i int] => {a string}
   | ----------------------------- definition has 1 keys but the expression has 2 keys
 2 | action test() {
-3 |     check exists Foo[i:0, j:1] else test_fail("check failed")
+3 |     check exists Foo[i:0, j:1] else test_fail()
   |                      ^^^^^^^^ The number of Fact keys don't match the definition

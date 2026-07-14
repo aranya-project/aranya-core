@@ -492,19 +492,19 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
 
     action testExists() {
-        check exists Foo[] => {x: 3} else test_fail("check failed")
-        check exists Foo[] else test_fail("check failed")
-        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail("check failed")
+        check exists Foo[] => {x: 3} else test_fail()
+        check exists Foo[] else test_fail()
+        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail()
 
-        check exists Foo[] => {x: ?} else test_fail("check failed")
-        check exists Bar[i: ?] => {s: ?, b: Bool::True} else test_fail("check failed")
+        check exists Foo[] => {x: ?} else test_fail()
+        check exists Bar[i: ?] => {s: ?, b: Bool::True} else test_fail()
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else test_fail("check failed")
-        check !exists Bar[i:1] => {s:"", b:Bool::True} else test_fail("check failed")
-        check !exists Bar[i: ?]=>{s: "ab", b: ?} else test_fail("check failed")
+        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else test_fail()
+        check !exists Bar[i:1] => {s:"", b:Bool::True} else test_fail()
+        check !exists Bar[i: ?]=>{s: "ab", b: ?} else test_fail()
     }
     "#;
 
@@ -552,13 +552,13 @@ fn test_counting() -> anyhow::Result<()> {
             open { return todo() }
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
-                check count_one == 1 else test_fail("check failed")
+                check count_one == 1 else test_fail()
                 let count_two = count_up_to 2 Foo[i:?]
-                check count_two == 2 else test_fail("check failed")
+                check count_two == 2 else test_fail()
                 let count_all = count_up_to 10 Foo[i:?]
-                check count_all == 3 else test_fail("check failed")
+                check count_all == 3 else test_fail()
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
-                check count_max == 3 else test_fail("check failed")
+                check count_max == 3 else test_fail()
                 finish {}
             }
         }
@@ -567,9 +567,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_least 1 Foo[i:?] else test_fail("check failed")
-                check at_least 3 Foo[i:?] else test_fail("check failed")
-                check at_least 4 Foo[i:?] == false else test_fail("check failed")
+                check at_least 1 Foo[i:?] else test_fail()
+                check at_least 3 Foo[i:?] else test_fail()
+                check at_least 4 Foo[i:?] == false else test_fail()
                 finish {}
             }
         }
@@ -578,9 +578,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_most 1 Foo[i:?] == false else test_fail("check failed")
-                check at_most 3 Foo[i:?] else test_fail("check failed")
-                check at_most 4 Foo[i:?] else test_fail("check failed")
+                check at_most 1 Foo[i:?] == false else test_fail()
+                check at_most 3 Foo[i:?] else test_fail()
+                check at_most 4 Foo[i:?] else test_fail()
                 finish {}
             }
         }
@@ -589,9 +589,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check exactly 1 Foo[i:?] == false else test_fail("check failed")
-                check exactly 3 Foo[i:?] else test_fail("check failed")
-                check exactly 4 Foo[i:?] == false else test_fail("check failed")
+                check exactly 1 Foo[i:?] == false else test_fail()
+                check exactly 3 Foo[i:?] else test_fail()
+                check exactly 4 Foo[i:?] == false else test_fail()
                 finish {}
             }
         }
@@ -775,18 +775,18 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         action test_query() {
             let f = unwrap query Foo[i: 1, j: ?]
-            check f.x == 1 else test_fail("check failed")
+            check f.x == 1 else test_fail()
             let f2 = unwrap query Foo[i: ?, j: ?]
-            check f2.x == 1 else test_fail("check failed")
+            check f2.x == 1 else test_fail()
             let f3 = unwrap query Foo[i:2, j:?]
-            check f3.x == 3 else test_fail("check failed")
+            check f3.x == 3 else test_fail()
 
             // bind value
             let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
-            check f4.x == 3 else test_fail("check failed")
+            check f4.x == 3 else test_fail()
             // bind key and value
             let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
-            check f5.x == 3 else test_fail("check failed")
+            check f5.x == 3 else test_fail()
         }
 
         action test_nonexistent() {
@@ -794,9 +794,9 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_exists() {
-            check exists Foo[i:1, j:?] else test_fail("check failed")
-            check exists Foo[i:-1, j:?] == false else test_fail("check failed")
-            check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail("check failed")
+            check exists Foo[i:1, j:?] else test_fail()
+            check exists Foo[i:-1, j:?] == false else test_fail()
+            check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail()
         }
     "#;
 
@@ -855,7 +855,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
         action test_query() {
             let f = unwrap query Bar[i:Foo::A] => {x: ?}
-            check f.x == Foo::A else test_fail("check failed")
+            check f.x == Foo::A else test_fail()
         }
     "#;
 
@@ -892,7 +892,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 fn test_not_operator() -> anyhow::Result<()> {
     let text = r#"
         action test() {
-            check !false else test_fail("check failed")
+            check !false else test_fail()
         }
     "#;
 
@@ -909,11 +909,10 @@ fn test_not_operator() -> anyhow::Result<()> {
 #[test]
 fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
-        action foo(x bool) result[unit, string] {
+        action foo(x bool) {
             if x == true {
-                check true == false else return Err("check failed")
+                test_fail()
             }
-            return Ok(Unit)
         }
     "#;
 
@@ -923,33 +922,13 @@ fn test_if_true() -> anyhow::Result<()> {
     let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
-    let result = rs.call_action(name, [true])?;
-    // The check fails, so the action runs its `else return Err(..)`, exiting
-    // Normal with the Err result left on the stack.
+    let result = rs.call_action(name.clone(), [true])?;
     assert_eq!(result, ExitReason::Normal);
-    assert_eq!(rs.stack.len(), 1);
+    assert!(rs.stack.is_empty());
 
-    Ok(())
-}
-
-#[test]
-fn test_if_false() -> anyhow::Result<()> {
-    let text = r#"
-        action foo(x bool) result[unit, string] {
-            if x == true {
-                check true == false else return Err("check failed")
-            }
-            return Ok(Unit)
-        }
-    "#;
-
-    let name = ident!("foo");
-    let mut io = TestIO::new();
-    let ctx = dummy_ctx_action(name.clone());
-    let machine = compile(text);
-    let mut rs = machine.create_run_state(&mut io, ctx);
-
-    rs.call_action(name, [false])?.success();
+    let result = rs.call_action(name, [false])?;
+    assert_eq!(result, ExitReason::Panic);
+    assert!(rs.stack.is_empty());
 
     Ok(())
 }
@@ -968,17 +947,17 @@ fn test_if_branches() -> anyhow::Result<()> {
 
         action foo(x int) {
             if x == 0 {
-                check true else test_fail("check failed")
+                check true else test_fail()
                 publish Result { s: "0" }
-                check true else test_fail("check failed")
+                check true else test_fail()
             } else if x == 1 {
                 publish Result { s: "1" }
             } else if x == 2 {
-                check true else test_fail("check failed")
+                check true else test_fail()
                 publish Result { s: "2" }
             } else {
                 publish Result { s: "3" }
-                check true else test_fail("check failed")
+                check true else test_fail()
             }
         }
     "#;
@@ -1064,17 +1043,16 @@ fn test_match_alternation() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo(x int) result[unit, string] {
+        action foo(x int) {
             match x {
                 0 | 1 => {
-                    check false else return Err("check failed")
+                    check false else test_fail()
                 }
                 5 | 6 | 7 => {
                     publish Result { x: x }
                 }
                 _ => {}
             }
-            return Ok(Unit)
         }
     "#;
     let machine = compile(policy_str);
@@ -1131,7 +1109,7 @@ fn test_match_default() -> anyhow::Result<()> {
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
         action foo(val int) {
-            check val == bar() else test_fail("check failed")
+            check val == bar() else test_fail()
         }
 
         function bar() int {
@@ -1225,10 +1203,10 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
         if x {
-            check x else test_fail("check failed")
+            check x else test_fail()
         }
         if !y {
-            check !y else test_fail("check failed")
+            check !y else test_fail()
         }
     }
     "#;
@@ -1471,13 +1449,12 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
         action test_existing() {
             let f = check_unwrap query Foo[i: 1]
-            check f.x == 1 else test_fail("check failed")
+            check f.x == 1 else test_fail()
         }
 
-        action test_nonexistent() result[unit, string] {
+        action test_nonexistent() {
             let f = check_unwrap query Foo[i: 0]
-            check false else return Err("check failed") // would exit check, but check_unwrap should exit check first
-            return Ok(Unit)
+            check false else test_fail()
         }
     "#;
 
@@ -1534,22 +1511,22 @@ fn test_coalesce_or() -> anyhow::Result<()> {
 
         action test_some_or() {
             let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
-            check f.x == 42 else test_fail("check failed")
+            check f.x == 42 else test_fail()
         }
 
         action test_none_or() {
             let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
-            check f.x == 99 else test_fail("check failed")
+            check f.x == 99 else test_fail()
         }
 
         action test_chain() {
             let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
-            check f.x == 77 else test_fail("check failed")
+            check f.x == 77 else test_fail()
         }
 
         action test_chain_first_some() {
             let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
-            check f.x == 42 else test_fail("check failed")
+            check f.x == 42 else test_fail()
         }
     "#;
 
@@ -2378,9 +2355,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 #[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!(
-            "action f() {{ check {expr} else test_fail(\"check failed\") }}"
-        ));
+        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2388,6 +2363,7 @@ fn test_boolean_operators() {
             .call_action(ident!("f"), iter::empty::<Value>())
             .expect("action runs");
         assert_eq!(exit, ExitReason::Normal);
+        assert!(rs.stack.is_empty());
     }
 
     check("true && true");
@@ -2404,15 +2380,16 @@ fn test_boolean_operators() {
 #[test]
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
-        let machine = compile(&format!(
-            "action f() result[unit, string] {{ check {expr} else return Err(\"check failed\") return Ok(Unit) }}"
-        ));
+        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
 
-        rs.call_action(ident!("f"), iter::empty::<Value>())
-            .expect("action runs")
+        let reason = rs
+            .call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs");
+        assert!(rs.stack.is_empty());
+        return reason;
     }
 
     // `todo()` panics if it runs. A failing `check` runs its `else return Err(..)`,
@@ -2427,9 +2404,7 @@ fn test_boolean_short_circuit() {
 #[test]
 fn test_test_fail() {
     fn run(cond: &str) -> ExitReason {
-        let machine = compile(&format!(
-            "action f() {{ check {cond} else test_fail(\"check failed\") }}"
-        ));
+        let machine = compile(&format!("action f() {{ check {cond} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2447,9 +2422,7 @@ fn test_test_fail() {
 #[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!(
-            "action f() {{ check {expr} else test_fail(\"check failed\") }}"
-        ));
+        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2457,6 +2430,7 @@ fn test_comparison_operators() {
             .call_action(ident!("f"), iter::empty::<Value>())
             .expect("action runs");
         assert_eq!(exit, ExitReason::Normal);
+        assert!(rs.stack.is_empty());
     }
 
     check("1 < 2");
@@ -2540,13 +2514,12 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 #[test]
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
-        action foo() result[unit, string] {
-            check true else return Err("check failed")
+        action foo() {
+            check true else test_fail()
             // before
-            check false else return Err("check failed")
+            check false else test_fail()
             // after
-            check true else return Err("check failed")
-            return Ok(Unit)
+            check true else test_fail()
         }
     "#;
 
@@ -2566,7 +2539,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
         source,
         concat!(
             "at row 4 col 13:\n",
-            "\tcheck false else return Err(\"check failed\")\n",
+            "\tcheck false else test_fail()\n",
             "            // after\n",
             "            "
         )
@@ -2579,7 +2552,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
 fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar() else test_fail("check failed")
+            check 42 == bar() else test_fail()
         }
 
         function bar() int {
@@ -2602,6 +2575,7 @@ fn test_return_expression() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
+    assert!(rs.stack.is_empty());
 
     Ok(())
 }
@@ -2610,7 +2584,7 @@ fn test_return_expression() -> anyhow::Result<()> {
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar() else test_fail("check failed")
+            check 42 == bar() else test_fail()
         }
 
         function bar() int {
@@ -2633,6 +2607,7 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
+    assert!(rs.stack.is_empty());
 
     Ok(())
 }

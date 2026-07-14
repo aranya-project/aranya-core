@@ -1,4 +1,4 @@
 fact Foo[x int, y int] => {}
 action test() {
-    check exists Foo[x: ?, y: 42] => {} else test_fail("check failed")
+    check exists Foo[x: ?, y: 42] => {} else test_fail()
 }

@@ -850,14 +850,7 @@ impl ChunkParser<'_> {
                 Rule::test_fail => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let mut pairs = primary.into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("empty test_fail function"),
-                            Some(span),
-                        )
-                    })?;
-                    let msg = self.parse_string_literal(token)?;
+                    let msg = pairs.next().map(|t| self.parse_string_literal(t)).transpose()?;
                     Ok(Expression {
                         inner: ExprKind::InternalFunction(InternalFunction::TestFail(msg, span)),
                         span,

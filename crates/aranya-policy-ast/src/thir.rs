@@ -87,8 +87,8 @@ pub enum InternalFunction {
     Deserialize(Box<Expression>),
     /// Not yet implemented panic
     Todo(Span),
-    /// Panics with a message, for expressing test expectations
-    TestFail(Text, Span),
+    /// Panics with an optional message, for expressing test expectations
+    TestFail(Option<Text>, Span),
 }
 
 impl Spanned for InternalFunction {

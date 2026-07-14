@@ -33,7 +33,7 @@ Policy {
                                             ) @ 50..51,
                                             else_expression: InternalFunction(
                                                 TestFail(
-                                                    "check failed",
+                                                    "check 1",
                                                     57..82,
                                                 ),
                                             ) @ 57..82,
@@ -60,7 +60,7 @@ Policy {
                                             ) @ 119..120,
                                             else_expression: InternalFunction(
                                                 TestFail(
-                                                    "check failed",
+                                                    "check 2",
                                                     126..151,
                                                 ),
                                             ) @ 126..151,
@@ -78,7 +78,7 @@ Policy {
                                         ) @ 179..180,
                                         else_expression: InternalFunction(
                                             TestFail(
-                                                "check failed",
+                                                "check 3",
                                                 186..211,
                                             ),
                                         ) @ 186..211,
@@ -103,7 +103,7 @@ Policy {
                                             ) @ 248..249,
                                             else_expression: InternalFunction(
                                                 TestFail(
-                                                    "check failed",
+                                                    "check 4",
                                                     255..280,
                                                 ),
                                             ) @ 255..280,
@@ -146,7 +146,7 @@ Policy {
                                             ) @ 344..345,
                                             else_expression: InternalFunction(
                                                 TestFail(
-                                                    "check failed",
+                                                    "check 5",
                                                     351..376,
                                                 ),
                                             ) @ 351..376,
@@ -171,7 +171,7 @@ Policy {
                                             ) @ 414..415,
                                             else_expression: InternalFunction(
                                                 TestFail(
-                                                    "check failed",
+                                                    "check 6",
                                                     421..446,
                                                 ),
                                             ) @ 421..446,
@@ -189,7 +189,7 @@ Policy {
                                         ) @ 474..475,
                                         else_expression: InternalFunction(
                                             TestFail(
-                                                "check failed",
+                                                "check 7",
                                                 481..506,
                                             ),
                                         ) @ 481..506,
