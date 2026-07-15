@@ -2387,10 +2387,8 @@ fn test_boolean_short_circuit() {
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
 
-        let reason = rs
-            .call_action(ident!("f"), iter::empty::<Value>())
-            .expect("action runs");
-        reason
+        rs.call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs")
     }
 
     // `todo()` panics if it runs. A failing `check` runs its `else return Err(..)`,

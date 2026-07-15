@@ -591,6 +591,7 @@ mod test {
 
     impl Policy for SeqPolicy {
         type Action<'a> = &'a str;
+        type ActionReturn = ();
         type Effect = ();
         type Command<'a> = SeqCommand;
 
@@ -641,7 +642,7 @@ mod test {
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
-        ) -> Result<(), PolicyError> {
+        ) -> Result<Self::ActionReturn, PolicyError> {
             unimplemented!()
         }
 

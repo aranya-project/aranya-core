@@ -139,12 +139,29 @@ pub struct ActionDef {
     pub persistence: ast::Persistence,
     /// The parameters of the action.
     pub params: NamedMap<Param>,
-    /// action return type: result or unit
-    pub result_type: ast::VType,
+    /// Action return type: `result[unit, E]` for fallible actions or `unit`
+    /// for infallible ones. Kept private so clients depend on
+    /// Use [`ActionDef::is_fallible`] to determine whether action can fail.
+    result_type: ast::VType,
 }
 named!(ActionDef);
 
 impl ActionDef {
+    /// Creates a new [`ActionDef`].
+    pub fn new(
+        name: Ident,
+        persistence: ast::Persistence,
+        params: NamedMap<Param>,
+        result_type: ast::VType,
+    ) -> Self {
+        Self {
+            name,
+            persistence,
+            params,
+            result_type,
+        }
+    }
+
     /// Whether the action is fallible, i.e. it returns a `result[unit, E]`
     /// value. An infallible action (return type `unit`) returns nothing.
     pub fn is_fallible(&self) -> bool {

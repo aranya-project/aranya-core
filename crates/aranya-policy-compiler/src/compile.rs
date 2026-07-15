@@ -1151,12 +1151,12 @@ impl<'a> CompileState<'a> {
         self.m
             .interface
             .action_defs
-            .insert(ActionDef {
-                name: action_node.identifier.clone(),
-                persistence: action_node.persistence.clone(),
+            .insert(ActionDef::new(
+                action_node.identifier.clone(),
+                action_node.persistence.clone(),
                 params,
-                result_type: action_node.return_type.clone(),
-            })
+                action_node.return_type.clone(),
+            ))
             .map_err(|e| {
                 self.err(AlreadyDefined::new(
                     action_node.identifier.clone(),

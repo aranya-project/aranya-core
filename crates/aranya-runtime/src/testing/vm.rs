@@ -448,7 +448,7 @@ pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyE
         )
         .expect("Ok action should succeed");
 
-    // `return Err(reason)` => `Check(Some(value))` surfaces the reason to the caller.
+    // `return Err(reason)` => surfaced as `PolicyError::Check(Some(value))`.
     let err = session
         .action(
             &cs,
@@ -481,7 +481,7 @@ pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPoli
         .expect("could not create graph");
 
     cs.action(graph, &mut NullSink, vm_action!(create_action(1)))
-        .expect("can create");
+        .expect("create failed");
 
     let mut session = cs.session(graph).expect("should be able to create session");
 

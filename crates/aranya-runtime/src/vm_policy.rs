@@ -490,6 +490,7 @@ impl<CE> VmPolicy<CE> {
 
 impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     type Action<'a> = VmAction<'a>;
+    type ActionReturn = ();
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;
 
@@ -587,7 +588,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         action_placement: ActionPlacement,
-    ) -> Result<(), PolicyError> {
+    ) -> Result<Self::ActionReturn, PolicyError> {
         let VmAction { name, args } = action;
 
         let def = self.machine.action_defs.get(&name).ok_or_else(|| {
@@ -645,8 +646,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                                 error!("expected action result value: {e}");
                                 PolicyError::InternalError
                             })?;
-                            // `Err(payload)` => the action failed with that value;
-                            // anything else (`Ok`/placeholder success) succeeds.
+                            // Surface `Err(payload)` through `PolicyError::Check`
+                            // so callers see a single flat `Result`.
                             if let Value::Result(Err(payload)) = value {
                                 info!("action returned Err {}", self.source_location(&rs));
                                 return Err(PolicyError::Check(Some(*payload)));

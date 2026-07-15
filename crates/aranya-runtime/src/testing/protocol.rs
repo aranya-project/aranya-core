@@ -268,6 +268,7 @@ pub enum TestActions {
 impl Policy for TestPolicy {
     type Effect = TestEffect;
     type Action<'a> = TestActions;
+    type ActionReturn = ();
     type Command<'a> = TestProtocol<'a>;
 
     fn serial(&self) -> u32 {

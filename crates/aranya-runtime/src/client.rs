@@ -247,7 +247,7 @@ where
         graph_id: GraphId,
         sink: &mut impl Sink<PS::Effect>,
         action: <PS::Policy as Policy>::Action<'_>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<<PS::Policy as Policy>::ActionReturn, ClientError> {
         let storage = self.provider.get_storage(graph_id)?;
 
         let head = storage.get_head()?;
@@ -262,11 +262,11 @@ where
 
         sink.begin();
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
-            Ok(()) => {
+            Ok(ret) => {
                 let segment = storage.write(perspective)?;
                 storage.commit(segment)?;
                 sink.commit();
-                Ok(())
+                Ok(ret)
             }
             Err(e) => {
                 sink.rollback();
