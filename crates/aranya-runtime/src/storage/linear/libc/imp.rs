@@ -412,7 +412,7 @@ impl File {
 }
 
 #[cfg(test)]
-mod unit_tests {
+mod tests {
     use std::io::{Seek as _, SeekFrom, Write as _};
 
     use super::*;
