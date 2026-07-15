@@ -1282,3 +1282,345 @@ mod test {
     }
     test_suite!(|| LinearBackend);
 }
+
+#[cfg(test)]
+mod branch_tests {
+    use testing::Manager;
+
+    use super::*;
+    use crate::testing::hash_for_testing_only;
+
+    struct TestCmd {
+        id: CmdId,
+        parent: Prior<Address>,
+    }
+
+    impl Command for TestCmd {
+        fn priority(&self) -> Priority {
+            match self.parent {
+                Prior::None => Priority::Init,
+                Prior::Single(_) => Priority::Basic(0),
+                Prior::Merge(_, _) => Priority::Merge,
+            }
+        }
+
+        fn id(&self) -> CmdId {
+            self.id
+        }
+
+        fn parent(&self) -> Prior<Address> {
+            self.parent
+        }
+
+        fn policy(&self) -> Option<&[u8]> {
+            None
+        }
+
+        fn bytes(&self) -> &[u8] {
+            &[]
+        }
+    }
+
+    fn cmd(tag: &str, parent: Prior<Address>) -> TestCmd {
+        TestCmd {
+            id: hash_for_testing_only(tag.as_bytes()),
+            parent,
+        }
+    }
+
+    fn new_provider() -> LinearStorageProvider<Manager> {
+        LinearStorageProvider::new(Manager::new())
+    }
+
+    fn key(k: &str) -> Keys {
+        [k.as_bytes()].into_iter().collect()
+    }
+
+    fn key2(a: &str, b: &str) -> Keys {
+        [a.as_bytes(), b.as_bytes()].into_iter().collect()
+    }
+
+    fn val(v: &[u8]) -> Bytes {
+        v.into()
+    }
+
+    /// Builds a two-command init perspective whose graph ID derives from `tag`.
+    fn init_perspective(
+        provider: &mut LinearStorageProvider<Manager>,
+        tag: &str,
+    ) -> LinearPerspective<<<Manager as IoManager>::Writer as Write>::ReadOnly> {
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        let c0 = cmd(tag, Prior::None);
+        p.add_command(&c0).unwrap();
+        let c1 = cmd(
+            &alloc::format!("{tag}.1"),
+            Prior::Single(c0.address().unwrap()),
+        );
+        p.add_command(&c1).unwrap();
+        p
+    }
+
+    #[test]
+    fn test_new_storage_empty_perspective_fails() {
+        let mut provider = new_provider();
+        let p = provider.new_perspective(PolicyId::new(0));
+        assert!(matches!(
+            provider.new_storage(p),
+            Err(StorageError::EmptyPerspective)
+        ));
+    }
+
+    #[test]
+    fn test_new_storage_twice_fails() {
+        let mut provider = new_provider();
+        let p1 = init_perspective(&mut provider, "dup");
+        provider.new_storage(p1).unwrap();
+        // Same tag produces the same init command ID, hence the same graph ID.
+        let p2 = init_perspective(&mut provider, "dup");
+        assert!(matches!(
+            provider.new_storage(p2),
+            Err(StorageError::StorageExists)
+        ));
+    }
+
+    #[test]
+    fn test_skip_target_boundaries_small_n() {
+        assert!(skip_target_boundaries(0).unwrap().is_empty());
+        assert!(skip_target_boundaries(1).unwrap().is_empty());
+
+        let targets = skip_target_boundaries(100).unwrap();
+        assert_eq!(targets.first(), Some(&MaxCut::new(50)));
+    }
+
+    #[test]
+    fn test_linear_perspective_mid_init_segment() {
+        let mut provider = new_provider();
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        let c0 = cmd("mid", Prior::None);
+        p.add_command(&c0).unwrap();
+        // Updates carried by the second command: insert then delete the same
+        // fact, plus a delete for a name that never existed.
+        p.insert("n".into(), key("k"), val(b"v")).unwrap();
+        p.delete("n".into(), key("k")).unwrap();
+        p.delete("m".into(), key("k")).unwrap();
+        let c1 = cmd("mid.1", Prior::Single(c0.address().unwrap()));
+        p.add_command(&c1).unwrap();
+        let c2 = cmd("mid.2", Prior::Single(c1.address().unwrap()));
+        p.add_command(&c2).unwrap();
+
+        let (_, storage) = provider.new_storage(p).unwrap();
+        let head = storage.get_head().unwrap();
+        assert_eq!(head.max_cut, MaxCut::new(2));
+
+        // A perspective in the middle of the init segment has no prior facts
+        // and replays the first two commands' updates, which cancel out.
+        let mid = Location::new(head.segment, MaxCut::new(1));
+        let persp = storage.get_linear_perspective(mid).unwrap();
+        assert!(persp.query("n", &key("k")).unwrap().is_none());
+        assert_eq!(
+            persp.head_address().unwrap(),
+            Prior::Single(c1.address().unwrap())
+        );
+    }
+
+    #[test]
+    fn test_fact_perspective_mid_segment_without_updates() {
+        let mut provider = new_provider();
+        let p = init_perspective(&mut provider, "facts");
+        let (_, storage) = provider.new_storage(p).unwrap();
+        let head = storage.get_head().unwrap();
+
+        // Not at the segment head, but no command carries updates.
+        let first = Location::new(head.segment, MaxCut::new(0));
+        let persp = storage.get_fact_perspective(first).unwrap();
+        assert!(persp.query("n", &key("k")).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_merge_perspective_policy_checks() {
+        let mut provider = new_provider();
+        let p = init_perspective(&mut provider, "merge");
+        let (_, storage) = provider.new_storage(p).unwrap();
+        let head = storage.get_head().unwrap();
+        let head_addr = storage.get_head_address().unwrap();
+
+        // Left branch keeps the graph's policy (0).
+        let mut pa = storage.get_linear_perspective(head).unwrap();
+        let ca = cmd("merge.a", Prior::Single(head_addr));
+        pa.add_command(&ca).unwrap();
+        let seg_a = storage.write(pa).unwrap();
+
+        // Right branch is hand-built with a different policy (1).
+        let mut pb = LinearPerspective::new(
+            Prior::Single(head),
+            Prior::Single(head_addr),
+            PolicyId::new(1),
+            FactPerspectivePrior::None,
+            head.max_cut.checked_add(1).unwrap(),
+            None,
+        );
+        let cb = cmd("merge.b", Prior::Single(head_addr));
+        pb.add_command(&cb).unwrap();
+        let seg_b = storage.write(pb).unwrap();
+
+        let left = seg_a.head_location().unwrap();
+        let right = seg_b.head_location().unwrap();
+
+        // Policy matching neither branch is rejected.
+        let braid = seg_a.facts().unwrap();
+        assert!(matches!(
+            storage.new_merge_perspective(left, right, head, PolicyId::new(9), braid),
+            Err(StorageError::PolicyMismatch)
+        ));
+
+        // Policy matching only the right branch is accepted.
+        let braid = seg_b.facts().unwrap();
+        let mp = storage
+            .new_merge_perspective(left, right, head, PolicyId::new(1), braid)
+            .unwrap();
+        assert_eq!(mp.policy(), PolicyId::new(1));
+    }
+
+    #[test]
+    fn test_query_prefix_skips_tombstones() {
+        let mut provider = new_provider();
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        let c0 = cmd("tomb", Prior::None);
+        p.add_command(&c0).unwrap();
+        p.insert("n".into(), key("k1"), val(b"v1")).unwrap();
+        p.insert("n".into(), key("k2"), val(b"v2")).unwrap();
+        let c1 = cmd("tomb.1", Prior::Single(c0.address().unwrap()));
+        p.add_command(&c1).unwrap();
+
+        let (_, storage) = provider.new_storage(p).unwrap();
+        let head = storage.get_head().unwrap();
+
+        // Deleting over a prior fact index leaves a tombstone, which
+        // prefix queries must filter out.
+        let mut persp = storage.get_linear_perspective(head).unwrap();
+        persp.delete("n".into(), key("k1")).unwrap();
+        let facts: Vec<Fact> = persp
+            .query_prefix("n", &[])
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].key, key("k2"));
+        assert_eq!(facts[0].value.as_ref(), b"v2");
+    }
+
+    #[test]
+    fn test_fact_index_query_and_prefix() {
+        let mut provider = new_provider();
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        let c0 = cmd("index", Prior::None);
+        p.add_command(&c0).unwrap();
+        p.insert("n".into(), key2("a", "x"), val(b"v1")).unwrap();
+        p.insert("n".into(), key2("a", "y"), val(b"v2")).unwrap();
+        let c1 = cmd("index.1", Prior::Single(c0.address().unwrap()));
+        p.add_command(&c1).unwrap();
+
+        let (_, storage) = provider.new_storage(p).unwrap();
+        let head = storage.get_head().unwrap();
+        let head_addr = storage.get_head_address().unwrap();
+
+        // Child segment shadows one key, producing a fact index with a prior.
+        let mut p2 = storage.get_linear_perspective(head).unwrap();
+        p2.insert("n".into(), key2("a", "x"), val(b"v3")).unwrap();
+        let c2 = cmd("index.2", Prior::Single(head_addr));
+        p2.add_command(&c2).unwrap();
+        let seg2 = storage.write(p2).unwrap();
+        let index = seg2.facts().unwrap();
+
+        // Hit in the newest index.
+        assert_eq!(
+            index.query("n", &key2("a", "x")).unwrap().as_deref(),
+            Some(b"v3".as_slice())
+        );
+        // Hit in the prior index.
+        assert_eq!(
+            index.query("n", &key2("a", "y")).unwrap().as_deref(),
+            Some(b"v2".as_slice())
+        );
+        // Miss everywhere.
+        assert!(index.query("z", &key2("a", "x")).unwrap().is_none());
+
+        // Prefix query merges both indices; the newest value wins.
+        let facts: Vec<Fact> = index
+            .query_prefix("n", &key("a"))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(facts.len(), 2);
+        assert_eq!(facts[0].key, key2("a", "x"));
+        assert_eq!(facts[0].value.as_ref(), b"v3");
+        assert_eq!(facts[1].key, key2("a", "y"));
+        assert_eq!(facts[1].value.as_ref(), b"v2");
+
+        // Prefix query for an unknown name is empty.
+        assert!(index.query_prefix("z", &[]).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn test_revert_perspective() {
+        let mut provider = new_provider();
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        let c0 = cmd("revert", Prior::None);
+        p.add_command(&c0).unwrap();
+
+        // Reverting to the current state is a no-op.
+        let checkpoint = p.checkpoint();
+        p.revert(p.checkpoint()).unwrap();
+        assert!(p.includes(c0.id()));
+
+        // Reverting drops later commands and their fact updates.
+        p.insert("n".into(), key("k"), val(b"v")).unwrap();
+        let c1 = cmd("revert.1", Prior::Single(c0.address().unwrap()));
+        p.add_command(&c1).unwrap();
+        p.revert(checkpoint).unwrap();
+        assert!(p.includes(c0.id()));
+        assert!(!p.includes(c1.id()));
+        assert!(p.query("n", &key("k")).unwrap().is_none());
+        assert_eq!(
+            p.head_address().unwrap(),
+            Prior::Single(c0.address().unwrap())
+        );
+
+        // A checkpoint beyond the command history is a bug.
+        let res = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            p.revert(Checkpoint { index: 99 })
+        }));
+        assert!(matches!(res, Err(_) | Ok(Err(StorageError::Bug(_)))));
+    }
+
+    #[test]
+    fn test_add_command_head_mismatch() {
+        let mut provider = new_provider();
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        let c0 = cmd("mismatch", Prior::None);
+        // A non-init command cannot start an unrooted perspective.
+        let bad = cmd("mismatch.bad", Prior::Single(c0.address().unwrap()));
+        assert!(matches!(
+            p.add_command(&bad),
+            Err(StorageError::PerspectiveHeadMismatch)
+        ));
+        // Once a command is added, a second init command no longer matches.
+        p.add_command(&c0).unwrap();
+        let bad = cmd("mismatch.bad2", Prior::None);
+        assert!(matches!(
+            p.add_command(&bad),
+            Err(StorageError::PerspectiveHeadMismatch)
+        ));
+    }
+
+    #[test]
+    fn test_is_ancestor_same_location_is_false() {
+        let mut provider = new_provider();
+        let p = init_perspective(&mut provider, "ancestor");
+        let (_, storage) = provider.new_storage(p).unwrap();
+        let head = storage.get_head().unwrap();
+
+        let mut buffer = TraversalBuffer::new();
+        assert!(!storage.is_ancestor(head, head, &mut buffer).unwrap());
+    }
+}

@@ -1387,4 +1387,79 @@ mod queue_tests {
         let mut queue = TraversalQueue::new();
         assert!(queue.pop_duplicates().unwrap().is_none());
     }
+
+    #[test]
+    fn test_pop_duplicates_removes_covered_entry() {
+        let mut queue = TraversalQueue::new();
+        // One covered entry and one uncovered duplicate at the same location.
+        queue.push_covered(loc(0, 5), true).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(location, loc(0, 5));
+        assert_eq!(count, 2);
+        assert!(queue.pop_duplicates().unwrap().is_none());
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn test_cover_up_to_missing_segment_is_noop() {
+        let mut queue = TraversalQueue::new();
+        queue.push(loc(0, 5)).unwrap();
+        queue
+            .cover_up_to(SegmentIndex::new(9), MaxCut::new(10), MaxCut::new(10))
+            .unwrap();
+        assert!(!queue.all_covered());
+    }
+
+    #[test]
+    fn test_cover_up_to_covered_entry_is_noop() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 5), true).unwrap();
+        queue
+            .cover_up_to(SegmentIndex::new(0), MaxCut::new(10), MaxCut::new(10))
+            .unwrap();
+        assert!(queue.all_covered());
+        let (l, covered) = queue.pop_covered().unwrap().unwrap();
+        assert_eq!(l, loc(0, 5));
+        assert!(covered);
+    }
+
+    #[test]
+    fn test_cover_up_to_fully_covers() {
+        let mut queue = TraversalQueue::new();
+        queue.push(loc(0, 5)).unwrap();
+        queue
+            .cover_up_to(SegmentIndex::new(0), MaxCut::new(8), MaxCut::new(8))
+            .unwrap();
+        assert!(queue.all_covered());
+    }
+
+    #[test]
+    fn test_cover_up_to_partially_covers() {
+        let mut queue = TraversalQueue::new();
+        queue.push(loc(0, 5)).unwrap();
+        // Coverage reaches past our start but not the segment head:
+        // the entry advances past the covered portion and stays uncovered.
+        queue
+            .cover_up_to(SegmentIndex::new(0), MaxCut::new(6), MaxCut::new(8))
+            .unwrap();
+        assert!(!queue.all_covered());
+        let (l, covered) = queue.pop_covered().unwrap().unwrap();
+        assert_eq!(l, loc(0, 7));
+        assert!(!covered);
+    }
+
+    #[test]
+    fn test_cover_up_to_below_start_is_noop() {
+        let mut queue = TraversalQueue::new();
+        queue.push(loc(0, 5)).unwrap();
+        // Coverage is below our start; nothing to do.
+        queue
+            .cover_up_to(SegmentIndex::new(0), MaxCut::new(3), MaxCut::new(8))
+            .unwrap();
+        let (l, covered) = queue.pop_covered().unwrap().unwrap();
+        assert_eq!(l, loc(0, 5));
+        assert!(!covered);
+    }
 }
