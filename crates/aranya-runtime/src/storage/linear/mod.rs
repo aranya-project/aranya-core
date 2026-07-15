@@ -1219,7 +1219,10 @@ mod test {
     use testing::Manager;
 
     use super::*;
-    use crate::testing::dsl::{StorageBackend, test_suite};
+    use crate::testing::{
+        dsl::{StorageBackend, test_suite},
+        hash_for_testing_only,
+    };
 
     #[test]
     fn test_query_prefix() {
@@ -1281,14 +1284,6 @@ mod test {
         }
     }
     test_suite!(|| LinearBackend);
-}
-
-#[cfg(test)]
-mod branch_tests {
-    use testing::Manager;
-
-    use super::*;
-    use crate::testing::hash_for_testing_only;
 
     struct TestCmd {
         id: CmdId,
