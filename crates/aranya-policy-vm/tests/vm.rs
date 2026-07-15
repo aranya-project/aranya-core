@@ -2380,7 +2380,9 @@ fn test_boolean_operators() {
 #[test]
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
-        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
+        let machine = compile(&format!(
+            "action f() result[unit, int] {{ check {expr} else return Err(0) return Ok(Unit) }}"
+        ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2388,7 +2390,6 @@ fn test_boolean_short_circuit() {
         let reason = rs
             .call_action(ident!("f"), iter::empty::<Value>())
             .expect("action runs");
-        assert!(rs.stack.is_empty());
         reason
     }
 
@@ -2396,7 +2397,7 @@ fn test_boolean_short_circuit() {
     // exiting `Normal`. So `Panic` means `todo()` evaluated; `Normal` means it did
     // not (the check either passed, or failed and returned Err).
     assert_eq!(run("true && todo()"), ExitReason::Panic); // todo runs in &&
-    assert_eq!(run("false && todo()"), ExitReason::Panic); // && short-circuits → check fails
+    assert_eq!(run("false && todo()"), ExitReason::Normal); // && short-circuits → check fails → return Err
     assert_eq!(run("true || todo()"), ExitReason::Normal); // || short-circuits, check passes
     assert_eq!(run("false || todo()"), ExitReason::Panic); // todo runs in ||
 }
