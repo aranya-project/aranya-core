@@ -1,5 +1,6 @@
 //! [`PolicyStore`]/[`Policy`] test implementation.
 use alloc::vec::Vec;
+use core::convert::Infallible;
 
 use buggy::bug;
 use postcard::ser_flavors::Slice;
@@ -269,7 +270,7 @@ impl Policy for TestPolicy {
     type Effect = TestEffect;
     type Action<'a> = TestActions;
     type Command<'a> = TestProtocol<'a>;
-    type ActionReturn = ();
+    type ActionError = Infallible;
 
     fn serial(&self) -> u32 {
         self.serial
@@ -307,7 +308,7 @@ impl Policy for TestPolicy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         _placement: crate::policy::ActionPlacement,
-    ) -> Result<(), PolicyError> {
+    ) -> Result<Result<(), Infallible>, PolicyError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {
                 id: CmdId::default(),
@@ -344,6 +345,6 @@ impl Policy for TestPolicy {
             }
         }
 
-        Ok(())
+        Ok(Ok(()))
     }
 }

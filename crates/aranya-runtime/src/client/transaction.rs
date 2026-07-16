@@ -546,7 +546,7 @@ fn get_policy<'a, PS: PolicyStore>(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, convert::Infallible};
 
     use aranya_crypto::id::{Id, IdTag};
     use buggy::Bug;
@@ -593,7 +593,7 @@ mod test {
         type Action<'a> = &'a str;
         type Effect = ();
         type Command<'a> = SeqCommand;
-        type ActionReturn = ();
+        type ActionError = Infallible;
 
         fn serial(&self) -> u32 {
             0
@@ -642,7 +642,7 @@ mod test {
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
-        ) -> Result<(), PolicyError> {
+        ) -> Result<Result<(), Infallible>, PolicyError> {
             unimplemented!()
         }
 

@@ -75,7 +75,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         effect_sink: &mut ES,
         message_sink: &mut MS,
         action: <PS::Policy as Policy>::Action<'_>,
-    ) -> Result<<PS::Policy as Policy>::ActionReturn, ClientError>
+    ) -> Result<Result<(), <PS::Policy as Policy>::ActionError>, ClientError>
     where
         ES: Sink<PS::Effect>,
         MS: for<'b> Sink<&'b [u8]>,
@@ -97,17 +97,17 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
             effect_sink,
             ActionPlacement::OffGraph,
         ) {
-            Ok(ret) => {
+            Ok(Ok(())) => {
                 // Success, commit effects
                 effect_sink.commit();
-                Ok(ret)
+                Ok(Ok(()))
             }
-            Err(e) => {
+            err => {
                 // Other error, revert all? See #513.
                 perspective.revert(checkpoint)?;
                 perspective.message_sink.rollback();
                 effect_sink.rollback();
-                Err(e.into())
+                err.map_err(ClientError::from)
             }
         }
     }

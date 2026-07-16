@@ -492,7 +492,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     type Action<'a> = VmAction<'a>;
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;
-    type ActionReturn = Result<(), Value>;
+    type ActionError = Value;
 
     fn serial(&self) -> u32 {
         // TODO(chip): Implement an actual serial number

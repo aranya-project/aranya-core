@@ -142,7 +142,7 @@ impl From<MergeIds> for (Address, Address) {
 /// as a result.
 pub trait Policy {
     type Action<'a>;
-    type ActionReturn;
+    type ActionError;
     type Effect;
     type Command<'a>: Command;
 
@@ -170,7 +170,7 @@ pub trait Policy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: ActionPlacement,
-    ) -> Result<Self::ActionReturn, PolicyError>;
+    ) -> Result<Result<(), Self::ActionError>, PolicyError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
     /// Command is returned.
