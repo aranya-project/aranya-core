@@ -32,8 +32,6 @@ pub enum ClientError {
     StorageError(#[from] StorageError),
     #[error("init error")]
     InitError,
-    #[error("not authorized")]
-    NotAuthorized,
     #[error("could not deserialize session command")]
     SessionDeserialize,
     /// Attempted to braid two parallel finalize commands together.
@@ -53,18 +51,7 @@ pub enum ClientError {
 
 impl From<PolicyError> for ClientError {
     fn from(error: PolicyError) -> Self {
-        // Check errors used to come only from commands, and were mapped to NotAuthorized. But now
-        // that actions can return errors (which are also surfaced as check errors) we need to
-        // distinguish between them.
-        // command: `check .. else recall` -> Check(None)
-        // action:  `check .. else return` -> Check(Some)
-        match error {
-            PolicyError::Check(err) => match err {
-                None => Self::NotAuthorized,
-                Some(v) => Self::PolicyError(PolicyError::Check(Some(v))),
-            },
-            _ => Self::PolicyError(error),
-        }
+        Self::PolicyError(error)
     }
 }
 
