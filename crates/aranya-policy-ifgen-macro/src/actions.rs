@@ -51,6 +51,7 @@ pub(super) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
         impl aranya_policy_ifgen::Actionable for #ident {
             type Interface = #interface;
+            type Error = aranya_policy_ifgen::Value;
 
             fn with_action<R>(self, f: impl for<'a> FnOnce(aranya_policy_ifgen::VmAction<'a>) -> R) -> R {
                 match self {

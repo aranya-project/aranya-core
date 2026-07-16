@@ -31,6 +31,8 @@ pub type FieldMap = BTreeMap<Identifier, Value>;
 pub trait Actionable {
     /// A type tag used for restricting valid actions for a client.
     type Interface;
+    /// Error returned from action.
+    type Error;
 
     /// Call a function by turning self into a [`VmAction`] and passing it as a parameter.
     fn with_action<R>(self, f: impl for<'a> FnOnce(VmAction<'a>) -> R) -> R;
