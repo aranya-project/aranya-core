@@ -409,6 +409,12 @@ struct File {
 impl File {
     fn fallocate(&self, offset: i64, len: i64) -> Result<(), StorageError> {
         libc::fallocate(&self.fd, 0, offset, len)?;
+        // A full `fsync` (not `fdatasync`) so the size/extent metadata
+        // dirtied by `fallocate` is durable before any data written into
+        // the new region is committed; `fdatasync` may skip metadata not
+        // needed to read back already-written data. This runs once per
+        // `PREALLOC_CHUNK`, not per commit.
+        libc::fsync(&self.fd)?;
         Ok(())
     }
 
