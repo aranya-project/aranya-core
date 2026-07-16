@@ -645,10 +645,14 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                                 error!("expected action result value: {e}");
                                 PolicyError::InternalError
                             })?;
-                            // `Err(_)` => the action failed;
+                            // `Err(payload)` => the action failed;
                             // anything else (`Ok`/placeholder success) succeeds.
-                            if matches!(value, Value::Result(Err(_))) {
-                                info!("action returned Err {}", self.source_location(&rs));
+                            if let Value::Result(Err(payload)) = value {
+                                info!(
+                                    "action returned Err {}: {}",
+                                    self.source_location(&rs),
+                                    payload,
+                                );
                                 return Err(PolicyError::Rejected);
                             }
                         }

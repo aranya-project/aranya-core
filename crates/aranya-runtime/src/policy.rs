@@ -20,7 +20,7 @@ pub enum PolicyError {
     Read,
     #[error("write error")]
     Write,
-    #[error("policy error")]
+    #[error("operation was rejected by the policy")]
     Rejected,
     #[error("panic")]
     Panic,
