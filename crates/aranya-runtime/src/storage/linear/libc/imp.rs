@@ -507,3 +507,101 @@ impl File {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn graph_id() -> GraphId {
+        "test".parse().unwrap()
+    }
+
+    fn loc(segment: u64, max_cut: u64) -> Location {
+        Location::new(SegmentIndex::new(segment), MaxCut::new(max_cut))
+    }
+
+    fn manager() -> (tempfile::TempDir, FileManager) {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = FileManager::new(dir.path()).unwrap();
+        (dir, manager)
+    }
+
+    /// Uncommitted appends must not survive a crash: reopening ignores
+    /// data past the committed write frontier.
+    #[test]
+    fn test_reopen_discards_uncommitted_appends() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.append(|_| 1u64).unwrap();
+        writer.commit(loc(1, 1)).unwrap();
+        let committed_offset = writer.root.free_offset;
+
+        writer.append(|_| 2u64).unwrap();
+        writer.append(|_| 3u64).unwrap();
+        assert_ne!(writer.root.free_offset, committed_offset);
+        // Simulated crash: drop without committing.
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), loc(1, 1));
+        assert_eq!(writer.root.free_offset, committed_offset);
+    }
+
+    /// A torn or corrupted root write must fall back to the other
+    /// slot's previously committed root.
+    #[test]
+    fn test_reopen_survives_corrupt_root() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.append(|_| 1u64).unwrap();
+        writer.commit(loc(1, 1)).unwrap(); // generation 1 -> ROOT_A
+        writer.append(|_| 2u64).unwrap();
+        writer.commit(loc(2, 2)).unwrap(); // generation 2 -> ROOT_B
+
+        // Simulated torn write: scribble over the newest root.
+        writer.file.write_all(ROOT_B, &[0xFF; 64]).unwrap();
+        drop(writer);
+
+        let mut writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), loc(1, 1));
+
+        // The corrupt slot is the next one written, restoring redundancy.
+        assert_eq!(writer.next_root, ROOT_B);
+        writer.commit(loc(3, 3)).unwrap();
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), loc(3, 3));
+    }
+
+    /// Commits must keep alternating root slots across reopens so the
+    /// previously committed root always survives the next commit.
+    #[test]
+    fn test_root_slots_ping_pong_across_reopen() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.commit(loc(1, 1)).unwrap(); // generation 1 -> ROOT_A
+        writer.commit(loc(2, 2)).unwrap(); // generation 2 -> ROOT_B
+        drop(writer);
+
+        let mut writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), loc(2, 2));
+        assert_eq!(writer.root.generation, 2);
+        // The newest root lives in ROOT_B, so the next commit must
+        // overwrite ROOT_A.
+        assert_eq!(writer.next_root, ROOT_A);
+        writer.commit(loc(3, 3)).unwrap();
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), loc(3, 3));
+        assert_eq!(writer.root.generation, 3);
+        assert_eq!(writer.next_root, ROOT_B);
+    }
+}

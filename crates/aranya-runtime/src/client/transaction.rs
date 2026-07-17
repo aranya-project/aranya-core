@@ -610,7 +610,11 @@ mod test {
         Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
-        testing::{hash_for_testing_only, short_b58},
+        testing::{
+            hash_for_testing_only,
+            protocol::{TestActions, TestPolicyStore, TestSink},
+            short_b58,
+        },
     };
 
     struct SeqPolicyStore;
@@ -1243,6 +1247,51 @@ mod test {
         );
 
         Ok(())
+    }
+
+    /// An open transaction does not block local actions, but a local
+    /// action advances the storage head, so the transaction's commit
+    /// fails with [`ClientError::ConcurrentTransaction`] instead of
+    /// silently losing either side.
+    #[test]
+    fn test_action_aborts_open_transaction() {
+        let mut client = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut buffers = RuntimeBuffers::new();
+
+        let policy_data = 0u64.to_be_bytes();
+        let graph_id = client
+            .new_graph(policy_data.as_slice(), TestActions::Init(0), &mut sink)
+            .unwrap();
+
+        // Accumulate an action in an open (uncommitted) transaction.
+        let mut trx = client.transaction(graph_id);
+        client
+            .action_transaction(&mut trx, &mut sink, TestActions::SetValue(0, 1))
+            .unwrap();
+
+        // A local action is not blocked by the open transaction.
+        client
+            .action(graph_id, &mut sink, TestActions::SetValue(0, 2))
+            .unwrap();
+
+        // But it advanced the head out from under the transaction.
+        let err = client
+            .commit(trx, &mut sink, &mut buffers, MemSpill::new)
+            .unwrap_err();
+        assert!(matches!(err, ClientError::ConcurrentTransaction), "{err:?}");
+
+        // A transaction opened afterward commits cleanly.
+        let mut trx = client.transaction(graph_id);
+        client
+            .action_transaction(&mut trx, &mut sink, TestActions::SetValue(0, 3))
+            .unwrap();
+        assert!(
+            client
+                .commit(trx, &mut sink, &mut buffers, MemSpill::new)
+                .unwrap()
+        );
     }
 
     #[cfg(feature = "graphviz")]
