@@ -60,7 +60,7 @@ pub const MAX_HEADS: usize = QUEUE_CAPACITY;
 /// for the rules governing partition transitions.
 #[derive(Debug, Default)]
 pub struct TraversalQueue {
-    entries: heapless::Vec<Location, QUEUE_CAPACITY>,
+    entries: Vec<Location>,
     /// Index separating uncovered (below) from covered (at and above).
     partition: usize,
 }
@@ -69,7 +69,7 @@ impl TraversalQueue {
     /// Create an empty traversal queue.
     pub const fn new() -> Self {
         Self {
-            entries: heapless::Vec::new(),
+            entries: Vec::new(),
             partition: 0,
         }
     }
@@ -125,9 +125,7 @@ impl TraversalQueue {
             }
             return Ok(());
         }
-        self.entries
-            .push(loc)
-            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
+        self.entries.push(loc);
         if !covered {
             let last = self
                 .entries
@@ -149,9 +147,7 @@ impl TraversalQueue {
     /// is already present. Used by the convergence pre-pass where
     /// duplicate tracking is needed.
     pub fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
-        self.entries
-            .push(loc)
-            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
+        self.entries.push(loc);
         // All duplicate entries are uncovered.
         let last = self
             .entries
@@ -220,7 +216,7 @@ impl TraversalQueue {
             if self.entries[j] == location {
                 count = count
                     .checked_add(1)
-                    .assume("count bounded by QUEUE_CAPACITY")?;
+                    .assume("count bounded by `entries.len()`")?;
                 if j < self.partition {
                     self.partition = self
                         .partition
@@ -1208,6 +1204,7 @@ mod queue_tests {
     }
 
     #[test]
+    #[ignore = "queue is currently unbounded"]
     fn test_queue_overflow_returns_error() {
         let mut queue = TraversalQueue::new();
         // Fill to capacity
@@ -1380,6 +1377,7 @@ mod queue_tests {
     }
 
     #[test]
+    #[ignore = "queue is currently unbounded"]
     fn test_push_duplicate_overflow() {
         let mut queue = TraversalQueue::new();
         for i in 0..QUEUE_CAPACITY {
