@@ -20,6 +20,57 @@ fn compile_pass(text: &str) -> Module {
 }
 
 #[test]
+fn test_todo_requires_debug_mode() {
+    let text = r#"
+        function f() int {
+            check false else todo()
+            return 1
+        }
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+
+    Compiler::new(&policy)
+        .debug(true)
+        .compile()
+        .expect("compiles with debug mode enabled");
+
+    let err = Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect_err("`todo` requires debug mode");
+    assert!(
+        err.to_string().contains("todo()"),
+        "unexpected error: {err}"
+    );
+}
+
+// `test_fail`, like `todo()`, is only allowed when debug mode is enabled.
+#[test]
+fn test_fail_requires_debug_mode() {
+    let text = r#"
+        function f() int {
+            check false else test_fail("boom")
+            return 1
+        }
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+
+    Compiler::new(&policy)
+        .debug(true)
+        .compile()
+        .expect("compiles with debug mode enabled");
+
+    let err = Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect_err("`test_fail` requires debug mode");
+    assert!(
+        err.to_string().contains("test_fail()"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn test_validate_return() {
     let valid = [
         r#"function a() int {

@@ -118,7 +118,7 @@ impl InvalidFactLiteral {
     }
 }
 
-/// A pure function has no return statement.
+/// A callable with a return type has no return statement.
 pub(crate) struct NoReturn(pub Span);
 
 /// Source structs in struct composition have overlapping fields.
@@ -186,8 +186,22 @@ pub(crate) struct UnreachableMatchArm(pub Span);
 /// in the same arm already matches all values of that variant.
 pub(crate) struct RedundantMatchArm(pub Span);
 
-/// Todo found in policy code with debug mode disabled.
-pub(crate) struct TodoFound(pub Span);
+/// A debug-only internal function (e.g. `todo()` or `test_fail(..)`) used while
+/// debug mode is disabled, where it is not allowed.
+pub(crate) struct DebugModeRequired {
+    /// Display name of the construct, e.g. `"todo()"`.
+    pub name: &'static str,
+    /// Span of the offending expression.
+    pub span: Span,
+}
+
+/// A `return` that isn't allowed; `message` explains why.
+pub(crate) struct InvalidReturn {
+    /// Why the `return` is invalid.
+    pub message: String,
+    /// Span of the offending `return`.
+    pub span: Span,
+}
 
 /// Invalid cast - LHS cannot be converted to RHS.
 pub(crate) struct InvalidCast {

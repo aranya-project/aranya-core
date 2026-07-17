@@ -505,7 +505,7 @@ where
 
         // If the command failed in an uncontrolled way, rollback
         if let Err(e) = result
-            && !matches!(e, PolicyError::Check)
+            && !matches!(e, PolicyError::Rejected)
         {
             sink.rollback();
             return Err(e.into());
