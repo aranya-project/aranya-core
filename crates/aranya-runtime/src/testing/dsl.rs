@@ -66,8 +66,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, Fact, GraphId,
+    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior, Query as _,
     RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncIncoming,
     SyncRequester, SyncResponder, TraversalBuffer, TraversalBuffers,
     testing::{
@@ -1098,6 +1098,22 @@ where
                     }
                 }
                 assert_eq!(equal, same);
+                if equal {
+                    let facts_a = collect_facts(storage_a)?;
+                    let facts_b = collect_facts(storage_b)?;
+                    if facts_a != facts_b {
+                        for fact in facts_a.iter().filter(|f| !facts_b.contains(f)) {
+                            error!(?fact, client = clienta, "fact only on client A");
+                        }
+                        for fact in facts_b.iter().filter(|f| !facts_a.contains(f)) {
+                            error!(?fact, client = clientb, "fact only on client B");
+                        }
+                    }
+                    assert_eq!(
+                        facts_a, facts_b,
+                        "fact DBs diverged between client {clienta} and client {clientb}"
+                    );
+                }
             }
             TestRule::MaxCut {
                 client,
@@ -1513,6 +1529,18 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
     })
 }
 
+/// Collects every fact visible at the head of the graph, in sorted key
+/// order. `TestPolicy` only ever writes facts under the `"payload"` name.
+fn collect_facts<S: Storage>(storage: &S) -> Result<Vec<Fact>, TestError> {
+    let head = storage.get_head()?;
+    let perspective = storage.get_fact_perspective(head)?;
+    let mut facts = Vec::new();
+    for fact in perspective.query_prefix("payload", &[])? {
+        facts.push(fact?);
+    }
+    Ok(facts)
+}
+
 fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
     for (a, b) in iter::zip(walk(storage_a), walk(storage_b)) {
         if a != b {
@@ -1617,4 +1645,30 @@ test_vectors! {
     two_client_branch,
     two_client_merge,
     two_client_sync,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ClientState, Keys,
+        storage::linear::testing::MemStorageProvider,
+        testing::protocol::{TestActions, TestPolicyStore, TestSink},
+    };
+
+    #[test]
+    fn collect_facts_sees_set_values() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(graph_id, &mut sink, TestActions::SetValue(7, 9))?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].key, Keys::from_iter([7u64.to_be_bytes()]));
+        assert_eq!(&*facts[0].value, 9u64.to_be_bytes().as_slice());
+        Ok(())
+    }
 }
