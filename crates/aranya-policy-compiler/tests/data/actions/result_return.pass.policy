@@ -1,0 +1,10 @@
+// An infallible action has no result type and no return.
+action infallible() {}
+
+// A result-typed action must return Ok(unit)/Err(e) on every path.
+action can_fail(x int) result[unit, string] {
+    if x > 0 {
+        return Ok(Unit)
+    }
+    return Err("negative input")
+}

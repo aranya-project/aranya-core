@@ -29,13 +29,11 @@ pub enum ClientError {
     #[error("no such parent: {0}")]
     NoSuchParent(CmdId),
     #[error("policy error: {0}")]
-    PolicyError(PolicyError),
+    PolicyError(#[from] PolicyError),
     #[error("storage error: {0}")]
     StorageError(#[from] StorageError),
     #[error("init error")]
     InitError,
-    #[error("not authorized")]
-    NotAuthorized,
     #[error("could not deserialize session command")]
     SessionDeserialize,
     /// Attempted to braid two parallel finalize commands together.
@@ -51,15 +49,6 @@ pub enum ClientError {
     ConcurrentTransaction,
     #[error(transparent)]
     Bug(#[from] Bug),
-}
-
-impl From<PolicyError> for ClientError {
-    fn from(error: PolicyError) -> Self {
-        match error {
-            PolicyError::Check => Self::NotAuthorized,
-            _ => Self::PolicyError(error),
-        }
-    }
 }
 
 /// Keeps track of client graph state.

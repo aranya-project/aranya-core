@@ -26,6 +26,11 @@ fn test_vmpolicy() {
 }
 
 #[test]
+fn test_action_result() {
+    vm::test_action_result(new_policy_store()).unwrap();
+}
+
+#[test]
 fn test_query_fact_value() {
     vm::test_query_fact_value(new_policy_store()).unwrap();
 }

@@ -545,6 +545,8 @@ pub enum InternalFunction {
     Deserialize(Box<Expression>),
     /// Not yet implemented panic
     Todo(Span),
+    /// Panics with an optional message, for expressing test expectations
+    TestFail(Option<Text>, Span),
 }
 
 impl Spanned for InternalFunction {
@@ -556,6 +558,7 @@ impl Spanned for InternalFunction {
             Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
             Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
             Self::Todo(span) => *span,
+            Self::TestFail(_, span) => *span,
         }
     }
 }
@@ -766,6 +769,9 @@ impl ExprKind {
                     (InternalFunction::Serialize(e1), InternalFunction::Serialize(e2))
                     | (InternalFunction::Deserialize(e1), InternalFunction::Deserialize(e2)) => {
                         e1.inner.matches(&e2.inner)
+                    }
+                    (InternalFunction::TestFail(t1, _), InternalFunction::TestFail(t2, _)) => {
+                        t1 == t2
                     }
                     (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
                     _ => false,
@@ -992,9 +998,9 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// Optional expression to evaluate if the check fails. Must be a terminal expression
+    /// Expression to evaluate if the check fails. Must be a terminal expression
     /// (type `Never`), e.g. `return Err(..)` or `recall foo()`.
-    pub else_expression: Option<Expression>,
+    pub else_expression: Expression,
 }
 }
 
@@ -1249,6 +1255,9 @@ pub struct ActionDefinition {
     pub identifier: Ident,
     /// The arguments to the action
     pub arguments: Vec<Param>,
+    /// The action's return type: a `result[unit, E]` for a fallible action, or
+    /// [`TypeKind::Unit`] for an infallible one.
+    pub return_type: VType,
     /// The statements executed when the action is called
     pub statements: Vec<Statement>,
     /// The source location of this definition
