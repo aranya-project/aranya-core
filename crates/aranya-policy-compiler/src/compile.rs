@@ -32,9 +32,9 @@ use tracing::warn;
 pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
     error::{
-        AlreadyDefined, BadArgument, BugError, DuplicateSourceFields, InvalidExpression,
-        InvalidType, NoOpStructComp, NoReturn, NotDefined, SourceStructNotSubsetOfBase,
-        StructCompositionTypeMismatch, TodoFound, UnknownError,
+        AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
+        SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -556,6 +556,17 @@ impl<'a> CompileState<'a> {
         CompileError::new(err_type, Some(self.policy.text.clone()))
     }
 
+    /// Ensure debug mode is on, or return a [`DebugModeRequired`] error. In debug
+    /// mode, warns that a debug-only construct (e.g. `todo()`/`test_fail`) is present.
+    fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
+        if self.is_debug {
+            warn!("`{name}` found in policy");
+            Ok(())
+        } else {
+            Err(self.err(DebugModeRequired { name, span }))
+        }
+    }
+
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: thir::FactLiteral) -> Result<(), CompileError> {
         self.append_instruction(Instruction::FactNew(f.identifier.inner.clone()));
@@ -640,13 +651,12 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Deserialize);
                 }
                 thir::InternalFunction::Todo(span) => {
-                    let err = self.err(TodoFound(span));
-                    if self.is_debug {
-                        warn!("{err}");
-                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                    } else {
-                        return Err(err);
-                    }
+                    self.require_debug_mode("todo()", span)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                }
+                thir::InternalFunction::TestFail(_msg, span) => {
+                    self.require_debug_mode("test_fail()", span)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
             },
             thir::ExprKind::FunctionCall(f) => {
@@ -917,10 +927,7 @@ impl<'a> CompileState<'a> {
                     check_succeeded_label.clone(),
                 )));
 
-                match s.else_expression {
-                    Some(else_expression) => self.compile_typed_expression(else_expression)?,
-                    None => self.append_instruction(Instruction::Exit(ExitReason::Check)),
-                }
+                self.compile_typed_expression(s.else_expression)?;
                 self.define_label(check_succeeded_label, self.wp)?;
             }
             thir::StmtKind::Match(s) => {
@@ -1148,6 +1155,7 @@ impl<'a> CompileState<'a> {
                 name: action_node.identifier.clone(),
                 persistence: action_node.persistence.clone(),
                 params,
+                result_type: action_node.return_type.clone(),
             })
             .map_err(|e| {
                 self.err(AlreadyDefined::new(
@@ -1162,15 +1170,34 @@ impl<'a> CompileState<'a> {
     /// Compile an action function
     fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::Action(action_node.clone()));
+        let label = Label::new(action_node.identifier.inner.clone(), LabelType::Action);
+
+        // The return type is `unit` (infallible) or `result[unit, E]` (fallible).
+        let ret = match &action_node.return_type.inner {
+            TypeKind::Unit => None,
+            TypeKind::Result(r) => {
+                if !matches!(r.ok.inner, TypeKind::Unit) {
+                    return Err(self.err(InvalidReturn {
+                        message: "an action's success type must be `unit`".to_owned(),
+                        span: r.ok.span,
+                    }));
+                }
+                Some(action_node.return_type.clone())
+            }
+            _ => unreachable!("invalid action return type should have been caught during parsing"),
+        };
         self.compile_function_like(
             &action_node.arguments,
-            None,
+            ret.as_ref(),
             action_node.span,
             &action_node.statements,
-            Label::new(action_node.identifier.inner.clone(), LabelType::Action),
+            label,
         )?;
-        // Actions cannot have return statements, so we add a return instruction manually.
-        self.append_instruction(Instruction::Return);
+        // An infallible action has no return statement, so add one.
+        if ret.is_none() {
+            self.append_instruction(Instruction::Return);
+        }
+
         self.exit_statement_context();
         Ok(())
     }
