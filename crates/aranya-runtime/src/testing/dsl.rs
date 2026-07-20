@@ -60,7 +60,7 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
 
-use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RandRng};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
@@ -89,6 +89,10 @@ fn default_max_cascade_depth() -> u64 {
 }
 
 fn default_notify_interval() -> u64 {
+    1
+}
+
+fn default_key_range() -> u64 {
     1
 }
 
@@ -339,6 +343,15 @@ pub enum TestRule {
         #[serde(default)]
         sync_client_zero: bool,
         sync_method: SyncMethod,
+        /// Percent (0-100) of generated commands that delete a fact.
+        #[serde(default)]
+        delete_chance: u64,
+        /// Fact keys are drawn from `0..key_range`.
+        #[serde(default = "default_key_range")]
+        key_range: u64,
+        /// Command priorities are drawn from `0..=max_priority`.
+        #[serde(default)]
+        max_priority: u32,
     },
     SetupClientsAndGraph {
         clients: u64,
@@ -473,10 +486,21 @@ impl Display for TestRule {
                 policy,
                 sync_client_zero,
                 sync_method,
+                delete_chance,
+                key_range,
+                max_priority,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}" }} }},"#,
-                clients, graph, commands, policy, sync_client_zero, sync_method,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_chance": {}, "key_range": {}, "max_priority": {} }} }},"#,
+                clients,
+                graph,
+                commands,
+                policy,
+                sync_client_zero,
+                sync_method,
+                delete_chance,
+                key_range,
+                max_priority,
             ),
             Self::IgnoreExpectations { ignore } => write!(
                 f,
@@ -585,6 +609,42 @@ pub trait StorageBackend {
     fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
 }
 
+/// Randomly generates a set or delete rule shaped by the `GenerateGraph`
+/// knobs. `delete_chance` is a percentage (0-100); keys are drawn from
+/// `0..key_range` and priorities from `0..=max_priority`.
+fn gen_command_rule<R: RandRng>(
+    rng: &mut R,
+    client: u64,
+    graph: u64,
+    delete_chance: u64,
+    key_range: u64,
+    max_priority: u32,
+) -> TestRule {
+    let key = rng.gen_range(0..key_range);
+    let priority = if max_priority == 0 {
+        0
+    } else {
+        rng.gen_range(0..=max_priority)
+    };
+    if delete_chance > 0 && rng.gen_range(0..100) < delete_chance {
+        TestRule::ActionDelete {
+            client,
+            graph,
+            key,
+            priority,
+        }
+    } else {
+        TestRule::ActionSet {
+            client,
+            graph,
+            key,
+            value: rng.gen_range(0..10),
+            repeat: 1,
+            priority,
+        }
+    }
+}
+
 /// Runs a particular test.
 pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError>
 where
@@ -603,7 +663,12 @@ where
                     policy,
                     sync_client_zero,
                     sync_method,
+                    delete_chance,
+                    key_range,
+                    max_priority,
                 } => {
+                    assert!(key_range > 0, "key_range must be at least 1");
+                    assert!(delete_chance <= 100, "delete_chance is a percentage");
                     // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
@@ -660,14 +725,14 @@ where
                                 let client = rng.gen_range(client_start..clients);
                                 match rng.gen_range(0..sync_ceiling) {
                                     x if x < command_ceiling => {
-                                        generated_actions.push(TestRule::ActionSet {
+                                        generated_actions.push(gen_command_rule(
+                                            &mut rng,
                                             client,
                                             graph,
-                                            key: 0,
-                                            value: rng.gen_range(0..10),
-                                            repeat: 1,
-                                            priority: 0,
-                                        });
+                                            delete_chance,
+                                            key_range,
+                                            max_priority,
+                                        ));
                                         count += 1;
                                     }
                                     _ => {
@@ -754,14 +819,14 @@ where
                             // adds a command.
                             while count < commands {
                                 for client in 0..clients {
-                                    generated_actions.push(TestRule::ActionSet {
+                                    generated_actions.push(gen_command_rule(
+                                        &mut rng,
                                         client,
                                         graph,
-                                        key: 0,
-                                        value: rng.gen_range(0..10),
-                                        repeat: 1,
-                                        priority: 0,
-                                    });
+                                        delete_chance,
+                                        key_range,
+                                        max_priority,
+                                    ));
                                     count += 1;
                                     if count >= commands {
                                         break;
@@ -802,14 +867,14 @@ where
 
                             for i in 0..commands {
                                 let client = participating[(i as usize) % participating.len()];
-                                generated_actions.push(TestRule::ActionSet {
+                                generated_actions.push(gen_command_rule(
+                                    &mut rng,
                                     client,
                                     graph,
-                                    key: 0,
-                                    value: rng.gen_range(0..10),
-                                    repeat: 1,
-                                    priority: 0,
-                                });
+                                    delete_chance,
+                                    key_range,
+                                    max_priority,
+                                ));
                             }
 
                             generated_actions.push(TestRule::ConvergeAll {
@@ -1853,6 +1918,25 @@ mod tests {
             },
             TestRule::IgnoreExpectations { ignore: false },
         ];
+        run_test(MemBackend, &rules)
+    }
+
+    #[test]
+    fn generate_graph_with_knobs_converges() -> Result<(), TestError> {
+        let rules = vec![TestRule::GenerateGraph {
+            clients: 3,
+            graph: 0,
+            commands: 60,
+            policy: 0,
+            sync_client_zero: true,
+            sync_method: SyncMethod::Poll {
+                sync_chance: 40,
+                add_command_chance: 60,
+            },
+            delete_chance: 30,
+            key_range: 3,
+            max_priority: 3,
+        }];
         run_test(MemBackend, &rules)
     }
 }
