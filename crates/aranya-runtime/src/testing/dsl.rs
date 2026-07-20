@@ -1671,4 +1671,37 @@ mod tests {
         assert_eq!(&*facts[0].value, 9u64.to_be_bytes().as_slice());
         Ok(())
     }
+
+    #[test]
+    fn delete_action_removes_fact() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(graph_id, &mut sink, TestActions::SetValue(7, 9))?;
+        state.action(graph_id, &mut sink, TestActions::SetValue(8, 10))?;
+        state.action(graph_id, &mut sink, TestActions::DeleteValue(7, 0))?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].key, Keys::from_iter([8u64.to_be_bytes()]));
+        Ok(())
+    }
+
+    #[test]
+    fn set_value_priority_carries_priority() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(graph_id, &mut sink, TestActions::SetValuePriority(1, 2, 7))?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let head = storage.get_head()?;
+        let segment = storage.get_segment(head)?;
+        let command = segment.get_command(head).unwrap();
+        assert_eq!(command.priority(), crate::Priority::Basic(7));
+        Ok(())
+    }
 }
