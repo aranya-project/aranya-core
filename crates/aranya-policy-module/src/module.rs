@@ -9,7 +9,7 @@ use aranya_policy_ast::{self as ast, Identifier};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CodeMap, ConstValue, Field, Instruction, Label, Persistence, interface, named::named_item,
+    CodeMap, ConstValue, Field, Instruction, Label, Persistence, interface, automap::autokey_by_name,
 };
 
 /// Identifies a [`Module`].
@@ -140,7 +140,7 @@ pub struct ActionDef {
     pub params: Vec<Field>,
 }
 
-named_item!(ActionDef);
+autokey_by_name!(ActionDef);
 
 impl From<interface::ActionDefinition> for ActionDef {
     fn from(value: interface::ActionDefinition) -> Self {
@@ -175,7 +175,7 @@ pub struct CommandDef {
     pub fields: Vec<Field>,
 }
 
-named_item!(CommandDef);
+autokey_by_name!(CommandDef);
 
 impl From<interface::CommandDefinition> for CommandDef {
     fn from(value: interface::CommandDefinition) -> Self {
@@ -240,7 +240,7 @@ pub struct FactDef {
     pub immutable: bool,
 }
 
-named_item!(FactDef);
+autokey_by_name!(FactDef);
 
 impl From<ast::FactDefinition> for FactDef {
     fn from(value: ast::FactDefinition) -> Self {
@@ -272,7 +272,7 @@ pub struct StructDef {
     pub items: Vec<Field>,
 }
 
-named_item!(StructDef);
+autokey_by_name!(StructDef);
 
 /// A schema definition for an enum
 #[derive(
@@ -293,7 +293,7 @@ pub struct EnumDef {
     pub variants: Vec<(Identifier, i64)>,
 }
 
-named_item!(EnumDef);
+autokey_by_name!(EnumDef);
 
 impl EnumDef {
     /// Get the integer associated with the variant name, if it exists. Otherwise return `None`.

@@ -6,6 +6,7 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
+pub mod automap;
 mod codemap;
 mod data;
 pub mod ffi;

@@ -1,9 +1,8 @@
 //! [`NamedMap`] and associated traits and types.
 
 use core::fmt;
-use std::collections::{BTreeMap, btree_map};
 
-use aranya_policy_ast::{Ident, Identifier, Param};
+use aranya_policy_ast::{Ident, Param};
 
 macro_rules! named {
     ($ty:ty) => {
@@ -158,71 +157,5 @@ impl<V: Named> core::borrow::Borrow<str> for ByName<V> {
 impl<V: fmt::Debug> fmt::Debug for ByName<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
-    }
-}
-
-/// Convenience macro for implementing [`NamedItem`] on a type
-macro_rules! named_item {
-    ($ty:ty) => {
-        impl $crate::named::NamedItem for $ty {
-            fn name(&self) -> &Identifier {
-                &self.name
-            }
-        }
-    };
-}
-pub(crate) use named_item;
-
-/// Implements an item that can report its own name, for storing in a `NamedSet`.
-pub trait NamedItem {
-    /// Get the name of the item
-    fn name(&self) -> &Identifier;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// A set of items, indexed by their name.
-pub struct NamedSet<T: NamedItem>(BTreeMap<Identifier, T>);
-
-impl<T: NamedItem> NamedSet<T> {
-    /// Create a new, empty `NamedSet`.
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self(BTreeMap::new())
-    }
-
-    /// Insert an item into the `NamedSet`
-    pub fn insert(&mut self, item: T) -> Option<T> {
-        self.0.insert(item.name().clone(), item)
-    }
-
-    /// Retrieve an item by its name, and return a reference to it if it exists.
-    pub fn get(&self, key: &Identifier) -> Option<&T> {
-        self.0.get(key)
-    }
-
-    /// Does the set contain an item with this name?
-    pub fn contains_key(&self, key: &Identifier) -> bool {
-        self.0.contains_key(key)
-    }
-
-    /// Iterate over the set, returning items by reference.
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.0.values()
-    }
-}
-
-impl<T: NamedItem> IntoIterator for NamedSet<T> {
-    type Item = T;
-
-    type IntoIter = btree_map::IntoValues<Identifier, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_values()
-    }
-}
-
-impl<T: NamedItem> FromIterator<(Identifier, T)> for NamedSet<T> {
-    fn from_iter<I: IntoIterator<Item = (Identifier, T)>>(iter: I) -> Self {
-        Self(iter.into_iter().collect())
     }
 }

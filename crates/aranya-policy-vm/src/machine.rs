@@ -6,14 +6,14 @@ use alloc::{
     vec::Vec,
 };
 use core::fmt::{self, Display};
-use std::str::FromStr as _;
+use core::str::FromStr as _;
 
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, Instruction, Label,
     LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion, WrapType,
-    named::NamedSet,
+    automap::AutoMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -123,15 +123,15 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: NamedSet<ActionDef>,
+    pub action_defs: AutoMap<ActionDef>,
     /// Command definitions
-    pub command_defs: NamedSet<CommandDef>,
+    pub command_defs: AutoMap<CommandDef>,
     /// Fact schemas
-    pub fact_defs: NamedSet<FactDef>,
+    pub fact_defs: AutoMap<FactDef>,
     /// Struct schemas
-    pub struct_defs: NamedSet<StructDef>,
+    pub struct_defs: AutoMap<StructDef>,
     /// Enum definitions
-    pub enum_defs: NamedSet<EnumDef>,
+    pub enum_defs: AutoMap<EnumDef>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -147,11 +147,11 @@ impl Machine {
         Self {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
-            action_defs: NamedSet::new(),
-            command_defs: NamedSet::new(),
-            fact_defs: NamedSet::new(),
-            struct_defs: NamedSet::new(),
-            enum_defs: NamedSet::new(),
+            action_defs: AutoMap::new(),
+            command_defs: AutoMap::new(),
+            fact_defs: AutoMap::new(),
+            struct_defs: AutoMap::new(),
+            enum_defs: AutoMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -162,11 +162,11 @@ impl Machine {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: NamedSet::new(),
-            command_defs: NamedSet::new(),
-            fact_defs: NamedSet::new(),
-            struct_defs: NamedSet::new(),
-            enum_defs: NamedSet::new(),
+            action_defs: AutoMap::new(),
+            command_defs: AutoMap::new(),
+            fact_defs: AutoMap::new(),
+            struct_defs: AutoMap::new(),
+            enum_defs: AutoMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -219,14 +219,10 @@ impl Machine {
             )));
         };
         let name_ident = Identifier::from_str(name).map_err(|e| {
-            MachineError::new(MachineErrorType::Unknown(format!(
-                "Bad enum ident encoding: {e}"
-            )))
+            MachineErrorType::Unknown(alloc::format!("Bad enum ident encoding: {e}"))
         })?;
         let variant_ident = Identifier::from_str(variant).map_err(|e| {
-            MachineError::new(MachineErrorType::Unknown(format!(
-                "Bad enum variant encoding: {e}"
-            )))
+            MachineErrorType::Unknown(alloc::format!("Bad enum variant encoding: {e}"))
         })?;
 
         let EnumDef { name, variants } = self

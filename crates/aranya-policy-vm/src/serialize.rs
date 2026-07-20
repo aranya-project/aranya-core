@@ -10,7 +10,7 @@ use core::convert::Infallible;
 
 use aranya_id::BaseId;
 use aranya_policy_ast::Identifier;
-use aranya_policy_module::{StructDef, TypeKind, named::NamedSet};
+use aranya_policy_module::{StructDef, TypeKind, automap::AutoMap};
 use postcard_core::de::Flavor as _;
 
 use crate::{Struct, Value};
@@ -49,7 +49,7 @@ pub enum DeserializeError {
     BadInput,
 }
 
-type StructDefs = NamedSet<StructDef>;
+type StructDefs = AutoMap<StructDef>;
 
 /// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
 pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
