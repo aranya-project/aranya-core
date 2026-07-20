@@ -307,6 +307,15 @@ pub enum TestRule {
         value: u64,
         #[serde(default = "default_repeat")]
         repeat: u64,
+        #[serde(default)]
+        priority: u32,
+    },
+    ActionDelete {
+        client: u64,
+        graph: u64,
+        key: u64,
+        #[serde(default)]
+        priority: u32,
     },
     CompareGraphs {
         clienta: u64,
@@ -421,10 +430,21 @@ impl Display for TestRule {
                 key,
                 value,
                 repeat,
+                priority,
             } => write!(
                 f,
-                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {} }} }},"#,
-                graph, client, key, value, repeat,
+                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {}, "priority": {} }} }},"#,
+                graph, client, key, value, repeat, priority,
+            ),
+            Self::ActionDelete {
+                client,
+                graph,
+                key,
+                priority,
+            } => write!(
+                f,
+                r#"{{"ActionDelete": {{ "graph": {}, "client": {}, "key": {}, "priority": {} }} }},"#,
+                graph, client, key, priority,
             ),
             Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
             Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
@@ -646,6 +666,7 @@ where
                                             key: 0,
                                             value: rng.gen_range(0..10),
                                             repeat: 1,
+                                            priority: 0,
                                         });
                                         count += 1;
                                     }
@@ -739,6 +760,7 @@ where
                                         key: 0,
                                         value: rng.gen_range(0..10),
                                         repeat: 1,
+                                        priority: 0,
                                     });
                                     count += 1;
                                     if count >= commands {
@@ -786,6 +808,7 @@ where
                                     key: 0,
                                     value: rng.gen_range(0..10),
                                     repeat: 1,
+                                    priority: 0,
                                 });
                             }
 
@@ -1010,6 +1033,7 @@ where
                 key,
                 value,
                 repeat,
+                priority,
             } => {
                 let state = clients
                     .get_mut(&client)
@@ -1019,9 +1043,47 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
-                    let set = TestActions::SetValue(key, value);
+                    let set = TestActions::SetValuePriority(key, value, priority);
                     state.action(*graph_id, &mut sink, set)?;
                 }
+
+                assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        default_max_cascade_depth(),
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
+            }
+
+            TestRule::ActionDelete {
+                client,
+                graph,
+                key,
+                priority,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                state.action(
+                    *graph_id,
+                    &mut sink,
+                    TestActions::DeleteValue(key, priority),
+                )?;
 
                 assert_eq!(0, sink.count());
 
@@ -1656,6 +1718,16 @@ mod tests {
         testing::protocol::{TestActions, TestPolicyStore, TestSink},
     };
 
+    pub(super) struct MemBackend;
+
+    impl StorageBackend for MemBackend {
+        type StorageProvider = MemStorageProvider;
+
+        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+            MemStorageProvider::default()
+        }
+    }
+
     #[test]
     fn collect_facts_sees_set_values() -> Result<(), TestError> {
         let mut sink = TestSink::new();
@@ -1703,5 +1775,84 @@ mod tests {
         let command = segment.get_command(head).unwrap();
         assert_eq!(command.priority(), crate::Priority::Basic(7));
         Ok(())
+    }
+
+    #[test]
+    fn action_set_json_backcompat() {
+        let rule: TestRule = serde_json::from_str(
+            r#"{"ActionSet": {"client": 0, "graph": 0, "key": 1, "value": 2, "repeat": 1}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            rule,
+            TestRule::ActionSet {
+                client: 0,
+                graph: 0,
+                key: 1,
+                value: 2,
+                repeat: 1,
+                priority: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn action_rules_converge_facts() -> Result<(), TestError> {
+        let rules = vec![
+            TestRule::AddClient { id: 0 },
+            TestRule::AddClient { id: 1 },
+            TestRule::NewGraph {
+                client: 0,
+                id: 0,
+                policy: 0,
+            },
+            TestRule::Sync {
+                graph: 0,
+                client: 1,
+                from: 0,
+                must_send: None,
+                must_receive: None,
+                max_syncs: 100,
+            },
+            TestRule::IgnoreExpectations { ignore: true },
+            // Concurrent, conflicting operations on key 1 with different
+            // priorities, plus an unrelated write on key 2. The braid
+            // decides the outcome; both clients must agree.
+            TestRule::ActionSet {
+                client: 0,
+                graph: 0,
+                key: 1,
+                value: 10,
+                repeat: 1,
+                priority: 2,
+            },
+            TestRule::ActionDelete {
+                client: 1,
+                graph: 0,
+                key: 1,
+                priority: 1,
+            },
+            TestRule::ActionSet {
+                client: 1,
+                graph: 0,
+                key: 2,
+                value: 5,
+                repeat: 1,
+                priority: 0,
+            },
+            TestRule::ConvergeAll {
+                graph: 0,
+                clients: 2,
+                max_syncs: 100,
+            },
+            TestRule::CompareGraphs {
+                clienta: 0,
+                clientb: 1,
+                graph: 0,
+                equal: true,
+            },
+            TestRule::IgnoreExpectations { ignore: false },
+        ];
+        run_test(MemBackend, &rules)
     }
 }
