@@ -632,9 +632,10 @@ pub trait StorageBackend {
     fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
 }
 
-/// Randomly generates a set or delete rule shaped by the `GenerateGraph`
-/// knobs. `delete_chance` is a percentage (0-100); keys are drawn from
-/// `0..key_range` and priorities from `0..=max_priority`.
+/// Randomly generates a set, delete, or no-op rule shaped by the
+/// `GenerateGraph` knobs. `delete_chance` and `noop_chance` are percentages
+/// (their sum at most 100); keys are drawn from `0..key_range` and
+/// priorities from `0..=max_priority`.
 fn gen_command_rule<R: RandRng>(
     rng: &mut R,
     client: u64,

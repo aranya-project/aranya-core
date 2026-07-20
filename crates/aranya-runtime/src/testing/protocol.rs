@@ -151,6 +151,9 @@ impl TestPolicy {
         let key = group.to_be_bytes();
         let value = count.to_be_bytes();
 
+        // All facts must live under "payload": the DSL's fact-equality
+        // oracle (`collect_facts` in testing/dsl.rs) enumerates only this
+        // name, so a fact written under another name escapes comparison.
         facts
             .insert("payload".into(), Keys::from_iter([key]), value.into())
             .map_err(|_| PolicyError::Write)?;
@@ -171,6 +174,7 @@ impl TestPolicy {
             }
             WireProtocol::Delete(m) => {
                 let key = m.key.to_be_bytes();
+                // Must stay under "payload"; see `origin_check_message`.
                 facts
                     .delete("payload".into(), Keys::from_iter([key]))
                     .map_err(|_| PolicyError::Write)?;
