@@ -321,6 +321,13 @@ pub enum TestRule {
         #[serde(default)]
         priority: u32,
     },
+    ActionNoOp {
+        client: u64,
+        graph: u64,
+        nonce: u64,
+        #[serde(default)]
+        priority: u32,
+    },
     CompareGraphs {
         clienta: u64,
         clientb: u64,
@@ -346,6 +353,10 @@ pub enum TestRule {
         /// Percent (0-100) of generated commands that delete a fact.
         #[serde(default)]
         delete_chance: u64,
+        /// Percent (0-100) of generated commands that are no-ops (no fact
+        /// mutation). Produces segments with empty fact maps.
+        #[serde(default)]
+        noop_chance: u64,
         /// Fact keys are drawn from `0..key_range`.
         #[serde(default = "default_key_range")]
         key_range: u64,
@@ -459,6 +470,16 @@ impl Display for TestRule {
                 r#"{{"ActionDelete": {{ "graph": {}, "client": {}, "key": {}, "priority": {} }} }},"#,
                 graph, client, key, priority,
             ),
+            Self::ActionNoOp {
+                client,
+                graph,
+                nonce,
+                priority,
+            } => write!(
+                f,
+                r#"{{"ActionNoOp": {{ "graph": {}, "client": {}, "nonce": {}, "priority": {} }} }},"#,
+                graph, client, nonce, priority,
+            ),
             Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
             Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
             Self::AddExpectations {
@@ -487,11 +508,12 @@ impl Display for TestRule {
                 sync_client_zero,
                 sync_method,
                 delete_chance,
+                noop_chance,
                 key_range,
                 max_priority,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_chance": {}, "key_range": {}, "max_priority": {} }} }},"#,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_chance": {}, "noop_chance": {}, "key_range": {}, "max_priority": {} }} }},"#,
                 clients,
                 graph,
                 commands,
@@ -499,6 +521,7 @@ impl Display for TestRule {
                 sync_client_zero,
                 sync_method,
                 delete_chance,
+                noop_chance,
                 key_range,
                 max_priority,
             ),
@@ -617,6 +640,7 @@ fn gen_command_rule<R: RandRng>(
     client: u64,
     graph: u64,
     delete_chance: u64,
+    noop_chance: u64,
     key_range: u64,
     max_priority: u32,
 ) -> TestRule {
@@ -626,7 +650,15 @@ fn gen_command_rule<R: RandRng>(
     } else {
         rng.gen_range(0..=max_priority)
     };
-    if delete_chance > 0 && rng.gen_range(0..100) < delete_chance {
+    let roll = rng.gen_range(0..100);
+    if noop_chance > 0 && roll < noop_chance {
+        TestRule::ActionNoOp {
+            client,
+            graph,
+            nonce: rng.r#gen(),
+            priority,
+        }
+    } else if delete_chance > 0 && roll < noop_chance + delete_chance {
         TestRule::ActionDelete {
             client,
             graph,
@@ -664,11 +696,15 @@ where
                     sync_client_zero,
                     sync_method,
                     delete_chance,
+                    noop_chance,
                     key_range,
                     max_priority,
                 } => {
                     assert!(key_range > 0, "key_range must be at least 1");
-                    assert!(delete_chance <= 100, "delete_chance is a percentage");
+                    assert!(
+                        delete_chance + noop_chance <= 100,
+                        "delete_chance + noop_chance are percentages of generated commands"
+                    );
                     // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
@@ -730,6 +766,7 @@ where
                                             client,
                                             graph,
                                             delete_chance,
+                                            noop_chance,
                                             key_range,
                                             max_priority,
                                         ));
@@ -824,6 +861,7 @@ where
                                         client,
                                         graph,
                                         delete_chance,
+                                        noop_chance,
                                         key_range,
                                         max_priority,
                                     ));
@@ -872,6 +910,7 @@ where
                                     client,
                                     graph,
                                     delete_chance,
+                                    noop_chance,
                                     key_range,
                                     max_priority,
                                 ));
@@ -1149,6 +1188,40 @@ where
                     &mut sink,
                     TestActions::DeleteValue(key, priority),
                 )?;
+
+                assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        default_max_cascade_depth(),
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
+            }
+
+            TestRule::ActionNoOp {
+                client,
+                graph,
+                nonce,
+                priority,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                state.action(*graph_id, &mut sink, TestActions::NoOp(nonce, priority))?;
 
                 assert_eq!(0, sink.count());
 
@@ -1775,6 +1848,7 @@ test_vectors! {
     converge_conflict_heavy,
     converge_delete_heavy,
     converge_priority_mixed,
+    converge_sparse_facts,
 }
 
 #[cfg(test)]
@@ -1925,6 +1999,27 @@ mod tests {
     }
 
     #[test]
+    fn noop_action_writes_no_facts() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(graph_id, &mut sink, TestActions::SetValue(7, 9))?;
+        state.action(graph_id, &mut sink, TestActions::NoOp(42, 1))?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].key, Keys::from_iter([7u64.to_be_bytes()]));
+
+        let head = storage.get_head()?;
+        let segment = storage.get_segment(head)?;
+        let command = segment.get_command(head).unwrap();
+        assert_eq!(command.priority(), crate::Priority::Basic(1));
+        Ok(())
+    }
+
+    #[test]
     fn generate_graph_with_knobs_converges() -> Result<(), TestError> {
         let rules = vec![TestRule::GenerateGraph {
             clients: 3,
@@ -1937,6 +2032,7 @@ mod tests {
                 add_command_chance: 60,
             },
             delete_chance: 30,
+            noop_chance: 0,
             key_range: 3,
             max_priority: 3,
         }];
