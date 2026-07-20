@@ -1772,6 +1772,9 @@ test_vectors! {
     two_client_branch,
     two_client_merge,
     two_client_sync,
+    converge_conflict_heavy,
+    converge_delete_heavy,
+    converge_priority_mixed,
 }
 
 #[cfg(test)]
