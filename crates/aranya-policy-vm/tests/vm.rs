@@ -165,7 +165,7 @@ fn test_structs() -> anyhow::Result<()> {
     let machine = compile(text);
 
     assert_eq!(
-        machine.struct_defs.get("Bar"),
+        machine.struct_defs.get(&ident!("Bar")),
         Some(&StructDef {
             name: ident!("Bar"),
             items: vec![Field {

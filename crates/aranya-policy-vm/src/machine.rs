@@ -6,12 +6,14 @@ use alloc::{
     vec::Vec,
 };
 use core::fmt::{self, Display};
+use std::str::FromStr as _;
 
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, Instruction, Label,
     LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion, WrapType,
+    named::NamedSet,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -121,15 +123,15 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<Identifier, ActionDef>,
+    pub action_defs: NamedSet<ActionDef>,
     /// Command definitions
-    pub command_defs: BTreeMap<Identifier, CommandDef>,
+    pub command_defs: NamedSet<CommandDef>,
     /// Fact schemas
-    pub fact_defs: BTreeMap<Identifier, FactDef>,
+    pub fact_defs: NamedSet<FactDef>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, StructDef>,
+    pub struct_defs: NamedSet<StructDef>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, EnumDef>,
+    pub enum_defs: NamedSet<EnumDef>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -145,11 +147,11 @@ impl Machine {
         Self {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
-            fact_defs: BTreeMap::new(),
-            struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            action_defs: NamedSet::new(),
+            command_defs: NamedSet::new(),
+            fact_defs: NamedSet::new(),
+            struct_defs: NamedSet::new(),
+            enum_defs: NamedSet::new(),
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -160,11 +162,11 @@ impl Machine {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: BTreeMap::new(),
-            command_defs: BTreeMap::new(),
-            fact_defs: BTreeMap::new(),
-            struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            action_defs: NamedSet::new(),
+            command_defs: NamedSet::new(),
+            fact_defs: NamedSet::new(),
+            struct_defs: NamedSet::new(),
+            enum_defs: NamedSet::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -216,16 +218,31 @@ impl Machine {
                 "invalid enum reference",
             )));
         };
-
-        let (name, variants) = self
-            .enum_defs
-            .get_key_value(name)
-            .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
-        let int_value = variants.get(variant).ok_or_else(|| {
-            MachineErrorType::NotDefined(alloc::format!("no value `{variant}` in enum `{name}`"))
+        let name_ident = Identifier::from_str(name).map_err(|e| {
+            MachineError::new(MachineErrorType::Unknown(format!(
+                "Bad enum ident encoding: {e}"
+            )))
+        })?;
+        let variant_ident = Identifier::from_str(variant).map_err(|e| {
+            MachineError::new(MachineErrorType::Unknown(format!(
+                "Bad enum variant encoding: {e}"
+            )))
         })?;
 
-        Ok(Value::Enum(name.clone(), int_value))
+        let EnumDef { name, variants } = self
+            .enum_defs
+            .get(&name_ident)
+            .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
+        let (_, int_value) = variants
+            .iter()
+            .find(|(name, _)| *name == variant_ident)
+            .ok_or_else(|| {
+                MachineErrorType::NotDefined(alloc::format!(
+                    "no value `{variant}` in enum `{name}`"
+                ))
+            })?;
+
+        Ok(Value::Enum(name.clone(), *int_value))
     }
 
     /// Create a RunState associated with this Machine.
@@ -280,12 +297,22 @@ impl Display for Machine {
             writeln!(f, "  {k}: {v}")?;
         }
         writeln!(f, "Fact definitions:")?;
-        for (k, v) in &self.fact_defs {
-            writeln!(f, "  {k}: {v:?}")?;
+        for FactDef {
+            name,
+            key,
+            value,
+            immutable,
+        } in self.fact_defs.iter()
+        {
+            writeln!(
+                f,
+                "  {name}: {key:?} => {value:?}{}",
+                if *immutable { " (immutable)" } else { "" }
+            )?;
         }
         writeln!(f, "Struct definitions:")?;
-        for (k, v) in &self.struct_defs {
-            writeln!(f, "  {k}: {v:?}")?;
+        for StructDef { name, items } in self.struct_defs.iter() {
+            writeln!(f, "  {name}: {items:?}")?;
         }
         writeln!(f, "Global name definitions:")?;
         for (k, v) in &self.globals {
@@ -1118,7 +1145,7 @@ where
         let command_def = self
             .machine
             .command_defs
-            .get(this_data.name.as_str())
+            .get(&this_data.name)
             .ok_or_else(|| self.err(MachineErrorType::NotDefined(label.name.to_string())))?;
 
         if this_data.fields.len() != command_def.fields.len() {

@@ -228,11 +228,11 @@ fn get_command_priorities(
     machine: &Machine,
 ) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
     let mut priority_map = BTreeMap::new();
-    for (name, def) in &machine.command_defs {
-        let attrs = PriorityAttrs::load(name.as_str(), def)?;
+    for def in machine.command_defs.iter() {
+        let attrs = PriorityAttrs::load(def.name.as_str(), def)?;
         match def.persistence {
             Persistence::Persistent => {
-                priority_map.insert(name.clone(), get_command_priority(name, &attrs)?);
+                priority_map.insert(def.name.clone(), get_command_priority(&def.name, &attrs)?);
             }
             Persistence::Ephemeral => {
                 if attrs != PriorityAttrs::default() {
