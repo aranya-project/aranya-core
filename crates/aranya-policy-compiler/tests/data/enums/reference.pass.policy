@@ -1,8 +1,8 @@
 enum Result { OK, Err }
 action test() {
     let ok = Result::OK
-    check ok == Result::OK
-    check ok != Result::Err
+    check ok == Result::OK else test_fail()
+    check ok != Result::Err else test_fail()
 
     match ok {
         Result::OK => {}

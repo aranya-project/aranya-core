@@ -17,6 +17,7 @@ Module {
                 131..140,
             ),
             params: {},
+            result_type: Unit @ 0..0,
         },
     },
     command_defs: {
