@@ -410,3 +410,92 @@ impl File {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Seek as _, SeekFrom, Write as _};
+
+    use super::*;
+    use crate::testing::hash_for_testing_only;
+
+    fn graph_id(tag: &str) -> GraphId {
+        GraphId::transmute(hash_for_testing_only(tag.as_bytes()))
+    }
+
+    #[test]
+    fn test_root_validate_checksum() {
+        let mut root = Root::new();
+        root.generation = 5;
+        root.checksum = root.calc_checksum();
+        let root = root.validate().unwrap();
+
+        let mut bad = root;
+        bad.checksum ^= 1;
+        assert!(bad.validate().is_err());
+    }
+
+    #[test]
+    fn test_reopen_picks_valid_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut fm = FileManager::new(dir.path()).unwrap();
+        let id = graph_id("reopen");
+
+        let head = Location::new(SegmentIndex::new(7), MaxCut::new(3));
+        let mut writer = fm.create(id).unwrap();
+        writer.commit(head).unwrap();
+        drop(writer);
+
+        // Clean reopen: both roots are valid and equal.
+        let writer = fm.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), head);
+        drop(writer);
+
+        // Corrupt the second root; reopen falls back to the first and
+        // repairs the corrupted copy.
+        let path = dir.path().join(IdPath::new(id).to_string());
+        let mut file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.seek(SeekFrom::Start(ROOT_B as u64)).unwrap();
+        // Length prefix of 1 followed by a truncated varint.
+        file.write_all(&[0, 0, 0, 1, 0xAA]).unwrap();
+        file.sync_all().unwrap();
+        drop(file);
+
+        let writer = fm.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), head);
+        drop(writer);
+
+        // The repaired root makes the next open clean again.
+        let writer = fm.open(id).unwrap().unwrap();
+        assert_eq!(writer.head().unwrap(), head);
+    }
+
+    #[test]
+    fn test_open_missing_graph_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut fm = FileManager::new(dir.path()).unwrap();
+        assert!(fm.open(graph_id("missing")).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_head_before_commit_is_bug() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut fm = FileManager::new(dir.path()).unwrap();
+        let writer = fm.create(graph_id("uninit")).unwrap();
+        let res = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| writer.head()));
+        assert!(matches!(res, Err(_) | Ok(Err(StorageError::Bug(_)))));
+    }
+
+    #[test]
+    fn test_fetch_past_eof_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut fm = FileManager::new(dir.path()).unwrap();
+        let id = graph_id("eof");
+        let mut writer = fm.create(id).unwrap();
+        writer
+            .commit(Location::new(SegmentIndex::new(0), MaxCut::new(0)))
+            .unwrap();
+        let reader = writer.readonly();
+        let res: Result<Root, StorageError> = reader.fetch(1 << 30);
+        assert!(matches!(res, Err(StorageError::IoError)));
+    }
+}
