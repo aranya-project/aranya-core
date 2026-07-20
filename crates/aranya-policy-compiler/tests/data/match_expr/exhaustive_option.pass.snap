@@ -19,6 +19,7 @@ Module {
                     ) @ 20..32,
                 },
             },
+            result_type: Unit @ 0..0,
         },
     },
     command_defs: {},

@@ -17,6 +17,7 @@ Module {
                     ty: Int @ 11..14,
                 },
             },
+            result_type: Unit @ 0..0,
         },
     },
     command_defs: {},
@@ -52,6 +53,6 @@ Module {
     def 'b'
     get 'b'
     branch 22
-    exit check
+    exit panic
 <22>:
     return

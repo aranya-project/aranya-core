@@ -4,5 +4,7 @@ expression: error
 ---
 error: missing return statement
   |
-4 |     open { let x = 3 }
-  |            ^^^^^^^^^^ no return found in this body
+2 | / action oops(x int) result[unit, string] {
+3 | |     let y = x
+4 | | }
+  | |_^ no return found in this body

@@ -12,6 +12,7 @@ Module {
             name: "test" @ 31..35,
             persistence: Persistent,
             params: {},
+            result_type: Unit @ 0..0,
         },
     },
     command_defs: {},
@@ -35,14 +36,14 @@ Module {
     const Result::0
     eq
     branch 8
-    exit check
+    exit panic
 <8>:
     get 'ok'
     const Result::1
     eq
     not
     branch 14
-    exit check
+    exit panic
 <14>:
     get 'ok'
     dup

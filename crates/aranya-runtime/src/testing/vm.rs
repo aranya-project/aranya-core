@@ -10,7 +10,7 @@ use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
+    ClientError, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
     RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
@@ -122,6 +122,13 @@ action increment() {
     }
 }
 
+ephemeral action try_result(fail bool) result[unit, string] {
+    if fail {
+        return Err("boom")
+    }
+    return Ok(Unit)
+}
+
 ephemeral command IncrementEphemeral {
     fields {
         key int,
@@ -158,20 +165,22 @@ ephemeral action increment_ephemeral() {
 }
 
 
-ephemeral action incrementFour(n int) {
-    check n == 4
+ephemeral action incrementFour(n int) result[unit, string] {
+    check n == 4 else return Err("n must be 4")
     publish IncrementEphemeral {
         key: 1,
         amount: n,
     }
+    return Ok(Unit)
 }
 
-ephemeral action lookup(k int, v int, expected bool) {
+ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
-        true => { check f is Some }
-        false => { check f is None }
+        true => { check f is Some else return Err("expected Some") }
+        false => { check f is None else return Err("expected None") }
     }
+    return Ok(Unit)
 }
 
 command Invalidate {
@@ -411,6 +420,46 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");
     // And check that it matches the value we expect.
     assert_eq!(expected_value, value);
+
+    Ok(())
+}
+
+/// Tests that a result-typed action surfaces success and failure to the caller.
+///
+/// The [`TestPolicyStore`] must be instantiated with [`TEST_POLICY_1`].
+pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let provider = MemStorageProvider::default();
+    let mut cs = ClientState::new(policy_store, provider);
+
+    let graph = cs
+        .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
+        .expect("could not create graph");
+
+    // `try_result` is ephemeral, so run it in a session.
+    let mut session = cs.session(graph).expect("should be able to create session");
+
+    // `return Ok(unit)` => the action succeeds.
+    session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            vm_action!(try_result(false)),
+        )
+        .expect("Ok action should succeed");
+
+    let err = session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            vm_action!(try_result(true)),
+        )
+        .expect_err("Err action should fail");
+    assert!(
+        matches!(&err, ClientError::PolicyError(_)),
+        "expected PolicyError, got {err:?}"
+    );
 
     Ok(())
 }
