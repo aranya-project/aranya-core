@@ -1520,17 +1520,17 @@ pub fn test_tls_psk_different_suites<E: Engine>(eng: &E) {
         .unwrap();
     for psk in &psks {
         let ident = psk.identity();
-        if !ids.insert(ident.as_bytes()) {
-            let cs = ident.cipher_suite();
-            panic!("duplicate PSK identity for {cs}: {ident}");
-        }
-        if !secrets.insert(psk.raw_secret_bytes().to_vec()) {
-            panic!(
-                "duplicate PSK secret for {}: {:?}",
-                psk.identity().cipher_suite(),
-                psk.raw_secret_bytes(),
-            );
-        }
+        assert!(
+            ids.insert(ident.as_bytes()),
+            "duplicate PSK identity for {}: {ident}",
+            ident.cipher_suite(),
+        );
+        assert!(
+            secrets.insert(psk.raw_secret_bytes().to_vec()),
+            "duplicate PSK secret for {}: {:?}",
+            psk.identity().cipher_suite(),
+            psk.raw_secret_bytes(),
+        );
     }
 }
 
