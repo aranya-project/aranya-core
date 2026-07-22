@@ -5,8 +5,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::fmt::{self, Display};
-use core::str::FromStr as _;
+use core::{
+    fmt::{self, Display},
+    str::FromStr as _,
+};
 
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{Identifier, ident};
@@ -218,12 +220,10 @@ impl Machine {
                 "invalid enum reference",
             )));
         };
-        let name_ident = Identifier::from_str(name).map_err(|e| {
-            MachineErrorType::NotDefined(alloc::format!("Bad enum name: {e}"))
-        })?;
-        let variant_ident = Identifier::from_str(variant).map_err(|e| {
-            MachineErrorType::NotDefined(alloc::format!("Bad enum variant: {e}"))
-        })?;
+        let name_ident = Identifier::from_str(name)
+            .map_err(|e| MachineErrorType::NotDefined(alloc::format!("Bad enum name: {e}")))?;
+        let variant_ident = Identifier::from_str(variant)
+            .map_err(|e| MachineErrorType::NotDefined(alloc::format!("Bad enum variant: {e}")))?;
 
         let EnumDef { name, variants } = self
             .enum_defs

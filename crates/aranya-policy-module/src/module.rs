@@ -9,7 +9,8 @@ use aranya_policy_ast::{self as ast, Identifier};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CodeMap, ConstValue, Field, Instruction, Label, Persistence, TypeKind, automap::autokey_by_name, interface,
+    CodeMap, ConstValue, Field, Instruction, Label, Persistence, TypeKind,
+    automap::autokey_by_name, interface,
 };
 
 /// Identifies a [`Module`].
