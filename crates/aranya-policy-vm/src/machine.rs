@@ -219,10 +219,10 @@ impl Machine {
             )));
         };
         let name_ident = Identifier::from_str(name).map_err(|e| {
-            MachineErrorType::Unknown(alloc::format!("Bad enum ident encoding: {e}"))
+            MachineErrorType::NotDefined(alloc::format!("Bad enum name: {e}"))
         })?;
         let variant_ident = Identifier::from_str(variant).map_err(|e| {
-            MachineErrorType::Unknown(alloc::format!("Bad enum variant encoding: {e}"))
+            MachineErrorType::NotDefined(alloc::format!("Bad enum variant: {e}"))
         })?;
 
         let EnumDef { name, variants } = self

@@ -1952,7 +1952,7 @@ fn test_enum_parse() -> anyhow::Result<()> {
     );
     assert_eq!(
         machine.parse_enum("Drink::").unwrap_err().err_type,
-        MachineErrorType::NotDefined("no value `` in enum `Drink`".to_owned())
+        MachineErrorType::NotDefined("Bad enum variant: identifier must not be empty".to_owned())
     );
     assert_eq!(
         machine.parse_enum("Coffee").unwrap_err().err_type,
