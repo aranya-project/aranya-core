@@ -1,5 +1,5 @@
 function test_check() int {
-    check true
+    check true else return 0
     check false else return 0
     return 1
 }

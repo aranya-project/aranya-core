@@ -120,7 +120,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "aranya-afc-util"
-version = "0.24.0"
+version = "0.25.0"
 dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
@@ -198,7 +198,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "aranya-crypto",
  "aranya-id",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto-ffi"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "aranya-crypto",
  "aranya-crypto-ffi",
@@ -265,7 +265,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-device-ffi"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-envelope-ffi"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
@@ -322,7 +322,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-idam-ffi"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "aranya-crypto",
  "aranya-idam-ffi",
@@ -369,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-perspective-ffi"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ast"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "aranya-policy-text",
  "rkyv",
@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-compiler"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "annotate-snippets",
  "anyhow",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-derive"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "aranya-policy-lang",
  "prettyplease",
@@ -418,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "aranya-core",
  "aranya-policy-compiler",
@@ -435,7 +435,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-build"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -459,7 +459,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-lang"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "annotate-snippets",
  "anyhow",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-module"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "aranya-policy-ast",
  "fnv",
@@ -490,7 +490,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-runner"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "aranya-afc-util",
@@ -536,7 +536,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-vm"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "aranya-crypto",
@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-runtime"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "aranya-crypto",
  "aranya-libc",

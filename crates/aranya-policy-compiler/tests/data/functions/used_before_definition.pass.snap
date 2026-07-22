@@ -18,16 +18,16 @@ Module {
     struct_defs: {
         "Division": [
             FieldDefinition {
-                identifier: "d" @ 886..887,
-                field_type: Int @ 888..891,
+                identifier: "d" @ 921..922,
+                field_type: Int @ 923..926,
             },
             FieldDefinition {
-                identifier: "q" @ 913..914,
-                field_type: Int @ 915..918,
+                identifier: "q" @ 948..949,
+                field_type: Int @ 950..953,
             },
             FieldDefinition {
-                identifier: "r" @ 961..962,
-                field_type: Int @ 963..966,
+                identifier: "r" @ 996..997,
+                field_type: Int @ 998..1001,
             },
         ],
     },
@@ -197,7 +197,7 @@ Module {
     const 0
     gt
     branch 149
-    exit check
+    exit panic
 <149>:
     get 'x'
     get 'y'
@@ -241,7 +241,7 @@ Module {
     const 0
     gt
     branch 190
-    exit check
+    exit panic
 <190>:
     get 'r'
     get 'd'

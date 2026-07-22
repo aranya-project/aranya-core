@@ -2,9 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: invalid expression
+error: cannot return from an infallible action; declare a `result[unit, E]` return type
   |
 4 |           _ => return 2
   |  ______________^
 5 | |     }
-  | |____^ return expressions can't be used in this context
+  | |____^

@@ -29,6 +29,7 @@ Policy {
             persistence: Persistent,
             identifier: "foo" @ 32..35,
             arguments: [],
+            return_type: Unit @ 0..0,
             statements: [
                 Map(
                     MapStatement {

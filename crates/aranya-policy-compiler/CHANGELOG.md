@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.23.0...aranya-policy-compiler-v0.24.0) - 2026-07-09
+
+### Other
+
+- Close #648: Invoke recall blocks directly from policy, without roundtrip to runtime. ([#700](https://github.com/aranya-project/aranya-core/pull/700))
+- add unit type ([#669](https://github.com/aranya-project/aranya-core/pull/669))
+- improve type check error handling ([#693](https://github.com/aranya-project/aranya-core/pull/693))
+
 ## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.22.0...aranya-policy-compiler-v0.23.0) - 2026-05-22
 
 ### Other

@@ -20,6 +20,7 @@ Module {
                     ty: Int @ 168..171,
                 },
             },
+            result_type: Unit @ 0..0,
         },
     },
     command_defs: {

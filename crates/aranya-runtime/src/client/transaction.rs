@@ -505,7 +505,7 @@ where
 
         // If the command failed in an uncontrolled way, rollback
         if let Err(e) = result
-            && !matches!(e, PolicyError::Check)
+            && !matches!(e, PolicyError::Rejected)
         {
             sink.rollback();
             return Err(e.into());
@@ -1162,6 +1162,32 @@ mod test {
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "i:j:c");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_fact_convergence_bug() -> Result<(), StorageError> {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "a" "b";
+            "i" < "c";
+            "a" "c" < "m1";
+            "m1" "b" < "m2";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(mkid("i")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        graphviz::dot(g, "fact-convergence-bug");
+
+        let seq = lookup(g, "seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert!(
+            "iabc".chars().all(|c| seq.contains(c)),
+            "fact missing from {seq:?}"
+        );
 
         Ok(())
     }

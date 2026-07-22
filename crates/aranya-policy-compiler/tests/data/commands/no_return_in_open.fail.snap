@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: pure function has no return statement
+error: missing return statement
   |
 4 |     open { let x = 3 }
-  |            ^^^^^^^^^^ No return found in this function body
+  |            ^^^^^^^^^^ no return found in this body
