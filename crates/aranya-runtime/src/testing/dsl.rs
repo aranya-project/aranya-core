@@ -1850,6 +1850,12 @@ test_vectors! {
     converge_delete_heavy,
     converge_priority_mixed,
     converge_sparse_facts,
+    stress_hot_key_ties,
+    stress_long_divergence,
+    stress_hello_ring,
+    stress_hello_hub_noops,
+    stress_no_sync_braid,
+    stress_delete_noop_churn,
 }
 
 #[cfg(test)]
