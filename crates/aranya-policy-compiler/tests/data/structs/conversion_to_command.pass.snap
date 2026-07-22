@@ -1,6 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 199
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -16,6 +16,7 @@ Module {
             name: "convert",
             persistence: Persistent,
             params: [],
+            result_type: Unit,
         },
     ],
     command_defs: [

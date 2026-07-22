@@ -847,6 +847,15 @@ impl ChunkParser<'_> {
                         span,
                     })
                 }
+                Rule::test_fail => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let mut pairs = primary.into_inner();
+                    let msg = pairs.next().map(|t| self.parse_string_literal(t)).transpose()?;
+                    Ok(Expression {
+                        inner: ExprKind::InternalFunction(InternalFunction::TestFail(msg, span)),
+                        span,
+                    })
+                }
                 Rule::identifier => {
                     let span = self.to_ast_span(primary.as_span())?;
                     let ident = self.remain(primary).consume_ident(self)?;
@@ -1215,10 +1224,7 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
-        let else_expression = pc
-            .consume_optional(Rule::expression)
-            .map(|token| self.parse_expression(token))
-            .transpose()?;
+        let else_expression = pc.consume_expression(self)?;
         Ok(CheckStatement {
             expression,
             else_expression,
@@ -1467,6 +1473,24 @@ impl ChunkParser<'_> {
             arguments.push(self.parse_parameter(field)?);
         }
 
+        // Parse return type
+        let return_type = match pc.consume_optional(Rule::result_t) {
+            Some(pair) => {
+                let span = self.to_ast_span(pair.as_span())?;
+                let rt = self.descend(pair);
+                let ok = rt.consume_type(self)?;
+                let err = rt.consume_type(self)?;
+                VType {
+                    inner: TypeKind::Result(Box::new(ResultTypeKind { ok, err })),
+                    span,
+                }
+            }
+            None => VType {
+                inner: TypeKind::Unit,
+                span: ast::Span::empty(),
+            },
+        };
+
         // All remaining tokens are statements
         let list = pc.into_inner();
         let statements = self.parse_statement_list(list)?;
@@ -1475,6 +1499,7 @@ impl ChunkParser<'_> {
             persistence,
             identifier,
             arguments,
+            return_type,
             statements,
             span,
         })

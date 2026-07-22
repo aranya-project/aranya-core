@@ -1,6 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 199
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -18,6 +18,7 @@ Module {
                     ty: Int,
                 },
             ],
+            result_type: Unit,
         },
     ],
     command_defs: [],

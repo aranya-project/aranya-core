@@ -21,15 +21,17 @@ Module {
 <fn 'test_check'>:
     save SP
     const true
-    branch 5
-    exit check
-<5>:
-    const false
-    branch 10
+    branch 7
     const 0
     restore SP
     return
-<10>:
+<7>:
+    const false
+    branch 12
+    const 0
+    restore SP
+    return
+<12>:
     const 1
     restore SP
     return

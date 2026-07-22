@@ -13,6 +13,7 @@ Module {
             name: "test",
             persistence: Persistent,
             params: [],
+            result_type: Unit,
         },
     ],
     command_defs: [],
@@ -64,6 +65,6 @@ Module {
     eq
     not
     branch 10
-    exit check
+    exit panic
 <10>:
     return

@@ -356,7 +356,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
                     info!("Check: {}", self.source_location(&rs));
-                    Err(PolicyError::Check)
+                    Err(PolicyError::Rejected)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -400,11 +400,11 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
                     info!("Check: {}", self.source_location(&rs));
-                    Err(PolicyError::Check)
+                    Err(PolicyError::Rejected)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    Err(PolicyError::Check)
+                    Err(PolicyError::Rejected)
                 }
             },
             Err(e) => {
@@ -640,7 +640,24 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             loop {
                 match exit_reason {
                     ExitReason::Normal => {
-                        // Action completed
+                        // Action completed. A fallible action leaves its return
+                        // value on the stack; an infallible action leaves nothing.
+                        if def.is_fallible() {
+                            let value = rs.stack.pop_value().map_err(|e| {
+                                error!("expected action result value: {e}");
+                                PolicyError::InternalError
+                            })?;
+                            // `Err(payload)` => the action failed;
+                            // anything else (`Ok`/placeholder success) succeeds.
+                            if let Value::Result(Err(payload)) = value {
+                                info!(
+                                    "action returned Err {}: {}",
+                                    self.source_location(&rs),
+                                    payload,
+                                );
+                                return Err(PolicyError::Rejected);
+                            }
+                        }
                         break;
                     }
                     ExitReason::Yield => {
@@ -743,7 +760,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                     ExitReason::Check => {
                         // Can't recall outside a command context
                         info!("Check {}", self.source_location(&rs));
-                        return Err(PolicyError::Check);
+                        return Err(PolicyError::Rejected);
                     }
                     ExitReason::Panic => {
                         info!("Panicked {}", self.source_location(&rs));

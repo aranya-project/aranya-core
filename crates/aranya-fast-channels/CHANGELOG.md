@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.3](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.19.2...aranya-fast-channels-v0.19.3) - 2026-07-09
+
+### Other
+
+- address crossbeam-epoch and scc ([#721](https://github.com/aranya-project/aranya-core/pull/721))
+- lender type for in-memory state ([#692](https://github.com/aranya-project/aranya-core/pull/692))
+
 ## [0.19.2](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.19.1...aranya-fast-channels-v0.19.2) - 2026-05-22
 
 ### Other

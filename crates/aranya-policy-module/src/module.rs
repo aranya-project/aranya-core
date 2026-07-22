@@ -9,7 +9,7 @@ use aranya_policy_ast::{self as ast, Identifier};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CodeMap, ConstValue, Field, Instruction, Label, Persistence, interface, automap::autokey_by_name,
+    CodeMap, ConstValue, Field, Instruction, Label, Persistence, TypeKind, automap::autokey_by_name, interface,
 };
 
 /// Identifies a [`Module`].
@@ -138,9 +138,19 @@ pub struct ActionDef {
     pub persistence: Persistence,
     /// The parameters of the action.
     pub params: Vec<Field>,
+    /// action return type: result or unit
+    pub result_type: TypeKind,
 }
 
 autokey_by_name!(ActionDef);
+
+impl ActionDef {
+    /// Whether the action is fallible, i.e. it returns a `result[unit, E]`
+    /// value. An infallible action (return type `unit`) returns nothing.
+    pub fn is_fallible(&self) -> bool {
+        !matches!(self.result_type, TypeKind::Unit)
+    }
+}
 
 impl From<interface::ActionDefinition> for ActionDef {
     fn from(value: interface::ActionDefinition) -> Self {
@@ -148,6 +158,7 @@ impl From<interface::ActionDefinition> for ActionDef {
             name: value.name.inner,
             persistence: value.persistence.into(),
             params: value.params.into_iter().map(ast::Param::into).collect(),
+            result_type: value.return_type.inner.into(),
         }
     }
 }

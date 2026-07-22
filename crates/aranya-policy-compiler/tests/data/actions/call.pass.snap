@@ -23,11 +23,13 @@ Module {
                     ty: String,
                 },
             ],
+            result_type: Unit,
         },
         ActionDef {
             name: "foo",
             persistence: Persistent,
             params: [],
+            result_type: Unit,
         },
     ],
     command_defs: [],

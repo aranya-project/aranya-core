@@ -4,7 +4,7 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use aranya_policy_ast::{self as ast, Ident, Param, Persistence};
+use aranya_policy_ast::{self as ast, Ident, Param, Persistence, VType};
 use serde::{Deserialize, Serialize};
 
 use crate::{ConstValue, named::named};
@@ -28,6 +28,8 @@ pub struct ActionDefinition {
     pub persistence: Persistence,
     /// The parameters of the action.
     pub params: Vec<Param>,
+    /// The return type of the action
+    pub return_type: VType,
 }
 named!(ActionDefinition);
 
@@ -37,6 +39,7 @@ impl From<ast::ActionDefinition> for ActionDefinition {
             name: value.identifier,
             persistence: value.persistence,
             params: value.arguments,
+            return_type: value.return_type,
         }
     }
 }
