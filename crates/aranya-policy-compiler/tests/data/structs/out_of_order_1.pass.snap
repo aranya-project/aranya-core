@@ -1,47 +1,60 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
     version: "0",
     labels: {},
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [
-            FieldDefinition {
-                identifier: "f" @ 84..85,
-                field_type: Struct(
-                    "Foo" @ 93..96,
-                ) @ 86..96,
-            },
-        ],
-        "Fi": [
-            FieldDefinition {
-                identifier: "fum" @ 12..15,
-                field_type: Struct(
-                    "Fum" @ 23..26,
-                ) @ 16..26,
-            },
-        ],
-        "Foo": [],
-        "Fum": [
-            FieldDefinition {
-                identifier: "b" @ 42..43,
-                field_type: Struct(
-                    "Bar" @ 51..54,
-                ) @ 44..54,
-            },
-            FieldDefinition {
-                identifier: "f" @ 56..57,
-                field_type: Struct(
-                    "Foo" @ 65..68,
-                ) @ 58..68,
-            },
-        ],
-    },
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [
+                Field {
+                    name: "f",
+                    ty: Struct(
+                        "Foo",
+                    ),
+                },
+            ],
+        },
+        StructDef {
+            name: "Fi",
+            items: [
+                Field {
+                    name: "fum",
+                    ty: Struct(
+                        "Fum",
+                    ),
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [],
+        },
+        StructDef {
+            name: "Fum",
+            items: [
+                Field {
+                    name: "b",
+                    ty: Struct(
+                        "Bar",
+                    ),
+                },
+                Field {
+                    name: "f",
+                    ty: Struct(
+                        "Foo",
+                    ),
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

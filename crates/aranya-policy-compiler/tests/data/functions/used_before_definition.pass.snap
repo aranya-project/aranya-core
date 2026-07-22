@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -12,26 +13,29 @@ Module {
         <fn 'multiply'>: 75,
         <fn 'pow'>: 1,
     },
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Division": [
-            FieldDefinition {
-                identifier: "d" @ 921..922,
-                field_type: Int @ 923..926,
-            },
-            FieldDefinition {
-                identifier: "q" @ 948..949,
-                field_type: Int @ 950..953,
-            },
-            FieldDefinition {
-                identifier: "r" @ 996..997,
-                field_type: Int @ 998..1001,
-            },
-        ],
-    },
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Division",
+            items: [
+                Field {
+                    name: "d",
+                    ty: Int,
+                },
+                Field {
+                    name: "q",
+                    ty: Int,
+                },
+                Field {
+                    name: "r",
+                    ty: Int,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

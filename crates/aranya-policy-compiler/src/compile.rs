@@ -19,9 +19,10 @@ use aranya_policy_ast::{
     Spanned, Statement, StructItem, TypeKind, VType, WithSpan, WithSpanExt as _, ident, thir,
 };
 use aranya_policy_module::{
-    ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
-    Instruction, Label, LabelType, Meta, Module, Target, WrapType,
+    CodeMap, ConstStruct, ConstValue, ExitReason, Instruction, Label, LabelType, Meta, Module,
+    Target, WrapType,
     ffi::{self, ModuleSchema},
+    interface,
     named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
@@ -1151,12 +1152,7 @@ impl<'a> CompileState<'a> {
         self.m
             .interface
             .action_defs
-            .insert(ActionDef {
-                name: action_node.identifier.clone(),
-                persistence: action_node.persistence.clone(),
-                params,
-                result_type: action_node.return_type.clone(),
-            })
+            .insert(action_node.clone().into())
             .map_err(|e| {
                 self.err(AlreadyDefined::new(
                     action_node.identifier.clone(),
@@ -1211,7 +1207,7 @@ impl<'a> CompileState<'a> {
         let expression = &global_let.expression;
 
         let value = self.expression_value(expression)?;
-        let vt = value.vtype();
+        let vt = value.vtype(global_let.expression.span);
 
         match self.m.interface.globals.entry(identifier.clone()) {
             Entry::Vacant(e) => {
@@ -1225,7 +1221,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier.clone(), vt.nowhere())
+            .add_global(identifier.clone(), vt)
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -1471,7 +1467,7 @@ impl<'a> CompileState<'a> {
         for (name, value_expr) in &command.attributes {
             let value = self.expression_value(value_expr)?;
             attributes
-                .insert(Attribute {
+                .insert(interface::Attribute {
                     name: name.clone(),
                     value,
                 })
@@ -1487,7 +1483,7 @@ impl<'a> CompileState<'a> {
                     // TODO(eric): Use `Span::default()`?
                     let field_type = f.field_type.clone();
                     fields
-                        .insert(Field {
+                        .insert(Param {
                             name: f.identifier.clone(),
                             ty: field_type,
                         })
@@ -1506,7 +1502,7 @@ impl<'a> CompileState<'a> {
                     for fd in struct_def {
                         let field_type = fd.field_type.clone();
                         fields
-                            .insert(Field {
+                            .insert(Param {
                                 name: fd.identifier.clone(),
                                 ty: field_type,
                             })
@@ -1518,11 +1514,11 @@ impl<'a> CompileState<'a> {
 
         self.m
             .command_defs
-            .insert(CommandDef {
+            .insert(interface::CommandDefinition {
                 name: command.identifier.clone(),
                 persistence: command.persistence.clone(),
-                attributes,
-                fields,
+                attributes: attributes.iter().cloned().collect(),
+                fields: fields.iter().cloned().collect(),
             })
             .map_err(|e| self.err(AlreadyDefined::new(command.identifier.clone(), e.existing)))?;
 

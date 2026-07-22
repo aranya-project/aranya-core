@@ -122,8 +122,8 @@ use core::fmt;
 use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
-    ast::{Identifier, Persistence},
+    MachineStack, OpenContext, Persistence, PolicyContext, RunState, Stack as _, Struct, Value,
+    ast::Identifier,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
@@ -229,13 +229,12 @@ fn get_command_priorities(
 ) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
     let mut priority_map = BTreeMap::new();
     for def in machine.command_defs.iter() {
-        let name = &def.name.inner;
-        let attrs = PriorityAttrs::load(name.as_str(), def)?;
+        let attrs = PriorityAttrs::load(def.name.as_str(), def)?;
         match def.persistence {
             Persistence::Persistent => {
-                priority_map.insert(name.clone(), get_command_priority(name, &attrs)?);
+                priority_map.insert(def.name.clone(), get_command_priority(&def.name, &attrs)?);
             }
-            Persistence::Ephemeral { .. } => {
+            Persistence::Ephemeral => {
                 if attrs != PriorityAttrs::default() {
                     return Err(AttributeError(
                         "ephemeral command must not have priority".into(),
@@ -258,7 +257,8 @@ impl PriorityAttrs {
     fn load(name: &str, def: &CommandDef) -> Result<Self, AttributeError> {
         let attrs = &def.attributes;
         let init = attrs
-            .get("init")
+            .iter()
+            .find(|a| a.name == "init")
             .map(|attr| match attr.value {
                 ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
@@ -271,7 +271,8 @@ impl PriorityAttrs {
             .transpose()?
             == Some(true);
         let finalize = attrs
-            .get("finalize")
+            .iter()
+            .find(|a| a.name == "finalize")
             .map(|attr| match attr.value {
                 ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
@@ -284,7 +285,8 @@ impl PriorityAttrs {
             .transpose()?
             == Some(true);
         let priority: Option<u32> = attrs
-            .get("priority")
+            .iter()
+            .find(|a| a.name == "priority")
             .map(|attr| match attr.value {
                 ConstValue::Int(b) => b.try_into().map_err(|_| {
                     AttributeError::int_range(name, "priority", u32::MIN.into(), u32::MAX.into())
@@ -483,7 +485,7 @@ impl From<VmPriority> for Priority {
 
 impl<CE> VmPolicy<CE> {
     fn get_command_priority(&self, name: &Identifier) -> VmPriority {
-        debug_assert!(self.machine.command_defs.contains(name));
+        debug_assert!(self.machine.command_defs.contains_key(name));
         self.priority_map.get(name).copied().unwrap_or_default()
     }
 }
@@ -548,12 +550,12 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         match (placement, &def.persistence) {
             (CommandPlacement::OnGraphAtOrigin, Persistence::Persistent) => {}
             (CommandPlacement::OnGraphInBraid, Persistence::Persistent) => {}
-            (CommandPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
-            (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral(_)) => {
+            (CommandPlacement::OffGraph, Persistence::Ephemeral) => {}
+            (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral) => {
                 error!("cannot evaluate ephemeral command on-graph");
                 return Err(PolicyError::InternalError);
             }
-            (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral(_)) => {
+            (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral) => {
                 error!("cannot evaluate ephemeral command in braid");
                 return Err(PolicyError::InternalError);
             }
@@ -597,8 +599,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
         match (action_placement, &def.persistence) {
             (ActionPlacement::OnGraph, Persistence::Persistent) => {}
-            (ActionPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
-            (ActionPlacement::OnGraph, Persistence::Ephemeral(_)) => {
+            (ActionPlacement::OffGraph, Persistence::Ephemeral) => {}
+            (ActionPlacement::OnGraph, Persistence::Ephemeral) => {
                 error!("cannot call ephemeral action on-graph");
                 return Err(PolicyError::InternalError);
             }

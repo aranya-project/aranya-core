@@ -9,7 +9,8 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_id::BaseId;
-use aranya_policy_ast::{FieldDefinition, Identifier, TypeKind};
+use aranya_policy_ast::Identifier;
+use aranya_policy_module::{StructDef, TypeKind, automap::AutoMap};
 use postcard_core::de::Flavor as _;
 
 use crate::{Struct, Value};
@@ -48,7 +49,7 @@ pub enum DeserializeError {
     BadInput,
 }
 
-type StructDefs = BTreeMap<Identifier, Vec<FieldDefinition>>;
+type StructDefs = AutoMap<StructDef>;
 
 /// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
 pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
@@ -87,14 +88,14 @@ impl SerializeCtx<'_> {
             .defs
             .get(&s.name)
             .ok_or_else(|| SerializeError::UnknownStruct(s.name.clone()))?;
-        if def.len() != s.fields.len() {
+        if def.items.len() != s.fields.len() {
             return Err(SerializeError::FieldLengthMismatch);
         }
-        for d in def {
+        for d in &def.items {
             let v = s
                 .fields
-                .get(d.identifier.as_str())
-                .ok_or_else(|| SerializeError::MissingField(d.identifier.inner.clone()))?;
+                .get(d.name.as_str())
+                .ok_or_else(|| SerializeError::MissingField(d.name.clone()))?;
             self.serialize_value(v)?;
         }
         Ok(())
@@ -170,9 +171,9 @@ impl DeserializeCtx<'_> {
             .get(&name)
             .ok_or_else(|| DeserializeError::UnknownStruct(name.clone()))?;
         let mut fields = BTreeMap::new();
-        for d in def {
-            let v = self.deserialize_value(&d.field_type.inner)?;
-            fields.insert(d.identifier.inner.clone(), v);
+        for d in &def.items {
+            let v = self.deserialize_value(&d.ty)?;
+            fields.insert(d.name.clone(), v);
         }
         Ok(Struct::new(name, fields))
     }
@@ -208,26 +209,26 @@ impl DeserializeCtx<'_> {
                 Value::Id(BaseId::from_bytes(*x))
             }
             TypeKind::Struct(ident) => {
-                let x = self.deserialize_struct(ident.inner.clone())?;
+                let x = self.deserialize_struct(ident.clone())?;
                 Value::Struct(x)
             }
             TypeKind::Enum(ident) => {
                 let x = postcard_core::de::try_take_i64(self)?.ok_or(Bad)?;
-                Value::Enum(ident.inner.clone(), x)
+                Value::Enum(ident.clone(), x)
             }
             TypeKind::Optional(vtype) => {
                 let tag = self.pop()?;
                 match tag {
                     0 => Value::NONE,
-                    1 => Value::Option(Some(Box::new(self.deserialize_value(&vtype.inner)?))),
+                    1 => Value::Option(Some(Box::new(self.deserialize_value(vtype)?))),
                     _ => return Err(Bad),
                 }
             }
             TypeKind::Result(res) => {
                 let tag = self.pop()?;
                 Value::Result(match tag {
-                    0 => Ok(Box::new(self.deserialize_value(&res.ok.inner)?)),
-                    1 => Err(Box::new(self.deserialize_value(&res.err.inner)?)),
+                    0 => Ok(Box::new(self.deserialize_value(&res.ok)?)),
+                    1 => Err(Box::new(self.deserialize_value(&res.err)?)),
                     _ => return Err(Bad),
                 })
             }
@@ -345,6 +346,9 @@ mod test {
             let policy = parse_policy_str(src, Version::V2).unwrap();
             let ModuleData::V0(m) = Compiler::new(&policy).compile().unwrap().data;
             m.struct_defs
+                .into_iter()
+                .map(|d| (d.name.clone(), d))
+                .collect()
         };
 
         let id = BaseId::from_bytes(core::array::from_fn(|i| u8::MAX - i as u8));

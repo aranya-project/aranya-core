@@ -8,11 +8,11 @@ Module {
     labels: {
         <fn 'f'>: 1,
     },
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
     globals: {},
     ..
 }

@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -7,44 +8,59 @@ Module {
     labels: {
         <action 'f'>: 1,
     },
-    action_defs: {
+    action_defs: [
         ActionDef {
-            name: "f" @ 108..109,
+            name: "f",
             persistence: Persistent,
-            params: {
-                Param {
-                    name: "traffic" @ 110..117,
+            params: [
+                Field {
+                    name: "traffic",
                     ty: Struct(
-                        "Light" @ 125..130,
-                    ) @ 118..130,
+                        "Light",
+                    ),
                 },
-            },
-            result_type: Unit @ 0..0,
+            ],
+            result_type: Unit,
         },
-    },
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Light": [
-            FieldDefinition {
-                identifier: "color" @ 63..68,
-                field_type: Enum(
-                    "LightColor" @ 74..84,
-                ) @ 69..84,
-            },
-            FieldDefinition {
-                identifier: "go" @ 90..92,
-                field_type: Bool @ 93..97,
-            },
-        ],
-    },
-    enum_defs: {
-        "LightColor": {
-            "Green": 2,
-            "Red": 0,
-            "Yellow": 1,
+    ],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Light",
+            items: [
+                Field {
+                    name: "color",
+                    ty: Enum(
+                        "LightColor",
+                    ),
+                },
+                Field {
+                    name: "go",
+                    ty: Bool,
+                },
+            ],
         },
-    },
+    ],
+    enum_defs: [
+        EnumDef {
+            name: "LightColor",
+            variants: [
+                (
+                    "Red",
+                    0,
+                ),
+                (
+                    "Yellow",
+                    1,
+                ),
+                (
+                    "Green",
+                    2,
+                ),
+            ],
+        },
+    ],
     globals: {},
     ..
 }

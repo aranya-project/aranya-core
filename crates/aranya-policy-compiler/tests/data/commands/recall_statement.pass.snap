@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -10,20 +11,23 @@ Module {
         <open 'Cmd'>: 16,
         <recall 'Cmd_handle'>: 7,
     },
-    action_defs: {},
-    command_defs: {
+    action_defs: [],
+    command_defs: [
         CommandDef {
-            name: "Cmd" @ 8..11,
+            name: "Cmd",
             persistence: Persistent,
-            attributes: {},
-            fields: {},
+            attributes: [],
+            fields: [],
         },
-    },
-    fact_defs: {},
-    struct_defs: {
-        "Cmd": [],
-    },
-    enum_defs: {},
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Cmd",
+            items: [],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

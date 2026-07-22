@@ -312,7 +312,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
     let mut found = HashSet::new();
 
     for def in target.action_defs.iter() {
-        for param in def.params.iter() {
+        for param in &def.params {
             visit(&struct_defs, &mut found, &param.ty.inner);
         }
     }
@@ -327,8 +327,8 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         }
     }
 
-    for value in target.globals.values() {
-        visit(&struct_defs, &mut found, &value.vtype());
+    for (ident, value) in &target.globals {
+        visit(&struct_defs, &mut found, &value.vtype(ident.span));
     }
 
     found

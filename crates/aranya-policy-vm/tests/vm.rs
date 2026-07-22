@@ -6,13 +6,14 @@ mod bits;
 use std::{collections::BTreeMap, iter};
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
-use aranya_policy_ast::{self as ast, Version, WithSpanExt as _};
+use aranya_policy_ast::Version;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Identifier,
-    KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext,
-    PolicyContext, RunState, SealContext, Stack as _, Struct, Value, ident, text,
+    ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Field,
+    Identifier, KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module,
+    OpenContext, PolicyContext, RunState, SealContext, Stack as _, Struct, StructDef, Value, ident,
+    text,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
@@ -164,11 +165,14 @@ fn test_structs() -> anyhow::Result<()> {
     let machine = compile(text);
 
     assert_eq!(
-        machine.struct_defs.get("Bar"),
-        Some(&vec![ast::FieldDefinition {
-            identifier: ident!("x").at(33..34),
-            field_type: ast::TypeKind::Int.at(35..38),
-        }])
+        machine.struct_defs.get(&ident!("Bar")),
+        Some(&StructDef {
+            name: ident!("Bar"),
+            items: vec![Field {
+                name: ident!("x"),
+                ty: aranya_policy_module::TypeKind::Int,
+            }]
+        })
     );
 
     {
@@ -1932,7 +1936,7 @@ fn test_enum_parse() -> anyhow::Result<()> {
     );
     assert_eq!(
         machine.parse_enum("Drink::").unwrap_err().err_type,
-        MachineErrorType::NotDefined("no value `` in enum `Drink`".to_owned())
+        MachineErrorType::NotDefined("Bad enum variant: identifier must not be empty".to_owned())
     );
     assert_eq!(
         machine.parse_enum("Coffee").unwrap_err().err_type,
