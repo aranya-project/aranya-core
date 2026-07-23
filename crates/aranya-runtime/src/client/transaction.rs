@@ -532,8 +532,7 @@ where
     F: Spill,
     MS: Fn() -> Result<F, StorageError>,
 {
-    let mut q: VecDeque<(CmdId, Location)> =
-        heads.iter().map(|la| (la.id, la.location())).collect();
+    let mut q: VecDeque<LocatedAddress> = heads.iter().collect();
 
     // The multi-head state being collapsed was produced by a `commit` that
     // already braided these same heads and emitted their effects in converged
@@ -541,33 +540,25 @@ where
     // order is a stable global sort by `(priority, id)`), so emitting again
     // would only duplicate what `commit` delivered.
     let mut null = NullSink;
-    while let Some((left_id, mut left_loc)) = q.pop_front() {
-        let Some((right_id, mut right_loc)) = q.pop_front() else {
-            return Ok(left_loc);
+    while let Some(mut left) = q.pop_front() {
+        let Some(mut right) = q.pop_front() else {
+            return Ok(left.location());
         };
 
-        let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
+        let (policy, policy_id) =
+            choose_policy(storage, policy_store, left.location(), right.location())?;
 
         let mut buf = [0u8; MAX_COMMAND_LENGTH];
-        let merge_ids = MergeIds::new(
-            Address {
-                id: left_id,
-                max_cut: left_loc.max_cut,
-            },
-            Address {
-                id: right_id,
-                max_cut: right_loc.max_cut,
-            },
-        )
-        .assume("merging different ids")?;
-        if left_id > right_id {
-            mem::swap(&mut left_loc, &mut right_loc);
+        let merge_ids =
+            MergeIds::new(left.address(), right.address()).assume("merging different ids")?;
+        if left.id > right.id {
+            mem::swap(&mut left, &mut right);
         }
         let command = policy.merge(&mut buf, merge_ids)?;
 
         let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
-            &[left_loc, right_loc],
+            &[left.location(), right.location()],
             &mut null,
             policy,
             &mut buffers.traversal.primary,
@@ -576,15 +567,20 @@ where
         )?;
 
         let mut perspective = storage.new_merge_perspective(
-            left_loc,
-            right_loc,
+            left.location(),
+            right.location(),
             last_common_ancestor,
             policy_id,
             braid,
         )?;
         perspective.add_command(&command)?;
         let segment = storage.write(perspective)?;
-        q.push_back((segment.head_id(), segment.head_location()?));
+        let loc = segment.head_location()?;
+        q.push_back(LocatedAddress {
+            id: segment.head_id(),
+            segment: loc.segment,
+            max_cut: loc.max_cut,
+        });
     }
 
     bug!("head set was empty");
