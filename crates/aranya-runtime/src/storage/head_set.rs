@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     StorageError,
-    storage::{LocatedAddress, Location, MAX_HEADS},
+    storage::{LocatedAddress, MAX_HEADS},
 };
 
 /// A bounded, sorted set of graph heads.
@@ -45,15 +45,6 @@ impl HeadSet {
     /// Iterate over heads.
     pub fn iter(&self) -> impl Iterator<Item = LocatedAddress> + '_ {
         self.heads.iter().copied()
-    }
-
-    /// Whether `location` is one of the heads.
-    ///
-    /// The set is sorted by `LocatedAddress` (command id first), not by
-    /// `Location`, so looking up a location is a linear scan rather than a
-    /// binary search.
-    pub fn contains(&self, location: Location) -> bool {
-        self.heads.iter().any(|h| h.location() == location)
     }
 
     /// Insert keeping the set sorted and deduplicated. Returns
@@ -99,10 +90,10 @@ mod tests {
     }
 
     #[test]
-    fn single_then_len_and_contains() {
+    fn single_then_len() {
         let h = HeadSet::single(la(1, 0, 0));
         assert_eq!(h.len(), 1);
-        assert!(h.contains(la(1, 0, 0).location()));
+        assert_eq!(h.as_slice(), [la(1, 0, 0)]);
     }
 
     #[test]
