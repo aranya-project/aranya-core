@@ -27,8 +27,7 @@ impl io::IoManager for Manager {
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
         self.graph_ids.push(id);
         Ok(Writer {
-            heads: Mutex::default(),
-            fact_cache: Mutex::default(),
+            committed: Mutex::default(),
             shared: Arc::default(),
         })
     }
@@ -53,9 +52,14 @@ struct Shared {
     items: Mutex<Vec<Box<[u8]>>>,
 }
 
+#[derive(Clone)]
+struct Committed {
+    heads: HeadSet,
+    fact_cache: io::FactCacheOffset,
+}
+
 pub struct Writer {
-    heads: Mutex<Option<HeadSet>>,
-    fact_cache: Mutex<Option<io::FactCacheOffset>>,
+    committed: Mutex<Option<Committed>>,
     shared: Arc<Shared>,
 }
 
@@ -74,14 +78,19 @@ impl io::Write for Writer {
     }
 
     fn heads(&self) -> Result<HeadSet, StorageError> {
-        self.heads
+        self.committed
             .lock()
-            .clone()
+            .as_ref()
+            .map(|c| c.heads.clone())
             .ok_or(StorageError::NotInitialized)
     }
 
     fn fact_cache(&self) -> Result<io::FactCacheOffset, StorageError> {
-        (*self.fact_cache.lock()).ok_or(StorageError::NotInitialized)
+        self.committed
+            .lock()
+            .as_ref()
+            .map(|c| c.fact_cache)
+            .ok_or(StorageError::NotInitialized)
     }
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
@@ -103,8 +112,10 @@ impl io::Write for Writer {
         heads: &HeadSet,
         fact_cache: io::FactCacheOffset,
     ) -> Result<(), StorageError> {
-        *self.heads.lock() = Some(heads.clone());
-        *self.fact_cache.lock() = Some(fact_cache);
+        *self.committed.lock() = Some(Committed {
+            heads: heads.clone(),
+            fact_cache,
+        });
         Ok(())
     }
 }

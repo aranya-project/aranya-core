@@ -59,12 +59,10 @@ impl HeadSet {
     /// Insert keeping the set sorted and deduplicated. Returns
     /// `StorageError::HeadSetFull` if at capacity.
     pub fn push(&mut self, head: LocatedAddress) -> Result<(), StorageError> {
-        // Use partition_point on the deref'd slice to find insertion position.
-        let idx = self.heads.partition_point(|h| h < &head);
-        // Skip duplicate.
-        if self.heads.get(idx).is_some_and(|h| h == &head) {
-            return Ok(());
-        }
+        let idx = match self.heads.binary_search(&head) {
+            Ok(_) => return Ok(()),
+            Err(idx) => idx,
+        };
         self.heads
             .insert(idx, head)
             .map_err(|_| StorageError::HeadSetFull(MAX_HEADS))?;

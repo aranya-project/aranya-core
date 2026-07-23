@@ -58,11 +58,8 @@ pub(super) fn last_common_ancestor<S: Storage>(
     heads: &[Location],
 ) -> Result<Location, ClientError> {
     let (first, rest) = heads.split_first().assume("braid heads non-empty")?;
-    let mut lca = *first;
-    for &h in rest {
-        lca = lca_pair(storage, lca, h)?;
-    }
-    Ok(lca)
+    rest.iter()
+        .try_fold(*first, |lca, &h| lca_pair(storage, lca, h))
 }
 
 /// Number of Location entries per braid buffer block. Sized to batch

@@ -81,8 +81,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// `commit` flushes automatically; callers only need this to make
     /// [`Self::in_flight_heads`] reflect every accumulated command before
     /// committing (e.g. to advertise the frontier while syncing).
-    pub fn flush(&mut self, provider: &mut SP) -> Result<(), ClientError> {
-        let storage = provider.get_storage(self.graph_id)?;
+    pub fn flush(&mut self, storage: &mut SP::Storage) -> Result<(), ClientError> {
         if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let segment = storage.write(p)?;
@@ -116,21 +115,17 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         F: Spill,
         MS: Fn() -> Result<F, StorageError>,
     {
-        {
-            let storage = provider.get_storage(self.graph_id)?;
+        let storage = provider.get_storage(self.graph_id)?;
 
-            let Some(original_heads) = self.original_heads.take() else {
-                return Ok(false);
-            };
-            if &original_heads != storage.get_heads()? {
-                return Err(ClientError::ConcurrentTransaction);
-            }
+        let Some(original_heads) = self.original_heads.take() else {
+            return Ok(false);
+        };
+        if &original_heads != storage.get_heads()? {
+            return Err(ClientError::ConcurrentTransaction);
         }
 
         // Persist any in-flight perspective into self.heads.
-        self.flush(provider)?;
-
-        let storage = provider.get_storage(self.graph_id)?;
+        self.flush(storage)?;
 
         if self.heads.is_empty() {
             return Ok(false);
@@ -546,9 +541,10 @@ where
     // order is a stable global sort by `(priority, id)`), so emitting again
     // would only duplicate what `commit` delivered.
     let mut null = NullSink;
-    while q.len() > 1 {
-        let (left_id, mut left_loc) = q.pop_front().assume("len > 1")?;
-        let (right_id, mut right_loc) = q.pop_front().assume("len > 1")?;
+    while let Some((left_id, mut left_loc)) = q.pop_front() {
+        let Some((right_id, mut right_loc)) = q.pop_front() else {
+            return Ok(left_loc);
+        };
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
@@ -591,8 +587,7 @@ where
         q.push_back((segment.head_id(), segment.head_location()?));
     }
 
-    let (_, loc) = q.pop_front().assume("head set non-empty")?;
-    Ok(loc)
+    bug!("head set was empty");
 }
 
 /// Select the policy from two locations with the greatest serial value.
@@ -1342,7 +1337,8 @@ mod test {
 
         // Before flush, the in-flight perspective holds the tip (it is not yet
         // written to a segment).
-        trx.flush(&mut client.provider).expect("flush must succeed");
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        trx.flush(storage).expect("flush must succeed");
 
         // The frontier is the single tip `c`.
         let heads: Vec<LocatedAddress> = trx.in_flight_heads().collect();

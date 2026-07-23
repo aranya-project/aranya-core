@@ -1542,14 +1542,14 @@ fn sync<SP: StorageProvider>(
 
         // Persist any in-flight perspective so every accumulated command lives
         // in a written segment with a real location.
-        request_trx.flush(request_state.provider())?;
+        let storage = request_state.provider().get_storage(graph_id)?;
+        request_trx.flush(storage)?;
 
         // Advance the requester's have-set from the transaction's accumulated
         // frontier. `PeerCache::add_command` prunes ancestors via `is_ancestor`
         // over the now-written segments. This replaces the old `update_heads`
         // (which only saw committed state) and is what lets progressive fetch
         // advance across exchanges while the transaction stays open.
-        let storage = request_state.provider().get_storage(graph_id)?;
         for head in request_trx.in_flight_heads() {
             request_cache.add_command(storage, head, &mut rt_buffers.traversal.primary)?;
         }
