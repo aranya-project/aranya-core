@@ -509,6 +509,35 @@ impl<A, T> SyncSlot<A, T> {
             && self.push_req.is_none()
             && self.hello_req.is_none()
     }
+
+    /// Visits every armed timer on this slot as an `(instant, kind)` pair.
+    /// The fixed role order — poll, queued push, scheduled hello, then
+    /// outbound push/hello requests — breaks exact ties for callers that
+    /// keep the first-seen earliest instant.
+    fn for_each_deadline(&self, mut consider: impl FnMut(T, DueKind))
+    where
+        T: Copy,
+    {
+        if let Some(at) = self.poll.as_ref().and_then(|state| state.next_sync) {
+            consider(at, DueKind::Poll);
+        }
+        if let Some(at) = self.push_sub.as_ref().and_then(|sub| sub.push_due) {
+            consider(at, DueKind::Push);
+        }
+        if let Some(sub) = &self.hello_sub {
+            consider(sub.next_hello, DueKind::ScheduledHello);
+        }
+        match &self.push_req {
+            Some(PushReq::Active { renew_at, .. }) => consider(*renew_at, DueKind::PushRenewal),
+            Some(PushReq::Cancel { due }) => consider(*due, DueKind::PushCancel),
+            None => {}
+        }
+        match &self.hello_req {
+            Some(HelloReq::Active { renew_at, .. }) => consider(*renew_at, DueKind::HelloRenewal),
+            Some(HelloReq::Cancel { due }) => consider(*due, DueKind::HelloCancel),
+            None => {}
+        }
+    }
 }
 
 /// Backing memory for a [`Syncer`]'s per-peer state, supplied by the caller.
@@ -1257,142 +1286,139 @@ impl<A: Clone + Ord, T: SyncInstant, S: SyncSlots<A, T>> Syncer<A, T, S> {
     /// [`next_deadline`](Self::next_deadline).
     pub fn poll_action(&mut self, now: T) -> Option<SyncAction<A>> {
         loop {
-            let mut due: Option<(T, DueKind, GraphId, A)> = None;
-            self.slots.for_each(|slot| {
-                // The fixed role order below breaks exact ties.
-                let mut consider = |at: T, kind: DueKind| {
-                    if at <= now && due.as_ref().is_none_or(|&(best, ..)| at < best) {
-                        due = Some((at, kind, slot.graph_id(), slot.peer().clone()));
-                    }
-                };
-                if let Some(at) = slot.poll.as_ref().and_then(|state| state.next_sync) {
-                    consider(at, DueKind::Poll);
-                }
-                if let Some(at) = slot.push_sub.as_ref().and_then(|sub| sub.push_due) {
-                    consider(at, DueKind::Push);
-                }
-                if let Some(sub) = &slot.hello_sub {
-                    consider(sub.next_hello, DueKind::ScheduledHello);
-                }
-                match &slot.push_req {
-                    Some(PushReq::Active { renew_at, .. }) => {
-                        consider(*renew_at, DueKind::PushRenewal);
-                    }
-                    Some(PushReq::Cancel { due }) => consider(*due, DueKind::PushCancel),
-                    None => {}
-                }
-                match &slot.hello_req {
-                    Some(HelloReq::Active { renew_at, .. }) => {
-                        consider(*renew_at, DueKind::HelloRenewal);
-                    }
-                    Some(HelloReq::Cancel { due }) => consider(*due, DueKind::HelloCancel),
-                    None => {}
+            let (kind, graph_id, peer) = self.next_due(now)?;
+            // A stale item yields no action but clears its timer, so the
+            // rescan makes progress.
+            if let Some(action) = self.fire_due(kind, graph_id, peer, now) {
+                return Some(action);
+            }
+        }
+    }
+
+    /// Finds the earliest item due at or before `now`. The slot table's
+    /// stable order and the slot's fixed role order break exact ties.
+    fn next_due(&self, now: T) -> Option<(DueKind, GraphId, A)> {
+        let mut due: Option<(T, DueKind, GraphId, A)> = None;
+        self.slots.for_each(|slot| {
+            slot.for_each_deadline(|at, kind| {
+                if at <= now && due.as_ref().is_none_or(|&(best, ..)| at < best) {
+                    due = Some((at, kind, slot.graph_id(), slot.peer().clone()));
                 }
             });
-            let (_, kind, graph_id, peer) = due?;
-            let min_delay = self.limits.min_delay;
-            let Some(slot) = self.slots.get_mut(graph_id, &peer) else {
-                continue;
-            };
-            match kind {
-                DueKind::Poll => {
-                    let Some(state) = &mut slot.poll else {
-                        continue;
-                    };
-                    state.next_sync = state.config.interval.map(|iv| now.saturating_add(iv));
-                    return Some(SyncAction::Poll { peer, graph_id });
-                }
-                DueKind::Push => {
-                    if slot.push_sub.as_ref().is_some_and(|sub| sub.is_live(now)) {
-                        if let Some(sub) = &mut slot.push_sub {
-                            sub.push_due = None;
-                        }
-                        return Some(SyncAction::Push { peer, graph_id });
+        });
+        due.map(|(_, kind, graph_id, peer)| (kind, graph_id, peer))
+    }
+
+    /// Fires one due item: reschedules or clears its timer, then returns
+    /// the action to perform. Returns `None` when the item went stale
+    /// between scan and firing (its slot or role is gone, or the
+    /// subscription expired) — in every such case the timer is also gone,
+    /// so a rescan cannot select it again.
+    fn fire_due(
+        &mut self,
+        kind: DueKind,
+        graph_id: GraphId,
+        peer: A,
+        now: T,
+    ) -> Option<SyncAction<A>> {
+        let min_delay = self.limits.min_delay;
+        let slot = self.slots.get_mut(graph_id, &peer)?;
+        match kind {
+            DueKind::Poll => {
+                let state = slot.poll.as_mut()?;
+                state.next_sync = state.config.interval.map(|iv| now.saturating_add(iv));
+                Some(SyncAction::Poll { peer, graph_id })
+            }
+            DueKind::Push => {
+                if slot.push_sub.as_ref().is_some_and(|sub| sub.is_live(now)) {
+                    if let Some(sub) = &mut slot.push_sub {
+                        sub.push_due = None;
                     }
-                    // Died between queue and drain: drop silently.
-                    slot.push_sub = None;
+                    return Some(SyncAction::Push { peer, graph_id });
+                }
+                // Died between queue and drain: drop silently.
+                slot.push_sub = None;
+                self.drop_if_empty(graph_id, &peer);
+                None
+            }
+            DueKind::ScheduledHello => {
+                let expired = slot
+                    .hello_sub
+                    .as_ref()
+                    .is_none_or(|sub| sub.expires_at <= now);
+                if expired {
+                    // No farewell hello; the scan continues.
+                    slot.hello_sub = None;
                     self.drop_if_empty(graph_id, &peer);
+                    return None;
                 }
-                DueKind::ScheduledHello => {
-                    let expired = slot
-                        .hello_sub
-                        .as_ref()
-                        .is_none_or(|sub| sub.expires_at <= now);
-                    if expired {
-                        // No farewell hello; the scan continues.
-                        slot.hello_sub = None;
-                        self.drop_if_empty(graph_id, &peer);
-                        continue;
-                    }
-                    if let Some(sub) = &mut slot.hello_sub {
-                        // Any sent hello resets both timers: it also
-                        // satisfies the keepalive, so the next scheduled
-                        // hello waits a full period instead of re-sending
-                        // the same head moments later.
-                        sub.next_change_allowed =
-                            Some(now.saturating_add(sub.graph_change_debounce));
-                        sub.next_hello = now.saturating_add(sub.schedule_delay);
-                    }
-                    return Some(SyncAction::SendHello { peer, graph_id });
+                if let Some(sub) = &mut slot.hello_sub {
+                    // Any sent hello resets both timers: it also
+                    // satisfies the keepalive, so the next scheduled
+                    // hello waits a full period instead of re-sending
+                    // the same head moments later.
+                    sub.next_change_allowed = Some(now.saturating_add(sub.graph_change_debounce));
+                    sub.next_hello = now.saturating_add(sub.schedule_delay);
                 }
-                DueKind::PushRenewal => {
-                    let Some(PushReq::Active {
-                        remain_open_secs,
-                        max_bytes,
-                        renew_at,
-                    }) = &mut slot.push_req
-                    else {
-                        continue;
-                    };
-                    let (remain_open_secs, max_bytes) = (*remain_open_secs, *max_bytes);
-                    *renew_at = now.saturating_add(renew_period(
-                        Duration::from_secs(remain_open_secs),
-                        min_delay,
-                    ));
-                    return Some(SyncAction::Subscribe {
-                        peer,
-                        graph_id,
-                        remain_open_secs,
-                        max_bytes,
-                    });
+                Some(SyncAction::SendHello { peer, graph_id })
+            }
+            DueKind::PushRenewal => {
+                let Some(PushReq::Active {
+                    remain_open_secs,
+                    max_bytes,
+                    renew_at,
+                }) = &mut slot.push_req
+                else {
+                    return None;
+                };
+                let (remain_open_secs, max_bytes) = (*remain_open_secs, *max_bytes);
+                *renew_at = now.saturating_add(renew_period(
+                    Duration::from_secs(remain_open_secs),
+                    min_delay,
+                ));
+                Some(SyncAction::Subscribe {
+                    peer,
+                    graph_id,
+                    remain_open_secs,
+                    max_bytes,
+                })
+            }
+            DueKind::PushCancel => {
+                if !matches!(slot.push_req, Some(PushReq::Cancel { .. })) {
+                    return None;
                 }
-                DueKind::PushCancel => {
-                    if !matches!(slot.push_req, Some(PushReq::Cancel { .. })) {
-                        continue;
-                    }
-                    slot.push_req = None;
-                    self.drop_if_empty(graph_id, &peer);
-                    return Some(SyncAction::Unsubscribe { peer, graph_id });
+                slot.push_req = None;
+                self.drop_if_empty(graph_id, &peer);
+                Some(SyncAction::Unsubscribe { peer, graph_id })
+            }
+            DueKind::HelloRenewal => {
+                let Some(HelloReq::Active {
+                    graph_change_delay,
+                    duration,
+                    schedule_delay,
+                    renew_at,
+                }) = &mut slot.hello_req
+                else {
+                    return None;
+                };
+                let (graph_change_delay, duration, schedule_delay) =
+                    (*graph_change_delay, *duration, *schedule_delay);
+                *renew_at = now.saturating_add(renew_period(duration, min_delay));
+                Some(SyncAction::HelloSubscribe {
+                    peer,
+                    graph_id,
+                    graph_change_delay,
+                    duration,
+                    schedule_delay,
+                })
+            }
+            DueKind::HelloCancel => {
+                if !matches!(slot.hello_req, Some(HelloReq::Cancel { .. })) {
+                    return None;
                 }
-                DueKind::HelloRenewal => {
-                    let Some(HelloReq::Active {
-                        graph_change_delay,
-                        duration,
-                        schedule_delay,
-                        renew_at,
-                    }) = &mut slot.hello_req
-                    else {
-                        continue;
-                    };
-                    let (graph_change_delay, duration, schedule_delay) =
-                        (*graph_change_delay, *duration, *schedule_delay);
-                    *renew_at = now.saturating_add(renew_period(duration, min_delay));
-                    return Some(SyncAction::HelloSubscribe {
-                        peer,
-                        graph_id,
-                        graph_change_delay,
-                        duration,
-                        schedule_delay,
-                    });
-                }
-                DueKind::HelloCancel => {
-                    if !matches!(slot.hello_req, Some(HelloReq::Cancel { .. })) {
-                        continue;
-                    }
-                    slot.hello_req = None;
-                    self.drop_if_empty(graph_id, &peer);
-                    return Some(SyncAction::HelloUnsubscribe { peer, graph_id });
-                }
+                slot.hello_req = None;
+                self.drop_if_empty(graph_id, &peer);
+                Some(SyncAction::HelloUnsubscribe { peer, graph_id })
             }
         }
     }
@@ -1403,30 +1429,11 @@ impl<A: Clone + Ord, T: SyncInstant, S: SyncSlots<A, T>> Syncer<A, T, S> {
     pub fn next_deadline(&self) -> Option<T> {
         let mut deadline: Option<T> = None;
         self.slots.for_each(|slot| {
-            let mut consider = |at: T| {
+            slot.for_each_deadline(|at, _| {
                 if deadline.is_none_or(|best| at < best) {
                     deadline = Some(at);
                 }
-            };
-            if let Some(at) = slot.poll.as_ref().and_then(|state| state.next_sync) {
-                consider(at);
-            }
-            if let Some(at) = slot.push_sub.as_ref().and_then(|sub| sub.push_due) {
-                consider(at);
-            }
-            if let Some(sub) = &slot.hello_sub {
-                consider(sub.next_hello);
-            }
-            match &slot.push_req {
-                Some(PushReq::Active { renew_at, .. }) => consider(*renew_at),
-                Some(PushReq::Cancel { due }) => consider(*due),
-                None => {}
-            }
-            match &slot.hello_req {
-                Some(HelloReq::Active { renew_at, .. }) => consider(*renew_at),
-                Some(HelloReq::Cancel { due }) => consider(*due),
-                None => {}
-            }
+            });
         });
         deadline
     }
