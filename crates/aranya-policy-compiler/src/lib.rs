@@ -5,6 +5,7 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+pub mod cfg;
 pub mod compile;
 mod tests;
 mod tracer;
