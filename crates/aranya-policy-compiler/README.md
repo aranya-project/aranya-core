@@ -24,7 +24,7 @@ let compiler = Compiler::new(&policy);
 let module = compiler.compile()?;
 
 // Validate the compiled module
-if !validate(&module) {
+if validate(&module) == ValidationResult::Failure {
     eprintln!("Module validation failed");
 }
 

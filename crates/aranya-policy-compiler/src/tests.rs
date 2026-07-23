@@ -4,7 +4,10 @@ use aranya_policy_ast::Version;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::Module;
 
-use crate::{Compiler, validate::validate};
+use crate::{
+    Compiler,
+    validate::{ValidationResult, validate},
+};
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
@@ -130,12 +133,12 @@ fn test_validate_return() {
 
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(matches!(validate(&m), ValidationResult::Success));
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(matches!(validate(&m), ValidationResult::Failure));
     }
 }
 
@@ -240,11 +243,161 @@ fn test_validate_publish() {
 
     for p in valid {
         let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+        assert!(
+            matches!(validate(&m), ValidationResult::Success),
+            "Expected case to be valid: {}",
+            p
+        );
     }
 
     for p in invalid {
         let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+        assert!(
+            matches!(validate(&m), ValidationResult::Failure),
+            "Expected case to be invalid: {}",
+            p
+        );
+    }
+}
+
+#[test]
+fn validate_unused_values() {
+    let cases = [
+        (
+            r#"
+            function f() int {
+                let x = 3 // unused variable
+                return 0
+            }
+            "#,
+            "f: unused variable(s): `x`",
+        ),
+        (
+            r#"
+            // Check that we're actually detecting ALL unused let variables
+            function g() int {
+                let a = 1
+                let b = 2
+                let c = saturating_add(a, b)
+                return 0  // c is unused
+            }
+            "#,
+            "g: unused variable(s): `c`",
+        ),
+        (
+            r#"
+            // Track variables in nested scopes
+            function bar() int {
+                let a = 0
+                if a > 0 {
+                    let x = 1 // x is unused
+                }
+                return a
+            }
+            "#,
+            "bar: unused variable(s): `x`",
+        ),
+        (
+            r#"
+            // Multiple unused variables in the same function
+            function baz() int {
+                let x = 1 // unused
+                let y = 2
+                let z = 3 // unused
+                return y
+            }
+            "#,
+            "baz: unused variable(s): `x`, `z`",
+        ),
+        (
+            r#"
+            // Unused function argument
+            function f(x int) int {
+                return 42
+            }
+            "#,
+            "f: unused variable(s): `x`",
+        ),
+        (
+            r#"
+            // Multiple unused function arguments
+            function g(x int, y int, z int) int {
+                return y
+            }
+            "#,
+            "g: unused variable(s): `z`, `x`", // NOTE arg values are popped in reverse order
+        ),
+        (
+            r#"
+            // Used function argument should not error
+            function h(x int) int {
+                return x
+            }
+            "#,
+            "", // Should not produce an error
+        ),
+        (
+            r#"
+            // Check inside nested blocks
+            function qux() int {
+                let x = 1
+                if true {
+                    let y = 2 // unused
+                }
+                return x
+            }
+            "#,
+            "qux: unused variable(s): `y`",
+        ),
+        (
+            // Var used in one branch only is still used: no warning.
+            r#"
+            function f(n int) int {
+                let a = n
+                let b = saturating_add(n, 1)
+                if n > 0 {
+                    return a
+                }
+                else {
+                    return b
+                }
+            }
+            "#,
+            "",
+        ),
+        (
+            // Arg unused on every branch is still flagged.
+            r#"
+            function unused_both(x int, b bool) int {
+                if b {
+                    return 0
+                }
+                else {
+                    return 1
+                }
+            }
+            "#,
+            "unused_both: unused variable(s): `x`",
+        ),
+    ];
+
+    for (i, (text, expected_msg)) in cases.iter().enumerate() {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let module = Compiler::new(&policy).compile().expect("should compile");
+
+        let result = validate(&module);
+        if expected_msg.is_empty() {
+            assert!(
+                matches!(result, ValidationResult::Success),
+                "case #{i} should have no validation issues, but got: {:?}",
+                result
+            );
+        } else {
+            assert!(
+                matches!(result, ValidationResult::Warning),
+                "case #{i} should have produced warnings, but got {:?}",
+                result,
+            );
+        }
     }
 }
