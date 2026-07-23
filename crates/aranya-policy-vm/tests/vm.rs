@@ -1173,8 +1173,8 @@ fn test_match_optional_binding() -> anyhow::Result<()> {
         }
         action foo(o option[int]) {
             let y = match o {
-                Some(n) => { :n }
-                None => { :0 }
+                Some(n) => n
+                None => 0
             }
             publish F { x: y }
         }
