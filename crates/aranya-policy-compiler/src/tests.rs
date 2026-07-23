@@ -350,20 +350,34 @@ fn validate_unused_values() {
             "qux: unused variable(s): `y`",
         ),
         (
-            // TODO: this should pass; tracer needs to build control flow graph to properly track usage of `a` and `b`
+            // Var used in one branch only is still used: no warning.
             r#"
             function f(n int) int {
                 let a = n
                 let b = saturating_add(n, 1)
                 if n > 0 {
-                    return a // b unused here
+                    return a
                 }
                 else {
-                    return b // a unused here
+                    return b
                 }
             }
             "#,
-            "f: unused variable(s): `a`, `b`",
+            "",
+        ),
+        (
+            // Arg unused on every branch is still flagged.
+            r#"
+            function unused_both(x int, b bool) int {
+                if b {
+                    return 0
+                }
+                else {
+                    return 1
+                }
+            }
+            "#,
+            "unused_both: unused variable(s): `x`",
         ),
     ];
 
@@ -371,15 +385,14 @@ fn validate_unused_values() {
         let policy = parse_policy_str(text, Version::V2).expect("should parse");
         let module = Compiler::new(&policy).compile().expect("should compile");
 
+        let result = validate(&module);
         if expected_msg.is_empty() {
-            let result = validate(&module);
             assert!(
                 matches!(result, ValidationResult::Success),
                 "case #{i} should have no validation issues, but got: {:?}",
                 result
             );
         } else {
-            let result = validate(&module);
             assert!(
                 matches!(result, ValidationResult::Warning),
                 "case #{i} should have produced warnings, but got {:?}",
@@ -388,3 +401,4 @@ fn validate_unused_values() {
         }
     }
 }
+

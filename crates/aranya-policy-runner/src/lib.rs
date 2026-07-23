@@ -20,7 +20,10 @@ use std::{
 
 use anyhow::Context as _;
 use aranya_crypto::{Csprng, Engine, KeyStore, default::DefaultEngine};
-use aranya_policy_compiler::{Compiler, validate::validate};
+use aranya_policy_compiler::{
+    Compiler,
+    validate::{ValidationResult, validate},
+};
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Identifier, Machine, Value};
 use aranya_runtime::{
@@ -244,7 +247,7 @@ impl PolicyRunner {
         tracing::debug!("Policy compiled successfully");
         if self.validator {
             tracing::debug!("Running validator");
-            if validate(&module) {
+            if validate(&module) == ValidationResult::Failure {
                 return Err(anyhow::anyhow!("Could not validate module"));
             }
             tracing::debug!("Policy validated");
