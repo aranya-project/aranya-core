@@ -8,7 +8,10 @@
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{GraphId, StorageError, storage::HeadSet};
+use crate::{
+    GraphId, StorageError,
+    storage::{HeadSet, HeadSetOffset},
+};
 
 /// IO manager for creating and opening writers for a graph.
 pub trait IoManager {
@@ -50,6 +53,10 @@ pub trait Write {
 
     /// Get the committed head set.
     fn heads(&self) -> Result<HeadSet, StorageError>;
+
+    /// Get the stamp of the committed head set. Must change on every
+    /// [`commit`](Self::commit).
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError>;
 
     /// Get the file offset of the cached merged fact index.
     fn fact_cache(&self) -> Result<FactCacheOffset, StorageError>;

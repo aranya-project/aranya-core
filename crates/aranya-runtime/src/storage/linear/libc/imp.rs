@@ -16,7 +16,7 @@ use crate::{
         io::{FactCacheOffset, IoManager, Read, Write},
         libc::IdPath,
     },
-    storage::HeadSet,
+    storage::{HeadSet, HeadSetOffset},
 };
 
 struct GraphIdIterator {
@@ -261,6 +261,11 @@ impl Write for Writer {
     fn heads(&self) -> Result<HeadSet, StorageError> {
         let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
         self.fetch_owned(offset)
+    }
+
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
+        let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
+        Ok(HeadSetOffset::new(offset))
     }
 
     fn fact_cache(&self) -> Result<FactCacheOffset, StorageError> {

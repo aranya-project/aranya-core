@@ -1,9 +1,13 @@
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
+use buggy::BugExt as _;
 use spin::mutex::Mutex;
 
 use super::io;
-use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError, storage::HeadSet};
+use crate::{
+    GraphId, Location, MaxCut, SegmentIndex, StorageError,
+    storage::{HeadSet, HeadSetOffset},
+};
 
 /// Alias for memory-backed storage provider commonly used in tests.
 pub type MemStorageProvider = super::LinearStorageProvider<Manager>;
@@ -56,6 +60,8 @@ struct Shared {
 struct Committed {
     heads: HeadSet,
     fact_cache: io::FactCacheOffset,
+    /// Commit counter standing in for the file offset a real backend has.
+    offset: u64,
 }
 
 pub struct Writer {
@@ -93,6 +99,14 @@ impl io::Write for Writer {
             .ok_or(StorageError::NotInitialized)
     }
 
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
+        self.committed
+            .lock()
+            .as_ref()
+            .map(|c| HeadSetOffset::new(c.offset))
+            .ok_or(StorageError::NotInitialized)
+    }
+
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
     where
         F: FnOnce(u64) -> T,
@@ -112,9 +126,18 @@ impl io::Write for Writer {
         heads: &HeadSet,
         fact_cache: io::FactCacheOffset,
     ) -> Result<(), StorageError> {
-        *self.committed.lock() = Some(Committed {
+        let mut committed = self.committed.lock();
+        let offset = match committed.as_ref() {
+            Some(c) => c
+                .offset
+                .checked_add(1)
+                .assume("commit counter must not overflow u64")?,
+            None => 0,
+        };
+        *committed = Some(Committed {
             heads: heads.clone(),
             fact_cache,
+            offset,
         });
         Ok(())
     }

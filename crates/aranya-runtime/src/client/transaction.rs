@@ -10,7 +10,7 @@ use crate::{
     Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError, StorageProvider,
     TraversalBuffer,
     policy::{CommandPlacement, NullSink},
-    storage::{HeadSet, LocatedAddress, MAX_HEADS, Spill},
+    storage::{HeadSet, HeadSetOffset, LocatedAddress, MAX_HEADS, Spill},
 };
 
 /// Transaction used to receive many commands at once.
@@ -22,8 +22,9 @@ use crate::{
 pub struct Transaction<SP: StorageProvider, PS> {
     /// The ID of the associated graph
     graph_id: GraphId,
-    /// The head set of the graph when this transaction is first used.
-    original_heads: Option<HeadSet>,
+    /// Stamp of the committed head set when this transaction first read it,
+    /// used to detect intervening commits.
+    original_heads_offset: Option<HeadSetOffset>,
     /// Current working perspective
     perspective: Option<SP::Perspective>,
     /// Head of the current perspective
@@ -38,7 +39,7 @@ impl<SP: StorageProvider, PS> Transaction<SP, PS> {
     pub(super) const fn new(graph_id: GraphId) -> Self {
         Self {
             graph_id,
-            original_heads: None,
+            original_heads_offset: None,
             perspective: None,
             phead: None,
             heads: BTreeMap::new(),
@@ -117,10 +118,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     {
         let storage = provider.get_storage(self.graph_id)?;
 
-        let Some(original_heads) = self.original_heads.take() else {
+        let Some(original_heads_offset) = self.original_heads_offset.take() else {
             return Ok(false);
         };
-        if &original_heads != storage.get_heads()? {
+        if original_heads_offset != storage.heads_offset()? {
             return Err(ClientError::ConcurrentTransaction);
         }
 
@@ -199,12 +200,11 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             Err(e) => return Err(e.into()),
         };
 
-        if self.original_heads.is_none() {
-            let heads = storage.get_heads()?.clone();
-            for la in heads.iter() {
+        if self.original_heads_offset.is_none() {
+            for la in storage.get_heads()?.iter() {
                 self.heads.insert(la.id, la.location());
             }
-            self.original_heads = Some(heads);
+            self.original_heads_offset = Some(storage.heads_offset()?);
         }
 
         // Handle remaining commands.
@@ -1354,6 +1354,96 @@ mod test {
             )
             .unwrap();
         assert!(loc.is_some(), "flushed tip must be resolvable in storage");
+    }
+
+    #[test]
+    fn test_concurrent_transaction_rejected() {
+        let a: CmdId = id_from_u64(0);
+        let b: CmdId = id_from_u64(1);
+        let c: CmdId = id_from_u64(2);
+        let graph_id = GraphId::transmute(a);
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        let addr_a = Address {
+            id: a,
+            max_cut: MaxCut::new(0),
+        };
+        let init = SeqCommand::new(a, Prior::None, MaxCut::new(0));
+        let cmd_b = SeqCommand::new(b, Prior::Single(addr_a), MaxCut::new(1));
+        let cmd_c = SeqCommand::new(c, Prior::Single(addr_a), MaxCut::new(1));
+
+        // Initialize and commit the graph so both transactions start from `a`.
+        let mut trx0 = Transaction::new(graph_id);
+        trx0.add_commands(
+            &[init],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init add_commands must succeed");
+        assert!(
+            trx0.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("init commit must succeed")
+        );
+
+        // trx1 starts first (capturing the committed head-set stamp)...
+        let mut trx1 = Transaction::new(graph_id);
+        trx1.add_commands(
+            &[cmd_b],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("trx1 add_commands must succeed");
+
+        // ...then trx2 commits in between.
+        let mut trx2 = Transaction::new(graph_id);
+        trx2.add_commands(
+            &[cmd_c],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("trx2 add_commands must succeed");
+        assert!(
+            trx2.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("trx2 commit must succeed")
+        );
+
+        // trx1 must now be rejected.
+        let err = trx1
+            .commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect_err("trx1 commit must fail after trx2 committed");
+        assert!(
+            matches!(err, ClientError::ConcurrentTransaction),
+            "expected ConcurrentTransaction, got {err:?}"
+        );
     }
 
     #[test]

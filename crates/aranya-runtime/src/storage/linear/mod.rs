@@ -36,8 +36,8 @@ use vec1::Vec1;
 
 use crate::{
     Address, Bytes, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, HeadSet,
-    Keys, LocatedAddress, Location, MaxCut, Perspective, PolicyId, Prior, Priority, Query,
-    QueryMut, Revertable, Segment, SegmentIndex, Storage, StorageError, StorageProvider,
+    HeadSetOffset, Keys, LocatedAddress, Location, MaxCut, Perspective, PolicyId, Prior, Priority,
+    Query, QueryMut, Revertable, Segment, SegmentIndex, Storage, StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -737,6 +737,10 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn get_heads(&self) -> Result<&HeadSet, StorageError> {
         Ok(&self.cached_heads)
+    }
+
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
+        self.writer.heads_offset()
     }
 
     fn fact_cache(&self) -> Result<Self::FactIndex, StorageError> {

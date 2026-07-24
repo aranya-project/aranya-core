@@ -566,6 +566,20 @@ impl LocatedAddress {
     }
 }
 
+/// Backend-assigned stamp for the committed head set, changed by every
+/// [`Storage::commit_heads`]. A captured value compared against the current
+/// one detects intervening commits without cloning or comparing head sets.
+/// Linear storage uses the file offset of the appended head-set record.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeadSetOffset(u64);
+
+impl HeadSetOffset {
+    /// Wraps a backend-provided raw value.
+    pub fn new(offset: u64) -> Self {
+        Self(offset)
+    }
+}
+
 /// An error returned by [`Storage`] or [`StorageProvider`].
 #[derive(Debug, thiserror::Error)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -767,6 +781,12 @@ pub trait Storage {
     /// paths (no per-call deserialize or copy). Callers that need an owned set
     /// should clone the returned reference.
     fn get_heads(&self) -> Result<&HeadSet, StorageError>;
+
+    /// Returns the stamp of the committed head set.
+    ///
+    /// Changes on every [`commit_heads`](Self::commit_heads), so a value
+    /// captured at transaction start detects intervening commits.
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError>;
 
     /// Returns the cached merged fact index for the current head set.
     fn fact_cache(&self) -> Result<Self::FactIndex, StorageError>;
