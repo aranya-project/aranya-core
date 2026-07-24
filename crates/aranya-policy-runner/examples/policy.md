@@ -170,6 +170,9 @@ command AddUser {
             }
         }
     }
+
+    recall test_fail(err string) {
+    }
 }
 ```
 
