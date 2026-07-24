@@ -659,6 +659,52 @@ pub trait StorageProvider {
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
+/// Backward-traversal search for `address`, starting from the locations
+/// already seeded into `queue`. Seeds must have `max_cut >= address.max_cut`.
+///
+/// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm
+/// specification.
+fn search_queued<S: Storage + ?Sized>(
+    storage: &S,
+    address: Address,
+    queue: &mut TraversalQueue,
+) -> Result<Option<Location>, StorageError> {
+    while let Some(loc) = queue.pop()? {
+        debug_assert!(
+            loc.max_cut >= address.max_cut,
+            "Invariant: we only enqueue locations with at least the target max cut"
+        );
+
+        // Must load segment
+        let segment = storage.get_segment(loc)?;
+
+        // Search commands in this segment.
+        if let Some(found) = segment.get_by_address(address) {
+            return Ok(Some(found));
+        }
+
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so the first entry
+        // with max_cut >= target has the lowest valid max_cut, jumping
+        // furthest back in the graph.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= address.max_cut)
+        {
+            queue.push(skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= address.max_cut {
+                    queue.push(prior)?;
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
 /// by an associated policy and committed to state.
 pub trait Storage {
@@ -674,14 +720,16 @@ pub trait Storage {
         address: Address,
         buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
-        // The graph may be multi-head (lazy merges). Search from each head until
-        // the command is found.
+        // The graph may be multi-head (lazy merges). Run one search seeded
+        // with every head that could reach the target, so ancestry shared
+        // between heads is traversed once rather than once per head.
+        let queue = buffer.get();
         for head in self.get_heads()?.iter() {
-            if let Some(found) = self.get_location_from(head.location(), address, buffer)? {
-                return Ok(Some(found));
+            if head.max_cut >= address.max_cut {
+                queue.push(head.location())?;
             }
         }
-        Ok(None)
+        search_queued(self, address, queue)
     }
 
     /// Returns the location of Command with id by searching from the given location.
@@ -699,41 +747,7 @@ pub trait Storage {
 
         let queue = buffer.get();
         queue.push(start)?;
-
-        while let Some(loc) = queue.pop()? {
-            debug_assert!(
-                loc.max_cut >= address.max_cut,
-                "Invariant: we only enqueue locations with at least the target max cut"
-            );
-
-            // Must load segment
-            let segment = self.get_segment(loc)?;
-
-            // Search commands in this segment.
-            if let Some(found) = segment.get_by_address(address) {
-                return Ok(Some(found));
-            }
-
-            // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so the first entry
-            // with max_cut >= target has the lowest valid max_cut, jumping
-            // furthest back in the graph.
-            if let Some(&skip) = segment
-                .skip_list()
-                .iter()
-                .find(|skip| skip.max_cut >= address.max_cut)
-            {
-                queue.push(skip)?;
-            } else {
-                // No valid skip - add prior locations to queue
-                for prior in segment.prior() {
-                    if prior.max_cut >= address.max_cut {
-                        queue.push(prior)?;
-                    }
-                }
-            }
-        }
-        Ok(None)
+        search_queued(self, address, queue)
     }
 
     /// Returns the address of the command at the given location.
