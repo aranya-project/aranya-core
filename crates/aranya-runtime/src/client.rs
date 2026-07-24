@@ -177,6 +177,21 @@ where
         )
     }
 
+    /// Run an `action` within a [`Transaction`], writing effects to
+    /// `sink`.
+    ///
+    /// Unlike [`Self::action`], durability is deferred until
+    /// [`Self::commit`], so batching many actions into one transaction
+    /// amortizes the per-commit `fsync` cost across the whole batch.
+    pub fn action_transaction(
+        &mut self,
+        trx: &mut Transaction<SP, PS>,
+        sink: &mut impl Sink<PS::Effect>,
+        action: <PS::Policy as Policy>::Action<'_>,
+    ) -> Result<(), ClientError> {
+        trx.action(&mut self.provider, &mut self.policy_store, sink, action)
+    }
+
     pub fn update_heads<I>(
         &mut self,
         graph_id: GraphId,

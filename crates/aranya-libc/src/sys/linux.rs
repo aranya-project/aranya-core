@@ -16,6 +16,13 @@ pub fn fallocate(fd: BorrowedFd<'_>, mode: c_int, off: i64, len: i64) -> Result<
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
+/// See `fdatasync(2)`.
+pub fn fdatasync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe { libc::fdatasync(fd.fd) };
+    if ret < 0 { Err(errno()) } else { Ok(()) }
+}
+
 /// See `read(2)`.
 pub fn pread(fd: BorrowedFd<'_>, buf: &mut [u8], off: i64) -> Result<usize, Errno> {
     // SAFETY: FFI call, no invariants.

@@ -8,7 +8,9 @@ use crate::{
     Address, BraidBuffer, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH,
     MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior,
     Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError, StorageProvider,
-    TraversalBuffer, policy::CommandPlacement, storage::Spill,
+    TraversalBuffer,
+    policy::{ActionPlacement, CommandPlacement},
+    storage::Spill,
 };
 
 /// Transaction used to receive many commands at once.
@@ -267,6 +269,57 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         }
 
         Ok(count)
+    }
+
+    /// Run an `action` within this transaction.
+    ///
+    /// The action's command(s) are accumulated in the transaction's
+    /// open perspective without being written to storage. Durability
+    /// is deferred until [`Transaction::commit`], so a batch of
+    /// actions shares a single durable commit (and thus a single pair
+    /// of `fsync`s) instead of paying for one per action.
+    pub(super) fn action(
+        &mut self,
+        provider: &mut SP,
+        policy_store: &mut PS,
+        sink: &mut impl Sink<PS::Effect>,
+        action: <PS::Policy as crate::Policy>::Action<'_>,
+    ) -> Result<(), ClientError> {
+        let storage = provider.get_storage(self.graph_id)?;
+
+        if self.original_head.is_none() {
+            self.original_head = Some(storage.get_head()?);
+        }
+
+        // Ensure there's an open perspective, anchored at the current
+        // transaction head, to run the action against.
+        if self.perspective.is_none() {
+            let head = storage.get_head()?;
+            self.phead = Some(storage.get_head_address()?.id);
+            self.perspective = Some(storage.get_linear_perspective(head)?);
+        }
+        let perspective = self.perspective.as_mut().assume("trx has perspective")?;
+
+        let policy_id = perspective.policy();
+        let policy = policy_store.get_policy(policy_id)?;
+
+        // Run the action, reverting its partial effects on failure so
+        // one bad action doesn't poison the rest of the batch.
+        sink.begin();
+        let checkpoint = perspective.checkpoint();
+        if let Err(e) = policy.call_action(action, perspective, sink, ActionPlacement::OnGraph) {
+            perspective.revert(checkpoint)?;
+            sink.rollback();
+            return Err(e.into());
+        }
+        sink.commit();
+
+        // Advance the perspective head to the action's last command.
+        if let Prior::Single(addr) = perspective.head_address()? {
+            self.phead = Some(addr.id);
+        }
+
+        Ok(())
     }
 
     fn add_single(
@@ -557,7 +610,11 @@ mod test {
         Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
-        testing::{hash_for_testing_only, short_b58},
+        testing::{
+            hash_for_testing_only,
+            protocol::{TestActions, TestPolicyStore, TestSink},
+            short_b58,
+        },
     };
 
     struct SeqPolicyStore;
@@ -1190,6 +1247,51 @@ mod test {
         );
 
         Ok(())
+    }
+
+    /// An open transaction does not block local actions, but a local
+    /// action advances the storage head, so the transaction's commit
+    /// fails with [`ClientError::ConcurrentTransaction`] instead of
+    /// silently losing either side.
+    #[test]
+    fn test_action_aborts_open_transaction() {
+        let mut client = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut buffers = RuntimeBuffers::new();
+
+        let policy_data = 0u64.to_be_bytes();
+        let graph_id = client
+            .new_graph(policy_data.as_slice(), TestActions::Init(0), &mut sink)
+            .unwrap();
+
+        // Accumulate an action in an open (uncommitted) transaction.
+        let mut trx = client.transaction(graph_id);
+        client
+            .action_transaction(&mut trx, &mut sink, TestActions::SetValue(0, 1))
+            .unwrap();
+
+        // A local action is not blocked by the open transaction.
+        client
+            .action(graph_id, &mut sink, TestActions::SetValue(0, 2))
+            .unwrap();
+
+        // But it advanced the head out from under the transaction.
+        let err = client
+            .commit(trx, &mut sink, &mut buffers, MemSpill::new)
+            .unwrap_err();
+        assert!(matches!(err, ClientError::ConcurrentTransaction), "{err:?}");
+
+        // A transaction opened afterward commits cleanly.
+        let mut trx = client.transaction(graph_id);
+        client
+            .action_transaction(&mut trx, &mut sink, TestActions::SetValue(0, 3))
+            .unwrap();
+        assert!(
+            client
+                .commit(trx, &mut sink, &mut buffers, MemSpill::new)
+                .unwrap()
+        );
     }
 
     #[cfg(feature = "graphviz")]
