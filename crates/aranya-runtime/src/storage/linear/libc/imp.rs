@@ -477,7 +477,7 @@ mod tests {
         let graph_id = GraphId::transmute(CmdId::from_bytes([7u8; 32]));
 
         let mut heads = HeadSet::single(located(1, 1, 3));
-        heads.push(located(2, 2, 5)).unwrap();
+        heads.push(located(2, 2, 5));
         assert_eq!(heads.len(), 2);
 
         // Commit on a fresh writer.

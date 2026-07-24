@@ -44,11 +44,6 @@ pub trait Spill {
 /// during backward traversal, which is bounded by peer count.
 pub const QUEUE_CAPACITY: usize = 512;
 
-/// Maximum number of concurrent graph heads, equal to the traversal/strand
-/// bound. Sync ingestion past this returns an error rather than forcing a
-/// merge.
-pub const MAX_HEADS: usize = QUEUE_CAPACITY;
-
 /// Type for the queue used in traversal operations.
 ///
 /// Locations with the highest `max_cut` are processed first. This bounds the
@@ -609,8 +604,6 @@ pub enum StorageError {
     ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
-    #[error("head set full (max {0})")]
-    HeadSetFull(usize),
     #[error("graph has multiple heads ({0}); no single head to report")]
     MultipleHeads(usize),
     #[error(transparent)]

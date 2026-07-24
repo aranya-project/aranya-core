@@ -1,4 +1,7 @@
-use alloc::collections::{BTreeMap, VecDeque};
+use alloc::{
+    collections::{BTreeMap, VecDeque},
+    vec::Vec,
+};
 use core::{marker::PhantomData, mem};
 
 use buggy::{BugExt as _, bug};
@@ -10,7 +13,7 @@ use crate::{
     Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError, StorageProvider,
     TraversalBuffer,
     policy::{CommandPlacement, NullSink},
-    storage::{HeadSet, HeadSetOffset, LocatedAddress, MAX_HEADS, Spill},
+    storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
 };
 
 /// Transaction used to receive many commands at once.
@@ -139,12 +142,11 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 id: *id,
                 segment: loc.segment,
                 max_cut: loc.max_cut,
-            })?;
+            });
         }
 
         // Rebuild the fact cache for this head set.
-        let head_locs: heapless::Vec<Location, MAX_HEADS> =
-            head_set.iter().map(LocatedAddress::location).collect();
+        let head_locs: Vec<Location> = head_set.iter().map(LocatedAddress::location).collect();
         let fact_cache = if head_locs.len() == 1 {
             // Single head: reuse that head's fact index.
             storage.get_segment(head_locs[0])?.facts()?
@@ -380,11 +382,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             self.phead = None;
             let seg = storage.write(p)?;
             self.heads.insert(seg.head_id(), seg.head_location()?);
-            // Fail fast if the accumulated tips have reached head-set capacity,
-            // since the next in-flight perspective would push past MAX_HEADS.
-            if self.heads.len() >= MAX_HEADS {
-                return Err(StorageError::HeadSetFull(MAX_HEADS).into());
-            }
         }
 
         let loc = self
@@ -1219,13 +1216,13 @@ mod test {
         hash_for_testing_only(&n.to_le_bytes())
     }
 
-    /// Ingest more than MAX_HEADS divergent commands (all children of init)
-    /// and assert that add_commands returns HeadSetFull before commit.
-    ///
-    /// With the early check, the error surfaces at ingest time.  Without it,
-    /// add_commands would succeed and the error would surface at commit.
+    /// The head set is unbounded: ingest more divergent tips (all children of
+    /// init) than the old fixed capacity of 512 and assert that both ingest
+    /// and commit succeed, with every tip in the committed head set.
     #[test]
-    fn test_head_set_overflow_errors_at_ingest() {
+    fn test_many_divergent_heads() {
+        const HEADS: u64 = 600;
+
         let init_id: CmdId = id_from_u64(0);
         let graph_id = GraphId::transmute(init_id);
         let init_addr = Address {
@@ -1250,10 +1247,9 @@ mod test {
         )
         .expect("init must succeed");
 
-        // Ingest MAX_HEADS siblings of init.  Each has Prior::Single(init_addr)
-        // with a distinct id.  The result is MAX_HEADS divergent tips, which is
-        // the maximum the HeadSet can hold -- still within bounds.
-        for i in 1u64..=(MAX_HEADS as u64) {
+        // Ingest siblings of init, each with Prior::Single(init_addr) and a
+        // distinct id, yielding HEADS divergent tips.
+        for i in 1u64..=HEADS {
             let id = id_from_u64(i);
             let cmd = SeqCommand::new(id, Prior::Single(init_addr), MaxCut::new(1));
             trx.add_commands(
@@ -1264,30 +1260,22 @@ mod test {
                 &mut buffers,
                 &MemSpill::new,
             )
-            .expect("sibling within capacity must succeed");
+            .expect("sibling ingest must succeed");
         }
 
-        // One more sibling pushes the in-transaction head count above MAX_HEADS.
-        // The early check must surface the error here, not at commit.
-        // Use a counter value well outside the 1..=MAX_HEADS range to ensure a unique id.
-        let overflow_id = id_from_u64(0xffff_ffff_ffff_ffff);
-        let overflow_cmd = SeqCommand::new(overflow_id, Prior::Single(init_addr), MaxCut::new(1));
-        let result = trx.add_commands(
-            &[overflow_cmd],
-            &mut client.provider,
-            &mut client.policy_store,
-            &mut NullSink,
-            &mut buffers,
-            &MemSpill::new,
+        assert!(
+            trx.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("commit must succeed")
         );
 
-        assert!(
-            matches!(
-                result,
-                Err(ClientError::StorageError(StorageError::HeadSetFull(_)))
-            ),
-            "expected HeadSetFull at ingest, got: {result:?}"
-        );
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        assert_eq!(storage.get_heads().unwrap().len(), HEADS as usize);
     }
 
     /// Ingest a couple commands, call `flush`, and assert `in_flight_heads`
