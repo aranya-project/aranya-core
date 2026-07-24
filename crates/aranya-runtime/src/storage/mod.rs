@@ -13,6 +13,9 @@ use rend::u64_le;
 
 use crate::{Address, CmdId, Command, PolicyId, Prior};
 
+pub mod head_set;
+pub use head_set::HeadSet;
+
 pub mod linear;
 
 #[cfg(any(feature = "libc", feature = "testing"))]
@@ -533,7 +536,9 @@ impl fmt::Display for Location {
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct LocatedAddress {
     pub id: CmdId,
     pub segment: SegmentIndex,
@@ -556,6 +561,20 @@ impl LocatedAddress {
     }
 }
 
+/// Backend-assigned stamp for the committed head set, changed by every
+/// [`Storage::commit_heads`]. A captured value compared against the current
+/// one detects intervening commits without cloning or comparing head sets.
+/// Linear storage uses the file offset of the appended head-set record.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeadSetOffset(u64);
+
+impl HeadSetOffset {
+    /// Wraps a backend-provided raw value.
+    pub fn new(offset: u64) -> Self {
+        Self(offset)
+    }
+}
+
 /// An error returned by [`Storage`] or [`StorageProvider`].
 #[derive(Debug, thiserror::Error)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -565,6 +584,8 @@ pub enum StorageError {
     StorageExists,
     #[error("no such storage")]
     NoSuchStorage,
+    #[error("storage created but not initialized by a first commit")]
+    NotInitialized,
     #[error("segment index {} is out of bounds", .0.segment)]
     SegmentOutOfBounds(Location),
     #[error("max cut {} is out of bounds in segment {}", .0.max_cut, .0.segment)]
@@ -583,6 +604,8 @@ pub enum StorageError {
     ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
+    #[error("graph has multiple heads ({0}); no single head to report")]
+    MultipleHeads(usize),
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -636,6 +659,52 @@ pub trait StorageProvider {
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
+/// Backward-traversal search for `address`, starting from the locations
+/// already seeded into `queue`. Seeds must have `max_cut >= address.max_cut`.
+///
+/// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm
+/// specification.
+fn search_queued<S: Storage + ?Sized>(
+    storage: &S,
+    address: Address,
+    queue: &mut TraversalQueue,
+) -> Result<Option<Location>, StorageError> {
+    while let Some(loc) = queue.pop()? {
+        debug_assert!(
+            loc.max_cut >= address.max_cut,
+            "Invariant: we only enqueue locations with at least the target max cut"
+        );
+
+        // Must load segment
+        let segment = storage.get_segment(loc)?;
+
+        // Search commands in this segment.
+        if let Some(found) = segment.get_by_address(address) {
+            return Ok(Some(found));
+        }
+
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so the first entry
+        // with max_cut >= target has the lowest valid max_cut, jumping
+        // furthest back in the graph.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= address.max_cut)
+        {
+            queue.push(skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= address.max_cut {
+                    queue.push(prior)?;
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
 /// by an associated policy and committed to state.
 pub trait Storage {
@@ -651,7 +720,16 @@ pub trait Storage {
         address: Address,
         buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address, buffer)
+        // The graph may be multi-head (lazy merges). Run one search seeded
+        // with every head that could reach the target, so ancestry shared
+        // between heads is traversed once rather than once per head.
+        let queue = buffer.get();
+        for head in self.get_heads()?.iter() {
+            if head.max_cut >= address.max_cut {
+                queue.push(head.location())?;
+            }
+        }
+        search_queued(self, address, queue)
     }
 
     /// Returns the location of Command with id by searching from the given location.
@@ -669,41 +747,7 @@ pub trait Storage {
 
         let queue = buffer.get();
         queue.push(start)?;
-
-        while let Some(loc) = queue.pop()? {
-            debug_assert!(
-                loc.max_cut >= address.max_cut,
-                "Invariant: we only enqueue locations with at least the target max cut"
-            );
-
-            // Must load segment
-            let segment = self.get_segment(loc)?;
-
-            // Search commands in this segment.
-            if let Some(found) = segment.get_by_address(address) {
-                return Ok(Some(found));
-            }
-
-            // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so the first entry
-            // with max_cut >= target has the lowest valid max_cut, jumping
-            // furthest back in the graph.
-            if let Some(&skip) = segment
-                .skip_list()
-                .iter()
-                .find(|skip| skip.max_cut >= address.max_cut)
-            {
-                queue.push(skip)?;
-            } else {
-                // No valid skip - add prior locations to queue
-                for prior in segment.prior() {
-                    if prior.max_cut >= address.max_cut {
-                        queue.push(prior)?;
-                    }
-                }
-            }
-        }
-        Ok(None)
+        search_queued(self, address, queue)
     }
 
     /// Returns the address of the command at the given location.
@@ -738,19 +782,46 @@ pub trait Storage {
     /// Returns the segment at the given location.
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError>;
 
-    /// Returns the location of head of the graph.
-    fn get_head(&self) -> Result<Location, StorageError>;
-
-    /// Returns the address of the head of the graph.
-    fn get_head_address(&self) -> Result<Address, StorageError> {
-        self.get_command_address(self.get_head()?)
-    }
-
-    /// Sets the given segment as the head of the graph.
+    /// Returns the committed head set.
     ///
-    /// The given segment must be a descendant of the current graph head.
-    /// Implementations may rely on this for correctness, but not for safety.
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
+    /// Borrows an in-memory cache, so this is cheap to call repeatedly on hot
+    /// paths (no per-call deserialize or copy). Callers that need an owned set
+    /// should clone the returned reference.
+    fn get_heads(&self) -> Result<&HeadSet, StorageError>;
+
+    /// Returns the stamp of the committed head set.
+    ///
+    /// Changes on every [`commit_heads`](Self::commit_heads), so a value
+    /// captured at transaction start detects intervening commits.
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError>;
+
+    /// Returns the cached merged fact index for the current head set.
+    fn fact_cache(&self) -> Result<Self::FactIndex, StorageError>;
+
+    /// Commit the given head set with its rebuilt fact cache.
+    fn commit_heads(
+        &mut self,
+        heads: HeadSet,
+        fact_cache: Self::FactIndex,
+    ) -> Result<(), StorageError>;
+
+    /// Returns the address of the sole graph head.
+    ///
+    /// Errors with [`StorageError::MultipleHeads`] on a multi-head (lazy-merge)
+    /// graph, where there is no single head to report. Callers that may face a
+    /// multi-head graph should use [`get_heads`](Self::get_heads) instead.
+    ///
+    /// An initialized graph always has at least one head, so an empty head set
+    /// is treated as an invariant violation (a [`Bug`]).
+    fn get_head_address(&self) -> Result<Address, StorageError> {
+        let heads = self.get_heads()?;
+        let mut it = heads.iter();
+        let first = it.next().assume("initialized graph always has >= 1 head")?;
+        if it.next().is_some() {
+            return Err(StorageError::MultipleHeads(heads.len()));
+        }
+        Ok(first.address())
+    }
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;

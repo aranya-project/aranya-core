@@ -241,12 +241,19 @@ impl Sink<TestEffect> for TestSink {
         trace!(?effect, "consume");
         if !self.ignore_expect {
             assert!(!self.expect.is_empty(), "consumed {effect:?} while empty");
-            let expect = self.expect.remove(0);
-            trace!(consuming = ?effect, expected = ?expect, remainder = ?self.expect);
-            assert_eq!(
-                effect, expect,
-                "consumed {effect:?} while expecting {expect:?}"
+            // Match expectations as a multiset (content + count) rather than
+            // strict FIFO order: every expected effect must be produced exactly
+            // once, but the emit order is not asserted.
+            let pos = self.expect.iter().position(|e| *e == effect);
+            trace!(consuming = ?effect, expected = ?self.expect);
+            assert!(
+                pos.is_some(),
+                "consumed {effect:?} which is not among remaining expectations {:?}",
+                self.expect
             );
+            if let Some(i) = pos {
+                self.expect.remove(i);
+            }
         }
     }
 

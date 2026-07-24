@@ -415,10 +415,10 @@ impl SyncResponder {
         // heads queue: segments to process, popped by highest max_cut.
         let heads = buffers.primary.get();
 
-        // Jump from head toward highest_have + SEGMENT_BUFFER_MAX before
+        // Jump from each head toward highest_have + SEGMENT_BUFFER_MAX before
         // starting the main traversal, so per-round cost is O(log n) instead
-        // of O(n).
-        let head = storage.get_head()?;
+        // of O(n). The graph may be multi-head (lazy merges), so seed the
+        // traversal from every head.
         let highest_have = have_locations
             .first()
             .map(|l| l.max_cut)
@@ -426,8 +426,10 @@ impl SyncResponder {
         let skip_target = highest_have
             .checked_add(SEGMENT_BUFFER_MAX as u64)
             .assume("skip target overflow")?;
-        let start = skip_jump(storage, head, skip_target)?;
-        heads.push(start)?;
+        for head in storage.get_heads()?.iter() {
+            let start = skip_jump(storage, head.location(), skip_target)?;
+            heads.push(start)?;
+        }
 
         // pending queue: segments tentatively needed by the peer.
         let pending = buffers.secondary.get();

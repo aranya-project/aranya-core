@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_runtime::{
-    ClientState, GraphId, SyncRequester,
+    ClientState, GraphId, LibcSpill, RuntimeBuffers, SyncRequester,
     policy::{PolicyStore, Sink},
     storage::{StorageProvider, linear::testing::MemStorageProvider},
     testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
@@ -21,6 +21,9 @@ use test_log::test;
 #[test]
 fn test_sync() -> Result<()> {
     let client1 = make_client();
+    let mut buffers = RuntimeBuffers::new();
+    let spill_dir = std::env::temp_dir();
+    let make_spill = || LibcSpill::new(&spill_dir);
     let sink1 = Arc::new(Mutex::new(TestSink::new()));
     let (tx, rx) = mpsc::channel();
     let server_addr1 = get_server()?;
@@ -48,10 +51,13 @@ fn test_sync() -> Result<()> {
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
         sink1.lock().unwrap().add_expectation(TestEffect::Got(i));
-        client1
-            .lock()
-            .unwrap()
-            .action(graph_id, sink1.lock().unwrap().deref_mut(), action)?;
+        client1.lock().unwrap().action(
+            graph_id,
+            sink1.lock().unwrap().deref_mut(),
+            action,
+            &mut buffers,
+            make_spill,
+        )?;
     }
     assert_eq!(sink1.lock().unwrap().count(), 0);
 
@@ -82,6 +88,9 @@ fn test_sync() -> Result<()> {
 #[test]
 fn test_sync_subscribe() -> Result<()> {
     let client1 = make_client();
+    let mut buffers = RuntimeBuffers::new();
+    let spill_dir = std::env::temp_dir();
+    let make_spill = || LibcSpill::new(&spill_dir);
     let sink1 = Arc::new(Mutex::new(TestSink::new()));
     let (tx1, rx1) = mpsc::channel();
     let server_addr1 = get_server()?;
@@ -135,10 +144,13 @@ fn test_sync_subscribe() -> Result<()> {
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
         sink1.lock().unwrap().add_expectation(TestEffect::Got(i));
-        client1
-            .lock()
-            .unwrap()
-            .action(graph_id, sink1.lock().unwrap().deref_mut(), action)?;
+        client1.lock().unwrap().action(
+            graph_id,
+            sink1.lock().unwrap().deref_mut(),
+            action,
+            &mut buffers,
+            make_spill,
+        )?;
         syncer1.lock().unwrap().push(graph_id)?;
     }
 
@@ -163,10 +175,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(graph_id, sink1.lock().unwrap().deref_mut(), action)?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
@@ -193,10 +208,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(graph_id, sink1.lock().unwrap().deref_mut(), action)?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
@@ -213,10 +231,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(graph_id, sink1.lock().unwrap().deref_mut(), action)?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
@@ -249,10 +270,13 @@ fn test_sync_subscribe() -> Result<()> {
         .lock()
         .unwrap()
         .add_expectation(TestEffect::Got(value));
-    client1
-        .lock()
-        .unwrap()
-        .action(graph_id, sink1.lock().unwrap().deref_mut(), action)?;
+    client1.lock().unwrap().action(
+        graph_id,
+        sink1.lock().unwrap().deref_mut(),
+        action,
+        &mut buffers,
+        make_spill,
+    )?;
     syncer1.lock().unwrap().push(graph_id)?;
     sink2
         .lock()
