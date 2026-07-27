@@ -1,8 +1,11 @@
 #![cfg(test)]
 
-use core::cell::RefCell;
+use core::{cell::RefCell, fmt};
 
-use super::*;
+use super::{
+    snapshot::{MODE_ABSOLUTE, SNAPSHOT_VERSION},
+    *,
+};
 
 type TestSyncer = Syncer<&'static str, Duration>;
 type PersistentSyncer = Syncer<String, Duration>;
