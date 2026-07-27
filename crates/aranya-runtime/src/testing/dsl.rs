@@ -69,7 +69,9 @@ use crate::{
     Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
     Keys, Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
     Query as _, RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError,
-    SyncIncoming, SyncRequester, SyncResponder, Transaction, TraversalBuffer, TraversalBuffers,
+    SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction, TraversalBuffer,
+    TraversalBuffers,
+    sync::wire::{SyncHelloType, SyncType},
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
@@ -181,10 +183,13 @@ pub fn dispatch(
 
 /// Processes hello sync notifications cascading from a graph change.
 ///
-/// When a client's graph changes, all subscribers are notified and sync
-/// from the changed client. If a subscriber receives new data, it becomes
-/// a "changed client" and its own subscribers are notified. This repeats
-/// until no new data flows or `max_depth` is exceeded.
+/// Models the daemon's hello protocol: when a client's graph changes, each
+/// subscriber is sent a wire-encoded `Hello` notification carrying the
+/// publisher's head address (obtained via [`ClientState::head_address`], the
+/// same call the daemon makes). A subscriber that already has the advertised
+/// command does not sync; otherwise it syncs from the publisher, and if it
+/// receives new data it becomes a "changed client" whose own subscribers are
+/// notified. This repeats until no new data flows or `max_depth` is exceeded.
 #[allow(clippy::too_many_arguments)]
 fn process_hello_notifications<SP: StorageProvider>(
     graph: u64,
@@ -226,6 +231,41 @@ fn process_hello_notifications<SP: StorageProvider>(
                     publisher, subscriber, "hello sync: notifying subscriber"
                 );
 
+                // The publisher builds the notification the same way the
+                // daemon does: a single head address on the wire.
+                let head = clients
+                    .get(&publisher)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut()
+                    .head_address(graph_id)?;
+
+                // Round-trip the notification through the wire format.
+                let mut wire = [0u8; MAX_SYNC_MESSAGE_SIZE];
+                let len = postcard::to_slice(
+                    &SyncType::Hello(SyncHelloType::Hello { graph_id, head }),
+                    &mut wire,
+                )
+                .map_err(SyncError::from)?
+                .len();
+                let SyncIncoming::Hello(SyncHello::Hello(notification)) =
+                    SyncIncoming::decode(&wire[..len])?
+                else {
+                    buggy::bug!("hello notification decoded as a different message type");
+                };
+
+                let mut request_client = clients
+                    .get(&subscriber)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+
+                // The subscriber only syncs if the advertised command is new
+                // to it.
+                let known = request_client.command_exists(
+                    notification.graph_id(),
+                    notification.head(),
+                    &mut rt_buffers.traversal.primary,
+                );
+
                 client_heads
                     .entry((graph, subscriber, publisher))
                     .or_default();
@@ -233,36 +273,53 @@ fn process_hello_notifications<SP: StorageProvider>(
                     .entry((graph, publisher, subscriber))
                     .or_default();
 
+                let mut received = 0;
+                if !known {
+                    let mut request_cache = client_heads
+                        .get(&(graph, subscriber, publisher))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let mut response_cache = client_heads
+                        .get(&(graph, publisher, subscriber))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let mut response_client = clients
+                        .get(&publisher)
+                        .ok_or(TestError::MissingClient)?
+                        .borrow_mut();
+
+                    // The hello cascade needs committed state to serve
+                    // onward, so commit per notification here.
+                    let mut trx = request_client.transaction(graph_id);
+                    loop {
+                        let (_, exchange_received) = sync::<SP>(
+                            &mut trx,
+                            (&mut request_cache, &mut request_client),
+                            (&mut response_cache, &mut response_client),
+                            sink,
+                            graph_id,
+                            rt_buffers,
+                        )?;
+                        received += exchange_received;
+                        if exchange_received == 0 {
+                            break;
+                        }
+                    }
+                    request_client.commit(trx, sink, rt_buffers, MemSpill::new)?;
+                }
+
+                // Track the advertised head in the subscriber's cache for the
+                // publisher, whether or not a sync ran.
                 let mut request_cache = client_heads
                     .get(&(graph, subscriber, publisher))
                     .assume("cache must exist")?
                     .borrow_mut();
-                let mut response_cache = client_heads
-                    .get(&(graph, publisher, subscriber))
-                    .assume("cache must exist")?
-                    .borrow_mut();
-
-                let mut request_client = clients
-                    .get(&subscriber)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-                let mut response_client = clients
-                    .get(&publisher)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-
-                // The hello cascade needs committed state to serve onward, so
-                // commit per exchange here.
-                let mut trx = request_client.transaction(graph_id);
-                let (_, received) = sync::<SP>(
-                    &mut trx,
-                    (&mut request_cache, &mut request_client),
-                    (&mut response_cache, &mut response_client),
-                    sink,
-                    graph_id,
-                    rt_buffers,
+                request_client.update_heads(
+                    notification.graph_id(),
+                    [notification.head()],
+                    &mut request_cache,
+                    &mut rt_buffers.traversal.primary,
                 )?;
-                request_client.commit(trx, sink, rt_buffers, MemSpill::new)?;
 
                 if received > 0 {
                     debug!(
@@ -959,49 +1016,53 @@ where
             } => {
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                let mut request_client = clients
-                    .get(&client)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-                let mut response_client = clients
-                    .get(&from)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-
                 let mut total_sent = 0;
                 let mut total_received = 0;
-                // One transaction held open across every exchange in this Sync,
-                // committed once after the loop (one fact-cache braid instead of
-                // one per exchange).
-                let mut trx = request_client.transaction(*graph_id);
-                for _ in 0..max_syncs {
-                    client_heads.entry((graph, client, from)).or_default();
-                    client_heads.entry((graph, from, client)).or_default();
-                    let mut request_cache = client_heads
-                        .get(&(graph, client, from))
-                        .assume("cache must exist")?
+                // Scope the client borrows so they are released before the
+                // hello cascade below re-borrows the same clients.
+                {
+                    let mut request_client = clients
+                        .get(&client)
+                        .ok_or(TestError::MissingClient)?
                         .borrow_mut();
-                    let mut response_cache = client_heads
-                        .get(&(graph, from, client))
-                        .assume("cache must exist")?
+                    let mut response_client = clients
+                        .get(&from)
+                        .ok_or(TestError::MissingClient)?
                         .borrow_mut();
 
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
-                        &mut trx,
-                        (&mut request_cache, &mut request_client),
-                        (&mut response_cache, &mut response_client),
-                        &mut sink,
-                        *graph_id,
-                        &mut rt_buffers,
-                    )?;
-                    total_received += received;
-                    total_sent += sent;
-                    // Break when no commands are received, meaning the requester has caught up
-                    if received == 0 {
-                        break;
+                    // One transaction held open across every exchange in this Sync,
+                    // committed once after the loop (one fact-cache braid instead of
+                    // one per exchange).
+                    let mut trx = request_client.transaction(*graph_id);
+                    for _ in 0..max_syncs {
+                        client_heads.entry((graph, client, from)).or_default();
+                        client_heads.entry((graph, from, client)).or_default();
+                        let mut request_cache = client_heads
+                            .get(&(graph, client, from))
+                            .assume("cache must exist")?
+                            .borrow_mut();
+                        let mut response_cache = client_heads
+                            .get(&(graph, from, client))
+                            .assume("cache must exist")?
+                            .borrow_mut();
+
+                        let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                            &mut trx,
+                            (&mut request_cache, &mut request_client),
+                            (&mut response_cache, &mut response_client),
+                            &mut sink,
+                            *graph_id,
+                            &mut rt_buffers,
+                        )?;
+                        total_received += received;
+                        total_sent += sent;
+                        // Break when no commands are received, meaning the requester has caught up
+                        if received == 0 {
+                            break;
+                        }
                     }
+                    request_client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
                 }
-                request_client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
 
                 if let Some(mr) = must_receive {
                     assert_eq!(total_received, mr);
@@ -1815,6 +1876,7 @@ test_vectors! {
     generate_graph,
     generate_graph_hello_sync,
     hello_sync,
+    hello_sync_multiple_heads,
     no_such_parent,
     exponential_traversal_regression,
     find_needed_segments_queue_max,

@@ -19,7 +19,7 @@ use crate::{
 
 mod requester;
 mod responder;
-mod wire;
+pub(crate) mod wire;
 
 use requester::SyncRequestMessage;
 pub use requester::SyncRequester;
