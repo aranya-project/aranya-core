@@ -208,13 +208,9 @@ fn sync_graphs(
     let mut trx = dest.transaction(graph_id);
 
     let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+    let session = trx.session_heads(&request_cache);
     let (len, _sent) = syncer
-        .poll(
-            &mut buf,
-            dest.provider(),
-            &mut request_cache,
-            &mut traversal,
-        )
+        .poll(&mut buf, dest.provider(), &session, &mut traversal)
         .context("sync poll failed")?;
 
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
