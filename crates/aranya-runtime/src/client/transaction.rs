@@ -14,6 +14,7 @@ use crate::{
     TraversalBuffer,
     policy::{CommandPlacement, NullSink},
     storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
+    sync::{PeerCache, SessionHeads},
 };
 
 /// Transaction used to receive many commands at once.
@@ -83,7 +84,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// are persisted and reflected in `self.heads`. Does NOT commit or braid.
     ///
     /// `commit` flushes automatically; callers only need this to make
-    /// [`Self::in_flight_heads`] reflect every accumulated command before
+    /// [`Self::session_heads`] reflect every accumulated command before
     /// committing (e.g. to advertise the frontier while syncing).
     pub fn flush(&mut self, storage: &mut SP::Storage) -> Result<(), ClientError> {
         if let Some(p) = Option::take(&mut self.perspective) {
@@ -95,15 +96,15 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         Ok(())
     }
 
-    /// The transaction's accumulated frontier (committed + received-but-uncommitted
-    /// tips), as `LocatedAddress`. Call `flush` first so every accumulated command
-    /// is in a written segment with a real location.
-    pub fn in_flight_heads(&self) -> impl Iterator<Item = LocatedAddress> + '_ {
-        self.heads.iter().map(|(id, loc)| LocatedAddress {
-            id: *id,
-            segment: loc.segment,
-            max_cut: loc.max_cut,
-        })
+    /// The frontier to advertise to a sync peer: the durable cache plus this
+    /// transaction's accumulated (received-but-uncommitted) tips. Call `flush`
+    /// first so every accumulated command is in a written segment with a real
+    /// location.
+    pub fn session_heads<'a>(&'a self, cache: &'a PeerCache) -> SessionHeads<'a> {
+        SessionHeads {
+            cache,
+            session: Some(&self.heads),
+        }
     }
 
     /// Write current perspective, merge transaction heads, and commit to graph.
@@ -1573,10 +1574,10 @@ mod test {
         assert_eq!(storage.get_heads().unwrap().len(), HEADS as usize);
     }
 
-    /// Ingest a couple commands, call `flush`, and assert `in_flight_heads`
+    /// Ingest a couple commands, call `flush`, and assert `session_heads`
     /// yields the expected tip and that the tip is resolvable in storage.
     #[test]
-    fn test_flush_in_flight_heads() {
+    fn test_flush_session_heads() {
         let a: CmdId = id_from_u64(0);
         let b: CmdId = id_from_u64(1);
         let c: CmdId = id_from_u64(2);
@@ -1620,7 +1621,10 @@ mod test {
         trx.flush(storage).expect("flush must succeed");
 
         // The frontier is the single tip `c`.
-        let heads: Vec<LocatedAddress> = trx.in_flight_heads().collect();
+        let heads: Vec<LocatedAddress> = trx
+            .session_heads(&PeerCache::new())
+            .session_iter()
+            .collect();
         assert_eq!(heads.len(), 1, "expected a single tip, got {heads:?}");
         assert_eq!(heads[0].id, c, "tip should be the last command");
 
@@ -1637,6 +1641,195 @@ mod test {
             )
             .unwrap();
         assert!(loc.is_some(), "flushed tip must be resolvable in storage");
+    }
+
+    /// `SyncRequester::poll` must advertise the transaction's flushed,
+    /// uncommitted frontier when given session heads, with the durable
+    /// cache read-only.
+    #[test]
+    fn test_poll_advertises_session_heads() {
+        use crate::sync::{
+            MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequestMessage, SyncRequester, wire::SyncType,
+        };
+
+        let a: CmdId = id_from_u64(0);
+        let b: CmdId = id_from_u64(1);
+        let c: CmdId = id_from_u64(2);
+        let graph_id = GraphId::transmute(a);
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        // Commit `a` so the graph exists.
+        let mut trx = Transaction::new(graph_id);
+        let init = SeqCommand::new(a, Prior::None, MaxCut::new(0));
+        trx.add_commands(
+            &[init],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init must succeed");
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("commit must succeed");
+
+        // Ingest b -> c in an open transaction and flush; `c` is the
+        // in-flight tip, present in storage but not committed.
+        let mut trx = Transaction::new(graph_id);
+        let cmd_b = SeqCommand::new(
+            b,
+            Prior::Single(Address {
+                id: a,
+                max_cut: MaxCut::new(0),
+            }),
+            MaxCut::new(1),
+        );
+        let cmd_c = SeqCommand::new(
+            c,
+            Prior::Single(Address {
+                id: b,
+                max_cut: MaxCut::new(1),
+            }),
+            MaxCut::new(2),
+        );
+        trx.add_commands(
+            &[cmd_b, cmd_c],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("ingest must succeed");
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        trx.flush(storage).expect("flush must succeed");
+
+        let cache = PeerCache::new();
+        let session = trx.session_heads(&cache);
+        let mut syncer = SyncRequester::new(graph_id, aranya_crypto::Rng);
+        let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, sent) = syncer
+            .poll(
+                &mut target,
+                &mut client.provider,
+                &session,
+                &mut buffers.traversal.primary,
+            )
+            .expect("poll must succeed");
+        assert!(sent > 0, "sample must not be empty");
+
+        let (message, _): (SyncType, &[u8]) =
+            postcard::take_from_bytes(&target[..len]).expect("message must decode");
+        let SyncType::Poll {
+            request: SyncRequestMessage::SyncRequest { commands, .. },
+        } = message
+        else {
+            panic!("expected a poll sync request, got {message:?}");
+        };
+        assert!(
+            commands.iter().any(|addr| addr.id == c),
+            "sample must advertise the in-flight tip: {commands:?}"
+        );
+    }
+
+    /// The durable `PeerCache` derives locations from committed storage,
+    /// so a flushed-but-uncommitted command cannot enter it.
+    #[test]
+    fn test_peer_cache_rejects_uncommitted() {
+        use crate::sync::PeerCache;
+
+        let a: CmdId = id_from_u64(0);
+        let b: CmdId = id_from_u64(1);
+        let graph_id = GraphId::transmute(a);
+        let addr_a = Address {
+            id: a,
+            max_cut: MaxCut::new(0),
+        };
+        let addr_b = Address {
+            id: b,
+            max_cut: MaxCut::new(1),
+        };
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        // Commit `a`, then flush (but do not commit) `b`.
+        let mut trx = Transaction::new(graph_id);
+        let init = SeqCommand::new(a, Prior::None, MaxCut::new(0));
+        trx.add_commands(
+            &[init],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init must succeed");
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("commit must succeed");
+
+        let mut trx = Transaction::new(graph_id);
+        let cmd_b = SeqCommand::new(b, Prior::Single(addr_a), MaxCut::new(1));
+        trx.add_commands(
+            &[cmd_b],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("ingest must succeed");
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        trx.flush(storage).expect("flush must succeed");
+
+        // `b` is in storage (flushed) but not committed: the cache must
+        // ignore it.
+        let mut cache = PeerCache::new();
+        cache
+            .add_command(storage, addr_b, &mut buffers.traversal.primary)
+            .expect("add_command must not error");
+        assert!(
+            cache.heads().is_empty(),
+            "uncommitted command must not enter the cache: {:?}",
+            cache.heads()
+        );
+
+        // Committed `a` is accepted.
+        cache
+            .add_command(storage, addr_a, &mut buffers.traversal.primary)
+            .expect("add_command must not error");
+        assert_eq!(cache.heads().len(), 1);
+        assert_eq!(cache.heads()[0].id, a);
+
+        // Once committed, `b` is accepted and supersedes its ancestor `a`.
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("commit must succeed");
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        cache
+            .add_command(storage, addr_b, &mut buffers.traversal.primary)
+            .expect("add_command must not error");
+        assert_eq!(cache.heads().len(), 1);
+        assert_eq!(cache.heads()[0].id, b);
     }
 
     #[test]

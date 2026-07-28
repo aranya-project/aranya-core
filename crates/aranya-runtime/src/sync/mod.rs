@@ -14,18 +14,59 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Address, MaxCut, Prior,
     command::{CmdId, Command, Priority},
-    storage::{GraphId, MAX_COMMAND_LENGTH, StorageError},
+    storage::{GraphId, LocatedAddress, Location, MAX_COMMAND_LENGTH, StorageError},
 };
 
 mod requester;
 mod responder;
 pub(crate) mod wire;
 
-use requester::SyncRequestMessage;
+pub(crate) use requester::SyncRequestMessage;
 pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
 use wire::{SubscribeResult, SyncHelloType, SyncType};
+
+/// The frontier a requester advertises during a sync session: committed
+/// commands the peer is known to have ([`PeerCache`]) plus, when a
+/// transaction is open, its uncommitted heads. Construct with
+/// [`PeerCache::session_heads`] or `Transaction::session_heads`. Borrowing
+/// the transaction keeps uncommitted heads from outliving it: `commit`
+/// consumes the transaction, so they can never be held across a commit or
+/// persisted.
+pub struct SessionHeads<'a> {
+    pub(crate) cache: &'a PeerCache,
+    pub(crate) session: Option<&'a alloc::collections::BTreeMap<CmdId, Location>>,
+}
+
+impl SessionHeads<'_> {
+    /// The open transaction's uncommitted frontier, if any.
+    pub(crate) fn session_iter(&self) -> impl Iterator<Item = LocatedAddress> + '_ {
+        self.session
+            .into_iter()
+            .flatten()
+            .map(|(id, loc)| LocatedAddress {
+                id: *id,
+                segment: loc.segment,
+                max_cut: loc.max_cut,
+            })
+    }
+
+    /// Committed commands the peer is known to have.
+    pub(crate) fn cache_heads(&self) -> &[LocatedAddress] {
+        self.cache.heads()
+    }
+}
+
+impl PeerCache {
+    /// The frontier to advertise to a sync peer when no transaction is open.
+    pub fn session_heads(&self) -> SessionHeads<'_> {
+        SessionHeads {
+            cache: self,
+            session: None,
+        }
+    }
+}
 
 // TODO: These should all be compile time parameters
 

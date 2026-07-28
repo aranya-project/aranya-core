@@ -6,11 +6,11 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, PushIncoming,
-    REQUEST_MISSING_MAX, SyncCommand, SyncError, responder::SyncResponseMessage, wire::SyncType,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PushIncoming, REQUEST_MISSING_MAX, SessionHeads,
+    SyncCommand, SyncError, responder::SyncResponseMessage, wire::SyncType,
 };
 use crate::{
-    Address, GraphId, Location, TraversalBuffer,
+    Address, GraphId, LocatedAddress, Location, TraversalBuffer,
     storage::{Segment as _, Storage as _, StorageError, StorageProvider},
 };
 
@@ -146,11 +146,18 @@ impl SyncRequester {
 
     /// Write a sync message in to the target buffer. Returns the number
     /// of bytes written and the number of commands sent in the sample.
+    ///
+    /// `heads` is the frontier to advertise: [`PeerCache::session_heads`]
+    /// when no transaction is open, or `Transaction::session_heads` to also
+    /// advertise an open transaction's uncommitted frontier so progressive
+    /// fetch advances across exchanges before commit.
+    ///
+    /// [`PeerCache::session_heads`]: super::PeerCache::session_heads
     pub fn poll(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &SessionHeads<'_>,
         buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
@@ -347,7 +354,7 @@ impl SyncRequester {
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-        peer_cache: &mut PeerCache,
+        heads: &SessionHeads<'_>,
         buffer: &mut TraversalBuffer,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
@@ -358,12 +365,32 @@ impl SyncRequester {
                 return Err(SyncError::Storage(err));
             }
             Ok(storage) => {
-                let mut cache_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
-                for head in peer_cache.heads() {
-                    cache_locations
-                        .push(head.location())
-                        .ok()
-                        .assume("command locations should not be full")?;
+                // Session heads first: an open transaction's frontier is the
+                // freshest statement of what we hold.
+                let mut cache_locations: vec::Vec<Location> = vec::Vec::new();
+                let session_heads: vec::Vec<LocatedAddress> = heads.session_iter().collect();
+                for head in &session_heads {
+                    cache_locations.push(head.location());
+                    if commands.len() < COMMAND_SAMPLE_MAX {
+                        commands
+                            .push(head.address())
+                            .map_err(|_| SyncError::CommandOverflow)?;
+                    }
+                }
+                'cache: for head in heads.cache_heads() {
+                    // Skip cache entries the session frontier supersedes.
+                    for session_head in &session_heads {
+                        if head.id == session_head.id
+                            || storage.is_ancestor(
+                                head.location(),
+                                session_head.location(),
+                                buffer,
+                            )?
+                        {
+                            continue 'cache;
+                        }
+                    }
+                    cache_locations.push(head.location());
                     if commands.len() < COMMAND_SAMPLE_MAX {
                         commands
                             .push(head.address())
@@ -376,7 +403,7 @@ impl SyncRequester {
                 let mut current: vec::Vec<Location> = storage
                     .get_heads()?
                     .iter()
-                    .map(crate::LocatedAddress::location)
+                    .map(LocatedAddress::location)
                     .collect();
 
                 // Here we just get the first command from the most recent
@@ -423,7 +450,7 @@ impl SyncRequester {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &SessionHeads<'_>,
         remain_open: u64,
         max_bytes: u64,
         buffer: &mut TraversalBuffer,
@@ -453,7 +480,7 @@ impl SyncRequester {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &SessionHeads<'_>,
         buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
