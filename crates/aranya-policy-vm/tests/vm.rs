@@ -1163,6 +1163,43 @@ fn test_match_expression() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_match_optional_binding() -> anyhow::Result<()> {
+    let text = r#"
+        command F {
+            fields { x int }
+            seal { return todo() }
+            open { return todo() }
+            policy {}
+        }
+        action foo(o option[int]) {
+            let y = match o {
+                Some(n) => n
+                None => 0
+            }
+            publish F { x: y }
+        }
+    "#;
+    let machine = compile(text);
+    let mut io = TestIO::new();
+    let mut published = Vec::new();
+    let name = ident!("foo");
+
+    // None arm
+    let mut rs = machine.create_run_state(&mut io, dummy_ctx_action(name.clone()));
+    call_action(&mut rs, &mut published, name.clone(), [Value::NONE])?.success();
+    assert_eq!(published, [vm_struct!(F { x: 0 })],);
+    published.clear();
+    drop(rs);
+
+    // Some(n) binding arm
+    let mut rs = machine.create_run_state(&mut io, dummy_ctx_action(name.clone()));
+    call_action(&mut rs, &mut published, name, [Some(42)])?.success();
+    assert_eq!(published, [vm_struct!(F { x: 42 })],);
+
+    Ok(())
+}
+
+#[test]
 fn test_is_some_statement() -> anyhow::Result<()> {
     let name = ident!("check_none");
     let machine = compile(POLICY_IS);
