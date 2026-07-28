@@ -185,11 +185,13 @@ pub fn dispatch(
 ///
 /// Models the daemon's hello protocol: when a client's graph changes, each
 /// subscriber is sent a wire-encoded `Hello` notification carrying the
-/// publisher's head address (obtained via [`ClientState::head_address`], the
-/// same call the daemon makes). A subscriber that already has the advertised
-/// command does not sync; otherwise it syncs from the publisher, and if it
-/// receives new data it becomes a "changed client" whose own subscribers are
-/// notified. This repeats until no new data flows or `max_depth` is exceeded.
+/// publisher's advertised head ([`ClientState::hello_head`]: the head itself,
+/// or the virtual synthetic merge of a multi-head set). A subscriber for
+/// which the advertisement signals nothing new
+/// ([`ClientState::should_sync_on_hello`]) does not sync; otherwise it syncs
+/// from the publisher, and if it receives new data it becomes a "changed
+/// client" whose own subscribers are notified. This repeats until no new
+/// data flows or `max_depth` is exceeded.
 #[allow(clippy::too_many_arguments)]
 fn process_hello_notifications<SP: StorageProvider>(
     graph: u64,
@@ -232,12 +234,13 @@ fn process_hello_notifications<SP: StorageProvider>(
                 );
 
                 // The publisher builds the notification the same way the
-                // daemon does: a single head address on the wire.
+                // daemon does: a single head address on the wire. A
+                // multi-head graph advertises its virtual synthetic head.
                 let head = clients
                     .get(&publisher)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut()
-                    .head_address(graph_id)?;
+                    .hello_head(graph_id)?;
 
                 // Round-trip the notification through the wire format.
                 let mut wire = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -258,13 +261,13 @@ fn process_hello_notifications<SP: StorageProvider>(
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                // The subscriber only syncs if the advertised command is new
-                // to it.
-                let known = request_client.command_exists(
+                // The subscriber only syncs if the advertised head signals
+                // state it does not hold.
+                let needs_sync = request_client.should_sync_on_hello(
                     notification.graph_id(),
                     notification.head(),
                     &mut rt_buffers.traversal.primary,
-                );
+                )?;
 
                 client_heads
                     .entry((graph, subscriber, publisher))
@@ -274,7 +277,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                     .or_default();
 
                 let mut received = 0;
-                if !known {
+                if needs_sync {
                     let mut request_cache = client_heads
                         .get(&(graph, subscriber, publisher))
                         .assume("cache must exist")?
@@ -309,17 +312,25 @@ fn process_hello_notifications<SP: StorageProvider>(
                 }
 
                 // Track the advertised head in the subscriber's cache for the
-                // publisher, whether or not a sync ran.
-                let mut request_cache = client_heads
-                    .get(&(graph, subscriber, publisher))
-                    .assume("cache must exist")?
-                    .borrow_mut();
-                request_client.update_heads(
+                // publisher. A multi-head publisher advertises a virtual
+                // merge that exists in no one's storage, so only locatable
+                // commands go in the cache.
+                if request_client.command_exists(
                     notification.graph_id(),
-                    [notification.head()],
-                    &mut request_cache,
+                    notification.head(),
                     &mut rt_buffers.traversal.primary,
-                )?;
+                ) {
+                    let mut request_cache = client_heads
+                        .get(&(graph, subscriber, publisher))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    request_client.update_heads(
+                        notification.graph_id(),
+                        [notification.head()],
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
+                    )?;
+                }
 
                 if received > 0 {
                     debug!(
@@ -1876,6 +1887,7 @@ test_vectors! {
     generate_graph,
     generate_graph_hello_sync,
     hello_sync,
+    hello_sync_extended_head,
     hello_sync_multiple_heads,
     no_such_parent,
     exponential_traversal_regression,

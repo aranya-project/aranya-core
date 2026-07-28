@@ -516,6 +516,27 @@ where
 /// Pairwise-merge a head set down to a single head, writing merge segments.
 /// Returns the resulting single head location. A one-element set is returned
 /// as-is (no merge).
+/// Deterministic pairwise fold over a head set: pop two entries off the
+/// front, combine them, push the result on the back, until one remains.
+///
+/// Both [`collapse_heads`] and [`synthetic_head`] fold through this function
+/// so they always pair heads identically — that shared pairing is what makes
+/// the virtual head computed by one peer equal the merge another peer
+/// materializes from the same head set.
+fn fold_merge_pairs<E>(
+    entries: impl IntoIterator<Item = E>,
+    mut step: impl FnMut(E, E) -> Result<E, ClientError>,
+) -> Result<E, ClientError> {
+    let mut q: VecDeque<E> = entries.into_iter().collect();
+    while let Some(left) = q.pop_front() {
+        let Some(right) = q.pop_front() else {
+            return Ok(left);
+        };
+        q.push_back(step(left, right)?);
+    }
+    bug!("head set was empty");
+}
+
 pub(crate) fn collapse_heads<S, PS, F, MS>(
     storage: &mut S,
     policy_store: &mut PS,
@@ -529,19 +550,13 @@ where
     F: Spill,
     MS: Fn() -> Result<F, StorageError>,
 {
-    let mut q: VecDeque<LocatedAddress> = heads.iter().collect();
-
     // The multi-head state being collapsed was produced by a `commit` that
     // already braided these same heads and emitted their effects in converged
     // order. Re-braiding the identical head set yields no new effects (braid
     // order is a stable global sort by `(priority, id)`), so emitting again
     // would only duplicate what `commit` delivered.
     let mut null = NullSink;
-    while let Some(mut left) = q.pop_front() {
-        let Some(mut right) = q.pop_front() else {
-            return Ok(left.location());
-        };
-
+    let merged = fold_merge_pairs(heads.iter(), |mut left, mut right| {
         let (policy, policy_id) =
             choose_policy(storage, policy_store, left.location(), right.location())?;
 
@@ -573,14 +588,69 @@ where
         perspective.add_command(&command)?;
         let segment = storage.write(perspective)?;
         let loc = segment.head_location()?;
-        q.push_back(LocatedAddress {
+        Ok(LocatedAddress {
             id: segment.head_id(),
             segment: loc.segment,
             max_cut: loc.max_cut,
-        });
+        })
+    })?;
+    Ok(merged.location())
+}
+
+/// Computes the address a graph advertises to signal its state to peers
+/// (e.g. in a sync hello notification).
+///
+/// A single-head graph advertises its head. A multi-head graph advertises
+/// the merge its head set would collapse to, built with the same pairwise
+/// fold as [`collapse_heads`] but never written to storage. Merges are
+/// deterministic, so a peer holding the same head set computes the same
+/// address, and a peer that already collapsed these heads (by writing a
+/// command on top) has this exact command committed in its graph.
+pub(crate) fn synthetic_head<S, PS>(
+    storage: &S,
+    policy_store: &PS,
+    heads: &HeadSet,
+) -> Result<Address, ClientError>
+where
+    S: Storage,
+    PS: PolicyStore,
+{
+    if heads.len() == 1 {
+        let only = heads.iter().next().assume("head set has one head")?;
+        return Ok(only.address());
     }
 
-    bug!("head set was empty");
+    // Each entry carries the policy chosen so far: virtual merges have no
+    // segment to read a policy id from, and a merge's policy is the
+    // max-serial policy of its inputs — the same choice `choose_policy`
+    // makes from segments in `collapse_heads`.
+    struct Entry<'a, P> {
+        addr: Address,
+        policy: &'a P,
+    }
+
+    let entries = heads
+        .iter()
+        .map(|head| {
+            let (policy, _) = get_policy(storage, policy_store, head.location())?;
+            Ok(Entry {
+                addr: head.address(),
+                policy,
+            })
+        })
+        .collect::<Result<Vec<_>, ClientError>>()?;
+
+    let folded = fold_merge_pairs(entries, |left, right| {
+        let policy = core::cmp::max_by_key(left.policy, right.policy, |p| p.serial());
+        let merge_ids = MergeIds::new(left.addr, right.addr).assume("merging different ids")?;
+        let mut buf = [0u8; MAX_COMMAND_LENGTH];
+        let command = policy.merge(&mut buf, merge_ids)?;
+        Ok(Entry {
+            addr: command.address()?,
+            policy,
+        })
+    })?;
+    Ok(folded.addr)
 }
 
 /// Select the policy from two locations with the greatest serial value.
@@ -619,6 +689,7 @@ mod test {
     use super::*;
     use crate::{
         Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
+        TraversalBuffer,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -1214,6 +1285,230 @@ mod test {
     /// Build a [`CmdId`] deterministically from a counter value.
     fn id_from_u64(n: u64) -> CmdId {
         hash_for_testing_only(&n.to_le_bytes())
+    }
+
+    /// Builds a committed graph: init `0`, plus one sibling tip per element
+    /// of `sibs` (each a child of init), ingested in the given order.
+    fn client_with_sibling_heads(
+        sibs: &[u64],
+    ) -> (ClientState<SeqPolicyStore, MemStorageProvider>, GraphId) {
+        let init_id: CmdId = id_from_u64(0);
+        let graph_id = GraphId::transmute(init_id);
+        let init_addr = Address {
+            id: init_id,
+            max_cut: MaxCut::new(0),
+        };
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut trx = Transaction::new(graph_id);
+        let mut buffers = RuntimeBuffers::new();
+
+        trx.add_commands(
+            &[SeqCommand::new(init_id, Prior::None, MaxCut::new(0))],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init must succeed");
+
+        for &i in sibs {
+            let cmd = SeqCommand::new(id_from_u64(i), Prior::Single(init_addr), MaxCut::new(1));
+            trx.add_commands(
+                &[cmd],
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("sibling ingest must succeed");
+        }
+
+        assert!(
+            trx.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("commit must succeed")
+        );
+        (client, graph_id)
+    }
+
+    /// Ingests a single command on top of `parent` and commits it.
+    fn extend_and_commit(
+        client: &mut ClientState<SeqPolicyStore, MemStorageProvider>,
+        graph_id: GraphId,
+        id: u64,
+        parent: Address,
+    ) {
+        let mut trx = Transaction::new(graph_id);
+        let mut buffers = RuntimeBuffers::new();
+        let cmd = SeqCommand::new(
+            id_from_u64(id),
+            Prior::Single(parent),
+            parent.max_cut.checked_add(1).unwrap(),
+        );
+        trx.add_commands(
+            &[cmd],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("extend ingest must succeed");
+        assert!(
+            trx.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("extend commit must succeed")
+        );
+    }
+
+    /// A single-head graph advertises its head itself.
+    #[test]
+    fn test_hello_head_single_head() {
+        let (mut client, graph_id) = client_with_sibling_heads(&[1]);
+        let expected = client.head_address(graph_id).unwrap();
+        assert_eq!(client.hello_head(graph_id).unwrap(), expected);
+    }
+
+    /// Peers holding the same head set compute the same virtual head, no
+    /// matter what order they ingested the tips in — and the virtual head is
+    /// not a real command in either graph.
+    #[test]
+    fn test_hello_head_deterministic_across_ingest_order() {
+        let (mut a, graph_id) = client_with_sibling_heads(&[1, 2, 3]);
+        let (mut b, _) = client_with_sibling_heads(&[3, 1, 2]);
+
+        let advertised = a.hello_head(graph_id).unwrap();
+        assert_eq!(advertised, b.hello_head(graph_id).unwrap());
+
+        let mut buffer = TraversalBuffer::new();
+        let storage = a.provider.get_storage(graph_id).unwrap();
+        assert!(
+            storage
+                .get_location(advertised, &mut buffer)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    /// The virtual head equals the merge that `collapse_heads` materializes
+    /// from the same head set — the property that lets a peer who already
+    /// collapsed these heads recognize the advertisement.
+    #[test]
+    fn test_hello_head_matches_materialized_collapse() {
+        let (mut client, graph_id) = client_with_sibling_heads(&[1, 2, 3]);
+        let advertised = client.hello_head(graph_id).unwrap();
+
+        let mut buffers = RuntimeBuffers::new();
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        let heads = storage.get_heads().unwrap().clone();
+        let loc = collapse_heads::<_, _, MemSpill, _>(
+            storage,
+            &mut client.policy_store,
+            heads,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .unwrap();
+
+        let segment = storage.get_segment(loc).unwrap();
+        assert_eq!(segment.head_id(), advertised.id);
+        assert_eq!(loc.max_cut, advertised.max_cut);
+    }
+
+    #[test]
+    fn test_should_sync_on_hello() {
+        let (mut publisher, graph_id) = client_with_sibling_heads(&[1, 2]);
+        let advertised = publisher.hello_head(graph_id).unwrap();
+        let mut buffer = TraversalBuffer::new();
+
+        // Same head set: the peer computes the same virtual head.
+        let (mut same, _) = client_with_sibling_heads(&[2, 1]);
+        assert!(
+            !same
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Behind: a peer missing part of the publisher's state syncs.
+        let (mut behind, _) = client_with_sibling_heads(&[1]);
+        assert!(
+            behind
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Missing graph: sync.
+        let mut fresh = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        assert!(
+            fresh
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Ahead through collapse: a peer that materialized and committed the
+        // same merge (what an action does) and moved past it recognizes the
+        // advertised command as part of its graph.
+        let (mut ahead, _) = client_with_sibling_heads(&[1, 2]);
+        {
+            let mut buffers = RuntimeBuffers::new();
+            let storage = ahead.provider.get_storage(graph_id).unwrap();
+            let heads = storage.get_heads().unwrap().clone();
+            let loc = collapse_heads::<_, _, MemSpill, _>(
+                storage,
+                &mut ahead.policy_store,
+                heads,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .unwrap();
+            let segment = storage.get_segment(loc).unwrap();
+            let facts = segment.facts().unwrap();
+            storage
+                .commit_heads(
+                    HeadSet::single(LocatedAddress {
+                        id: segment.head_id(),
+                        segment: loc.segment,
+                        max_cut: loc.max_cut,
+                    }),
+                    facts,
+                )
+                .unwrap();
+        }
+        extend_and_commit(&mut ahead, graph_id, 9, advertised);
+        assert_ne!(ahead.hello_head(graph_id).unwrap(), advertised);
+        assert!(
+            !ahead
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Extended head: a peer that extended one of the publisher's heads
+        // fails both checks — the accepted false positive costing one sync
+        // that transfers nothing.
+        let (mut extended, _) = client_with_sibling_heads(&[1, 2]);
+        let sibling = Address {
+            id: id_from_u64(1),
+            max_cut: MaxCut::new(1),
+        };
+        extend_and_commit(&mut extended, graph_id, 7, sibling);
+        assert!(
+            extended
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
     }
 
     /// The head set is unbounded: ingest more divergent tips (all children of

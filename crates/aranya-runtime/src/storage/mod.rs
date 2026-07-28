@@ -809,7 +809,9 @@ pub trait Storage {
     ///
     /// Errors with [`StorageError::MultipleHeads`] on a multi-head (lazy-merge)
     /// graph, where there is no single head to report. Callers that may face a
-    /// multi-head graph should use [`get_heads`](Self::get_heads) instead.
+    /// multi-head graph should use [`get_heads`](Self::get_heads) instead, or
+    /// [`ClientState::hello_head`](crate::ClientState::hello_head) when
+    /// advertising graph state to peers.
     ///
     /// An initialized graph always has at least one head, so an empty head set
     /// is treated as an invariant violation (a [`Bug`]).

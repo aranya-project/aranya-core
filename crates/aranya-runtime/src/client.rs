@@ -224,6 +224,47 @@ where
         Ok(address)
     }
 
+    /// Returns the address to advertise in a sync hello notification.
+    ///
+    /// A single-head graph advertises its head. A multi-head graph advertises
+    /// the deterministic merge its head set would collapse to, computed
+    /// without writing anything to storage: a peer holding the same head set
+    /// computes the same address, and a peer that already collapsed these
+    /// heads (by committing a command on top) has this exact command in its
+    /// graph. See [`Self::should_sync_on_hello`] for the receiving side.
+    pub fn hello_head(&mut self, graph_id: GraphId) -> Result<Address, ClientError> {
+        let storage = &*self.provider.get_storage(graph_id)?;
+        let heads = storage.get_heads()?;
+        transaction::synthetic_head(storage, &self.policy_store, heads)
+    }
+
+    /// Returns whether a hello notification advertising `head` warrants
+    /// syncing from that peer.
+    ///
+    /// No sync is needed if the advertised address matches this graph's own
+    /// [`Self::hello_head`] (both sides hold the same head set) or if the
+    /// command is already in the graph (this side is ahead). A peer that has
+    /// extended one of our heads advertises an address that fails both
+    /// checks, costing one sync that transfers nothing; that false positive
+    /// is accepted. A missing graph always warrants a sync.
+    pub fn should_sync_on_hello(
+        &mut self,
+        graph_id: GraphId,
+        head: Address,
+        buffer: &mut TraversalBuffer,
+    ) -> Result<bool, ClientError> {
+        match self.provider.get_storage(graph_id) {
+            Err(StorageError::NoSuchStorage) => return Ok(true),
+            Err(e) => return Err(e.into()),
+            Ok(_) => {}
+        }
+        if self.hello_head(graph_id)? == head {
+            return Ok(false);
+        }
+        let storage = self.provider.get_storage(graph_id)?;
+        Ok(storage.get_location(head, buffer)?.is_none())
+    }
+
     /// Performs an `action`, writing the results to `sink`.
     ///
     /// `make_spill` is called whenever collapsing a multi-head graph needs
