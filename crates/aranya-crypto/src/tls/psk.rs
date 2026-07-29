@@ -413,3 +413,34 @@ impl fmt::Display for PskId {
         Hex::new(self.as_bytes()).fmt(f)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Rng, default::DefaultCipherSuite};
+
+    type CS = DefaultCipherSuite;
+
+    /// Exercises both the happy path and the "same
+    /// `EncryptionKey`" error path of
+    /// [`EncryptionKey::seal_psk_seed`].
+    #[test]
+    fn test_seal_psk_seed_same_key() {
+        let group = GroupId::default();
+        let sk1 = EncryptionKey::<CS>::new(Rng);
+        let sk2 = EncryptionKey::<CS>::new(Rng);
+        let pk2 = sk2.public().expect("encryption public key should be valid");
+        let seed = PskSeed::<CS>::new(Rng, &group);
+
+        // Happy path: sealing for a different peer key succeeds.
+        sk1.seal_psk_seed(Rng, &seed, &pk2, &group)
+            .expect("`seal_psk_seed` should succeed for a different peer key");
+
+        // Error path: sealing for our own public key is rejected.
+        let pk1 = sk1.public().expect("encryption public key should be valid");
+        let err = sk1
+            .seal_psk_seed(Rng, &seed, &pk1, &group)
+            .expect_err("`seal_psk_seed` should reject sealing to ourselves");
+        assert!(matches!(err, Error::InvalidArgument(_)), "got {err:?}");
+    }
+}

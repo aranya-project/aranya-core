@@ -190,3 +190,53 @@ impl<T: KeyStore> KeyStoreExt for T {
         }
     }
 }
+
+#[cfg(all(test, feature = "memstore"))]
+mod tests {
+    use crate::{
+        Rng,
+        aranya::EncryptionKey,
+        default::{DefaultCipherSuite, DefaultEngine},
+        keystore::{KeyStoreExt as _, memstore::MemStore},
+    };
+
+    type CS = DefaultCipherSuite;
+    type Key = EncryptionKey<CS>;
+
+    /// Exercises both the `Some` (present) and `None` (absent)
+    /// arms of [`KeyStoreExt::get_key`] and
+    /// [`KeyStoreExt::remove_key`].
+    #[test]
+    fn test_get_remove_key_present_and_absent() {
+        let (eng, _) = DefaultEngine::<Rng, CS>::from_entropy(Rng);
+        let mut store = MemStore::new();
+
+        let id = store
+            .insert_key(&eng, Key::new(&eng))
+            .expect("should be able to insert key");
+
+        // Present: `get_key` takes the `Some` arm.
+        let got = store
+            .get_key::<_, Key>(&eng, id)
+            .expect("`get_key` should not fail");
+        assert!(got.is_some(), "stored key should be found");
+
+        // Present: `remove_key` takes the `Some` arm.
+        let removed = store
+            .remove_key::<_, Key>(&eng, id)
+            .expect("`remove_key` should not fail");
+        assert!(removed.is_some(), "stored key should be removed");
+
+        // Absent: `get_key` takes the `None` arm.
+        let got = store
+            .get_key::<_, Key>(&eng, id)
+            .expect("`get_key` should not fail");
+        assert!(got.is_none(), "removed key should be gone");
+
+        // Absent: `remove_key` takes the `None` arm.
+        let removed = store
+            .remove_key::<_, Key>(&eng, id)
+            .expect("`remove_key` should not fail");
+        assert!(removed.is_none(), "removed key should stay gone");
+    }
+}

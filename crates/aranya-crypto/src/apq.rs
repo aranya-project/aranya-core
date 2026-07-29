@@ -659,10 +659,12 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::arithmetic_side_effects)]
+
     use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust, signer::Signer};
 
     use super::*;
-    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+    use crate::{Rng, default::DhKemP256HkdfSha256, test_util::TestCs};
 
     type CS = TestCs<
         rust::Aes256Gcm,
@@ -744,5 +746,73 @@ mod tests {
 
             assert_eq!(got_id, expected, "test case #{i}");
         }
+    }
+
+    fn sender() -> (SenderPublicKey<CS>, SenderVerifyingKey<CS>) {
+        let enc = SenderSecretKey::<CS>::new(Rng)
+            .public()
+            .expect("sender encryption key should be valid");
+        let sign = SenderSigningKey::<CS>::new(Rng)
+            .public()
+            .expect("sender signing key should be valid");
+        (enc, sign)
+    }
+
+    /// Exercises both the happy path and the "`dst` too small"
+    /// error path of [`TopicKey::seal_message`].
+    #[test]
+    fn test_seal_message_dst_too_small() {
+        let topic = Topic::new("SomeTopic");
+        let version = Version::new(1);
+        let (enc, sign) = sender();
+        let ident = Sender {
+            enc_key: &enc,
+            sign_key: &sign,
+        };
+        let key = TopicKey::<CS>::new(Rng, version, &topic).expect("should create `TopicKey`");
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        // Happy path: `dst` is large enough.
+        let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal_message(Rng, &mut dst, MESSAGE, version, &topic, &ident)
+            .expect("`seal_message` should succeed");
+
+        // Error path: `dst` is shorter than `overhead()`.
+        let mut small = [0u8; 1];
+        let err = key
+            .seal_message(Rng, &mut small, MESSAGE, version, &topic, &ident)
+            .expect_err("`seal_message` should fail when `dst` is too small");
+        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+    }
+
+    /// Exercises both the happy path and the "`ciphertext` too
+    /// short" error path of [`TopicKey::open_message`].
+    #[test]
+    fn test_open_message_ciphertext_too_short() {
+        let topic = Topic::new("SomeTopic");
+        let version = Version::new(1);
+        let (enc, sign) = sender();
+        let ident = Sender {
+            enc_key: &enc,
+            sign_key: &sign,
+        };
+        let key = TopicKey::<CS>::new(Rng, version, &topic).expect("should create `TopicKey`");
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        let mut ciphertext = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal_message(Rng, &mut ciphertext, MESSAGE, version, &topic, &ident)
+            .expect("`seal_message` should succeed");
+
+        // Happy path: decrypt the full ciphertext.
+        let mut plaintext = vec![0u8; ciphertext.len() - key.overhead()];
+        key.open_message(&mut plaintext, &ciphertext, version, &topic, &ident)
+            .expect("`open_message` should succeed");
+        assert_eq!(plaintext, MESSAGE);
+
+        // Error path: `ciphertext` is shorter than `overhead()`.
+        let err = key
+            .open_message(&mut plaintext, b"short", version, &topic, &ident)
+            .expect_err("`open_message` should fail when `ciphertext` is too short");
+        assert!(matches!(err, Error::Open(_)), "got {err:?}");
     }
 }
