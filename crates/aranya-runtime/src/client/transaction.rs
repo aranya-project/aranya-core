@@ -293,12 +293,15 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
         // Ensure there's an open perspective, anchored at the current
         // transaction head, to run the action against.
-        if self.perspective.is_none() {
-            let head = storage.get_head()?;
-            self.phead = Some(storage.get_head_address()?.id);
-            self.perspective = Some(storage.get_linear_perspective(head)?);
-        }
-        let perspective = self.perspective.as_mut().assume("trx has perspective")?;
+        let perspective = match &mut self.perspective {
+            Some(p) => p,
+            None => {
+                let head = storage.get_head()?;
+                self.phead = Some(storage.get_head_address()?.id);
+                self.perspective
+                    .insert(storage.get_linear_perspective(head)?)
+            }
+        };
 
         let policy_id = perspective.policy();
         let policy = policy_store.get_policy(policy_id)?;
@@ -315,8 +318,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         sink.commit();
 
         // Advance the perspective head to the action's last command.
-        if let Prior::Single(addr) = perspective.head_address()? {
-            self.phead = Some(addr.id);
+        match perspective.head_address()? {
+            Prior::Single(addr) => self.phead = Some(addr.id),
+            Prior::None | Prior::Merge(..) => bug!("linear perspective head must be single"),
         }
 
         Ok(())

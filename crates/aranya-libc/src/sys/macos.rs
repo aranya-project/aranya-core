@@ -18,7 +18,7 @@ pub fn fallocate(_fd: BorrowedFd<'_>, _mode: c_int, _off: i64, _len: i64) -> Res
 ///
 /// macOS has no distinct `fdatasync`, so fall back to `fsync`.
 pub fn fdatasync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
-    super::unix::fsync(fd)
+    fsync(fd)
 }
 
 /// See `read(2)`.

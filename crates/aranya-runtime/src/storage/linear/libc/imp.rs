@@ -192,9 +192,7 @@ impl Writer {
         // Preallocate the control region plus a first data chunk so
         // we can start appending from FREE_START forward without
         // extending the file size on every append.
-        let alloc_end = FREE_START
-            .checked_add(PREALLOC_CHUNK)
-            .assume("initial preallocation fits in `i64`")?;
+        let alloc_end = const { FREE_START + PREALLOC_CHUNK };
         file.fallocate(0, alloc_end)?;
         Ok(Self {
             file,
