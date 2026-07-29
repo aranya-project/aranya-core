@@ -51,7 +51,7 @@ pub enum DeserializeError {
 type StructDefs = BTreeMap<Identifier, Vec<FieldDefinition>>;
 
 /// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
-pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
+pub fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
     let mut ctx = SerializeCtx {
         defs,
         out: Vec::new(),
@@ -60,8 +60,8 @@ pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>,
     Ok(ctx.out)
 }
 
-/// Deserialize a [`Struct`] which was serialized with [`deserialize_struct`].
-pub(crate) fn deserialize_struct(
+/// Deserialize a [`Struct`] which was serialized with [`serialize_struct`].
+pub fn deserialize_struct(
     defs: &StructDefs,
     name: Identifier,
     bytes: &[u8],

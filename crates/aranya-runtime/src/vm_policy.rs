@@ -563,7 +563,26 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             }
         }
 
-        let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
+        let command_struct = match placement {
+            CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
+                self.open_command(kind.clone(), envelope.clone(), facts)?
+            }
+            CommandPlacement::OnGraphInBraid => {
+                // Bypass real open and just deserialize.
+                aranya_policy_vm::serialize::deserialize_struct(
+                    &self.machine.struct_defs,
+                    kind.clone(),
+                    &envelope.payload,
+                )
+                .map_err(|e| {
+                    error!(
+                        error = %e,
+                        "could not deserialize command during braid"
+                    );
+                    PolicyError::Read
+                })?
+            }
+        };
         let fields: Vec<KVPair> = command_struct
             .fields
             .into_iter()
