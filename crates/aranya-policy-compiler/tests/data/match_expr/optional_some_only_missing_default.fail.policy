@@ -1,0 +1,5 @@
+function f(o option[int]) int {
+    return match o {
+        Some(n) => n
+    }
+}

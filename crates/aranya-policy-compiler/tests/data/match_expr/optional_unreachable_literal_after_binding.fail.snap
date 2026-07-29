@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unreachable match arm
+  |
+3 |         Some(b) | Some(true) => 1
+  |                   ^^^^^^^^^^

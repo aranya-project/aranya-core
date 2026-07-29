@@ -1,0 +1,90 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <action 'test'>: 1,
+    },
+    action_defs: {
+        ActionDef {
+            name: "test" @ 33..37,
+            persistence: Persistent,
+            params: {},
+            result_type: Unit @ 0..0,
+        },
+    },
+    command_defs: {},
+    fact_defs: {
+        "Foo": FactDefinition {
+            immutable: false,
+            identifier: "Foo" @ 5..8,
+            key: [
+                FieldDefinition {
+                    identifier: "i" @ 9..10,
+                    field_type: Int @ 11..14,
+                },
+            ],
+            value: [
+                FieldDefinition {
+                    identifier: "x" @ 18..19,
+                    field_type: Int @ 20..23,
+                },
+            ],
+            span: 0..24,
+        },
+    },
+    struct_defs: {
+        "Foo": [
+            FieldDefinition {
+                identifier: "i" @ 9..10,
+                field_type: Int @ 11..14,
+            },
+            FieldDefinition {
+                identifier: "x" @ 18..19,
+                field_type: Int @ 20..23,
+            },
+        ],
+    },
+    enum_defs: {},
+    globals: {},
+    ..
+}
+---
+    exit panic
+<action 'test'>:
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    query
+    dup
+    is some
+    branch 12
+    dup
+    const None
+    eq
+    branch 19
+<12>:
+    block
+    unwrap some
+    def 'f'
+    get 'f'
+    struct.get 'x'
+    end
+    jump 24
+<19>:
+    block
+    pop
+    const 0
+    end
+    jump 24
+<24>:
+    def 'n'
+    get 'n'
+    const 0
+    eq
+    branch 30
+    exit panic
+<30>:
+    return

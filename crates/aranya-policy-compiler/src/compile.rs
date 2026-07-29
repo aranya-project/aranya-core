@@ -1638,6 +1638,16 @@ impl<'a> CompileState<'a> {
                                     arm_label.clone(),
                                 )));
                             }
+                            thir::ExprKind::Optional(Some(inner))
+                                if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                            {
+                                // Binding pattern Some(x): branch if scrutinee is Some variant
+                                self.append_instruction(Instruction::Dup);
+                                self.append_instruction(Instruction::Is(WrapType::Some));
+                                self.append_instruction(Instruction::Branch(Target::Unresolved(
+                                    arm_label.clone(),
+                                )));
+                            }
                             _ => {
                                 // Literal pattern (including Ok(5), Ok(true), int, bool, etc.)
                                 self.append_instruction(Instruction::Dup);
@@ -1672,8 +1682,9 @@ impl<'a> CompileState<'a> {
 
                     match pattern {
                         thir::MatchPattern::Values(values) => {
-                            // Look for a Result binding pattern (Ok(x) or Err(e) with identifier inner)
-                            let result_binding = values.iter().find_map(|v| match &v.kind {
+                            // Look for a binding pattern (Ok(x), Err(e), or Some(x) with
+                            // identifier inner)
+                            let binding = values.iter().find_map(|v| match &v.kind {
                                 thir::ExprKind::Ok(inner)
                                     if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
                                 {
@@ -1684,9 +1695,14 @@ impl<'a> CompileState<'a> {
                                 {
                                     Some((WrapType::Err, inner))
                                 }
+                                thir::ExprKind::Optional(Some(inner))
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Some, inner))
+                                }
                                 _ => None,
                             });
-                            if let Some((wrap_type, inner)) = result_binding {
+                            if let Some((wrap_type, inner)) = binding {
                                 let thir::ExprKind::Identifier(ident) = &inner.kind else {
                                     bug!("checked above");
                                 };
@@ -1719,8 +1735,9 @@ impl<'a> CompileState<'a> {
 
                     match pattern {
                         thir::MatchPattern::Values(values) => {
-                            // Look for a Result binding pattern (Ok(x) or Err(e) with identifier inner)
-                            let result_binding = values.iter().find_map(|v| match &v.kind {
+                            // Look for a binding pattern (Ok(x), Err(e), or Some(x) with
+                            // identifier inner)
+                            let binding = values.iter().find_map(|v| match &v.kind {
                                 thir::ExprKind::Ok(inner)
                                     if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
                                 {
@@ -1731,9 +1748,14 @@ impl<'a> CompileState<'a> {
                                 {
                                     Some((WrapType::Err, inner))
                                 }
+                                thir::ExprKind::Optional(Some(inner))
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Some, inner))
+                                }
                                 _ => None,
                             });
-                            if let Some((wrap_type, inner)) = result_binding {
+                            if let Some((wrap_type, inner)) = binding {
                                 let thir::ExprKind::Identifier(ident) = &inner.kind else {
                                     bug!("checked above");
                                 };
