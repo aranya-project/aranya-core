@@ -1,8 +1,8 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
-    FunctionDefinition, Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern,
-    MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind,
-    VType, WithSpanExt as _, ident, thir,
+    Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern, MatchStatement,
+    NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
+    WithSpanExt as _, thir,
 };
 use buggy::{BugExt as _, bug};
 
@@ -436,103 +436,7 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                InternalFunction::Serialize(e) => {
-                    match self.get_statement_context()? {
-                        StatementContext::PureFunction(FunctionDefinition {
-                            identifier, ..
-                        }) if identifier == "seal" => {}
-                        ctx => {
-                            let note =
-                                "'serialize' can only be used in the 'seal' block of a command";
-                            return Err(self.err(InvalidExpression(
-                                note,
-                                expression.clone(),
-                                Some(ctx.span()),
-                            )));
-                        }
-                    }
 
-                    let struct_type @ VType {
-                        inner: TypeKind::Struct(_),
-                        ..
-                    } = self
-                        .identifier_types
-                        .get(&ident!("this"))
-                        .assume("seal must have `this`")?
-                    else {
-                        bug!("seal::this must be a struct type");
-                    };
-
-                    let e = self.lower_expression(e)?;
-                    let ty = &e.vtype;
-                    if !ty.fits_type(&struct_type) {
-                        let err = InvalidType::new(
-                            struct_type.to_string(),
-                            Some(struct_type.span),
-                            ty.to_string(),
-                            e.span,
-                        );
-                        return Err(self.err(err));
-                    }
-
-                    let ty = VType {
-                        inner: TypeKind::Bytes,
-                        span: expression.span,
-                    };
-                    thir::Expression {
-                        kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Serialize(
-                            Box::new(e),
-                        )),
-                        vtype: ty,
-                        span: expression.span,
-                    }
-                }
-                InternalFunction::Deserialize(e) => {
-                    // A bit hacky, but you can't manually define a function named "open".
-                    let struct_name = match self.get_statement_context()? {
-                        StatementContext::PureFunction(FunctionDefinition {
-                            identifier,
-                            return_type:
-                                VType {
-                                    inner: TypeKind::Struct(name),
-                                    ..
-                                },
-                            ..
-                        }) if identifier == "open" => name.clone(),
-                        ctx => {
-                            let note =
-                                "'deserialize' can only be used in the 'open' block of a command";
-                            return Err(self.err(InvalidExpression(
-                                note,
-                                expression.clone(),
-                                Some(ctx.span()),
-                            )));
-                        }
-                    };
-
-                    let e = self.lower_expression(e)?;
-                    let ty = &e.vtype;
-                    if !ty.fits_type(&VType {
-                        inner: TypeKind::Bytes,
-                        span: e.span,
-                    }) {
-                        let err =
-                            InvalidType::new("bytes".to_owned(), None, ty.to_string(), e.span);
-                        return Err(self.err(err));
-                    }
-
-                    let ty = VType {
-                        inner: TypeKind::Struct(struct_name),
-                        span: expression.span,
-                    };
-                    thir::Expression {
-                        kind: thir::ExprKind::InternalFunction(
-                            thir::InternalFunction::Deserialize(Box::new(e)),
-                        ),
-                        vtype: ty,
-                        span: expression.span,
-                    }
-                }
                 InternalFunction::Todo(span) => {
                     self.require_debug_mode("todo()", *span)?;
                     thir::Expression {

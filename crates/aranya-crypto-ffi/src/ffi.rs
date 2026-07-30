@@ -24,13 +24,12 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///         let author_sign_sk_id = /* TODO */
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
-///             serialize(this),
+///             payload,
 ///         )
 ///         return envelope::new(
 ///             author_id,
 ///             signed.command_id,
 ///             signed.signature,
-///             payload,
 ///         )
 ///     }
 ///
@@ -38,14 +37,13 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///         let parent_id = envelope::parent_id(envelope)
 ///         let author_id = envelope::author_id(envelope)
 ///         let author_sign_pk = /* TODO */
-///         let command = crypto::verify(
+///         return crypto::verify(
 ///             author_sign_pk,
 ///             parent_id,
-///             envelope::payload(envelope),
+///             payload,
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
 ///         )
-///         return deserialize(command)
 ///     }
 /// }
 ///
@@ -55,26 +53,24 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///         let author_sign_sk_id = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
-///             serialize(this),
+///             payload,
 ///         )
 ///         return envelope::new(
 ///             author_id,
 ///             signed.command_id,
 ///             signed.signature,
-///             payload,
 ///         )
 ///     }
 ///
 ///     open {
 ///         let author_id = envelope::author_id(envelope)
 ///         let author_sign_pk = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
-///         let command = crypto::verify(
+///         return crypto::verify(
 ///             author_sign_pk,
-///             envelope::payload(envelope),
+///             payload,
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
 ///         )
-///         return deserialize(command)
 ///     }
 /// }
 /// ```
@@ -148,7 +144,7 @@ function verify(
     command_bytes bytes,
     command_id id,
     signature bytes,
-) bytes
+) unit
 "#)]
     pub(crate) fn verify<E: Engine>(
         &self,
@@ -159,7 +155,7 @@ function verify(
         command_bytes: Vec<u8>,
         command_id: CmdId,
         signature: Vec<u8>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<(), Error> {
         let CommandContext::Open(ctx) = ctx else {
             return Err(WrongContext("`crypto::verify` used outside of an `open` block").into());
         };
@@ -174,7 +170,7 @@ function verify(
         };
         let id = pk.verify_cmd(cmd, &signature)?;
         if bool::from(id.ct_eq(&command_id)) {
-            Ok(command_bytes)
+            Ok(())
         } else {
             Err(InvalidCmdId(()).into())
         }

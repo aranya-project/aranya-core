@@ -41,15 +41,12 @@ function sign_command(payload bytes, key bytes) struct Envelope {
         author_id,
         signed.command_id,
         signed.signature,
-        payload,
     )
 }
 
 // General open function. Opens an envelope using the given signing key and returns the verified
 // payload.
-function open_command(e struct Envelope, key bytes) bytes {
-    let payload = envelope::payload(e)
-
+function open_command(payload bytes, e struct Envelope, key bytes) bytes {
     let c = crypto::verify(
         key,
         envelope::parent_id(e),
@@ -107,11 +104,8 @@ command Init {
 
     // Note the special case for both seal and open here. The owner key is used explicitly rather
     // than a device key pulled from a fact, because that fact doesn't yet exist.
-    seal { return sign_command(serialize(this), this.owner_key) }
-    open {
-        let owner_key = deserialize(envelope::payload(envelope)).owner_key
-        return deserialize(open_command(envelope, owner_key))
-    }
+    seal { return sign_command(payload, this.owner_key) }
+    open { return open_command(payload, envelope, this.owner_key) }
 
     policy {
         let device_id = device::current_device_id()
@@ -152,10 +146,10 @@ command AddUser {
     }
 
     seal {
-        return sign_command(serialize(this), current_device_key())
+        return sign_command(payload, current_device_key())
     }
     open {
-        return deserialize(open_command(envelope, envelope_author_key(envelope)))
+        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
@@ -198,10 +192,10 @@ command AddDevice {
     }
 
     seal {
-        return sign_command(serialize(this), current_device_key())
+        return sign_command(payload, current_device_key())
     }
     open {
-        return deserialize(open_command(envelope, envelope_author_key(envelope)))
+        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
@@ -248,10 +242,10 @@ command GetDevice {
     }
 
     seal {
-        return sign_command(serialize(this), current_device_key())
+        return sign_command(payload, current_device_key())
     }
     open {
-        return deserialize(open_command(envelope, envelope_author_key(envelope)))
+        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
@@ -295,10 +289,10 @@ command Hello {
     }
 
     seal {
-        return sign_command(serialize(this), current_device_key())
+        return sign_command(payload, current_device_key())
     }
     open {
-        return deserialize(open_command(envelope, envelope_author_key(envelope)))
+        return open_command(envelope, envelope_author_key(envelope))
     }
 
     policy {
