@@ -228,9 +228,6 @@ impl SyncRequester {
                 let mut result = Vec::new();
                 let mut start: usize = 0;
                 for meta in commands {
-                    // The lengths come from the peer, so they may not match the
-                    // payload we actually received. Slice fallibly to avoid
-                    // panicking on a malformed or truncated response.
                     let policy_len = meta.policy_length as usize;
 
                     let policy = match policy_len == 0 {

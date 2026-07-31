@@ -359,7 +359,7 @@ impl SyncResponder {
             }
             // Neither of these is implemented yet, and a peer can send either
             // at any point in a session. Reset the session and report the
-            // error rather than panicking on remote input.
+            // error.
             SyncRequestMessage::RequestMissing { .. } | SyncRequestMessage::SyncResume { .. } => {
                 self.state = SyncResponderState::Reset;
                 return Err(SyncError::UnsupportedRequest);
