@@ -89,18 +89,17 @@ function seal_command(payload bytes) struct Envelope {
 }
 
 // Opens an envelope using the author's public Device Signing Key.
-function open_envelope(payload bytes, sealed_envelope struct Envelope) bytes {
+function open_envelope(payload bytes, sealed_envelope struct Envelope) unit {
     let author_id = envelope::author_id(sealed_envelope)
     let author_sign_pk = check_unwrap query DeviceSignPubKey[device_id: author_id]
 
-    let verified_command = crypto::verify(
+    return crypto::verify(
         author_sign_pk.key,
         envelope::parent_id(sealed_envelope),
         payload,
         envelope::command_id(sealed_envelope),
         envelope::signature(sealed_envelope),
     )
-    return verified_command
 }
 ```
 
