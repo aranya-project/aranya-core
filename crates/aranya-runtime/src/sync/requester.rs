@@ -228,6 +228,9 @@ impl SyncRequester {
                 let mut result = Vec::new();
                 let mut start: usize = 0;
                 for meta in commands {
+                    // The lengths come from the peer, so they may not match the
+                    // payload we actually received. Slice fallibly to avoid
+                    // panicking on a malformed or truncated response.
                     let policy_len = meta.policy_length as usize;
 
                     let policy = match policy_len == 0 {
@@ -235,18 +238,20 @@ impl SyncRequester {
                         false => {
                             let end = start
                                 .checked_add(policy_len)
-                                .assume("start + policy_len mustn't overflow")?;
-                            let policy = &remaining[start..end];
+                                .ok_or(SyncError::MalformedResponse)?;
+                            let policy = remaining
+                                .get(start..end)
+                                .ok_or(SyncError::MalformedResponse)?;
                             start = end;
                             Some(policy)
                         }
                     };
 
                     let len = meta.length as usize;
-                    let end = start
-                        .checked_add(len)
-                        .assume("start + len mustn't overflow")?;
-                    let payload = &remaining[start..end];
+                    let end = start.checked_add(len).ok_or(SyncError::MalformedResponse)?;
+                    let payload = remaining
+                        .get(start..end)
+                        .ok_or(SyncError::MalformedResponse)?;
                     start = end;
 
                     let command = SyncCommand {
