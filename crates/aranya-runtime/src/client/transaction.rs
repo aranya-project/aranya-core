@@ -225,14 +225,26 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 continue;
             }
 
+            // Derive the address from the parents rather than trusting the
+            // command: a forged max cut would evade the duplicate check below
+            // and let the command be added twice.
+            let parent = command.parent();
+            let address = Address {
+                id: command.id(),
+                max_cut: parent.next_max_cut()?,
+            };
+            if command.max_cut()? != address.max_cut {
+                return Err(ClientError::MaxCutMismatch);
+            }
+
             if self
-                .locate(storage, command.address()?, &mut buffers.traversal.primary)?
+                .locate(storage, address, &mut buffers.traversal.primary)?
                 .is_some()
             {
                 // Command already added.
                 continue;
             }
-            match command.parent() {
+            match parent {
                 Prior::None => {
                     if command.id().as_base() == self.graph_id.as_base() {
                         // Graph already initialized, extra init just spurious
@@ -1022,6 +1034,63 @@ mod test {
 
         assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(4));
 
+        let seq = lookup(g, "seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "a:b:c:d:e");
+    }
+
+    /// Replaying a command we already hold must not add it a second time, even
+    /// if the replay claims a max cut of the attacker's choosing.
+    ///
+    /// A command's address is `(id, max_cut)` and duplicates are found by
+    /// address, so a command which reports an unused max cut would be looked up
+    /// at a location nothing occupies, be added again alongside the original,
+    /// and permanently diverge us from our peers.
+    #[test]
+    fn test_replay_with_mutated_max_cut() {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "a";
+            "a" < "b" "c" "d" "e";
+            commit;
+        };
+
+        let graph_id = gb.trx.graph_id;
+        let parent = Prior::Single(gb.get_addr(mkid("b")));
+        let genuine = gb.get_addr(mkid("c"));
+
+        // Same bytes and parent as the "c" we hold, but an unoccupied max cut.
+        let mut trx = Transaction::new(graph_id);
+        let replay = SeqCommand::new(mkid("c"), parent, MaxCut::new(1000));
+        let err = trx
+            .add_commands(
+                &[replay],
+                &mut gb.client.provider,
+                &mut gb.client.policy_store,
+                &mut NullSink,
+                &mut gb.buffers,
+                &MemSpill::new,
+            )
+            .expect_err("replay with a mutated max cut must be rejected");
+        assert!(matches!(err, ClientError::MaxCutMismatch), "{err:?}");
+
+        // With the max cut its parent implies, the replay is deduplicated.
+        let replay = SeqCommand::new(mkid("c"), parent, genuine.max_cut);
+        let added = trx
+            .add_commands(
+                &[replay],
+                &mut gb.client.provider,
+                &mut gb.client.policy_store,
+                &mut NullSink,
+                &mut gb.buffers,
+                &MemSpill::new,
+            )
+            .expect("can add commands");
+        assert_eq!(added, 0, "replay must not be added");
+
+        // The graph is untouched: "c" is committed exactly once.
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
+        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(4));
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "a:b:c:d:e");

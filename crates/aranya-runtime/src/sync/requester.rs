@@ -249,13 +249,19 @@ impl SyncRequester {
                     let payload = &remaining[start..end];
                     start = end;
 
+                    // The parents determine the max cut, so a differing wire
+                    // value means tampering; reject it rather than silently
+                    // normalizing.
+                    if meta.max_cut != meta.parent.next_max_cut()? {
+                        return Err(SyncError::MaxCutMismatch);
+                    }
+
                     let command = SyncCommand {
                         id: meta.id,
                         priority: meta.priority,
                         parent: meta.parent,
                         policy,
                         data: payload,
-                        max_cut: meta.max_cut,
                     };
 
                     result
@@ -475,5 +481,95 @@ impl SyncRequester {
         };
 
         Ok((Self::write(target, message)?, sent))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use test_log::test;
+
+    use super::*;
+    use crate::{
+        Command as _, MaxCut, Prior, Priority, sync::wire::CommandMeta,
+        testing::hash_for_testing_only as mkid,
+    };
+
+    /// Serializes a single-command `SyncResponse` where the command claims the
+    /// given `max_cut`.
+    fn response(session_id: u128, parent: Prior<Address>, max_cut: MaxCut) -> vec::Vec<u8> {
+        const DATA: &[u8] = b"payload";
+
+        let mut commands = Vec::new();
+        commands
+            .push(CommandMeta {
+                id: mkid(b"command"),
+                priority: Priority::Basic(0),
+                parent,
+                policy_length: 0,
+                length: DATA.len() as u32,
+                max_cut,
+            })
+            .expect("can push command");
+
+        let mut bytes = postcard::to_allocvec(&SyncResponseMessage::SyncResponse {
+            session_id,
+            response_index: 0,
+            commands,
+        })
+        .expect("can serialize response");
+        bytes.extend_from_slice(DATA);
+        bytes
+    }
+
+    fn parent() -> Prior<Address> {
+        Prior::Single(Address {
+            id: mkid(b"parent"),
+            max_cut: MaxCut::new(5),
+        })
+    }
+
+    /// A command's max cut comes from its parent, not from the wire, so a peer
+    /// cannot choose the address a command is stored at.
+    #[test]
+    fn max_cut_derived_from_parent() {
+        let graph_id = GraphId::transmute(mkid(b"graph"));
+        let mut requester = SyncRequester::new_session_id(graph_id, 7);
+
+        let bytes = response(7, parent(), MaxCut::new(6));
+        let commands = requester
+            .receive(&bytes)
+            .expect("can receive response")
+            .expect("response has commands");
+
+        let command = &commands[0];
+        assert_eq!(command.max_cut().expect("has max cut"), MaxCut::new(6));
+        assert_eq!(
+            command.address().expect("has address"),
+            Address {
+                id: mkid(b"command"),
+                max_cut: MaxCut::new(6),
+            }
+        );
+    }
+
+    /// A peer which claims a max cut inconsistent with the parent it sent is
+    /// rejected, rather than having the bogus value silently ignored.
+    #[test]
+    fn mutated_max_cut_rejected() {
+        let graph_id = GraphId::transmute(mkid(b"graph"));
+
+        for bogus in [
+            MaxCut::new(0),
+            MaxCut::new(5),
+            MaxCut::new(7),
+            MaxCut::new(9999),
+        ] {
+            let mut requester = SyncRequester::new_session_id(graph_id, 7);
+            let bytes = response(7, parent(), bogus);
+            let err = requester
+                .receive(&bytes)
+                .expect_err("mutated max cut must be rejected");
+            assert!(matches!(err, SyncError::MaxCutMismatch), "{err:?}");
+        }
     }
 }

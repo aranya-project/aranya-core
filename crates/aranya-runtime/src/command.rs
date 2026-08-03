@@ -60,16 +60,15 @@ pub trait Command {
     fn bytes(&self) -> &[u8];
 
     /// Return this command's max cut. Max cut is the maximum distance to the init command.
+    ///
+    /// A command's max cut is fully determined by its parents, so
+    /// implementations should not override this. In particular, an
+    /// implementation whose data comes from a peer must not report a max cut
+    /// taken from the wire: the max cut is part of the command's [`Address`],
+    /// which determines where the command is stored, and a command placed at
+    /// the wrong address can be added to the graph more than once.
     fn max_cut(&self) -> Result<MaxCut, Bug> {
-        match self.parent() {
-            Prior::None => Ok(MaxCut::new(0)),
-            Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
-            Prior::Merge(l, r) => Ok(l
-                .max_cut
-                .max(r.max_cut)
-                .checked_add(1)
-                .assume("must not overflow")?),
-        }
+        self.parent().next_max_cut()
     }
 
     /// Return this command's address.
@@ -142,9 +141,13 @@ pub struct Address {
 
 impl Prior<Address> {
     /// Returns the max cut for the command that is after this prior.
+    ///
+    /// This is the only authoritative source of a command's max cut; see
+    /// [`Command::max_cut`].
     pub fn next_max_cut(&self) -> Result<MaxCut, Bug> {
         Ok(match self {
-            Self::None => MaxCut::new(1),
+            // No prior means the init command, at the origin of the graph.
+            Self::None => MaxCut::new(0),
             Self::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
             Self::Merge(l, r) => l
                 .max_cut
