@@ -66,8 +66,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, CommandExt as _,
+    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
     RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncIncoming,
     SyncRequester, SyncResponder, TraversalBuffer, TraversalBuffers,
     testing::{

@@ -5,10 +5,10 @@ use buggy::{BugExt as _, bug};
 
 use super::braiding;
 use crate::{
-    Address, BraidBuffer, ClientError, CmdId, Command, GraphId, Location, MAX_COMMAND_LENGTH,
-    MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior,
-    Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError, StorageProvider,
-    TraversalBuffer, policy::CommandPlacement, storage::Spill,
+    Address, BraidBuffer, ClientError, CmdId, Command, CommandExt as _, GraphId, Location,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId,
+    PolicyStore, Prior, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError,
+    StorageProvider, TraversalBuffer, policy::CommandPlacement, storage::Spill,
 };
 
 /// Transaction used to receive many commands at once.
@@ -549,7 +549,6 @@ mod test {
     use std::collections::HashMap;
 
     use aranya_crypto::id::{Id, IdTag};
-    use buggy::Bug;
     use test_log::test;
 
     use super::*;
@@ -573,7 +572,6 @@ mod test {
         prior: Prior<Address>,
         finalize: bool,
         data: Box<str>,
-        max_cut: MaxCut,
     }
 
     impl PolicyStore for SeqPolicyStore {
@@ -654,37 +652,28 @@ mod test {
             let parents = [*left.id.as_array(), *right.id.as_array()];
             let id = hash_for_testing_only(parents.as_flattened());
 
-            Ok(SeqCommand::new(
-                id,
-                Prior::Merge(left, right),
-                left.max_cut
-                    .max(right.max_cut)
-                    .checked_add(1)
-                    .assume("must not overflow")?,
-            ))
+            Ok(SeqCommand::new(id, Prior::Merge(left, right)))
         }
     }
 
     impl SeqCommand {
-        fn new(id: CmdId, prior: Prior<Address>, max_cut: MaxCut) -> Self {
+        fn new(id: CmdId, prior: Prior<Address>) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
                 prior,
                 finalize: false,
                 data,
-                max_cut,
             }
         }
 
-        fn finalize(id: CmdId, prev: Address, max_cut: MaxCut) -> Self {
+        fn finalize(id: CmdId, prev: Address) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
                 prior: Prior::Single(prev),
                 finalize: true,
                 data,
-                max_cut,
             }
         }
     }
@@ -727,10 +716,6 @@ mod test {
         fn bytes(&self) -> &[u8] {
             self.data.as_bytes()
         }
-
-        fn max_cut(&self) -> Result<MaxCut, Bug> {
-            Ok(self.max_cut)
-        }
     }
 
     struct NullSink;
@@ -761,7 +746,7 @@ mod test {
             let mut buffers = RuntimeBuffers::new();
             for (max_cut, &id) in ids.iter().enumerate() {
                 let max_cut = MaxCut::new(max_cut as u64);
-                let cmd = SeqCommand::new(id, prior, max_cut);
+                let cmd = SeqCommand::new(id, prior);
                 trx.add_commands(
                     &[cmd],
                     &mut client.provider,
@@ -792,8 +777,8 @@ mod test {
         pub fn line(&mut self, prev: CmdId, ids: &[CmdId]) -> Result<(), ClientError> {
             let mut prev = self.get_addr(prev);
             for &id in ids {
-                let max_cut = prev.max_cut.checked_add(1).unwrap();
-                let cmd = SeqCommand::new(id, Prior::Single(prev), max_cut);
+                let cmd = SeqCommand::new(id, Prior::Single(prev));
+                let max_cut = cmd.max_cut()?;
                 self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
@@ -810,8 +795,8 @@ mod test {
 
         pub fn finalize(&mut self, prev: CmdId, id: CmdId) -> Result<(), ClientError> {
             let prev = self.get_addr(prev);
-            let max_cut = prev.max_cut.checked_add(1).unwrap();
-            let cmd = SeqCommand::finalize(id, prev, max_cut);
+            let cmd = SeqCommand::finalize(id, prev);
+            let max_cut = cmd.max_cut()?;
             self.trx.add_commands(
                 &[cmd],
                 &mut self.client.provider,
@@ -830,12 +815,9 @@ mod test {
             ids: &[CmdId],
         ) -> Result<(), ClientError> {
             let prior = Prior::Merge(self.get_addr(left), self.get_addr(right));
-            let mergecmd = SeqCommand::new(ids[0], prior, prior.next_max_cut().unwrap());
-            let mut prev = Address {
-                id: mergecmd.id,
-                max_cut: mergecmd.max_cut,
-            };
-            self.max_cuts.insert(mergecmd.id, mergecmd.max_cut);
+            let mergecmd = SeqCommand::new(ids[0], prior);
+            let mut prev = mergecmd.address()?;
+            self.max_cuts.insert(prev.id, prev.max_cut);
             self.trx.add_commands(
                 &[mergecmd],
                 &mut self.client.provider,
@@ -845,16 +827,9 @@ mod test {
                 &MemSpill::new,
             )?;
             for &id in &ids[1..] {
-                let cmd = SeqCommand::new(
-                    id,
-                    Prior::Single(prev),
-                    prev.max_cut.checked_add(1).expect("must not overflow"),
-                );
-                prev = Address {
-                    id: cmd.id,
-                    max_cut: cmd.max_cut,
-                };
-                self.max_cuts.insert(cmd.id, cmd.max_cut);
+                let cmd = SeqCommand::new(id, Prior::Single(prev));
+                prev = cmd.address()?;
+                self.max_cuts.insert(prev.id, prev.max_cut);
                 self.trx.add_commands(
                     &[cmd],
                     &mut self.client.provider,
@@ -1205,8 +1180,8 @@ mod test {
         use dot_writer::{Attributes as _, DotWriter, Style};
 
         use crate::{
-            Command as _, FactIndexExtra, Location, Prior, Query, Segment as _, Storage,
-            testing::short_b58,
+            Command as _, CommandExt as _, FactIndexExtra, Location, Prior, Query, Segment as _,
+            Storage, testing::short_b58,
         };
 
         fn loc(location: impl Into<Location>) -> String {

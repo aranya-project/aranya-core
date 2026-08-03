@@ -17,7 +17,7 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientState, Command as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
+    ClientState, CommandExt as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
     SubscribeResponse, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
