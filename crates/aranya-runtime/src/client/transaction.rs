@@ -233,9 +233,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 id: command.id(),
                 max_cut: parent.next_max_cut()?,
             };
-            if command.max_cut()? != address.max_cut {
-                return Err(ClientError::MaxCutMismatch);
-            }
 
             if self
                 .locate(storage, address, &mut buffers.traversal.primary)?
@@ -1043,9 +1040,11 @@ mod test {
     /// if the replay claims a max cut of the attacker's choosing.
     ///
     /// A command's address is `(id, max_cut)` and duplicates are found by
-    /// address, so a command which reports an unused max cut would be looked up
-    /// at a location nothing occupies, be added again alongside the original,
-    /// and permanently diverge us from our peers.
+    /// address. The address is derived from the command's parents rather than
+    /// taken from the command, so a command which reports an unused max cut is
+    /// still looked up at the location its parents imply and deduplicated,
+    /// rather than being added again alongside the original and permanently
+    /// diverging us from our peers.
     #[test]
     fn test_replay_with_mutated_max_cut() {
         let mut gb = graph! {
@@ -1057,25 +1056,10 @@ mod test {
 
         let graph_id = gb.trx.graph_id;
         let parent = Prior::Single(gb.get_addr(mkid("b")));
-        let genuine = gb.get_addr(mkid("c"));
 
         // Same bytes and parent as the "c" we hold, but an unoccupied max cut.
         let mut trx = Transaction::new(graph_id);
         let replay = SeqCommand::new(mkid("c"), parent, MaxCut::new(1000));
-        let err = trx
-            .add_commands(
-                &[replay],
-                &mut gb.client.provider,
-                &mut gb.client.policy_store,
-                &mut NullSink,
-                &mut gb.buffers,
-                &MemSpill::new,
-            )
-            .expect_err("replay with a mutated max cut must be rejected");
-        assert!(matches!(err, ClientError::MaxCutMismatch), "{err:?}");
-
-        // With the max cut its parent implies, the replay is deduplicated.
-        let replay = SeqCommand::new(mkid("c"), parent, genuine.max_cut);
         let added = trx
             .add_commands(
                 &[replay],

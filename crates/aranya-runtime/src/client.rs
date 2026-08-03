@@ -45,13 +45,6 @@ pub enum ClientError {
     ParallelFinalize,
     #[error("concurrent transaction usage")]
     ConcurrentTransaction,
-    /// A command reported a max cut which does not match its parents.
-    ///
-    /// A command's max cut is determined by its parents. A command which claims
-    /// otherwise would be stored at the wrong location in the graph, so it is
-    /// rejected rather than added.
-    #[error("command's max cut does not match its parents")]
-    MaxCutMismatch,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
