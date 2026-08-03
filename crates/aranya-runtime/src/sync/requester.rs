@@ -249,13 +249,6 @@ impl SyncRequester {
                     let payload = &remaining[start..end];
                     start = end;
 
-                    // The parents determine the max cut, so a differing wire
-                    // value means tampering; reject it rather than silently
-                    // normalizing.
-                    if meta.max_cut != meta.parent.next_max_cut()? {
-                        return Err(SyncError::MaxCutMismatch);
-                    }
-
                     let command = SyncCommand {
                         id: meta.id,
                         priority: meta.priority,
@@ -494,9 +487,8 @@ mod test {
         testing::hash_for_testing_only as mkid,
     };
 
-    /// Serializes a single-command `SyncResponse` where the command claims the
-    /// given `max_cut`.
-    fn response(session_id: u128, parent: Prior<Address>, max_cut: MaxCut) -> vec::Vec<u8> {
+    /// Serializes a single-command `SyncResponse`.
+    fn response(session_id: u128, parent: Prior<Address>) -> vec::Vec<u8> {
         const DATA: &[u8] = b"payload";
 
         let mut commands = Vec::new();
@@ -507,7 +499,6 @@ mod test {
                 parent,
                 policy_length: 0,
                 length: DATA.len() as u32,
-                max_cut,
             })
             .expect("can push command");
 
@@ -535,7 +526,7 @@ mod test {
         let graph_id = GraphId::transmute(mkid(b"graph"));
         let mut requester = SyncRequester::new_session_id(graph_id, 7);
 
-        let bytes = response(7, parent(), MaxCut::new(6));
+        let bytes = response(7, parent());
         let commands = requester
             .receive(&bytes)
             .expect("can receive response")
@@ -550,26 +541,5 @@ mod test {
                 max_cut: MaxCut::new(6),
             }
         );
-    }
-
-    /// A peer which claims a max cut inconsistent with the parent it sent is
-    /// rejected, rather than having the bogus value silently ignored.
-    #[test]
-    fn mutated_max_cut_rejected() {
-        let graph_id = GraphId::transmute(mkid(b"graph"));
-
-        for bogus in [
-            MaxCut::new(0),
-            MaxCut::new(5),
-            MaxCut::new(7),
-            MaxCut::new(9999),
-        ] {
-            let mut requester = SyncRequester::new_session_id(graph_id, 7);
-            let bytes = response(7, parent(), bogus);
-            let err = requester
-                .receive(&bytes)
-                .expect_err("mutated max cut must be rejected");
-            assert!(matches!(err, SyncError::MaxCutMismatch), "{err:?}");
-        }
     }
 }

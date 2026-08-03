@@ -694,14 +694,12 @@ impl SyncResponder {
                     .ok()
                     .assume("command_data is too large")?;
 
-                let max_cut = command.max_cut()?;
                 let meta = CommandMeta {
                     id: command.id(),
                     priority: command.priority(),
                     parent: command.parent(),
                     policy_length: policy_length as u32,
                     length: bytes.len() as u32,
-                    max_cut,
                 };
 
                 // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.

@@ -76,8 +76,6 @@ pub enum SyncError {
     NotReady,
     #[error("too many commands sent")]
     CommandOverflow,
-    #[error("command's max cut does not match its parents")]
-    MaxCutMismatch,
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
     #[error("serialize error: {0}")]
@@ -87,10 +85,6 @@ pub enum SyncError {
 }
 
 /// Sync command to be committed to graph.
-///
-/// Note that there is no `max_cut` field: a command's max cut is derived from
-/// its parents by [`Command::max_cut`] rather than taken from the wire, so a
-/// peer cannot choose where the command lands in our graph.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
     priority: Priority,
