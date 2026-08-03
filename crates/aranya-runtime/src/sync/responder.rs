@@ -357,11 +357,12 @@ impl SyncResponder {
                 self.next_send = 0;
                 return Ok(());
             }
-            SyncRequestMessage::RequestMissing { .. } => {
-                todo!()
-            }
-            SyncRequestMessage::SyncResume { .. } => {
-                todo!()
+            // Neither of these is implemented yet, and a peer can send either
+            // at any point in a session. Reset the session and report the
+            // error.
+            SyncRequestMessage::RequestMissing { .. } | SyncRequestMessage::SyncResume { .. } => {
+                self.state = SyncResponderState::Reset;
+                return Err(SyncError::UnsupportedRequest);
             }
             SyncRequestMessage::EndSession { .. } => {
                 self.state = SyncResponderState::Stopped;
