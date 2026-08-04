@@ -5,8 +5,8 @@ use std::{
 
 use aranya_policy_ast::{self as ast, Ident, TypeKind};
 use aranya_policy_module::{
-    CodeMap, ConstValue, EnumDef, FactDef, Field, Instruction, Label, Module, ModuleData, ModuleV0,
-    StructDef, interface, named::NamedMap,
+    CodeMap, ConstValue, EnumDef, FactDef, FfiContract, Field, Instruction, Label, Module,
+    ModuleContract, ModuleData, ModuleV1, StructDef, ffi::ModuleSchema, interface, named::NamedMap,
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
@@ -27,19 +27,24 @@ pub(crate) struct CompileTarget {
     pub fact_defs: BTreeMap<Ident, FactDefinition>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
+    // Module contract
+    pub contract: ModuleContract,
     /// Public interface
     pub interface: PolicyInterface,
 }
 
 impl CompileTarget {
     /// Creates an empty `CompileTarget` with a given codemap. Used by the compiler.
-    pub fn new(codemap: CodeMap) -> Self {
+    pub fn new(codemap: CodeMap, ffi_schemas: &[ModuleSchema<'_>]) -> Self {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
             command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             codemap: Some(codemap),
+            contract: ModuleContract {
+                ffis: ffi_schemas.iter().map(FfiContract::from).collect(),
+            },
             interface: PolicyInterface::new(),
         }
     }
@@ -47,7 +52,7 @@ impl CompileTarget {
     /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
         Module {
-            data: ModuleData::V0(ModuleV0 {
+            data: ModuleData::V1(ModuleV1 {
                 progmem: self.progmem.into_boxed_slice(),
                 labels: self.labels,
                 action_defs: self
@@ -83,6 +88,7 @@ impl CompileTarget {
                     .into_iter()
                     .map(|(k, v)| (k.inner, v))
                     .collect(),
+                contract: self.contract,
             }),
         }
     }
