@@ -286,7 +286,7 @@ impl Machine {
         name: Identifier,
         bytes: &[u8],
     ) -> Result<Struct, crate::serialize::DeserializeError> {
-        crate::serialize::deserialize_struct(&self.struct_defs, name, bytes)
+        crate::serialize::deserialize_struct(&self.struct_defs, &self.enum_defs, name, bytes)
     }
 }
 

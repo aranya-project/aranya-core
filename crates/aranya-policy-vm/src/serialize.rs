@@ -34,6 +34,9 @@ pub enum SerializeError {
 /// Deserialize error.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum DeserializeError {
+    /// Cannot find definition for this enum.
+    #[error("cannot find definition for `enum {0}`")]
+    UnknownEnum(Identifier),
     /// Cannot find definition for this struct.
     #[error("cannot find definition for `struct {0}`")]
     UnknownStruct(Identifier),
@@ -49,11 +52,15 @@ pub enum DeserializeError {
 }
 
 type StructDefs = BTreeMap<Identifier, Vec<FieldDefinition>>;
+type EnumDefs = BTreeMap<Identifier, BTreeMap<Identifier, i64>>;
 
 /// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
-pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
+pub(crate) fn serialize_struct(
+    struct_defs: &StructDefs,
+    s: &Struct,
+) -> Result<Vec<u8>, SerializeError> {
     let mut ctx = SerializeCtx {
-        defs,
+        struct_defs,
         out: Vec::new(),
     };
     ctx.serialize_struct(s)?;
@@ -62,11 +69,16 @@ pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>,
 
 /// Deserialize a [`Struct`] which was serialized with [`serialize_struct`].
 pub(crate) fn deserialize_struct(
-    defs: &StructDefs,
+    struct_defs: &StructDefs,
+    enum_defs: &EnumDefs,
     name: Identifier,
     bytes: &[u8],
 ) -> Result<Struct, DeserializeError> {
-    let mut ctx = DeserializeCtx { defs, bytes };
+    let mut ctx = DeserializeCtx {
+        struct_defs,
+        enum_defs,
+        bytes,
+    };
     let s = ctx.deserialize_struct(name)?;
     if !ctx.bytes.is_empty() {
         return Err(DeserializeError::TrailingData);
@@ -77,14 +89,14 @@ pub(crate) fn deserialize_struct(
 const ID_SIZE: u8 = size_of::<BaseId>() as u8;
 
 struct SerializeCtx<'a> {
-    defs: &'a StructDefs,
+    struct_defs: &'a StructDefs,
     out: Vec<u8>,
 }
 
 impl SerializeCtx<'_> {
     fn serialize_struct(&mut self, s: &Struct) -> Result<(), SerializeError> {
         let def = self
-            .defs
+            .struct_defs
             .get(&s.name)
             .ok_or_else(|| SerializeError::UnknownStruct(s.name.clone()))?;
         if def.len() != s.fields.len() {
@@ -159,14 +171,15 @@ impl postcard_core::ser::Flavor for SerializeCtx<'_> {
 }
 
 struct DeserializeCtx<'a> {
-    defs: &'a StructDefs,
+    struct_defs: &'a StructDefs,
+    enum_defs: &'a EnumDefs,
     bytes: &'a [u8],
 }
 
 impl DeserializeCtx<'_> {
     fn deserialize_struct(&mut self, name: Identifier) -> Result<Struct, DeserializeError> {
         let def = self
-            .defs
+            .struct_defs
             .get(&name)
             .ok_or_else(|| DeserializeError::UnknownStruct(name.clone()))?;
         let mut fields = BTreeMap::new();
@@ -212,7 +225,14 @@ impl DeserializeCtx<'_> {
                 Value::Struct(x)
             }
             TypeKind::Enum(ident) => {
+                let def = self
+                    .enum_defs
+                    .get(ident.as_str())
+                    .ok_or_else(|| DeserializeError::UnknownEnum(ident.inner.clone()))?;
                 let x = postcard_core::de::try_take_i64(self)?.ok_or(Bad)?;
+                if !def.values().any(|&v| v == x) {
+                    return Err(Bad);
+                }
                 Value::Enum(ident.inner.clone(), x)
             }
             TypeKind::Optional(vtype) => {
