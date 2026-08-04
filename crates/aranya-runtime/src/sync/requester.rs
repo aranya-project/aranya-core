@@ -242,18 +242,20 @@ impl SyncRequester {
                         false => {
                             let end = start
                                 .checked_add(policy_len)
-                                .assume("start + policy_len mustn't overflow")?;
-                            let policy = &remaining[start..end];
+                                .ok_or(SyncError::MalformedResponse)?;
+                            let policy = remaining
+                                .get(start..end)
+                                .ok_or(SyncError::MalformedResponse)?;
                             start = end;
                             Some(policy)
                         }
                     };
 
                     let len = meta.length as usize;
-                    let end = start
-                        .checked_add(len)
-                        .assume("start + len mustn't overflow")?;
-                    let payload = &remaining[start..end];
+                    let end = start.checked_add(len).ok_or(SyncError::MalformedResponse)?;
+                    let payload = remaining
+                        .get(start..end)
+                        .ok_or(SyncError::MalformedResponse)?;
                     start = end;
 
                     let command = SyncCommand {
