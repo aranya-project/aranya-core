@@ -556,18 +556,16 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             }
         }
 
-        let command_struct = aranya_policy_vm::serialize::deserialize_struct(
-            &self.machine.struct_defs,
-            kind.clone(),
-            payload,
-        )
-        .map_err(|e| {
-            error!(
-                error = %e,
-                "could not deserialize command during braid"
-            );
-            PolicyError::Read
-        })?;
+        let command_struct = self
+            .machine
+            .deserialize_struct(kind.clone(), payload)
+            .map_err(|e| {
+                error!(
+                    error = %e,
+                    "could not deserialize command during braid"
+                );
+                PolicyError::Read
+            })?;
 
         match placement {
             CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
@@ -685,14 +683,13 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         })?;
                         let command_name = command_struct.name.clone();
 
-                        let payload = aranya_policy_vm::serialize::serialize_struct(
-                            &self.machine.struct_defs,
-                            &command_struct,
-                        )
-                        .map_err(|e| {
-                            error!(error = %e, "cannot serialize command");
-                            PolicyError::Write
-                        })?;
+                        let payload =
+                            self.machine
+                                .serialize_struct(&command_struct)
+                                .map_err(|e| {
+                                    error!(error = %e, "cannot serialize command");
+                                    PolicyError::Write
+                                })?;
 
                         let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(rs.io, seal_ctx);

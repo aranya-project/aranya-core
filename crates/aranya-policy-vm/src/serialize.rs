@@ -51,7 +51,7 @@ pub enum DeserializeError {
 type StructDefs = BTreeMap<Identifier, Vec<FieldDefinition>>;
 
 /// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
-pub fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
+pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
     let mut ctx = SerializeCtx {
         defs,
         out: Vec::new(),
@@ -61,7 +61,7 @@ pub fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, Serial
 }
 
 /// Deserialize a [`Struct`] which was serialized with [`serialize_struct`].
-pub fn deserialize_struct(
+pub(crate) fn deserialize_struct(
     defs: &StructDefs,
     name: Identifier,
     bytes: &[u8],
@@ -286,9 +286,9 @@ mod test {
     use aranya_policy_ast::{Text, Version, ident, text};
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_str;
-    use aranya_policy_module::ModuleData;
 
     use super::*;
+    use crate::Machine;
 
     #[test]
     fn test_round_trip_with_rust_type() {
@@ -341,11 +341,9 @@ mod test {
             m_int: i64,
         }
 
-        let defs = {
-            let policy = parse_policy_str(src, Version::V2).unwrap();
-            let ModuleData::V0(m) = Compiler::new(&policy).compile().unwrap().data;
-            m.struct_defs
-        };
+        let policy = parse_policy_str(src, Version::V2).unwrap();
+        let module = Compiler::new(&policy).compile().unwrap();
+        let machine = Machine::from_module(module).unwrap();
 
         let id = BaseId::from_bytes(core::array::from_fn(|i| u8::MAX - i as u8));
 
@@ -363,8 +361,10 @@ mod test {
         };
 
         let rust_ser = postcard::to_allocvec(&rust_in).unwrap();
-        let value_de = deserialize_struct(&defs, ident!("Complex"), &rust_ser).unwrap();
-        let value_ser = serialize_struct(&defs, &value_de).unwrap();
+        let value_de = machine
+            .deserialize_struct(ident!("Complex"), &rust_ser)
+            .unwrap();
+        let value_ser = machine.serialize_struct(&value_de).unwrap();
         let rust_de: Complex = postcard::from_bytes(&value_ser).unwrap();
 
         assert_eq!(rust_in, rust_de);
