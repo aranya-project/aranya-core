@@ -44,7 +44,7 @@ use crate::error::{Error, WrongContext};
 /// command Foo {
 ///     seal {
 ///         let author_id = device::device_id()
-///         let author_sign_sk_id = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
+///         let author_sign_sk_id = query DeviceSignKey[device_id: author_id]=>{ ... }
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
 ///             payload,
@@ -58,7 +58,7 @@ use crate::error::{Error, WrongContext};
 ///
 ///     open {
 ///         let author_id = envelope::author_id(envelope)
-///         let author_sign_pk = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
+///         let author_sign_pk = query DeviceSignKey[device_id: author_id]=>{ ... }
 ///         return crypto::verify(
 ///             author_sign_pk,
 ///             payload,
