@@ -24,7 +24,6 @@ use crate::{
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
-    serialize::{deserialize_struct, serialize_struct},
     stack::Stack,
 };
 
@@ -271,6 +270,23 @@ impl Machine {
     {
         let mut rs = self.create_run_state(io, ctx);
         rs.call_command_policy(this_data, envelope)
+    }
+
+    /// Serialize a [`Struct`] to be deserialized with [`Self::deserialize_struct`].
+    pub fn serialize_struct(
+        &self,
+        s: &Struct,
+    ) -> Result<Vec<u8>, crate::serialize::SerializeError> {
+        crate::serialize::serialize_struct(&self.struct_defs, s)
+    }
+
+    /// Deserialize a [`Struct`] which was serialized with [`Self::serialize_struct`].
+    pub fn deserialize_struct(
+        &self,
+        name: Identifier,
+        bytes: &[u8],
+    ) -> Result<Struct, crate::serialize::DeserializeError> {
+        crate::serialize::deserialize_struct(&self.struct_defs, &self.enum_defs, name, bytes)
     }
 }
 
@@ -960,7 +976,9 @@ where
                     ));
                 }
 
-                let bytes = serialize_struct(&self.machine.struct_defs, &command_struct)
+                let bytes = self
+                    .machine
+                    .serialize_struct(&command_struct)
                     .map_err(|e| self.err(e.into()))?;
                 self.ipush(bytes)?;
             }
@@ -975,7 +993,9 @@ where
                 let name = name.clone();
 
                 let bytes: Vec<u8> = self.ipop()?;
-                let s = deserialize_struct(&self.machine.struct_defs, name, &bytes)
+                let s = self
+                    .machine
+                    .deserialize_struct(name, &bytes)
                     .map_err(|e| self.err(e.into()))?;
 
                 self.ipush(s)?;
