@@ -111,18 +111,16 @@ where
                 command.clone(),
             )
             .expect("should be able to create signature");
-        let got = ffi
-            .verify(
-                &Self::OPEN_CTX,
-                &eng,
-                pk,
-                CmdId::default(),
-                command.clone(),
-                CmdId::from_base(command_id),
-                signature,
-            )
-            .expect("`crypto::verify` should not fail");
-        assert_eq!(got, command);
+        ffi.verify(
+            &Self::OPEN_CTX,
+            &eng,
+            pk,
+            CmdId::default(),
+            command,
+            CmdId::from_base(command_id),
+            signature,
+        )
+        .expect("`crypto::verify` should not fail");
     }
 
     /// Test that we reject signatures that have been tampered

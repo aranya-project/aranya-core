@@ -1,9 +1,0 @@
-command Foo {
-    seal {
-        return todo()
-    }
-    open {
-      return deserialize(3)
-    }
-    policy {}
-}

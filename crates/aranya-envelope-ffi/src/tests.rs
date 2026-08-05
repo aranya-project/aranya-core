@@ -39,7 +39,6 @@ impl Random for Envelope {
             parent_id: BaseId::random(&rng),
             command_id: BaseId::random(&rng),
             author_id: BaseId::random(&rng),
-            payload: rand_vec(&rng, 4096),
             signature: rand_vec(&rng, 4096),
         }
     }
@@ -120,23 +119,6 @@ fn test_signature() {
 }
 
 #[test]
-fn test_payload() {
-    let (eng, _) = E::from_entropy(Rng);
-    let env = Envelope::random(Rng);
-    let got = [
-        Ffi.payload(OPEN_CTX, &eng, env.clone())
-            .expect("should not fail"),
-        Ffi.payload(POLICY_CTX, &eng, env.clone())
-            .expect("should not fail"),
-        Ffi.payload(RECALL_CTX, &eng, env.clone())
-            .expect("should not fail"),
-    ];
-    for (got, want) in got.into_iter().zip(iter::repeat(env.payload)) {
-        assert_eq!(got, want);
-    }
-}
-
-#[test]
 fn test_new_envelope() {
     let (eng, _) = E::from_entropy(Rng);
     let env = Envelope::random(Rng);
@@ -148,7 +130,6 @@ fn test_new_envelope() {
             DeviceId::from_base(env.author_id),
             CmdId::from_base(env.command_id),
             env.signature.clone(),
-            env.payload.clone(),
         )
         .expect("should not fail");
     assert_eq!(got, env);

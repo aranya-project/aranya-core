@@ -7,6 +7,8 @@ use aranya_policy_ast::{Identifier, ResultTypeKind, Span, TypeKind, VType, WithS
 /// The type of a value
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type<'a> {
+    /// The unit type.
+    Unit,
     /// A UTF-8 string.
     String,
     /// A byte string
@@ -48,6 +50,7 @@ impl Type<'_> {
 impl From<&Type<'_>> for VType {
     fn from(value: &Type<'_>) -> Self {
         let kind = match value {
+            Type::Unit => TypeKind::Unit,
             Type::String => TypeKind::String,
             Type::Bytes => TypeKind::Bytes,
             Type::Int => TypeKind::Int,
@@ -279,6 +282,8 @@ macro_rules! __type {
         $crate::ffi::Type::Result($ok, $err)
     };
 
+
+    (Unit) => {{ $crate::__type!(@raw Unit) }};
     (String) => {{ $crate::__type!(@raw String) }};
     (Bytes) => {{ $crate::__type!(@raw Bytes) }};
     (Int) => {{ $crate::__type!(@raw Int) }};

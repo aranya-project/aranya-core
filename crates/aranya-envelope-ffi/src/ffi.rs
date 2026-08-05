@@ -20,26 +20,24 @@ use crate::error::{Error, WrongContext};
 ///         let author_sign_sk_id = /* TODO */
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
-///             serialize(this),
+///             payload,
 ///         )
 ///         return envelope::new(
 ///             author_id,
 ///             signed.command_id,
 ///             signed.signature,
-///             payload,
 ///         )
 ///     }
 ///
 ///     open {
 ///         let author_id = envelope::author_id(envelope)
 ///         let author_sign_pk = /* TODO */
-///         let command = crypto::verify(
+///         return crypto::verify(
 ///             author_sign_pk,
-///             envelope::payload(envelope),
+///             payload,
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
 ///         )
-///         return deserialize(command)
 ///     }
 /// }
 ///
@@ -49,26 +47,24 @@ use crate::error::{Error, WrongContext};
 ///         let author_sign_sk_id = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
-///             serialize(this),
+///             payload,
 ///         )
 ///         return envelope::new(
 ///             author_id,
 ///             signed.command_id,
 ///             signed.signature,
-///             payload,
 ///         )
 ///     }
 ///
 ///     open {
 ///         let author_id = envelope::author_id(envelope)
 ///         let author_sign_pk = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
-///         let command = crypto::verify(
+///         return crypto::verify(
 ///             author_sign_pk,
-///             envelope::payload(envelope),
+///             payload,
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
 ///         )
-///         return deserialize(command)
 ///     }
 /// }
 /// ```
@@ -84,8 +80,6 @@ struct Envelope {
     author_id id,
     // Uniquely identifies the command.
     command_id id,
-    // The encoded command.
-    payload bytes,
     // The signature over the command and its contextual
     // bindings.
     signature bytes,
@@ -176,27 +170,6 @@ function signature(envelope_input struct Envelope) bytes
         }
     }
 
-    /// Returns the envelope's `payload` field.
-    #[ffi_export(def = r#"
-function payload(envelope_input struct Envelope) bytes
-"#)]
-    pub(crate) fn payload<E: Engine>(
-        &self,
-        ctx: &CommandContext,
-        _eng: &E,
-        envelope_input: Envelope,
-    ) -> Result<Vec<u8>, Error> {
-        match ctx {
-            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall { .. } => {
-                Ok(envelope_input.payload)
-            }
-            _ => Err(WrongContext(
-                "`envelope::payload` called outside of an `open`, `policy`, or `recall` block",
-            )
-            .into()),
-        }
-    }
-
     /// Creates a new envelope.
     #[ffi_export(def = r#"
 function new(
@@ -204,7 +177,6 @@ function new(
     author_id id,
     command_id id,
     signature bytes,
-    payload bytes,
 ) struct Envelope
 "#)]
     #[allow(clippy::too_many_arguments)]
@@ -216,7 +188,6 @@ function new(
         author_id: DeviceId,
         command_id: CmdId,
         signature: Vec<u8>,
-        payload: Vec<u8>,
     ) -> Result<Envelope, Error> {
         if matches!(ctx, CommandContext::Seal(_)) {
             Ok(Envelope {
@@ -224,7 +195,6 @@ function new(
                 command_id: command_id.as_base(),
                 author_id: author_id.as_base(),
                 signature,
-                payload,
             })
         } else {
             Err(WrongContext("`envelope::new` called outside of a `seal` block").into())
