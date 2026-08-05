@@ -524,12 +524,14 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
         let expected_priority = self.get_command_priority(&kind).into();
         if command.priority() != expected_priority {
+            // The command's declared priority comes from the peer, so a
+            // mismatch is invalid input, not an internal bug.
             error!(
                 "Expected priority {:?}, got {:?}",
                 expected_priority,
                 command.priority()
             );
-            bug!("Command has invalid priority");
+            return Err(PolicyError::InternalError);
         }
 
         let def = self.machine.command_defs.get(&kind).ok_or_else(|| {

@@ -76,6 +76,8 @@ pub enum SyncError {
     NotReady,
     #[error("too many commands sent")]
     CommandOverflow,
+    #[error("target buffer too small for sync message")]
+    BufferTooSmall,
     #[error("malformed sync response")]
     MalformedResponse,
     #[error("unsupported sync request")]

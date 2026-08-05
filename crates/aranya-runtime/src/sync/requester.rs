@@ -331,14 +331,18 @@ impl SyncRequester {
             return Err(SyncError::SessionState);
         }
 
+        // `SyncResume` identifies the last response received; if no response
+        // has ever been received, the session cannot be resumed.
+        let Some(response_index) = self.next_message_index.checked_sub(1) else {
+            self.state = SyncRequesterState::Reset;
+            return Err(SyncError::MissingSyncResponse);
+        };
+
         self.state = SyncRequesterState::Waiting;
         let message = SyncType::Poll {
             request: SyncRequestMessage::SyncResume {
                 session_id: self.session_id,
-                response_index: self
-                    .next_message_index
-                    .checked_sub(1)
-                    .assume("next_index must be positive")?,
+                response_index,
                 max_bytes,
             },
         };
