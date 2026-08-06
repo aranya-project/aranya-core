@@ -111,8 +111,9 @@ command Move {
         let player = envelope::author_id(envelope)
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
-        // values marked with ?, or None. Matching on the result binds the
-        // value inside an Optional; the None arm recalls to reject the command.
+        // values marked with ?, or None. The `or` operator unwraps the result
+        // of the query, if it is `Some`, or invokes the todo() expression,
+        // which terminates the policy with an error.
         let result = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or todo()
         let playerX = result.x
         let playerO = result.o

@@ -89,16 +89,13 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 fn parse_expression() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(
         Rule::expression,
-        r#"!call(!add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
+        r#"call(add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
     )?;
 
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
 
     let mut pair = token.into_inner();
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::not);
-
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::function_call);
 
@@ -109,7 +106,7 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "!add(3, 7)");
+    assert_eq!(token.as_str(), "add(3, 7)");
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
