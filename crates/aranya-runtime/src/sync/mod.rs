@@ -409,7 +409,6 @@ mod tests {
             parent: Prior::None,
             policy_length,
             length,
-            max_cut: MaxCut::new(0),
         }
     }
 
