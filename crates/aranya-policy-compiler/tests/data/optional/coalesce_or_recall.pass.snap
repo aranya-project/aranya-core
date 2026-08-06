@@ -7,48 +7,56 @@ Module {
     labels: {
         <policy 'AddThing'>: 1,
         <seal 'AddThing'>: 32,
-        <open 'AddThing'>: 41,
+        <open 'AddThing'>: 39,
         <recall 'AddThing_reject'>: 29,
     },
-    action_defs: {},
-    command_defs: {
+    action_defs: [],
+    command_defs: [
         CommandDef {
-            name: "AddThing" @ 79..87,
+            name: "AddThing",
             persistence: Persistent,
-            attributes: {},
-            fields: {},
+            attributes: [],
+            fields: [],
         },
-    },
-    fact_defs: {
-        "Owner": FactDefinition {
-            immutable: false,
-            identifier: "Owner" @ 44..49,
+    ],
+    fact_defs: [
+        FactDef {
+            name: "Owner",
             key: [],
             value: [
-                FieldDefinition {
-                    identifier: "device_id" @ 56..65,
-                    field_type: Id @ 66..68,
+                Field {
+                    name: "device_id",
+                    ty: Id,
                 },
             ],
-            span: 39..69,
+            immutable: false,
         },
-    },
-    struct_defs: {
-        "AddThing": [],
-        "Envelope": [
-            FieldDefinition {
-                identifier: "payload" @ 22..29,
-                field_type: Bytes @ 30..35,
-            },
-        ],
-        "Owner": [
-            FieldDefinition {
-                identifier: "device_id" @ 56..65,
-                field_type: Id @ 66..68,
-            },
-        ],
-    },
-    enum_defs: {},
+    ],
+    struct_defs: [
+        StructDef {
+            name: "AddThing",
+            items: [],
+        },
+        StructDef {
+            name: "Envelope",
+            items: [
+                Field {
+                    name: "payload",
+                    ty: Bytes,
+                },
+            ],
+        },
+        StructDef {
+            name: "Owner",
+            items: [
+                Field {
+                    name: "device_id",
+                    ty: Id,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }
@@ -91,21 +99,19 @@ Module {
     def 'this'
     exit check
 <seal 'AddThing'>:
+    def 'payload'
     def 'this'
     save SP
-    struct.new 'Envelope'
-    get 'this'
-    serialize
-    struct.set 'payload'
+    exit panic
     restore SP
     return
     exit panic
 <open 'AddThing'>:
     def 'envelope'
+    def 'payload'
+    def 'this'
     save SP
-    get 'envelope'
-    struct.get 'payload'
-    deserialize
+    exit panic
     restore SP
     return
     exit panic

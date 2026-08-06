@@ -6,14 +6,8 @@ fact Owner[] => {device_id id}
 
 command AddThing {
     fields {}
-    seal {
-        return Envelope {
-            payload: serialize(this),
-        }
-    }
-    open {
-        return deserialize(envelope.payload)
-    }
+    seal { return todo() }
+    open { return todo() }
     policy {
         let owner = query Owner[] or recall reject()
         check owner.device_id == owner.device_id else recall reject()
