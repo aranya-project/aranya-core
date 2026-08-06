@@ -7,7 +7,7 @@ Module {
     labels: {
         <policy 'A'>: 1,
         <seal 'A'>: 8,
-        <open 'A'>: 14,
+        <open 'A'>: 15,
     },
     action_defs: {},
     command_defs: {
@@ -62,6 +62,7 @@ Module {
     exit normal
     exit panic
 <seal 'A'>:
+    def 'payload'
     def 'this'
     save SP
     exit panic
@@ -70,6 +71,8 @@ Module {
     exit panic
 <open 'A'>:
     def 'envelope'
+    def 'payload'
+    def 'this'
     save SP
     exit panic
     restore SP

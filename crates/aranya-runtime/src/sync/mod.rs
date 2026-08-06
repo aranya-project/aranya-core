@@ -76,6 +76,10 @@ pub enum SyncError {
     NotReady,
     #[error("too many commands sent")]
     CommandOverflow,
+    #[error("malformed sync response")]
+    MalformedResponse,
+    #[error("unsupported sync request")]
+    UnsupportedRequest,
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
     #[error("serialize error: {0}")]
@@ -390,5 +394,105 @@ impl SubscribeResponse {
             SubscribeResult::Success => Self::Success,
             SubscribeResult::TooManySubscriptions => Self::TooManySubscriptions,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command::Priority;
+
+    fn meta(policy_length: u32, length: u32) -> wire::CommandMeta {
+        wire::CommandMeta {
+            id: CmdId::default(),
+            priority: Priority::Basic(0),
+            parent: Prior::None,
+            policy_length,
+            length,
+            max_cut: MaxCut::new(0),
+        }
+    }
+
+    /// A peer that claims longer commands than it actually sent must not
+    /// panic the requester.
+    #[test]
+    fn truncated_sync_response_is_rejected() {
+        let session_id = 42;
+        let mut commands: Vec<wire::CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        // Claims 4 KiB of payload, but no command bytes follow the message.
+        commands.push(meta(0, 4096)).expect("push meta");
+        let message = SyncResponseMessage::SyncResponse {
+            session_id,
+            response_index: 0,
+            commands,
+        };
+        let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = postcard::to_slice(&message, &mut buf)
+            .expect("serialize")
+            .len();
+
+        let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
+        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+    }
+
+    /// Same, but the policy length is the one that overruns.
+    #[test]
+    fn truncated_policy_is_rejected() {
+        let session_id = 43;
+        let mut commands: Vec<wire::CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        commands.push(meta(4096, 0)).expect("push meta");
+        let message = SyncResponseMessage::SyncResponse {
+            session_id,
+            response_index: 0,
+            commands,
+        };
+        let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = postcard::to_slice(&message, &mut buf)
+            .expect("serialize")
+            .len();
+
+        let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
+        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+    }
+
+    fn poll_bytes(request: SyncRequestMessage, buf: &mut [u8]) -> usize {
+        postcard::to_slice(&SyncType::Poll { request }, buf)
+            .expect("serialize")
+            .len()
+    }
+
+    /// Unimplemented request messages must be rejected, not panic the
+    /// responder.
+    #[test]
+    fn unimplemented_requests_are_rejected() {
+        let session_id = 44;
+        let unsupported = [
+            SyncRequestMessage::RequestMissing {
+                session_id,
+                indexes: Vec::new(),
+            },
+            SyncRequestMessage::SyncResume {
+                session_id,
+                response_index: 0,
+                max_bytes: 0,
+            },
+        ];
+
+        for request in unsupported {
+            let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let len = poll_bytes(request, &mut buf);
+            let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buf[..len]).expect("decode")
+            else {
+                panic!("expected a poll");
+            };
+
+            let mut responder = SyncResponder::new();
+            let err = responder.receive(poll).expect_err("must not panic");
+            assert!(matches!(err, SyncError::UnsupportedRequest), "got {err:?}");
+            // The session is torn down, so the next poll sends `EndSession`.
+            assert!(responder.ready());
+        }
     }
 }

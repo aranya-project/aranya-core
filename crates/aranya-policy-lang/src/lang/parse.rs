@@ -800,36 +800,6 @@ impl ChunkParser<'_> {
                 },
                 Rule::match_expression => self.parse_match_expression(primary),
                 Rule::if_expr => self.parse_if_expression(primary),
-                Rule::serialize => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("empty serialize function"),
-                            Some(span),
-                        )
-                    })?;
-                    let inner = self.parse_expression(token)?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{inner:ExprKind::InternalFunction(
-                        InternalFunction::Serialize(Box::new(inner)),
-                    ), span})
-                }
-                Rule::deserialize => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("empty deserialize function"),
-                            Some(span),
-                        )
-                    })?;
-                    let inner = self.parse_expression(token)?;
-                    Ok(Expression {
-                        inner: ExprKind::InternalFunction(InternalFunction::Deserialize(Box::new(inner))),
-                        span,
-                    })
-                }
                 Rule::this => {
                     let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
