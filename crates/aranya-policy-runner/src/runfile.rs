@@ -248,7 +248,7 @@ impl RunFile {
             command CaptureVariables {{
                 fields {{ }}
                 seal {{ return Envelope {{ }} }}
-                open {{ return CaptureVariables {{ }} }}
+                open {{ return Unit }}
                 policy {{ }}
             }}
             action preamble() {{
