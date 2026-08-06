@@ -85,23 +85,21 @@ function seal_command(payload bytes) struct Envelope {
         author_id,
         signed.command_id,
         signed.signature,
-        payload,
     )
 }
 
 // Opens an envelope using the author's public Device Signing Key.
-function open_envelope(sealed_envelope struct Envelope) bytes {
+function open_envelope(payload bytes, sealed_envelope struct Envelope) unit {
     let author_id = envelope::author_id(sealed_envelope)
     let author_sign_pk = check_unwrap query DeviceSignPubKey[device_id: author_id]
 
-    let verified_command = crypto::verify(
+    return crypto::verify(
         author_sign_pk.key,
         envelope::parent_id(sealed_envelope),
-        envelope::payload(sealed_envelope),
+        payload,
         envelope::command_id(sealed_envelope),
         envelope::signature(sealed_envelope),
     )
-    return verified_command
 }
 ```
 
@@ -125,7 +123,6 @@ command Init {
     seal {
         let parent_id = perspective::head_id()
         let author_id = device::current_device_id()
-        let payload = serialize(this)
         let author_sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
 
         let signed = crypto::sign(author_sign_key_id, payload)
@@ -134,22 +131,19 @@ command Init {
             author_id,
             signed.command_id,
             signed.signature,
-            payload,
         )
     }
 
     open {
-        let payload = envelope::payload(envelope)
-        let author_sign_key = deserialize(payload).owner_keys.sign_key
+        let author_sign_key = this.owner_keys.sign_key
 
-        let verified_command = crypto::verify(
+        return crypto::verify(
             author_sign_key,
             envelope::parent_id(envelope),
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
         )
-        return deserialize(verified_command)
     }
 
     policy {
@@ -185,8 +179,8 @@ command AddDevice {
         device_keys struct PublicKeys,
     }
 
-    seal { return seal_command(serialize(this)) }
-    open { return deserialize(open_envelope(envelope)) }
+    seal { return seal_command(payload) }
+    open { return open_envelope(payload, envelope) }
 
     policy {
         let author_id = envelope::author_id(envelope)
@@ -222,8 +216,8 @@ command SetCounter {
         value int,
     }
 
-    seal { return seal_command(serialize(this)) }
-    open { return deserialize(open_envelope(envelope)) }
+    seal { return seal_command(payload) }
+    open { return open_envelope(payload, envelope) }
 
     policy {
         finish {
@@ -243,8 +237,8 @@ command IncrementCounter {
         amount int,
     }
 
-    seal { return seal_command(serialize(this)) }
-    open { return deserialize(open_envelope(envelope)) }
+    seal { return seal_command(payload) }
+    open { return open_envelope(payload, envelope) }
 
     policy {
         let counter = unwrap query Counter[name: this.name]=>{value: ?}
@@ -266,8 +260,8 @@ ephemeral command GetCounter {
         name int,
     }
 
-    seal { return seal_command(serialize(this)) }
-    open { return deserialize(open_envelope(envelope)) }
+    seal { return seal_command(payload) }
+    open { return open_envelope(payload, envelope) }
 
     policy {
         let counter = unwrap query Counter[name: this.name]=>{value: ?}

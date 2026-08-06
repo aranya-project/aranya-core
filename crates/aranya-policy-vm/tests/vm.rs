@@ -11,8 +11,8 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Identifier,
-    KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext,
-    PolicyContext, RunState, SealContext, Stack as _, Struct, Value, ident, text,
+    KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module,
+    PolicyContext, RunState, Stack as _, Struct, Value, ident, text,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
@@ -44,17 +44,6 @@ fn dummy_ctx_action(name: Identifier) -> CommandContext {
         name,
         head_id: CmdId::default(),
     })
-}
-
-fn dummy_ctx_seal(name: Identifier) -> CommandContext {
-    CommandContext::Seal(SealContext {
-        name,
-        head_id: CmdId::default(),
-    })
-}
-
-fn dummy_ctx_open(name: Identifier) -> CommandContext {
-    CommandContext::Open(OpenContext { name })
 }
 
 fn dummy_ctx_policy(name: Identifier) -> CommandContext {
@@ -1341,79 +1330,6 @@ fn test_finish_function() -> anyhow::Result<()> {
             vec![KVPair::new(ident!("x"), Value::Int(3)),]
         )
     );
-
-    Ok(())
-}
-
-#[test]
-fn test_serialize_deserialize() -> anyhow::Result<()> {
-    let text = r#"
-        struct Envelope {
-            payload bytes
-        }
-
-        command Foo {
-            fields {
-                a int,
-                b string,
-            }
-
-            seal {
-                return Envelope {
-                    payload: serialize(this)
-                }
-            }
-            open {
-                // Don't access payload this way. See below.
-                return deserialize(envelope.payload)
-            }
-
-            policy {
-                finish {}
-            }
-        }
-    "#;
-
-    let this_struct = Struct::new(
-        ident!("Foo"),
-        [
-            KVPair::new(ident!("a"), Value::Int(1)),
-            KVPair::new(ident!("b"), Value::String(text!("foo"))),
-        ],
-    );
-
-    let mut io = TestIO::new();
-    let machine = compile(text);
-
-    let name = ident!("Foo");
-    let this_bytes: Vec<u8> = {
-        let ctx = dummy_ctx_seal(name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_seal(this_struct.clone())?.success();
-        let result = rs.consume_return()?;
-        let mut envelope: Struct = result.try_into()?;
-        let payload = envelope
-            .fields
-            .remove("payload")
-            .expect("envelope has no payload");
-        payload.try_into()?
-    };
-
-    {
-        let ctx = dummy_ctx_open(name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        // call_open expects an envelope struct, so we smuggle the bytes
-        // in through a field. The payload would normally be accessed
-        // through an FFI module.
-        let envelope = Struct::new(
-            ident!("Env"),
-            [KVPair::new(ident!("payload"), Value::Bytes(this_bytes))],
-        );
-        rs.call_open(name, envelope)?.success();
-        let result = rs.consume_return()?;
-        let got_this: Struct = result.try_into()?;
-        assert_eq!(got_this, this_struct);
-    }
 
     Ok(())
 }
