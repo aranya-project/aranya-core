@@ -66,15 +66,28 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
-    RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncIncoming,
-    SyncRequester, SyncResponder, TraversalBuffer, TraversalBuffers,
+    Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
+    Keys, Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
+    Query as _, RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError,
+    SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction, TraversalBuffer,
+    TraversalBuffers,
+    sync::wire::{SyncHelloType, SyncType},
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
     },
 };
+
+/// Fact names written by the DSL test policies.
+///
+/// The DSL harness runs `TestPolicy` (see `testing::protocol`), whose only
+/// fact write is `insert("payload", ...)` (in `origin_check_message`). The
+/// VM test policy (`testing::vm`) writes `"Stuff"`. We enumerate these known
+/// names because the [`Query`] API only supports lookups by a known fact name
+/// (`query` / `query_prefix`); there is no API to enumerate fact names. For
+/// the DSL tests this is FULL coverage of the merged fact state, since
+/// `"payload"` is the only name those tests ever write.
+const TEST_FACT_NAMES: &[&str] = &["payload", "Stuff", "seq", "stuff"];
 
 fn default_repeat() -> u64 {
     1
@@ -170,10 +183,15 @@ pub fn dispatch(
 
 /// Processes hello sync notifications cascading from a graph change.
 ///
-/// When a client's graph changes, all subscribers are notified and sync
-/// from the changed client. If a subscriber receives new data, it becomes
-/// a "changed client" and its own subscribers are notified. This repeats
-/// until no new data flows or `max_depth` is exceeded.
+/// Models the daemon's hello protocol: when a client's graph changes, each
+/// subscriber is sent a wire-encoded `Hello` notification carrying the
+/// publisher's advertised head ([`ClientState::hello_head`]: the head itself,
+/// or the virtual synthetic merge of a multi-head set). A subscriber for
+/// which the advertisement signals nothing new
+/// ([`ClientState::should_sync_on_hello`]) does not sync; otherwise it syncs
+/// from the publisher, and if it receives new data it becomes a "changed
+/// client" whose own subscribers are notified. This repeats until no new
+/// data flows or `max_depth` is exceeded.
 #[allow(clippy::too_many_arguments)]
 fn process_hello_notifications<SP: StorageProvider>(
     graph: u64,
@@ -215,6 +233,42 @@ fn process_hello_notifications<SP: StorageProvider>(
                     publisher, subscriber, "hello sync: notifying subscriber"
                 );
 
+                // The publisher builds the notification the same way the
+                // daemon does: a single head address on the wire. A
+                // multi-head graph advertises its virtual synthetic head.
+                let head = clients
+                    .get(&publisher)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut()
+                    .hello_head(graph_id)?;
+
+                // Round-trip the notification through the wire format.
+                let mut wire = [0u8; MAX_SYNC_MESSAGE_SIZE];
+                let len = postcard::to_slice(
+                    &SyncType::Hello(SyncHelloType::Hello { graph_id, head }),
+                    &mut wire,
+                )
+                .map_err(SyncError::from)?
+                .len();
+                let SyncIncoming::Hello(SyncHello::Hello(notification)) =
+                    SyncIncoming::decode(&wire[..len])?
+                else {
+                    buggy::bug!("hello notification decoded as a different message type");
+                };
+
+                let mut request_client = clients
+                    .get(&subscriber)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+
+                // The subscriber only syncs if the advertised head signals
+                // state it does not hold.
+                let needs_sync = request_client.should_sync_on_hello(
+                    notification.graph_id(),
+                    notification.head(),
+                    &mut rt_buffers.traversal.primary,
+                )?;
+
                 client_heads
                     .entry((graph, subscriber, publisher))
                     .or_default();
@@ -222,31 +276,69 @@ fn process_hello_notifications<SP: StorageProvider>(
                     .entry((graph, publisher, subscriber))
                     .or_default();
 
-                let mut request_cache = client_heads
-                    .get(&(graph, subscriber, publisher))
-                    .assume("cache must exist")?
-                    .borrow_mut();
-                let mut response_cache = client_heads
-                    .get(&(graph, publisher, subscriber))
-                    .assume("cache must exist")?
-                    .borrow_mut();
+                let mut received = 0;
+                if needs_sync {
+                    let mut request_cache = client_heads
+                        .get(&(graph, subscriber, publisher))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let mut response_cache = client_heads
+                        .get(&(graph, publisher, subscriber))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let mut response_client = clients
+                        .get(&publisher)
+                        .ok_or(TestError::MissingClient)?
+                        .borrow_mut();
 
-                let mut request_client = clients
-                    .get(&subscriber)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-                let mut response_client = clients
-                    .get(&publisher)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
+                    // The hello cascade needs committed state to serve
+                    // onward, so commit per notification here.
+                    let mut trx = request_client.transaction(graph_id);
+                    let mut received_addrs = Vec::new();
+                    loop {
+                        let (_, exchange_received) = sync::<SP>(
+                            &mut trx,
+                            (&request_cache, &mut request_client),
+                            (&mut response_cache, &mut response_client),
+                            &mut received_addrs,
+                            sink,
+                            graph_id,
+                            rt_buffers,
+                        )?;
+                        received += exchange_received;
+                        if exchange_received == 0 {
+                            break;
+                        }
+                    }
+                    request_client.commit(trx, sink, rt_buffers, MemSpill::new)?;
+                    request_client.update_heads(
+                        graph_id,
+                        received_addrs,
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
+                    )?;
+                }
 
-                let (_, received) = sync::<SP>(
-                    (&mut request_cache, &mut request_client),
-                    (&mut response_cache, &mut response_client),
-                    sink,
-                    graph_id,
-                    rt_buffers,
-                )?;
+                // Track the advertised head in the subscriber's cache for the
+                // publisher. A multi-head publisher advertises a virtual
+                // merge that exists in no one's storage, so only locatable
+                // commands go in the cache.
+                if request_client.command_exists(
+                    notification.graph_id(),
+                    notification.head(),
+                    &mut rt_buffers.traversal.primary,
+                ) {
+                    let mut request_cache = client_heads
+                        .get(&(graph, subscriber, publisher))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    request_client.update_heads(
+                        notification.graph_id(),
+                        [notification.head()],
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
+                    )?;
+                }
 
                 if received > 0 {
                     debug!(
@@ -361,6 +453,13 @@ pub enum TestRule {
         client: u64,
         peer: u64,
         graph: u64,
+    },
+    /// Asserts a client's graph holds exactly `count` heads. With lazy merges a
+    /// divergent graph holds multiple heads; this checks the lazy property.
+    HeadCount {
+        client: u64,
+        graph: u64,
+        count: usize,
     },
 }
 
@@ -528,6 +627,15 @@ impl Display for TestRule {
                 f,
                 r#"{{"HelloUnsubscribe": {{ "client": {}, "peer": {}, "graph": {} }} }},"#,
                 client, peer, graph,
+            ),
+            Self::HeadCount {
+                client,
+                graph,
+                count,
+            } => write!(
+                f,
+                r#"{{"HeadCount": {{ "client": {}, "graph": {}, "count": {} }} }},"#,
+                client, graph, count,
             ),
         }
     }
@@ -927,42 +1035,64 @@ where
             } => {
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                let mut request_client = clients
-                    .get(&client)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-                let mut response_client = clients
-                    .get(&from)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-
                 let mut total_sent = 0;
                 let mut total_received = 0;
-                for _ in 0..max_syncs {
+                // Scope the client borrows so they are released before the
+                // hello cascade below re-borrows the same clients.
+                {
+                    let mut request_client = clients
+                        .get(&client)
+                        .ok_or(TestError::MissingClient)?
+                        .borrow_mut();
+                    let mut response_client = clients
+                        .get(&from)
+                        .ok_or(TestError::MissingClient)?
+                        .borrow_mut();
+
+                    // One transaction held open across every exchange in this Sync,
+                    // committed once after the loop (one fact-cache braid instead of
+                    // one per exchange).
+                    let mut trx = request_client.transaction(*graph_id);
+                    let mut received_addrs = Vec::new();
                     client_heads.entry((graph, client, from)).or_default();
                     client_heads.entry((graph, from, client)).or_default();
+                    for _ in 0..max_syncs {
+                        let request_cache = client_heads
+                            .get(&(graph, client, from))
+                            .assume("cache must exist")?
+                            .borrow();
+                        let mut response_cache = client_heads
+                            .get(&(graph, from, client))
+                            .assume("cache must exist")?
+                            .borrow_mut();
+
+                        let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                            &mut trx,
+                            (&request_cache, &mut request_client),
+                            (&mut response_cache, &mut response_client),
+                            &mut received_addrs,
+                            &mut sink,
+                            *graph_id,
+                            &mut rt_buffers,
+                        )?;
+                        total_received += received;
+                        total_sent += sent;
+                        // Break when no commands are received, meaning the requester has caught up
+                        if received == 0 {
+                            break;
+                        }
+                    }
+                    request_client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
                     let mut request_cache = client_heads
                         .get(&(graph, client, from))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let mut response_cache = client_heads
-                        .get(&(graph, from, client))
-                        .assume("cache must exist")?
-                        .borrow_mut();
-
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
-                        (&mut request_cache, &mut request_client),
-                        (&mut response_cache, &mut response_client),
-                        &mut sink,
+                    request_client.update_heads(
                         *graph_id,
-                        &mut rt_buffers,
+                        received_addrs,
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
                     )?;
-                    total_received += received;
-                    total_sent += sent;
-                    // Break when no commands are received, meaning the requester has caught up
-                    if received == 0 {
-                        break;
-                    }
                 }
 
                 if let Some(mr) = must_receive {
@@ -1020,7 +1150,7 @@ where
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(*graph_id, &mut sink, set)?;
+                    state.action(*graph_id, &mut sink, set, &mut rt_buffers, MemSpill::new)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -1050,8 +1180,9 @@ where
 
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
-                let head = storage.get_head()?;
-                print_graph(storage, head, &mut rt_buffers.traversal.primary)?;
+                for head in storage.get_heads()?.iter() {
+                    print_graph(storage, head.location(), &mut rt_buffers.traversal.primary)?;
+                }
             }
 
             TestRule::CompareGraphs {
@@ -1077,12 +1208,24 @@ where
 
                 let same = graph_eq(storage_a, storage_b);
                 if same != equal {
-                    let head_a = storage_a.get_head()?;
-                    let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a, &mut rt_buffers.traversal.primary)?;
+                    let mut cmds_a = BTreeSet::new();
+                    for head in storage_a.get_heads()?.iter() {
+                        cmds_a.extend(print_graph(
+                            storage_a,
+                            head.location(),
+                            &mut rt_buffers.traversal.primary,
+                        )?);
+                    }
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b, &mut rt_buffers.traversal.primary)?;
+                    let mut cmds_b = BTreeSet::new();
+                    for head in storage_b.get_heads()?.iter() {
+                        cmds_b.extend(print_graph(
+                            storage_b,
+                            head.location(),
+                            &mut rt_buffers.traversal.primary,
+                        )?);
+                    }
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -1110,8 +1253,15 @@ where
                     .borrow_mut();
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
-                let head = storage.get_head()?;
-                assert_eq!(max_cut, head.max_cut);
+                // Lazy merges keep the graph multi-head, so compare against the
+                // greatest max_cut across all heads (the depth of the graph).
+                let actual = storage
+                    .get_heads()?
+                    .iter()
+                    .map(|la| la.max_cut)
+                    .max()
+                    .assume("graph has at least one head")?;
+                assert_eq!(max_cut, actual);
             }
             TestRule::ConvergeAll {
                 graph,
@@ -1120,8 +1270,25 @@ where
             } => {
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
+                // One transaction per client, held open across an entire outer
+                // pass (the full mesh of i<->j exchanges) so a client's whole
+                // catch-up from every peer in a pass is one fact-cache braid
+                // instead of one per exchange. We commit at the END OF EACH
+                // PASS, not at the very end: the responder serves from COMMITTED
+                // storage (`get_heads`), so an intermediate node can only relay
+                // data it received in a prior pass once that data is committed.
+                // Committing per pass preserves the iterative-convergence
+                // semantics while still collapsing the heavy initial fetch
+                // (which happens within a single pass) to one braid.
+                let mut trxs: Vec<
+                    Option<Transaction<<SB as StorageBackend>::StorageProvider, TestPolicyStore>>,
+                > = (0..client_count).map(|_| None).collect();
+
                 loop {
                     let mut any_received = false;
+                    // Received addresses per (requester, responder) pair, used
+                    // to advance the persistent caches after this pass commits.
+                    let mut pass_received: BTreeMap<_, Vec<Address>> = BTreeMap::new();
                     for i in 0..client_count {
                         for j in 0..client_count {
                             if i == j {
@@ -1137,21 +1304,30 @@ where
                                 .ok_or(TestError::MissingClient)?
                                 .borrow_mut();
 
+                            let slot = trxs.get_mut(i as usize).assume("trx slot exists")?;
+                            if slot.is_none() {
+                                *slot = Some(request_client.transaction(*graph_id));
+                            }
+                            let request_trx = slot.as_mut().assume("trx just created")?;
+
+                            let received_addrs = pass_received.entry((i, j)).or_default();
                             for _ in 0..max_syncs {
                                 client_heads.entry((graph, i, j)).or_default();
                                 client_heads.entry((graph, j, i)).or_default();
-                                let mut request_cache = client_heads
+                                let request_cache = client_heads
                                     .get(&(graph, i, j))
                                     .assume("cache must exist")?
-                                    .borrow_mut();
+                                    .borrow();
                                 let mut response_cache = client_heads
                                     .get(&(graph, j, i))
                                     .assume("cache must exist")?
                                     .borrow_mut();
 
                                 let (_, received) = sync::<<SB as StorageBackend>::StorageProvider>(
-                                    (&mut request_cache, &mut request_client),
+                                    request_trx,
+                                    (&request_cache, &mut request_client),
                                     (&mut response_cache, &mut response_client),
+                                    received_addrs,
                                     &mut sink,
                                     *graph_id,
                                     &mut rt_buffers,
@@ -1166,6 +1342,43 @@ where
                             }
                         }
                     }
+
+                    // Commit each client's accumulated transaction for this pass
+                    // so the data becomes visible to serve onward next pass.
+                    for i in 0..client_count {
+                        if let Some(trx) =
+                            trxs.get_mut(i as usize).assume("trx slot exists")?.take()
+                        {
+                            let mut client = clients
+                                .get(&i)
+                                .ok_or(TestError::MissingClient)?
+                                .borrow_mut();
+                            client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                        }
+                    }
+
+                    // Now that the pass is committed, advance each pair's
+                    // persistent cache with what was received.
+                    for ((i, j), addrs) in pass_received {
+                        if addrs.is_empty() {
+                            continue;
+                        }
+                        let mut client = clients
+                            .get(&i)
+                            .ok_or(TestError::MissingClient)?
+                            .borrow_mut();
+                        let mut request_cache = client_heads
+                            .get(&(graph, i, j))
+                            .assume("cache must exist")?
+                            .borrow_mut();
+                        client.update_heads(
+                            *graph_id,
+                            addrs,
+                            &mut request_cache,
+                            &mut rt_buffers.traversal.primary,
+                        )?;
+                    }
+
                     if !any_received {
                         break;
                     }
@@ -1215,6 +1428,23 @@ where
                 if let Some(subs) = subscriptions.get_mut(&(graph, peer)) {
                     subs.remove(&client);
                 }
+            }
+            TestRule::HeadCount {
+                client,
+                graph,
+                count,
+            } => {
+                let mut state = clients
+                    .get(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
+                let actual = storage.get_heads()?.len();
+                assert_eq!(
+                    count, actual,
+                    "client {client} graph {graph}: expected {count} heads, got {actual}"
+                );
             }
             _ => {}
         }
@@ -1383,9 +1613,20 @@ where
     result
 }
 
+/// Perform a single sync exchange, ingesting received commands into the
+/// caller-owned `request_trx` (held open across many exchanges so a whole
+/// graph is committed once instead of per exchange).
+///
+/// Does NOT commit. Instead, after ingesting, it flushes the open transaction
+/// and advances the requester's `PeerCache` from the transaction's accumulated
+/// frontier (committed + received-but-uncommitted tips). `get_commands`
+/// incorporates `peer_cache.heads()`, so this is what makes progressive
+/// multi-exchange fetch advance without a per-exchange commit.
 fn sync<SP: StorageProvider>(
-    (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    request_trx: &mut Transaction<SP, TestPolicyStore>,
+    (request_cache, request_state): (&PeerCache, &mut ClientState<TestPolicyStore, SP>),
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    received_addrs: &mut Vec<Address>,
     sink: &mut TestSink,
     graph_id: GraphId,
     rt_buffers: &mut RuntimeBuffers<SP::Segment>,
@@ -1393,13 +1634,17 @@ fn sync<SP: StorageProvider>(
     let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
 
-    let mut request_trx = request_state.transaction(graph_id);
-
+    // The persistent `request_cache` only ever holds committed commands
+    // (callers advance it after commit). The transaction's uncommitted
+    // frontier is advertised via `session_heads`, which cannot outlive the
+    // transaction, so an abandoned transaction cannot leave the cache
+    // claiming commands the requester never committed.
+    let session = request_trx.session_heads(request_cache);
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(
         &mut buffer,
         request_state.provider(),
-        request_cache,
+        &session,
         &mut rt_buffers.traversal.primary,
     )?;
 
@@ -1419,14 +1664,17 @@ fn sync<SP: StorageProvider>(
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received =
-            request_state.add_commands(&mut request_trx, sink, &cmds, rt_buffers, MemSpill::new)?;
-        request_state.commit(request_trx, sink, rt_buffers, MemSpill::new)?;
-        request_state.update_heads(
-            graph_id,
-            cmds.iter().filter_map(|cmd| cmd.address().ok()),
-            request_cache,
-            &mut rt_buffers.traversal.primary,
-        )?;
+            request_state.add_commands(request_trx, sink, &cmds, rt_buffers, MemSpill::new)?;
+
+        // Persist any in-flight perspective so the next exchange's overlay
+        // sees every accumulated command at a real location. This is what
+        // lets progressive fetch advance while the transaction stays open.
+        let storage = request_state.provider().get_storage(graph_id)?;
+        request_trx.flush(storage)?;
+
+        // Report what was received so the caller can advance the persistent
+        // cache once these commands are committed.
+        received_addrs.extend(cmds.iter().filter_map(|cmd| cmd.address().ok()));
     }
 
     Ok((sent, received))
@@ -1485,41 +1733,132 @@ where
 }
 
 /// Walk the graph and yield all visited IDs.
+///
+/// Lazy merges keep the graph multi-head, so seed the walk from every head.
 fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
     let mut visited = BTreeSet::new();
-    let mut stack = vec![storage.get_head().unwrap()];
+    let mut stack: Vec<Location> = storage
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(crate::LocatedAddress::location)
+        .collect();
+    // Sort so the multi-head walk order is deterministic across peers.
+    stack.sort();
     let mut segment = None;
 
     iter::from_fn(move || {
-        let loc = stack.pop()?;
-        if visited.contains(&loc) {
-            return None;
+        loop {
+            let loc = stack.pop()?;
+            if !visited.insert(loc) {
+                // Already visited (e.g. a shared ancestor of two heads); skip
+                // it and continue rather than ending the whole walk.
+                segment = None;
+                continue;
+            }
+
+            let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
+            let id = seg.get_command(loc).unwrap().id();
+
+            if let Some(previous) = seg.previous(loc) {
+                // We will visit the segment again.
+                stack.push(previous);
+            } else {
+                // We have exhausted this segment.
+                stack.extend(seg.prior());
+                segment = None;
+            }
+
+            return Some(id);
         }
-        visited.insert(loc);
-
-        let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
-        let id = seg.get_command(loc).unwrap().id();
-
-        if let Some(previous) = seg.previous(loc) {
-            // We will visit the segment again.
-            stack.push(previous);
-        } else {
-            // We have exhausted this segment.
-            stack.extend(seg.prior());
-            segment = None;
-        }
-
-        Some(id)
     })
 }
 
-fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
-    for (a, b) in iter::zip(walk(storage_a), walk(storage_b)) {
-        if a != b {
-            error!(a = %short_b58(a), b = %short_b58(b), "graph mismatch");
-            return false;
+/// Collects the full set of `(name, keys, value)` fact entries from a peer's
+/// merged fact cache, for every fact name the test policies are known to write.
+///
+/// Uses [`Query::query_prefix`] with an empty prefix to enumerate all keys
+/// under each name (the empty prefix matches every key). There is no API to
+/// enumerate fact names, so we iterate [`TEST_FACT_NAMES`]; for the DSL tests
+/// the only written name is `"payload"`, so this captures the entire merged
+/// fact state.
+fn collect_facts<S: Storage>(
+    storage: &S,
+) -> Result<BTreeMap<(&'static str, Keys), Bytes>, StorageError> {
+    let cache = storage.fact_cache()?;
+    let mut facts = BTreeMap::new();
+    for &name in TEST_FACT_NAMES {
+        for fact in cache.query_prefix(name, &[])? {
+            let fact = fact?;
+            facts.insert((name, fact.key), fact.value);
         }
     }
+    Ok(facts)
+}
+
+/// Asserts the merged fact state of two peers is identical.
+///
+/// This is the load-bearing convergence artifact for lazy merges: two peers
+/// that hold the same commands must braid them into the same merged facts.
+fn fact_cache_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
+    let facts_a = collect_facts(storage_a).unwrap();
+    let facts_b = collect_facts(storage_b).unwrap();
+    if facts_a != facts_b {
+        for key in facts_a.keys().chain(facts_b.keys()) {
+            let (a, b) = (facts_a.get(key), facts_b.get(key));
+            if a != b {
+                error!(
+                    name = key.0,
+                    "merged fact-cache mismatch: A={:?} B={:?}", a, b
+                );
+            }
+        }
+        return false;
+    }
+    true
+}
+
+fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
+    // Lazy merges keep graphs multi-head, and two converged peers may store the
+    // same commands under different segment layouts. Convergence means the same
+    // set of reachable commands and the same head set (head sets are sorted, so
+    // equality is order-independent).
+    let cmds_a: BTreeSet<CmdId> = walk(storage_a).collect();
+    let cmds_b: BTreeSet<CmdId> = walk(storage_b).collect();
+    if cmds_a != cmds_b {
+        for id in cmds_a.symmetric_difference(&cmds_b) {
+            error!(id = %short_b58(*id), "graph command-set mismatch");
+        }
+        return false;
+    }
+
+    // Compare heads by command id: segment indices are local storage layout and
+    // may legitimately differ between converged peers.
+    let heads_a: BTreeSet<CmdId> = storage_a
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(|la| la.id)
+        .collect();
+    let heads_b: BTreeSet<CmdId> = storage_b
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(|la| la.id)
+        .collect();
+    if heads_a != heads_b {
+        error!("graph head-set mismatch");
+        return false;
+    }
+
+    // Strengthened convergence oracle: peers with the same commands + heads must
+    // also braid them into the same MERGED FACT STATE. This converts the
+    // previously-inferred fact-cache equality into a directly checked invariant.
+    if !fact_cache_eq(storage_a, storage_b) {
+        error!("merged fact-cache mismatch");
+        return false;
+    }
+
     true
 }
 
@@ -1598,11 +1937,14 @@ test_vectors! {
     generate_graph,
     generate_graph_hello_sync,
     hello_sync,
+    hello_sync_extended_head,
+    hello_sync_multiple_heads,
     no_such_parent,
     exponential_traversal_regression,
     find_needed_segments_queue_max,
     four_seventy_three_failure,
     large_sync,
+    lazy_merge_converge,
     list_multiple_graph_ids,
     many_branches,
     max_cut,

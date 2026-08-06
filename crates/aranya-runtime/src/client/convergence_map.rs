@@ -190,17 +190,17 @@ pub struct ConvergenceMap<'a, F> {
 }
 
 impl<'a, F: Spill> ConvergenceMap<'a, F> {
-    /// Create a new convergence map with BFS seeded from `left` and `right`.
+    /// Create a new convergence map with BFS seeded from every head.
     pub fn new(
-        left: Location,
-        right: Location,
+        heads: &[Location],
         lca: Location,
         queue: &'a mut TraversalQueue,
         storage: &'a mut ConvergenceStorage,
         spill_file: F,
     ) -> Result<Self, ClientError> {
-        queue.push_duplicate(left)?;
-        queue.push_duplicate(right)?;
+        for &head in heads {
+            queue.push_duplicate(head)?;
+        }
         Ok(Self {
             storage,
             active_block: 0,
