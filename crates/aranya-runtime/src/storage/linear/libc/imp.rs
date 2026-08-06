@@ -5,17 +5,18 @@ use aranya_libc::{
     self as libc, AsAtRoot, Errno, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
     O_RDONLY, O_RDWR, OwnedDir, OwnedFd, Path, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
-use buggy::{BugExt as _, bug};
+use buggy::BugExt as _;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
-    GraphId, Location, MaxCut, SegmentIndex, StorageError,
+    GraphId, StorageError,
     linear::{
-        io::{IoManager, Read, Write},
+        io::{FactCacheOffset, IoManager, Read, Write},
         libc::IdPath,
     },
+    storage::{HeadSet, HeadSetOffset},
 };
 
 struct GraphIdIterator {
@@ -253,6 +254,49 @@ impl Writer {
         Ok(())
     }
 
+    /// Append an item and return both it and its file offset.
+    ///
+    /// A function is used to allow the item to contain its offset.
+    fn append_at<F, T>(&mut self, builder: F) -> Result<(T, u64), StorageError>
+    where
+        F: FnOnce(u64) -> T,
+        T: Serialize,
+    {
+        let offset = self.root.free_offset;
+        let off: u64 = offset
+            .try_into()
+            .assume("`free_offset` can be converted to `u64`")?;
+        let item = builder(off);
+        let bytes = postcard::to_allocvec(&item).map_err(|err| {
+            error!(?err, "append");
+            StorageError::IoError
+        })?;
+        // Ensure the file is grown ahead of this write so appending
+        // it doesn't change the file size (keeping `fdatasync` cheap).
+        let len = i64::try_from(bytes.len()).assume("serialized len fits in `i64`")?;
+        let end = offset
+            .checked_add(4)
+            .and_then(|o| o.checked_add(len))
+            .assume("append stays within `i64`")?;
+        self.ensure_capacity(end)?;
+        let new_offset = self.file.dump_bytes(offset, &bytes)?;
+
+        // The write frontier is advanced in memory only; it is made
+        // durable (along with the committed root) by `commit`. Data
+        // appended past the last committed `free_offset` is unreachable
+        // and safely overwritten after a crash.
+        self.root.free_offset = new_offset;
+        self.data_dirty = true;
+
+        Ok((item, off))
+    }
+
+    /// Load an owned value from the given file offset.
+    fn fetch_owned<T: DeserializeOwned>(&self, offset: u64) -> Result<T, StorageError> {
+        let off = i64::try_from(offset).assume("`offset` can be converted to `i64`")?;
+        self.file.load(off)
+    }
+
     fn write_root(&mut self) -> Result<(), StorageError> {
         self.root.generation = self
             .root
@@ -282,11 +326,19 @@ impl Write for Writer {
         }
     }
 
-    fn head(&self) -> Result<Location, StorageError> {
-        if self.root.generation == 0 {
-            bug!("not initialized")
-        }
-        Ok(self.root.head)
+    fn heads(&self) -> Result<HeadSet, StorageError> {
+        let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
+        self.fetch_owned(offset)
+    }
+
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
+        let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
+        Ok(HeadSetOffset::new(offset))
+    }
+
+    fn fact_cache(&self) -> Result<FactCacheOffset, StorageError> {
+        let offset = self.root.fact_cache.ok_or(StorageError::NotInitialized)?;
+        Ok(FactCacheOffset::new(offset))
     }
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
@@ -294,48 +346,26 @@ impl Write for Writer {
         F: FnOnce(u64) -> T,
         T: Serialize,
     {
-        let offset = self.root.free_offset;
-
-        let item = builder(
-            offset
-                .try_into()
-                .assume("`free_offset` can be converted to `u64`")?,
-        );
-        let bytes = postcard::to_allocvec(&item).map_err(|err| {
-            error!(?err, "append");
-            StorageError::IoError
-        })?;
-        // Ensure the file is grown ahead of this write so appending
-        // it doesn't change the file size (keeping `fdatasync` cheap).
-        let len = i64::try_from(bytes.len()).assume("serialized len fits in `i64`")?;
-        let end = offset
-            .checked_add(4)
-            .and_then(|o| o.checked_add(len))
-            .assume("append stays within `i64`")?;
-        self.ensure_capacity(end)?;
-        let new_offset = self.file.dump_bytes(offset, &bytes)?;
-
-        // The write frontier is advanced in memory only; it is made
-        // durable (along with the committed head) by `commit`. Data
-        // appended past the last committed `free_offset` is unreachable
-        // and safely overwritten after a crash.
-        self.root.free_offset = new_offset;
-        self.data_dirty = true;
-
+        let (item, _) = self.append_at(builder)?;
         Ok(item)
     }
 
-    fn commit(&mut self, head: Location) -> Result<(), StorageError> {
+    fn commit(&mut self, heads: &HeadSet, fact_cache: FactCacheOffset) -> Result<(), StorageError> {
+        // Append the head set, then atomically point the root at it + the
+        // fact cache.
+        let (_, heads_offset) = self.append_at(|_| heads.clone())?;
+        self.root.heads = Some(heads_offset);
+        self.root.fact_cache = Some(fact_cache.get());
+
         // Barrier 1: ensure the appended data is durable before the
-        // root that references it, so a crash can't leave the head
+        // root that references it, so a crash can't leave the root
         // pointing at data that never reached disk.
         if self.data_dirty {
             self.file.sync()?;
             self.data_dirty = false;
         }
 
-        // Barrier 2: durably record the new head and write frontier.
-        self.root.head = head;
+        // Barrier 2: durably record the new root and write frontier.
         self.write_root()?;
         Ok(())
     }
@@ -344,11 +374,13 @@ impl Write for Writer {
 /// Section of control data for the file
 #[derive(Debug, Serialize, Deserialize)]
 struct Root {
-    /// Incremented each commit
+    /// Incremented each commit.
     generation: u64,
-    /// Commit head.
-    head: Location,
-    /// Offset to write new item at.
+    /// Offset of the appended `HeadSet` record (`None` before first commit).
+    heads: Option<u64>,
+    /// Offset of the cached merged `FactIndex` (`None` before first commit).
+    fact_cache: Option<u64>,
+    /// Offset to write the next item at.
     free_offset: i64,
     /// Used to ensure root is valid. Write could be interrupted
     /// or corrupted.
@@ -359,7 +391,8 @@ impl Root {
     fn new() -> Self {
         Self {
             generation: 0,
-            head: Location::new(SegmentIndex::new(u64::MAX), MaxCut::new(u64::MAX)),
+            heads: None,
+            fact_cache: None,
             free_offset: FREE_START,
             checksum: 0,
         }
@@ -368,8 +401,15 @@ impl Root {
     fn calc_checksum(&self) -> u64 {
         let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
-        hasher.write_u64(self.head.segment.get());
-        hasher.write_u64(self.head.max_cut.get());
+        for offset in [self.heads, self.fact_cache] {
+            match offset {
+                Some(offset) => {
+                    hasher.write_u8(1);
+                    hasher.write_u64(offset);
+                }
+                None => hasher.write_u8(0),
+            }
+        }
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }
@@ -509,13 +549,27 @@ impl File {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        CmdId, MaxCut, SegmentIndex,
+        storage::{HeadSet, LocatedAddress},
+    };
+
+    fn located(id: u8, seg: u64, max_cut: u64) -> LocatedAddress {
+        let mut bytes = [0u8; 32];
+        bytes[0] = id;
+        LocatedAddress {
+            id: CmdId::from_bytes(bytes),
+            segment: SegmentIndex::new(seg),
+            max_cut: MaxCut::new(max_cut),
+        }
+    }
+
+    fn heads(id: u8) -> HeadSet {
+        HeadSet::single(located(id, id.into(), id.into()))
+    }
 
     fn graph_id() -> GraphId {
         "test".parse().unwrap()
-    }
-
-    fn loc(segment: u64, max_cut: u64) -> Location {
-        Location::new(SegmentIndex::new(segment), MaxCut::new(max_cut))
     }
 
     fn manager() -> (tempfile::TempDir, FileManager) {
@@ -533,7 +587,7 @@ mod tests {
 
         let mut writer = manager.create(id).unwrap();
         writer.append(|_| 1u64).unwrap();
-        writer.commit(loc(1, 1)).unwrap();
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap();
         let committed_offset = writer.root.free_offset;
 
         writer.append(|_| 2u64).unwrap();
@@ -543,7 +597,7 @@ mod tests {
         drop(writer);
 
         let writer = manager.open(id).unwrap().unwrap();
-        assert_eq!(writer.head().unwrap(), loc(1, 1));
+        assert_eq!(writer.heads().unwrap(), heads(1));
         assert_eq!(writer.root.free_offset, committed_offset);
     }
 
@@ -556,24 +610,24 @@ mod tests {
 
         let mut writer = manager.create(id).unwrap();
         writer.append(|_| 1u64).unwrap();
-        writer.commit(loc(1, 1)).unwrap(); // generation 1 -> ROOT_A
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap(); // generation 1 -> ROOT_A
         writer.append(|_| 2u64).unwrap();
-        writer.commit(loc(2, 2)).unwrap(); // generation 2 -> ROOT_B
+        writer.commit(&heads(2), FactCacheOffset::new(2)).unwrap(); // generation 2 -> ROOT_B
 
         // Simulated torn write: scribble over the newest root.
         writer.file.write_all(ROOT_B, &[0xFF; 64]).unwrap();
         drop(writer);
 
         let mut writer = manager.open(id).unwrap().unwrap();
-        assert_eq!(writer.head().unwrap(), loc(1, 1));
+        assert_eq!(writer.heads().unwrap(), heads(1));
 
         // The corrupt slot is the next one written, restoring redundancy.
         assert_eq!(writer.next_root, ROOT_B);
-        writer.commit(loc(3, 3)).unwrap();
+        writer.commit(&heads(3), FactCacheOffset::new(3)).unwrap();
         drop(writer);
 
         let writer = manager.open(id).unwrap().unwrap();
-        assert_eq!(writer.head().unwrap(), loc(3, 3));
+        assert_eq!(writer.heads().unwrap(), heads(3));
     }
 
     /// Commits must keep alternating root slots across reopens so the
@@ -584,22 +638,53 @@ mod tests {
         let id = graph_id();
 
         let mut writer = manager.create(id).unwrap();
-        writer.commit(loc(1, 1)).unwrap(); // generation 1 -> ROOT_A
-        writer.commit(loc(2, 2)).unwrap(); // generation 2 -> ROOT_B
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap(); // generation 1 -> ROOT_A
+        writer.commit(&heads(2), FactCacheOffset::new(2)).unwrap(); // generation 2 -> ROOT_B
         drop(writer);
 
         let mut writer = manager.open(id).unwrap().unwrap();
-        assert_eq!(writer.head().unwrap(), loc(2, 2));
+        assert_eq!(writer.heads().unwrap(), heads(2));
         assert_eq!(writer.root.generation, 2);
         // The newest root lives in ROOT_B, so the next commit must
         // overwrite ROOT_A.
         assert_eq!(writer.next_root, ROOT_A);
-        writer.commit(loc(3, 3)).unwrap();
+        writer.commit(&heads(3), FactCacheOffset::new(3)).unwrap();
         drop(writer);
 
         let writer = manager.open(id).unwrap().unwrap();
-        assert_eq!(writer.head().unwrap(), loc(3, 3));
+        assert_eq!(writer.heads().unwrap(), heads(3));
         assert_eq!(writer.root.generation, 3);
         assert_eq!(writer.next_root, ROOT_B);
+    }
+
+    #[test]
+    fn head_set_and_fact_cache_round_trip() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let mut manager = FileManager::new(tempdir.path()).unwrap();
+        let graph_id = GraphId::transmute(CmdId::from_bytes([7u8; 32]));
+
+        let mut heads = HeadSet::single(located(1, 1, 3));
+        heads.push(located(2, 2, 5));
+        assert_eq!(heads.len(), 2);
+
+        // Commit on a fresh writer.
+        {
+            let mut writer = manager.create(graph_id).unwrap();
+            // Before any commit the head set / fact cache are absent.
+            assert!(matches!(writer.heads(), Err(StorageError::NotInitialized)));
+            assert!(matches!(
+                writer.fact_cache(),
+                Err(StorageError::NotInitialized)
+            ));
+
+            writer.commit(&heads, FactCacheOffset::new(1234)).unwrap();
+            assert_eq!(writer.heads().unwrap(), heads);
+            assert_eq!(writer.fact_cache().unwrap(), FactCacheOffset::new(1234));
+        }
+
+        // Reopen and verify persistence.
+        let writer = manager.open(graph_id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads);
+        assert_eq!(writer.fact_cache().unwrap(), FactCacheOffset::new(1234));
     }
 }

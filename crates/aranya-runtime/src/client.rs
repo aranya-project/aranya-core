@@ -5,8 +5,10 @@ use tracing::error;
 
 use crate::{
     Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,
-    PolicyError, PolicyStore, Sink, Storage as _, StorageError, StorageProvider, TraversalBuffer,
-    policy::ActionPlacement, storage::Spill,
+    PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError, StorageProvider,
+    TraversalBuffer,
+    policy::ActionPlacement,
+    storage::{HeadSet, Spill},
 };
 
 pub(crate) mod braiding; // exposed for `buffers.rs` (StrandHeap)
@@ -183,13 +185,30 @@ where
     /// Unlike [`Self::action`], durability is deferred until
     /// [`Self::commit`], so batching many actions into one transaction
     /// amortizes the per-commit `fsync` cost across the whole batch.
-    pub fn action_transaction(
+    ///
+    /// `make_spill` is used when anchoring the action requires
+    /// collapsing a multi-head tip set into a single parent, which may
+    /// run a braid. See [`Self::commit`].
+    pub fn action_transaction<F, MS>(
         &mut self,
         trx: &mut Transaction<SP, PS>,
         sink: &mut impl Sink<PS::Effect>,
         action: <PS::Policy as Policy>::Action<'_>,
-    ) -> Result<(), ClientError> {
-        trx.action(&mut self.provider, &mut self.policy_store, sink, action)
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: MS,
+    ) -> Result<(), ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        trx.action::<F, MS>(
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            action,
+            buffers,
+            &make_spill,
+        )
     }
 
     pub fn update_heads<I>(
@@ -209,22 +228,7 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            if let Some(loc) = storage.get_location(address, buffer)? {
-                request_heads.add_command(
-                    storage,
-                    LocatedAddress {
-                        id: address.id,
-                        segment: loc.segment,
-                        max_cut: address.max_cut,
-                    },
-                    buffer,
-                )?;
-            } else {
-                error!(
-                    "UPDATE_HEADS: Address {:?} does NOT exist in storage, skipping (should not happen if command was successfully added)",
-                    address
-                );
-            }
+            request_heads.add_command(storage, address, buffer)?;
         }
 
         Ok(())
@@ -237,16 +241,76 @@ where
         Ok(address)
     }
 
+    /// Returns the address to advertise in a sync hello notification.
+    ///
+    /// A single-head graph advertises its head. A multi-head graph advertises
+    /// the deterministic merge its head set would collapse to, computed
+    /// without writing anything to storage: a peer holding the same head set
+    /// computes the same address, and a peer that already collapsed these
+    /// heads (by committing a command on top) has this exact command in its
+    /// graph. See [`Self::should_sync_on_hello`] for the receiving side.
+    pub fn hello_head(&mut self, graph_id: GraphId) -> Result<Address, ClientError> {
+        let storage = &*self.provider.get_storage(graph_id)?;
+        let heads = storage.get_heads()?;
+        transaction::synthetic_head(storage, &self.policy_store, heads)
+    }
+
+    /// Returns whether a hello notification advertising `head` warrants
+    /// syncing from that peer.
+    ///
+    /// No sync is needed if the advertised address matches this graph's own
+    /// [`Self::hello_head`] (both sides hold the same head set) or if the
+    /// command is already in the graph (this side is ahead). A peer that has
+    /// extended one of our heads advertises an address that fails both
+    /// checks, costing one sync that transfers nothing; that false positive
+    /// is accepted. A missing graph always warrants a sync.
+    pub fn should_sync_on_hello(
+        &mut self,
+        graph_id: GraphId,
+        head: Address,
+        buffer: &mut TraversalBuffer,
+    ) -> Result<bool, ClientError> {
+        match self.provider.get_storage(graph_id) {
+            Err(StorageError::NoSuchStorage) => return Ok(true),
+            Err(e) => return Err(e.into()),
+            Ok(_) => {}
+        }
+        if self.hello_head(graph_id)? == head {
+            return Ok(false);
+        }
+        let storage = self.provider.get_storage(graph_id)?;
+        Ok(storage.get_location(head, buffer)?.is_none())
+    }
+
     /// Performs an `action`, writing the results to `sink`.
-    pub fn action(
+    ///
+    /// `make_spill` is called whenever collapsing a multi-head graph needs
+    /// byte-addressable overflow storage for an internal braid. See
+    /// [`Self::commit`].
+    pub fn action<F, MS>(
         &mut self,
         graph_id: GraphId,
         sink: &mut impl Sink<PS::Effect>,
         action: <PS::Policy as Policy>::Action<'_>,
-    ) -> Result<(), ClientError> {
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: MS,
+    ) -> Result<(), ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         let storage = self.provider.get_storage(graph_id)?;
 
-        let head = storage.get_head()?;
+        // A new command needs a single parent: collapse the head set, which may
+        // run a braid (hence the buffers and spill).
+        let heads = storage.get_heads()?.clone();
+        let head = transaction::collapse_heads::<_, PS, F, _>(
+            storage,
+            &mut self.policy_store,
+            heads,
+            buffers,
+            &make_spill,
+        )?;
 
         let mut perspective = storage.get_linear_perspective(head)?;
 
@@ -260,7 +324,13 @@ where
         match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment)?;
+                let new_head = LocatedAddress {
+                    id: segment.head_id(),
+                    segment: segment.index(),
+                    max_cut: segment.longest_max_cut()?,
+                };
+                let fact_cache = segment.facts()?;
+                storage.commit_heads(HeadSet::single(new_head), fact_cache)?;
                 sink.commit();
                 Ok(())
             }

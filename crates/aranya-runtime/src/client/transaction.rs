@@ -1,4 +1,7 @@
-use alloc::collections::{BTreeMap, VecDeque};
+use alloc::{
+    collections::{BTreeMap, VecDeque},
+    vec::Vec,
+};
 use core::{marker::PhantomData, mem};
 
 use buggy::{BugExt as _, bug};
@@ -9,8 +12,9 @@ use crate::{
     MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId, PolicyStore, Prior,
     Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError, StorageProvider,
     TraversalBuffer,
-    policy::{ActionPlacement, CommandPlacement},
-    storage::Spill,
+    policy::{ActionPlacement, CommandPlacement, NullSink},
+    storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
+    sync::{PeerCache, SessionHeads},
 };
 
 /// Transaction used to receive many commands at once.
@@ -22,8 +26,9 @@ use crate::{
 pub struct Transaction<SP: StorageProvider, PS> {
     /// The ID of the associated graph
     graph_id: GraphId,
-    /// The head of the graph when this transaction is first used.
-    original_head: Option<Location>,
+    /// Stamp of the committed head set when this transaction first read it,
+    /// used to detect intervening commits.
+    original_heads_offset: Option<HeadSetOffset>,
     /// Current working perspective
     perspective: Option<SP::Perspective>,
     /// Head of the current perspective
@@ -38,7 +43,7 @@ impl<SP: StorageProvider, PS> Transaction<SP, PS> {
     pub(super) const fn new(graph_id: GraphId) -> Self {
         Self {
             graph_id,
-            original_head: None,
+            original_heads_offset: None,
             perspective: None,
             phead: None,
             heads: BTreeMap::new(),
@@ -75,6 +80,33 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         Ok(None)
     }
 
+    /// Write any in-flight perspective into a segment so all accumulated commands
+    /// are persisted and reflected in `self.heads`. Does NOT commit or braid.
+    ///
+    /// `commit` flushes automatically; callers only need this to make
+    /// [`Self::session_heads`] reflect every accumulated command before
+    /// committing (e.g. to advertise the frontier while syncing).
+    pub fn flush(&mut self, storage: &mut SP::Storage) -> Result<(), ClientError> {
+        if let Some(p) = Option::take(&mut self.perspective) {
+            self.phead = None;
+            let segment = storage.write(p)?;
+            self.heads
+                .insert(segment.head_id(), segment.head_location()?);
+        }
+        Ok(())
+    }
+
+    /// The frontier to advertise to a sync peer: the durable cache plus this
+    /// transaction's accumulated (received-but-uncommitted) tips. Call `flush`
+    /// first so every accumulated command is in a written segment with a real
+    /// location.
+    pub fn session_heads<'a>(&'a self, cache: &'a PeerCache) -> SessionHeads<'a> {
+        SessionHeads {
+            cache,
+            session: Some(&self.heads),
+        }
+    }
+
     /// Write current perspective, merge transaction heads, and commit to graph.
     pub(super) fn commit<F, MS>(
         mut self,
@@ -90,95 +122,54 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     {
         let storage = provider.get_storage(self.graph_id)?;
 
-        let Some(original_head) = self.original_head else {
+        let Some(original_heads_offset) = self.original_heads_offset.take() else {
             return Ok(false);
         };
-        if original_head != storage.get_head()? {
+        if original_heads_offset != storage.heads_offset()? {
             return Err(ClientError::ConcurrentTransaction);
         }
 
-        // Write out current perspective.
-        if let Some(p) = Option::take(&mut self.perspective) {
-            self.phead = None;
-            let segment = storage.write(p)?;
-            self.heads
-                .insert(segment.head_id(), segment.head_location()?);
-        }
+        // Persist any in-flight perspective into self.heads.
+        self.flush(storage)?;
 
         if self.heads.is_empty() {
             return Ok(false);
         }
 
-        // Merge heads pairwise until single head left, then commit.
-        // TODO(#370): Merge deterministically
-        let mut heads: VecDeque<_> = mem::take(&mut self.heads).into_iter().collect();
-        let mut merging_head = false;
-        while let Some((left_id, mut left_loc)) = heads.pop_front() {
-            if let Some((right_id, mut right_loc)) = heads.pop_front() {
-                let (policy, policy_id) =
-                    choose_policy(storage, policy_store, left_loc, right_loc)?;
-
-                let mut buf = [0u8; MAX_COMMAND_LENGTH];
-                let merge_ids = MergeIds::new(
-                    Address {
-                        id: left_id,
-                        max_cut: left_loc.max_cut,
-                    },
-                    Address {
-                        id: right_id,
-                        max_cut: right_loc.max_cut,
-                    },
-                )
-                .assume("merging different ids")?;
-                if left_id > right_id {
-                    mem::swap(&mut left_loc, &mut right_loc);
-                }
-                let command = policy.merge(&mut buf, merge_ids)?;
-
-                let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F, MS>(
-                    storage,
-                    left_loc,
-                    right_loc,
-                    sink,
-                    policy,
-                    &mut buffers.traversal.primary,
-                    &mut buffers.braid,
-                    make_spill,
-                )?;
-
-                let mut perspective = storage.new_merge_perspective(
-                    left_loc,
-                    right_loc,
-                    last_common_ancestor,
-                    policy_id,
-                    braid,
-                )?;
-                perspective.add_command(&command)?;
-
-                let segment = storage.write(perspective)?;
-                heads.push_back((segment.head_id(), segment.head_location()?));
-            } else if storage.is_ancestor(
-                storage.get_head()?,
-                left_loc,
-                &mut buffers.traversal.primary,
-            )? {
-                let segment = storage.get_segment(left_loc)?;
-                storage.commit(segment)?;
-                debug_assert!(heads.is_empty());
-            } else {
-                if merging_head {
-                    bug!("merging with graph head again, would loop");
-                }
-                merging_head = true;
-
-                heads.push_back((left_id, left_loc));
-
-                let head_loc = storage.get_head()?;
-                let segment = storage.get_segment(head_loc)?;
-                heads.push_back((segment.head_id(), segment.head_location()?));
-            }
+        // Build the committed head set from the live tips.
+        let mut head_set = HeadSet::default();
+        for (id, loc) in &self.heads {
+            head_set.push(LocatedAddress {
+                id: *id,
+                segment: loc.segment,
+                max_cut: loc.max_cut,
+            });
         }
 
+        // Rebuild the fact cache for this head set.
+        let head_locs: Vec<Location> = head_set.iter().map(LocatedAddress::location).collect();
+        let fact_cache = if head_locs.len() == 1 {
+            // Single head: reuse that head's fact index.
+            storage.get_segment(head_locs[0])?.facts()?
+        } else {
+            // Multi-head: braid the heads into a merged fact index.
+            // TODO(multi-policy): if heads can have differing policies, fold choose_policy
+            // over the head set instead of taking head 0's policy.
+            let policy_id = storage.get_segment(head_locs[0])?.policy();
+            let policy = policy_store.get_policy(policy_id)?;
+            let (facts, _lca) = evaluate_braid::<_, PS, F, MS>(
+                storage,
+                &head_locs,
+                sink,
+                policy,
+                &mut buffers.traversal.primary,
+                &mut buffers.braid,
+                make_spill,
+            )?;
+            facts
+        };
+
+        storage.commit_heads(head_set, fact_cache)?;
         Ok(true)
     }
 
@@ -212,8 +203,11 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             Err(e) => return Err(e.into()),
         };
 
-        if self.original_head.is_none() {
-            self.original_head = Some(storage.get_head()?);
+        if self.original_heads_offset.is_none() {
+            for la in storage.get_heads()?.iter() {
+                self.heads.insert(la.id, la.location());
+            }
+            self.original_heads_offset = Some(storage.heads_offset()?);
         }
 
         // Handle remaining commands.
@@ -278,26 +272,60 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// is deferred until [`Transaction::commit`], so a batch of
     /// actions shares a single durable commit (and thus a single pair
     /// of `fsync`s) instead of paying for one per action.
-    pub(super) fn action(
+    ///
+    /// `make_spill` is used when anchoring the action requires
+    /// collapsing a multi-head tip set into a single parent, which may
+    /// run a braid. See [`Transaction::commit`].
+    pub(super) fn action<F, MS>(
         &mut self,
         provider: &mut SP,
         policy_store: &mut PS,
         sink: &mut impl Sink<PS::Effect>,
         action: <PS::Policy as crate::Policy>::Action<'_>,
-    ) -> Result<(), ClientError> {
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: &MS,
+    ) -> Result<(), ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
         let storage = provider.get_storage(self.graph_id)?;
 
-        if self.original_head.is_none() {
-            self.original_head = Some(storage.get_head()?);
+        // Seed the transaction's tips from the committed head set and
+        // stamp it to detect intervening commits (as `add_commands`).
+        if self.original_heads_offset.is_none() {
+            for la in storage.get_heads()?.iter() {
+                self.heads.insert(la.id, la.location());
+            }
+            self.original_heads_offset = Some(storage.heads_offset()?);
         }
 
-        // Ensure there's an open perspective, anchored at the current
-        // transaction head, to run the action against.
+        // Ensure there's an open perspective to run the action against.
+        // A new command needs a single parent, so anchor at the
+        // collapse of the transaction's tips, which may materialize a
+        // merge (as `ClientState::action` does for the committed set).
         let perspective = match &mut self.perspective {
             Some(p) => p,
             None => {
-                let head = storage.get_head()?;
-                self.phead = Some(storage.get_head_address()?.id);
+                let mut tips = HeadSet::default();
+                for (id, loc) in &self.heads {
+                    tips.push(LocatedAddress {
+                        id: *id,
+                        segment: loc.segment,
+                        max_cut: loc.max_cut,
+                    });
+                }
+                let head = collapse_heads::<_, PS, F, _>(
+                    storage,
+                    policy_store,
+                    tips,
+                    buffers,
+                    make_spill,
+                )?;
+                // Every prior tip is an ancestor of the anchor, which the
+                // perspective now supersedes.
+                self.heads.clear();
+                self.phead = Some(storage.get_segment(head)?.head_id());
                 self.perspective
                     .insert(storage.get_linear_perspective(head)?)
             }
@@ -392,10 +420,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
-        let (braid, last_common_ancestor) = make_braid_segment::<_, PS, F, MS>(
+        let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
-            left_loc,
-            right_loc,
+            &[left_loc, right_loc],
             sink,
             policy,
             &mut buffers.traversal.primary,
@@ -511,12 +538,13 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     }
 }
 
-/// Run the braid algorithm and evaluate the sequence to create a braided fact index.
+/// Braid `heads` together and fold every braided command into a fact index
+/// (the merged perspective). Emits effects to `sink`. Returns the fact index
+/// and the N-way LCA.
 #[allow(clippy::too_many_arguments)]
-fn make_braid_segment<S, PS, F, MS>(
+fn evaluate_braid<S, PS, F, MS>(
     storage: &mut S,
-    left: Location,
-    right: Location,
+    heads: &[Location],
     sink: &mut impl Sink<PS::Effect>,
     policy: &PS::Policy,
     traversal: &mut TraversalBuffer,
@@ -529,11 +557,10 @@ where
     F: Spill,
     MS: Fn() -> Result<F, StorageError>,
 {
-    let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
+    let last_common_ancestor = braiding::last_common_ancestor(storage, heads)?;
     let mut order = braiding::braid::<_, F, MS>(
         storage,
-        left,
-        right,
+        heads,
         last_common_ancestor,
         traversal,
         braid_buf,
@@ -576,6 +603,146 @@ where
     Ok((braid, last_common_ancestor))
 }
 
+/// Pairwise-merge a head set down to a single head, writing merge segments.
+/// Returns the resulting single head location. A one-element set is returned
+/// as-is (no merge).
+/// Deterministic pairwise fold over a head set: pop two entries off the
+/// front, combine them, push the result on the back, until one remains.
+///
+/// Both [`collapse_heads`] and [`synthetic_head`] fold through this function
+/// so they always pair heads identically — that shared pairing is what makes
+/// the virtual head computed by one peer equal the merge another peer
+/// materializes from the same head set.
+fn fold_merge_pairs<E>(
+    entries: impl IntoIterator<Item = E>,
+    mut step: impl FnMut(E, E) -> Result<E, ClientError>,
+) -> Result<E, ClientError> {
+    let mut q: VecDeque<E> = entries.into_iter().collect();
+    while let Some(left) = q.pop_front() {
+        let Some(right) = q.pop_front() else {
+            return Ok(left);
+        };
+        q.push_back(step(left, right)?);
+    }
+    bug!("head set was empty");
+}
+
+pub(crate) fn collapse_heads<S, PS, F, MS>(
+    storage: &mut S,
+    policy_store: &mut PS,
+    heads: HeadSet,
+    buffers: &mut RuntimeBuffers<S::Segment>,
+    make_spill: &MS,
+) -> Result<Location, ClientError>
+where
+    S: Storage,
+    PS: PolicyStore,
+    F: Spill,
+    MS: Fn() -> Result<F, StorageError>,
+{
+    // The multi-head state being collapsed was produced by a `commit` that
+    // already braided these same heads and emitted their effects in converged
+    // order. Re-braiding the identical head set yields no new effects (braid
+    // order is a stable global sort by `(priority, id)`), so emitting again
+    // would only duplicate what `commit` delivered.
+    let mut null = NullSink;
+    let merged = fold_merge_pairs(heads.iter(), |mut left, mut right| {
+        let (policy, policy_id) =
+            choose_policy(storage, policy_store, left.location(), right.location())?;
+
+        let mut buf = [0u8; MAX_COMMAND_LENGTH];
+        let merge_ids =
+            MergeIds::new(left.address(), right.address()).assume("merging different ids")?;
+        if left.id > right.id {
+            mem::swap(&mut left, &mut right);
+        }
+        let command = policy.merge(&mut buf, merge_ids)?;
+
+        let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
+            storage,
+            &[left.location(), right.location()],
+            &mut null,
+            policy,
+            &mut buffers.traversal.primary,
+            &mut buffers.braid,
+            make_spill,
+        )?;
+
+        let mut perspective = storage.new_merge_perspective(
+            left.location(),
+            right.location(),
+            last_common_ancestor,
+            policy_id,
+            braid,
+        )?;
+        perspective.add_command(&command)?;
+        let segment = storage.write(perspective)?;
+        let loc = segment.head_location()?;
+        Ok(LocatedAddress {
+            id: segment.head_id(),
+            segment: loc.segment,
+            max_cut: loc.max_cut,
+        })
+    })?;
+    Ok(merged.location())
+}
+
+/// Computes the address a graph advertises to signal its state to peers
+/// (e.g. in a sync hello notification).
+///
+/// A single-head graph advertises its head. A multi-head graph advertises
+/// the merge its head set would collapse to, built with the same pairwise
+/// fold as [`collapse_heads`] but never written to storage. Merges are
+/// deterministic, so a peer holding the same head set computes the same
+/// address, and a peer that already collapsed these heads (by writing a
+/// command on top) has this exact command committed in its graph.
+pub(crate) fn synthetic_head<S, PS>(
+    storage: &S,
+    policy_store: &PS,
+    heads: &HeadSet,
+) -> Result<Address, ClientError>
+where
+    S: Storage,
+    PS: PolicyStore,
+{
+    if heads.len() == 1 {
+        let only = heads.iter().next().assume("head set has one head")?;
+        return Ok(only.address());
+    }
+
+    // Each entry carries the policy chosen so far: virtual merges have no
+    // segment to read a policy id from, and a merge's policy is the
+    // max-serial policy of its inputs — the same choice `choose_policy`
+    // makes from segments in `collapse_heads`.
+    struct Entry<'a, P> {
+        addr: Address,
+        policy: &'a P,
+    }
+
+    let entries = heads
+        .iter()
+        .map(|head| {
+            let (policy, _) = get_policy(storage, policy_store, head.location())?;
+            Ok(Entry {
+                addr: head.address(),
+                policy,
+            })
+        })
+        .collect::<Result<Vec<_>, ClientError>>()?;
+
+    let folded = fold_merge_pairs(entries, |left, right| {
+        let policy = core::cmp::max_by_key(left.policy, right.policy, |p| p.serial());
+        let merge_ids = MergeIds::new(left.addr, right.addr).assume("merging different ids")?;
+        let mut buf = [0u8; MAX_COMMAND_LENGTH];
+        let command = policy.merge(&mut buf, merge_ids)?;
+        Ok(Entry {
+            addr: command.address()?,
+            policy,
+        })
+    })?;
+    Ok(folded.addr)
+}
+
 /// Select the policy from two locations with the greatest serial value.
 fn choose_policy<'a, PS: PolicyStore>(
     storage: &impl Storage,
@@ -612,6 +779,7 @@ mod test {
     use super::*;
     use crate::{
         Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
+        TraversalBuffer,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{
@@ -992,9 +1160,34 @@ mod test {
 
     fn lookup(storage: &impl Storage, name: &str) -> Option<Bytes> {
         use crate::Query as _;
-        let head = storage.get_head().unwrap();
-        let p = storage.get_fact_perspective(head).unwrap();
+        // Read the committed fact cache, which is the braided state across all
+        // graph heads (lazy merges keep the graph multi-head after commit, so
+        // there is no single head segment whose facts represent the whole graph).
+        let p = storage.fact_cache().unwrap();
         p.query(name, &[]).unwrap()
+    }
+
+    /// Number of committed graph heads.
+    fn head_count(storage: &impl Storage) -> usize {
+        storage.get_heads().unwrap().len()
+    }
+
+    /// The greatest `max_cut` across all committed graph heads.
+    fn max_head_cut(storage: &impl Storage) -> MaxCut {
+        storage
+            .get_heads()
+            .unwrap()
+            .iter()
+            .map(|la| la.max_cut)
+            .max()
+            .unwrap()
+    }
+
+    /// The sole committed graph head; panics if the graph is multi-head.
+    fn sole_head(storage: &impl Storage) -> LocatedAddress {
+        let heads = storage.get_heads().unwrap();
+        assert_eq!(heads.len(), 1, "expected a single-head graph");
+        heads.iter().next().unwrap()
     }
 
     #[test]
@@ -1014,7 +1207,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "simple");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(3));
+        assert_eq!(sole_head(g).max_cut, MaxCut::new(3));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1048,7 +1241,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "complex");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(15));
+        // Lazy merges: the graph ends multi-head (a8 merge plus the 42/45/46/47/48
+        // descendants of 9). The braided fact cache below reflects the full state.
+        assert_eq!(head_count(g), 4);
+        assert_eq!(max_head_cut(g), MaxCut::new(12));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1081,7 +1277,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "duplicates");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(4));
+        assert_eq!(sole_head(g).max_cut, MaxCut::new(4));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1103,7 +1299,11 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "mid_braid_1");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(7));
+        // Lazy merges: the two branches from `d` (e/f/g and h/i/j) stay as two
+        // separate heads (no synthetic merge command). The braided fact cache
+        // below still reflects the full merged state.
+        assert_eq!(head_count(g), 2);
+        assert_eq!(max_head_cut(g), MaxCut::new(6));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1125,7 +1325,9 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "mid_braid_2");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(7));
+        // Lazy merges: two separate heads (h/i/j and e/f/g branches from `d`).
+        assert_eq!(head_count(g), 2);
+        assert_eq!(max_head_cut(g), MaxCut::new(6));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1150,7 +1352,10 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "finalize_success");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(9));
+        // Lazy merges: branches from `e` (the fff1->x->y->fff2 finalize chain
+        // and f/g) and from `d` (h/i/j) remain as separate heads.
+        assert_eq!(head_count(g), 3);
+        assert_eq!(max_head_cut(g), MaxCut::new(8));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1169,6 +1374,645 @@ mod test {
         };
         let err = gb.commit().expect_err("merge should fail");
         assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
+    }
+
+    /// Build a [`CmdId`] deterministically from a counter value.
+    fn id_from_u64(n: u64) -> CmdId {
+        hash_for_testing_only(&n.to_le_bytes())
+    }
+
+    /// Builds a committed graph: init `0`, plus one sibling tip per element
+    /// of `sibs` (each a child of init), ingested in the given order.
+    fn client_with_sibling_heads(
+        sibs: &[u64],
+    ) -> (ClientState<SeqPolicyStore, MemStorageProvider>, GraphId) {
+        let init_id: CmdId = id_from_u64(0);
+        let graph_id = GraphId::transmute(init_id);
+        let init_addr = Address {
+            id: init_id,
+            max_cut: MaxCut::new(0),
+        };
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut trx = Transaction::new(graph_id);
+        let mut buffers = RuntimeBuffers::new();
+
+        trx.add_commands(
+            &[SeqCommand::new(init_id, Prior::None, MaxCut::new(0))],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init must succeed");
+
+        for &i in sibs {
+            let cmd = SeqCommand::new(id_from_u64(i), Prior::Single(init_addr), MaxCut::new(1));
+            trx.add_commands(
+                &[cmd],
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("sibling ingest must succeed");
+        }
+
+        assert!(
+            trx.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("commit must succeed")
+        );
+        (client, graph_id)
+    }
+
+    /// Ingests a single command on top of `parent` and commits it.
+    fn extend_and_commit(
+        client: &mut ClientState<SeqPolicyStore, MemStorageProvider>,
+        graph_id: GraphId,
+        id: u64,
+        parent: Address,
+    ) {
+        let mut trx = Transaction::new(graph_id);
+        let mut buffers = RuntimeBuffers::new();
+        let cmd = SeqCommand::new(
+            id_from_u64(id),
+            Prior::Single(parent),
+            parent.max_cut.checked_add(1).unwrap(),
+        );
+        trx.add_commands(
+            &[cmd],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("extend ingest must succeed");
+        assert!(
+            trx.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("extend commit must succeed")
+        );
+    }
+
+    /// A single-head graph advertises its head itself.
+    #[test]
+    fn test_hello_head_single_head() {
+        let (mut client, graph_id) = client_with_sibling_heads(&[1]);
+        let expected = client.head_address(graph_id).unwrap();
+        assert_eq!(client.hello_head(graph_id).unwrap(), expected);
+    }
+
+    /// Peers holding the same head set compute the same virtual head, no
+    /// matter what order they ingested the tips in — and the virtual head is
+    /// not a real command in either graph.
+    #[test]
+    fn test_hello_head_deterministic_across_ingest_order() {
+        let (mut a, graph_id) = client_with_sibling_heads(&[1, 2, 3]);
+        let (mut b, _) = client_with_sibling_heads(&[3, 1, 2]);
+
+        let advertised = a.hello_head(graph_id).unwrap();
+        assert_eq!(advertised, b.hello_head(graph_id).unwrap());
+
+        let mut buffer = TraversalBuffer::new();
+        let storage = a.provider.get_storage(graph_id).unwrap();
+        assert!(
+            storage
+                .get_location(advertised, &mut buffer)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    /// The virtual head equals the merge that `collapse_heads` materializes
+    /// from the same head set — the property that lets a peer who already
+    /// collapsed these heads recognize the advertisement.
+    #[test]
+    fn test_hello_head_matches_materialized_collapse() {
+        let (mut client, graph_id) = client_with_sibling_heads(&[1, 2, 3]);
+        let advertised = client.hello_head(graph_id).unwrap();
+
+        let mut buffers = RuntimeBuffers::new();
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        let heads = storage.get_heads().unwrap().clone();
+        let loc = collapse_heads::<_, _, MemSpill, _>(
+            storage,
+            &mut client.policy_store,
+            heads,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .unwrap();
+
+        let segment = storage.get_segment(loc).unwrap();
+        assert_eq!(segment.head_id(), advertised.id);
+        assert_eq!(loc.max_cut, advertised.max_cut);
+    }
+
+    #[test]
+    fn test_should_sync_on_hello() {
+        let (mut publisher, graph_id) = client_with_sibling_heads(&[1, 2]);
+        let advertised = publisher.hello_head(graph_id).unwrap();
+        let mut buffer = TraversalBuffer::new();
+
+        // Same head set: the peer computes the same virtual head.
+        let (mut same, _) = client_with_sibling_heads(&[2, 1]);
+        assert!(
+            !same
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Behind: a peer missing part of the publisher's state syncs.
+        let (mut behind, _) = client_with_sibling_heads(&[1]);
+        assert!(
+            behind
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Missing graph: sync.
+        let mut fresh = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        assert!(
+            fresh
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Ahead through collapse: a peer that materialized and committed the
+        // same merge (what an action does) and moved past it recognizes the
+        // advertised command as part of its graph.
+        let (mut ahead, _) = client_with_sibling_heads(&[1, 2]);
+        {
+            let mut buffers = RuntimeBuffers::new();
+            let storage = ahead.provider.get_storage(graph_id).unwrap();
+            let heads = storage.get_heads().unwrap().clone();
+            let loc = collapse_heads::<_, _, MemSpill, _>(
+                storage,
+                &mut ahead.policy_store,
+                heads,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .unwrap();
+            let segment = storage.get_segment(loc).unwrap();
+            let facts = segment.facts().unwrap();
+            storage
+                .commit_heads(
+                    HeadSet::single(LocatedAddress {
+                        id: segment.head_id(),
+                        segment: loc.segment,
+                        max_cut: loc.max_cut,
+                    }),
+                    facts,
+                )
+                .unwrap();
+        }
+        extend_and_commit(&mut ahead, graph_id, 9, advertised);
+        assert_ne!(ahead.hello_head(graph_id).unwrap(), advertised);
+        assert!(
+            !ahead
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+
+        // Extended head: a peer that extended one of the publisher's heads
+        // fails both checks — the accepted false positive costing one sync
+        // that transfers nothing.
+        let (mut extended, _) = client_with_sibling_heads(&[1, 2]);
+        let sibling = Address {
+            id: id_from_u64(1),
+            max_cut: MaxCut::new(1),
+        };
+        extend_and_commit(&mut extended, graph_id, 7, sibling);
+        assert!(
+            extended
+                .should_sync_on_hello(graph_id, advertised, &mut buffer)
+                .unwrap()
+        );
+    }
+
+    /// The head set is unbounded: ingest more divergent tips (all children of
+    /// init) than the old fixed capacity of 512 and assert that both ingest
+    /// and commit succeed, with every tip in the committed head set.
+    #[test]
+    fn test_many_divergent_heads() {
+        const HEADS: u64 = 600;
+
+        let init_id: CmdId = id_from_u64(0);
+        let graph_id = GraphId::transmute(init_id);
+        let init_addr = Address {
+            id: init_id,
+            max_cut: MaxCut::new(0),
+        };
+
+        let init_cmd = SeqCommand::new(init_id, Prior::None, MaxCut::new(0));
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut trx = Transaction::new(graph_id);
+        let mut buffers = RuntimeBuffers::new();
+
+        // Ingest the init command to create the graph.
+        trx.add_commands(
+            &[init_cmd],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init must succeed");
+
+        // Ingest siblings of init, each with Prior::Single(init_addr) and a
+        // distinct id, yielding HEADS divergent tips.
+        for i in 1u64..=HEADS {
+            let id = id_from_u64(i);
+            let cmd = SeqCommand::new(id, Prior::Single(init_addr), MaxCut::new(1));
+            trx.add_commands(
+                &[cmd],
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("sibling ingest must succeed");
+        }
+
+        assert!(
+            trx.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("commit must succeed")
+        );
+
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        assert_eq!(storage.get_heads().unwrap().len(), HEADS as usize);
+    }
+
+    /// Ingest a couple commands, call `flush`, and assert `session_heads`
+    /// yields the expected tip and that the tip is resolvable in storage.
+    #[test]
+    fn test_flush_session_heads() {
+        let a: CmdId = id_from_u64(0);
+        let b: CmdId = id_from_u64(1);
+        let c: CmdId = id_from_u64(2);
+        let graph_id = GraphId::transmute(a);
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut trx = Transaction::new(graph_id);
+        let mut buffers = RuntimeBuffers::new();
+
+        // a (init) -> b -> c, a single linear chain. The sole tip is `c`.
+        let init = SeqCommand::new(a, Prior::None, MaxCut::new(0));
+        let cmd_b = SeqCommand::new(
+            b,
+            Prior::Single(Address {
+                id: a,
+                max_cut: MaxCut::new(0),
+            }),
+            MaxCut::new(1),
+        );
+        let cmd_c = SeqCommand::new(
+            c,
+            Prior::Single(Address {
+                id: b,
+                max_cut: MaxCut::new(1),
+            }),
+            MaxCut::new(2),
+        );
+        trx.add_commands(
+            &[init, cmd_b, cmd_c],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("add_commands must succeed");
+
+        // Before flush, the in-flight perspective holds the tip (it is not yet
+        // written to a segment).
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        trx.flush(storage).expect("flush must succeed");
+
+        // The frontier is the single tip `c`.
+        let heads: Vec<LocatedAddress> = trx
+            .session_heads(&PeerCache::new())
+            .session_iter()
+            .collect();
+        assert_eq!(heads.len(), 1, "expected a single tip, got {heads:?}");
+        assert_eq!(heads[0].id, c, "tip should be the last command");
+
+        // The tip is now resolvable in storage (written by flush).
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        let loc = storage
+            .get_location_from(
+                heads[0].location(),
+                Address {
+                    id: c,
+                    max_cut: MaxCut::new(2),
+                },
+                &mut buffers.traversal.primary,
+            )
+            .unwrap();
+        assert!(loc.is_some(), "flushed tip must be resolvable in storage");
+    }
+
+    /// `SyncRequester::poll` must advertise the transaction's flushed,
+    /// uncommitted frontier when given session heads, with the durable
+    /// cache read-only.
+    #[test]
+    fn test_poll_advertises_session_heads() {
+        use crate::sync::{
+            MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncRequestMessage, SyncRequester, wire::SyncType,
+        };
+
+        let a: CmdId = id_from_u64(0);
+        let b: CmdId = id_from_u64(1);
+        let c: CmdId = id_from_u64(2);
+        let graph_id = GraphId::transmute(a);
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        // Commit `a` so the graph exists.
+        let mut trx = Transaction::new(graph_id);
+        let init = SeqCommand::new(a, Prior::None, MaxCut::new(0));
+        trx.add_commands(
+            &[init],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init must succeed");
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("commit must succeed");
+
+        // Ingest b -> c in an open transaction and flush; `c` is the
+        // in-flight tip, present in storage but not committed.
+        let mut trx = Transaction::new(graph_id);
+        let cmd_b = SeqCommand::new(
+            b,
+            Prior::Single(Address {
+                id: a,
+                max_cut: MaxCut::new(0),
+            }),
+            MaxCut::new(1),
+        );
+        let cmd_c = SeqCommand::new(
+            c,
+            Prior::Single(Address {
+                id: b,
+                max_cut: MaxCut::new(1),
+            }),
+            MaxCut::new(2),
+        );
+        trx.add_commands(
+            &[cmd_b, cmd_c],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("ingest must succeed");
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        trx.flush(storage).expect("flush must succeed");
+
+        let cache = PeerCache::new();
+        let session = trx.session_heads(&cache);
+        let mut syncer = SyncRequester::new(graph_id, aranya_crypto::Rng);
+        let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, sent) = syncer
+            .poll(
+                &mut target,
+                &mut client.provider,
+                &session,
+                &mut buffers.traversal.primary,
+            )
+            .expect("poll must succeed");
+        assert!(sent > 0, "sample must not be empty");
+
+        let (message, _): (SyncType, &[u8]) =
+            postcard::take_from_bytes(&target[..len]).expect("message must decode");
+        let SyncType::Poll {
+            request: SyncRequestMessage::SyncRequest { commands, .. },
+        } = message
+        else {
+            panic!("expected a poll sync request, got {message:?}");
+        };
+        assert!(
+            commands.iter().any(|addr| addr.id == c),
+            "sample must advertise the in-flight tip: {commands:?}"
+        );
+    }
+
+    /// The durable `PeerCache` derives locations from committed storage,
+    /// so a flushed-but-uncommitted command cannot enter it.
+    #[test]
+    fn test_peer_cache_rejects_uncommitted() {
+        use crate::sync::PeerCache;
+
+        let a: CmdId = id_from_u64(0);
+        let b: CmdId = id_from_u64(1);
+        let graph_id = GraphId::transmute(a);
+        let addr_a = Address {
+            id: a,
+            max_cut: MaxCut::new(0),
+        };
+        let addr_b = Address {
+            id: b,
+            max_cut: MaxCut::new(1),
+        };
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        // Commit `a`, then flush (but do not commit) `b`.
+        let mut trx = Transaction::new(graph_id);
+        let init = SeqCommand::new(a, Prior::None, MaxCut::new(0));
+        trx.add_commands(
+            &[init],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init must succeed");
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("commit must succeed");
+
+        let mut trx = Transaction::new(graph_id);
+        let cmd_b = SeqCommand::new(b, Prior::Single(addr_a), MaxCut::new(1));
+        trx.add_commands(
+            &[cmd_b],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("ingest must succeed");
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        trx.flush(storage).expect("flush must succeed");
+
+        // `b` is in storage (flushed) but not committed: the cache must
+        // ignore it.
+        let mut cache = PeerCache::new();
+        cache
+            .add_command(storage, addr_b, &mut buffers.traversal.primary)
+            .expect("add_command must not error");
+        assert!(
+            cache.heads().is_empty(),
+            "uncommitted command must not enter the cache: {:?}",
+            cache.heads()
+        );
+
+        // Committed `a` is accepted.
+        cache
+            .add_command(storage, addr_a, &mut buffers.traversal.primary)
+            .expect("add_command must not error");
+        assert_eq!(cache.heads().len(), 1);
+        assert_eq!(cache.heads()[0].id, a);
+
+        // Once committed, `b` is accepted and supersedes its ancestor `a`.
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("commit must succeed");
+        let storage = client.provider.get_storage(graph_id).unwrap();
+        cache
+            .add_command(storage, addr_b, &mut buffers.traversal.primary)
+            .expect("add_command must not error");
+        assert_eq!(cache.heads().len(), 1);
+        assert_eq!(cache.heads()[0].id, b);
+    }
+
+    #[test]
+    fn test_concurrent_transaction_rejected() {
+        let a: CmdId = id_from_u64(0);
+        let b: CmdId = id_from_u64(1);
+        let c: CmdId = id_from_u64(2);
+        let graph_id = GraphId::transmute(a);
+
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        let addr_a = Address {
+            id: a,
+            max_cut: MaxCut::new(0),
+        };
+        let init = SeqCommand::new(a, Prior::None, MaxCut::new(0));
+        let cmd_b = SeqCommand::new(b, Prior::Single(addr_a), MaxCut::new(1));
+        let cmd_c = SeqCommand::new(c, Prior::Single(addr_a), MaxCut::new(1));
+
+        // Initialize and commit the graph so both transactions start from `a`.
+        let mut trx0 = Transaction::new(graph_id);
+        trx0.add_commands(
+            &[init],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("init add_commands must succeed");
+        assert!(
+            trx0.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("init commit must succeed")
+        );
+
+        // trx1 starts first (capturing the committed head-set stamp)...
+        let mut trx1 = Transaction::new(graph_id);
+        trx1.add_commands(
+            &[cmd_b],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("trx1 add_commands must succeed");
+
+        // ...then trx2 commits in between.
+        let mut trx2 = Transaction::new(graph_id);
+        trx2.add_commands(
+            &[cmd_c],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &MemSpill::new,
+        )
+        .expect("trx2 add_commands must succeed");
+        assert!(
+            trx2.commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect("trx2 commit must succeed")
+        );
+
+        // trx1 must now be rejected.
+        let err = trx1
+            .commit(
+                &mut client.provider,
+                &mut client.policy_store,
+                &mut NullSink,
+                &mut buffers,
+                &MemSpill::new,
+            )
+            .expect_err("trx1 commit must fail after trx2 committed");
+        assert!(
+            matches!(err, ClientError::ConcurrentTransaction),
+            "expected ConcurrentTransaction, got {err:?}"
+        );
     }
 
     #[test]
@@ -1191,7 +2035,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "merge-bug");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(6));
+        assert_eq!(sole_head(g).max_cut, MaxCut::new(6));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1218,7 +2062,7 @@ mod test {
         #[cfg(feature = "graphviz")]
         graphviz::dot(g, "linear-bug");
 
-        assert_eq!(g.get_head().unwrap().max_cut, MaxCut::new(4));
+        assert_eq!(sole_head(g).max_cut, MaxCut::new(4));
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
@@ -1272,12 +2116,24 @@ mod test {
         // Accumulate an action in an open (uncommitted) transaction.
         let mut trx = client.transaction(graph_id);
         client
-            .action_transaction(&mut trx, &mut sink, TestActions::SetValue(0, 1))
+            .action_transaction(
+                &mut trx,
+                &mut sink,
+                TestActions::SetValue(0, 1),
+                &mut buffers,
+                MemSpill::new,
+            )
             .unwrap();
 
         // A local action is not blocked by the open transaction.
         client
-            .action(graph_id, &mut sink, TestActions::SetValue(0, 2))
+            .action(
+                graph_id,
+                &mut sink,
+                TestActions::SetValue(0, 2),
+                &mut buffers,
+                MemSpill::new,
+            )
             .unwrap();
 
         // But it advanced the head out from under the transaction.
@@ -1289,7 +2145,13 @@ mod test {
         // A transaction opened afterward commits cleanly.
         let mut trx = client.transaction(graph_id);
         client
-            .action_transaction(&mut trx, &mut sink, TestActions::SetValue(0, 3))
+            .action_transaction(
+                &mut trx,
+                &mut sink,
+                TestActions::SetValue(0, 3),
+                &mut buffers,
+                MemSpill::new,
+            )
             .unwrap();
         assert!(
             client
@@ -1330,7 +2192,10 @@ mod test {
             let mut locations = Vec::new();
             let mut seen_segments = HashSet::new();
             let mut segment_queue = VecDeque::new();
-            segment_queue.push_back(storage.get_head().unwrap());
+            // Lazy merges keep the graph multi-head; walk back from every head.
+            for head in storage.get_heads().unwrap().iter() {
+                segment_queue.push_back(head.location());
+            }
             while let Some(location) = segment_queue.pop_front() {
                 if !seen_segments.insert(location.segment) {
                     continue;
@@ -1470,9 +2335,11 @@ mod test {
                 }
             }
 
-            // Draw HEAD indicator.
+            // Draw HEAD indicator with an edge to each graph head.
             graph.node_named("HEAD").set("shape", "none", false);
-            graph.edge("HEAD", loc(storage.get_head().unwrap()));
+            for head in storage.get_heads().unwrap().iter() {
+                graph.edge("HEAD", loc(head.location()));
+            }
         }
 
         pub fn dot(storage: &impl Storage<FactIndex: FactIndexExtra>, name: &str) {
