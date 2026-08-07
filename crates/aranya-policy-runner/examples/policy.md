@@ -28,10 +28,13 @@ fact Device[dev id]=>{key bytes}
 ```policy
 // General signing function. It creates an envelope with the given payload (a serialized command)
 // and signing key.
-function sign_command(payload bytes, key bytes) struct Envelope {
+function sign_command(payload bytes, key option[bytes]) struct Envelope {
     let parent_id = perspective::head_id()
     let author_id = device::current_device_id()
-    let author_sign_key_id = idam::derive_sign_key_id(key)
+    let author_sign_key_id = match key {
+        Some(k) => Some(idam::derive_sign_key_id(k))
+        None => None
+    }
     let signed = crypto::sign(
         author_sign_key_id,
         payload,
@@ -46,32 +49,28 @@ function sign_command(payload bytes, key bytes) struct Envelope {
 
 // General open function. Opens an envelope using the given signing key and returns the verified
 // payload.
-function open_command(payload bytes, e struct Envelope, key bytes) bytes {
-    let c = crypto::verify(
+function open_command(payload bytes, e struct Envelope, key option[bytes]) unit {
+    return crypto::verify(
         key,
         envelope::parent_id(e),
         payload,
         envelope::command_id(e),
         envelope::signature(e),
     )
-    return c
 }
 
 // Retrieves a device key by taking the current device ID and looking it up in the Device fact.
-// This assumes that this mapping exists, and a proper implementation should check for errors.
-function current_device_key() bytes {
+function current_device_key() option[bytes] {
     let author_id = device::current_device_id()
-    let author_dev = check_unwrap query Device[dev: author_id]
-    return author_dev.key
+    let author_dev = query Device[dev: author_id] or return None
+    return Some(author_dev.key)
 }
 
 /// Retrieves a device key by taking the envelope author ID and looking it up in the Device fact.
-// Like current_device_key() above, a proper implementation would check for errors as a
-// malicious command could have an author ID not in our database.
-function envelope_author_key(envelope struct Envelope) bytes {
+function envelope_author_key(envelope struct Envelope) option[bytes] {
     let author_id = envelope::author_id(envelope)
-    let author_dev = check_unwrap query Device[dev: author_id]
-    return author_dev.key
+    let author_dev = query Device[dev: author_id] or return None
+    return Some(author_dev.key)
 }
 ```
 
@@ -104,8 +103,8 @@ command Init {
 
     // Note the special case for both seal and open here. The owner key is used explicitly rather
     // than a device key pulled from a fact, because that fact doesn't yet exist.
-    seal { return sign_command(payload, this.owner_key) }
-    open { return open_command(payload, envelope, this.owner_key) }
+    seal { return sign_command(payload, Some(this.owner_key)) }
+    open { return open_command(payload, envelope, Some(this.owner_key)) }
 
     policy {
         let device_id = device::current_device_id()
@@ -292,7 +291,7 @@ command Hello {
         return sign_command(payload, current_device_key())
     }
     open {
-        return open_command(envelope, envelope_author_key(envelope))
+        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
