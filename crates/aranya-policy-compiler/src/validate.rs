@@ -81,11 +81,15 @@ pub fn validate(module: &Module) -> ValidationResult {
         // --- CFG-based validation checks (warnings only). ---
         let entry_addr = *m.labels.get(l).expect("label present");
         let cfg = Cfg::build(m, entry_addr);
+        // Command blocks get compiler-synthesized parameters, which should not be reported.
         let predefined = match l.ltype {
-            LabelType::CommandPolicy
-            | LabelType::CommandRecall
-            | LabelType::CommandSeal
-            | LabelType::CommandOpen => BTreeSet::from([ident!("this"), ident!("envelope")]),
+            LabelType::CommandPolicy | LabelType::CommandRecall => {
+                BTreeSet::from([ident!("this"), ident!("envelope")])
+            }
+            LabelType::CommandSeal => BTreeSet::from([ident!("this"), ident!("payload")]),
+            LabelType::CommandOpen => {
+                BTreeSet::from([ident!("this"), ident!("payload"), ident!("envelope")])
+            }
             _ => BTreeSet::new(),
         };
         for d in cfg::unused_vars(&cfg, m, &predefined) {

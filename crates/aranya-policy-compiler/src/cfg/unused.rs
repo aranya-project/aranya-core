@@ -13,8 +13,7 @@
 //! needed if dead stores were possible.)
 //!
 //! The forward search uses a visited-set, so loops (e.g. the backward `Jump` in
-//! a `map`) terminate. The `map ... as` binding is set by `QueryNext`, not
-//! `Def`, so it is intentionally not checked here.
+//! a `map`) terminate.
 
 use std::collections::BTreeSet;
 
@@ -84,7 +83,9 @@ pub fn unused_vars(
     for &node in &cfg.reachable_nodes() {
         let block = &cfg.graph[node];
         for addr in block.start..block.end {
-            let Instruction::Def(name) = &module.progmem[addr] else {
+            // `Def` binds a `let`/argument; `QueryNext` binds a `map ... as`.
+            let (Instruction::Def(name) | Instruction::QueryNext(name)) = &module.progmem[addr]
+            else {
                 continue;
             };
             // Skip global, predefined vars; we only care about local unused vars.

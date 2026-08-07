@@ -379,6 +379,26 @@ fn validate_unused_values() {
             "#,
             "unused_both: unused variable(s): `x`",
         ),
+        (
+            // `map ... as` uses `QueryNext`, not `Def`... ensure that ident is checked too
+            r#"
+            fact User[i int]=>{name string}
+            command Foo {
+                seal { return todo() }
+                open { return todo() }
+                policy {
+                    finish {}
+                }
+            }
+            action map_unused() {
+                map User[i:?] as u {
+                    // u is unused
+                }
+                publish Foo {}
+            }
+            "#,
+            "unused variable(s): u",
+        ),
     ];
 
     for (i, (text, expected_msg)) in cases.iter().enumerate() {

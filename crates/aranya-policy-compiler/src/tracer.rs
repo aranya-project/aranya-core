@@ -191,9 +191,17 @@ impl TraceAnalyzer<'_> {
 
             match i {
                 Instruction::Jump(t) => {
-                    pc = t
+                    let target = t
                         .resolved()
                         .ok_or_else(|| self.trace_err(TraceErrorType::Bug))?;
+                    // Don't jump backwards, as that would result in an endless loop.
+                    if target <= pc {
+                        return Ok(TraceIntermediate {
+                            issues,
+                            successful_branch_paths,
+                        });
+                    }
+                    pc = target;
                     continue;
                 }
                 Instruction::Branch(t) => {
