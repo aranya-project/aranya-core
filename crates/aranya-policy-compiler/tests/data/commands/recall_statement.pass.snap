@@ -7,7 +7,7 @@ Module {
     labels: {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 10,
-        <open 'Cmd'>: 16,
+        <open 'Cmd'>: 17,
         <recall 'Cmd_handle'>: 7,
     },
     action_defs: {},
@@ -41,6 +41,7 @@ Module {
     def 'this'
     exit check
 <seal 'Cmd'>:
+    def 'payload'
     def 'this'
     save SP
     exit panic
@@ -49,6 +50,8 @@ Module {
     exit panic
 <open 'Cmd'>:
     def 'envelope'
+    def 'payload'
+    def 'this'
     save SP
     exit panic
     restore SP

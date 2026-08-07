@@ -186,9 +186,6 @@ match_expression_arm = { (match_arm_expression | match_default) ~ "=>" ~ express
 // expression or the other depending on the boolean evaluation of the
 // first expression.
 if_expr = { "if" ~ expression ~ block_expression ~ "else" ~ block_expression }
-// serialize() and deserialize() transform command structs to/from bytes
-serialize = { "serialize(" ~ expression ~ ")" }
-deserialize = { "deserialize(" ~ expression ~ ")" }
 // Indicates a not yet implemented panic
 todo = { "todo()" }
 // Panics with a message. Like `todo()`, but for expressing test
@@ -204,8 +201,6 @@ internal_function = _{
     | at_most
     | exactly
     | if_expr
-    | serialize
-    | deserialize
     | todo
     | test_fail
 }

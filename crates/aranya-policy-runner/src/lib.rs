@@ -24,7 +24,8 @@ use aranya_policy_compiler::{Compiler, validate::validate};
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Identifier, Machine, Value};
 use aranya_runtime::{
-    ActionPlacement, Policy as _, PolicyId, Sink as _, Storage as _, StorageProvider as _, VmAction,
+    ActionPlacement, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _, Sink as _,
+    Storage as _, StorageProvider as _, VmAction,
 };
 pub use io::testing_ffi;
 use policy::create_vmpolicy;
@@ -297,7 +298,23 @@ impl PolicyRunner {
         let (mut perspective, storage) = match self.working_directory.get_graph_id()? {
             Some(graph_id) => {
                 let storage = provider.get_storage(graph_id)?;
-                let head = storage.get_head()?;
+                // The runner builds a graph locally and never syncs, so its
+                // graph is single-head. Read the head set explicitly rather
+                // than assuming a sole head; a multi-head graph would need a
+                // braid/collapse the runner has no machinery for, so bail out
+                // clearly instead of silently picking an arbitrary head.
+                let heads = storage.get_heads()?.clone();
+                let mut heads_iter = heads.iter();
+                let head = heads_iter
+                    .next()
+                    .context("existing graph has no head")?
+                    .location();
+                if heads_iter.next().is_some() {
+                    anyhow::bail!(
+                        "policy-runner does not support multi-head graphs (found {} heads)",
+                        heads.len()
+                    );
+                }
                 tracing::debug!("Using existing graph");
                 (storage.get_linear_perspective(head)?, Some(storage))
             }
@@ -338,9 +355,15 @@ impl PolicyRunner {
         }
 
         if let Some(storage) = storage {
-            // Storage already exists, commit
+            // Storage already exists, commit the new segment as the sole head.
             let segment = storage.write(perspective)?;
-            storage.commit(segment)?;
+            let new_head = LocatedAddress {
+                id: segment.head_id(),
+                segment: segment.index(),
+                max_cut: segment.longest_max_cut()?,
+            };
+            let fact_cache = segment.facts()?;
+            storage.commit_heads(HeadSet::single(new_head), fact_cache)?;
         } else {
             // Storage did not already exist, create a new one and save our Graph ID
             let (new_graph_id, _) = provider.new_storage(perspective)?;

@@ -368,33 +368,27 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         }
     }
 
-    #[instrument(skip_all, fields(name = name.as_str()))]
+    #[instrument(skip_all, fields(name = this_data.name.as_str()))]
     fn open_command<P>(
         &self,
-        name: Identifier,
+        this_data: Struct,
+        payload: Vec<u8>,
         envelope: Envelope<'_>,
         facts: &mut P,
-    ) -> Result<Struct, PolicyError>
+    ) -> Result<(), PolicyError>
     where
         P: FactPerspective,
     {
         let mut sink = NullSink;
         let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
-        let ctx = CommandContext::Open(OpenContext { name: name.clone() });
+        let ctx = CommandContext::Open(OpenContext {
+            name: this_data.name.clone(),
+        });
         let mut rs = self.machine.create_run_state(&mut io, ctx);
-        let status = rs.call_open(name, envelope.into());
+        let status = rs.call_open(this_data, payload, envelope.into());
         match status {
             Ok(reason) => match reason {
-                ExitReason::Normal => {
-                    let v = rs.consume_return().map_err(|e| {
-                        error!("Could not pull envelope from stack: {e}");
-                        PolicyError::InternalError
-                    })?;
-                    Ok(v.try_into().map_err(|e| {
-                        error!("Envelope is not a struct: {e}");
-                        PolicyError::InternalError
-                    })?)
-                }
+                ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
                     info!("Check: {}", self.source_location(&rs));
@@ -515,7 +509,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         let VmProtocolData {
             author_id,
             kind,
-            serialized_fields,
+            serialized_fields: payload,
             signature,
         } = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
@@ -541,7 +535,6 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             parent_id,
             author_id,
             command_id: command.id(),
-            payload: Cow::Borrowed(serialized_fields),
             signature: Cow::Borrowed(signature),
         };
 
@@ -563,7 +556,31 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             }
         }
 
-        let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
+        let command_struct = self
+            .machine
+            .deserialize_struct(kind.clone(), payload)
+            .map_err(|e| {
+                error!(
+                    error = %e,
+                    "could not deserialize command during braid"
+                );
+                PolicyError::Read
+            })?;
+
+        match placement {
+            CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
+                self.open_command(
+                    command_struct.clone(),
+                    payload.to_vec(),
+                    envelope.clone(),
+                    facts,
+                )?;
+            }
+            CommandPlacement::OnGraphInBraid => {
+                // Bypass real open and just deserialize.
+            }
+        }
+
         let fields: Vec<KVPair> = command_struct
             .fields
             .into_iter()
@@ -666,12 +683,22 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         })?;
                         let command_name = command_struct.name.clone();
 
+                        let payload =
+                            self.machine
+                                .serialize_struct(&command_struct)
+                                .map_err(|e| {
+                                    error!(error = %e, "cannot serialize command");
+                                    PolicyError::Write
+                                })?;
+
                         let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(rs.io, seal_ctx);
-                        match rs_seal.call_seal(command_struct).map_err(|e| {
-                            error!("Cannot seal command: {}", e);
-                            PolicyError::Panic
-                        })? {
+                        match rs_seal
+                            .call_seal(command_struct, payload.clone())
+                            .map_err(|e| {
+                                error!("Cannot seal command: {}", e);
+                                PolicyError::Panic
+                            })? {
                             ExitReason::Normal => (),
                             r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
                                 error!("Could not seal command: {}", r);
@@ -721,7 +748,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         let data = VmProtocolData {
                             author_id: envelope.author_id,
                             kind: command_name.clone(),
-                            serialized_fields: &envelope.payload,
+                            serialized_fields: &payload,
                             signature: &envelope.signature,
                         };
 

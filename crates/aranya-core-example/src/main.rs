@@ -208,13 +208,9 @@ fn sync_graphs(
     let mut trx = dest.transaction(graph_id);
 
     let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+    let session = trx.session_heads(&request_cache);
     let (len, _sent) = syncer
-        .poll(
-            &mut buf,
-            dest.provider(),
-            &mut request_cache,
-            &mut traversal,
-        )
+        .poll(&mut buf, dest.provider(), &session, &mut traversal)
         .context("sync poll failed")?;
 
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -285,6 +281,8 @@ fn main() -> Result<()> {
     let policy_store_a = compile_policy(dev_a.engine, dev_a.store, dev_a.device_id)?;
     let mut cs_a = ClientState::new(policy_store_a, provider_a);
     let mut sink = PrintSink::new();
+    let mut rt_buffers = RuntimeBuffers::new();
+    let make_spill = || LibcSpill::new(&storage_root);
 
     // Step 4: Create graph with init action
     println!("\nStep 4: Creating graph (init)...");
@@ -298,7 +296,7 @@ fn main() -> Result<()> {
     println!("\n== Device A: Add Device B ==");
     println!("\nStep 5: Adding Device B...");
     add_device(dev_b.public_keys)
-        .with_action(|action| cs_a.action(graph_id, &mut sink, action))
+        .with_action(|action| cs_a.action(graph_id, &mut sink, action, &mut rt_buffers, make_spill))
         .context("add_device")?;
     sink.drain_and_print("Device A / add_device");
 
@@ -306,14 +304,14 @@ fn main() -> Result<()> {
     println!("\n== Device A: Application Commands ==");
     println!("\nStep 6: Setting counter(1) = 100...");
     set_counter(1, 100)
-        .with_action(|action| cs_a.action(graph_id, &mut sink, action))
+        .with_action(|action| cs_a.action(graph_id, &mut sink, action, &mut rt_buffers, make_spill))
         .context("set_counter")?;
     sink.drain_and_print("Device A / set_counter");
 
     // Step 7: Increment counter
     println!("\nStep 7: Incrementing counter(1) by 50...");
     increment_counter(1, 50)
-        .with_action(|action| cs_a.action(graph_id, &mut sink, action))
+        .with_action(|action| cs_a.action(graph_id, &mut sink, action, &mut rt_buffers, make_spill))
         .context("increment_counter")?;
     sink.drain_and_print("Device A / increment_counter");
 
@@ -332,7 +330,7 @@ fn main() -> Result<()> {
     println!("\n== Device B: Own Action ==");
     println!("\nStep 10: Device B incrementing counter(1) by 25...");
     increment_counter(1, 25)
-        .with_action(|action| cs_b.action(graph_id, &mut sink, action))
+        .with_action(|action| cs_b.action(graph_id, &mut sink, action, &mut rt_buffers, make_spill))
         .context("Device B increment_counter")?;
     sink.drain_and_print("Device B / increment_counter");
 

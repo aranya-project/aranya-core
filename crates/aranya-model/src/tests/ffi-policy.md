@@ -105,24 +105,22 @@ function seal_basic_command(payload bytes) struct Envelope {
         author_id,
         signed.command_id,
         signed.signature,
-        payload,
     )
 }
 
 // Opens a basic command from an envelope, using the author's stored signing key.
-function open_basic_command(envelope_input struct Envelope) bytes {
+function open_basic_command(payload bytes, envelope_input struct Envelope) unit {
     let author_id = envelope::author_id(envelope_input)
     let author_sign_pk = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
     let parent_id = envelope::parent_id(envelope_input)
 
-    let crypto_command = crypto::verify(
+    return crypto::verify(
         author_sign_pk.key,
         parent_id,
-        envelope::payload(envelope_input),
+        payload,
         envelope::command_id(envelope_input),
         envelope::signature(envelope_input),
     )
-    return crypto_command
 }
 
 action init(nonce int, sign_pk bytes) {
@@ -144,7 +142,6 @@ command Init {
 
     seal {
         let parent_id = perspective::head_id()
-        let payload = serialize(this)
         let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
 
         let signed = crypto::sign(
@@ -159,25 +156,21 @@ command Init {
             author_id,
             signed.command_id,
             signed.signature,
-            payload,
         )
     }
 
     open {
         let author_id = envelope::author_id(envelope)
         let parent_id = envelope::parent_id(envelope)
-        let payload = envelope::payload(envelope)
-        let cmd = deserialize(payload)
-        let author_sign_pk = cmd.sign_pk
+        let author_sign_pk = this.sign_pk
 
-        let crypto_command = crypto::verify(
+        return crypto::verify(
             author_sign_pk,
             parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
         )
-        return deserialize(crypto_command)
     }
 
     policy {
@@ -205,7 +198,6 @@ command AddDeviceKeys {
 
     seal {
         let parent_id = perspective::head_id()
-        let payload = serialize(this)
         let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
 
         let signed = crypto::sign(
@@ -220,25 +212,21 @@ command AddDeviceKeys {
             author_id,
             signed.command_id,
             signed.signature,
-            payload,
         )
     }
 
     open {
         let author_id = envelope::author_id(envelope)
         let parent_id = envelope::parent_id(envelope)
-        let payload = envelope::payload(envelope)
-        let cmd = deserialize(payload)
-        let author_sign_pk = cmd.sign_pk
+        let author_sign_pk = this.sign_pk
 
-        let crypto_command = crypto::verify(
+        return crypto::verify(
             author_sign_pk,
             parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
         )
-        return deserialize(crypto_command)
     }
 
     policy {
@@ -283,8 +271,8 @@ command Create {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -311,8 +299,8 @@ command Increment {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
@@ -343,8 +331,8 @@ command Decrement {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
 
     policy {
@@ -374,8 +362,8 @@ ephemeral command CreateGreeting {
         value string,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -410,8 +398,8 @@ ephemeral command VerifyGreeting {
         value string,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
@@ -440,8 +428,8 @@ command VerifyNoHello {
 
     fields {}
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
         check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")

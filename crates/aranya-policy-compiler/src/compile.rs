@@ -128,6 +128,13 @@ mod param {
 
     use super::{Ident, Param, TypeKind, ident};
 
+    pub fn payload() -> Param {
+        Param {
+            name: ident!("payload").nowhere(),
+            ty: TypeKind::Bytes.nowhere(),
+        }
+    }
+
     pub fn envelope() -> Param {
         Param {
             name: ident!("envelope").nowhere(),
@@ -641,14 +648,6 @@ impl<'a> CompileState<'a> {
                     self.define_label(else_name, self.wp)?;
                     self.compile_typed_expression(*t)?;
                     self.define_label(end_name, self.wp)?;
-                }
-                thir::InternalFunction::Serialize(e) => {
-                    self.compile_typed_expression(*e)?;
-                    self.append_instruction(Instruction::Serialize);
-                }
-                thir::InternalFunction::Deserialize(e) => {
-                    self.compile_typed_expression(*e)?;
-                    self.append_instruction(Instruction::Deserialize);
                 }
                 thir::InternalFunction::Todo(span) => {
                     self.require_debug_mode("todo()", span)?;
@@ -1359,7 +1358,7 @@ impl<'a> CompileState<'a> {
         span: Span,
     ) -> Result<(), CompileError> {
         // fake a function def for the seal block
-        let args = &[param::this(command.identifier.clone())];
+        let args = &[param::this(command.identifier.clone()), param::payload()];
         let ret = TypeKind::Struct(ident!("Envelope").nowhere()).nowhere();
         let seal_function_definition = ast::FunctionDefinition {
             identifier: ident!("seal").nowhere(),
@@ -1388,8 +1387,12 @@ impl<'a> CompileState<'a> {
         span: Span,
     ) -> Result<(), CompileError> {
         // fake a function def for the open block
-        let args = &[param::envelope()];
-        let ret = TypeKind::Struct(command.identifier.clone()).nowhere();
+        let args = &[
+            param::this(command.identifier.clone()),
+            param::payload(),
+            param::envelope(),
+        ];
+        let ret = TypeKind::Unit.nowhere();
         let open_function_definition = ast::FunctionDefinition {
             identifier: ident!("open").nowhere(),
             arguments: args.to_vec(),

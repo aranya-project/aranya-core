@@ -1,4 +1,0 @@
-struct Bar {
-    a bool,
-}
-let x = serialize( Bar { a: true, } )
