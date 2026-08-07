@@ -2564,12 +2564,12 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
 #[test]
 fn test_result() -> anyhow::Result<()> {
     let text = r#"
-        enum Err {
+        enum Error {
             Fail
         }
 
         effect Result {
-            r result[int, enum Err]
+            r result[int, enum Error]
         }
 
         command DoWork {
@@ -2589,18 +2589,18 @@ fn test_result() -> anyhow::Result<()> {
             }
         }
 
-        function try(succeed bool) result[int, enum Err] {
+        function try(succeed bool) result[int, enum Error] {
             // error propagation is done explicilty, until we have `?` operator
             return match try_return(succeed) {
                 Ok(n) => Ok(n)
-                _ => Err(Err::Fail)
+                _ => Err(Error::Fail)
             }
         }
 
-        function try_return(succeed bool) result[int, enum Err] {
+        function try_return(succeed bool) result[int, enum Error] {
             let r = match succeed {
                 true => Ok(42)
-                false => return Err(Err::Fail) // early return from match
+                false => return Err(Error::Fail) // early return from match
             }
             return r
         }
@@ -2647,7 +2647,7 @@ fn test_result() -> anyhow::Result<()> {
                 ident!("Result"),
                 vec![KVPair::new(
                     ident!("r"),
-                    Value::Result(Err(Box::new(Value::Enum(ident!("Err"), 0))))
+                    Value::Result(Err(Box::new(Value::Enum(ident!("Error"), 0))))
                 ),]
             )
         );
@@ -2658,11 +2658,7 @@ fn test_result() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_patterns() -> anyhow::Result<()> {
-    let text = r#"
-        enum Err {
-            Fail
-        }
-
+    let text: &str = r#"
         effect Result {
             n int
         }
@@ -2735,7 +2731,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
 #[test]
 fn test_unit() -> anyhow::Result<()> {
     let text = r#"
-        enum Err {
+        enum Error {
             Fail,
         }
 
@@ -2744,14 +2740,14 @@ fn test_unit() -> anyhow::Result<()> {
         }
 
         effect No {
-            err enum Err,
+            err enum Error,
         }
 
-        function verify(n int) result[unit, enum Err] {
+        function verify(n int) result[unit, enum Error] {
             return if n == 42 {
                 : Ok(Unit)
             } else {
-                : Err(Err::Fail)
+                : Err(Error::Fail)
             }
         }
 
@@ -2818,7 +2814,7 @@ fn test_unit() -> anyhow::Result<()> {
             io.effect_stack[1],
             (
                 ident!("No"),
-                vec![KVPair::new(ident!("err"), Value::Enum(ident!("Err"), 0))]
+                vec![KVPair::new(ident!("err"), Value::Enum(ident!("Error"), 0))]
             )
         );
     }
