@@ -73,8 +73,8 @@ command Increment {
     seal { return todo() }
     open { return todo() }
     policy {
-        let r = query Foo[]=>{x: ?} or todo()
-        let new_x = add(r.x, 1) or todo()
+        let r = query Foo[]=>{x: ?} or test_fail()
+        let new_x = add(r.x, 1) or test_fail()
         finish {
             update Foo[]=>{x: r.x} to {x: new_x}
             emit Update{value: new_x}
@@ -105,8 +105,8 @@ command Increment {
     seal { return todo() }
     open { return todo() }
     policy {
-        let r = query Foo[]=>{x: ?} or todo()
-        let new_x = add(r.x, 1) or todo()
+        let r = query Foo[]=>{x: ?} or test_fail()
+        let new_x = add(r.x, 1) or test_fail()
         finish {
             update Foo[]=>{x: 0} to {x: new_x}
         }

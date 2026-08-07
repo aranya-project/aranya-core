@@ -655,7 +655,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
         // This tests the implicitly defined struct as a return type
         function get_foo(a int) struct Foo {
-            let foo = query Foo[a: a]=>{b: ?} or todo()
+            let foo = query Foo[a: a]=>{b: ?} or test_fail()
 
             return foo
         }
@@ -766,23 +766,23 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = query Foo[i: 1, j: ?] or todo()
+            let f = query Foo[i: 1, j: ?] or test_fail()
             check f.x == 1 else test_fail()
-            let f2 = query Foo[i: ?, j: ?] or todo()
+            let f2 = query Foo[i: ?, j: ?] or test_fail()
             check f2.x == 1 else test_fail()
-            let f3 = query Foo[i:2, j:?] or todo()
+            let f3 = query Foo[i:2, j:?] or test_fail()
             check f3.x == 3 else test_fail()
 
             // bind value
-            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or todo()
+            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or test_fail()
             check f4.x == 3 else test_fail()
             // bind key and value
-            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or todo()
+            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or test_fail()
             check f5.x == 3 else test_fail()
         }
 
         action test_nonexistent() {
-            let f = query Foo[i:?, j:?] or todo()
+            let f = query Foo[i:?, j:?] or test_fail()
         }
 
         action test_exists() {
@@ -846,7 +846,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = query Bar[i:Foo::A] => {x: ?} or todo()
+            let f = query Bar[i:Foo::A] => {x: ?} or test_fail()
             check f.x == Foo::A else test_fail()
         }
     "#;
@@ -1260,7 +1260,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         function f(x int) int {
-            return add(x, 1) or todo()
+            return add(x, 1) or test_fail()
         }
 
         action foo(x int) {
@@ -1733,7 +1733,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
 
         action foo() {
-            let a = add(x, 1) or todo()
+            let a = add(x, 1) or test_fail()
             let b = y
             let c = !z
             publish Result {
@@ -1949,8 +1949,8 @@ fields {}
 seal { return todo() }
 open { return todo() }
 policy {
-    let r = query Foo[]=>{x: ?} or todo()
-    let new_x = add(r.x, 1) or todo()
+    let r = query Foo[]=>{x: ?} or test_fail()
+    let new_x = add(r.x, 1) or test_fail()
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
         emit Update{value: new_x}

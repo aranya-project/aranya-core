@@ -274,7 +274,7 @@ ephemeral command GetCounter {
     open { return open_envelope(payload, envelope) }
 
     policy {
-        let counter = query Counter[name: this.name]=>{value: ?} or todo()
+        let counter = query Counter[name: this.name]=>{value: ?} or test_fail()
         finish {
             emit CounterValue{name: this.name, value: counter.value}
         }

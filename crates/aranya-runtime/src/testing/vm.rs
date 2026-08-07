@@ -95,9 +95,9 @@ command Increment {
     seal { return envelope::do_seal(payload) }
     open { return envelope::do_open(payload, envelope) }
     policy {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or todo()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         check stuff.y > 0 else recall default()
-        let new_y = add(stuff.y, this.amount) or todo()
+        let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
@@ -105,7 +105,7 @@ command Increment {
     }
 
     recall default() {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or todo()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
                 value: stuff.y,
@@ -137,9 +137,9 @@ ephemeral command IncrementEphemeral {
     seal { return envelope::do_seal(payload) }
     open { return envelope::do_open(payload, envelope) }
     policy {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or todo()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         check stuff.y > 0 else recall default()
-        let new_y = add(stuff.y, this.amount) or todo()
+        let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
@@ -147,7 +147,7 @@ ephemeral command IncrementEphemeral {
     }
 
     recall default() {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or todo()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
                 value: stuff.y,
@@ -193,7 +193,7 @@ command Invalidate {
     seal { return envelope::do_seal(payload) }
     open { return envelope::do_open(payload, envelope) }
     policy {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or todo()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         let newval = -1  // hack around negative number parse bug; see #869
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: newval}

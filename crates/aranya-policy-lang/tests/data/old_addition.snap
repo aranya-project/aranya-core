@@ -10,5 +10,8 @@ error: Invalid operator
 help: you should use an arithmetic function
   |
 2 -     return 3 + 4
+2 +     return add(3, 4)
+  |
+2 -     return 3 + 4
 2 +     return saturating_add(3, 4)
   |

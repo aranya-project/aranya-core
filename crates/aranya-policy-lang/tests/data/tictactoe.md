@@ -114,10 +114,10 @@ command Move {
         // values marked with ?, or None. The `or` operator unwraps the result
         // of the query, if it is `Some`, or invokes the todo() expression,
         // which terminates the policy with an error.
-        let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or todo()
+        let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
         let playerX = res.x
         let playerO = res.o
-        let p = query NextPlayer[gameID: gameID]=>{p: ?} or todo()
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
         // the if expression works like a ternary expression, where both
         // branches must be specified.
         let nextp = if p == "X" { :"O" } else { :"X" }
@@ -184,8 +184,8 @@ command Move2 {
     }
     policy {
         let player = envelope::author_id(envelope)
-        let players = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or todo()
-        let p = query NextPlayer[gameID: gameID]=>{p: ?} or todo()
+        let players = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
         let nextp = if p == "X" { :"O" } else { :"X" }
 
         check !exists GameOver[gameID: gameID]=>{} else test_fail("game is over")
