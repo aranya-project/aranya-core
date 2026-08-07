@@ -114,9 +114,9 @@ command Move {
         // values marked with ?, or None. The `or` operator unwraps the result
         // of the query, if it is `Some`, or invokes the todo() expression,
         // which terminates the policy with an error.
-        let result = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or todo()
-        let playerX = result.x
-        let playerO = result.o
+        let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or todo()
+        let playerX = res.x
+        let playerO = res.o
         let p = query NextPlayer[gameID: gameID]=>{p: ?} or todo()
         // the if expression works like a ternary expression, where both
         // branches must be specified.

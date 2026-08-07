@@ -36,15 +36,21 @@ impl Report for InvalidOperator {
                 .patch(Patch::new(rhs.end()..rhs.end(), ")"))
         };
 
-        let element = if input[op.start()..op.end()] == *"+" {
-            add_patch("saturating_add(", source)
+        let elements = if input[op.start()..op.end()] == *"+" {
+            [
+                add_patch("add(", source.clone()),
+                add_patch("saturating_add(", source),
+            ]
         } else {
-            add_patch("saturating_sub(", source)
+            [
+                add_patch("sub(", source.clone()),
+                add_patch("saturating_sub(", source),
+            ]
         };
 
         let group = Level::HELP
             .secondary_title("you should use an arithmetic function")
-            .element(element);
+            .elements(elements);
 
         report.push(group);
     }
