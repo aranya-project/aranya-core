@@ -66,11 +66,11 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Keys, Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache, PolicyError, Prior,
-    Query as _, RuntimeBuffers, Segment as _, Storage, StorageError, StorageProvider, SyncError,
-    SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction, TraversalBuffer,
-    TraversalBuffers,
+    Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _,
+    CommandExt as _, GraphId, Keys, Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache,
+    PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _, Storage, StorageError,
+    StorageProvider, SyncError, SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction,
+    TraversalBuffer, TraversalBuffers,
     sync::wire::{SyncHelloType, SyncType},
     testing::{
         protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},

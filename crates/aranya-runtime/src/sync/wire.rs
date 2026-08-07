@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{COMMAND_SAMPLE_MAX, requester::SyncRequestMessage};
 use crate::{
-    Address, GraphId, MaxCut, Prior,
+    Address, GraphId, Prior,
     command::{CmdId, Priority},
 };
 
@@ -102,5 +102,4 @@ pub(crate) struct CommandMeta {
     pub(crate) parent: Prior<Address>,
     pub(crate) policy_length: u32,
     pub(crate) length: u32,
-    pub(crate) max_cut: MaxCut,
 }

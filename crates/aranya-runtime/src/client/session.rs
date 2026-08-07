@@ -482,12 +482,12 @@ where
 #[cfg(test)]
 mod test {
     use aranya_crypto::id::{Id, IdTag};
-    use buggy::{Bug, BugExt as _};
+    use buggy::BugExt as _;
     use test_log::test;
 
     use super::*;
     use crate::{
-        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MaxCut, MemSpill, MergeIds,
+        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MemSpill, MergeIds,
         Perspective, Policy, PolicyStore, Priority, RuntimeBuffers,
         policy::{ActionPlacement, CommandPlacement, NullSink, PolicyError, Sink},
         storage::linear::testing::MemStorageProvider,
@@ -509,7 +509,6 @@ mod test {
         prior: Prior<Address>,
         finalize: bool,
         data: Box<str>,
-        max_cut: MaxCut,
     }
 
     impl PolicyStore for SeqPolicyStore {
@@ -584,26 +583,18 @@ mod test {
             let (left, right): (Address, Address) = ids.into();
             let parents = [*left.id.as_array(), *right.id.as_array()];
             let id = hash_for_testing_only(parents.as_flattened());
-            Ok(SeqCommand::new(
-                id,
-                Prior::Merge(left, right),
-                left.max_cut
-                    .max(right.max_cut)
-                    .checked_add(1)
-                    .assume("must not overflow")?,
-            ))
+            Ok(SeqCommand::new(id, Prior::Merge(left, right)))
         }
     }
 
     impl SeqCommand {
-        fn new(id: CmdId, prior: Prior<Address>, max_cut: MaxCut) -> Self {
+        fn new(id: CmdId, prior: Prior<Address>) -> Self {
             let data = short_b58(id).into_boxed_str();
             Self {
                 id,
                 prior,
                 finalize: false,
                 data,
-                max_cut,
             }
         }
     }
@@ -644,10 +635,6 @@ mod test {
         fn bytes(&self) -> &[u8] {
             self.data.as_bytes()
         }
-
-        fn max_cut(&self) -> Result<MaxCut, Bug> {
-            Ok(self.max_cut)
-        }
     }
 
     fn mkid<Tag: IdTag>(x: &str) -> Id<Tag> {
@@ -674,16 +661,14 @@ mod test {
         let id_c: CmdId = mkid("c");
 
         let mc0 = MaxCut::new(0);
-        let mc1 = MaxCut::new(1);
 
-        let cmd_a = SeqCommand::new(id_a, Prior::None, mc0);
+        let cmd_a = SeqCommand::new(id_a, Prior::None);
         let cmd_b = SeqCommand::new(
             id_b,
             Prior::Single(Address {
                 id: id_a,
                 max_cut: mc0,
             }),
-            mc1,
         );
         let cmd_c = SeqCommand::new(
             id_c,
@@ -691,7 +676,6 @@ mod test {
                 id: id_a,
                 max_cut: mc0,
             }),
-            mc1,
         );
 
         // Use the public Transaction type re-exported from crate root.
