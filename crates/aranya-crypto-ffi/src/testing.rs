@@ -4,6 +4,9 @@
 #![cfg(any(test, feature = "testing"))]
 #![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use aranya_crypto::{
@@ -55,6 +58,7 @@ macro_rules! run_tests {
             }
 
             test!(test_sign_verify);
+            test!(test_none_input);
             test!(test_verify_reject_modified_sig);
             test!(test_verify_reject_modified_command);
             test!(test_verify_reject_different_cmd_name);
@@ -107,20 +111,43 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &eng,
-                sk.id().expect("signing key ID should be valid"),
+                Some(sk.id().expect("signing key ID should be valid")),
                 command.clone(),
             )
             .expect("should be able to create signature");
         ffi.verify(
             &Self::OPEN_CTX,
             &eng,
-            pk,
+            Some(pk),
             CmdId::default(),
             command,
             CmdId::from_base(command_id),
             signature,
         )
         .expect("`crypto::verify` should not fail");
+    }
+
+    /// Test that a `None` key id or pub key input causes a failure.
+    pub fn test_none_input(eng: E, store: S) {
+        let ffi = Ffi::new(store);
+
+        let err = ffi
+            .sign(&Self::SEAL_CTX, &eng, None, Vec::new())
+            .expect_err("signing with no key ID should fail");
+        assert_eq!(err.kind(), ErrorKind::MissingKeyInput);
+
+        let err = ffi
+            .verify(
+                &Self::OPEN_CTX,
+                &eng,
+                None,
+                CmdId::default(),
+                Vec::new(),
+                CmdId::default(),
+                Vec::new(),
+            )
+            .expect_err("signing with no key ID should fail");
+        assert_eq!(err.kind(), ErrorKind::MissingKeyInput);
     }
 
     /// Test that we reject signatures that have been tampered
@@ -146,7 +173,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &eng,
-                sk.id().expect("signing key ID should be valid"),
+                Some(sk.id().expect("signing key ID should be valid")),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -161,7 +188,7 @@ where
         ffi.verify(
             &Self::OPEN_CTX,
             &eng,
-            pk,
+            Some(pk),
             CmdId::default(),
             command,
             CmdId::from_base(command_id),
@@ -193,7 +220,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &eng,
-                sk.id().expect("signing key ID should be valid"),
+                Some(sk.id().expect("signing key ID should be valid")),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -206,7 +233,7 @@ where
             .verify(
                 &Self::OPEN_CTX,
                 &eng,
-                pk,
+                Some(pk),
                 CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
@@ -252,7 +279,7 @@ where
             .sign(
                 &SEAL_CTX,
                 &eng,
-                sk.id().expect("signing key ID should be valid"),
+                Some(sk.id().expect("signing key ID should be valid")),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -261,7 +288,7 @@ where
             .verify(
                 &OPEN_CTX,
                 &eng,
-                pk,
+                Some(pk),
                 CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
@@ -303,7 +330,7 @@ where
             .sign(
                 &seal_ctx,
                 &eng,
-                sk.id().expect("signing key ID should be valid"),
+                Some(sk.id().expect("signing key ID should be valid")),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -315,7 +342,7 @@ where
             .verify(
                 &open_ctx,
                 &eng,
-                pk,
+                Some(pk),
                 CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
@@ -356,7 +383,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &eng,
-                sk.id().expect("signing key ID should be valid"),
+                Some(sk.id().expect("signing key ID should be valid")),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -364,7 +391,7 @@ where
             .verify(
                 &Self::OPEN_CTX,
                 &eng,
-                pk,
+                Some(pk),
                 CmdId::default(),
                 command,
                 CmdId::from_base(command_id),
@@ -418,7 +445,7 @@ where
                 .sign(
                     ctx,
                     &eng,
-                    sk.id().expect("signing key ID should be valid"),
+                    Some(sk.id().expect("signing key ID should be valid")),
                     command.clone(),
                 )
                 .expect_err("`crypto::sign` should fail");
@@ -450,7 +477,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &eng,
-                sk.id().expect("signing key ID should be valid"),
+                Some(sk.id().expect("signing key ID should be valid")),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -481,7 +508,7 @@ where
                 .verify(
                     ctx,
                     &eng,
-                    pk.clone(),
+                    Some(pk.clone()),
                     CmdId::default(),
                     command.clone(),
                     CmdId::from_base(command_id),
