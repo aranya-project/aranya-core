@@ -112,7 +112,7 @@ command Move {
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
         // values marked with ?, or None. The `or` operator unwraps the result
-        // of the query, if it is `Some`, or invokes the todo() expression,
+        // of the query, if it is `Some`, or invokes the test_fail() expression,
         // which terminates the policy with an error.
         let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
         let playerX = res.x

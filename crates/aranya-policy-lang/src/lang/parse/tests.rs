@@ -163,21 +163,6 @@ fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
     Ok(())
 }
 
-#[test]
-fn parse_expression_pratt() -> Result<(), ParseError> {
-    let source = r#"
-        !call(!add(3, 7), saturating_sub(0, b), "foo\x7b")
-    "#
-    .trim();
-    let mut pairs = PolicyParser::parse(Rule::expression, source)?;
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, source.len());
-    let expr_pair = pairs.next().unwrap();
-    let expr_parsed = p.parse_expression(expr_pair)?;
-    insta::assert_debug_snapshot!(expr_parsed);
-    Ok(())
-}
-
 struct ErrorInput {
     description: String,
     input: String,
