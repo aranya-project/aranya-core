@@ -300,6 +300,14 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             self.original_heads_offset = Some(storage.heads_offset()?);
         }
 
+        // The open perspective can only be extended directly if it
+        // supersedes every tip. If other tips exist (e.g. a prior sync
+        // left divergent branches), write it out so the action anchors
+        // on the collapse of ALL tips, not on the perspective's branch.
+        if !self.heads.is_empty() {
+            self.flush(storage)?;
+        }
+
         // Ensure there's an open perspective to run the action against.
         // A new command needs a single parent, so anchor at the
         // collapse of the transaction's tips, which may materialize a
@@ -866,12 +874,49 @@ mod test {
 
         fn call_action(
             &self,
-            _action: Self::Action<'_>,
-            _facts: &mut impl Perspective,
+            action: Self::Action<'_>,
+            facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
         ) -> Result<(), PolicyError> {
-            unimplemented!()
+            // Record the fact state the action evaluated against, so tests
+            // can assert which branches were visible when the action ran.
+            let seen = facts.query("seq", &Keys::default()).assume("can query")?;
+            facts
+                .insert(
+                    "action_seq".into(),
+                    Keys::default(),
+                    seen.as_deref().unwrap_or(b"").into(),
+                )
+                .unwrap();
+
+            // Append one command (named by `action`) to the perspective,
+            // updating the seq fact exactly as `call_rule` would.
+            let Prior::Single(parent) = facts.head_address().assume("perspective has head")? else {
+                bug!("linear perspective head must be single");
+            };
+            let id: CmdId = action.parse().unwrap();
+            let max_cut = parent.max_cut.checked_add(1).assume("must not overflow")?;
+            let cmd = SeqCommand::new(id, Prior::Single(parent), max_cut);
+            if let Some(seq) = facts
+                .query("seq", &Keys::default())
+                .assume("can query")?
+                .as_deref()
+            {
+                facts
+                    .insert(
+                        "seq".into(),
+                        Keys::default(),
+                        [seq, b":", cmd.bytes()].concat().into(),
+                    )
+                    .unwrap();
+            } else {
+                facts
+                    .insert("seq".into(), Keys::default(), cmd.bytes().into())
+                    .unwrap();
+            }
+            facts.add_command(&cmd).assume("can add command")?;
+            Ok(())
         }
 
         fn merge<'a>(
@@ -1094,6 +1139,17 @@ mod test {
                 )?;
             }
             Ok(())
+        }
+
+        pub fn action(&mut self, id: &str) -> Result<(), ClientError> {
+            self.trx.action(
+                &mut self.client.provider,
+                &mut self.client.policy_store,
+                &mut NullSink,
+                id,
+                &mut self.buffers,
+                &MemSpill::new,
+            )
         }
 
         pub fn flush(&mut self) {
@@ -2157,6 +2213,47 @@ mod test {
             client
                 .commit(trx, &mut sink, &mut buffers, MemSpill::new)
                 .unwrap()
+        );
+    }
+
+    /// An action in a transaction that already synced a divergent branch
+    /// must anchor on the collapse of ALL transaction tips (matching
+    /// [`ClientState::action`] semantics), not extend the sync's open
+    /// perspective — which would make it a child of the last synced
+    /// command, blind to the other branch's facts.
+    #[test]
+    fn test_action_after_sync_collapses_heads() {
+        // Committed graph: init "i" with local head "a".
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "a";
+            commit;
+        };
+
+        // One transaction: sync a peer branch forked at "i", then act.
+        gb.line(mkid("i"), &[mkid("b")]).unwrap();
+        gb.action("x").unwrap();
+        gb.commit().unwrap();
+
+        let storage = gb.client.provider.get_storage(gb.trx.graph_id()).unwrap();
+
+        // The action anchored above a merge of {a, b}, leaving a single
+        // committed head instead of {a, action-on-b}.
+        assert_eq!(head_count(storage), 1, "action did not collapse the tips");
+
+        // The action's policy evaluation saw facts from BOTH branches.
+        let seen = lookup(storage, "action_seq").unwrap();
+        let seen = std::str::from_utf8(&seen).unwrap();
+        let a: CmdId = mkid("a");
+        let b: CmdId = mkid("b");
+        assert!(
+            seen.contains(&short_b58(a)),
+            "local branch invisible to action: {seen:?}"
+        );
+        assert!(
+            seen.contains(&short_b58(b)),
+            "synced branch invisible to action: {seen:?}"
         );
     }
 
