@@ -454,7 +454,13 @@ where
 
         let mut sink = VecSink::new();
 
-        state.action(*graph_id, &mut sink, action)?;
+        state.action(
+            *graph_id,
+            &mut sink,
+            action,
+            &mut self.rt_buffers,
+            MemSpill::new,
+        )?;
 
         Ok(sink.effects)
     }
@@ -484,7 +490,7 @@ where
             .entry((graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
             .or_default();
 
-        let mut request_cache = self
+        let request_cache = self
             .client_graph_peer_cache
             .get(&(graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
             .ok_or(ModelError::ClientNotFound)?
@@ -518,10 +524,11 @@ where
         while request_syncer.ready() {
             if request_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+                let session = request_trx.session_heads(&request_cache);
                 let (len, _) = request_syncer.poll(
                     &mut buffer,
                     request_state.provider(),
-                    &mut request_cache,
+                    &session,
                     &mut self.buffers.primary,
                 )?;
 

@@ -3,9 +3,9 @@ command Foo {
         return bar(this)
     }
     open {
-        return baz(envelope)
+        return baz(payload, envelope)
     }
     policy {
-        
+
     }
 }

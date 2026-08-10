@@ -9,7 +9,10 @@ use aranya_crypto::{
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
-use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
+use crate::{
+    MissingKeyInput,
+    error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext},
+};
 
 /// Implements `crypto-ffi`.
 ///
@@ -23,14 +26,13 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///         let author_id = device::device_id()
 ///         let author_sign_sk_id = /* TODO */
 ///         let signed = crypto::sign(
-///             author_sign_sk_id,
-///             serialize(this),
+///             Some(author_sign_sk_id),
+///             payload,
 ///         )
 ///         return envelope::new(
 ///             author_id,
 ///             signed.command_id,
 ///             signed.signature,
-///             payload,
 ///         )
 ///     }
 ///
@@ -38,43 +40,40 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///         let parent_id = envelope::parent_id(envelope)
 ///         let author_id = envelope::author_id(envelope)
 ///         let author_sign_pk = /* TODO */
-///         let command = crypto::verify(
-///             author_sign_pk,
+///         return crypto::verify(
+///             Some(author_sign_pk),
 ///             parent_id,
-///             envelope::payload(envelope),
+///             payload,
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
 ///         )
-///         return deserialize(command)
 ///     }
 /// }
 ///
 /// command Foo {
 ///     seal {
 ///         let author_id = device::device_id()
-///         let author_sign_sk_id = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
+///         let author_sign_sk_id = query DeviceSignKey[device_id: author_id]=>{ ... }
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
-///             serialize(this),
+///             payload,
 ///         )
 ///         return envelope::new(
 ///             author_id,
 ///             signed.command_id,
 ///             signed.signature,
-///             payload,
 ///         )
 ///     }
 ///
 ///     open {
 ///         let author_id = envelope::author_id(envelope)
-///         let author_sign_pk = unwrap query DeviceSignKey[device_id: author_id]=>{ ... }
-///         let command = crypto::verify(
+///         let author_sign_pk = query DeviceSignKey[device_id: author_id]=>{ ... }
+///         return crypto::verify(
 ///             author_sign_pk,
-///             envelope::payload(envelope),
+///             payload,
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
 ///         )
-///         return deserialize(command)
 ///     }
 /// }
 /// ```
@@ -106,7 +105,7 @@ impl<S: KeyStore> Ffi<S> {
     /// Signs `command`.
     #[ffi_export(def = r#"
 function sign(
-    our_sign_sk_id id,
+    our_sign_sk_id option[id],
     command_bytes bytes,
 ) struct Signed
 "#)]
@@ -114,12 +113,16 @@ function sign(
         &self,
         ctx: &CommandContext,
         eng: &E,
-        our_sign_sk_id: SigningKeyId,
+        our_sign_sk_id: Option<SigningKeyId>,
         command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
         let CommandContext::Seal(ctx) = ctx else {
             return Err(WrongContext("`crypto::sign` used outside of a `seal` block").into());
         };
+
+        let our_sign_sk_id = our_sign_sk_id.ok_or(MissingKeyInput(
+            "`crypto::sign` received `None` as the signing key ID",
+        ))?;
 
         let sk: SigningKey<E::CS> = self
             .store
@@ -143,26 +146,30 @@ function sign(
     /// `author_sign_pk`.
     #[ffi_export(def = r#"
 function verify(
-    author_sign_pk bytes,
+    author_sign_pk option[bytes],
     parent_id id,
     command_bytes bytes,
     command_id id,
     signature bytes,
-) bytes
+) unit
 "#)]
     pub(crate) fn verify<E: Engine>(
         &self,
         ctx: &CommandContext,
         _eng: &E,
-        author_sign_pk: Vec<u8>,
+        author_sign_pk: Option<Vec<u8>>,
         parent_id: CmdId,
         command_bytes: Vec<u8>,
         command_id: CmdId,
         signature: Vec<u8>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<(), Error> {
         let CommandContext::Open(ctx) = ctx else {
             return Err(WrongContext("`crypto::verify` used outside of an `open` block").into());
         };
+
+        let author_sign_pk = author_sign_pk.ok_or(MissingKeyInput(
+            "`crypto::verify` received `None` as the signing public key bytes",
+        ))?;
 
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&author_sign_pk)?;
         let signature = Signature::<E::CS>::from_bytes(&signature)?;
@@ -174,7 +181,7 @@ function verify(
         };
         let id = pk.verify_cmd(cmd, &signature)?;
         if bool::from(id.ct_eq(&command_id)) {
-            Ok(command_bytes)
+            Ok(())
         } else {
             Err(InvalidCmdId(()).into())
         }

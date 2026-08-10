@@ -8,7 +8,10 @@
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{GraphId, Location, StorageError};
+use crate::{
+    GraphId, StorageError,
+    storage::{HeadSet, HeadSetOffset},
+};
 
 /// IO manager for creating and opening writers for a graph.
 pub trait IoManager {
@@ -24,6 +27,23 @@ pub trait IoManager {
     -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
+/// File offset of the committed fact cache (a merged fact index written via
+/// [`Write::append`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FactCacheOffset(u64);
+
+impl FactCacheOffset {
+    /// Wraps a raw offset produced by [`Write::append`].
+    pub fn new(offset: u64) -> Self {
+        Self(offset)
+    }
+
+    /// The raw file offset.
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
+
 /// Exclusive writer for a linear storage graph.
 pub trait Write {
     /// A `Read`er for this writer's shared data.
@@ -31,8 +51,15 @@ pub trait Write {
     /// Get a [`Read`]er for this writer's shared data.
     fn readonly(&self) -> Self::ReadOnly;
 
-    /// Get the commit head.
-    fn head(&self) -> Result<Location, StorageError>;
+    /// Get the committed head set.
+    fn heads(&self) -> Result<HeadSet, StorageError>;
+
+    /// Get the stamp of the committed head set. Must change on every
+    /// [`commit`](Self::commit).
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError>;
+
+    /// Get the file offset of the cached merged fact index.
+    fn fact_cache(&self) -> Result<FactCacheOffset, StorageError>;
 
     /// Append an item (e.g. segment or fact-index) onto the writer.
     ///
@@ -42,8 +69,8 @@ pub trait Write {
         F: FnOnce(u64) -> T,
         T: Serialize;
 
-    /// Set the commit head.
-    fn commit(&mut self, head: Location) -> Result<(), StorageError>;
+    /// Commit the head set and fact-cache offset atomically.
+    fn commit(&mut self, heads: &HeadSet, fact_cache: FactCacheOffset) -> Result<(), StorageError>;
 }
 
 /// A share-able reader for a linear storage graph.

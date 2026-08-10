@@ -17,7 +17,7 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientState, Command as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
+    ClientState, CommandExt as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
     SubscribeResponse, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
@@ -145,10 +145,11 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
+        let session = heads.session_heads();
         let (len, _) = syncer.poll(
             &mut buffer,
             client.provider(),
-            heads,
+            &session,
             &mut self.rt_buffers.traversal.primary,
         )?;
         if len > buffer.len() {
@@ -198,10 +199,11 @@ where
     ) -> Result<()> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let heads = self.remote_heads.entry(peer_addr).or_default();
+        let session = heads.session_heads();
         let len = sync_requester.subscribe(
             &mut buffer,
             client.provider(),
-            heads,
+            &session,
             remain_open,
             max_bytes,
             &mut self.rt_buffers.traversal.primary,

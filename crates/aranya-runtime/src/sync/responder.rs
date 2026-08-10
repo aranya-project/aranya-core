@@ -31,15 +31,28 @@ impl PeerCache {
         &self.heads
     }
 
+    /// Record that the peer holds `addr`. The location is derived here from
+    /// committed storage (`get_location` traverses from committed heads
+    /// only), so a command that is not committed on this node is silently
+    /// ignored and can never enter the cache.
     pub fn add_command<S>(
         &mut self,
         storage: &S,
-        new: LocatedAddress,
+        addr: Address,
         buffer: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
         S: Storage,
     {
+        let Some(loc) = storage.get_location(addr, buffer)? else {
+            return Ok(());
+        };
+        let new = LocatedAddress {
+            id: addr.id,
+            segment: loc.segment,
+            max_cut: addr.max_cut,
+        };
+
         let mut add_command = true;
 
         let mut retain_head = |old: &LocatedAddress| -> Result<bool, StorageError> {
@@ -273,18 +286,8 @@ impl SyncResponder {
 
                 self.state = S::Send;
                 for command in &self.has {
-                    // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) = storage.get_location(*command, &mut buffers.primary)? {
-                        response_cache.add_command(
-                            storage,
-                            LocatedAddress {
-                                id: command.id,
-                                segment: cmd_loc.segment,
-                                max_cut: command.max_cut,
-                            },
-                            &mut buffers.primary,
-                        )?;
-                    }
+                    // Commands not in our graph are ignored by the cache.
+                    response_cache.add_command(storage, *command, &mut buffers.primary)?;
                 }
                 self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
 
@@ -416,10 +419,10 @@ impl SyncResponder {
         // heads queue: segments to process, popped by highest max_cut.
         let heads = buffers.primary.get();
 
-        // Jump from head toward highest_have + SEGMENT_BUFFER_MAX before
+        // Jump from each head toward highest_have + SEGMENT_BUFFER_MAX before
         // starting the main traversal, so per-round cost is O(log n) instead
-        // of O(n).
-        let head = storage.get_head()?;
+        // of O(n). The graph may be multi-head (lazy merges), so seed the
+        // traversal from every head.
         let highest_have = have_locations
             .first()
             .map(|l| l.max_cut)
@@ -427,8 +430,10 @@ impl SyncResponder {
         let skip_target = highest_have
             .checked_add(SEGMENT_BUFFER_MAX as u64)
             .assume("skip target overflow")?;
-        let start = skip_jump(storage, head, skip_target)?;
-        heads.push(start)?;
+        for head in storage.get_heads()?.iter() {
+            let start = skip_jump(storage, head.location(), skip_target)?;
+            heads.push(start)?;
+        }
 
         // pending queue: segments tentatively needed by the peer.
         let pending = buffers.secondary.get();
@@ -695,14 +700,12 @@ impl SyncResponder {
                     .ok()
                     .assume("command_data is too large")?;
 
-                let max_cut = command.max_cut()?;
                 let meta = CommandMeta {
                     id: command.id(),
                     priority: command.priority(),
                     parent: command.parent(),
                     policy_length: policy_length as u32,
                     length: bytes.len() as u32,
-                    max_cut,
                 };
 
                 // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.

@@ -4,7 +4,10 @@ use buggy::BugExt as _;
 use spin::mutex::Mutex;
 
 use super::io;
-use crate::{GraphId, Location, MaxCut, SegmentIndex, StorageError};
+use crate::{
+    GraphId, Location, MaxCut, SegmentIndex, StorageError,
+    storage::{HeadSet, HeadSetOffset},
+};
 
 /// Alias for memory-backed storage provider commonly used in tests.
 pub type MemStorageProvider = super::LinearStorageProvider<Manager>;
@@ -28,7 +31,7 @@ impl io::IoManager for Manager {
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
         self.graph_ids.push(id);
         Ok(Writer {
-            head: Mutex::default(),
+            committed: Mutex::default(),
             shared: Arc::default(),
         })
     }
@@ -53,8 +56,16 @@ struct Shared {
     items: Mutex<Vec<Box<[u8]>>>,
 }
 
+#[derive(Clone)]
+struct Committed {
+    heads: HeadSet,
+    fact_cache: io::FactCacheOffset,
+    /// Commit counter standing in for the file offset a real backend has.
+    offset: u64,
+}
+
 pub struct Writer {
-    head: Mutex<Option<Location>>,
+    committed: Mutex<Option<Committed>>,
     shared: Arc<Shared>,
 }
 
@@ -72,9 +83,28 @@ impl io::Write for Writer {
         }
     }
 
-    fn head(&self) -> Result<Location, StorageError> {
-        let head = *self.head.lock();
-        Ok(head.assume("head exists")?)
+    fn heads(&self) -> Result<HeadSet, StorageError> {
+        self.committed
+            .lock()
+            .as_ref()
+            .map(|c| c.heads.clone())
+            .ok_or(StorageError::NotInitialized)
+    }
+
+    fn fact_cache(&self) -> Result<io::FactCacheOffset, StorageError> {
+        self.committed
+            .lock()
+            .as_ref()
+            .map(|c| c.fact_cache)
+            .ok_or(StorageError::NotInitialized)
+    }
+
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
+        self.committed
+            .lock()
+            .as_ref()
+            .map(|c| HeadSetOffset::new(c.offset))
+            .ok_or(StorageError::NotInitialized)
     }
 
     fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
@@ -91,8 +121,24 @@ impl io::Write for Writer {
         Ok(item)
     }
 
-    fn commit(&mut self, head: Location) -> Result<(), StorageError> {
-        *self.head.lock() = Some(head);
+    fn commit(
+        &mut self,
+        heads: &HeadSet,
+        fact_cache: io::FactCacheOffset,
+    ) -> Result<(), StorageError> {
+        let mut committed = self.committed.lock();
+        let offset = match committed.as_ref() {
+            Some(c) => c
+                .offset
+                .checked_add(1)
+                .assume("commit counter must not overflow u64")?,
+            None => 0,
+        };
+        *committed = Some(Committed {
+            heads: heads.clone(),
+            fact_cache,
+            offset,
+        });
         Ok(())
     }
 }

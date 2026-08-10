@@ -1,8 +1,0 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
-error: invalid expression
-  |
-4 | let x = serialize( Bar { a: true, } )
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ This expression is not valid in a const context
