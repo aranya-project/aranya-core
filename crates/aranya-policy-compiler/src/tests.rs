@@ -399,6 +399,17 @@ fn validate_unused_values() {
             "#,
             "unused variable(s): u",
         ),
+        (
+            r#"
+            function f() int {
+                let x = {
+                    let y = 42 // unused
+                    : 0
+                }
+                return x
+            }"#,
+            "unused variables: `y`",
+        ),
     ];
 
     for (i, (text, expected_msg)) in cases.iter().enumerate() {
