@@ -1164,7 +1164,10 @@ fn test_match_optional_binding() -> anyhow::Result<()> {
             policy {}
         }
         action foo(o option[int]) {
-            let y = o or 0
+            let y = match o {
+                Some(n) => n
+                None => 0
+            }
             publish F { x: y }
         }
     "#;
