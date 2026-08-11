@@ -10,7 +10,7 @@ use std::fs;
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
-    ClientState, Command as _, GraphId, RuntimeBuffers, Sink, TraversalBuffer, TraversalBuffers,
+    ClientState, CommandExt as _, GraphId, RuntimeBuffers, Sink, TraversalBuffer, TraversalBuffers,
     crypto::{DefaultCipherSuite, DefaultEngine, Rng},
     ifgen::Actionable as _,
     keystore::{

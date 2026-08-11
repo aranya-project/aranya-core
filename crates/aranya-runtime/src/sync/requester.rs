@@ -264,7 +264,6 @@ impl SyncRequester {
                         parent: meta.parent,
                         policy,
                         data: payload,
-                        max_cut: meta.max_cut,
                     };
 
                     result

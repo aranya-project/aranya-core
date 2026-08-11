@@ -11,7 +11,7 @@ use core::{borrow::Borrow, fmt, ops::Deref};
 use buggy::{Bug, BugExt as _};
 use rend::u64_le;
 
-use crate::{Address, CmdId, Command, PolicyId, Prior};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior};
 
 pub mod head_set;
 pub use head_set::HeadSet;

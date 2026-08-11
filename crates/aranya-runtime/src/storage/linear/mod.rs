@@ -35,9 +35,10 @@ use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Address, Bytes, Checkpoint, CmdId, Command, Fact, FactIndex, FactPerspective, GraphId, HeadSet,
-    HeadSetOffset, Keys, LocatedAddress, Location, MaxCut, Perspective, PolicyId, Prior, Priority,
-    Query, QueryMut, Revertable, Segment, SegmentIndex, Storage, StorageError, StorageProvider,
+    Address, Bytes, Checkpoint, CmdId, Command, CommandExt as _, Fact, FactIndex, FactPerspective,
+    GraphId, HeadSet, HeadSetOffset, Keys, LocatedAddress, Location, MaxCut, Perspective, PolicyId,
+    Prior, Priority, Query, QueryMut, Revertable, Segment, SegmentIndex, Storage, StorageError,
+    StorageProvider,
 };
 
 pub mod io;
@@ -106,7 +107,6 @@ pub struct LinearCommand<'a> {
     priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
-    max_cut: MaxCut,
 }
 
 type Update = (String, Keys, Option<Bytes>);
@@ -857,7 +857,6 @@ impl<R: Read> Segment for LinearSegment<R> {
             priority: data.priority.clone(),
             policy: data.policy.as_deref(),
             data: &data.data,
-            max_cut: location.max_cut,
         })
     }
 
@@ -1223,10 +1222,6 @@ impl Command for LinearCommand<'_> {
 
     fn bytes(&self) -> &[u8] {
         self.data
-    }
-
-    fn max_cut(&self) -> Result<MaxCut, Bug> {
-        Ok(self.max_cut)
     }
 }
 
