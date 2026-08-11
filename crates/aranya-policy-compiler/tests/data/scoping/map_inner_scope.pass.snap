@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -7,47 +8,49 @@ Module {
     labels: {
         <action 'pets'>: 1,
     },
-    action_defs: {
+    action_defs: [
         ActionDef {
-            name: "pets" @ 40..44,
+            name: "pets",
             persistence: Persistent,
-            params: {},
-            result_type: Unit @ 0..0,
+            params: [],
+            result_type: Unit,
         },
-    },
-    command_defs: {},
-    fact_defs: {
-        "Pet": FactDefinition {
-            immutable: false,
-            identifier: "Pet" @ 5..8,
+    ],
+    command_defs: [],
+    fact_defs: [
+        FactDef {
+            name: "Pet",
             key: [
-                FieldDefinition {
-                    identifier: "name" @ 9..13,
-                    field_type: String @ 14..20,
+                Field {
+                    name: "name",
+                    ty: String,
                 },
             ],
             value: [
-                FieldDefinition {
-                    identifier: "age" @ 24..27,
-                    field_type: Int @ 28..31,
+                Field {
+                    name: "age",
+                    ty: Int,
                 },
             ],
-            span: 0..32,
+            immutable: false,
         },
-    },
-    struct_defs: {
-        "Pet": [
-            FieldDefinition {
-                identifier: "name" @ 9..13,
-                field_type: String @ 14..20,
-            },
-            FieldDefinition {
-                identifier: "age" @ 24..27,
-                field_type: Int @ 28..31,
-            },
-        ],
-    },
-    enum_defs: {},
+    ],
+    struct_defs: [
+        StructDef {
+            name: "Pet",
+            items: [
+                Field {
+                    name: "name",
+                    ty: String,
+                },
+                Field {
+                    name: "age",
+                    ty: Int,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }
