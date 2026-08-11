@@ -955,21 +955,21 @@ where
                         self.machine.codemap.as_ref(),
                     )
                 })?;
-                // Update `as` variable value and push an end-of-results bool.
+                // Push the next fact as an option. The consumer tests it with
+                // `Is(Some)` and binds the inner struct with `Unwrap`/`Def`.
                 match iter.next() {
                     Some(result) => {
                         let (k, v) = result?;
                         let mut fields: Vec<KVPair> = vec![];
                         fields.append(&mut k.into_iter().map(Into::into).collect());
                         fields.append(&mut v.into_iter().map(Into::into).collect());
-                        let s = Struct::new(ident.clone(), fields);
-                        self.scope.set(ident, Value::Struct(s))?;
-                        self.ipush(Value::Bool(false))?;
+                        let s = Struct::new(ident, fields);
+                        self.ipush(Value::Option(Some(Box::new(Value::Struct(s)))))?;
                     }
                     None => {
                         // When there are no more results, dispose of the iterator.
                         self.query_iter_stack.pop();
-                        self.ipush(Value::Bool(true))?;
+                        self.ipush(Value::NONE)?;
                     }
                 }
             }

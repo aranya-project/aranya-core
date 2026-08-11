@@ -62,24 +62,29 @@ Module {
     fact.new 'Pet'
     query.start
 <5>:
-    block
     query.next 'p'
-    branch 21
+    dup
+    is some
+    not
+    branch 26
+    block
+    unwrap some
+    def 'p'
     get 'p'
     struct.get 'age'
     const 0
     gt
-    branch 14
-    exit panic
-<14>:
-    get 'n'
-    const 42
-    eq
     branch 19
     exit panic
 <19>:
+    get 'n'
+    const 42
+    eq
+    branch 24
+    exit panic
+<24>:
     end
     jump 5
-<21>:
-    end
+<26>:
+    pop
     return
