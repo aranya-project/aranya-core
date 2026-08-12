@@ -9,7 +9,7 @@ use aranya_crypto::{
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
-    ContractValidationError, Machine, ModuleContract, TypeContract, ffi::FfiModule as _, ident,
+    ContractValidationError, FfiContract, Machine, TypeContract, ffi::FfiModule as _, ident,
 };
 use aranya_runtime::{
     VmPolicy, VmPolicyError,
@@ -53,14 +53,14 @@ fn test_effect_metadata() {
     vm::test_effect_metadata(new_policy_store(), new_policy_store()).unwrap();
 }
 
-fn contract_tester<F: FnOnce(&mut ModuleContract)>(contract_mutator: F, expect_error: &str) {
+fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect_error: &str) {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap_or_else(|e| panic!("{e}"));
     let module = Compiler::new(&ast)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
         .unwrap_or_else(|e| panic!("{e}"));
     let mut machine = Machine::from_module(module).expect("module conversion failed");
-    contract_mutator(machine.contract.as_mut().unwrap());
+    contract_mutator(machine.ffis.as_mut().unwrap());
     let (eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
     let r = VmPolicy::new(
         machine,
@@ -77,16 +77,13 @@ fn contract_tester<F: FnOnce(&mut ModuleContract)>(contract_mutator: F, expect_e
 
 #[test]
 fn test_ffi_missing() {
-    contract_tester(
-        |c| c.ffis.clear(),
-        "Module has 0 FFI modules but VM expects 1",
-    );
+    contract_tester(Vec::clear, "Module has 0 FFI modules but VM expects 1");
 }
 
 #[test]
 fn test_ffi_mismatch() {
     contract_tester(
-        |c| c.ffis[0].name = ident!("fake"),
+        |c| c[0].name = ident!("fake"),
         "FFI module `fake`, VM expected `envelope`",
     );
 }
@@ -94,7 +91,7 @@ fn test_ffi_mismatch() {
 #[test]
 fn test_ffi_function_missing() {
     contract_tester(
-        |c| c.ffis[0].functions.clear(),
+        |c| c[0].functions.clear(),
         "FFI module `envelope` has 0 functions but VM expects 2",
     );
 }
@@ -102,7 +99,7 @@ fn test_ffi_function_missing() {
 #[test]
 fn test_ffi_function_args_wrong_name() {
     contract_tester(
-        |c| c.ffis[0].functions[0].args[0].name = ident!("blah"),
+        |c| c[0].functions[0].args[0].name = ident!("blah"),
         "FFI module `envelope`, function `do_seal` arg `blah`, VM expected `payload`",
     );
 }
@@ -110,7 +107,7 @@ fn test_ffi_function_args_wrong_name() {
 #[test]
 fn test_ffi_function_args_wrong_type() {
     contract_tester(
-        |c| c.ffis[0].functions[0].args[0].vtype = TypeContract::Bool,
+        |c| c[0].functions[0].args[0].vtype = TypeContract::Bool,
         "FFI module `envelope`, function `do_seal` arg `payload`, type Bool but VM expected Bytes",
     );
 }
@@ -118,7 +115,7 @@ fn test_ffi_function_args_wrong_type() {
 #[test]
 fn test_ffi_function_return_wrong_type() {
     contract_tester(
-        |c| c.ffis[0].functions[0].return_type = TypeContract::Bool,
+        |c| c[0].functions[0].return_type = TypeContract::Bool,
         "FFI module `envelope`, function `do_seal` return type Bool but VM expected Struct(\"Envelope\")",
     );
 }
@@ -126,7 +123,7 @@ fn test_ffi_function_return_wrong_type() {
 #[test]
 fn test_ffi_struct_wrong_count() {
     contract_tester(
-        |c| c.ffis[0].structs.clear(),
+        |c| c[0].structs.clear(),
         "FFI module `envelope` has 0 structs but VM expects 1",
     );
 }
@@ -134,7 +131,7 @@ fn test_ffi_struct_wrong_count() {
 #[test]
 fn test_ffi_struct_wrong_name() {
     contract_tester(
-        |c| c.ffis[0].structs[0].name = ident!("Fail"),
+        |c| c[0].structs[0].name = ident!("Fail"),
         "FFI module `envelope`, `struct Fail`, VM expected `struct Envelope`",
     );
 }
@@ -142,7 +139,7 @@ fn test_ffi_struct_wrong_name() {
 #[test]
 fn test_ffi_struct_wrong_field_count() {
     contract_tester(
-        |c| c.ffis[0].structs[0].fields.clear(),
+        |c| c[0].structs[0].fields.clear(),
         "FFI module `envelope`, `struct Envelope` has 0 fields but VM expects 4",
     );
 }
@@ -150,7 +147,7 @@ fn test_ffi_struct_wrong_field_count() {
 #[test]
 fn test_ffi_struct_wrong_field_name() {
     contract_tester(
-        |c| c.ffis[0].structs[0].fields[0].name = ident!("fail"),
+        |c| c[0].structs[0].fields[0].name = ident!("fail"),
         "FFI module `envelope`, `struct Envelope` field `fail`, VM expected `parent_id`",
     );
 }
@@ -158,7 +155,7 @@ fn test_ffi_struct_wrong_field_name() {
 #[test]
 fn test_ffi_struct_wrong_field_type() {
     contract_tester(
-        |c| c.ffis[0].structs[0].fields[0].vtype = TypeContract::Bool,
+        |c| c[0].structs[0].fields[0].vtype = TypeContract::Bool,
         "FFI module `envelope`, `struct Envelope` field `parent_id`, type Bool but VM expected Id",
     );
 }
@@ -166,7 +163,7 @@ fn test_ffi_struct_wrong_field_type() {
 #[test]
 fn test_ffi_enum_wrong_count() {
     contract_tester(
-        |c| c.ffis[0].enums.clear(),
+        |c| c[0].enums.clear(),
         "FFI module `envelope` has 0 enums but VM expects 1",
     );
 }
@@ -174,7 +171,7 @@ fn test_ffi_enum_wrong_count() {
 #[test]
 fn test_ffi_enum_wrong_name() {
     contract_tester(
-        |c| c.ffis[0].enums[0].name = ident!("Fail"),
+        |c| c[0].enums[0].name = ident!("Fail"),
         "FFI module `envelope`, `enum Fail`, VM expected `enum TestEnum`",
     );
 }
@@ -182,7 +179,7 @@ fn test_ffi_enum_wrong_name() {
 #[test]
 fn test_ffi_enum_wrong_variant_count() {
     contract_tester(
-        |c| c.ffis[0].enums[0].variants.clear(),
+        |c| c[0].enums[0].variants.clear(),
         "FFI module `envelope`, `enum TestEnum` has 0 variants but VM expects 3",
     );
 }
@@ -190,7 +187,7 @@ fn test_ffi_enum_wrong_variant_count() {
 #[test]
 fn test_ffi_enum_wrong_variant_name() {
     contract_tester(
-        |c| c.ffis[0].enums[0].variants[0] = ident!("Blonk"),
+        |c| c[0].enums[0].variants[0] = ident!("Blonk"),
         "FFI module `envelope`, `enum TestEnum` has variant `Blonk` but VM expected `True`",
     );
 }
