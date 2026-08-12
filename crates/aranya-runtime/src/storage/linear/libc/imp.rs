@@ -187,6 +187,10 @@ fn other_root(slot: i64) -> i64 {
 /// inode-metadata journal commit that a growing file forces.
 const PREALLOC_CHUNK: i64 = 4 * 1024 * 1024;
 
+/// Size of the big-endian `u32` length prefix written before each
+/// serialized value. See [`File::dump_bytes`] and [`File::load`].
+const LEN_PREFIX_LEN: i64 = 4;
+
 impl Writer {
     fn create(fd: OwnedFd) -> Result<Self, StorageError> {
         let file = File { fd: Arc::new(fd) };
@@ -275,7 +279,7 @@ impl Writer {
         // it doesn't change the file size (keeping `fdatasync` cheap).
         let len = i64::try_from(bytes.len()).assume("serialized len fits in `i64`")?;
         let end = offset
-            .checked_add(4)
+            .checked_add(LEN_PREFIX_LEN)
             .and_then(|o| o.checked_add(len))
             .assume("append stays within `i64`")?;
         self.ensure_capacity(end)?;
@@ -522,7 +526,9 @@ impl File {
             .try_into()
             .assume("serialized objects should fit in u32")?;
         self.write_all(offset, &len.to_be_bytes())?;
-        let offset2 = offset.checked_add(4).assume("offset not near u64::MAX")?;
+        let offset2 = offset
+            .checked_add(LEN_PREFIX_LEN)
+            .assume("offset not near u64::MAX")?;
         self.write_all(offset2, bytes)?;
         let off = offset2
             .checked_add(len.into())
@@ -536,7 +542,9 @@ impl File {
         let len = u32::from_be_bytes(bytes);
         let mut bytes = alloc::vec![0u8; len as usize];
         self.read_exact(
-            offset.checked_add(4).assume("offset not near u64::MAX")?,
+            offset
+                .checked_add(LEN_PREFIX_LEN)
+                .assume("offset not near u64::MAX")?,
             &mut bytes,
         )?;
         postcard::from_bytes(&bytes).map_err(|err| {
