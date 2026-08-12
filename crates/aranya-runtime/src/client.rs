@@ -7,7 +7,7 @@ use crate::{
     Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,
     PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError, StorageProvider,
     TraversalBuffer,
-    policy::ActionPlacement,
+    policy::{ActionPlacement, NullSink},
     storage::{HeadSet, Spill},
 };
 
@@ -302,12 +302,14 @@ where
         let storage = self.provider.get_storage(graph_id)?;
 
         // A new command needs a single parent: collapse the head set, which may
-        // run a braid (hence the buffers and spill).
+        // run a braid (hence the buffers and spill). The commit that produced
+        // this head set already emitted its braid effects, so drop the replay.
         let heads = storage.get_heads()?.clone();
         let head = transaction::collapse_heads::<_, PS, F, _>(
             storage,
             &mut self.policy_store,
             heads,
+            &mut NullSink,
             buffers,
             &make_spill,
         )?;

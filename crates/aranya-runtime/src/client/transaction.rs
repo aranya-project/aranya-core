@@ -35,6 +35,11 @@ pub struct Transaction<SP: StorageProvider, PS> {
     phead: Option<CmdId>,
     /// Written but not committed heads
     heads: BTreeMap<CmdId, Location>,
+    /// Whether [`Self::add_commands`] has added commands to this
+    /// transaction. When set, `self.heads` may hold tips beyond the
+    /// committed head set, so collapsing them runs braids whose effects
+    /// no commit has emitted yet.
+    added_commands: bool,
     /// Tag for associated policy store
     policy_store: PhantomData<PS>,
 }
@@ -47,6 +52,7 @@ impl<SP: StorageProvider, PS> Transaction<SP, PS> {
             perspective: None,
             phead: None,
             heads: BTreeMap::new(),
+            added_commands: false,
             policy_store: PhantomData,
         }
     }
@@ -245,6 +251,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                         parent,
                         &mut buffers.traversal.primary,
                     )?;
+                    self.added_commands = true;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
@@ -257,6 +264,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                         buffers,
                         make_spill,
                     )?;
+                    self.added_commands = true;
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             }
@@ -323,13 +331,29 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                         max_cut: loc.max_cut,
                     });
                 }
-                let head = collapse_heads::<_, PS, F, _>(
-                    storage,
-                    policy_store,
-                    tips,
-                    buffers,
-                    make_spill,
-                )?;
+                // If commands were synced into this transaction, the tips go
+                // beyond the committed head set and their braids have never
+                // been emitted; otherwise the collapse replays braids the
+                // commit that produced the head set already delivered.
+                let head = if self.added_commands {
+                    collapse_heads::<_, PS, F, _>(
+                        storage,
+                        policy_store,
+                        tips,
+                        sink,
+                        buffers,
+                        make_spill,
+                    )?
+                } else {
+                    collapse_heads::<_, PS, F, _>(
+                        storage,
+                        policy_store,
+                        tips,
+                        &mut NullSink,
+                        buffers,
+                        make_spill,
+                    )?
+                };
                 // Every prior tip is an ancestor of the anchor, which the
                 // perspective now supersedes.
                 self.heads.clear();
@@ -635,10 +659,20 @@ fn fold_merge_pairs<E>(
     bug!("head set was empty");
 }
 
+/// Pairwise-merge `heads` down to a single head, writing merge segments, and
+/// return the resulting location.
+///
+/// Each merge braids its pair, emitting the braid's effects to `sink`. When
+/// `heads` is exactly a committed head set, the commit that produced it
+/// already braided the same heads and emitted their effects in converged
+/// order (braid order is a stable global sort by `(priority, id)`), so pass
+/// [`NullSink`] to avoid duplicating what `commit` delivered. Any head set
+/// that isn't committed yet has unemitted braids and needs the real sink.
 pub(crate) fn collapse_heads<S, PS, F, MS>(
     storage: &mut S,
     policy_store: &mut PS,
     heads: HeadSet,
+    sink: &mut impl Sink<PS::Effect>,
     buffers: &mut RuntimeBuffers<S::Segment>,
     make_spill: &MS,
 ) -> Result<Location, ClientError>
@@ -648,12 +682,6 @@ where
     F: Spill,
     MS: Fn() -> Result<F, StorageError>,
 {
-    // The multi-head state being collapsed was produced by a `commit` that
-    // already braided these same heads and emitted their effects in converged
-    // order. Re-braiding the identical head set yields no new effects (braid
-    // order is a stable global sort by `(priority, id)`), so emitting again
-    // would only duplicate what `commit` delivered.
-    let mut null = NullSink;
     let merged = fold_merge_pairs(heads.iter(), |mut left, mut right| {
         let (policy, policy_id) =
             choose_policy(storage, policy_store, left.location(), right.location())?;
@@ -669,7 +697,7 @@ where
         let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
             &[left.location(), right.location()],
-            &mut null,
+            sink,
             policy,
             &mut buffers.traversal.primary,
             &mut buffers.braid,
@@ -837,13 +865,17 @@ mod test {
             &self,
             command: &impl Command,
             facts: &mut impl crate::FactPerspective,
-            _sink: &mut impl Sink<Self::Effect>,
+            sink: &mut impl Sink<Self::Effect>,
             _placement: CommandPlacement,
         ) -> Result<(), PolicyError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges shouldn't be evaluated"
             );
+
+            // One effect per evaluated command, so tests can observe
+            // whether an evaluation (e.g. a braid) was emitted or dropped.
+            sink.consume(());
 
             let data = command.bytes();
             // (q)uiet commmands add no facts so we can test that.
@@ -995,6 +1027,20 @@ mod test {
     impl<Eff> Sink<Eff> for NullSink {
         fn begin(&mut self) {}
         fn consume(&mut self, _: Eff) {}
+        fn rollback(&mut self) {}
+        fn commit(&mut self) {}
+    }
+
+    /// Counts consumed effects, to observe braid emission.
+    #[derive(Default)]
+    struct CountSink {
+        consumed: usize,
+    }
+    impl<Eff> Sink<Eff> for CountSink {
+        fn begin(&mut self) {}
+        fn consume(&mut self, _: Eff) {
+            self.consumed = self.consumed.checked_add(1).unwrap();
+        }
         fn rollback(&mut self) {}
         fn commit(&mut self) {}
     }
@@ -1538,6 +1584,7 @@ mod test {
             storage,
             &mut client.policy_store,
             heads,
+            &mut NullSink,
             &mut buffers,
             &MemSpill::new,
         )
@@ -1590,6 +1637,7 @@ mod test {
                 storage,
                 &mut ahead.policy_store,
                 heads,
+                &mut NullSink,
                 &mut buffers,
                 &MemSpill::new,
             )
@@ -2220,6 +2268,67 @@ mod test {
         assert!(
             seen.contains(&short_b58(b)),
             "synced branch invisible to action: {seen:?}"
+        );
+    }
+
+    /// An action collapsing tips synced into this transaction runs a braid
+    /// no commit has emitted yet, so its effects must reach the sink.
+    #[test]
+    fn test_action_after_sync_emits_braid_effects() {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "a";
+            commit;
+        };
+
+        // Sync a peer branch forked at "i" into the open transaction, then
+        // act: the collapse braids {a, b} for the first time anywhere.
+        gb.line(mkid("i"), &[mkid("b")]).unwrap();
+        let mut sink = CountSink::default();
+        gb.trx
+            .action(
+                &mut gb.client.provider,
+                &mut gb.client.policy_store,
+                &mut sink,
+                "x",
+                &mut gb.buffers,
+                &MemSpill::new,
+            )
+            .unwrap();
+        assert_ne!(
+            sink.consumed, 0,
+            "braid effects of synced tips were dropped"
+        );
+    }
+
+    /// An action on a fresh transaction collapses exactly the committed head
+    /// set, whose braid the committing transaction already emitted — the
+    /// replay must stay out of the sink.
+    #[test]
+    fn test_action_on_committed_heads_emits_nothing() {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "i";
+            "i" < "a";
+            "i" < "b";
+            commit;
+        };
+
+        let mut sink = CountSink::default();
+        gb.trx
+            .action(
+                &mut gb.client.provider,
+                &mut gb.client.policy_store,
+                &mut sink,
+                "x",
+                &mut gb.buffers,
+                &MemSpill::new,
+            )
+            .unwrap();
+        assert_eq!(
+            sink.consumed, 0,
+            "collapse of the committed head set re-emitted the commit's braid"
         );
     }
 
