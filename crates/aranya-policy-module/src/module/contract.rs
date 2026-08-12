@@ -409,42 +409,21 @@ impl From<&ffi::ModuleSchema<'_>> for FfiContract {
     }
 }
 
-/// Describes the policy module contract so that this module can be validated against the expected
-/// contract.
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub struct ModuleContract {
-    /// FFI module names
-    pub ffis: Vec<FfiContract>,
-    // TODO(chip): catalog other public-facing module items
-}
-
-impl ModuleContract {
-    /// Validate a `ModuleContract` against a list of [`ModuleSchema`s](ffi::ModuleSchema).
-    pub fn validate(
-        &self,
-        ffi_schemas: &[ffi::ModuleSchema<'static>],
-    ) -> Result<(), ContractValidationError> {
-        // validate FFI schema against machine
-        if self.ffis.len() != ffi_schemas.len() {
-            return Err(ContractValidationError::new(format_args!(
-                "Module has {} FFI modules but VM expects {}",
-                self.ffis.len(),
-                ffi_schemas.len(),
-            )));
-        }
-        for (mod_ffi, vm_ffi) in self.ffis.iter().zip(ffi_schemas) {
-            mod_ffi.validate(vm_ffi)?;
-        }
-        Ok(())
+/// Validates a list of [`FfiContract`]s against a list of [`ModuleSchema`](ffi::ModuleSchema)s.
+pub fn ffi_contract_validate(
+    contracts: &[FfiContract],
+    ffi_schemas: &[ffi::ModuleSchema<'static>],
+) -> Result<(), ContractValidationError> {
+    // validate FFI schema against machine
+    if contracts.len() != ffi_schemas.len() {
+        return Err(ContractValidationError::new(format_args!(
+            "Module has {} FFI modules but VM expects {}",
+            contracts.len(),
+            ffi_schemas.len(),
+        )));
     }
+    for (mod_ffi, vm_ffi) in contracts.iter().zip(ffi_schemas) {
+        mod_ffi.validate(vm_ffi)?;
+    }
+    Ok(())
 }
