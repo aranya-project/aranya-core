@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, hash_map},
     fmt::{self, Display},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use aranya_policy_ast::{
@@ -8,6 +9,7 @@ use aranya_policy_ast::{
     TypeKind, VType,
 };
 use aranya_policy_module::ffi;
+use indexmap::IndexMap;
 
 use crate::{
     CompileError,
@@ -27,10 +29,16 @@ pub(crate) enum UserType<'a> {
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
 /// scope" is the one on the top of the stack.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct IdentifierTypeStack {
     globals: HashMap<Ident, VType>,
-    locals: Vec<Vec<HashMap<Ident, VType>>>,
+    locals: Vec<Vec<IndexMap<Ident, Local>>>,
+}
+
+#[derive(Debug)]
+struct Local {
+    ty: VType,
+    used: AtomicBool,
 }
 
 impl IdentifierTypeStack {
@@ -38,7 +46,7 @@ impl IdentifierTypeStack {
     pub fn new() -> Self {
         Self {
             globals: HashMap::new(),
-            locals: vec![vec![HashMap::new()]],
+            locals: vec![vec![IndexMap::new()]],
         }
     }
 
@@ -59,7 +67,7 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
-    pub fn add(&mut self, ident: Ident, value: VType) -> Result<(), AlreadyDefined> {
+    pub fn add(&mut self, ident: Ident, ty: VType) -> Result<(), AlreadyDefined> {
         if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
             return Err(AlreadyDefined::new(existing_global.clone(), ident));
         }
@@ -71,11 +79,14 @@ impl IdentifierTypeStack {
         }
         let block = locals.last_mut().expect("no block scope");
         match block.entry(ident) {
-            hash_map::Entry::Occupied(_) => {
+            indexmap::map::Entry::Occupied(_) => {
                 unreachable!();
             }
-            hash_map::Entry::Vacant(e) => {
-                e.insert(value);
+            indexmap::map::Entry::Vacant(e) => {
+                e.insert(Local {
+                    ty,
+                    used: AtomicBool::new(false),
+                });
             }
         }
         Ok(())
@@ -88,7 +99,8 @@ impl IdentifierTypeStack {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
-                    return Ok(v.clone());
+                    v.used.store(true, Ordering::Relaxed);
+                    return Ok(v.ty.clone());
                 }
             }
         }
@@ -100,13 +112,15 @@ impl IdentifierTypeStack {
 
     /// Push a new, empty scope on top of the type stack.
     pub fn enter_function(&mut self) {
-        self.locals.push(vec![HashMap::new()]);
+        self.locals.push(vec![IndexMap::new()]);
     }
 
     /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
     /// stack, as this indicates a mistake in the compiler.
     pub fn exit_function(&mut self) {
-        self.locals.pop().expect("no function scope");
+        self.exit_block();
+        let locals = self.locals.pop().expect("no function scope");
+        assert!(locals.is_empty());
     }
 
     /// Enter a new block scope.
@@ -114,16 +128,28 @@ impl IdentifierTypeStack {
         self.locals
             .last_mut()
             .expect("no function scope")
-            .push(HashMap::new());
+            .push(IndexMap::new());
     }
 
     /// Exit the current block scope.
     pub fn exit_block(&mut self) {
-        self.locals
+        let scope = self
+            .locals
             .last_mut()
             .expect("no function scope")
             .pop()
             .expect("no block scope");
+
+        let unused: Vec<Ident> = scope
+            .into_iter()
+            .filter(|(_, local)| !local.used.load(Ordering::Relaxed))
+            .map(|(name, _)| name)
+            .filter(|name| !["envelope", "this", "payload"].contains(&name.as_str()))
+            .collect();
+
+        if !unused.is_empty() {
+            panic!("unused variable(s): {}", unused.join(", "));
+        }
     }
 }
 
