@@ -400,22 +400,3 @@ impl From<&ffi::ModuleSchema<'_>> for FfiContract {
         }
     }
 }
-
-/// Describes the policy module contract so that this module can be validated against the expected
-/// contract.
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub struct ModuleContract {
-    /// FFI module names
-    pub ffis: Vec<FfiContract>,
-    // TODO(chip): catalog other public-facing module items
-}

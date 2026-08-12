@@ -205,18 +205,18 @@ impl<CE> VmPolicy<CE> {
         engine: CE,
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
-        if let Some(contract) = &machine.contract {
+        if let Some(module_ffis) = &machine.ffis {
             // validate FFI schema against machine
-            if contract.ffis.len() != ffis.len() {
+            if module_ffis.len() != ffis.len() {
                 return Err(VmPolicyError::ContractValidation(ContractValidationError(
                     alloc::format!(
                         "Module has {} FFI modules but VM expects {}",
-                        contract.ffis.len(),
+                        module_ffis.len(),
                         ffis.len()
                     ),
                 )));
             }
-            for (mod_ffi, vm_ffi) in contract.ffis.iter().zip(ffis.iter().map(|m| m.schema())) {
+            for (mod_ffi, vm_ffi) in module_ffis.iter().zip(ffis.iter().map(|m| m.schema())) {
                 mod_ffi.validate(&vm_ffi)?;
             }
         } else {
