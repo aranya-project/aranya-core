@@ -648,7 +648,7 @@ impl SyncResponder {
     ) -> Result<
         (
             Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
-            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
+            Vec<u8, COMMAND_DATA_BUF_SIZE>,
             usize,
         ),
         SyncError,
@@ -665,9 +665,9 @@ impl SyncResponder {
             }
         };
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
-        let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
+        let mut command_data: Vec<u8, COMMAND_DATA_BUF_SIZE> = Vec::new();
         let mut index = self.next_send;
-        for i in self.next_send..self.to_send.len() {
+        'outer: for i in self.next_send..self.to_send.len() {
             if commands.is_full() {
                 break;
             }
@@ -686,26 +686,31 @@ impl SyncResponder {
             for command in &found {
                 let mut policy_length = 0;
 
-                if let Some(policy) = command.policy() {
-                    policy_length = policy.len();
-                    command_data
-                        .extend_from_slice(policy)
-                        .ok()
-                        .assume("command_data is too large")?;
-                }
+                let command_data_len_checkpoint = command_data.len();
+                // TODO: express this more cleanly.
+                if (|| {
+                    if let Some(policy) = command.policy() {
+                        policy_length = policy.len();
+                        command_data.extend_from_slice(policy)?;
+                    }
 
-                let bytes = command.bytes();
-                command_data
-                    .extend_from_slice(bytes)
-                    .ok()
-                    .assume("command_data is too large")?;
+                    let bytes = command.bytes();
+                    command_data.extend_from_slice(bytes)
+                })()
+                .is_err()
+                {
+                    command_data.truncate(command_data_len_checkpoint);
+                    // TODO: partial progress state is not tracked for resuming.
+                    // Fix like https://github.com/aranya-project/aranya-core/pull/752
+                    break 'outer;
+                }
 
                 let meta = CommandMeta {
                     id: command.id(),
                     priority: command.priority(),
                     parent: command.parent(),
                     policy_length: policy_length as u32,
-                    length: bytes.len() as u32,
+                    length: command.bytes().len() as u32,
                 };
 
                 // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
@@ -725,3 +730,13 @@ impl SyncResponder {
         Ok(self.session_id.assume("session id is set")?)
     }
 }
+
+/// Size of the buffer for storing the command data.
+///
+/// This is smaller than the max sync message size to account for the serialized
+/// `SyncResponseMessage::SyncResponse` to ensure the response will always fit
+/// within a supplied buffer of size `MAX_SYNC_MESSAGE_SIZE`.
+///
+/// The difference is a generous estimate of the size of serialized
+/// `SyncResponseMessage::SyncResponse`.
+const COMMAND_DATA_BUF_SIZE: usize = MAX_SYNC_MESSAGE_SIZE - (50 + COMMAND_RESPONSE_MAX * 150);
