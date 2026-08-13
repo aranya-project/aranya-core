@@ -952,7 +952,9 @@ impl CompileState<'_> {
                 let statements = self.lower_statements(statements, Scope::Same)?;
                 let subexpr = self.lower_expression(e)?;
                 let vtype = subexpr.vtype.clone();
-                self.identifier_types.exit_block();
+                self.identifier_types
+                    .exit_block()
+                    .map_err(|e| self.err(e))?;
 
                 thir::Expression {
                     kind: thir::ExprKind::Block(statements, Box::new(subexpr)),
@@ -1472,7 +1474,9 @@ impl CompileState<'_> {
                     let stmts = self.lower_statements(&arm.statements, Scope::Same)?;
 
                     // Exit the scope for this arm
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                    .exit_block()
+                    .map_err(|e| self.err(e))?;
 
                     arms.push(thir::MatchArm {
                         pattern,
@@ -1521,7 +1525,9 @@ impl CompileState<'_> {
                     let etype = e.vtype.clone();
 
                     // Exit the scope for this arm
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                    .exit_block()
+                    .map_err(|e| self.err(e))?;
 
                     match expr_type {
                         None => expr_type = Some(etype),
@@ -1779,7 +1785,9 @@ impl CompileState<'_> {
                         .map_err(|e| self.err(e))?;
                     // body
                     let s = self.lower_statements(&map_stmt.statements, Scope::Same)?;
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                    .exit_block()
+                    .map_err(|e| self.err(e))?;
                     thir::StmtKind::Map(thir::MapStatement {
                         fact,
                         identifier: map_stmt.identifier.clone(),
@@ -1958,7 +1966,9 @@ impl CompileState<'_> {
             });
         }
         if scope == Scope::Layered {
-            self.identifier_types.exit_block();
+            self.identifier_types
+                    .exit_block()
+                    .map_err(|e| self.err(e))?;
         }
         Ok(output)
     }

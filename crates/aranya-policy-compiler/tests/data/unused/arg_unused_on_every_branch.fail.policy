@@ -1,0 +1,9 @@
+// Arg unused on every branch is still flagged.
+function unused_both(x int, b bool) int {
+    if b {
+        return 0
+    }
+    else {
+        return 1
+    }
+}

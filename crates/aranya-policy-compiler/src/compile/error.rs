@@ -232,6 +232,12 @@ pub(crate) struct BugError(pub Bug);
 /// All other errors.
 pub(crate) struct UnknownError(pub String, pub Option<Span>);
 
+/// Bindings in a scope that were never read before the scope closed.
+pub(crate) struct UnusedVariable {
+    /// The unused bindings, in declaration order.
+    pub names: Vec<Ident>,
+}
+
 // ---------------------------------------------------------------------------
 // CompileError
 // ---------------------------------------------------------------------------

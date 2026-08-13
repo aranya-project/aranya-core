@@ -10,12 +10,13 @@ use aranya_policy_ast::{
 };
 use aranya_policy_module::ffi;
 use indexmap::IndexMap;
+use tracing::warn;
 
 use crate::{
     CompileError,
     compile::{
         CompileState,
-        error::{AlreadyDefined, InvalidType, NotDefined},
+        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable},
     },
 };
 
@@ -27,12 +28,17 @@ pub(crate) enum UserType<'a> {
     FFIStruct(&'a ffi::Struct<'a>),
 }
 
+/// Synthesized vars for command blocks.
+const PREDEFINED: [&str; 3] = ["envelope", "this", "payload"];
+
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
 /// scope" is the one on the top of the stack.
 #[derive(Debug)]
 pub struct IdentifierTypeStack {
     globals: HashMap<Ident, VType>,
     locals: Vec<Vec<IndexMap<Ident, Local>>>,
+    /// When set, don't error on unused vars
+    allow_unused: bool,
 }
 
 #[derive(Debug)]
@@ -43,10 +49,11 @@ struct Local {
 
 impl IdentifierTypeStack {
     /// Create a new `IdentifierTypeStack`
-    pub fn new() -> Self {
+    pub fn new(allow_unused: bool) -> Self {
         Self {
             globals: HashMap::new(),
             locals: vec![vec![IndexMap::new()]],
+            allow_unused,
         }
     }
 
@@ -117,10 +124,11 @@ impl IdentifierTypeStack {
 
     /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
     /// stack, as this indicates a mistake in the compiler.
-    pub fn exit_function(&mut self) {
-        self.exit_block();
+    pub fn exit_function(&mut self) -> Result<(), UnusedVariable> {
+        let unused = self.exit_block();
         let locals = self.locals.pop().expect("no function scope");
         assert!(locals.is_empty());
+        unused
     }
 
     /// Enter a new block scope.
@@ -131,8 +139,9 @@ impl IdentifierTypeStack {
             .push(IndexMap::new());
     }
 
-    /// Exit the current block scope.
-    pub fn exit_block(&mut self) {
+    /// Exit the current block scope, reporting any bindings in it that was never
+    /// read.
+    pub fn exit_block(&mut self) -> Result<(), UnusedVariable> {
         let scope = self
             .locals
             .last_mut()
@@ -144,12 +153,18 @@ impl IdentifierTypeStack {
             .into_iter()
             .filter(|(_, local)| !local.used.load(Ordering::Relaxed))
             .map(|(name, _)| name)
-            .filter(|name| !["envelope", "this", "payload"].contains(&name.as_str()))
+            .filter(|name| !PREDEFINED.contains(&name.as_str()))
             .collect();
 
         if !unused.is_empty() {
-            panic!("unused variable(s): {}", unused.join(", "));
+            if self.allow_unused {
+                let names: Vec<&str> = unused.iter().map(|n| n.as_str()).collect();
+                warn!("unused variable(s): {}", names.join(", "));
+            } else {
+                return Err(UnusedVariable { names: unused });
+            }
         }
+        Ok(())
     }
 }
 

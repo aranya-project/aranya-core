@@ -1,0 +1,15 @@
+// A `map ... as` binding is checked like any other local.
+fact User[i int]=>{name string}
+command Foo {
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        finish {}
+    }
+}
+action map_unused() {
+    map User[i:?] as u {
+        // u is unused
+    }
+    publish Foo {}
+}

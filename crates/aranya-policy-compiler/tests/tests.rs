@@ -3,7 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use aranya_policy_ast::{Version, ident};
@@ -52,7 +52,7 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
 ];
 
 #[track_caller]
-fn compile(text: &str) -> Result<Module, CompileError> {
+fn compile(text: &str, allow_unused: bool) -> Result<Module, CompileError> {
     let policy = match parse_policy_str(text, Version::V2) {
         Ok(p) => p,
         Err(err) => panic!("{err}"),
@@ -60,13 +60,14 @@ fn compile(text: &str) -> Result<Module, CompileError> {
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
         .debug(true)
+        .allow_unused(allow_unused)
         .compile()
 }
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
-fn compile_pass(text: &str) -> Module {
-    match compile(text) {
+fn compile_pass(text: &str, allow_unused: bool) -> Module {
+    match compile(text, allow_unused) {
         Ok(m) => m,
         Err(err) => panic!("{err}"),
     }
@@ -74,8 +75,8 @@ fn compile_pass(text: &str) -> Module {
 
 // Helper function which parses and compiles policy expecting compile failure.
 #[track_caller]
-fn compile_fail(text: &str) -> CompileError {
-    match compile(text) {
+fn compile_fail(text: &str, allow_unused: bool) -> CompileError {
+    match compile(text, allow_unused) {
         Ok(_) => panic!("policy compilation should have failed - src: {text}"),
         Err(err) => err,
     }
@@ -188,24 +189,42 @@ fn fmt_fn(f: impl Fn(&mut fmt::Formatter<'_>) -> fmt::Result) -> impl fmt::Displ
     FmtFn(f)
 }
 
+/// Compiles every fixture except those under `data/unused`, which get their own
+/// test below, and snapshots the resulting module or error.
 #[rstest::rstest]
-fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
+fn test_policy(
+    #[files("tests/data/**/*.policy")]
+    #[exclude("unused/")]
+    src: PathBuf,
+) {
+    check_policy_fixture(&src, true);
+}
+
+/// Fixtures that exercise unused-variable detection. It is only a warning by
+/// default, so these compile with `allow_unused` turned off.
+#[rstest::rstest]
+fn test_unused_policy(#[files("tests/data/unused/*.policy")] src: PathBuf) {
+    check_policy_fixture(&src, false);
+}
+
+#[track_caller]
+fn check_policy_fixture(src: &Path, allow_unused: bool) {
     let base = src.parent().expect("can't get parent");
     let name = src
         .file_stem()
         .expect("can't get filename stem")
         .to_str()
         .expect("filename not utf8");
-    let text = std::fs::read_to_string(src.as_path()).expect("could not read source file");
+    let text = std::fs::read_to_string(src).expect("could not read source file");
 
     if name.ends_with(".pass") {
-        let module = ModuleSnapshotWrapper(compile_pass(&text));
+        let module = ModuleSnapshotWrapper(compile_pass(&text, allow_unused));
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
             insta::assert_debug_snapshot!(name, module);
         });
     } else if name.ends_with(".fail") {
-        let error = compile_fail(&text);
+        let error = compile_fail(&text, allow_unused);
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
             insta::assert_snapshot!(name, error);
@@ -214,6 +233,6 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
         panic!(
             "Test file '{}', must end in '.pass.policy' or '.fail.policy'.",
             src.display()
-        )
+        );
     }
 }
