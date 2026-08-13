@@ -233,7 +233,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     if command.id().as_base() == self.graph_id.as_base() {
                         // Graph already initialized, extra init just spurious
                     } else {
-                        bug!("init command does not belong in graph");
+                        // A synced command claiming to be an init for a
+                        // different graph is invalid peer input.
+                        return Err(ClientError::InitError);
                     }
                 }
                 Prior::Single(parent) => {
