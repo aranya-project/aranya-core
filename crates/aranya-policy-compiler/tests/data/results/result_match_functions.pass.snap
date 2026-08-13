@@ -1,10 +1,10 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 199
+assertion_line: 229
 expression: module
 ---
 Module {
-    version: "0",
+    version: "1",
     labels: {
         <fn 'match_expr_with_return'>: 48,
         <fn 'match_statement'>: 22,
