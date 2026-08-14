@@ -111,9 +111,6 @@
     "AddExpectation": 2
   },
   {
-    "AddExpectation": 1
-  },
-  {
     "Sync": {
       "graph": 0,
       "client": 1,
@@ -131,10 +128,7 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 1,
-      "repeat": 2
-    }
+    "AddExpectation": 1
   },
   {
     "Sync": {
@@ -176,9 +170,6 @@
       "value": 4,
       "repeat": 1
     }
-  },
-  {
-    "AddExpectation": 1
   },
   {
     "AddExpectation": 3
@@ -228,10 +219,7 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 5,
-      "repeat": 2
-    }
+    "AddExpectation": 5
   },
   {
     "Sync": {
@@ -254,16 +242,10 @@
     "AddExpectation": 2
   },
   {
-    "AddExpectation": 1
-  },
-  {
     "AddExpectation": 3
   },
   {
     "AddExpectation": 4
-  },
-  {
-    "AddExpectation": 5
   },
   {
     "Sync": {
@@ -286,9 +268,6 @@
     "AddExpectation": 6
   },
   {
-    "AddExpectation": 5
-  },
-  {
     "Sync": {
       "graph": 0,
       "client": 2,
@@ -306,10 +285,7 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 5,
-      "repeat": 2
-    }
+    "AddExpectation": 5
   },
   {
     "Sync": {

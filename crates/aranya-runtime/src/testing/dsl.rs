@@ -73,7 +73,7 @@ use crate::{
     TraversalBuffer, TraversalBuffers,
     sync::wire::{SyncHelloType, SyncType},
     testing::{
-        protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
+        protocol::{SinkPool, TestActions, TestEffect, TestPolicyStore, TestSink},
         short_b58,
     },
 };
@@ -237,7 +237,7 @@ fn process_hello_notifications<SP: StorageProvider>(
     graph_id: GraphId,
     clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
     client_heads: &mut BTreeMap<(u64, u64, u64), RefCell<PeerCache>>,
-    sink: &mut TestSink,
+    sinks: &mut BTreeMap<u64, TestSink>,
     rt_buffers: &mut RuntimeBuffers<SP::Segment>,
     max_depth: u64,
 ) -> Result<(), TestError> {
@@ -315,6 +315,8 @@ fn process_hello_notifications<SP: StorageProvider>(
 
                 let mut received = 0;
                 if needs_sync {
+                    // The subscriber ingests this notification's sync.
+                    let csink = sinks.get_mut(&subscriber).ok_or(TestError::MissingClient)?;
                     let mut request_cache = client_heads
                         .get(&(graph, subscriber, publisher))
                         .assume("cache must exist")?
@@ -338,7 +340,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                             (&request_cache, &mut request_client),
                             (&mut response_cache, &mut response_client),
                             &mut received_addrs,
-                            sink,
+                            &mut *csink,
                             graph_id,
                             rt_buffers,
                         )?;
@@ -347,7 +349,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                             break;
                         }
                     }
-                    request_client.commit(trx, sink, rt_buffers, MemSpill::new)?;
+                    request_client.commit(trx, csink, rt_buffers, MemSpill::new)?;
                     request_client.update_heads(
                         graph_id,
                         received_addrs,
@@ -1139,7 +1141,10 @@ where
     let mut graphs = BTreeMap::new();
     let mut clients = BTreeMap::new();
 
-    let mut sink = TestSink::new();
+    let pool = SinkPool::new();
+    // One sink per client, sharing `pool`'s expectations and duplicate
+    // tracking; created alongside each client at `AddClient`.
+    let mut sinks: BTreeMap<u64, TestSink> = BTreeMap::new();
     // Store all known heads for each client.
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
@@ -1160,6 +1165,7 @@ where
 
                 let state = ClientState::new(policy_store, storage);
                 clients.insert(id, RefCell::new(state));
+                sinks.insert(id, pool.sink(id));
             }
             TestRule::NewGraph { client, id, policy } => {
                 let state = clients
@@ -1167,15 +1173,18 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let graph_id = state.new_graph(
-                    policy_data.as_slice(),
-                    TestActions::Init(policy),
-                    &mut sink,
-                )?;
+                let csink = sinks.get_mut(&client).ok_or(TestError::MissingClient)?;
+                let graph_id =
+                    state.new_graph(policy_data.as_slice(), TestActions::Init(policy), csink)?;
 
                 graphs.insert(id, graph_id);
 
-                assert_eq!(0, sink.count());
+                assert_eq!(
+                    0,
+                    pool.count(),
+                    "unconsumed expectations: {:?}",
+                    pool.remaining()
+                );
             }
             TestRule::RemoveGraph { client, id } => {
                 let state = clients
@@ -1184,8 +1193,16 @@ where
                     .get_mut();
                 let graph_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
                 state.remove_graph(*graph_id)?;
+                // The client dropped this state; re-ingested commands
+                // legitimately re-deliver their effects.
+                pool.forget_client(client);
 
-                assert_eq!(0, sink.count());
+                assert_eq!(
+                    0,
+                    pool.count(),
+                    "unconsumed expectations: {:?}",
+                    pool.remaining()
+                );
             }
             TestRule::Sync {
                 client,
@@ -1202,6 +1219,8 @@ where
                 // Scope the client borrows so they are released before the
                 // hello cascade below re-borrows the same clients.
                 {
+                    // The requester ingests, so its effects are the ones delivered.
+                    let csink = sinks.get_mut(&client).ok_or(TestError::MissingClient)?;
                     let mut request_client = clients
                         .get(&client)
                         .ok_or(TestError::MissingClient)?
@@ -1233,7 +1252,7 @@ where
                             (&request_cache, &mut request_client),
                             (&mut response_cache, &mut response_client),
                             &mut received_addrs,
-                            &mut sink,
+                            &mut *csink,
                             *graph_id,
                             &mut rt_buffers,
                         )?;
@@ -1244,7 +1263,7 @@ where
                             break;
                         }
                     }
-                    request_client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                    request_client.commit(trx, csink, &mut rt_buffers, MemSpill::new)?;
                     let mut request_cache = client_heads
                         .get(&(graph, client, from))
                         .assume("cache must exist")?
@@ -1274,17 +1293,22 @@ where
                         graph_id,
                         &clients,
                         &mut client_heads,
-                        &mut sink,
+                        &mut sinks,
                         &mut rt_buffers,
                         default_max_cascade_depth(),
                     )?;
                 }
 
-                assert_eq!(0, sink.count());
+                assert_eq!(
+                    0,
+                    pool.count(),
+                    "unconsumed expectations: {:?}",
+                    pool.remaining()
+                );
             }
 
             TestRule::AddExpectation(expectation) => {
-                sink.add_expectation(TestEffect::Got(expectation));
+                pool.add_expectation(TestEffect::Got(expectation));
             }
 
             TestRule::AddExpectations {
@@ -1292,7 +1316,7 @@ where
                 repeat,
             } => {
                 for _ in 0..repeat {
-                    sink.add_expectation(TestEffect::Got(expectation));
+                    pool.add_expectation(TestEffect::Got(expectation));
                 }
             }
 
@@ -1311,12 +1335,13 @@ where
 
                 let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
+                let csink = sinks.get_mut(&client).ok_or(TestError::MissingClient)?;
                 let txn_key = (client, graph);
                 if commit && !open_txns.contains_key(&txn_key) {
                     // Fast path: no open batch, commit each action durably.
                     for _ in 0..repeat {
                         let set = TestActions::SetValue(key, value);
-                        state.action(graph_id, &mut sink, set, &mut rt_buffers, MemSpill::new)?;
+                        state.action(graph_id, &mut *csink, set, &mut rt_buffers, MemSpill::new)?;
                     }
                 } else {
                     // Batched path: accumulate into the open transaction,
@@ -1328,20 +1353,25 @@ where
                         let set = TestActions::SetValue(key, value);
                         state.action_transaction(
                             &mut txn,
-                            &mut sink,
+                            &mut *csink,
                             set,
                             &mut rt_buffers,
                             MemSpill::new,
                         )?;
                     }
                     if commit {
-                        state.commit(txn, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                        state.commit(txn, csink, &mut rt_buffers, MemSpill::new)?;
                     } else {
                         open_txns.insert(txn_key, txn);
                     }
                 }
 
-                assert_eq!(0, sink.count());
+                assert_eq!(
+                    0,
+                    pool.count(),
+                    "unconsumed expectations: {:?}",
+                    pool.remaining()
+                );
 
                 if !subscriptions.is_empty() {
                     let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
@@ -1352,11 +1382,16 @@ where
                         graph_id,
                         &clients,
                         &mut client_heads,
-                        &mut sink,
+                        &mut sinks,
                         &mut rt_buffers,
                         default_max_cascade_depth(),
                     )?;
-                    assert_eq!(0, sink.count());
+                    assert_eq!(
+                        0,
+                        pool.count(),
+                        "unconsumed expectations: {:?}",
+                        pool.remaining()
+                    );
                 }
             }
 
@@ -1469,7 +1504,8 @@ where
                             .get_mut(&txn_key.0)
                             .ok_or(TestError::MissingClient)?
                             .get_mut();
-                        state.commit(txn, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                        let csink = sinks.get_mut(&txn_key.0).ok_or(TestError::MissingClient)?;
+                        state.commit(txn, csink, &mut rt_buffers, MemSpill::new)?;
                     }
                 }
 
@@ -1516,6 +1552,7 @@ where
                             let request_trx = slot.as_mut().assume("trx just created")?;
 
                             let received_addrs = pass_received.entry((i, j)).or_default();
+                            let csink = sinks.get_mut(&i).ok_or(TestError::MissingClient)?;
                             for _ in 0..max_syncs {
                                 client_heads.entry((graph, i, j)).or_default();
                                 client_heads.entry((graph, j, i)).or_default();
@@ -1533,7 +1570,7 @@ where
                                     (&request_cache, &mut request_client),
                                     (&mut response_cache, &mut response_client),
                                     received_addrs,
-                                    &mut sink,
+                                    &mut *csink,
                                     *graph_id,
                                     &mut rt_buffers,
                                 )?;
@@ -1558,7 +1595,8 @@ where
                                 .get(&i)
                                 .ok_or(TestError::MissingClient)?
                                 .borrow_mut();
-                            client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                            let csink = sinks.get_mut(&i).ok_or(TestError::MissingClient)?;
+                            client.commit(trx, csink, &mut rt_buffers, MemSpill::new)?;
                         }
                     }
 
@@ -1589,9 +1627,14 @@ where
                     }
                 }
 
-                assert_eq!(0, sink.count());
+                assert_eq!(
+                    0,
+                    pool.count(),
+                    "unconsumed expectations: {:?}",
+                    pool.remaining()
+                );
             }
-            TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
+            TestRule::IgnoreExpectations { ignore } => pool.ignore_expectations(ignore),
             TestRule::VerifyGraphIds { client, ids } => {
                 let mut state = clients
                     .get(&client)

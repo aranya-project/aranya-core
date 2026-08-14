@@ -53,9 +53,6 @@
     "AddExpectation": 2
   },
   {
-    "AddExpectation": 1
-  },
-  {
     "Sync": {
       "graph": 0,
       "client": 1,
@@ -63,9 +60,6 @@
       "must_receive": null,
       "max_syncs": 1
     }
-  },
-  {
-    "AddExpectation": 1
   },
   {
     "AddExpectation": 1

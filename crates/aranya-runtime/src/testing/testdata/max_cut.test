@@ -71,13 +71,7 @@
     }
   },
   {
-    "AddExpectations": {
-      "expectation": 1,
-      "repeat": 2
-    }
-  },
-  {
-    "AddExpectation": 3
+    "AddExpectation": 1
   },
   {
     "Sync": {
