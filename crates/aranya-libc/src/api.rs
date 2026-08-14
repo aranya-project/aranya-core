@@ -11,7 +11,7 @@ use super::{errno::Errno, path::Path};
 cfg_if! {
     if #[cfg(target_os = "vxworks")] {
         use super::sys::vxworks as imp;
-    } else if #[cfg(target_os = "linux")] {
+    } else if #[cfg(any(target_os = "linux", target_os = "android"))] {
         use super::sys::linux as imp;
     } else if #[cfg(target_os = "macos")] {
         use super::sys::macos as imp;
