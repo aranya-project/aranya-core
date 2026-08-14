@@ -34,6 +34,9 @@
     "AddExpectation": 3
   },
   {
+    "AddExpectation": 4
+  },
+  {
     "Sync": {
       "graph": 0,
       "client": 1,
@@ -44,7 +47,10 @@
     }
   },
   {
-    "AddExpectation": 4
+    "AddExpectations": {
+      "expectation": 4,
+      "repeat": 2
+    }
   },
   {
     "Sync": {
@@ -86,6 +92,9 @@
       "client": 0,
       "graph": 0
     }
+  },
+  {
+    "AddExpectation": 4
   },
   {
     "AddExpectations": {
@@ -152,6 +161,9 @@
   },
   {
     "AddExpectation": 3
+  },
+  {
+    "AddExpectation": 4
   },
   {
     "AddExpectations": {

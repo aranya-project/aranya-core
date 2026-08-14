@@ -179,38 +179,6 @@ where
         )
     }
 
-    /// Run an `action` within a [`Transaction`], writing effects to
-    /// `sink`.
-    ///
-    /// Unlike [`Self::action`], durability is deferred until
-    /// [`Self::commit`], so batching many actions into one transaction
-    /// amortizes the per-commit `fsync` cost across the whole batch.
-    ///
-    /// `make_spill` is used when anchoring the action requires
-    /// collapsing a multi-head tip set into a single parent, which may
-    /// run a braid. See [`Self::commit`].
-    pub fn action_transaction<F, MS>(
-        &mut self,
-        trx: &mut Transaction<SP, PS>,
-        sink: &mut impl Sink<PS::Effect>,
-        action: <PS::Policy as Policy>::Action<'_>,
-        buffers: &mut RuntimeBuffers<SP::Segment>,
-        make_spill: MS,
-    ) -> Result<(), ClientError>
-    where
-        F: Spill,
-        MS: Fn() -> Result<F, StorageError>,
-    {
-        trx.action::<F, MS>(
-            &mut self.provider,
-            &mut self.policy_store,
-            sink,
-            action,
-            buffers,
-            &make_spill,
-        )
-    }
-
     pub fn update_heads<I>(
         &mut self,
         graph_id: GraphId,
@@ -302,15 +270,12 @@ where
         let storage = self.provider.get_storage(graph_id)?;
 
         // A new command needs a single parent: collapse the head set, which may
-        // run a braid (hence the buffers and spill). The collapse's braids may
-        // re-deliver effects the committing braid already emitted; see
-        // [`transaction::collapse_heads`].
+        // run a braid (hence the buffers and spill).
         let heads = storage.get_heads()?.clone();
         let head = transaction::collapse_heads::<_, PS, F, _>(
             storage,
             &mut self.policy_store,
             heads,
-            sink,
             buffers,
             &make_spill,
         )?;

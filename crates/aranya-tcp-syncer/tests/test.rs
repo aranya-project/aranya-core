@@ -12,7 +12,7 @@ use aranya_runtime::{
     ClientState, GraphId, LibcSpill, RuntimeBuffers, SyncRequester,
     policy::{PolicyStore, Sink},
     storage::{StorageProvider, linear::testing::MemStorageProvider},
-    testing::protocol::{SinkPool, TestActions, TestEffect, TestPolicyStore},
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
 };
 use aranya_tcp_syncer::{Syncer, run_syncer};
 use buggy::BugExt as _;
@@ -24,8 +24,7 @@ fn test_sync() -> Result<()> {
     let mut buffers = RuntimeBuffers::new();
     let spill_dir = std::env::temp_dir();
     let make_spill = || LibcSpill::new(&spill_dir);
-    let pool1 = SinkPool::new();
-    let sink1 = Arc::new(Mutex::new(pool1.sink(0)));
+    let sink1 = Arc::new(Mutex::new(TestSink::new()));
     let (tx, rx) = mpsc::channel();
     let server_addr1 = get_server()?;
     let syncer1 = Arc::new(Mutex::new(Syncer::new(
@@ -37,8 +36,7 @@ fn test_sync() -> Result<()> {
     )?));
 
     let client2 = make_client();
-    let pool2 = SinkPool::new();
-    let sink2 = Arc::new(Mutex::new(pool2.sink(0)));
+    let sink2 = Arc::new(Mutex::new(TestSink::new()));
 
     let graph_id = client1.lock().unwrap().new_graph(
         &0u64.to_be_bytes(),
@@ -52,7 +50,7 @@ fn test_sync() -> Result<()> {
 
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
-        pool1.add_expectation(TestEffect::Got(i));
+        sink1.lock().unwrap().add_expectation(TestEffect::Got(i));
         client1.lock().unwrap().action(
             graph_id,
             sink1.lock().unwrap().deref_mut(),
@@ -61,10 +59,10 @@ fn test_sync() -> Result<()> {
             make_spill,
         )?;
     }
-    assert_eq!(pool1.count(), 0);
+    assert_eq!(sink1.lock().unwrap().count(), 0);
 
     for i in 0..6 {
-        pool2.add_expectation(TestEffect::Got(i));
+        sink2.lock().unwrap().add_expectation(TestEffect::Got(i));
     }
     let (tx, _) = mpsc::channel();
     let server_addr2 = get_server()?;
@@ -82,7 +80,7 @@ fn test_sync() -> Result<()> {
         sink2.lock().unwrap().deref_mut(),
         graph_id,
     )?;
-    assert_eq!(pool2.count(), 0);
+    assert_eq!(sink2.lock().unwrap().count(), 0);
 
     Ok(())
 }
@@ -93,8 +91,7 @@ fn test_sync_subscribe() -> Result<()> {
     let mut buffers = RuntimeBuffers::new();
     let spill_dir = std::env::temp_dir();
     let make_spill = || LibcSpill::new(&spill_dir);
-    let pool1 = SinkPool::new();
-    let sink1 = Arc::new(Mutex::new(pool1.sink(0)));
+    let sink1 = Arc::new(Mutex::new(TestSink::new()));
     let (tx1, rx1) = mpsc::channel();
     let server_addr1 = get_server()?;
     let syncer1 = Arc::new(Mutex::new(Syncer::new(
@@ -106,8 +103,7 @@ fn test_sync_subscribe() -> Result<()> {
     )?));
 
     let client2 = make_client();
-    let pool2 = SinkPool::new();
-    let sink2 = Arc::new(Mutex::new(pool2.sink(0)));
+    let sink2 = Arc::new(Mutex::new(TestSink::new()));
     let (tx2, rx2) = mpsc::channel();
     let server_addr2 = get_server()?;
     let syncer2 = Arc::new(Mutex::new(Syncer::new(
@@ -128,7 +124,7 @@ fn test_sync_subscribe() -> Result<()> {
     let addr2 = spawn_syncer(Arc::clone(&syncer2), rx2, server_addr2)?;
 
     for i in 0..6 {
-        pool2.add_expectation(TestEffect::Got(i));
+        sink2.lock().unwrap().add_expectation(TestEffect::Got(i));
     }
     syncer1.lock().unwrap().subscribe(
         client1.lock().unwrap().deref_mut(),
@@ -147,7 +143,7 @@ fn test_sync_subscribe() -> Result<()> {
 
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
-        pool1.add_expectation(TestEffect::Got(i));
+        sink1.lock().unwrap().add_expectation(TestEffect::Got(i));
         client1.lock().unwrap().action(
             graph_id,
             sink1.lock().unwrap().deref_mut(),
@@ -160,8 +156,8 @@ fn test_sync_subscribe() -> Result<()> {
 
     // All of the actions should be pushed to client2.
     sleep(Duration::from_millis(100));
-    assert_eq!(pool1.count(), 0);
-    assert_eq!(pool2.count(), 0);
+    assert_eq!(sink1.lock().unwrap().count(), 0);
+    assert_eq!(sink2.lock().unwrap().count(), 0);
 
     syncer2.lock().unwrap().subscribe(
         client2.lock().unwrap().deref_mut(),
@@ -175,7 +171,10 @@ fn test_sync_subscribe() -> Result<()> {
 
     let mut value = 7;
     let action = TestActions::SetValue(value, value);
-    pool1.add_expectation(TestEffect::Got(value));
+    sink1
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
     client1.lock().unwrap().action(
         graph_id,
         sink1.lock().unwrap().deref_mut(),
@@ -184,13 +183,16 @@ fn test_sync_subscribe() -> Result<()> {
         make_spill,
     )?;
     syncer1.lock().unwrap().push(graph_id)?;
-    pool2.add_expectation(TestEffect::Got(value));
+    sink2
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
 
     sleep(Duration::from_millis(100));
-    assert_eq!(pool1.count(), 0);
+    assert_eq!(sink1.lock().unwrap().count(), 0);
 
     // Sink 2 should not receive the push because the subscription expired.
-    assert_eq!(pool2.count(), 1);
+    assert_eq!(sink2.lock().unwrap().count(), 1);
 
     syncer2.lock().unwrap().subscribe(
         client2.lock().unwrap().deref_mut(),
@@ -202,7 +204,10 @@ fn test_sync_subscribe() -> Result<()> {
 
     value = value.checked_add(1).assume("must not overflow")?;
     let action = TestActions::SetValue(value, value);
-    pool1.add_expectation(TestEffect::Got(value));
+    sink1
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
     client1.lock().unwrap().action(
         graph_id,
         sink1.lock().unwrap().deref_mut(),
@@ -211,15 +216,21 @@ fn test_sync_subscribe() -> Result<()> {
         make_spill,
     )?;
     syncer1.lock().unwrap().push(graph_id)?;
-    pool2.add_expectation(TestEffect::Got(value));
+    sink2
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
 
     sleep(Duration::from_millis(100));
-    assert_eq!(pool1.count(), 0);
-    assert_eq!(pool2.count(), 0);
+    assert_eq!(sink1.lock().unwrap().count(), 0);
+    assert_eq!(sink2.lock().unwrap().count(), 0);
 
     value = value.checked_add(1).assume("must not overflow")?;
     let action = TestActions::SetValue(value, value);
-    pool1.add_expectation(TestEffect::Got(value));
+    sink1
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
     client1.lock().unwrap().action(
         graph_id,
         sink1.lock().unwrap().deref_mut(),
@@ -228,14 +239,17 @@ fn test_sync_subscribe() -> Result<()> {
         make_spill,
     )?;
     syncer1.lock().unwrap().push(graph_id)?;
-    pool2.add_expectation(TestEffect::Got(value));
+    sink2
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
 
     sleep(Duration::from_millis(100));
-    assert_eq!(pool1.count(), 0);
+    assert_eq!(sink1.lock().unwrap().count(), 0);
 
     // Sink 2 should not receive the push because there are not enough
     // remaining bytes to send it.
-    assert_eq!(pool2.count(), 1);
+    assert_eq!(sink2.lock().unwrap().count(), 1);
 
     syncer2.lock().unwrap().subscribe(
         client2.lock().unwrap().deref_mut(),
@@ -252,7 +266,10 @@ fn test_sync_subscribe() -> Result<()> {
 
     value = value.checked_add(1).assume("must not overflow")?;
     let action = TestActions::SetValue(value, value);
-    pool1.add_expectation(TestEffect::Got(value));
+    sink1
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
     client1.lock().unwrap().action(
         graph_id,
         sink1.lock().unwrap().deref_mut(),
@@ -261,13 +278,16 @@ fn test_sync_subscribe() -> Result<()> {
         make_spill,
     )?;
     syncer1.lock().unwrap().push(graph_id)?;
-    pool2.add_expectation(TestEffect::Got(value));
+    sink2
+        .lock()
+        .unwrap()
+        .add_expectation(TestEffect::Got(value));
 
     sleep(Duration::from_millis(100));
-    assert_eq!(pool1.count(), 0);
+    assert_eq!(sink1.lock().unwrap().count(), 0);
 
     // Sink 2 should not receive the push because the client unsubscribed.
-    assert_eq!(pool2.count(), 2);
+    assert_eq!(sink2.lock().unwrap().count(), 2);
 
     Ok(())
 }

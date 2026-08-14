@@ -18,7 +18,7 @@ use aranya_crypto::Rng;
 use aranya_runtime::{
     ClientState, GraphId, LibcSpill, RuntimeBuffers, Sink, SyncRequester,
     storage::linear::testing::MemStorageProvider,
-    testing::protocol::{TestActions, TestPolicyStore},
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use aranya_tcp_syncer::{Syncer, run_syncer};
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -40,12 +40,12 @@ impl CountSink {
     }
 }
 
-impl<Eff> Sink<Eff> for CountSink {
+impl Sink<TestEffect> for CountSink {
     fn begin(&mut self) {
         //NOOP
     }
 
-    fn consume(&mut self, _effect: Eff) {
+    fn consume(&mut self, _effect: TestEffect) {
         self.count += 1;
     }
 

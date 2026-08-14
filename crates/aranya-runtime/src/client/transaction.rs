@@ -12,7 +12,7 @@ use crate::{
     MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId,
     PolicyStore, Prior, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError,
     StorageProvider, TraversalBuffer,
-    policy::{ActionPlacement, CommandPlacement},
+    policy::{CommandPlacement, NullSink},
     storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
     sync::{PeerCache, SessionHeads},
 };
@@ -263,104 +263,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         }
 
         Ok(count)
-    }
-
-    /// Run an `action` within this transaction.
-    ///
-    /// The action's command(s) are accumulated in the transaction's
-    /// open perspective without being written to storage. Durability
-    /// is deferred until [`Transaction::commit`], so a batch of
-    /// actions shares a single durable commit (and thus a single pair
-    /// of `fsync`s) instead of paying for one per action.
-    ///
-    /// `make_spill` is used when anchoring the action requires
-    /// collapsing a multi-head tip set into a single parent, which may
-    /// run a braid. See [`Transaction::commit`].
-    pub(super) fn action<F, MS>(
-        &mut self,
-        provider: &mut SP,
-        policy_store: &mut PS,
-        sink: &mut impl Sink<PS::Effect>,
-        action: <PS::Policy as crate::Policy>::Action<'_>,
-        buffers: &mut RuntimeBuffers<SP::Segment>,
-        make_spill: &MS,
-    ) -> Result<(), ClientError>
-    where
-        F: Spill,
-        MS: Fn() -> Result<F, StorageError>,
-    {
-        let storage = provider.get_storage(self.graph_id)?;
-
-        // Seed the transaction's tips from the committed head set and
-        // stamp it to detect intervening commits (as `add_commands`).
-        if self.original_heads_offset.is_none() {
-            for la in storage.get_heads()?.iter() {
-                self.heads.insert(la.id, la.location());
-            }
-            self.original_heads_offset = Some(storage.heads_offset()?);
-        }
-
-        // The open perspective can only be extended directly if it
-        // supersedes every tip. If other tips exist (e.g. a prior sync
-        // left divergent branches), write it out so the action anchors
-        // on the collapse of ALL tips, not on the perspective's branch.
-        if !self.heads.is_empty() {
-            self.flush(storage)?;
-        }
-
-        // Ensure there's an open perspective to run the action against.
-        // A new command needs a single parent, so anchor at the
-        // collapse of the transaction's tips, which may materialize a
-        // merge (as `ClientState::action` does for the committed set).
-        let perspective = match &mut self.perspective {
-            Some(p) => p,
-            None => {
-                let mut tips = HeadSet::default();
-                for (id, loc) in &self.heads {
-                    tips.push(LocatedAddress {
-                        id: *id,
-                        segment: loc.segment,
-                        max_cut: loc.max_cut,
-                    });
-                }
-                let head = collapse_heads::<_, PS, F, _>(
-                    storage,
-                    policy_store,
-                    tips,
-                    sink,
-                    buffers,
-                    make_spill,
-                )?;
-                // Every prior tip is an ancestor of the anchor, which the
-                // perspective now supersedes.
-                self.heads.clear();
-                self.phead = Some(storage.get_segment(head)?.head_id());
-                self.perspective
-                    .insert(storage.get_linear_perspective(head)?)
-            }
-        };
-
-        let policy_id = perspective.policy();
-        let policy = policy_store.get_policy(policy_id)?;
-
-        // Run the action, reverting its partial effects on failure so
-        // one bad action doesn't poison the rest of the batch.
-        sink.begin();
-        let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_action(action, perspective, sink, ActionPlacement::OnGraph) {
-            perspective.revert(checkpoint)?;
-            sink.rollback();
-            return Err(e.into());
-        }
-        sink.commit();
-
-        // Advance the perspective head to the action's last command.
-        match perspective.head_address()? {
-            Prior::Single(addr) => self.phead = Some(addr.id),
-            Prior::None | Prior::Merge(..) => bug!("linear perspective head must be single"),
-        }
-
-        Ok(())
     }
 
     fn add_single(
@@ -636,21 +538,10 @@ fn fold_merge_pairs<E>(
     bug!("head set was empty");
 }
 
-/// Pairwise-merge `heads` down to a single head, writing merge segments, and
-/// return the resulting location.
-///
-/// Each merge braids its pair, emitting the braid's effects to `sink`. A
-/// braid re-runs commands whenever heads are merged, so a sink may receive
-/// effects it has already delivered (e.g. collapsing a committed head set
-/// re-emits what the committing braid delivered). An effect is re-produced
-/// identically unless the merged fact state changed it, so consumers that
-/// care can drop duplicates keyed on the emitting command and the effect's
-/// content.
 pub(crate) fn collapse_heads<S, PS, F, MS>(
     storage: &mut S,
     policy_store: &mut PS,
     heads: HeadSet,
-    sink: &mut impl Sink<PS::Effect>,
     buffers: &mut RuntimeBuffers<S::Segment>,
     make_spill: &MS,
 ) -> Result<Location, ClientError>
@@ -660,6 +551,12 @@ where
     F: Spill,
     MS: Fn() -> Result<F, StorageError>,
 {
+    // The multi-head state being collapsed was produced by a `commit` that
+    // already braided these same heads and emitted their effects in converged
+    // order. Re-braiding the identical head set yields no new effects (braid
+    // order is a stable global sort by `(priority, id)`), so emitting again
+    // would only duplicate what `commit` delivered.
+    let mut null = NullSink;
     let merged = fold_merge_pairs(heads.iter(), |mut left, mut right| {
         let (policy, policy_id) =
             choose_policy(storage, policy_store, left.location(), right.location())?;
@@ -675,7 +572,7 @@ where
         let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
             &[left.location(), right.location()],
-            sink,
+            &mut null,
             policy,
             &mut buffers.traversal.primary,
             &mut buffers.braid,
@@ -795,11 +692,7 @@ mod test {
         TraversalBuffer,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
-        testing::{
-            hash_for_testing_only,
-            protocol::{SinkPool, TestActions, TestPolicyStore},
-            short_b58,
-        },
+        testing::{hash_for_testing_only, short_b58},
     };
 
     struct SeqPolicyStore;
@@ -843,17 +736,13 @@ mod test {
             &self,
             command: &impl Command,
             facts: &mut impl crate::FactPerspective,
-            sink: &mut impl Sink<Self::Effect>,
+            _sink: &mut impl Sink<Self::Effect>,
             _placement: CommandPlacement,
         ) -> Result<(), PolicyError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges shouldn't be evaluated"
             );
-
-            // One effect per evaluated command, so tests can observe
-            // whether an evaluation (e.g. a braid) was emitted or dropped.
-            sink.consume(());
 
             let data = command.bytes();
             // (q)uiet commmands add no facts so we can test that.
@@ -882,48 +771,12 @@ mod test {
 
         fn call_action(
             &self,
-            action: Self::Action<'_>,
-            facts: &mut impl Perspective,
+            _action: Self::Action<'_>,
+            _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
         ) -> Result<(), PolicyError> {
-            // Record the fact state the action evaluated against, so tests
-            // can assert which branches were visible when the action ran.
-            let seen = facts.query("seq", &Keys::default()).assume("can query")?;
-            facts
-                .insert(
-                    "action_seq".into(),
-                    Keys::default(),
-                    seen.as_deref().unwrap_or(b"").into(),
-                )
-                .unwrap();
-
-            // Append one command (named by `action`) to the perspective,
-            // updating the seq fact exactly as `call_rule` would.
-            let Prior::Single(parent) = facts.head_address().assume("perspective has head")? else {
-                bug!("linear perspective head must be single");
-            };
-            let id: CmdId = action.parse().unwrap();
-            let cmd = SeqCommand::new(id, Prior::Single(parent));
-            if let Some(seq) = facts
-                .query("seq", &Keys::default())
-                .assume("can query")?
-                .as_deref()
-            {
-                facts
-                    .insert(
-                        "seq".into(),
-                        Keys::default(),
-                        [seq, b":", cmd.bytes()].concat().into(),
-                    )
-                    .unwrap();
-            } else {
-                facts
-                    .insert("seq".into(), Keys::default(), cmd.bytes().into())
-                    .unwrap();
-            }
-            facts.add_command(&cmd).assume("can add command")?;
-            Ok(())
+            unimplemented!()
         }
 
         fn merge<'a>(
@@ -1005,20 +858,6 @@ mod test {
     impl<Eff> Sink<Eff> for NullSink {
         fn begin(&mut self) {}
         fn consume(&mut self, _: Eff) {}
-        fn rollback(&mut self) {}
-        fn commit(&mut self) {}
-    }
-
-    /// Counts consumed effects, to observe braid emission.
-    #[derive(Default)]
-    struct CountSink {
-        consumed: usize,
-    }
-    impl<Eff> Sink<Eff> for CountSink {
-        fn begin(&mut self) {}
-        fn consume(&mut self, _: Eff) {
-            self.consumed = self.consumed.checked_add(1).unwrap();
-        }
         fn rollback(&mut self) {}
         fn commit(&mut self) {}
     }
@@ -1137,17 +976,6 @@ mod test {
                 )?;
             }
             Ok(())
-        }
-
-        pub fn action(&mut self, id: &str) -> Result<(), ClientError> {
-            self.trx.action(
-                &mut self.client.provider,
-                &mut self.client.policy_store,
-                &mut NullSink,
-                id,
-                &mut self.buffers,
-                &MemSpill::new,
-            )
         }
 
         pub fn flush(&mut self) {
@@ -1562,7 +1390,6 @@ mod test {
             storage,
             &mut client.policy_store,
             heads,
-            &mut NullSink,
             &mut buffers,
             &MemSpill::new,
         )
@@ -1615,7 +1442,6 @@ mod test {
                 storage,
                 &mut ahead.policy_store,
                 heads,
-                &mut NullSink,
                 &mut buffers,
                 &MemSpill::new,
             )
@@ -2143,172 +1969,6 @@ mod test {
         );
 
         Ok(())
-    }
-
-    /// An open transaction does not block local actions, but a local
-    /// action advances the storage head, so the transaction's commit
-    /// fails with [`ClientError::ConcurrentTransaction`] instead of
-    /// silently losing either side.
-    #[test]
-    fn test_action_aborts_open_transaction() {
-        let mut client = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
-        let pool = SinkPool::new();
-        pool.ignore_expectations(true);
-        let mut sink = pool.sink(0);
-        let mut buffers = RuntimeBuffers::new();
-
-        let policy_data = 0u64.to_be_bytes();
-        let graph_id = client
-            .new_graph(policy_data.as_slice(), TestActions::Init(0), &mut sink)
-            .unwrap();
-
-        // Accumulate an action in an open (uncommitted) transaction.
-        let mut trx = client.transaction(graph_id);
-        client
-            .action_transaction(
-                &mut trx,
-                &mut sink,
-                TestActions::SetValue(0, 1),
-                &mut buffers,
-                MemSpill::new,
-            )
-            .unwrap();
-
-        // A local action is not blocked by the open transaction.
-        client
-            .action(
-                graph_id,
-                &mut sink,
-                TestActions::SetValue(0, 2),
-                &mut buffers,
-                MemSpill::new,
-            )
-            .unwrap();
-
-        // But it advanced the head out from under the transaction.
-        let err = client
-            .commit(trx, &mut sink, &mut buffers, MemSpill::new)
-            .unwrap_err();
-        assert!(matches!(err, ClientError::ConcurrentTransaction), "{err:?}");
-
-        // A transaction opened afterward commits cleanly.
-        let mut trx = client.transaction(graph_id);
-        client
-            .action_transaction(
-                &mut trx,
-                &mut sink,
-                TestActions::SetValue(0, 3),
-                &mut buffers,
-                MemSpill::new,
-            )
-            .unwrap();
-        assert!(
-            client
-                .commit(trx, &mut sink, &mut buffers, MemSpill::new)
-                .unwrap()
-        );
-    }
-
-    /// An action in a transaction that already synced a divergent branch
-    /// must anchor on the collapse of ALL transaction tips (matching
-    /// [`ClientState::action`] semantics), not extend the sync's open
-    /// perspective — which would make it a child of the last synced
-    /// command, blind to the other branch's facts.
-    #[test]
-    fn test_action_after_sync_collapses_heads() {
-        // Committed graph: init "i" with local head "a".
-        let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
-            "i";
-            "i" < "a";
-            commit;
-        };
-
-        // One transaction: sync a peer branch forked at "i", then act.
-        gb.line(mkid("i"), &[mkid("b")]).unwrap();
-        gb.action("x").unwrap();
-        gb.commit().unwrap();
-
-        let storage = gb.client.provider.get_storage(gb.trx.graph_id()).unwrap();
-
-        // The action anchored above a merge of {a, b}, leaving a single
-        // committed head instead of {a, action-on-b}.
-        assert_eq!(head_count(storage), 1, "action did not collapse the tips");
-
-        // The action's policy evaluation saw facts from BOTH branches.
-        let seen = lookup(storage, "action_seq").unwrap();
-        let seen = std::str::from_utf8(&seen).unwrap();
-        let a: CmdId = mkid("a");
-        let b: CmdId = mkid("b");
-        assert!(
-            seen.contains(&short_b58(a)),
-            "local branch invisible to action: {seen:?}"
-        );
-        assert!(
-            seen.contains(&short_b58(b)),
-            "synced branch invisible to action: {seen:?}"
-        );
-    }
-
-    /// An action collapsing tips synced into this transaction runs a braid
-    /// no commit has emitted yet, so its effects must reach the sink.
-    #[test]
-    fn test_action_after_sync_emits_braid_effects() {
-        let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
-            "i";
-            "i" < "a";
-            commit;
-        };
-
-        // Sync a peer branch forked at "i" into the open transaction, then
-        // act: the collapse braids {a, b} for the first time anywhere.
-        gb.line(mkid("i"), &[mkid("b")]).unwrap();
-        let mut sink = CountSink::default();
-        gb.trx
-            .action(
-                &mut gb.client.provider,
-                &mut gb.client.policy_store,
-                &mut sink,
-                "x",
-                &mut gb.buffers,
-                &MemSpill::new,
-            )
-            .unwrap();
-        assert_ne!(
-            sink.consumed, 0,
-            "braid effects of synced tips were dropped"
-        );
-    }
-
-    /// `collapse_heads` always emits its braids: an action on a committed
-    /// multi-head set re-delivers the effects the committing braid emitted,
-    /// and consumers dedupe on (command, effect) — see the DSL `TestSink`.
-    #[test]
-    fn test_action_on_committed_heads_reemits_braid() {
-        let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
-            "i";
-            "i" < "a";
-            "i" < "b";
-            commit;
-        };
-
-        let mut sink = CountSink::default();
-        gb.trx
-            .action(
-                &mut gb.client.provider,
-                &mut gb.client.policy_store,
-                &mut sink,
-                "x",
-                &mut gb.buffers,
-                &MemSpill::new,
-            )
-            .unwrap();
-        assert_ne!(
-            sink.consumed, 0,
-            "collapse of the committed head set suppressed its braid"
-        );
     }
 
     #[cfg(feature = "graphviz")]

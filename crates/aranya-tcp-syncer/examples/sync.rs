@@ -25,7 +25,7 @@ use aranya_runtime::{
     ClientState, GraphId, LibcSpill, PolicyStore, RuntimeBuffers, StorageProvider, SyncRequester,
     policy::Sink,
     storage::linear::testing::MemStorageProvider,
-    testing::protocol::{EmittedTestEffect, TestActions, TestEffect, TestPolicyStore},
+    testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
 use aranya_tcp_syncer::{Syncer, run_syncer};
 use clap::Parser;
@@ -170,12 +170,12 @@ fn run(options: Opt) -> Result<()> {
 #[derive(Debug, Clone)]
 pub struct PrintSink {}
 
-impl Sink<EmittedTestEffect> for PrintSink {
+impl Sink<TestEffect> for PrintSink {
     fn begin(&mut self) {
         //NOOP
     }
 
-    fn consume(&mut self, (_, effect): EmittedTestEffect) {
+    fn consume(&mut self, effect: TestEffect) {
         match effect {
             TestEffect::Got(g) => {
                 println!("received {}", g);
