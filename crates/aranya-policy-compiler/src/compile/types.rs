@@ -16,7 +16,7 @@ use crate::{
     CompileError,
     compile::{
         CompileState,
-        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable},
+        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable, rendering::Error},
     },
 };
 
@@ -157,11 +157,11 @@ impl IdentifierTypeStack {
             .collect();
 
         if !unused.is_empty() {
+            let err = UnusedVariable { names: unused };
             if self.allow_unused {
-                let names: Vec<&str> = unused.iter().map(|n| n.as_str()).collect();
-                warn!("unused variable(s): {}", names.join(", "));
+                warn!("{}", err.description());
             } else {
-                return Err(UnusedVariable { names: unused });
+                return Err(err);
             }
         }
         Ok(())

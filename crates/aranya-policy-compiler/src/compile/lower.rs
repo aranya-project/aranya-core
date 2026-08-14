@@ -1475,8 +1475,8 @@ impl CompileState<'_> {
 
                     // Exit the scope for this arm
                     self.identifier_types
-                    .exit_block()
-                    .map_err(|e| self.err(e))?;
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
 
                     arms.push(thir::MatchArm {
                         pattern,
@@ -1526,8 +1526,8 @@ impl CompileState<'_> {
 
                     // Exit the scope for this arm
                     self.identifier_types
-                    .exit_block()
-                    .map_err(|e| self.err(e))?;
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
 
                     match expr_type {
                         None => expr_type = Some(etype),
@@ -1786,8 +1786,8 @@ impl CompileState<'_> {
                     // body
                     let s = self.lower_statements(&map_stmt.statements, Scope::Same)?;
                     self.identifier_types
-                    .exit_block()
-                    .map_err(|e| self.err(e))?;
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
                     thir::StmtKind::Map(thir::MapStatement {
                         fact,
                         identifier: map_stmt.identifier.clone(),
@@ -1967,8 +1967,8 @@ impl CompileState<'_> {
         }
         if scope == Scope::Layered {
             self.identifier_types
-                    .exit_block()
-                    .map_err(|e| self.err(e))?;
+                .exit_block()
+                .map_err(|e| self.err(e))?;
         }
         Ok(output)
     }
