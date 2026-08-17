@@ -11,7 +11,6 @@ rust-version.workspace = true
 [dependencies]
 aranya-policy-ast = { version = "0.15.0", path = "../aranya-policy-ast" }
 
-bytes = { version = "1.12.1", default-features = false }
 fnv = { workspace = true, default-features = false }
 indexmap = { workspace = true, default-features = false, features = ["serde"] }
 rkyv = { workspace = true, features = ["alloc", "indexmap-2"] }
@@ -19,6 +18,7 @@ postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 sha2 = { version = "0.11", default-features = false }
 thiserror = { workspace = true }
+zerocopy = { workspace = true, features = ["derive"] }
 zrip = { version = "0.8.5", default-features = false, features = ["alloc", "paranoid"]}
 
 [features]

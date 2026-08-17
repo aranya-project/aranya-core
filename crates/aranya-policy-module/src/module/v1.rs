@@ -7,8 +7,8 @@ use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, FactDef, FfiContract, Instruction, Label,
-    StructDef,
+    ActionDef, CHECKSUM_HASH_LEN, CodeMap, CommandDef, ConstValue, EnumDef, FactDef, FfiContract,
+    Instruction, Label, StructDef,
 };
 
 /// Program data - instructions and other information needed for runtime execution.
@@ -48,7 +48,7 @@ pub struct Program {
 )]
 pub struct Contract {
     /// A SHA-256 hash over the normalized AST
-    pub signature: [u8; 32],
+    pub signature: [u8; CHECKSUM_HASH_LEN],
     /// Action definitions
     pub actions: Vec<ActionDef>,
     /// Command definitions
