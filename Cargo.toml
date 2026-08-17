@@ -113,6 +113,7 @@ rkyv = { version = "0.8.17", default-features = false, features = ["bytecheck"] 
 rustix = { version = "0.38", default-features = false }
 serde = { version = "1.0.210", default-features = false }
 serde_derive = { version = "1" }
+sha2 = { version = "0.11", default-features = false }
 spideroak-base58 = { version = "0.2.0", default-features = false }
 spin = { version = "0.10.1", default-features = false }
 test-log = { version = "0.2", default-features = false, features = ["trace"] }

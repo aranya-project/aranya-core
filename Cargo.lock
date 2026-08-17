@@ -402,6 +402,7 @@ dependencies = [
  "insta",
  "petgraph",
  "rstest",
+ "sha2 0.11.0",
  "tracing",
 ]
 
@@ -481,7 +482,6 @@ name = "aranya-policy-module"
 version = "0.22.0"
 dependencies = [
  "aranya-policy-ast",
- "bytes",
  "fnv",
  "indexmap",
  "postcard",
@@ -489,6 +489,7 @@ dependencies = [
  "serde",
  "sha2 0.11.0",
  "thiserror 2.0.7",
+ "zerocopy 0.8.25",
  "zrip",
 ]
 
@@ -740,12 +741,6 @@ name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
-
-[[package]]
-name = "bytes"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "canary-alloc"
