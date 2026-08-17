@@ -5,11 +5,15 @@ use std::{
 
 use aranya_policy_ast::{self as ast, Ident, TypeKind};
 use aranya_policy_module::{
-    CodeMap, ConstValue, EnumDef, FactDef, Field, Instruction, Label, Module, ModuleData, ModuleV0,
-    StructDef, interface, named::NamedMap,
+    CodeMap, ConstValue, EnumDef, FactDef, FfiContract, Field, Instruction, Label, Module,
+    ModuleData, ModuleV1, StructDef, ffi::ModuleSchema, interface, named::NamedMap, v1,
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
+use sha2::{
+    Sha256,
+    digest::{common::OutputSize, typenum::Unsigned as _},
+};
 
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
@@ -27,62 +31,71 @@ pub(crate) struct CompileTarget {
     pub fact_defs: BTreeMap<Ident, FactDefinition>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
+    // Module contract
+    pub ffis: Vec<FfiContract>,
     /// Public interface
     pub interface: PolicyInterface,
 }
 
 impl CompileTarget {
     /// Creates an empty `CompileTarget` with a given codemap. Used by the compiler.
-    pub fn new(codemap: CodeMap) -> Self {
+    pub fn new(codemap: CodeMap, ffi_schemas: &[ModuleSchema<'_>]) -> Self {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
             command_defs: NamedMap::new(),
             fact_defs: BTreeMap::new(),
             codemap: Some(codemap),
+            ffis: ffi_schemas.iter().map(FfiContract::from).collect(),
             interface: PolicyInterface::new(),
         }
     }
 
     /// Converts the `CompileTarget` into a `Module`.
-    pub fn into_module(self) -> Module {
+    pub fn into_module(self, signature: [u8; OutputSize::<Sha256>::USIZE]) -> Module {
         Module {
-            data: ModuleData::V0(ModuleV0 {
-                progmem: self.progmem.into_boxed_slice(),
-                labels: self.labels,
-                action_defs: self
-                    .interface
-                    .action_defs
-                    .iter()
-                    .map(|a| a.clone().into())
-                    .collect(),
-                command_defs: self.command_defs.iter().map(|c| c.clone().into()).collect(),
-                fact_defs: self.fact_defs.into_values().map(FactDef::from).collect(),
-                struct_defs: self
-                    .interface
-                    .struct_defs
-                    .into_iter()
-                    .map(|(i, s)| StructDef {
-                        name: i.inner,
-                        items: s.into_iter().map(Field::from).collect(),
-                    })
-                    .collect(),
-                enum_defs: self
-                    .interface
-                    .enum_defs
-                    .into_iter()
-                    .map(|(i, e)| EnumDef {
-                        name: i.inner,
-                        variants: e.into_iter().map(|(i, v)| (i.inner, v)).collect(),
-                    })
-                    .collect(),
-                codemap: self.codemap,
-                globals: self
-                    .interface
-                    .globals
-                    .into_iter()
-                    .map(|(k, v)| (k.inner, v))
-                    .collect(),
+            data: ModuleData::V1(ModuleV1 {
+                program: v1::Program {
+                    progmem: self.progmem.into_boxed_slice(),
+                    labels: self.labels,
+                    globals: self
+                        .interface
+                        .globals
+                        .into_iter()
+                        .map(|(k, v)| (k.inner, v))
+                        .collect(),
+                    codemap: self.codemap,
+                },
+                contract: v1::Contract {
+                    signature,
+                    actions: self
+                        .interface
+                        .action_defs
+                        .iter()
+                        .map(|a| a.clone().into())
+                        .collect(),
+                    commands: self.command_defs.iter().map(|c| c.clone().into()).collect(),
+                    facts: self.fact_defs.into_values().map(FactDef::from).collect(),
+                    structs: self
+                        .interface
+                        .struct_defs
+                        .into_iter()
+                        .map(|(i, s)| StructDef {
+                            name: i.inner,
+                            items: s.into_iter().map(Field::from).collect(),
+                        })
+                        .collect(),
+                    enums: self
+                        .interface
+                        .enum_defs
+                        .into_iter()
+                        .map(|(i, e)| EnumDef {
+                            name: i.inner,
+                            variants: e.into_iter().map(|(i, v)| (i.inner, v)).collect(),
+                        })
+                        .collect(),
+                    ffis: self.ffis,
+                },
             }),
         }
     }

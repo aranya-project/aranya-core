@@ -28,6 +28,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
+use sha2::{Digest as _, Sha256};
 use tracing::warn;
 
 pub use self::{error::CompileError, target::PolicyInterface};
@@ -121,6 +122,39 @@ macro_rules! typekind {
     };
     (option [ $inner:ident ]) => {
         TypeKind::Optional(Box::new(vtype!($inner)))
+    };
+}
+
+/// Hashes data from an AST representation and updates a [`Digest`](sha2::Digest) with the type, identifier.
+///
+/// ```
+/// hash_parts!(self.signature_hasher => Enum &enum_def.identifier, &enum_def.variants);
+/// ```
+macro_rules! hash_parts {
+    ($hasher:expr => $kind:ident $name:expr, $($tail:tt)* ) => {
+        $hasher.update([0x01]); // ASCII Start of Heading
+        $hasher.update(stringify!($kind).as_bytes());
+        $hasher.update([0x1F]); // ASCII Unit Separator
+        $hasher.update($name.as_ref().as_bytes());
+        $hasher.update([0x02]); // ASCII Start of Text
+        hash_parts!($hasher => $($tail)*);
+    };
+    ($hasher:expr => $item:expr, $($tail:tt)*) => {
+        // TODO(chip): When `inter_intersperse` becomes stable, use that instead
+        let last_item = $item.len().saturating_sub(1); // If there are zero parts, this will still do nothing.
+        for (i, f) in $item.iter().enumerate() {
+            $hasher.update(f.as_str().as_bytes());
+            if i < last_item {
+                $hasher.update([0x1F]); // ASCII Unit Separator
+            }
+        }
+        hash_parts!($hasher => $($tail)*)
+    };
+    ($hasher:expr => $item:expr) => {
+        hash_parts!($hasher => $item ,);
+    };
+    ($hasher:expr =>) => {
+        $hasher.update([0x04]); // ASCII End of Text
     };
 }
 
@@ -222,6 +256,8 @@ struct CompileState<'a> {
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
+    /// A signature built as we traverse and compile the AST
+    signature_hasher: Sha256,
 }
 
 impl<'a> CompileState<'a> {
@@ -404,6 +440,8 @@ impl<'a> CompileState<'a> {
             }
         }
 
+        hash_parts!(self.signature_hasher => Enum &enum_def.identifier, &enum_def.variants);
+
         self.m.interface.enum_defs.insert(enum_name.clone(), values);
 
         Ok(())
@@ -422,6 +460,8 @@ impl<'a> CompileState<'a> {
                     args: def.arguments.clone(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
+                let arguments_hash_str: Vec<String> = def.arguments.iter().map(|p| format!("{}\x1F{}", p.name, p.ty)).collect();
+                hash_parts!(self.signature_hasher => Function &def.identifier, arguments_hash_str, [def.return_type.to_string()]);
                 e.insert(signature);
                 Ok(())
             }
@@ -2331,7 +2371,8 @@ impl<'a> Compiler<'a> {
     pub fn compile(self) -> Result<Module, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
-        Ok(cs.m.into_module())
+        let signature = cs.signature_hasher.finalize().into();
+        Ok(cs.m.into_module(signature))
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
@@ -2343,7 +2384,7 @@ impl<'a> Compiler<'a> {
 
     fn set_up_compile_state(&self) -> CompileState<'_> {
         let codemap = CodeMap::new(&self.policy.text);
-        let machine = CompileTarget::new(codemap);
+        let machine = CompileTarget::new(codemap, self.ffi_modules);
         CompileState {
             policy: self.policy,
             m: machine,
@@ -2357,6 +2398,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
+            signature_hasher: Sha256::new(),
         }
     }
 }
