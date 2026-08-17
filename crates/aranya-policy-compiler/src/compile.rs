@@ -1,3 +1,5 @@
+#[macro_use]
+mod ast_hash;
 mod error;
 mod lower;
 mod target;
@@ -28,10 +30,12 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
+use sha2::{Digest as _, Sha256};
 use tracing::warn;
 
 pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
+    ast_hash::AstHash as _,
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
         InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
@@ -222,6 +226,8 @@ struct CompileState<'a> {
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
+    /// A signature built as we traverse and compile the AST
+    signature_hasher: Sha256,
 }
 
 impl<'a> CompileState<'a> {
@@ -404,6 +410,8 @@ impl<'a> CompileState<'a> {
             }
         }
 
+        update_hash_parts!(self.signature_hasher => Enum &enum_def.identifier, &enum_def.variants);
+
         self.m.interface.enum_defs.insert(enum_name.clone(), values);
 
         Ok(())
@@ -422,6 +430,7 @@ impl<'a> CompileState<'a> {
                     args: def.arguments.clone(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
+                update_hash_parts!(self.signature_hasher => Function &def.identifier, &def.arguments, &def.return_type.to_string());
                 e.insert(signature);
                 Ok(())
             }
@@ -451,6 +460,7 @@ impl<'a> CompileState<'a> {
                     args: def.arguments.clone(),
                     color: FunctionColor::Finish,
                 };
+                update_hash_parts!(self.signature_hasher => FinishFunction &def.identifier, &def.arguments);
                 e.insert(signature);
                 Ok(())
             }
@@ -552,6 +562,7 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a struct literal
     fn compile_struct_literal(&mut self, s: thir::NamedStruct) -> Result<(), CompileError> {
+        update_hash_parts!(self.signature_hasher => StructLiteral &s.identifier, &s.fields, &s.sources);
         self.append_instruction(Instruction::StructNew(s.identifier.inner));
         for (field_name, e) in s.fields {
             self.compile_typed_expression(e)?;
@@ -577,6 +588,7 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: thir::FactLiteral) -> Result<(), CompileError> {
+        update_hash_parts!(self.signature_hasher => FactLiteral &f.identifier, &f.key_fields, f.value_fields);
         self.append_instruction(Instruction::FactNew(f.identifier.inner.clone()));
         for (k, e) in f.key_fields {
             self.compile_typed_expression(e)?;
@@ -2304,7 +2316,8 @@ impl<'a> Compiler<'a> {
     pub fn compile(self) -> Result<Module, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
-        Ok(cs.m.into_module())
+        let signature = cs.signature_hasher.finalize().into();
+        Ok(cs.m.into_module(signature))
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
@@ -2330,6 +2343,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
+            signature_hasher: Sha256::new(),
         }
     }
 }
