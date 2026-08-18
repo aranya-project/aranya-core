@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 205
 expression: module
 ---
 Module {
@@ -60,14 +59,19 @@ Module {
     fact.new 'Pet'
     query.start
 <3>:
-    block
     query.next 'p'
-    branch 11
+    dup
+    is some
+    not
+    branch 16
+    block
+    unwrap some
+    def 'p'
     get 'p'
     struct.get 'age'
     def 'age'
     end
     jump 3
-<11>:
-    end
+<16>:
+    pop
     return

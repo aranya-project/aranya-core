@@ -984,19 +984,26 @@ impl<'a> CompileState<'a> {
                 let top_label = self.anonymous_label();
                 let end_label = self.anonymous_label();
                 self.define_label(top_label.clone(), self.wp)?;
-                // Fetch next result
-                self.append_instruction(Instruction::Block);
+                // Fetch next result (Some/None)
                 self.append_instruction(Instruction::QueryNext(map_stmt.identifier.inner.clone()));
-                // If no more results, break
+                // Test it, keeping a copy to unwrap in the body.
+                self.append_instruction(Instruction::Dup);
+                self.append_instruction(Instruction::Is(WrapType::Some));
+                self.append_instruction(Instruction::Not);
+                // If no more results, break.
                 self.append_instruction(Instruction::Branch(Target::Unresolved(end_label.clone())));
+                // To use the same ident with a different fact for each iteration, we create a new block each time, then drops it.
+                self.append_instruction(Instruction::Block);
+                self.append_instruction(Instruction::Unwrap(WrapType::Some));
+                self.append_instruction(Instruction::Def(map_stmt.identifier.inner.clone()));
                 // body
                 self.compile_typed_statements(map_stmt.statements, Scope::Same)?;
                 self.append_instruction(Instruction::End);
                 // Jump back to top of loop
                 self.append_instruction(Instruction::Jump(Target::Unresolved(top_label)));
-                // Exit loop
+                // Exit loop. Discard the `None` that ended it.
                 self.define_label(end_label, self.wp)?;
-                self.append_instruction(Instruction::End);
+                self.append_instruction(Instruction::Pop);
             }
             thir::StmtKind::Create(s) => {
                 self.compile_fact_literal(s.fact)?;

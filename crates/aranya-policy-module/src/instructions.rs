@@ -234,7 +234,8 @@ pub enum Instruction {
     FactCount(i64),
     /// Execute a fact query, and retain results so they can be consumed with `QueryNext`.
     QueryStart,
-    /// Fetches the next result, and pushes it onto the stack
+    /// Fetches the next result and pushes it onto the stack as an option:
+    /// `Some(struct)` while results remain, `None` once they are exhausted.
     QueryNext(Identifier),
     /// Serialize a command struct
     Serialize,
