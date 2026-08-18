@@ -508,7 +508,7 @@ end = "2027-02-13"
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2025-01-23"
-end = "2026-01-23"
+end = "2027-08-18"
 
 [[trusted.toml_datetime]]
 criteria = "safe-to-deploy"

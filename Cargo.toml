@@ -153,6 +153,3 @@ panic = "unwind"
 
 [profile.bench]
 inherits = "release"
-
-[patch.crates-io]
-spideroak-crypto = { git = "https://github.com/aranya-project/crypto.git", branch = "release-2026-08-11" }

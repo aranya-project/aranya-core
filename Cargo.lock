@@ -2479,7 +2479,8 @@ dependencies = [
 [[package]]
 name = "spideroak-crypto"
 version = "0.8.0"
-source = "git+https://github.com/aranya-project/crypto.git?branch=release-2026-08-11#ced31406fce232847568b878eb3bd4b919219083"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d28d66f807d9b2d0e71cc1f6d1947b60c206db2aaf6ce4030b3c43fc52f9ef8"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -2517,7 +2518,8 @@ dependencies = [
 [[package]]
 name = "spideroak-crypto-derive"
 version = "0.3.0"
-source = "git+https://github.com/aranya-project/crypto.git?branch=release-2026-08-11#ced31406fce232847568b878eb3bd4b919219083"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2f841aa42de276f7c8f47c29ecdcf1369db1141518fbe0f160ace69e19d3807"
 dependencies = [
  "proc-macro2",
  "quote",
