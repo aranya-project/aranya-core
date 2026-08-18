@@ -67,13 +67,14 @@ use tracing::{debug, error};
 
 use crate::{
     Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _,
-    CommandExt as _, GraphId, Keys, Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, MemSpill, PeerCache,
+    CommandExt as _, GraphId, Keys, Location, MAX_COMMAND_LENGTH, MAX_SYNC_MESSAGE_SIZE, MaxCut,
+    MemSpill, PeerCache,
     PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _, Storage, StorageError,
     StorageProvider, SyncError, SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction,
     TraversalBuffer, TraversalBuffers,
     sync::wire::{SyncHelloType, SyncType},
     testing::{
-        protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
+        protocol::{TestActions, TestEffect, TestPolicy, TestPolicyStore, TestSink},
         short_b58,
     },
 };
@@ -447,6 +448,23 @@ pub enum TestRule {
         #[serde(default)]
         priority: u32,
     },
+    /// Ingests a command whose rule writes `payload[poison_key] =
+    /// poison_value` and then fails, asserts the runtime rejects it, then
+    /// adds a valid basic command setting `payload[key] = value` in the
+    /// same transaction and commits.
+    ///
+    /// Models a caller that keeps using a transaction after a per-command
+    /// policy failure, which the `Transaction` API permits: the failed
+    /// rule's writes are reverted, so nothing from the rejected command may
+    /// reach committed fact state.
+    IngestPoisonThenSet {
+        client: u64,
+        graph: u64,
+        poison_key: u64,
+        poison_value: u64,
+        key: u64,
+        value: u64,
+    },
     CompareGraphs {
         clienta: u64,
         clientb: u64,
@@ -605,6 +623,18 @@ impl Display for TestRule {
                 f,
                 r#"{{"ActionNoOp": {{ "graph": {}, "client": {}, "nonce": {}, "priority": {} }} }},"#,
                 graph, client, nonce, priority,
+            ),
+            Self::IngestPoisonThenSet {
+                client,
+                graph,
+                poison_key,
+                poison_value,
+                key,
+                value,
+            } => write!(
+                f,
+                r#"{{"IngestPoisonThenSet": {{ "client": {}, "graph": {}, "poison_key": {}, "poison_value": {}, "key": {}, "value": {} }} }},"#,
+                client, graph, poison_key, poison_value, key, value,
             ),
             Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
             Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
@@ -1505,6 +1535,71 @@ where
                 }
             }
 
+            TestRule::IngestPoisonThenSet {
+                client,
+                graph,
+                poison_key,
+                poison_value,
+                key,
+                value,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+                let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                // Both commands extend the current head, like a batch synced
+                // from a peer would.
+                let parent = {
+                    let storage = state.provider().get_storage(graph_id)?;
+                    let heads = storage.get_heads()?;
+                    assert_eq!(
+                        1,
+                        heads.len(),
+                        "IngestPoisonThenSet requires a single-head graph"
+                    );
+                    heads.as_slice()[0].address()
+                };
+                let policy = TestPolicy::new(0);
+
+                let mut trx = state.transaction(graph_id);
+
+                // The poison command's rule writes a fact and then fails, so
+                // the runtime must reject the command and revert the write.
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let poison =
+                    policy.poison(buffer.as_mut_slice(), parent, (poison_key, poison_value), 0)?;
+                let result = state.add_commands(
+                    &mut trx,
+                    &mut sink,
+                    core::slice::from_ref(&poison),
+                    &mut rt_buffers,
+                    MemSpill::new,
+                );
+                assert!(
+                    matches!(
+                        result,
+                        Err(ClientError::PolicyError(PolicyError::Rejected))
+                    ),
+                    "poison command must be rejected, got {result:?}"
+                );
+
+                // The transaction remains usable after a rejected command;
+                // the next command must not observe (or absorb into its own
+                // persisted updates) the rejected command's fact write.
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let cmd = policy.basic(buffer.as_mut_slice(), parent, (key, value), 0)?;
+                let added = state.add_commands(
+                    &mut trx,
+                    &mut sink,
+                    core::slice::from_ref(&cmd),
+                    &mut rt_buffers,
+                    MemSpill::new,
+                )?;
+                assert_eq!(1, added);
+                state.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+            }
             TestRule::PrintGraph { client, graph } => {
                 let state = clients
                     .get_mut(&client)
@@ -2277,6 +2372,7 @@ test_vectors! {
     hello_sync_extended_head,
     hello_sync_multiple_heads,
     no_such_parent,
+    rejected_command_fact_leak,
     exponential_traversal_regression,
     find_needed_segments_queue_max,
     four_seventy_three_failure,
