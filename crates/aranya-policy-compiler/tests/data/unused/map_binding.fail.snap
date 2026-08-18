@@ -4,5 +4,5 @@ expression: error
 ---
 error: unused variable(s): `u`
    |
-11 |     map User[i:?] as u {
+12 |     map User[i:?] as u {
    |                      ^ never used

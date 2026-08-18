@@ -1,8 +1,9 @@
 // A `map ... as` binding is checked like any other local.
+struct Envelope {}
 fact User[i int]=>{name string}
 command Foo {
-    seal { return todo() }
-    open { return todo() }
+    seal { return Envelope {} }
+    open { return Unit }
     policy {
         finish {}
     }

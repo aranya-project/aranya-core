@@ -2298,7 +2298,6 @@ pub struct Compiler<'a> {
     ffi_modules: &'a [ModuleSchema<'a>],
     is_debug: bool,
     stub_ffi: bool,
-    allow_unused: bool,
 }
 
 impl<'a> Compiler<'a> {
@@ -2309,7 +2308,6 @@ impl<'a> Compiler<'a> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
-            allow_unused: true,
         }
     }
 
@@ -2330,16 +2328,6 @@ impl<'a> Compiler<'a> {
     #[must_use]
     pub fn stub_ffi(mut self, flag: bool) -> Self {
         self.stub_ffi = flag;
-        self
-    }
-
-    /// Whether local variables that are never read are allowed.
-    ///
-    /// On by default, which logs unused variables as warnings.
-    /// Turn it off to reject them at compile time instead.
-    #[must_use]
-    pub fn allow_unused(mut self, flag: bool) -> Self {
-        self.allow_unused = flag;
         self
     }
 
@@ -2369,7 +2357,7 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(self.allow_unused),
+            identifier_types: IdentifierTypeStack::new(self.is_debug),
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,

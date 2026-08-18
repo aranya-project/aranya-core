@@ -52,15 +52,14 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
 ];
 
 #[track_caller]
-fn compile(text: &str, allow_unused: bool) -> Result<Module, CompileError> {
+fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
     let policy = match parse_policy_str(text, Version::V2) {
         Ok(p) => p,
         Err(err) => panic!("{err}"),
     };
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
-        .debug(true)
-        .allow_unused(allow_unused)
+        .debug(is_debug)
         .compile()
 }
 
@@ -200,8 +199,7 @@ fn test_policy(
     check_policy_fixture(&src, true);
 }
 
-/// Fixtures that exercise unused-variable detection. It is only a warning by
-/// default, so these compile with `allow_unused` turned off.
+/// Fixtures that exercise unused-variable detection. We need to disable debug mode in order to capture the errors.
 #[rstest::rstest]
 fn test_unused_policy(#[files("tests/data/unused/*.policy")] src: PathBuf) {
     check_policy_fixture(&src, false);
