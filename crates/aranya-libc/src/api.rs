@@ -11,7 +11,7 @@ use super::{errno::Errno, path::Path};
 cfg_if! {
     if #[cfg(target_os = "vxworks")] {
         use super::sys::vxworks as imp;
-    } else if #[cfg(target_os = "linux")] {
+    } else if #[cfg(any(target_os = "linux", target_os = "android"))] {
         use super::sys::linux as imp;
     } else if #[cfg(target_os = "macos")] {
         use super::sys::macos as imp;
@@ -186,6 +186,16 @@ pub fn pwrite(fd: impl AsFd, buf: &[u8], off: i64) -> Result<usize, Errno> {
 /// See `fsync(2)`.
 pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
     imp::fsync(fd.as_fd())
+}
+
+/// See `fdatasync(2)`.
+///
+/// Unlike [`fsync`], this only flushes the metadata required to
+/// read the data back (e.g. file size, block mapping), omitting
+/// non-essential metadata such as timestamps. Platforms without
+/// a distinct `fdatasync` fall back to [`fsync`].
+pub fn fdatasync(fd: impl AsFd) -> Result<(), Errno> {
+    imp::fdatasync(fd.as_fd())
 }
 
 /// See `unlinkat(2)`.

@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -8,34 +9,34 @@ Module {
         <action 'can_fail'>: 2,
         <action 'infallible'>: 1,
     },
-    action_defs: {
+    action_defs: [
         ActionDef {
-            name: "infallible" @ 65..75,
+            name: "infallible",
             persistence: Persistent,
-            params: {},
-            result_type: Unit @ 0..0,
+            params: [],
+            result_type: Unit,
         },
         ActionDef {
-            name: "can_fail" @ 157..165,
+            name: "can_fail",
             persistence: Persistent,
-            params: {
-                Param {
-                    name: "x" @ 166..167,
-                    ty: Int @ 168..171,
+            params: [
+                Field {
+                    name: "x",
+                    ty: Int,
                 },
-            },
+            ],
             result_type: Result(
                 ResultTypeKind {
-                    ok: Unit @ 180..184,
-                    err: String @ 186..192,
+                    ok: Unit,
+                    err: String,
                 },
-            ) @ 173..193,
+            ),
         },
-    },
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
+    ],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
     globals: {},
     ..
 }

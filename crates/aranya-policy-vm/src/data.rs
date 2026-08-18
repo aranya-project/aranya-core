@@ -5,8 +5,8 @@ use core::fmt::{self, Display};
 
 pub use aranya_id::BaseId;
 use aranya_id::{Id, IdTag};
-use aranya_policy_ast::{Identifier, Text, VType};
-use aranya_policy_module::{ConstStruct, ConstValue};
+use aranya_policy_ast::{Identifier, Text};
+use aranya_policy_module::{ConstStruct, ConstValue, TypeKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
@@ -157,30 +157,26 @@ impl Value {
         }
     }
 
-    /// Checks to see if a [`Value`] matches some [`VType`]
+    /// Checks to see if a [`Value`] matches some [`TypeKind`]
     /// ```
-    /// use aranya_policy_ast::{Span, TypeKind, VType};
+    /// use aranya_policy_module::TypeKind;
     /// use aranya_policy_vm::Value;
     ///
     /// let value = Value::Int(1);
-    /// let int_type = VType {
-    ///     inner: TypeKind::Int,
-    ///     span: Span::empty(),
-    /// };
+    /// let int_type = TypeKind::Int;
     ///
     /// assert!(value.fits_type(&int_type));
     /// ```
-    pub fn fits_type(&self, expected_type: &VType) -> bool {
-        use aranya_policy_ast::TypeKind;
-        match (self, &expected_type.inner) {
+    pub fn fits_type(&self, expected_type: &TypeKind) -> bool {
+        match (self, &expected_type) {
             (Self::Unit, TypeKind::Unit) => true,
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
             (Self::Bytes(_), TypeKind::Bytes) => true,
-            (Self::Struct(s), TypeKind::Struct(ident)) => s.name == ident.inner,
+            (Self::Struct(s), TypeKind::Struct(ident)) => s.name == *ident,
             (Self::Id(_), TypeKind::Id) => true,
-            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.inner,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == *ident,
             (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
             (Self::Option(None), TypeKind::Optional(_)) => true,
             (Self::Result(Ok(inner)), TypeKind::Result(result_type)) => {
@@ -538,15 +534,14 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Checks to see if a [`HashableValue`] matches some [`VType`]
-    pub fn fits_type(&self, expected_type: &VType) -> bool {
-        use aranya_policy_ast::TypeKind;
-        match (self, &expected_type.inner) {
+    /// Checks to see if a [`HashableValue`] matches some [`TypeKind`]
+    pub fn fits_type(&self, expected_type: &TypeKind) -> bool {
+        match (self, &expected_type) {
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
             (Self::Id(_), TypeKind::Id) => true,
-            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.inner,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == *ident,
             // Option and Result are not hashable, so they can never fit a type
             _ => false,
         }

@@ -573,20 +573,23 @@ impl SyncResponder {
             response_index: self.message_index as u64,
             commands,
         };
-        self.message_index = self
-            .message_index
-            .checked_add(1)
-            .assume("message_index overflow")?;
-        self.next_send = next_send;
 
         let length = Self::write(target, message)?;
         let total_length = length
             .checked_add(command_data.len())
             .assume("length + command_data_length mustn't overflow")?;
-        target
+        // Don't advance the session until the whole message fits, so the
+        // caller can retry with a larger buffer without losing commands.
+        let data_target = target
             .get_mut(length..total_length)
-            .assume("sync message fits in target")?
-            .copy_from_slice(&command_data);
+            .ok_or(SyncError::BufferTooSmall)?;
+        data_target.copy_from_slice(&command_data);
+
+        self.message_index = self
+            .message_index
+            .checked_add(1)
+            .assume("message_index overflow")?;
+        self.next_send = next_send;
         Ok(total_length)
     }
 
@@ -600,8 +603,10 @@ impl SyncResponder {
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let Some(graph_id) = self.graph_id else {
+            // `push` is public; calling it before a sync request set the
+            // graph id is a usage error, not a bug.
             self.state = S::Reset;
-            bug!("poll called before graph_id was set");
+            return Err(SyncError::NotReady);
         };
 
         let storage = match provider.get_storage(graph_id) {
@@ -621,22 +626,25 @@ impl SyncResponder {
                     response_index: self.message_index as u64,
                     commands,
                 },
-                graph_id: self.graph_id.assume("graph id must exist")?,
+                graph_id,
             };
-            self.message_index = self
-                .message_index
-                .checked_add(1)
-                .assume("message_index increment overflow")?;
-            self.next_send = next_send;
 
             length = Self::write_sync_type(target, message)?;
             let total_length = length
                 .checked_add(command_data.len())
                 .assume("length + command_data_length mustn't overflow")?;
-            target
+            // Don't advance the session until the whole message fits, so the
+            // caller can retry with a larger buffer without losing commands.
+            let data_target = target
                 .get_mut(length..total_length)
-                .assume("sync message fits in target")?
-                .copy_from_slice(&command_data);
+                .ok_or(SyncError::BufferTooSmall)?;
+            data_target.copy_from_slice(&command_data);
+
+            self.message_index = self
+                .message_index
+                .checked_add(1)
+                .assume("message_index increment overflow")?;
+            self.next_send = next_send;
             length = total_length;
         }
         Ok(length)
@@ -686,19 +694,22 @@ impl SyncResponder {
             for command in &found {
                 let mut policy_length = 0;
 
+                // Stored command sizes are not bounded by
+                // `MAX_COMMAND_LENGTH` on the ingest path, so a batch can
+                // exceed the buffer; that's an oversized sync, not a bug.
                 if let Some(policy) = command.policy() {
                     policy_length = policy.len();
-                    command_data
-                        .extend_from_slice(policy)
-                        .ok()
-                        .assume("command_data is too large")?;
+                    command_data.extend_from_slice(policy).map_err(|()| {
+                        self.state = SyncResponderState::Reset;
+                        SyncError::CommandOverflow
+                    })?;
                 }
 
                 let bytes = command.bytes();
-                command_data
-                    .extend_from_slice(bytes)
-                    .ok()
-                    .assume("command_data is too large")?;
+                command_data.extend_from_slice(bytes).map_err(|()| {
+                    self.state = SyncResponderState::Reset;
+                    SyncError::CommandOverflow
+                })?;
 
                 let meta = CommandMeta {
                     id: command.id(),

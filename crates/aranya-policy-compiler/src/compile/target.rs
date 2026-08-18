@@ -3,10 +3,10 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast::{self as ast, Ident, Identifier, TypeKind};
+use aranya_policy_ast::{self as ast, Ident, TypeKind};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, Instruction, Label, Module, ModuleData, ModuleV0,
-    named::NamedMap,
+    CodeMap, ConstValue, EnumDef, FactDef, Field, Instruction, Label, Module, ModuleData, ModuleV0,
+    StructDef, interface, named::NamedMap,
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
@@ -22,7 +22,7 @@ pub(crate) struct CompileTarget {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Command definitions (`fields`)
-    pub command_defs: NamedMap<CommandDef>,
+    pub command_defs: NamedMap<interface::CommandDefinition>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Ident, FactDefinition>,
     /// Mapping between program instructions and original code
@@ -46,34 +46,43 @@ impl CompileTarget {
 
     /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
-        // helper function for stripping the span info from the key
-        fn strip_key<V>((k, v): (Ident, V)) -> (Identifier, V) {
-            (k.inner, v)
-        }
-        // Convert enum defs IndexMap into BTreeMap.
-        let enum_defs = self
-            .interface
-            .enum_defs
-            .into_iter()
-            .map(|(k, v)| (k.inner, v.into_iter().map(strip_key).collect()))
-            .collect::<BTreeMap<_, _>>();
-
         Module {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
                 labels: self.labels,
-                action_defs: self.interface.action_defs,
-                command_defs: self.command_defs,
-                fact_defs: self.fact_defs.into_iter().map(strip_key).collect(),
+                action_defs: self
+                    .interface
+                    .action_defs
+                    .iter()
+                    .map(|a| a.clone().into())
+                    .collect(),
+                command_defs: self.command_defs.iter().map(|c| c.clone().into()).collect(),
+                fact_defs: self.fact_defs.into_values().map(FactDef::from).collect(),
                 struct_defs: self
                     .interface
                     .struct_defs
                     .into_iter()
-                    .map(strip_key)
+                    .map(|(i, s)| StructDef {
+                        name: i.inner,
+                        items: s.into_iter().map(Field::from).collect(),
+                    })
                     .collect(),
-                enum_defs,
+                enum_defs: self
+                    .interface
+                    .enum_defs
+                    .into_iter()
+                    .map(|(i, e)| EnumDef {
+                        name: i.inner,
+                        variants: e.into_iter().map(|(i, v)| (i.inner, v)).collect(),
+                    })
+                    .collect(),
                 codemap: self.codemap,
-                globals: self.interface.globals.into_iter().map(strip_key).collect(),
+                globals: self
+                    .interface
+                    .globals
+                    .into_iter()
+                    .map(|(k, v)| (k.inner, v))
+                    .collect(),
             }),
         }
     }
@@ -144,7 +153,7 @@ impl Display for CompileTarget {
 #[cfg_attr(test, derive(Clone, Eq, PartialEq))]
 pub struct PolicyInterface {
     /// Action definitions
-    pub action_defs: NamedMap<ActionDef>,
+    pub action_defs: NamedMap<interface::ActionDefinition>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
     pub effects: BTreeSet<Ident>,
     /// Struct schemas
