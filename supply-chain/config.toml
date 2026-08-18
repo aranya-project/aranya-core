@@ -173,10 +173,6 @@ criteria = "safe-to-deploy"
 version = "0.15.10"
 criteria = "safe-to-run"
 
-[[exemptions.const-default]]
-version = "1.0.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.const-oid]]
 version = "0.9.6"
 criteria = "safe-to-deploy"
@@ -273,14 +269,6 @@ criteria = "safe-to-deploy"
 version = "0.5.7"
 criteria = "safe-to-deploy"
 
-[[exemptions.generic-array]]
-version = "0.14.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.generic-array]]
-version = "1.1.1"
-criteria = "safe-to-deploy"
-
 [[exemptions.getrandom]]
 version = "0.2.15"
 criteria = "safe-to-deploy"
@@ -351,10 +339,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.memchr]]
 version = "2.7.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.merlin]]
-version = "3.0.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.more-asserts]]
@@ -619,10 +603,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.vec1]]
 version = "1.12.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.version_check]]
-version = "0.9.5"
 criteria = "safe-to-deploy"
 
 [[exemptions.wait-timeout]]

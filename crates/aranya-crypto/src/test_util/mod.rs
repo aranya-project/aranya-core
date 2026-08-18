@@ -32,13 +32,13 @@ use spideroak_crypto::{
     self as crypto,
     aead::{IndCca2, Lifetime, OpenError, SealError},
     csprng::{Csprng, Random},
+    ctutils::{Choice, CtEq},
     hpke::{AeadId, HpkeAead, HpkeKdf, KdfId},
     import::{ExportError, Import, ImportError},
     kdf::{KdfError, Prk},
     keys::{InvalidKey, PublicKey, SecretKey, SecretKeyBytes},
     oid::{Identified, Oid},
     signer::{PkError, Signature, SignerError, SigningKey, VerifyingKey},
-    subtle::{Choice, ConstantTimeEq},
     typenum::U32,
     zeroize::ZeroizeOnDrop,
 };
@@ -60,13 +60,13 @@ pub use __apply;
 #[macro_export]
 macro_rules! assert_ct_eq {
     ($lhs:expr, $rhs:expr) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)))
+        assert!(bool::from($crate::ctutils::CtEq::ct_eq(&$lhs, &$rhs)))
     };
     ($lhs:expr, $rhs:expr, ) => {
         $crate::assert_ct_eq!($lhs, $rhs)
     };
     ($lhs:expr, $rhs:expr, $($args:tt)+) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)), $($args)+)
+        assert!(bool::from($crate::ctutils::CtEq::ct_eq(&$lhs, &$rhs)), $($args)+)
     };
 }
 pub(super) use assert_ct_eq;
@@ -75,13 +75,13 @@ pub(super) use assert_ct_eq;
 #[macro_export]
 macro_rules! assert_ct_ne {
     ($lhs:expr, $rhs:expr) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)))
+        assert!(bool::from($crate::ctutils::CtEq::ct_ne(&$lhs, &$rhs)))
     };
     ($lhs:expr, $rhs:expr, ) => {
         $crate::assert_ct_ne!($lhs, $rhs)
     };
     ($lhs:expr, $rhs:expr, $($args:tt)+) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)), $($args)+)
+        assert!(bool::from($crate::ctutils::CtEq::ct_ne(&$lhs, &$rhs)), $($args)+)
     };
 }
 pub(super) use assert_ct_ne;
@@ -265,9 +265,9 @@ impl<T: Signer + ?Sized> Random for SigningKeyWithDefaults<T> {
     }
 }
 
-impl<T: Signer + ?Sized> ConstantTimeEq for SigningKeyWithDefaults<T> {
+impl<T: Signer + ?Sized> CtEq for SigningKeyWithDefaults<T> {
     fn ct_eq(&self, other: &Self) -> Choice {
-        ConstantTimeEq::ct_eq(&self.0, &other.0)
+        CtEq::ct_eq(&self.0, &other.0)
     }
 }
 

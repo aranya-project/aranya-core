@@ -9,6 +9,7 @@ use aranya_crypto::{
     dangerous::spideroak_crypto::{
         aead::{Aead, OpenError},
         csprng::{Csprng, Random},
+        ctutils::{Choice, CtEq},
         ed25519::{self, Ed25519},
         import::{ExportError, Import, ImportError},
         kdf::{Kdf, Prk},
@@ -18,7 +19,6 @@ use aranya_crypto::{
         oid::{self, Oid, consts::DHKEM_P256_HKDF_SHA256},
         rust,
         signer::{PkError, Signature, Signer, SignerError, SigningKey, VerifyingKey},
-        subtle::{Choice, ConstantTimeEq},
         zeroize::ZeroizeOnDrop,
     },
     engine::{self, AlgId, RawSecret, RawSecretWrap, UnwrappedKey, WrongKeyType},
@@ -339,10 +339,10 @@ impl Random for HsmSigningKey {
     }
 }
 
-impl ConstantTimeEq for HsmSigningKey {
+impl CtEq for HsmSigningKey {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
-        ConstantTimeEq::ct_eq(&self.0, &other.0)
+        CtEq::ct_eq(&self.0, &other.0)
     }
 }
 

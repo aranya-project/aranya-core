@@ -75,13 +75,13 @@ pub use keystore::{KeyStore, KeyStoreExt};
 pub use policy::{Cmd, CmdId, PolicyId, merge_cmd_id};
 /// Constant time cryptographic operations.
 #[doc(inline)]
-pub use spideroak_crypto::subtle;
+pub use spideroak_crypto::ctutils;
 #[doc(inline)]
 pub use spideroak_crypto::{
     csprng::{Csprng, Random},
     zeroize,
 };
-pub use spideroak_crypto::{generic_array, typenum};
+pub use spideroak_crypto::{hybrid_array, typenum};
 
 /// Dangerous cryptography.
 pub mod dangerous {

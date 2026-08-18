@@ -5,7 +5,7 @@ use core::borrow::Borrow as _;
 
 use aranya_crypto::{
     Cmd, Engine, KeyStore, KeyStoreExt as _, Signature, SigningKey, SigningKeyId, VerifyingKey,
-    policy::CmdId, subtle::ConstantTimeEq as _,
+    ctutils::CtEq as _, policy::CmdId,
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 

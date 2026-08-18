@@ -60,7 +60,7 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
 
-use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::RngExt as _};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
@@ -772,14 +772,14 @@ where
                             let mut count = 0;
                             // Randomly generate actions and syncs. This will create a graph with many branches.
                             while count < commands {
-                                let client = rng.gen_range(client_start..clients);
-                                match rng.gen_range(0..sync_ceiling) {
+                                let client = rng.random_range(client_start..clients);
+                                match rng.random_range(0..sync_ceiling) {
                                     x if x < command_ceiling => {
                                         generated_actions.push(TestRule::ActionSet {
                                             client,
                                             graph,
                                             key: 0,
-                                            value: rng.gen_range(0..10),
+                                            value: rng.random_range(0..10),
                                             repeat: 1,
                                         });
                                         count += 1;
@@ -872,7 +872,7 @@ where
                                         client,
                                         graph,
                                         key: 0,
-                                        value: rng.gen_range(0..10),
+                                        value: rng.random_range(0..10),
                                         repeat: 1,
                                     });
                                     count += 1;
@@ -1015,7 +1015,7 @@ where
                                     client,
                                     graph,
                                     key: 0,
-                                    value: rng.gen_range(0..10),
+                                    value: rng.random_range(0..10),
                                     repeat: 1,
                                 });
                             }

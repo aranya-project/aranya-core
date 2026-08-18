@@ -107,14 +107,14 @@ log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
 proptest = { version = "1.6", default-features = false, features = ["no_std", "alloc"] }
 proptest-derive = { version = "0.5" }
-rand = { version = "0.8", default-features = false }
+rand = { version = "0.10", default-features = false }
 rand_core = { version = "0.6", default-features = false }
 rkyv = { version = "0.8.17", default-features = false, features = ["bytecheck"] }
 rustix = { version = "0.38", default-features = false }
 serde = { version = "1.0.210", default-features = false }
 serde_derive = { version = "1" }
 spideroak-base58 = { version = "0.2.0", default-features = false }
-spin = { version = "0.10.1", default-features = false }
+spin = { version = "0.12", default-features = false }
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 thiserror = { version = "2", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
@@ -153,3 +153,6 @@ panic = "unwind"
 
 [profile.bench]
 inherits = "release"
+
+[patch.crates-io]
+spideroak-crypto = { git = "https://github.com/aranya-project/crypto.git", branch = "release-2026-08-11" }
