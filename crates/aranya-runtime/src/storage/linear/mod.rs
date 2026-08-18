@@ -1128,10 +1128,11 @@ impl<R: Read> Revertable for LinearPerspective<R> {
     }
 
     fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
-        if checkpoint.index == self.commands.len() {
-            return Ok(());
-        }
-
+        // No early return when `checkpoint.index == self.commands.len()`:
+        // fact writes accumulate in `facts`/`current_updates` between
+        // `add_command` calls, so the perspective can be dirty even when no
+        // command was added since the checkpoint (e.g. a rule that wrote
+        // facts and then failed). Those writes must be cleared too.
         if checkpoint.index > self.commands.len() {
             bug!(
                 "A checkpoint's index should always be less than or equal to the length of a perspective's command history!"
