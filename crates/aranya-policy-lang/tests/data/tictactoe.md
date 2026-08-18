@@ -111,12 +111,13 @@ command Move {
         let player = envelope::author_id(envelope)
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
-        // values marked with ?, or None. The unwrap expression returns the
-        // value inside an Optional or terminates rule execution.
-        let result = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
-        let playerX = result.x
-        let playerO = result.o
-        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
+        // values marked with ?, or None. The `or` operator unwraps the result
+        // of the query, if it is `Some`, or invokes the test_fail() expression,
+        // which terminates the policy with an error.
+        let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
+        let playerX = res.x
+        let playerO = res.o
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
         // the if expression works like a ternary expression, where both
         // branches must be specified.
         let nextp = if p == "X" { :"O" } else { :"X" }
@@ -183,8 +184,8 @@ command Move2 {
     }
     policy {
         let player = envelope::author_id(envelope)
-        let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
-        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
+        let players = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
         let nextp = if p == "X" { :"O" } else { :"X" }
 
         check !exists GameOver[gameID: gameID]=>{} else test_fail("game is over")

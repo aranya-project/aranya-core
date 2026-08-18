@@ -14,7 +14,7 @@ Module {
     struct_defs: [],
     enum_defs: [
         EnumDef {
-            name: "Err",
+            name: "Error",
             variants: [
                 (
                     "Fail",
@@ -51,7 +51,7 @@ Module {
     not
     branch 29
     block
-    const Err::0
+    const Error::0
     wrap err
     wrap some
     restore SP

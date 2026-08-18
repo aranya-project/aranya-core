@@ -29,22 +29,24 @@ impl Report for InvalidOperator {
             ]),
         );
 
-        let add_patch = |prefix: &'static str, snippet: Snippet<'a, Patch<'a>>| {
-            snippet
-                .patch(Patch::new(lhs.start()..lhs.start(), prefix))
-                .patch(Patch::new(lhs.end()..rhs.start(), ", "))
-                .patch(Patch::new(rhs.end()..rhs.end(), ")"))
-        };
+        let add_patch =
+            |prefix: &'static str, snippet: Snippet<'a, Patch<'a>>, suffix: &'static str| {
+                snippet
+                    .patch(Patch::new(lhs.start()..lhs.start(), prefix))
+                    .patch(Patch::new(lhs.end()..rhs.start(), ", "))
+                    .patch(Patch::new(rhs.end()..rhs.end(), ")"))
+                    .patch(Patch::new(rhs.end()..rhs.end(), suffix))
+            };
 
         let elements = if input[op.start()..op.end()] == *"+" {
             [
-                add_patch("saturating_add(", source.clone()),
-                add_patch("check_unwrap add(", source),
+                add_patch("saturating_add(", source.clone(), ""),
+                add_patch("add(", source, " or todo()"),
             ]
         } else {
             [
-                add_patch("saturating_sub(", source.clone()),
-                add_patch("check_unwrap sub(", source),
+                add_patch("saturating_sub(", source.clone(), ""),
+                add_patch("sub(", source, " or todo()"),
             ]
         };
 

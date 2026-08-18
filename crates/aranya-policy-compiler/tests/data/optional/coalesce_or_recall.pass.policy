@@ -1,0 +1,17 @@
+struct Envelope {
+    payload bytes
+}
+
+fact Owner[] => {device_id id}
+
+command AddThing {
+    fields {}
+    seal { return todo() }
+    open { return todo() }
+    policy {
+        let owner = query Owner[] or recall reject()
+        check owner.device_id == owner.device_id else recall reject()
+        finish {}
+    }
+    recall reject() {}
+}
