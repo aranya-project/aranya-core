@@ -16,7 +16,7 @@ use crate::{
     CompileError,
     compile::{
         CompileState,
-        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable, rendering::Error},
+        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable, rendering::Error as _},
     },
 };
 
@@ -27,9 +27,6 @@ pub(crate) enum UserType<'a> {
     Command(&'a ast::CommandDefinition),
     FFIStruct(&'a ffi::Struct<'a>),
 }
-
-/// Synthesized vars for command blocks.
-const PREDEFINED: [&str; 3] = ["envelope", "this", "payload"];
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
 /// scope" is the one on the top of the stack.
@@ -153,7 +150,8 @@ impl IdentifierTypeStack {
             .into_iter()
             .filter(|(_, local)| !local.used.load(Ordering::Relaxed))
             .map(|(name, _)| name)
-            .filter(|name| !PREDEFINED.contains(&name.as_str()))
+            // Skip compiler-synthesized vars (like this, envelope, payload).
+            .filter(|name| !name.span().is_empty())
             .collect();
 
         if !unused.is_empty() {

@@ -3,6 +3,6 @@ source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
 error: unused variable(s): `u`
-   |
-12 |     map User[i:?] as u {
-   |                      ^ never used
+  |
+4 |     map User[i:?] as u {
+  |                      ^ never used
