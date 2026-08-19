@@ -11,7 +11,7 @@
           "sync_chance": 40
         }
       },
-      "delete_chance": 10,
+      "delete_proportion": 10,
       "key_range": 16,
       "max_priority": 7
     }

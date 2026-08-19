@@ -470,12 +470,12 @@ pub enum TestRule {
         sync_client_zero: bool,
         sync_method: SyncMethod,
         /// Percent (0-100) of generated commands that delete a fact.
-        #[serde(default)]
-        delete_chance: u64,
+        #[serde(default, alias = "delete_chance")]
+        delete_proportion: u64,
         /// Percent (0-100) of generated commands that are no-ops (no fact
         /// mutation). Produces segments with empty fact maps.
-        #[serde(default)]
-        noop_chance: u64,
+        #[serde(default, alias = "noop_chance")]
+        noop_proportion: u64,
         /// Fact keys are drawn from `0..key_range`.
         #[serde(default = "default_key_range")]
         key_range: u64,
@@ -633,21 +633,21 @@ impl Display for TestRule {
                 policy,
                 sync_client_zero,
                 sync_method,
-                delete_chance,
-                noop_chance,
+                delete_proportion,
+                noop_proportion,
                 key_range,
                 max_priority,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_chance": {}, "noop_chance": {}, "key_range": {}, "max_priority": {} }} }},"#,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_proportion": {}, "noop_proportion": {}, "key_range": {}, "max_priority": {} }} }},"#,
                 clients,
                 graph,
                 commands,
                 policy,
                 sync_client_zero,
                 sync_method,
-                delete_chance,
-                noop_chance,
+                delete_proportion,
+                noop_proportion,
                 key_range,
                 max_priority,
             ),
@@ -768,15 +768,15 @@ pub trait StorageBackend {
 }
 
 /// Randomly generates a set, delete, or no-op rule shaped by the
-/// `GenerateGraph` knobs. `delete_chance` and `noop_chance` are percentages
+/// `GenerateGraph` knobs. `delete_proportion` and `noop_proportion` are percentages
 /// (their sum at most 100); keys are drawn from `0..key_range` and
 /// priorities from `0..=max_priority`.
 fn gen_command_rule<R: RandRng>(
     rng: &mut R,
     client: u64,
     graph: u64,
-    delete_chance: u64,
-    noop_chance: u64,
+    delete_proportion: u64,
+    noop_proportion: u64,
     key_range: u64,
     max_priority: u32,
 ) -> TestRule {
@@ -787,14 +787,14 @@ fn gen_command_rule<R: RandRng>(
         rng.gen_range(0..=max_priority)
     };
     let roll = rng.gen_range(0..100);
-    if noop_chance > 0 && roll < noop_chance {
+    if noop_proportion > 0 && roll < noop_proportion {
         TestRule::ActionNoOp {
             client,
             graph,
             nonce: rng.r#gen(),
             priority,
         }
-    } else if delete_chance > 0 && roll < noop_chance + delete_chance {
+    } else if delete_proportion > 0 && roll < noop_proportion + delete_proportion {
         TestRule::ActionDelete {
             client,
             graph,
@@ -831,15 +831,15 @@ where
                     policy,
                     sync_client_zero,
                     sync_method,
-                    delete_chance,
-                    noop_chance,
+                    delete_proportion,
+                    noop_proportion,
                     key_range,
                     max_priority,
                 } => {
                     assert!(key_range > 0, "key_range must be at least 1");
                     assert!(
-                        delete_chance + noop_chance <= 100,
-                        "delete_chance + noop_chance are percentages of generated commands"
+                        delete_proportion + noop_proportion <= 100,
+                        "delete_proportion + noop_proportion are percentages of generated commands"
                     );
                     // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
@@ -901,8 +901,8 @@ where
                                             &mut rng,
                                             client,
                                             graph,
-                                            delete_chance,
-                                            noop_chance,
+                                            delete_proportion,
+                                            noop_proportion,
                                             key_range,
                                             max_priority,
                                         ));
@@ -996,8 +996,8 @@ where
                                         &mut rng,
                                         client,
                                         graph,
-                                        delete_chance,
-                                        noop_chance,
+                                        delete_proportion,
+                                        noop_proportion,
                                         key_range,
                                         max_priority,
                                     ));
@@ -1142,8 +1142,8 @@ where
                                     &mut rng,
                                     client,
                                     graph,
-                                    delete_chance,
-                                    noop_chance,
+                                    delete_proportion,
+                                    noop_proportion,
                                     key_range,
                                     max_priority,
                                 ));
@@ -2519,8 +2519,8 @@ mod tests {
                 sync_chance: 40,
                 add_command_chance: 60,
             },
-            delete_chance: 30,
-            noop_chance: 0,
+            delete_proportion: 30,
+            noop_proportion: 0,
             key_range: 3,
             max_priority: 3,
         }];
