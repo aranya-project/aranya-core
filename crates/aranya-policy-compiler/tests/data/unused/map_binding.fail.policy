@@ -1,0 +1,7 @@
+// A `map ... as` binding is checked like any other local.
+fact User[i int]=>{name string}
+action map_unused() {
+    map User[i:?] as u {
+        // u is unused
+    }
+}
