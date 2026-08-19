@@ -32,6 +32,7 @@ zerocopy = { workspace = true, features = ["derive"] }
 
 # Used by `testing`.
 aranya-policy-module = { version = "0.22.0", path = "../aranya-policy-module", optional = true }
+rand = { workspace = true, features = ["small_rng"], optional = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"], optional = true }
 spin = { workspace = true, features = ["spin_mutex"], optional = true }
 
@@ -88,6 +89,7 @@ testing = [
 	"aranya-policy-vm/derive",
 
 	"dep:aranya-policy-module",
+	"dep:rand",
 	"dep:serde_json",
 	"dep:spin",
 ]

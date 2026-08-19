@@ -587,6 +587,7 @@ dependencies = [
  "heapless",
  "postcard",
  "proptest",
+ "rand",
  "rend",
  "rkyv",
  "serde",

@@ -49,6 +49,7 @@ extern crate alloc;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    string::ToString as _,
     vec,
     vec::Vec,
 };
@@ -62,6 +63,7 @@ use std::{env, fs};
 
 use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RandRng};
 use buggy::{Bug, BugExt as _};
+use rand::{SeedableRng as _, rngs::SmallRng};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
@@ -482,6 +484,11 @@ pub enum TestRule {
         /// Command priorities are drawn from `0..=max_priority`.
         #[serde(default)]
         max_priority: u32,
+        /// Seed for the RNG driving generation, making the run
+        /// repeatable. When absent, a random seed is drawn and
+        /// reported so a failure can still be replayed.
+        #[serde(default)]
+        seed: Option<u64>,
     },
     SetupClientsAndGraph {
         clients: u64,
@@ -637,9 +644,10 @@ impl Display for TestRule {
                 noop_proportion,
                 key_range,
                 max_priority,
+                seed,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_proportion": {}, "noop_proportion": {}, "key_range": {}, "max_priority": {} }} }},"#,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_proportion": {}, "noop_proportion": {}, "key_range": {}, "max_priority": {}, "seed": {} }} }},"#,
                 clients,
                 graph,
                 commands,
@@ -650,6 +658,7 @@ impl Display for TestRule {
                 noop_proportion,
                 key_range,
                 max_priority,
+                seed.map_or_else(|| "null".into(), |s| s.to_string()),
             ),
             Self::IgnoreExpectations { ignore } => write!(
                 f,
@@ -818,7 +827,6 @@ pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError
 where
     SB: StorageBackend,
 {
-    let mut rng = Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()
@@ -835,12 +843,20 @@ where
                     noop_proportion,
                     key_range,
                     max_priority,
+                    seed,
                 } => {
                     assert!(key_range > 0, "key_range must be at least 1");
                     assert!(
                         delete_proportion + noop_proportion <= 100,
                         "delete_proportion + noop_proportion are percentages of generated commands"
                     );
+                    let seed = seed.unwrap_or_else(|| RandRng::r#gen(&mut Rng));
+                    // Reported so a failing generated run can be replayed
+                    // by setting `"seed"` on the `GenerateGraph` rule.
+                    #[cfg(any(test, feature = "std"))]
+                    eprintln!("GenerateGraph rng seed: {seed}");
+                    debug!(seed, "GenerateGraph rng seed");
+                    let mut rng = SmallRng::seed_from_u64(seed);
                     // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
@@ -2523,6 +2539,7 @@ mod tests {
             noop_proportion: 0,
             key_range: 3,
             max_priority: 3,
+            seed: None,
         }];
         run_test(MemBackend, &rules)
     }
