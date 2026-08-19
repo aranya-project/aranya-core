@@ -68,10 +68,9 @@ use tracing::{debug, error};
 use crate::{
     Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _,
     CommandExt as _, GraphId, Keys, Location, MAX_COMMAND_LENGTH, MAX_SYNC_MESSAGE_SIZE, MaxCut,
-    MemSpill, PeerCache,
-    PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _, Storage, StorageError,
-    StorageProvider, SyncError, SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction,
-    TraversalBuffer, TraversalBuffers,
+    MemSpill, PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _, Storage,
+    StorageError, StorageProvider, SyncError, SyncHello, SyncIncoming, SyncRequester,
+    SyncResponder, Transaction, TraversalBuffer, TraversalBuffers,
     sync::wire::{SyncHelloType, SyncType},
     testing::{
         protocol::{TestActions, TestEffect, TestPolicy, TestPolicyStore, TestSink},
@@ -1578,10 +1577,7 @@ where
                     MemSpill::new,
                 );
                 assert!(
-                    matches!(
-                        result,
-                        Err(ClientError::PolicyError(PolicyError::Rejected))
-                    ),
+                    matches!(result, Err(ClientError::PolicyError(PolicyError::Rejected))),
                     "poison command must be rejected, got {result:?}"
                 );
 
