@@ -1,0 +1,18 @@
+[
+  {
+    "GenerateGraph": {
+      "clients": 3,
+      "graph": 0,
+      "commands": 200,
+      "sync_client_zero": true,
+      "sync_method": {
+        "Poll": {
+          "add_command_chance": 60,
+          "sync_chance": 40
+        }
+      },
+      "delete_chance": 60,
+      "key_range": 5
+    }
+  }
+]

@@ -32,10 +32,26 @@ pub struct WireBasic {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WireDelete {
+    pub parent: Address,
+    pub prority: u32,
+    pub key: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WireNoOp {
+    pub parent: Address,
+    pub prority: u32,
+    pub nonce: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum WireProtocol {
     Init(WireInit),
     Merge(WireMerge),
     Basic(WireBasic),
+    Delete(WireDelete),
+    NoOp(WireNoOp),
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +67,8 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Init(_) => Priority::Init,
             WireProtocol::Merge(_) => Priority::Merge,
             WireProtocol::Basic(m) => Priority::Basic(m.prority),
+            WireProtocol::Delete(m) => Priority::Basic(m.prority),
+            WireProtocol::NoOp(m) => Priority::Basic(m.prority),
         }
     }
 
@@ -63,6 +81,8 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Init(_) => Prior::None,
             WireProtocol::Basic(m) => Prior::Single(m.parent),
             WireProtocol::Merge(m) => Prior::Merge(m.left, m.right),
+            WireProtocol::Delete(m) => Prior::Single(m.parent),
+            WireProtocol::NoOp(m) => Prior::Single(m.parent),
         }
     }
 
@@ -71,6 +91,8 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Init(m) => Some(&m.policy_num),
             WireProtocol::Merge(_) => None,
             WireProtocol::Basic(_) => None,
+            WireProtocol::Delete(_) => None,
+            WireProtocol::NoOp(_) => None,
         }
     }
 
@@ -129,6 +151,9 @@ impl TestPolicy {
         let key = group.to_be_bytes();
         let value = count.to_be_bytes();
 
+        // All facts must live under "payload": the DSL's fact-equality
+        // oracle (`collect_facts` in testing/dsl.rs) enumerates only this
+        // name, so a fact written under another name escapes comparison.
         facts
             .insert("payload".into(), Keys::from_iter([key]), value.into())
             .map_err(|_| PolicyError::Write)?;
@@ -142,10 +167,19 @@ impl TestPolicy {
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<<Self as Policy>::Effect>,
     ) -> Result<(), PolicyError> {
-        if let WireProtocol::Basic(m) = &policy_command {
-            self.origin_check_message(m, facts)?;
-
-            sink.consume(TestEffect::Got(m.payload.1));
+        match policy_command {
+            WireProtocol::Basic(m) => {
+                self.origin_check_message(m, facts)?;
+                sink.consume(TestEffect::Got(m.payload.1));
+            }
+            WireProtocol::Delete(m) => {
+                let key = m.key.to_be_bytes();
+                // Must stay under "payload"; see `origin_check_message`.
+                facts
+                    .delete("payload".into(), Keys::from_iter([key]))
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            WireProtocol::Init(_) | WireProtocol::Merge(_) | WireProtocol::NoOp(_) => {}
         }
 
         Ok(())
@@ -169,16 +203,55 @@ impl TestPolicy {
         target: &'a mut [u8],
         parent: Address,
         payload: (u64, u64),
+        priority: u32,
     ) -> Result<TestProtocol<'a>, PolicyError> {
-        let prority = 0; //BUG
-
         let message = WireBasic {
             parent,
-            prority,
+            prority: priority,
             payload,
         };
 
         let command = WireProtocol::Basic(message);
+        let data = write(target, &command)?;
+        let id = hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
+    }
+
+    fn delete<'a>(
+        &self,
+        target: &'a mut [u8],
+        parent: Address,
+        key: u64,
+        priority: u32,
+    ) -> Result<TestProtocol<'a>, PolicyError> {
+        let message = WireDelete {
+            parent,
+            prority: priority,
+            key,
+        };
+
+        let command = WireProtocol::Delete(message);
+        let data = write(target, &command)?;
+        let id = hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
+    }
+
+    fn noop<'a>(
+        &self,
+        target: &'a mut [u8],
+        parent: Address,
+        nonce: u64,
+        priority: u32,
+    ) -> Result<TestProtocol<'a>, PolicyError> {
+        let message = WireNoOp {
+            parent,
+            prority: priority,
+            nonce,
+        };
+
+        let command = WireProtocol::NoOp(message);
         let data = write(target, &command)?;
         let id = hash_for_testing_only(data);
 
@@ -270,6 +343,9 @@ impl Sink<TestEffect> for TestSink {
 pub enum TestActions {
     Init(u64),
     SetValue(u64, u64),
+    SetValuePriority(u64, u64, u32),
+    DeleteValue(u64, u32),
+    NoOp(u64, u32),
 }
 
 impl Policy for TestPolicy {
@@ -339,7 +415,44 @@ impl Policy for TestPolicy {
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
                 let payload = (key, value);
-                let command = self.basic(target, parent, payload)?;
+                let command = self.basic(target, parent, payload, 0)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts
+                    .add_command(&command)
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            TestActions::SetValuePriority(key, value, priority) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let payload = (key, value);
+                let command = self.basic(target, parent, payload, priority)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts
+                    .add_command(&command)
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            TestActions::DeleteValue(key, priority) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let command = self.delete(target, parent, key, priority)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts
+                    .add_command(&command)
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            TestActions::NoOp(nonce, priority) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let command = self.noop(target, parent, nonce, priority)?;
 
                 self.call_rule_internal(&command.command, facts, sink)?;
 

@@ -21,17 +21,20 @@ Module {
 <fn 'f'>:
     save SP
     const 42
-    const 42
     wrap some
     dup
-    const None
-    eq
-    not
-    branch 11
-    exit panic
-<11>:
+    is some
+    branch 12
+    pop
+    const 0
+    restore SP
+    return
+    jump 13
+<12>:
     unwrap some
-    eq
+<13>:
+    def 'x'
+    get 'x'
     restore SP
     return
     exit panic

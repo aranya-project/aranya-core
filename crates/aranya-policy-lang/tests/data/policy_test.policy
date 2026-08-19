@@ -71,8 +71,10 @@ command Add {
 }
 
 function positive(v option[int]) bool {
-    let x = unwrap v
-    return x > 0
+    return match v {
+        Some(x) => x > 0
+        None => test_fail()
+    }
 }
 
 finish function next(x int) {

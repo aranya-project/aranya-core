@@ -60,7 +60,10 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
 
-use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::RngExt as _};
+use aranya_crypto::{
+    Rng,
+    dangerous::spideroak_crypto::csprng::rand::{self, RngExt as _},
+};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
@@ -102,6 +105,10 @@ fn default_max_cascade_depth() -> u64 {
 }
 
 fn default_notify_interval() -> u64 {
+    1
+}
+
+fn default_key_range() -> u64 {
     1
 }
 
@@ -426,6 +433,22 @@ pub enum TestRule {
         value: u64,
         #[serde(default = "default_repeat")]
         repeat: u64,
+        #[serde(default)]
+        priority: u32,
+    },
+    ActionDelete {
+        client: u64,
+        graph: u64,
+        key: u64,
+        #[serde(default)]
+        priority: u32,
+    },
+    ActionNoOp {
+        client: u64,
+        graph: u64,
+        nonce: u64,
+        #[serde(default)]
+        priority: u32,
     },
     CompareGraphs {
         clienta: u64,
@@ -449,6 +472,19 @@ pub enum TestRule {
         #[serde(default)]
         sync_client_zero: bool,
         sync_method: SyncMethod,
+        /// Percent (0-100) of generated commands that delete a fact.
+        #[serde(default)]
+        delete_chance: u64,
+        /// Percent (0-100) of generated commands that are no-ops (no fact
+        /// mutation). Produces segments with empty fact maps.
+        #[serde(default)]
+        noop_chance: u64,
+        /// Fact keys are drawn from `0..key_range`.
+        #[serde(default = "default_key_range")]
+        key_range: u64,
+        /// Command priorities are drawn from `0..=max_priority`.
+        #[serde(default)]
+        max_priority: u32,
     },
     SetupClientsAndGraph {
         clients: u64,
@@ -547,10 +583,31 @@ impl Display for TestRule {
                 key,
                 value,
                 repeat,
+                priority,
             } => write!(
                 f,
-                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {} }} }},"#,
-                graph, client, key, value, repeat,
+                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {}, "priority": {} }} }},"#,
+                graph, client, key, value, repeat, priority,
+            ),
+            Self::ActionDelete {
+                client,
+                graph,
+                key,
+                priority,
+            } => write!(
+                f,
+                r#"{{"ActionDelete": {{ "graph": {}, "client": {}, "key": {}, "priority": {} }} }},"#,
+                graph, client, key, priority,
+            ),
+            Self::ActionNoOp {
+                client,
+                graph,
+                nonce,
+                priority,
+            } => write!(
+                f,
+                r#"{{"ActionNoOp": {{ "graph": {}, "client": {}, "nonce": {}, "priority": {} }} }},"#,
+                graph, client, nonce, priority,
             ),
             Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
             Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
@@ -579,10 +636,23 @@ impl Display for TestRule {
                 policy,
                 sync_client_zero,
                 sync_method,
+                delete_chance,
+                noop_chance,
+                key_range,
+                max_priority,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}" }} }},"#,
-                clients, graph, commands, policy, sync_client_zero, sync_method,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_chance": {}, "noop_chance": {}, "key_range": {}, "max_priority": {} }} }},"#,
+                clients,
+                graph,
+                commands,
+                policy,
+                sync_client_zero,
+                sync_method,
+                delete_chance,
+                noop_chance,
+                key_range,
+                max_priority,
             ),
             Self::IgnoreExpectations { ignore } => write!(
                 f,
@@ -700,6 +770,52 @@ pub trait StorageBackend {
     fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
 }
 
+/// Randomly generates a set, delete, or no-op rule shaped by the
+/// `GenerateGraph` knobs. `delete_chance` and `noop_chance` are percentages
+/// (their sum at most 100); keys are drawn from `0..key_range` and
+/// priorities from `0..=max_priority`.
+fn gen_command_rule<R: rand::Rng>(
+    rng: &mut R,
+    client: u64,
+    graph: u64,
+    delete_chance: u64,
+    noop_chance: u64,
+    key_range: u64,
+    max_priority: u32,
+) -> TestRule {
+    let key = rng.random_range(0..key_range);
+    let priority = if max_priority == 0 {
+        0
+    } else {
+        rng.random_range(0..=max_priority)
+    };
+    let roll = rng.random_range(0..100);
+    if noop_chance > 0 && roll < noop_chance {
+        TestRule::ActionNoOp {
+            client,
+            graph,
+            nonce: rng.random(),
+            priority,
+        }
+    } else if delete_chance > 0 && roll < noop_chance + delete_chance {
+        TestRule::ActionDelete {
+            client,
+            graph,
+            key,
+            priority,
+        }
+    } else {
+        TestRule::ActionSet {
+            client,
+            graph,
+            key,
+            value: rng.random_range(0..10),
+            repeat: 1,
+            priority,
+        }
+    }
+}
+
 /// Runs a particular test.
 pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError>
 where
@@ -718,7 +834,16 @@ where
                     policy,
                     sync_client_zero,
                     sync_method,
+                    delete_chance,
+                    noop_chance,
+                    key_range,
+                    max_priority,
                 } => {
+                    assert!(key_range > 0, "key_range must be at least 1");
+                    assert!(
+                        delete_chance + noop_chance <= 100,
+                        "delete_chance + noop_chance are percentages of generated commands"
+                    );
                     // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
@@ -775,13 +900,15 @@ where
                                 let client = rng.random_range(client_start..clients);
                                 match rng.random_range(0..sync_ceiling) {
                                     x if x < command_ceiling => {
-                                        generated_actions.push(TestRule::ActionSet {
+                                        generated_actions.push(gen_command_rule(
+                                            &mut rng,
                                             client,
                                             graph,
-                                            key: 0,
-                                            value: rng.random_range(0..10),
-                                            repeat: 1,
-                                        });
+                                            delete_chance,
+                                            noop_chance,
+                                            key_range,
+                                            max_priority,
+                                        ));
                                         count += 1;
                                     }
                                     _ => {
@@ -868,13 +995,15 @@ where
                             // adds a command.
                             while count < commands {
                                 for client in 0..clients {
-                                    generated_actions.push(TestRule::ActionSet {
+                                    generated_actions.push(gen_command_rule(
+                                        &mut rng,
                                         client,
                                         graph,
-                                        key: 0,
-                                        value: rng.random_range(0..10),
-                                        repeat: 1,
-                                    });
+                                        delete_chance,
+                                        noop_chance,
+                                        key_range,
+                                        max_priority,
+                                    ));
                                     count += 1;
                                     if count >= commands {
                                         break;
@@ -955,6 +1084,7 @@ where
                                             key: 0,
                                             value: tick % 10,
                                             repeat: 1,
+                                            priority: 0,
                                         });
                                         count += 1;
                                     }
@@ -1011,13 +1141,15 @@ where
 
                             for i in 0..commands {
                                 let client = participating[(i as usize) % participating.len()];
-                                generated_actions.push(TestRule::ActionSet {
+                                generated_actions.push(gen_command_rule(
+                                    &mut rng,
                                     client,
                                     graph,
-                                    key: 0,
-                                    value: rng.random_range(0..10),
-                                    repeat: 1,
-                                });
+                                    delete_chance,
+                                    noop_chance,
+                                    key_range,
+                                    max_priority,
+                                ));
                             }
 
                             generated_actions.push(TestRule::ConvergeAll {
@@ -1263,6 +1395,7 @@ where
                 key,
                 value,
                 repeat,
+                priority,
             } => {
                 let state = clients
                     .get_mut(&client)
@@ -1272,9 +1405,89 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
-                    let set = TestActions::SetValue(key, value);
+                    let set = TestActions::SetValuePriority(key, value, priority);
                     state.action(*graph_id, &mut sink, set, &mut rt_buffers, MemSpill::new)?;
                 }
+
+                assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        default_max_cascade_depth(),
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
+            }
+
+            TestRule::ActionDelete {
+                client,
+                graph,
+                key,
+                priority,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                state.action(
+                    *graph_id,
+                    &mut sink,
+                    TestActions::DeleteValue(key, priority),
+                    &mut rt_buffers,
+                    MemSpill::new,
+                )?;
+
+                assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        default_max_cascade_depth(),
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
+            }
+
+            TestRule::ActionNoOp {
+                client,
+                graph,
+                nonce,
+                priority,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                state.action(
+                    *graph_id,
+                    &mut sink,
+                    TestActions::NoOp(nonce, priority),
+                    &mut rt_buffers,
+                    MemSpill::new,
+                )?;
 
                 assert_eq!(0, sink.count());
 
@@ -1363,6 +1576,8 @@ where
                         debug!("  Only in B: {}", short_b58(*cmd));
                     }
                 }
+                // `graph_eq` also asserts the merged fact state matches (via
+                // `fact_cache_eq`), so equal graphs imply equal fact DBs.
                 assert_eq!(equal, same);
             }
             TestRule::MaxCut {
@@ -2084,4 +2299,234 @@ test_vectors! {
     two_client_branch,
     two_client_merge,
     two_client_sync,
+    converge_conflict_heavy,
+    converge_delete_heavy,
+    converge_priority_mixed,
+    converge_sparse_facts,
+    stress_hot_key_ties,
+    stress_long_divergence,
+    stress_hello_ring,
+    stress_hello_hub_noops,
+    stress_no_sync_braid,
+    stress_delete_noop_churn,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ClientState, Keys,
+        storage::linear::testing::MemStorageProvider,
+        testing::protocol::{TestActions, TestPolicyStore, TestSink},
+    };
+
+    pub(super) struct MemBackend;
+
+    impl StorageBackend for MemBackend {
+        type StorageProvider = MemStorageProvider;
+
+        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+            MemStorageProvider::default()
+        }
+    }
+
+    /// Returns the location of the graph's only head, asserting there is
+    /// exactly one (true for the linear, single-client tests below).
+    fn single_head<S: Storage>(storage: &S) -> Result<Location, TestError> {
+        let heads = storage.get_heads()?;
+        assert_eq!(heads.len(), 1, "expected a single head");
+        Ok(heads.as_slice()[0].location())
+    }
+
+    #[test]
+    fn collect_facts_sees_set_values() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(
+            graph_id,
+            &mut sink,
+            TestActions::SetValue(7, 9),
+            &mut buffers,
+            MemSpill::new,
+        )?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        let value = facts
+            .get(&("payload", Keys::from_iter([7u64.to_be_bytes()])))
+            .expect("fact for key 7");
+        assert_eq!(&**value, 9u64.to_be_bytes().as_slice());
+        Ok(())
+    }
+
+    #[test]
+    fn delete_action_removes_fact() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        for action in [
+            TestActions::SetValue(7, 9),
+            TestActions::SetValue(8, 10),
+            TestActions::DeleteValue(7, 0),
+        ] {
+            state.action(graph_id, &mut sink, action, &mut buffers, MemSpill::new)?;
+        }
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        assert!(facts.contains_key(&("payload", Keys::from_iter([8u64.to_be_bytes()]))));
+        Ok(())
+    }
+
+    #[test]
+    fn set_value_priority_carries_priority() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(
+            graph_id,
+            &mut sink,
+            TestActions::SetValuePriority(1, 2, 7),
+            &mut buffers,
+            MemSpill::new,
+        )?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let head = single_head(storage)?;
+        let segment = storage.get_segment(head)?;
+        let command = segment.get_command(head).unwrap();
+        assert_eq!(command.priority(), crate::Priority::Basic(7));
+        Ok(())
+    }
+
+    #[test]
+    fn action_set_json_backcompat() {
+        let rule: TestRule = serde_json::from_str(
+            r#"{"ActionSet": {"client": 0, "graph": 0, "key": 1, "value": 2, "repeat": 1}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            rule,
+            TestRule::ActionSet {
+                client: 0,
+                graph: 0,
+                key: 1,
+                value: 2,
+                repeat: 1,
+                priority: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn action_rules_converge_facts() -> Result<(), TestError> {
+        let rules = vec![
+            TestRule::AddClient { id: 0 },
+            TestRule::AddClient { id: 1 },
+            TestRule::NewGraph {
+                client: 0,
+                id: 0,
+                policy: 0,
+            },
+            TestRule::Sync {
+                graph: 0,
+                client: 1,
+                from: 0,
+                must_send: None,
+                must_receive: None,
+                max_syncs: 100,
+            },
+            TestRule::IgnoreExpectations { ignore: true },
+            // Concurrent, conflicting operations on key 1 with different
+            // priorities, plus an unrelated write on key 2. The braid
+            // decides the outcome; both clients must agree.
+            TestRule::ActionSet {
+                client: 0,
+                graph: 0,
+                key: 1,
+                value: 10,
+                repeat: 1,
+                priority: 2,
+            },
+            TestRule::ActionDelete {
+                client: 1,
+                graph: 0,
+                key: 1,
+                priority: 1,
+            },
+            TestRule::ActionSet {
+                client: 1,
+                graph: 0,
+                key: 2,
+                value: 5,
+                repeat: 1,
+                priority: 0,
+            },
+            TestRule::ConvergeAll {
+                graph: 0,
+                clients: 2,
+                max_syncs: 100,
+            },
+            TestRule::CompareGraphs {
+                clienta: 0,
+                clientb: 1,
+                graph: 0,
+                equal: true,
+            },
+            TestRule::IgnoreExpectations { ignore: false },
+        ];
+        run_test(MemBackend, &rules)
+    }
+
+    #[test]
+    fn noop_action_writes_no_facts() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        for action in [TestActions::SetValue(7, 9), TestActions::NoOp(42, 1)] {
+            state.action(graph_id, &mut sink, action, &mut buffers, MemSpill::new)?;
+        }
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        assert!(facts.contains_key(&("payload", Keys::from_iter([7u64.to_be_bytes()]))));
+
+        let head = single_head(storage)?;
+        let segment = storage.get_segment(head)?;
+        let command = segment.get_command(head).unwrap();
+        assert_eq!(command.priority(), crate::Priority::Basic(1));
+        Ok(())
+    }
+
+    #[test]
+    fn generate_graph_with_knobs_converges() -> Result<(), TestError> {
+        let rules = vec![TestRule::GenerateGraph {
+            clients: 3,
+            graph: 0,
+            commands: 60,
+            policy: 0,
+            sync_client_zero: true,
+            sync_method: SyncMethod::Poll {
+                sync_chance: 40,
+                add_command_chance: 60,
+            },
+            delete_chance: 30,
+            noop_chance: 0,
+            key_range: 3,
+            max_priority: 3,
+        }];
+        run_test(MemBackend, &rules)
+    }
 }

@@ -655,7 +655,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
         // This tests the implicitly defined struct as a return type
         function get_foo(a int) struct Foo {
-            let foo = unwrap query Foo[a: a]=>{b: ?}
+            let foo = query Foo[a: a]=>{b: ?} or test_fail()
 
             return foo
         }
@@ -766,23 +766,23 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Foo[i: 1, j: ?]
+            let f = query Foo[i: 1, j: ?] or test_fail()
             check f.x == 1 else test_fail()
-            let f2 = unwrap query Foo[i: ?, j: ?]
+            let f2 = query Foo[i: ?, j: ?] or test_fail()
             check f2.x == 1 else test_fail()
-            let f3 = unwrap query Foo[i:2, j:?]
+            let f3 = query Foo[i:2, j:?] or test_fail()
             check f3.x == 3 else test_fail()
 
             // bind value
-            let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
+            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or test_fail()
             check f4.x == 3 else test_fail()
             // bind key and value
-            let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
+            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or test_fail()
             check f5.x == 3 else test_fail()
         }
 
         action test_nonexistent() {
-            let f = unwrap query Foo[i:?, j:?]
+            let f = query Foo[i:?, j:?] or test_fail()
         }
 
         action test_exists() {
@@ -846,7 +846,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Bar[i:Foo::A] => {x: ?}
+            let f = query Bar[i:Foo::A] => {x: ?} or test_fail()
             check f.x == Foo::A else test_fail()
         }
     "#;
@@ -1263,7 +1263,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         function f(x int) int {
-            return unwrap add(x, 1)
+            return add(x, 1) or test_fail()
         }
 
         action foo(x int) {
@@ -1382,74 +1382,6 @@ fn test_check_errors() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_check_unwrap() -> anyhow::Result<()> {
-    let text = r#"
-        fact Foo[i int]=>{x int}
-
-        command Setup {
-            fields {}
-
-            seal {
-                return todo()
-            }
-            open {
-                return todo()
-            }
-
-            policy {
-                finish {
-                    create Foo[i: 1]=>{x: 1}
-                }
-            }
-        }
-
-        action test_existing() {
-            let f = check_unwrap query Foo[i: 1]
-            check f.x == 1 else test_fail()
-        }
-
-        action test_nonexistent() {
-            let f = check_unwrap query Foo[i: 0]
-            check false else test_fail()
-        }
-    "#;
-
-    let mut io = TestIO::new();
-    let machine = compile(text);
-
-    {
-        let cmd_name = ident!("Setup");
-        let this_data = Struct {
-            name: cmd_name.clone(),
-            fields: [].into(),
-        };
-
-        let ctx = dummy_ctx_policy(cmd_name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
-            .success();
-    }
-
-    {
-        let action_name = ident!("test_existing");
-        let ctx = dummy_ctx_action(action_name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_action(action_name, iter::empty::<Value>())?
-            .success();
-    }
-
-    {
-        let action_name = ident!("test_nonexistent");
-        let ctx = dummy_ctx_action(action_name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check);
-    }
-
-    Ok(())
-}
-
-#[test]
 fn test_coalesce_or() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i int]=>{x int}
@@ -1551,9 +1483,6 @@ fn test_nested_optionals() -> anyhow::Result<()> {
         "Some(Some(5)) is Some",
         "Some(Some(5)) == Some(Some(5))",
         "Some(Some(5)) != Some(Some(1))",
-        "(unwrap Some(None)) is None",
-        "(unwrap Some(Some(5))) == Some(5)",
-        "(unwrap unwrap Some(Some(5))) == 5",
     ];
 
     let actions = checks
@@ -1738,7 +1667,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
 
         action foo() {
-            let a = unwrap add(x, 1)
+            let a = add(x, 1) or test_fail()
             let b = y
             let c = !z
             publish Result {
@@ -1954,8 +1883,8 @@ fields {}
 seal { return todo() }
 open { return todo() }
 policy {
-    let r = unwrap query Foo[]=>{x: ?}
-    let new_x = unwrap add(r.x, 1)
+    let r = query Foo[]=>{x: ?} or test_fail()
+    let new_x = add(r.x, 1) or test_fail()
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
         emit Update{value: new_x}
@@ -2569,12 +2498,12 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
 #[test]
 fn test_result() -> anyhow::Result<()> {
     let text = r#"
-        enum Err {
+        enum Error {
             Fail
         }
 
         effect Result {
-            r result[int, enum Err]
+            r result[int, enum Error]
         }
 
         command DoWork {
@@ -2594,18 +2523,18 @@ fn test_result() -> anyhow::Result<()> {
             }
         }
 
-        function try(succeed bool) result[int, enum Err] {
+        function try(succeed bool) result[int, enum Error] {
             // error propagation is done explicilty, until we have `?` operator
             return match try_return(succeed) {
                 Ok(n) => Ok(n)
-                _ => Err(Err::Fail)
+                _ => Err(Error::Fail)
             }
         }
 
-        function try_return(succeed bool) result[int, enum Err] {
+        function try_return(succeed bool) result[int, enum Error] {
             let r = match succeed {
                 true => Ok(42)
-                false => return Err(Err::Fail) // early return from match
+                false => return Err(Error::Fail) // early return from match
             }
             return r
         }
@@ -2652,7 +2581,7 @@ fn test_result() -> anyhow::Result<()> {
                 ident!("Result"),
                 vec![KVPair::new(
                     ident!("r"),
-                    Value::Result(Err(Box::new(Value::Enum(ident!("Err"), 0))))
+                    Value::Result(Err(Box::new(Value::Enum(ident!("Error"), 0))))
                 ),]
             )
         );
@@ -2663,11 +2592,7 @@ fn test_result() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_patterns() -> anyhow::Result<()> {
-    let text = r#"
-        enum Err {
-            Fail
-        }
-
+    let text: &str = r#"
         effect Result {
             n int
         }
@@ -2740,7 +2665,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
 #[test]
 fn test_unit() -> anyhow::Result<()> {
     let text = r#"
-        enum Err {
+        enum Error {
             Fail,
         }
 
@@ -2749,14 +2674,14 @@ fn test_unit() -> anyhow::Result<()> {
         }
 
         effect No {
-            err enum Err,
+            err enum Error,
         }
 
-        function verify(n int) result[unit, enum Err] {
+        function verify(n int) result[unit, enum Error] {
             return if n == 42 {
                 : Ok(Unit)
             } else {
-                : Err(Err::Fail)
+                : Err(Error::Fail)
             }
         }
 
@@ -2823,7 +2748,7 @@ fn test_unit() -> anyhow::Result<()> {
             io.effect_stack[1],
             (
                 ident!("No"),
-                vec![KVPair::new(ident!("err"), Value::Enum(ident!("Err"), 0))]
+                vec![KVPair::new(ident!("err"), Value::Enum(ident!("Error"), 0))]
             )
         );
     }

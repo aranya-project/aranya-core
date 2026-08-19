@@ -190,7 +190,7 @@ command AddDevice {
 
     policy {
         let author_id = envelope::author_id(envelope)
-        let owner = unwrap query Owner[]
+        let owner = query Owner[] or recall reject()
         check author_id == owner.device_id else test_fail("not authorized")
 
         let new_device_id = idam::derive_device_id(this.device_keys.ident_key)
@@ -206,6 +206,8 @@ command AddDevice {
             emit DeviceAdded{device_id: new_device_id}
         }
     }
+
+    recall reject() {}
 }
 ```
 
@@ -247,14 +249,16 @@ command IncrementCounter {
     open { return open_envelope(payload, envelope) }
 
     policy {
-        let counter = unwrap query Counter[name: this.name]=>{value: ?}
-        let new_value = unwrap add(counter.value, this.amount)
+        let counter = query Counter[name: this.name]=>{value: ?} or recall reject()
+        let new_value = add(counter.value, this.amount) or recall reject()
 
         finish {
             update Counter[name: this.name]=>{value: counter.value} to {value: new_value}
             emit CounterIncremented{name: this.name, value: new_value}
         }
     }
+
+    recall reject() {}
 }
 ```
 
@@ -270,7 +274,7 @@ ephemeral command GetCounter {
     open { return open_envelope(payload, envelope) }
 
     policy {
-        let counter = unwrap query Counter[name: this.name]=>{value: ?}
+        let counter = query Counter[name: this.name]=>{value: ?} or test_fail()
         finish {
             emit CounterValue{name: this.name, value: counter.value}
         }
