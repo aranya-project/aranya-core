@@ -473,11 +473,11 @@ pub enum TestRule {
         sync_method: SyncMethod,
         /// Percent (0-100) of generated commands that delete a fact.
         #[serde(default, alias = "delete_chance")]
-        delete_proportion: u64,
+        delete_proportion: u8,
         /// Percent (0-100) of generated commands that are no-ops (no fact
         /// mutation). Produces segments with empty fact maps.
         #[serde(default, alias = "noop_chance")]
-        noop_proportion: u64,
+        noop_proportion: u8,
         /// Fact keys are drawn from `0..key_range`.
         #[serde(default = "default_key_range")]
         key_range: u64,
@@ -784,8 +784,8 @@ fn gen_command_rule<R: RandRng>(
     rng: &mut R,
     client: u64,
     graph: u64,
-    delete_proportion: u64,
-    noop_proportion: u64,
+    delete_proportion: u8,
+    noop_proportion: u8,
     key_range: u64,
     max_priority: u32,
 ) -> TestRule {
@@ -795,15 +795,15 @@ fn gen_command_rule<R: RandRng>(
     } else {
         rng.gen_range(0..=max_priority)
     };
-    let roll = rng.gen_range(0..100);
-    if noop_proportion > 0 && roll < noop_proportion {
+    let roll = rng.gen_range(0..100u8);
+    if roll < noop_proportion {
         TestRule::ActionNoOp {
             client,
             graph,
             nonce: rng.r#gen(),
             priority,
         }
-    } else if delete_proportion > 0 && roll < noop_proportion + delete_proportion {
+    } else if roll < noop_proportion + delete_proportion {
         TestRule::ActionDelete {
             client,
             graph,
@@ -847,7 +847,9 @@ where
                 } => {
                     assert!(key_range > 0, "key_range must be at least 1");
                     assert!(
-                        delete_proportion + noop_proportion <= 100,
+                        // Widened so bogus inputs hit this assert rather
+                        // than overflowing the `u8` addition.
+                        u16::from(delete_proportion) + u16::from(noop_proportion) <= 100,
                         "delete_proportion + noop_proportion are percentages of generated commands"
                     );
                     let seed = seed.unwrap_or_else(|| RandRng::r#gen(&mut Rng));
