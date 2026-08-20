@@ -10,8 +10,8 @@
           "topology": "HubAndSpoke"
         }
       },
-      "delete_chance": 30,
-      "noop_chance": 50,
+      "delete_proportion": 30,
+      "noop_proportion": 50,
       "key_range": 1,
       "max_priority": 1
     }

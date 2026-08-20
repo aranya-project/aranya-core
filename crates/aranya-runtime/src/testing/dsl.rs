@@ -49,6 +49,7 @@ extern crate alloc;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    string::ToString as _,
     vec,
     vec::Vec,
 };
@@ -62,7 +63,9 @@ use std::{env, fs};
 
 use aranya_crypto::{
     Rng,
-    dangerous::spideroak_crypto::csprng::rand::{self, RngExt as _},
+    dangerous::spideroak_crypto::csprng::rand::{
+        self, RngExt as _, SeedableRng as _, rngs::SmallRng,
+    },
 };
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
@@ -490,18 +493,23 @@ pub enum TestRule {
         sync_client_zero: bool,
         sync_method: SyncMethod,
         /// Percent (0-100) of generated commands that delete a fact.
-        #[serde(default)]
-        delete_chance: u64,
+        #[serde(default, alias = "delete_chance")]
+        delete_proportion: u8,
         /// Percent (0-100) of generated commands that are no-ops (no fact
         /// mutation). Produces segments with empty fact maps.
-        #[serde(default)]
-        noop_chance: u64,
+        #[serde(default, alias = "noop_chance")]
+        noop_proportion: u8,
         /// Fact keys are drawn from `0..key_range`.
         #[serde(default = "default_key_range")]
         key_range: u64,
         /// Command priorities are drawn from `0..=max_priority`.
         #[serde(default)]
         max_priority: u32,
+        /// Seed for the RNG driving generation, making the run
+        /// repeatable. When absent, a random seed is drawn and
+        /// reported so a failure can still be replayed.
+        #[serde(default)]
+        seed: Option<u64>,
     },
     SetupClientsAndGraph {
         clients: u64,
@@ -665,23 +673,25 @@ impl Display for TestRule {
                 policy,
                 sync_client_zero,
                 sync_method,
-                delete_chance,
-                noop_chance,
+                delete_proportion,
+                noop_proportion,
                 key_range,
                 max_priority,
+                seed,
             } => write!(
                 f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_chance": {}, "noop_chance": {}, "key_range": {}, "max_priority": {} }} }},"#,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_proportion": {}, "noop_proportion": {}, "key_range": {}, "max_priority": {}, "seed": {} }} }},"#,
                 clients,
                 graph,
                 commands,
                 policy,
                 sync_client_zero,
                 sync_method,
-                delete_chance,
-                noop_chance,
+                delete_proportion,
+                noop_proportion,
                 key_range,
                 max_priority,
+                seed.map_or_else(|| "null".into(), |s| s.to_string()),
             ),
             Self::IgnoreExpectations { ignore } => write!(
                 f,
@@ -800,15 +810,15 @@ pub trait StorageBackend {
 }
 
 /// Randomly generates a set, delete, or no-op rule shaped by the
-/// `GenerateGraph` knobs. `delete_chance` and `noop_chance` are percentages
+/// `GenerateGraph` knobs. `delete_proportion` and `noop_proportion` are percentages
 /// (their sum at most 100); keys are drawn from `0..key_range` and
 /// priorities from `0..=max_priority`.
 fn gen_command_rule<R: rand::Rng>(
     rng: &mut R,
     client: u64,
     graph: u64,
-    delete_chance: u64,
-    noop_chance: u64,
+    delete_proportion: u8,
+    noop_proportion: u8,
     key_range: u64,
     max_priority: u32,
 ) -> TestRule {
@@ -818,15 +828,15 @@ fn gen_command_rule<R: rand::Rng>(
     } else {
         rng.random_range(0..=max_priority)
     };
-    let roll = rng.random_range(0..100);
-    if noop_chance > 0 && roll < noop_chance {
+    let roll = rng.random_range(0..100u8);
+    if roll < noop_proportion {
         TestRule::ActionNoOp {
             client,
             graph,
             nonce: rng.random(),
             priority,
         }
-    } else if delete_chance > 0 && roll < noop_chance + delete_chance {
+    } else if roll < noop_proportion + delete_proportion {
         TestRule::ActionDelete {
             client,
             graph,
@@ -850,7 +860,6 @@ pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError
 where
     SB: StorageBackend,
 {
-    let mut rng = Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()
@@ -863,16 +872,26 @@ where
                     policy,
                     sync_client_zero,
                     sync_method,
-                    delete_chance,
-                    noop_chance,
+                    delete_proportion,
+                    noop_proportion,
                     key_range,
                     max_priority,
+                    seed,
                 } => {
                     assert!(key_range > 0, "key_range must be at least 1");
                     assert!(
-                        delete_chance + noop_chance <= 100,
-                        "delete_chance + noop_chance are percentages of generated commands"
+                        // Widened so bogus inputs hit this assert rather
+                        // than overflowing the `u8` addition.
+                        u16::from(delete_proportion) + u16::from(noop_proportion) <= 100,
+                        "delete_proportion + noop_proportion are percentages of generated commands"
                     );
+                    let seed = seed.unwrap_or_else(|| Rng.random());
+                    // Reported so a failing generated run can be replayed
+                    // by setting `"seed"` on the `GenerateGraph` rule.
+                    #[cfg(any(test, feature = "std"))]
+                    eprintln!("GenerateGraph rng seed: {seed}");
+                    debug!(seed, "GenerateGraph rng seed");
+                    let mut rng = SmallRng::seed_from_u64(seed);
                     // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
@@ -933,8 +952,8 @@ where
                                             &mut rng,
                                             client,
                                             graph,
-                                            delete_chance,
-                                            noop_chance,
+                                            delete_proportion,
+                                            noop_proportion,
                                             key_range,
                                             max_priority,
                                         ));
@@ -1028,8 +1047,8 @@ where
                                         &mut rng,
                                         client,
                                         graph,
-                                        delete_chance,
-                                        noop_chance,
+                                        delete_proportion,
+                                        noop_proportion,
                                         key_range,
                                         max_priority,
                                     ));
@@ -1174,8 +1193,8 @@ where
                                     &mut rng,
                                     client,
                                     graph,
-                                    delete_chance,
-                                    noop_chance,
+                                    delete_proportion,
+                                    noop_proportion,
                                     key_range,
                                     max_priority,
                                 ));
@@ -2614,10 +2633,11 @@ mod tests {
                 sync_chance: 40,
                 add_command_chance: 60,
             },
-            delete_chance: 30,
-            noop_chance: 0,
+            delete_proportion: 30,
+            noop_proportion: 0,
             key_range: 3,
             max_priority: 3,
+            seed: None,
         }];
         run_test(MemBackend, &rules)
     }
