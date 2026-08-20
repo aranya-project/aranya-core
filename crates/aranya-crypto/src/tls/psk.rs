@@ -15,13 +15,13 @@ use crate::{
     Csprng, Random,
     aranya::{Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::{CipherSuite, CipherSuiteExt as _},
+    ctutils::{Choice, CtEq},
     engine::unwrapped,
     error::Error,
-    generic_array::GenericArray,
     hpke::{self, Mode},
+    hybrid_array::Array,
     id::{IdError, Identified, custom_id},
     policy::{GroupId, PolicyId},
-    subtle::{Choice, ConstantTimeEq},
     tls::{self, CipherSuiteId},
     util,
     zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
@@ -185,7 +185,7 @@ impl<CS: CipherSuite> Identified for PskSeed<CS> {
     }
 }
 
-impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
+impl<CS: CipherSuite> CtEq for PskSeed<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         // `self.id` is derived from `self.prk`, so ignore it.
@@ -307,7 +307,7 @@ struct Info {
 #[derive_where(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedPskSeed<CS: CipherSuite> {
     // NB: These are only `pub(crate)` for testing purposes.
-    pub(crate) ciphertext: GenericArray<u8, <<CS as CipherSuite>::Kdf as Kdf>::PrkSize>,
+    pub(crate) ciphertext: Array<u8, <<CS as CipherSuite>::Kdf as Kdf>::PrkSize>,
     pub(crate) tag: Tag<CS::Aead>,
 }
 
@@ -355,7 +355,7 @@ impl<CS> Drop for Psk<CS> {
     }
 }
 
-impl<CS> ConstantTimeEq for Psk<CS> {
+impl<CS> CtEq for Psk<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         // Both `self.secret` and `self.id` are derived from the
@@ -373,7 +373,7 @@ impl<CS> ConstantTimeEq for Psk<CS> {
 ///
 /// `PskId` is not a secret, so it can be freely compared with
 /// [`PartialEq`]. However, doing so may leak knowledge about
-/// which PSKs are present. In general, prefer [`ConstantTimeEq`]
+/// which PSKs are present. In general, prefer [`CtEq`]
 /// to [`PartialEq`].
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct PskId(ImportedIdentity);
@@ -401,7 +401,7 @@ impl PskId {
     }
 }
 
-impl ConstantTimeEq for PskId {
+impl CtEq for PskId {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.as_bytes().ct_eq(other.as_bytes())

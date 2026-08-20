@@ -21,7 +21,7 @@ macro_rules! ciphertext {
     ($name:ident, $size:ty, $doc:expr) => {
         #[doc = $doc]
         pub struct $name<CS>(
-            pub(crate)  $crate::generic_array::GenericArray<
+            pub(crate)  $crate::hybrid_array::Array<
                 u8,
                 $crate::typenum::Sum<
                     <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
@@ -36,7 +36,7 @@ macro_rules! ciphertext {
             $crate::typenum::Sum<
                 <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                 $size,
-            >: $crate::generic_array::ArrayLength;
+            >: $crate::hybrid_array::ArraySize;
 
         impl<CS> $name<CS>
         where
@@ -46,7 +46,7 @@ macro_rules! ciphertext {
             $crate::typenum::Sum<
                 <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                 $size,
-            >: $crate::generic_array::ArrayLength,
+            >: $crate::hybrid_array::ArraySize,
         {
             /// The size in bytes of the ciphertext.
             pub const SIZE: usize =
@@ -64,13 +64,12 @@ macro_rules! ciphertext {
                 Self,
                 $crate::dangerous::spideroak_crypto::import::InvalidSizeError,
             > {
-                let v: &$crate::generic_array::GenericArray<u8, _> =
-                    data.try_into().map_err(|_| {
-                        $crate::dangerous::spideroak_crypto::import::InvalidSizeError {
-                            got: data.len(),
-                            want: Self::SIZE..Self::SIZE,
-                        }
-                    })?;
+                let v: &$crate::hybrid_array::Array<u8, _> = data.try_into().map_err(|_| {
+                    $crate::dangerous::spideroak_crypto::import::InvalidSizeError {
+                        got: data.len(),
+                        want: Self::SIZE..Self::SIZE,
+                    }
+                })?;
                 Ok(Self(v.clone()))
             }
         }
@@ -83,7 +82,7 @@ macro_rules! ciphertext {
             $crate::typenum::Sum<
                 <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                 $size,
-            >: $crate::generic_array::ArrayLength,
+            >: $crate::hybrid_array::ArraySize,
         {
             type Error = $crate::dangerous::spideroak_crypto::import::InvalidSizeError;
 
@@ -100,7 +99,7 @@ macro_rules! ciphertext {
             $crate::typenum::Sum<
                 <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                 $size,
-            >: $crate::generic_array::ArrayLength,
+            >: $crate::hybrid_array::ArraySize,
         {
             fn clone(&self) -> Self {
                 Self(::core::clone::Clone::clone(&self.0))
@@ -109,7 +108,7 @@ macro_rules! ciphertext {
 
         impl<CS>
             ::core::convert::From<
-                $crate::generic_array::GenericArray<
+                $crate::hybrid_array::Array<
                     u8,
                     $crate::typenum::Sum<
                         <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
@@ -124,10 +123,10 @@ macro_rules! ciphertext {
             $crate::typenum::Sum<
                 <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                 $size,
-            >: $crate::generic_array::ArrayLength,
+            >: $crate::hybrid_array::ArraySize,
         {
             fn from(
-                buf: $crate::generic_array::GenericArray<
+                buf: $crate::hybrid_array::Array<
                     u8,
                     $crate::typenum::Sum<
                         <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
@@ -147,7 +146,7 @@ macro_rules! ciphertext {
             $crate::typenum::Sum<
                 <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                 $size,
-            >: $crate::generic_array::ArrayLength,
+            >: $crate::hybrid_array::ArraySize,
         {
             fn serialize<S>(&self, s: S) -> ::core::result::Result<S::Ok, S::Error>
             where
@@ -165,7 +164,7 @@ macro_rules! ciphertext {
             $crate::typenum::Sum<
                 <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                 $size,
-            >: $crate::generic_array::ArrayLength,
+            >: $crate::hybrid_array::ArraySize,
         {
             fn deserialize<D>(d: D) -> ::core::result::Result<Self, D::Error>
             where
@@ -180,7 +179,7 @@ macro_rules! ciphertext {
                     $crate::typenum::Sum<
                         <G::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
                         $size,
-                    >: $crate::generic_array::ArrayLength,
+                    >: $crate::hybrid_array::ArraySize,
                 {
                     type Value = $name<G>;
 
@@ -441,10 +440,10 @@ macro_rules! sk_misc_inner {
             }
         }
 
-        impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for $name<CS> {
+        impl<CS: $crate::CipherSuite> $crate::ctutils::CtEq for $name<CS> {
             #[inline]
-            fn ct_eq(&self, other: &Self) -> $crate::subtle::Choice {
-                $crate::subtle::ConstantTimeEq::ct_eq(&self.sk, &other.sk)
+            fn ct_eq(&self, other: &Self) -> $crate::ctutils::Choice {
+                $crate::ctutils::CtEq::ct_eq(&self.sk, &other.sk)
             }
         }
 

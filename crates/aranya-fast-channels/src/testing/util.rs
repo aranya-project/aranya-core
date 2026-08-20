@@ -16,14 +16,14 @@ use aranya_crypto::{
     dangerous::spideroak_crypto::{
         aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
         csprng::Csprng,
+        ctutils::CtEq as _,
         default::Rng,
-        generic_array::{ArrayLength, GenericArray},
         hash::tuple_hash,
         hpke::{AeadId, HpkeAead},
+        hybrid_array::{Array, ArraySize},
         oid,
         oid::{Identified, Oid},
         rust::Sha256,
-        subtle::ConstantTimeEq as _,
         typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
     },
     default::{DefaultCipherSuite, DefaultEngine},
@@ -619,7 +619,7 @@ pub struct LimitedAead<A, N> {
 impl<A, N> Aead for LimitedAead<A, N>
 where
     A: Aead,
-    N: ArrayLength + IsLess<U65536> + 'static,
+    N: ArraySize + IsLess<U65536> + 'static,
 {
     const LIFETIME: Lifetime = A::LIFETIME;
 
@@ -651,7 +651,7 @@ where
         tag: &mut [u8],
         additional_data: &[u8],
     ) -> Result<(), SealError> {
-        let mut real_nonce = GenericArray::<u8, A::NonceSize>::default();
+        let mut real_nonce = Array::<u8, A::NonceSize>::default();
         let min = cmp::min(nonce.len(), real_nonce.len());
         let real_len = real_nonce.len();
         real_nonce[real_len - min..].copy_from_slice(&nonce[..min]);
@@ -667,7 +667,7 @@ where
         tag: &[u8],
         additional_data: &[u8],
     ) -> Result<(), OpenError> {
-        let mut real_nonce = GenericArray::<u8, A::NonceSize>::default();
+        let mut real_nonce = Array::<u8, A::NonceSize>::default();
         let min = cmp::min(nonce.len(), real_nonce.len());
         let real_len = real_nonce.len();
         real_nonce[real_len - min..].copy_from_slice(&nonce[..min]);
@@ -680,7 +680,7 @@ where
 impl<A, N> IndCca2 for LimitedAead<A, N>
 where
     A: IndCca2,
-    N: ArrayLength + IsLess<U65536> + 'static,
+    N: ArraySize + IsLess<U65536> + 'static,
 {
 }
 
@@ -694,7 +694,7 @@ where
 impl<A, N> HpkeAead for LimitedAead<A, N>
 where
     A: HpkeAead,
-    N: ArrayLength + IsLess<U65536> + 'static,
+    N: ArraySize + IsLess<U65536> + 'static,
 {
     const ID: AeadId = A::ID;
 }
@@ -709,9 +709,9 @@ pub struct NoopAead<K, N, T, const L: u64>(PhantomData<(K, N, T)>);
 
 impl<K, N, T, const L: u64> Aead for NoopAead<K, N, T, L>
 where
-    K: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static,
-    N: ArrayLength + IsLess<U65536> + 'static,
-    T: ArrayLength + IsGreaterOrEqual<U16>,
+    K: ArraySize + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static,
+    N: ArraySize + IsLess<U65536> + 'static,
+    T: ArraySize + IsGreaterOrEqual<U16>,
 {
     const LIFETIME: Lifetime = Lifetime::Messages(L);
 
@@ -763,9 +763,9 @@ where
 
 impl<K, N, T, const L: u64> IndCca2 for NoopAead<K, N, T, L>
 where
-    K: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static,
-    N: ArrayLength + IsLess<U65536> + 'static,
-    T: ArrayLength + IsGreaterOrEqual<U16>,
+    K: ArraySize + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static,
+    N: ArraySize + IsLess<U65536> + 'static,
+    T: ArraySize + IsGreaterOrEqual<U16>,
 {
 }
 
@@ -775,9 +775,9 @@ impl<K, N, T, const L: u64> Identified for NoopAead<K, N, T, L> {
 
 impl<K, N, T, const L: u64> HpkeAead for NoopAead<K, N, T, L>
 where
-    K: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static,
-    N: ArrayLength + IsLess<U65536> + 'static,
-    T: ArrayLength + IsGreaterOrEqual<U16>,
+    K: ArraySize + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static,
+    N: ArraySize + IsLess<U65536> + 'static,
+    T: ArraySize + IsGreaterOrEqual<U16>,
 {
     const ID: AeadId = AeadId::Other(NonZeroU16::new(42).unwrap());
 }

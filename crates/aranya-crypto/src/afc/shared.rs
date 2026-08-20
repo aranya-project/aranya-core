@@ -1,11 +1,11 @@
 use derive_where::derive_where;
 use spideroak_crypto::{
     csprng::{Csprng, Random},
+    ctutils::{Choice, CtEq},
     import::{ExportError, Import, ImportError},
     kem::{DecapKey as _, Kem},
     keys::{SecretKey, SecretKeyBytes},
     signer::PkError,
-    subtle::{Choice, ConstantTimeEq},
     zeroize::ZeroizeOnDrop,
 };
 
@@ -29,7 +29,7 @@ impl<CS: CipherSuite> RootChannelKey<CS> {
     }
 }
 
-impl<CS: CipherSuite> ConstantTimeEq for RootChannelKey<CS> {
+impl<CS: CipherSuite> CtEq for RootChannelKey<CS> {
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
     }
@@ -72,20 +72,19 @@ macro_rules! raw_key {
             >,
         }
 
-        impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for $name<CS> {
+        impl<CS: $crate::CipherSuite> $crate::ctutils::CtEq for $name<CS> {
             #[inline]
             fn ct_eq(&self, other: &Self) -> Choice {
-                let key = $crate::subtle::ConstantTimeEq::ct_eq(&self.key, &other.key);
-                let base_nonce =
-                    $crate::subtle::ConstantTimeEq::ct_eq(&self.base_nonce, &other.base_nonce);
+                let key = $crate::ctutils::CtEq::ct_eq(&self.key, &other.key);
+                let base_nonce = $crate::ctutils::CtEq::ct_eq(&self.base_nonce, &other.base_nonce);
                 key & base_nonce
             }
         }
 
-        impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for &$name<CS> {
+        impl<CS: $crate::CipherSuite> $crate::ctutils::CtEq for &$name<CS> {
             #[inline]
             fn ct_eq(&self, other: &Self) -> Choice {
-                $crate::subtle::ConstantTimeEq::ct_eq(*self, other)
+                $crate::ctutils::CtEq::ct_eq(*self, other)
             }
         }
 
