@@ -52,6 +52,12 @@ pub enum WireProtocol {
     Basic(WireBasic),
     Delete(WireDelete),
     NoOp(WireNoOp),
+    /// A command whose rule writes its payload fact and then fails.
+    ///
+    /// Models a write-then-fail rule (e.g. a VM policy `finish` block that
+    /// inserts a fact and then errors partway through): the runtime must
+    /// revert the write when it rejects the command.
+    Poison(WireBasic),
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +75,7 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Basic(m) => Priority::Basic(m.prority),
             WireProtocol::Delete(m) => Priority::Basic(m.prority),
             WireProtocol::NoOp(m) => Priority::Basic(m.prority),
+            WireProtocol::Poison(m) => Priority::Basic(m.prority),
         }
     }
 
@@ -83,6 +90,7 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Merge(m) => Prior::Merge(m.left, m.right),
             WireProtocol::Delete(m) => Prior::Single(m.parent),
             WireProtocol::NoOp(m) => Prior::Single(m.parent),
+            WireProtocol::Poison(m) => Prior::Single(m.parent),
         }
     }
 
@@ -93,6 +101,7 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Basic(_) => None,
             WireProtocol::Delete(_) => None,
             WireProtocol::NoOp(_) => None,
+            WireProtocol::Poison(_) => None,
         }
     }
 
@@ -179,6 +188,12 @@ impl TestPolicy {
                     .delete("payload".into(), Keys::from_iter([key]))
                     .map_err(|_| PolicyError::Write)?;
             }
+            WireProtocol::Poison(m) => {
+                // Write-then-fail: the fact write lands before the rule
+                // rejects, so the caller's revert must clear it.
+                self.origin_check_message(m, facts)?;
+                return Err(PolicyError::Rejected);
+            }
             WireProtocol::Init(_) | WireProtocol::Merge(_) | WireProtocol::NoOp(_) => {}
         }
 
@@ -198,7 +213,7 @@ impl TestPolicy {
         Ok(TestProtocol { id, command, data })
     }
 
-    fn basic<'a>(
+    pub(crate) fn basic<'a>(
         &self,
         target: &'a mut [u8],
         parent: Address,
@@ -212,6 +227,32 @@ impl TestPolicy {
         };
 
         let command = WireProtocol::Basic(message);
+        let data = write(target, &command)?;
+        let id = hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
+    }
+
+    /// Builds a [`WireProtocol::Poison`] command: its rule writes
+    /// `payload` under the `"payload"` fact name and then rejects.
+    ///
+    /// There is deliberately no [`TestActions`] variant for this: an action
+    /// whose rule fails never produces a command, so a poison command can
+    /// only arrive on the ingest path (as if from a peer).
+    pub(crate) fn poison<'a>(
+        &self,
+        target: &'a mut [u8],
+        parent: Address,
+        payload: (u64, u64),
+        priority: u32,
+    ) -> Result<TestProtocol<'a>, PolicyError> {
+        let message = WireBasic {
+            parent,
+            prority: priority,
+            payload,
+        };
+
+        let command = WireProtocol::Poison(message);
         let data = write(target, &command)?;
         let id = hash_for_testing_only(data);
 
