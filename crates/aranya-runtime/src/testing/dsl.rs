@@ -60,7 +60,10 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
 
-use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RandRng};
+use aranya_crypto::{
+    Rng,
+    dangerous::spideroak_crypto::csprng::rand::{self, RngExt as _},
+};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
@@ -800,7 +803,7 @@ pub trait StorageBackend {
 /// `GenerateGraph` knobs. `delete_chance` and `noop_chance` are percentages
 /// (their sum at most 100); keys are drawn from `0..key_range` and
 /// priorities from `0..=max_priority`.
-fn gen_command_rule<R: RandRng>(
+fn gen_command_rule<R: rand::Rng>(
     rng: &mut R,
     client: u64,
     graph: u64,
@@ -809,18 +812,18 @@ fn gen_command_rule<R: RandRng>(
     key_range: u64,
     max_priority: u32,
 ) -> TestRule {
-    let key = rng.gen_range(0..key_range);
+    let key = rng.random_range(0..key_range);
     let priority = if max_priority == 0 {
         0
     } else {
-        rng.gen_range(0..=max_priority)
+        rng.random_range(0..=max_priority)
     };
-    let roll = rng.gen_range(0..100);
+    let roll = rng.random_range(0..100);
     if noop_chance > 0 && roll < noop_chance {
         TestRule::ActionNoOp {
             client,
             graph,
-            nonce: rng.r#gen(),
+            nonce: rng.random(),
             priority,
         }
     } else if delete_chance > 0 && roll < noop_chance + delete_chance {
@@ -835,7 +838,7 @@ fn gen_command_rule<R: RandRng>(
             client,
             graph,
             key,
-            value: rng.gen_range(0..10),
+            value: rng.random_range(0..10),
             repeat: 1,
             priority,
         }
@@ -923,8 +926,8 @@ where
                             let mut count = 0;
                             // Randomly generate actions and syncs. This will create a graph with many branches.
                             while count < commands {
-                                let client = rng.gen_range(client_start..clients);
-                                match rng.gen_range(0..sync_ceiling) {
+                                let client = rng.random_range(client_start..clients);
+                                match rng.random_range(0..sync_ceiling) {
                                     x if x < command_ceiling => {
                                         generated_actions.push(gen_command_rule(
                                             &mut rng,
