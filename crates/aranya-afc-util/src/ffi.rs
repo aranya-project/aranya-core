@@ -38,7 +38,7 @@ impl<S: KeyStore> Ffi<S> {
         }
     }
 
-    /// Decodes a [`EncryptionPublicKey`].
+    /// Decodes an [`EncryptionPublicKey`].
     fn decode_enc_pk<CS: CipherSuite>(bytes: &[u8]) -> Result<EncryptionPublicKey<CS>, FfiError> {
         decode_enc_pk(bytes).map_err(|err| {
             error!("unable to decode `EncryptionPublicKey`: {err}");
