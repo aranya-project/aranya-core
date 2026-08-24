@@ -1165,6 +1165,19 @@ impl<R: Read> Perspective for LinearPerspective<R> {
             return Err(StorageError::PerspectiveHeadMismatch);
         }
 
+        // Merge and init priorities are fully determined by structure and are
+        // validated at ingest (`Transaction::add_commands`); persisting a
+        // contradiction would poison braid ordering, so catch caller bugs
+        // before the value becomes durable.
+        debug_assert!(
+            match command.parent() {
+                Prior::Merge(..) => command.priority() == Priority::Merge,
+                Prior::None => command.priority() == Priority::Init,
+                Prior::Single(..) => true,
+            },
+            "priority must match command structure"
+        );
+
         self.commands.push(CommandData {
             id: command.id(),
             priority: command.priority(),
@@ -1323,6 +1336,38 @@ mod test {
             p.current_updates.is_empty(),
             "revert must clear pending updates made after the checkpoint"
         );
+    }
+
+    /// Defense-in-depth for the ingest-time priority validation in
+    /// `Transaction::add_commands`: persisting a command whose priority
+    /// contradicts its structure would poison braid ordering, so
+    /// `add_command` must catch caller bugs in debug builds.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "priority must match command structure")]
+    fn test_add_command_asserts_priority_matches_structure() {
+        struct BadInit;
+        impl Command for BadInit {
+            fn priority(&self) -> Priority {
+                Priority::Basic(0)
+            }
+            fn id(&self) -> CmdId {
+                CmdId::from_bytes([1; 32])
+            }
+            fn parent(&self) -> Prior<Address> {
+                Prior::None
+            }
+            fn policy(&self) -> Option<&[u8]> {
+                Some(b"")
+            }
+            fn bytes(&self) -> &[u8] {
+                b"A"
+            }
+        }
+
+        let mut provider = LinearStorageProvider::new(Manager::new());
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        let _ = p.add_command(&BadInit);
     }
 
     struct LinearBackend;

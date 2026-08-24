@@ -10,8 +10,8 @@ use super::braiding;
 use crate::{
     Address, BraidBuffer, ClientError, CmdId, Command, CommandExt as _, GraphId, Location,
     MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId,
-    PolicyStore, Prior, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError,
-    StorageProvider, TraversalBuffer,
+    PolicyStore, Prior, Priority, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage,
+    StorageError, StorageProvider, TraversalBuffer,
     policy::{CommandPlacement, NullSink},
     storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
     sync::{PeerCache, SessionHeads},
@@ -250,6 +250,16 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
+                    // A merge's priority is fully determined by its structure,
+                    // but travels as unauthenticated sync metadata and is used
+                    // as the braid strand-ordering key. Merges are never
+                    // evaluated by policy, so the priority-shape check in
+                    // vm_policy does not cover them; a forged value would
+                    // silently reorder facts (or crash the braid), so reject
+                    // it here.
+                    if command.priority() != Priority::Merge {
+                        return Err(ClientError::InvalidPriority(command.id()));
+                    }
                     self.add_merge::<F, MS>(
                         storage,
                         policy_store,
@@ -417,6 +427,12 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         // The init command must not have a parent.
         if !matches!(command.parent(), Prior::None) {
             return Err(ClientError::InitError);
+        }
+
+        // An init's priority is fully determined by its structure; the wire
+        // value is unauthenticated metadata, so reject a contradiction.
+        if command.priority() != Priority::Init {
+            return Err(ClientError::InvalidPriority(command.id()));
         }
 
         // The graph must have policy to start with.
@@ -696,6 +712,8 @@ mod test {
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
+
+    mod priority;
 
     struct SeqPolicyStore;
 
