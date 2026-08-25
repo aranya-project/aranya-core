@@ -284,8 +284,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        // The policy derives the command's priority from its body; transport
-        // metadata is never consulted.
         let priority = match policy.call_rule(
             command,
             perspective,
@@ -780,8 +778,6 @@ mod test {
                         .unwrap();
                 }
             }
-            // The priority is derived from the command's (id-covered) data,
-            // never from transport metadata.
             Ok(match command.parent() {
                 Prior::None => Priority::Init,
                 Prior::Single(_) if data.starts_with(FINALIZE_PREFIX) => Priority::Finalize,
@@ -1261,13 +1257,12 @@ mod test {
         assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
     }
 
-    /// Priorities never travel between peers ([`Command`] has no priority
-    /// accessor); they are derived at ingest — structurally for merge and
-    /// init commands, from the command body by the policy for evaluated
-    /// commands — and persisted. The plumbing is untyped (`add_command`
-    /// accepts any [`Priority`]), so walk every stored command and check its
-    /// priority against an independent derivation, including on the collapse
-    /// merges that `commit` creates.
+    /// Priorities are derived at ingest — structurally for merge and init
+    /// commands, from the command body by the policy for evaluated commands —
+    /// and persisted. The plumbing is untyped (`add_command` accepts any
+    /// [`Priority`]), so walk every stored command and check its priority
+    /// against an independent derivation, including on the collapse merges
+    /// that `commit` creates.
     #[test]
     fn test_stored_priorities_are_derived_locally() {
         let mut gb = graph! {

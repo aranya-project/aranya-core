@@ -153,11 +153,11 @@ pub trait Policy {
     /// be emitted to the sink and facts may be written to the perspective. Returns an error
     /// for a rejected command.
     ///
-    /// On success, returns the command's [`Priority`], derived by the policy
-    /// from the command's authenticated body (never from transport metadata).
-    /// The runtime persists this value and uses it as the braid
-    /// strand-ordering key, so it must be a pure function of the command data:
-    /// every peer evaluating the same command must derive the same priority.
+    /// On success, returns the command's [`Priority`], derived from the
+    /// command's body. The runtime persists this value and uses it as the
+    /// braid strand-ordering key, so it must be a pure function of the
+    /// command data: every peer evaluating the same command must derive the
+    /// same priority.
     fn call_rule(
         &self,
         command: &impl Command,

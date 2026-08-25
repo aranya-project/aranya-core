@@ -518,8 +518,6 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::Read
         })?;
 
-        // The command's priority is derived from its kind, which is part of
-        // the authenticated command body — never from transport metadata.
         let priority = self.get_command_priority(&kind).into();
 
         let def = self.machine.command_defs.get(&kind).ok_or_else(|| {

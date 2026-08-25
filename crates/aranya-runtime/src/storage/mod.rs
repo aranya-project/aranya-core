@@ -918,8 +918,8 @@ pub trait Segment {
     /// Returns the priority of the command at the given location.
     ///
     /// Priorities are assigned at ingest (structurally for merge and init
-    /// commands, by the policy for evaluated commands) and persisted with the
-    /// command; they never travel between peers.
+    /// commands, by the policy for evaluated commands) and persisted with
+    /// the command.
     fn get_priority(&self, location: Location) -> Option<Priority>;
 
     /// Get the fact index associated with this segment.
@@ -1012,9 +1012,9 @@ pub trait Perspective: FactPerspective {
     /// `priority` alongside it. The command's parent must be the head of the
     /// perspective.
     ///
-    /// The priority must be derived locally — structurally for merge and init
-    /// commands, from the command body by the policy for evaluated commands —
-    /// never taken from transport metadata.
+    /// The priority must match the command's structure: `Merge` for merge
+    /// commands, `Init` for init commands, and the policy's body-derived
+    /// value for evaluated commands.
     fn add_command(
         &mut self,
         command: &impl Command,
