@@ -712,6 +712,12 @@ mod test {
     /// to that point.
     struct SeqPolicy;
 
+    /// Name prefix marking finalize commands, mirroring the "q" quiet
+    /// convention: [`SeqPolicy`] derives priorities from the command data
+    /// (its name), so finalize-ness must be spelled in the name. A plain
+    /// "f" stays a basic command.
+    const FINALIZE_PREFIX: &[u8] = b"fff";
+
     struct SeqCommand {
         id: CmdId,
         prior: Prior<Address>,
@@ -778,9 +784,7 @@ mod test {
             // never from transport metadata.
             Ok(match command.parent() {
                 Prior::None => Priority::Init,
-                // Names starting with "fff" are finalize commands (like the
-                // "q" quiet convention; a plain "f" stays a basic command).
-                Prior::Single(_) if data.starts_with(b"fff") => Priority::Finalize,
+                Prior::Single(_) if data.starts_with(FINALIZE_PREFIX) => Priority::Finalize,
                 // Use the last byte of the ID as priority, just so we can
                 // properly see the effects of braiding.
                 Prior::Single(_) => {
@@ -823,7 +827,7 @@ mod test {
             let cmd = Self::new(id, Prior::Single(prev));
             // SeqPolicy derives Priority::Finalize from the "fff" name prefix.
             assert!(
-                cmd.data.starts_with("fff"),
+                cmd.data.as_bytes().starts_with(FINALIZE_PREFIX),
                 "finalize commands must be named fff*"
             );
             cmd
@@ -1304,7 +1308,9 @@ mod test {
                     Prior::Merge(..) => (Priority::Merge, 1),
                     // SeqPolicy's derivation rule: "fff" names finalize,
                     // everything else is Basic(last byte of the id).
-                    Prior::Single(_) if cmd.bytes().starts_with(b"fff") => (Priority::Finalize, 3),
+                    Prior::Single(_) if cmd.bytes().starts_with(FINALIZE_PREFIX) => {
+                        (Priority::Finalize, 3)
+                    }
                     Prior::Single(_) => (
                         Priority::Basic(u32::from(*cmd.id().as_bytes().last().unwrap())),
                         2,
