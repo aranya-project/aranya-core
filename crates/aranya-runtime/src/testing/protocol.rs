@@ -67,18 +67,20 @@ pub struct TestProtocol<'a> {
     data: &'a [u8],
 }
 
-impl Command for TestProtocol<'_> {
-    fn priority(&self) -> Priority {
-        match &self.command {
-            WireProtocol::Init(_) => Priority::Init,
-            WireProtocol::Merge(_) => Priority::Merge,
-            WireProtocol::Basic(m) => Priority::Basic(m.prority),
-            WireProtocol::Delete(m) => Priority::Basic(m.prority),
-            WireProtocol::NoOp(m) => Priority::Basic(m.prority),
-            WireProtocol::Poison(m) => Priority::Basic(m.prority),
-        }
+/// Derives a command's priority from its (id-covered) serialized body,
+/// mirroring how a real policy derives priority from the command kind.
+fn wire_priority(command: &WireProtocol) -> Priority {
+    match command {
+        WireProtocol::Init(_) => Priority::Init,
+        WireProtocol::Merge(_) => Priority::Merge,
+        WireProtocol::Basic(m) => Priority::Basic(m.prority),
+        WireProtocol::Delete(m) => Priority::Basic(m.prority),
+        WireProtocol::NoOp(m) => Priority::Basic(m.prority),
+        WireProtocol::Poison(m) => Priority::Basic(m.prority),
     }
+}
 
+impl Command for TestProtocol<'_> {
     fn id(&self) -> CmdId {
         self.id
     }
@@ -404,11 +406,12 @@ impl Policy for TestPolicy {
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         _placement: crate::policy::CommandPlacement,
-    ) -> Result<(), PolicyError> {
+    ) -> Result<Priority, PolicyError> {
         let policy_command: WireProtocol = postcard::from_bytes(command.bytes())
             .inspect_err(|err| error!(?err))
             .map_err(|_| PolicyError::Read)?;
-        self.call_rule_internal(&policy_command, facts, sink)
+        self.call_rule_internal(&policy_command, facts, sink)?;
+        Ok(wire_priority(&policy_command))
     }
 
     fn merge<'a>(
@@ -448,7 +451,7 @@ impl Policy for TestPolicy {
                 self.call_rule_internal(&command.command, facts, sink)?;
 
                 facts
-                    .add_command(&command)
+                    .add_command(&command, wire_priority(&command.command))
                     .inspect_err(|err| error!(?err))
                     .map_err(|_| PolicyError::Write)?;
             }
@@ -461,7 +464,7 @@ impl Policy for TestPolicy {
                 self.call_rule_internal(&command.command, facts, sink)?;
 
                 facts
-                    .add_command(&command)
+                    .add_command(&command, wire_priority(&command.command))
                     .inspect_err(|err| error!(?err))
                     .map_err(|_| PolicyError::Write)?;
             }
@@ -474,7 +477,7 @@ impl Policy for TestPolicy {
                 self.call_rule_internal(&command.command, facts, sink)?;
 
                 facts
-                    .add_command(&command)
+                    .add_command(&command, wire_priority(&command.command))
                     .inspect_err(|err| error!(?err))
                     .map_err(|_| PolicyError::Write)?;
             }
@@ -486,7 +489,7 @@ impl Policy for TestPolicy {
                 self.call_rule_internal(&command.command, facts, sink)?;
 
                 facts
-                    .add_command(&command)
+                    .add_command(&command, wire_priority(&command.command))
                     .inspect_err(|err| error!(?err))
                     .map_err(|_| PolicyError::Write)?;
             }
@@ -498,7 +501,7 @@ impl Policy for TestPolicy {
                 self.call_rule_internal(&command.command, facts, sink)?;
 
                 facts
-                    .add_command(&command)
+                    .add_command(&command, wire_priority(&command.command))
                     .inspect_err(|err| error!(?err))
                     .map_err(|_| PolicyError::Write)?;
             }

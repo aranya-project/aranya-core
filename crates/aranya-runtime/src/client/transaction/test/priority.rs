@@ -1,26 +1,34 @@
-//! Priority-vs-structure validation tests.
+//! Priority derivation tests.
+//!
+//! Priorities never travel between peers: [`Command`] has no priority
+//! accessor, so a command reconstructed from sync metadata cannot even
+//! claim one. At ingest the runtime assigns merge and init priorities
+//! structurally, and takes evaluated commands' priorities from the policy
+//! (which derives them from the id-covered command body). These tests
+//! ingest wire-shaped commands and check the stored priorities against an
+//! independent derivation, plus that two peers ingesting the same commands
+//! converge.
+
+use std::collections::HashSet;
+use std::vec::Vec;
 
 use test_log::test;
 
 use super::*;
+use crate::{Location, storage::LocatedAddress};
 
-/// A command whose `priority()` is an explicit field, decoupled from its
-/// structure -- exactly how a command looks when reconstructed from wire
-/// metadata (`SyncCommand`), where `Priority` is not covered by the id.
-/// Used by the priority-validation tests below.
+/// A wire-shaped command: identity, structure, and payload only — exactly
+/// what `SyncCommand` gives a receiving peer. There is nowhere to smuggle a
+/// priority.
 #[derive(Clone)]
 struct PCmd {
     id: CmdId,
     prior: Prior<Address>,
-    priority: Priority,
     data: Box<str>,
     is_init: bool,
 }
 
 impl Command for PCmd {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
     fn id(&self) -> CmdId {
         self.id
     }
@@ -35,232 +43,153 @@ impl Command for PCmd {
     }
 }
 
-/// A merge command's [`Priority`] travels as unauthenticated sync metadata
-/// (`SyncCommand::priority`, sourced from the wire `CommandMeta`) and is
-/// used as the braid strand-ordering key. Merges are never evaluated by
-/// policy, so the priority-shape check in `vm_policy` never runs for them.
-/// Before the fix, a byzantine or buggy relay that altered one merge's
-/// priority made downstream peers braid the SAME DAG in a DIFFERENT total
-/// order: an identical head set (graph-equality passes) with divergent
-/// facts. With `Priority::Finalize` (sorting last among concurrent
-/// strands) the merge itself was emitted into the braid and crashed
-/// evaluation.
-///
-/// The transaction must therefore reject, at ingest, any command whose
-/// wire-supplied priority contradicts its `Prior::Merge` structure. Honest
-/// peers always author merges with `Priority::Merge`, so this rejects only
-/// invalid peer input.
-#[test]
-fn test_merge_priority_must_match_structure() {
-    fn addr(id: CmdId, mc: u64) -> Address {
-        Address {
-            id,
-            max_cut: MaxCut::new(mc),
-        }
-    }
-
-    type Prov = MemStorageProvider;
-
-    fn add(
-        trx: &mut Transaction<Prov, SeqPolicyStore>,
-        client: &mut ClientState<SeqPolicyStore, Prov>,
-        buffers: &mut RuntimeBuffers<<Prov as StorageProvider>::Segment>,
-        cmd: PCmd,
-    ) -> Result<(), ClientError> {
-        trx.add_commands(
-            &[cmd],
-            &mut client.provider,
-            &mut client.policy_store,
-            &mut NullSink,
-            buffers,
-            &MemSpill::new,
-        )
-        .map(|_| ())
-    }
-
-    // Build a DAG where merge `m` (merge of two concurrent basics b,c) is
-    // itself concurrent with another merge `r` (merge of p,q). `m`'s
-    // subtree (b,c) is only reachable through `m`, so `m`'s strand
-    // priority controls WHEN b,c enter the braid relative to p,q -- this
-    // is the shape the pre-fix divergence reproduced on.
-    //
-    //        A (init)
-    //      / | | \
-    //     b  c p  q        (basics)
-    //     \ /   \ /
-    //      m     r         (merges)
-    fn run(merge_m_priority: Priority) -> Result<(String, Vec<CmdId>), ClientError> {
-        let a: CmdId = mkid("a");
-        let b: CmdId = mkid("b");
-        let c: CmdId = mkid("c");
-        let p: CmdId = mkid("p");
-        let q: CmdId = mkid("qq"); // avoid data starting with 'q' (SeqPolicy skips those)
-        let m: CmdId = mkid("m");
-        let r: CmdId = mkid("r");
-
-        let mut client = ClientState::new(SeqPolicyStore, Prov::default());
-        let mut trx = Transaction::new(GraphId::transmute(a));
-        let mut buffers = RuntimeBuffers::new();
-
-        let mk = |id: CmdId, prior, priority, data: &str, is_init| PCmd {
-            id,
-            prior,
-            priority,
-            data: data.to_string().into_boxed_str(),
-            is_init,
-        };
-
-        add(
-            &mut trx,
-            &mut client,
-            &mut buffers,
-            mk(a, Prior::None, Priority::Init, "A", true),
-        )?;
-        add(
-            &mut trx,
-            &mut client,
-            &mut buffers,
-            mk(
-                b,
-                Prior::Single(addr(a, 0)),
-                Priority::Basic(50),
-                "B",
-                false,
-            ),
-        )?;
-        add(
-            &mut trx,
-            &mut client,
-            &mut buffers,
-            mk(
-                c,
-                Prior::Single(addr(a, 0)),
-                Priority::Basic(60),
-                "C",
-                false,
-            ),
-        )?;
-        add(
-            &mut trx,
-            &mut client,
-            &mut buffers,
-            mk(
-                m,
-                Prior::Merge(addr(b, 1), addr(c, 1)),
-                merge_m_priority,
-                "M",
-                false,
-            ),
-        )?;
-        add(
-            &mut trx,
-            &mut client,
-            &mut buffers,
-            mk(
-                p,
-                Prior::Single(addr(a, 0)),
-                Priority::Basic(70),
-                "P",
-                false,
-            ),
-        )?;
-        add(
-            &mut trx,
-            &mut client,
-            &mut buffers,
-            mk(
-                q,
-                Prior::Single(addr(a, 0)),
-                Priority::Basic(90),
-                "Z",
-                false,
-            ),
-        )?;
-        add(
-            &mut trx,
-            &mut client,
-            &mut buffers,
-            mk(
-                r,
-                Prior::Merge(addr(p, 1), addr(q, 1)),
-                Priority::Merge,
-                "R",
-                false,
-            ),
-        )?;
-
-        assert!(trx.commit(
-            &mut client.provider,
-            &mut client.policy_store,
-            &mut NullSink,
-            &mut buffers,
-            &MemSpill::new,
-        )?);
-
-        let g = client.provider.get_storage(GraphId::transmute(a)).unwrap();
-        // Lazy merges keep the graph multi-head after commit; the head SET
-        // (sorted by command id) is the graph-equality observable, and the
-        // committed fact cache is the braided fact state across it.
-        let heads: Vec<CmdId> = g.get_heads().unwrap().iter().map(|h| h.id).collect();
-        let seq = lookup(g, "seq").unwrap();
-        let seq = std::str::from_utf8(&seq).unwrap().to_string();
-        Ok((seq, heads))
-    }
-
-    // Control: honest peers (merge `m` authored with Priority::Merge)
-    // commit successfully and converge.
-    let (honest_seq, honest_heads) = run(Priority::Merge).expect("honest peer must commit");
-    let (honest_seq2, honest_heads2) = run(Priority::Merge).expect("honest peer must commit");
-    assert_eq!(
-        honest_seq, honest_seq2,
-        "control: honest peers must converge"
-    );
-    assert_eq!(honest_heads, honest_heads2);
-
-    // Byzantine relay: the same command `m` (same id, same Prior::Merge
-    // structure) arrives with an altered priority. Every non-Merge value
-    // must be rejected at ingest -- Basic(75) was the silent fact
-    // divergence, Finalize the lone-strand crash, Init nonsensical.
-    let m: CmdId = mkid("m");
-    for bad in [Priority::Basic(75), Priority::Finalize, Priority::Init] {
-        let err =
-            run(bad.clone()).expect_err("merge with non-Merge wire priority must be rejected");
-        assert!(
-            matches!(err, ClientError::InvalidPriority(id) if id == m),
-            "priority {bad:?}: expected InvalidPriority(m), got {err:?}"
-        );
+fn addr(id: CmdId, mc: u64) -> Address {
+    Address {
+        id,
+        max_cut: MaxCut::new(mc),
     }
 }
 
-/// Companion to [`test_merge_priority_must_match_structure`]: an init
-/// command (`Prior::None`) whose wire-supplied priority is not
-/// `Priority::Init` must be rejected when it initializes a graph.
-#[test]
-fn test_init_priority_must_match_structure() {
+type Prov = MemStorageProvider;
+
+fn add(
+    trx: &mut Transaction<Prov, SeqPolicyStore>,
+    client: &mut ClientState<SeqPolicyStore, Prov>,
+    buffers: &mut RuntimeBuffers<<Prov as StorageProvider>::Segment>,
+    cmd: PCmd,
+) -> Result<(), ClientError> {
+    trx.add_commands(
+        &[cmd],
+        &mut client.provider,
+        &mut client.policy_store,
+        &mut NullSink,
+        buffers,
+        &MemSpill::new,
+    )
+    .map(|_| ())
+}
+
+/// Ingest a branchy DAG through the wire-shaped path and commit:
+///
+/// ```text
+///        A (init)
+///      / | | \
+///     b  c p  q        (basics)
+///     \ /   \ /
+///      m     r         (merges)
+/// ```
+fn run() -> (ClientState<SeqPolicyStore, Prov>, GraphId) {
     let a: CmdId = mkid("a");
-    let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+    let b: CmdId = mkid("b");
+    let c: CmdId = mkid("c");
+    let p: CmdId = mkid("p");
+    let q: CmdId = mkid("qq"); // avoid data starting with 'q' (SeqPolicy skips those)
+    let m: CmdId = mkid("m");
+    let r: CmdId = mkid("r");
+
+    let mut client = ClientState::new(SeqPolicyStore, Prov::default());
     let mut trx = Transaction::new(GraphId::transmute(a));
     let mut buffers = RuntimeBuffers::new();
 
-    let init = PCmd {
-        id: a,
-        prior: Prior::None,
-        priority: Priority::Basic(0),
-        data: "A".into(),
-        is_init: true,
+    let mk = |id: CmdId, prior, data: &str, is_init| PCmd {
+        id,
+        prior,
+        data: data.to_string().into_boxed_str(),
+        is_init,
     };
-    let err = trx
-        .add_commands(
-            &[init],
+
+    for cmd in [
+        mk(a, Prior::None, "A", true),
+        mk(b, Prior::Single(addr(a, 0)), "B", false),
+        mk(c, Prior::Single(addr(a, 0)), "C", false),
+        mk(m, Prior::Merge(addr(b, 1), addr(c, 1)), "M", false),
+        mk(p, Prior::Single(addr(a, 0)), "P", false),
+        mk(q, Prior::Single(addr(a, 0)), "Z", false),
+        mk(r, Prior::Merge(addr(p, 1), addr(q, 1)), "R", false),
+    ] {
+        add(&mut trx, &mut client, &mut buffers, cmd).unwrap();
+    }
+
+    assert!(
+        trx.commit(
             &mut client.provider,
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
             &MemSpill::new,
         )
-        .expect_err("init with non-Init wire priority must be rejected");
-    assert!(
-        matches!(err, ClientError::InvalidPriority(id) if id == a),
-        "{err:?}"
+        .unwrap()
     );
+
+    (client, GraphId::transmute(a))
+}
+
+/// Every stored command's priority must equal the locally-derived value:
+/// `Init` for the init command, `Merge` for merges, and the policy's
+/// body-derived priority (SeqPolicy: last byte of the id) for basics.
+#[test]
+fn test_stored_priorities_are_derived_locally() {
+    let (mut client, graph_id) = run();
+    let g = client.provider.get_storage(graph_id).unwrap();
+
+    // Walk every command in every segment reachable from the heads.
+    let mut queue: Vec<Location> = g
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(LocatedAddress::location)
+        .collect();
+    let mut seen = HashSet::new();
+    let mut checked = 0usize;
+    while let Some(loc) = queue.pop() {
+        if !seen.insert(loc.segment) {
+            continue;
+        }
+        let segment = g.get_segment(loc).unwrap();
+        queue.extend(segment.prior());
+
+        let first = segment.first_location();
+        let last = segment.head_location().unwrap();
+        for mc in first.max_cut.get()..=last.max_cut.get() {
+            let at = Location::new(first.segment, MaxCut::new(mc));
+            let cmd = segment.get_command(at).unwrap();
+            let stored = segment.get_priority(at).unwrap();
+            let expected = match cmd.parent() {
+                Prior::None => Priority::Init,
+                Prior::Merge(..) => Priority::Merge,
+                Prior::Single(_) => {
+                    Priority::Basic(u32::from(*cmd.id().as_bytes().last().unwrap()))
+                }
+            };
+            assert_eq!(
+                stored,
+                expected,
+                "command {} stored priority must be derived locally",
+                cmd.id()
+            );
+            checked = checked.checked_add(1).unwrap();
+        }
+    }
+    // a, b, c, p, q, m, r, plus any collapse merges commit created.
+    assert!(checked >= 7, "walked only {checked} commands");
+}
+
+/// Two peers ingesting the same wire-shaped commands (which carry no
+/// priority) must derive identical priorities and converge to identical
+/// facts and heads.
+#[test]
+fn test_peers_converge_without_wire_priorities() {
+    let (mut client_a, graph_id) = run();
+    let (mut client_b, _) = run();
+
+    let ga = client_a.provider.get_storage(graph_id).unwrap();
+    let gb = client_b.provider.get_storage(graph_id).unwrap();
+
+    let heads_a: Vec<CmdId> = ga.get_heads().unwrap().iter().map(|h| h.id).collect();
+    let heads_b: Vec<CmdId> = gb.get_heads().unwrap().iter().map(|h| h.id).collect();
+    assert_eq!(heads_a, heads_b);
+
+    let seq_a = lookup(ga, "seq").unwrap();
+    let seq_b = lookup(gb, "seq").unwrap();
+    assert_eq!(seq_a, seq_b, "peers must braid identically");
 }

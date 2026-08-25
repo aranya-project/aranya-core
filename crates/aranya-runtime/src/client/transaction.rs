@@ -250,16 +250,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
-                    // A merge's priority is fully determined by its structure,
-                    // but travels as unauthenticated sync metadata and is used
-                    // as the braid strand-ordering key. Merges are never
-                    // evaluated by policy, so the priority-shape check in
-                    // vm_policy does not cover them; a forged value would
-                    // silently reorder facts (or crash the braid), so reject
-                    // it here.
-                    if command.priority() != Priority::Merge {
-                        return Err(ClientError::InvalidPriority(command.id()));
-                    }
                     self.add_merge::<F, MS>(
                         storage,
                         policy_store,
@@ -294,17 +284,22 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(
+        // The policy derives the command's priority from its body; transport
+        // metadata is never consulted.
+        let priority = match policy.call_rule(
             command,
             perspective,
             sink,
             CommandPlacement::OnGraphAtOrigin,
         ) {
-            perspective.revert(checkpoint)?;
-            sink.rollback();
-            return Err(e.into());
-        }
-        perspective.add_command(command)?;
+            Ok(priority) => priority,
+            Err(e) => {
+                perspective.revert(checkpoint)?;
+                sink.rollback();
+                return Err(e.into());
+            }
+        };
+        perspective.add_command(command, priority)?;
         sink.commit();
 
         self.phead = Some(command.id());
@@ -360,7 +355,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             policy_id,
             braid,
         )?;
-        perspective.add_command(command)?;
+        // A merge's priority is fully determined by its structure.
+        perspective.add_command(command, Priority::Merge)?;
 
         // These are no longer heads of the transaction, since they are both covered by the merge
         self.heads.remove(&left.id);
@@ -429,12 +425,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             return Err(ClientError::InitError);
         }
 
-        // An init's priority is fully determined by its structure; the wire
-        // value is unauthenticated metadata, so reject a contradiction.
-        if command.priority() != Priority::Init {
-            return Err(ClientError::InvalidPriority(command.id()));
-        }
-
         // The graph must have policy to start with.
         let Some(policy_data) = command.policy() else {
             return Err(ClientError::InitError);
@@ -456,7 +446,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             // We don't need to revert perspective since we just drop it.
             return Err(e.into());
         }
-        perspective.add_command(command)?;
+        // An init's priority is fully determined by its structure.
+        perspective.add_command(command, Priority::Init)?;
 
         let (_, storage) = provider.new_storage(perspective)?;
 
@@ -604,7 +595,7 @@ where
             policy_id,
             braid,
         )?;
-        perspective.add_command(&command)?;
+        perspective.add_command(&command, Priority::Merge)?;
         let segment = storage.write(perspective)?;
         let loc = segment.head_location()?;
         Ok(LocatedAddress {
@@ -726,7 +717,6 @@ mod test {
     struct SeqCommand {
         id: CmdId,
         prior: Prior<Address>,
-        finalize: bool,
         data: Box<str>,
     }
 
@@ -758,7 +748,7 @@ mod test {
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: CommandPlacement,
-        ) -> Result<(), PolicyError> {
+        ) -> Result<Priority, PolicyError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges shouldn't be evaluated"
@@ -786,7 +776,20 @@ mod test {
                         .unwrap();
                 }
             }
-            Ok(())
+            // The priority is derived from the command's (id-covered) data,
+            // never from transport metadata.
+            Ok(match command.parent() {
+                Prior::None => Priority::Init,
+                // Names starting with "fff" are finalize commands (like the
+                // "q" quiet convention; a plain "f" stays a basic command).
+                Prior::Single(_) if data.starts_with(b"fff") => Priority::Finalize,
+                // Use the last byte of the ID as priority, just so we can
+                // properly see the effects of braiding.
+                Prior::Single(_) => {
+                    Priority::Basic(u32::from(*command.id().as_bytes().last().unwrap()))
+                }
+                Prior::Merge(..) => unreachable!(),
+            })
         }
 
         fn call_action(
@@ -815,43 +818,21 @@ mod test {
     impl SeqCommand {
         fn new(id: CmdId, prior: Prior<Address>) -> Self {
             let data = short_b58(id).into_boxed_str();
-            Self {
-                id,
-                prior,
-                finalize: false,
-                data,
-            }
+            Self { id, prior, data }
         }
 
         fn finalize(id: CmdId, prev: Address) -> Self {
-            let data = short_b58(id).into_boxed_str();
-            Self {
-                id,
-                prior: Prior::Single(prev),
-                finalize: true,
-                data,
-            }
+            let cmd = Self::new(id, Prior::Single(prev));
+            // SeqPolicy derives Priority::Finalize from the "fff" name prefix.
+            assert!(
+                cmd.data.starts_with("fff"),
+                "finalize commands must be named fff*"
+            );
+            cmd
         }
     }
 
     impl Command for SeqCommand {
-        fn priority(&self) -> Priority {
-            if self.finalize {
-                return Priority::Finalize;
-            }
-            match self.prior {
-                Prior::None => Priority::Init,
-                Prior::Single(_) => {
-                    // Use the last byte of the ID as priority, just so we can
-                    // properly see the effects of braiding
-                    let id = self.id.as_bytes();
-                    let priority = u32::from(*id.last().unwrap());
-                    Priority::Basic(priority)
-                }
-                Prior::Merge(_, _) => Priority::Merge,
-            }
-        }
-
         fn id(&self) -> CmdId {
             self.id
         }

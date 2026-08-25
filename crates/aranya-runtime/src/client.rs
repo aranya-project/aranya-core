@@ -28,12 +28,6 @@ pub use self::{session::Session, transaction::Transaction};
 pub enum ClientError {
     #[error("no such parent: {0}")]
     NoSuchParent(CmdId),
-    /// A command's claimed [`Priority`](crate::Priority) contradicts its
-    /// structure (e.g. a merge command whose priority is not
-    /// `Priority::Merge`). Priority is unauthenticated wire metadata, so this
-    /// indicates invalid input from a byzantine or buggy peer.
-    #[error("command {0} priority does not match its structure")]
-    InvalidPriority(CmdId),
     #[error("policy error: {0}")]
     PolicyError(#[from] PolicyError),
     #[error("storage error: {0}")]

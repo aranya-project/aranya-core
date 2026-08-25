@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{CmdId, Command, Priority},
+    command::{CmdId, Command},
     storage::{GraphId, LocatedAddress, Location, MAX_COMMAND_LENGTH, StorageError},
 };
 
@@ -132,9 +132,12 @@ pub enum SyncError {
 }
 
 /// Sync command to be committed to graph.
+///
+/// Deliberately carries no priority: priority is derived locally at ingest
+/// (structurally for merge/init commands, by the policy from the command body
+/// for evaluated commands) and must never be trusted from a peer.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
-    priority: Priority,
     id: CmdId,
     parent: Prior<Address>,
     policy: Option<&'a [u8]>,
@@ -142,10 +145,6 @@ pub struct SyncCommand<'a> {
 }
 
 impl<'a> Command for SyncCommand<'a> {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -443,12 +442,10 @@ impl SubscribeResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::Priority;
 
     fn meta(policy_length: u32, length: u32) -> wire::CommandMeta {
         wire::CommandMeta {
             id: CmdId::default(),
-            priority: Priority::Basic(0),
             parent: Prior::None,
             policy_length,
             length,
