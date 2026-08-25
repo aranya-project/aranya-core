@@ -57,13 +57,14 @@ Module {
     fact.kset 'a'
     query
     dup
-    const None
-    eq
-    not
+    is some
     branch 13
+    pop
     exit panic
+    jump 14
 <13>:
     unwrap some
+<14>:
     def 'foo'
     get 'foo'
     restore SP

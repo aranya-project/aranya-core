@@ -14,7 +14,7 @@ Module {
     struct_defs: [],
     enum_defs: [
         EnumDef {
-            name: "Err",
+            name: "Error",
             variants: [
                 (
                     "Fail",
@@ -59,7 +59,7 @@ Module {
     jump 34
 <28>:
     block
-    const Err::0
+    const Error::0
     wrap err
     restore SP
     return

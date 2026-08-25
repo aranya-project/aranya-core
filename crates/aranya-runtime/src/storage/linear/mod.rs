@@ -1128,7 +1128,13 @@ impl<R: Read> Revertable for LinearPerspective<R> {
     }
 
     fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
-        if checkpoint.index == self.commands.len() {
+        // Equal command count alone does not mean clean: a rule that wrote
+        // facts and then failed leaves its writes pending in
+        // `facts`/`current_updates` without having added a command. But
+        // every fact write pushes onto `current_updates`, so an empty
+        // buffer at equal command count means the fact overlay is untouched
+        // since the checkpoint and there is nothing to rebuild.
+        if checkpoint.index == self.commands.len() && self.current_updates.is_empty() {
             return Ok(());
         }
 
@@ -1290,6 +1296,33 @@ mod test {
                 assert_eq!(a.value.as_ref(), format!("{b:?}").as_bytes());
             }
         }
+    }
+
+    /// `revert` must restore the exact state captured by `checkpoint`.
+    ///
+    /// This mirrors how `Transaction::add_single` uses the API: the
+    /// checkpoint is taken *before* the policy rule runs, the rule may write
+    /// facts, and on rule failure `revert` is called before any
+    /// `add_command`. So at revert time `checkpoint.index == commands.len()`
+    /// always holds, and the pending fact writes must still be cleared.
+    #[test]
+    fn test_revert_clears_writes_made_after_checkpoint() {
+        let mut provider = LinearStorageProvider::new(Manager::new());
+        let mut p = provider.new_perspective(PolicyId::new(0));
+
+        let checkpoint = p.checkpoint();
+        p.insert("x".into(), Keys::default(), Bytes::from(&b"1"[..]))
+            .unwrap();
+        p.revert(checkpoint).unwrap();
+
+        assert!(
+            p.query("x", &[]).unwrap().is_none(),
+            "revert must clear fact writes made after the checkpoint"
+        );
+        assert!(
+            p.current_updates.is_empty(),
+            "revert must clear pending updates made after the checkpoint"
+        );
     }
 
     struct LinearBackend;

@@ -20,15 +20,21 @@ Module {
     exit panic
 <fn 'f'>:
     save SP
-    const None
+    const 42
+    wrap some
     dup
-    const None
-    eq
-    not
-    branch 9
-    exit panic
-<9>:
+    is some
+    branch 12
+    pop
+    const 0
+    restore SP
+    return
+    jump 13
+<12>:
     unwrap some
+<13>:
+    def 'x'
+    get 'x'
     restore SP
     return
     exit panic

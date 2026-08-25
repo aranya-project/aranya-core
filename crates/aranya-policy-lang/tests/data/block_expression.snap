@@ -35,26 +35,32 @@ Policy {
                                     },
                                 ) @ 55..73,
                             ],
-                            Unwrap(
+                            Coalesce(
                                 FunctionCall(
                                     FunctionCall {
-                                        identifier: "saturating_add" @ 82..96,
+                                        identifier: "saturating_add" @ 75..89,
                                         arguments: [
                                             Identifier(
-                                                "a" @ 97..98,
-                                            ) @ 97..98,
+                                                "a" @ 90..91,
+                                            ) @ 90..91,
                                             Identifier(
-                                                "b" @ 100..101,
-                                            ) @ 100..101,
+                                                "b" @ 93..94,
+                                            ) @ 93..94,
                                         ],
                                     },
-                                ) @ 82..102,
-                            ) @ 75..102,
-                        ) @ 27..108,
+                                ) @ 75..95,
+                                InternalFunction(
+                                    TestFail(
+                                        None,
+                                        99..110,
+                                    ),
+                                ) @ 99..110,
+                            ) @ 75..110,
+                        ) @ 27..116,
                     },
-                ) @ 19..109,
+                ) @ 19..117,
             ],
-            span: 0..110,
+            span: 0..118,
         },
     ],
     effects: [],
@@ -64,5 +70,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action foo() {\n    let x = {\n        let a = 3\n        let b = 4\n        : unwrap saturating_add(a, b)\n    }\n}\n",
+    text: "action foo() {\n    let x = {\n        let a = 3\n        let b = 4\n        : saturating_add(a, b) or test_fail()\n    }\n}\n",
 }

@@ -1,0 +1,18 @@
+[
+  {
+    "GenerateGraph": {
+      "clients": 8,
+      "graph": 0,
+      "commands": 160,
+      "sync_method": {
+        "None": {
+          "add_commands_to_client_zero": false
+        }
+      },
+      "delete_proportion": 45,
+      "noop_proportion": 15,
+      "key_range": 1,
+      "max_priority": 1
+    }
+  }
+]

@@ -1,0 +1,117 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <policy 'AddThing'>: 1,
+        <seal 'AddThing'>: 32,
+        <open 'AddThing'>: 39,
+        <recall 'AddThing_reject'>: 29,
+    },
+    action_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "AddThing",
+            persistence: Persistent,
+            attributes: [],
+            fields: [],
+        },
+    ],
+    fact_defs: [
+        FactDef {
+            name: "Owner",
+            key: [],
+            value: [
+                Field {
+                    name: "device_id",
+                    ty: Id,
+                },
+            ],
+            immutable: false,
+        },
+    ],
+    struct_defs: [
+        StructDef {
+            name: "AddThing",
+            items: [],
+        },
+        StructDef {
+            name: "Envelope",
+            items: [
+                Field {
+                    name: "payload",
+                    ty: Bytes,
+                },
+            ],
+        },
+        StructDef {
+            name: "Owner",
+            items: [
+                Field {
+                    name: "device_id",
+                    ty: Id,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<policy 'AddThing'>:
+    def 'envelope'
+    def 'this'
+    fact.new 'Owner'
+    query
+    dup
+    is some
+    branch 13
+    pop
+    get 'this'
+    get 'envelope'
+    recall <recall 'AddThing_reject'>
+    jump 14
+<13>:
+    unwrap some
+<14>:
+    def 'owner'
+    get 'owner'
+    struct.get 'device_id'
+    get 'owner'
+    struct.get 'device_id'
+    eq
+    branch 24
+    get 'this'
+    get 'envelope'
+    recall <recall 'AddThing_reject'>
+<24>:
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
+<recall 'AddThing_reject'>:
+    def 'envelope'
+    def 'this'
+    exit check
+<seal 'AddThing'>:
+    def 'payload'
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic
+<open 'AddThing'>:
+    def 'envelope'
+    def 'payload'
+    def 'this'
+    save SP
+    exit panic
+    restore SP
+    return
+    exit panic

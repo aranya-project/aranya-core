@@ -1,9 +1,9 @@
-enum Err { Fail }
-function bar(n int) option[result[int, enum Err]] {
+enum Error { Fail }
+function bar(n int) option[result[int, enum Error]] {
     if n > 0 {
         return Some(Ok(42))
     } else if n == 0 {
-        return Some(Err(Err::Fail))
+        return Some(Err(Error::Fail))
     } else {
         return None
     }
