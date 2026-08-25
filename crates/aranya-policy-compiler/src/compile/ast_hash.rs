@@ -284,12 +284,6 @@ impl AstHash for ExprKind {
             Self::Not(e) => {
                 update_hash_parts!(hasher => Not _, e);
             }
-            Self::Unwrap(e) => {
-                update_hash_parts!(hasher => Unwrap _, e);
-            }
-            Self::CheckUnwrap(e) => {
-                update_hash_parts!(hasher => CheckUnwrap _, e);
-            }
             Self::Is(e, is_some) => {
                 update_hash_parts!(hasher => Is _, e, is_some);
             }
