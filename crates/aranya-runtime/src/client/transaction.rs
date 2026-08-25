@@ -704,8 +704,6 @@ mod test {
         testing::{hash_for_testing_only, short_b58},
     };
 
-    mod priority;
-
     struct SeqPolicyStore;
 
     /// [`SeqPolicy`] is a very simple policy which appends the id of each
@@ -1257,6 +1255,75 @@ mod test {
         };
         let err = gb.commit().expect_err("merge should fail");
         assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
+    }
+
+    /// Priorities never travel between peers ([`Command`] has no priority
+    /// accessor); they are derived at ingest — structurally for merge and
+    /// init commands, from the command body by the policy for evaluated
+    /// commands — and persisted. The plumbing is untyped (`add_command`
+    /// accepts any [`Priority`]), so walk every stored command and check its
+    /// priority against an independent derivation, including on the collapse
+    /// merges that `commit` creates.
+    #[test]
+    fn test_stored_priorities_are_derived_locally() {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "a";
+            "a" < "b" "c";
+            "b" "c" < "ma";
+            "ma" < finalize "fff1";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
+
+        // Walk every segment reachable from the heads.
+        let mut queue: Vec<Location> = g
+            .get_heads()
+            .unwrap()
+            .iter()
+            .map(LocatedAddress::location)
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        // One count per kind: [init, merge, basic, finalize].
+        let mut counts = [0usize; 4];
+        while let Some(loc) = queue.pop() {
+            if !seen.insert(loc.segment) {
+                continue;
+            }
+            let segment = g.get_segment(loc).unwrap();
+            queue.extend(segment.prior());
+
+            let first = segment.first_location();
+            let last = segment.head_location().unwrap();
+            for mc in first.max_cut.get()..=last.max_cut.get() {
+                let at = Location::new(first.segment, MaxCut::new(mc));
+                let cmd = segment.get_command(at).unwrap();
+                let stored = segment.get_priority(at).unwrap();
+                let (expected, kind) = match cmd.parent() {
+                    Prior::None => (Priority::Init, 0),
+                    Prior::Merge(..) => (Priority::Merge, 1),
+                    // SeqPolicy's derivation rule: "fff" names finalize,
+                    // everything else is Basic(last byte of the id).
+                    Prior::Single(_) if cmd.bytes().starts_with(b"fff") => (Priority::Finalize, 3),
+                    Prior::Single(_) => (
+                        Priority::Basic(u32::from(*cmd.id().as_bytes().last().unwrap())),
+                        2,
+                    ),
+                };
+                assert_eq!(
+                    stored,
+                    expected,
+                    "command {} stored priority must be derived locally",
+                    cmd.id()
+                );
+                counts[kind] = counts[kind].checked_add(1).unwrap();
+            }
+        }
+        // Every priority kind must have been exercised by the walk.
+        assert!(
+            counts.iter().all(|&c| c > 0),
+            "priority kind not covered: {counts:?}"
+        );
     }
 
     /// Build a [`CmdId`] deterministically from a counter value.
