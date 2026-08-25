@@ -18,7 +18,7 @@ serde = [
 ]
 
 [dependencies]
-aranya-policy-ifgen-macro = { version = "0.9.0", path = "../aranya-policy-ifgen-macro" }
+aranya-policy-ifgen-macro = { version = "0.8.0", path = "../aranya-policy-ifgen-macro" }
 aranya-policy-vm = { version = "0.24.0", path = "../aranya-policy-vm" }
 aranya-runtime = { version = "0.25.0", path = "../aranya-runtime" }
 
