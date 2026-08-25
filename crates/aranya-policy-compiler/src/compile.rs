@@ -410,8 +410,6 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        update_hash_parts!(self.signature_hasher => Enum &enum_def.identifier, &enum_def.variants);
-
         self.m.interface.enum_defs.insert(enum_name.clone(), values);
 
         Ok(())
@@ -430,7 +428,6 @@ impl<'a> CompileState<'a> {
                     args: def.arguments.clone(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
-                update_hash_parts!(self.signature_hasher => Function &def.identifier, &def.arguments, &def.return_type.to_string());
                 e.insert(signature);
                 Ok(())
             }
@@ -460,7 +457,6 @@ impl<'a> CompileState<'a> {
                     args: def.arguments.clone(),
                     color: FunctionColor::Finish,
                 };
-                update_hash_parts!(self.signature_hasher => FinishFunction &def.identifier, &def.arguments);
                 e.insert(signature);
                 Ok(())
             }
@@ -562,7 +558,6 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a struct literal
     fn compile_struct_literal(&mut self, s: thir::NamedStruct) -> Result<(), CompileError> {
-        update_hash_parts!(self.signature_hasher => StructLiteral &s.identifier, &s.fields, &s.sources);
         self.append_instruction(Instruction::StructNew(s.identifier.inner));
         for (field_name, e) in s.fields {
             self.compile_typed_expression(e)?;
@@ -588,7 +583,6 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: thir::FactLiteral) -> Result<(), CompileError> {
-        update_hash_parts!(self.signature_hasher => FactLiteral &f.identifier, &f.key_fields, f.value_fields);
         self.append_instruction(Instruction::FactNew(f.identifier.inner.clone()));
         for (k, e) in f.key_fields {
             self.compile_typed_expression(e)?;
@@ -1990,6 +1984,8 @@ impl<'a> CompileState<'a> {
         }
 
         self.resolve_targets()?;
+
+        self.policy.ast_hash(&mut self.signature_hasher);
 
         Ok(())
     }
