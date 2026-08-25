@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.24.0...aranya-runtime-v0.25.0) - 2026-08-25
+
+### Fixed
+
+- *(runtime)* clear pending fact writes in LinearPerspective::revert ([#760](https://github.com/aranya-project/aranya-core/pull/760))
+- *(runtime)* resume mid-segment when a sync response fills ([#752](https://github.com/aranya-project/aranya-core/pull/752))
+
+### Other
+
+- Address GenerateGraph review nits from #743 ([#763](https://github.com/aranya-project/aranya-core/pull/763))
+- update crypto dependencies ([#762](https://github.com/aranya-project/aranya-core/pull/762))
+- Fact db convergence ([#743](https://github.com/aranya-project/aranya-core/pull/743))
+- 707 remove unwrap ([#736](https://github.com/aranya-project/aranya-core/pull/736))
+- Optimize fsync ([#717](https://github.com/aranya-project/aranya-core/pull/717))
+- general bug! cleanup ([#747](https://github.com/aranya-project/aranya-core/pull/747))
+- Remove vm span dependency ([#726](https://github.com/aranya-project/aranya-core/pull/726))
+- derive max cut from parents always ([#742](https://github.com/aranya-project/aranya-core/pull/742))
+- Lazy merges ([#716](https://github.com/aranya-project/aranya-core/pull/716))
+- validate enum value on deserialization ([#748](https://github.com/aranya-project/aranya-core/pull/748))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- resolve two dos bugs ([#739](https://github.com/aranya-project/aranya-core/pull/739))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+- use alloc collections to remove limit ([#720](https://github.com/aranya-project/aranya-core/pull/720))
+
 ## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.23.0...aranya-runtime-v0.24.0) - 2026-07-09
 
 ### Other
