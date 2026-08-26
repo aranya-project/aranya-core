@@ -54,6 +54,7 @@ macro_rules! update_hash_parts {
     };
 }
 
+/// Trait for computing the hash of an AST component
 pub(crate) trait AstHash {
     fn ast_hash(&self, hasher: &mut impl Update);
 }
@@ -61,30 +62,6 @@ pub(crate) trait AstHash {
 impl<T: AstHash + ?Sized> AstHash for &T {
     fn ast_hash(&self, hasher: &mut impl Update) {
         (*self).ast_hash(hasher);
-    }
-}
-
-impl AstHash for str {
-    fn ast_hash(&self, hasher: &mut impl Update) {
-        hasher.update(self.as_bytes());
-    }
-}
-
-impl AstHash for Text {
-    fn ast_hash(&self, hasher: &mut impl Update) {
-        hasher.update(self.as_str().as_bytes());
-    }
-}
-
-impl AstHash for Identifier {
-    fn ast_hash(&self, hasher: &mut impl Update) {
-        hasher.update(self.as_str().as_bytes());
-    }
-}
-
-impl<T: AstHash> AstHash for WithSpan<T> {
-    fn ast_hash(&self, hasher: &mut impl Update) {
-        self.inner.ast_hash(hasher);
     }
 }
 
@@ -127,6 +104,48 @@ impl<T: AstHash> AstHash for Option<T> {
 impl<T: AstHash> AstHash for Box<T> {
     fn ast_hash(&self, hasher: &mut impl Update) {
         (**self).ast_hash(hasher);
+    }
+}
+
+impl AstHash for i64 {
+    fn ast_hash(&self, hasher: &mut impl Update) {
+        hasher.update(&self.to_le_bytes());
+    }
+}
+
+impl AstHash for usize {
+    fn ast_hash(&self, hasher: &mut impl Update) {
+        hasher.update(&self.to_le_bytes());
+    }
+}
+
+impl AstHash for bool {
+    fn ast_hash(&self, hasher: &mut impl Update) {
+        hasher.update(if *self { &[1] } else { &[0] });
+    }
+}
+
+impl AstHash for str {
+    fn ast_hash(&self, hasher: &mut impl Update) {
+        hasher.update(self.as_bytes());
+    }
+}
+
+impl AstHash for Text {
+    fn ast_hash(&self, hasher: &mut impl Update) {
+        hasher.update(self.as_str().as_bytes());
+    }
+}
+
+impl AstHash for Identifier {
+    fn ast_hash(&self, hasher: &mut impl Update) {
+        hasher.update(self.as_str().as_bytes());
+    }
+}
+
+impl<T: AstHash> AstHash for WithSpan<T> {
+    fn ast_hash(&self, hasher: &mut impl Update) {
+        self.inner.ast_hash(hasher);
     }
 }
 
@@ -306,24 +325,6 @@ impl AstHash for ExprKind {
                 update_hash_parts!(hasher => Err _, e);
             }
         }
-    }
-}
-
-impl AstHash for i64 {
-    fn ast_hash(&self, hasher: &mut impl Update) {
-        hasher.update(&self.to_le_bytes());
-    }
-}
-
-impl AstHash for usize {
-    fn ast_hash(&self, hasher: &mut impl Update) {
-        hasher.update(&self.to_le_bytes());
-    }
-}
-
-impl AstHash for bool {
-    fn ast_hash(&self, hasher: &mut impl Update) {
-        hasher.update(if *self { &[1] } else { &[0] });
     }
 }
 
