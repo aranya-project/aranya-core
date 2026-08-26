@@ -360,7 +360,9 @@ mod tests {
             size: u32::try_from(buf.len()).unwrap().into(),
             ..Default::default()
         };
-        new_header.write_to_prefix(&mut buf).expect("Could not write new header");
+        new_header
+            .write_to_prefix(&mut buf)
+            .expect("Could not write new header");
         recompute_checksum(&mut buf);
 
         let e = Module::read_from_slice(&buf).expect_err("read_from_slice erroneously succeeded");
