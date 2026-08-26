@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0](https://github.com/aranya-project/aranya-core/compare/aranya-core-v1.1.0...aranya-core-v2.0.0) - 2026-08-25
+
+### Other
+
+- update crypto dependencies ([#762](https://github.com/aranya-project/aranya-core/pull/762))
+- derive max cut from parents always ([#742](https://github.com/aranya-project/aranya-core/pull/742))
+
 ## [1.1.0](https://github.com/aranya-project/aranya-core/compare/aranya-core-v1.0.0...aranya-core-v1.1.0) - 2026-07-09
 
 ### Other

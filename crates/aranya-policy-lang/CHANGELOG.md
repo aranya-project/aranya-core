@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.16.0...aranya-policy-lang-v0.17.0) - 2026-08-25
+
+### Other
+
+- 707 remove unwrap ([#736](https://github.com/aranya-project/aranya-core/pull/736))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+
 ## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.15.0...aranya-policy-lang-v0.16.0) - 2026-07-09
 
 ### Other
