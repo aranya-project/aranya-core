@@ -39,6 +39,9 @@ pub enum ModuleIoError {
     /// Conversion from usize to u32 was out-of-range
     #[error("integer size error")]
     IntSize(#[from] core::num::TryFromIntError),
+    /// The module is otherwise corrupt or malformed
+    #[error("corrupt")]
+    Corrupt,
 }
 
 // details for these errors are elided as zrip's errors don't implement `core::error::Error`,
@@ -148,6 +151,9 @@ impl Module {
         let header_data_checksum_len: usize = u32::from(h.size).try_into()?;
         if header_data_checksum_len > s.len() {
             return Err(ModuleIoError::SliceTooSmall);
+        }
+        if header_data_checksum_len < Header::LEN + CHECKSUM_HASH_LEN {
+            return Err(ModuleIoError::Corrupt);
         }
         let header_data_len = header_data_checksum_len.saturating_sub(CHECKSUM_HASH_LEN);
         let checksum = &s[header_data_len..header_data_checksum_len];
@@ -343,6 +349,24 @@ mod tests {
         assert!(
             matches!(e, ModuleIoError::Postcard(_)),
             "got {e:?}, expected ModuleIoError::Postcard(_)"
+        );
+    }
+
+    #[test]
+    fn malformed_runt_module() {
+        let mut buf = [0u8; Header::LEN + CHECKSUM_HASH_LEN - 4];
+        let new_header = Header {
+            version: 1.into(),
+            size: u32::try_from(buf.len()).unwrap().into(),
+            ..Default::default()
+        };
+        new_header.write_to_prefix(&mut buf).expect("Could not write new header");
+        recompute_checksum(&mut buf);
+
+        let e = Module::read_from_slice(&buf).expect_err("read_from_slice erroneously succeeded");
+        assert!(
+            matches!(e, ModuleIoError::Corrupt),
+            "got {e:?}, expected ModuleIoError::Corrupt"
         );
     }
 }
