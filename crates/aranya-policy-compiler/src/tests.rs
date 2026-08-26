@@ -248,3 +248,103 @@ fn test_validate_publish() {
         assert!(validate(&m), "Expected case to be invalid: {}", p);
     }
 }
+
+#[test]
+fn test_validate_finish() {
+    let concat = |text| {
+        let base = r#"
+            command Foo {
+                fields { a int }
+                seal { return todo() }
+                open { return todo() }
+        "#;
+        format!("{base}{text}\n}}")
+    };
+
+    let valid = [
+        concat(
+            r#"
+                policy {
+                    finish {} // ok
+                }
+        "#,
+        ),
+        concat(
+            r#"
+                policy {
+                    if this.a == 0 {
+                        finish {}
+                    }
+                    else {
+                        finish {}
+                    }
+                }
+        "#,
+        ),
+        concat(
+            r#"
+                policy {
+                    match this.a {
+                        0 => { finish {} }
+                        _ => { finish {} }
+                    }
+                }
+        "#,
+        ),
+    ];
+
+    let invalid = [
+        concat(
+            r#"
+                policy {
+                    // missing finish
+                }
+        "#,
+        ),
+        concat(
+            r#"
+                policy {
+                    if this.a == 0 {
+                        finish {}
+                    }
+                    // missing finish when the branch is not taken
+                }
+        "#,
+        ),
+        concat(
+            r#"
+                policy {
+                    if this.a == 0 {
+                        finish {}
+                    }
+                    else if this.a == 1 {
+                        // missing finish
+                    }
+                    else {
+                        finish {}
+                    }
+                }
+        "#,
+        ),
+        concat(
+            r#"
+                policy {
+                    finish {}
+                }
+                recall default() {
+                    // missing finish
+                }
+        "#,
+        ),
+    ];
+
+    for p in valid {
+        let m = compile_pass(&p);
+        assert!(!validate(&m), "Expected case to be valid: {}", p);
+    }
+
+    for p in invalid {
+        let m = compile_pass(&p);
+        assert!(validate(&m), "Expected case to be invalid: {}", p);
+    }
+}

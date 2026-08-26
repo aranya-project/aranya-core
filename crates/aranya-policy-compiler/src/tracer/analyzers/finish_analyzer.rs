@@ -26,7 +26,8 @@ impl Analyzer for FinishAnalyzer {
             Instruction::Meta(Meta::Finish(s)) => {
                 self.finish = *s;
             }
-            Instruction::Exit(ExitReason::Normal) => {
+            // policy exits with panic, recall exits with check
+            Instruction::Exit(ExitReason::Panic | ExitReason::Check) => {
                 if !self.finish {
                     return Ok(AnalyzerStatus::fail("Exit without Finish"));
                 }
