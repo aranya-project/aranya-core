@@ -7,7 +7,7 @@ use buggy::Bug;
 use rend::u64_le;
 
 use crate::{
-    Address,
+    Address, MAX_COMMAND_LENGTH,
     command::{CmdId, Command},
     storage::{FactPerspective, Perspective},
 };
@@ -187,6 +187,21 @@ pub trait Policy {
         target: &'a mut [u8],
         ids: MergeIds,
     ) -> Result<Self::Command<'a>, PolicyError>;
+
+    /// Validate a merge command.
+    fn validate_merge(&self, command: &impl Command) -> Result<(), PolicyError> {
+        let ids = match command.parent() {
+            crate::Prior::Merge(left, right) => MergeIds::from_ordered(left, right),
+            _ => None,
+        }
+        .ok_or(PolicyError::Panic)?;
+        let id = self.merge(&mut [0u8; MAX_COMMAND_LENGTH], ids)?.id();
+        if command.id() == id {
+            Ok(())
+        } else {
+            Err(PolicyError::Panic)
+        }
+    }
 }
 
 /// Describes the placement when calling an action.

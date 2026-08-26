@@ -317,8 +317,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         F: Spill,
         MS: Fn() -> Result<F, StorageError>,
     {
-        let merge_ids = MergeIds::from_ordered(left, right).ok_or(PolicyError::Panic)?;
-
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
@@ -334,12 +332,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
-        let computed_id = policy
-            .merge(&mut [0u8; MAX_COMMAND_LENGTH], merge_ids)?
-            .id();
-        if command.id() != computed_id {
-            return Err(PolicyError::Panic.into());
-        }
+        policy.validate_merge(command)?;
 
         // Braid commands from left and right into an ordered sequence.
         let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
@@ -800,6 +793,11 @@ mod test {
             let id = hash_for_testing_only(parents.as_flattened());
 
             Ok(SeqCommand::new(id, Prior::Merge(left, right)))
+        }
+
+        fn validate_merge(&self, _command: &impl Command) -> Result<(), PolicyError> {
+            // No validation to allow `"a" "b" < "m"` in `graph!` dsl.
+            Ok(())
         }
     }
 
