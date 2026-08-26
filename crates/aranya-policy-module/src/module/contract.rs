@@ -188,6 +188,14 @@ impl FunctionContract {
                 self.name, other.name
             )));
         }
+        if self.args.len() != other.args.len() {
+            return Err(ContractValidationError(format!(
+                "function `{}` has {} arguments but expected {}",
+                self.name,
+                other.args.len(),
+                self.args.len()
+            )));
+        }
         for (a1, a2) in self.args.iter().zip(other.args.iter()) {
             a1.validate(a2)
                 .prepend(format_args!("function `{}` arg `{}`,", self.name, a1.name))?;
