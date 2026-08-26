@@ -33,7 +33,6 @@ use indexmap::IndexMap;
 use sha2::{Digest as _, Sha256};
 use tracing::warn;
 
-pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
     ast_hash::AstHash as _,
     error::{
@@ -45,6 +44,7 @@ use self::{
     topo::TopoSort,
     types::{IdentifierTypeStack, UserType},
 };
+pub use self::{error::CompileError, target::PolicyInterface};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
