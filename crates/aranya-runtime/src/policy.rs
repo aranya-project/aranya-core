@@ -122,6 +122,15 @@ impl MergeIds {
             Ordering::Greater => Some(Self { left: b, right: a }),
         }
     }
+
+    /// Create [`MergeIds`] from two [`Address`]s which must already be ordered.
+    pub fn from_ordered(left: Address, right: Address) -> Option<Self> {
+        if left < right {
+            Some(Self { left, right })
+        } else {
+            None
+        }
+    }
 }
 
 impl From<MergeIds> for (CmdId, CmdId) {
