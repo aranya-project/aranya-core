@@ -533,21 +533,25 @@ mod livelock_tests {
         Location::new(SegmentIndex::new(segment), MaxCut::new(K))
     }
 
-    /// Build a `ConvergenceMap` whose state is:
-    /// - one spilled block on disk (segments 1..=256, all at `max_cut = K`),
-    /// - all three in-memory blocks non-empty, all at `max_cut = K`
-    ///   (segments 257..=512, 513..=768, 769..=1024),
+    /// Build the state the livelock needed, then run one `lookup(query)`
+    /// against it and return the result.
     ///
-    /// then call `lookup` for `query` and return its result. Every block's
-    /// `[min_max_cut, max_max_cut]` range is `[K, K]`, so any query at
-    /// `max_cut = K` is "covered" by every block.
+    /// That state is: all three in-memory blocks full (segments 257..=512,
+    /// 513..=768, 769..=1024) and one block spilled to disk (segments
+    /// 1..=256). Every entry sits at the same `max_cut = K`, so every
+    /// block's `[min, max]` range is exactly `[K, K]` — meaning any
+    /// depth-K query looks like it could be in *any* of the four blocks.
+    /// A depth-K query for a segment that was never inserted is therefore
+    /// "covered everywhere, present nowhere": the shape that used to loop
+    /// forever.
     ///
-    /// `lookup` is `should_continue` minus the BFS advance, which is inert
-    /// here (nothing pushes the queue), so this exercises the same path
-    /// `braid()` does. Entries are inserted through `insert_entry` — the
-    /// same path `advance_to` uses — and the LRU shuffle between fills is
-    /// done with real `lookup` hits, so this state is reachable through
-    /// the normal query/insert interleaving `braid()` performs.
+    /// The `lookup` hits between fills mark each just-filled block
+    /// recently-used, so the LRU picks a fresh empty block for the next
+    /// fill instead of evicting the one we just filled. Everything goes
+    /// through the map's real insert and query operations (no private
+    /// state is poked), so `braid()` can reach this state too. Calling
+    /// `lookup` instead of `should_continue` skips only the BFS advance,
+    /// which is a no-op here — the queue never has work.
     fn build_and_query(query: Location) -> Result<bool, ClientError> {
         let mut queue = TraversalQueue::new();
         let mut conv_storage = ConvergenceStorage::new();
