@@ -8,7 +8,7 @@ use rend::u64_le;
 
 use crate::{
     Address,
-    command::{CmdId, Command},
+    command::{CmdId, Command, Priority},
     storage::{FactPerspective, Perspective},
 };
 
@@ -152,13 +152,19 @@ pub trait Policy {
     /// Evaluate a command at the given perspective. If the command is accepted, effects may
     /// be emitted to the sink and facts may be written to the perspective. Returns an error
     /// for a rejected command.
+    ///
+    /// On success, returns the command's [`Priority`], derived from the
+    /// command's body. The runtime persists this value and uses it as the
+    /// braid strand-ordering key, so it must be a pure function of the
+    /// command data: every peer evaluating the same command must derive the
+    /// same priority.
     fn call_rule(
         &self,
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
-    ) -> Result<(), PolicyError>;
+    ) -> Result<Priority, PolicyError>;
 
     /// Process an action checking each published command against the policy and emitting
     /// effects to the sink. All published commands are handled transactionally where if any

@@ -42,10 +42,6 @@ pub enum Priority {
 /// policy will also emit effects once a command is verified,
 /// which are sent to the client.
 pub trait Command {
-    /// Return this command's [`Priority`], determining how this event is
-    /// ordered amongst others it does not have a causal relationship with.
-    fn priority(&self) -> Priority;
-
     /// Uniquely identifies the serialized command.
     fn id(&self) -> CmdId;
 
@@ -61,10 +57,6 @@ pub trait Command {
 }
 
 impl<C: Command> Command for &C {
-    fn priority(&self) -> Priority {
-        (*self).priority()
-    }
-
     fn id(&self) -> CmdId {
         (*self).id()
     }

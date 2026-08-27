@@ -104,7 +104,6 @@ struct CommandData {
 pub struct LinearCommand<'a> {
     id: &'a CmdId,
     parent: Prior<Address>,
-    priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
 }
@@ -854,10 +853,17 @@ impl<R: Read> Segment for LinearSegment<R> {
         Some(LinearCommand {
             id: &data.id,
             parent,
-            priority: data.priority.clone(),
             policy: data.policy.as_deref(),
             data: &data.data,
         })
+    }
+
+    fn get_priority(&self, location: Location) -> Option<Priority> {
+        if self.repr.offset != location.segment {
+            return None;
+        }
+        let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
+        Some(self.repr.commands.get(cmd_idx)?.priority.clone())
     }
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
@@ -1160,14 +1166,30 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         self.policy
     }
 
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError> {
         if command.parent() != self.head_address()? {
             return Err(StorageError::PerspectiveHeadMismatch);
         }
 
+        // Priorities are derived locally at ingest; persisting one that
+        // contradicts the command's structure would poison braid ordering, so
+        // catch caller bugs before the value becomes durable.
+        let priority_matches = match command.parent() {
+            Prior::Merge(..) => priority == Priority::Merge,
+            Prior::None => priority == Priority::Init,
+            Prior::Single(..) => matches!(priority, Priority::Basic(_) | Priority::Finalize),
+        };
+        if !priority_matches {
+            bug!("priority must match command structure");
+        }
+
         self.commands.push(CommandData {
             id: command.id(),
-            priority: command.priority(),
+            priority,
             policy: command.policy().map(Bytes::from),
             data: command.bytes().into(),
             updates: core::mem::take(&mut self.current_updates),
@@ -1210,10 +1232,6 @@ impl From<Prior<Address>> for Prior<CmdId> {
 }
 
 impl Command for LinearCommand<'_> {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
     fn id(&self) -> CmdId {
         *self.id
     }
@@ -1323,6 +1341,42 @@ mod test {
             p.current_updates.is_empty(),
             "revert must clear pending updates made after the checkpoint"
         );
+    }
+
+    /// Defense-in-depth for the ingest-time priority derivation in
+    /// `Transaction`: persisting a priority that contradicts the command's
+    /// structure would poison braid ordering, so `add_command` must catch
+    /// caller bugs. `bug!` panics in debug builds and returns an error in
+    /// release builds, so this test accepts either.
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "priority must match command structure")
+    )]
+    fn test_add_command_rejects_priority_structure_mismatch() {
+        struct Init;
+        impl Command for Init {
+            fn id(&self) -> CmdId {
+                CmdId::from_bytes([1; 32])
+            }
+            fn parent(&self) -> Prior<Address> {
+                Prior::None
+            }
+            fn policy(&self) -> Option<&[u8]> {
+                Some(b"")
+            }
+            fn bytes(&self) -> &[u8] {
+                b"A"
+            }
+        }
+
+        let mut provider = LinearStorageProvider::new(Manager::new());
+        let mut p = provider.new_perspective(PolicyId::new(0));
+        // An init-shaped command must be persisted with Priority::Init.
+        assert!(matches!(
+            p.add_command(&Init, Priority::Basic(0)),
+            Err(StorageError::Bug(_))
+        ));
     }
 
     struct LinearBackend;

@@ -2514,8 +2514,10 @@ mod tests {
         let storage = state.provider().get_storage(graph_id)?;
         let head = single_head(storage)?;
         let segment = storage.get_segment(head)?;
-        let command = segment.get_command(head).unwrap();
-        assert_eq!(command.priority(), crate::Priority::Basic(7));
+        assert_eq!(
+            segment.get_priority(head).unwrap(),
+            crate::Priority::Basic(7)
+        );
         Ok(())
     }
 
@@ -2616,8 +2618,10 @@ mod tests {
 
         let head = single_head(storage)?;
         let segment = storage.get_segment(head)?;
-        let command = segment.get_command(head).unwrap();
-        assert_eq!(command.priority(), crate::Priority::Basic(1));
+        assert_eq!(
+            segment.get_priority(head).unwrap(),
+            crate::Priority::Basic(1)
+        );
         Ok(())
     }
 
