@@ -385,13 +385,19 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         storage: &mut S,
         location: Location,
     ) -> Result<bool, ClientError> {
+        // Advance BFS to cover the query location.
+        self.advance_to(storage, location.max_cut)?;
+        self.lookup(location)
+    }
+
+    /// Look up `location` in memory and on disk, consuming an entry on
+    /// a hit. The BFS must already cover `location.max_cut` (see
+    /// [`Self::should_continue`], which advances it first).
+    fn lookup(&mut self, location: Location) -> Result<bool, ClientError> {
         self.access_counter = self
             .access_counter
             .checked_add(1)
             .assume("access_counter must not overflow")?;
-
-        // Advance BFS to cover the query location.
-        self.advance_to(storage, location.max_cut)?;
 
         // Check in-memory blocks.
         if let Some((bi, ei)) = self.find_in_memory(location) {
@@ -477,92 +483,7 @@ mod livelock_tests {
     use std::{sync::mpsc, thread, time::Duration};
 
     use super::*;
-    use crate::{
-        MemSpill, PolicyId, SegmentIndex,
-        storage::{
-            HeadSet, HeadSetOffset,
-            linear::{
-                LinearFactIndex, LinearFactPerspective, LinearPerspective, LinearSegment,
-                testing::Reader,
-            },
-        },
-    };
-
-    /// A `Storage` that panics on any access. Valid here because every
-    /// `should_continue` call in these tests queries at a `max_cut` above
-    /// everything in the BFS queue, so `advance_to` breaks before popping
-    /// and storage is never touched.
-    struct NoStorage;
-
-    impl Storage for NoStorage {
-        type Perspective = LinearPerspective<Reader>;
-        type FactPerspective = LinearFactPerspective<Reader>;
-        type Segment = LinearSegment<Reader>;
-        type FactIndex = LinearFactIndex<Reader>;
-
-        fn get_linear_perspective(
-            &self,
-            _parent: Location,
-        ) -> Result<Self::Perspective, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn get_fact_perspective(
-            &self,
-            _first: Location,
-        ) -> Result<Self::FactPerspective, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn new_merge_perspective(
-            &self,
-            _left: Location,
-            _right: Location,
-            _last_common_ancestor: Location,
-            _policy_id: PolicyId,
-            _braid: Self::FactIndex,
-        ) -> Result<Self::Perspective, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn get_segment(&self, _location: Location) -> Result<Self::Segment, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn get_heads(&self) -> Result<&HeadSet, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn fact_cache(&self) -> Result<Self::FactIndex, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn commit_heads(
-            &mut self,
-            _heads: HeadSet,
-            _fact_cache: Self::FactIndex,
-        ) -> Result<(), StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn write(
-            &mut self,
-            _perspective: Self::Perspective,
-        ) -> Result<Self::Segment, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-
-        fn write_facts(
-            &mut self,
-            _fact_perspective: Self::FactPerspective,
-        ) -> Result<Self::FactIndex, StorageError> {
-            unreachable!("BFS must not touch storage in this test")
-        }
-    }
+    use crate::{MemSpill, SegmentIndex};
 
     /// Generous upper bound on spill writes for one setup + one lookup.
     /// A terminating lookup writes at most a handful of blocks (one evict
@@ -617,19 +538,19 @@ mod livelock_tests {
     /// - all three in-memory blocks non-empty, all at `max_cut = K`
     ///   (segments 257..=512, 513..=768, 769..=1024),
     ///
-    /// then call `should_continue` for `(query_segment, K)` and return its
-    /// result. Every block's `[min_max_cut, max_max_cut]` range is `[K, K]`,
-    /// so any query at `max_cut = K` is "covered" by every block.
+    /// then call `lookup` for `query` and return its result. Every block's
+    /// `[min_max_cut, max_max_cut]` range is `[K, K]`, so any query at
+    /// `max_cut = K` is "covered" by every block.
     ///
-    /// Entries are inserted through `insert_entry` — the same path
-    /// `advance_to` uses — and the LRU shuffle between fills is done with
-    /// real `should_continue` hits, so this state is reachable through the
-    /// normal query/insert interleaving `braid()` performs.
-    fn build_and_query(query_segment: u64) -> Result<bool, ClientError> {
+    /// `lookup` is `should_continue` minus the BFS advance, which is inert
+    /// here (nothing pushes the queue), so this exercises the same path
+    /// `braid()` does. Entries are inserted through `insert_entry` — the
+    /// same path `advance_to` uses — and the LRU shuffle between fills is
+    /// done with real `lookup` hits, so this state is reachable through
+    /// the normal query/insert interleaving `braid()` performs.
+    fn build_and_query(query: Location) -> Result<bool, ClientError> {
         let mut queue = TraversalQueue::new();
         let mut conv_storage = ConvergenceStorage::new();
-        // heads/lca all at max_cut 0: the BFS queue's top is always
-        // below the query max_cut, so advance_to never pops.
         let zero = Location::new(SegmentIndex::new(0), MaxCut::new(0));
         let mut map = ConvergenceMap::new(
             &[zero, zero],
@@ -638,7 +559,6 @@ mod livelock_tests {
             &mut conv_storage,
             BoundedSpill::new()?,
         )?;
-        let mut graph = NoStorage;
 
         // Fill block 0 (segments 1..=256).
         for seg in 1..=256 {
@@ -649,7 +569,7 @@ mod livelock_tests {
         }
         // Hit block 0 so its last_accessed rises; the next spill_lru picks
         // the (empty) block 1 as the new active block.
-        assert!(!map.should_continue(&mut graph, loc(1))?);
+        assert!(!map.lookup(loc(1))?);
 
         // Fill block 1 (segments 257..=512).
         for seg in 257..=512 {
@@ -658,7 +578,7 @@ mod livelock_tests {
                 count: 2,
             })?;
         }
-        assert!(!map.should_continue(&mut graph, loc(257))?);
+        assert!(!map.lookup(loc(257))?);
 
         // Fill block 2 (segments 513..=768).
         for seg in 513..=768 {
@@ -667,7 +587,7 @@ mod livelock_tests {
                 count: 2,
             })?;
         }
-        assert!(!map.should_continue(&mut graph, loc(513))?);
+        assert!(!map.lookup(loc(513))?);
 
         // Block 0 is now the LRU; the first insert below spills it to disk
         // (root gains one entry with range [K, K]) and refills it
@@ -691,7 +611,7 @@ mod livelock_tests {
             );
         }
 
-        map.should_continue(&mut graph, loc(query_segment))
+        map.lookup(query)
     }
 
     /// Run `build_and_query` under a watchdog so a livelock fails the test
@@ -699,10 +619,10 @@ mod livelock_tests {
     /// `BoundedSpill`'s write budget (the worker panics, dropping the
     /// sender); the timeout is a backstop in case the loop ever spins
     /// without writing.
-    fn query_with_watchdog(query_segment: u64) -> Result<bool, ClientError> {
+    fn query_with_watchdog(query: Location) -> Result<bool, ClientError> {
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || {
-            let _ = tx.send(build_and_query(query_segment));
+            let _ = tx.send(build_and_query(query));
         });
         match rx.recv_timeout(Duration::from_secs(10)) {
             Ok(result) => result,
@@ -730,22 +650,22 @@ mod livelock_tests {
     fn covered_but_absent_lookup_terminates() {
         // Segment 999_999 was never inserted; max_cut K is inside every
         // block's [K, K] range.
-        let result = query_with_watchdog(999_999);
+        let result = query_with_watchdog(loc(999_999));
         assert!(
-            result.expect("should_continue must not error"),
+            result.expect("lookup must not error"),
             "absent location is not a convergence point, strand continues"
         );
     }
 
     /// Harness sanity check: a location that IS in the spilled block is
-    /// found and consumed promptly.
+    /// found and consumed.
     #[test]
     fn covered_and_present_lookup_returns() {
         // Segment 100 lives in the spilled block (1..=256) with count 2,
         // so consuming one arrival returns Ok(false).
-        let result = query_with_watchdog(100);
+        let result = build_and_query(loc(100));
         assert!(
-            !result.expect("should_continue must not error"),
+            !result.expect("lookup must not error"),
             "present convergence point with count 2 must return false"
         );
     }
@@ -754,37 +674,8 @@ mod livelock_tests {
     /// the non-covering path and returns immediately.
     #[test]
     fn uncovered_lookup_returns() {
-        let (tx, rx) = mpsc::channel();
-        thread::spawn(move || {
-            let run = || -> Result<bool, ClientError> {
-                let mut queue = TraversalQueue::new();
-                let mut conv_storage = ConvergenceStorage::new();
-                let zero = Location::new(SegmentIndex::new(0), MaxCut::new(0));
-                let mut map = ConvergenceMap::new(
-                    &[zero, zero],
-                    zero,
-                    &mut queue,
-                    &mut conv_storage,
-                    MemSpill::new()?,
-                )?;
-                let mut graph = NoStorage;
-                for seg in 1..=1024 {
-                    map.insert_entry(Entry {
-                        location: loc(seg),
-                        count: 2,
-                    })?;
-                }
-                // max_cut K + 1 is outside every block's [K, K] range.
-                map.should_continue(
-                    &mut graph,
-                    Location::new(SegmentIndex::new(999_999), MaxCut::new(K + 1)),
-                )
-            };
-            let _ = tx.send(run());
-        });
-        let result = rx
-            .recv_timeout(Duration::from_secs(10))
-            .expect("uncovered lookup must return promptly");
-        assert!(result.expect("should_continue must not error"));
+        // max_cut K + 1 is outside every block's [K, K] range.
+        let query = Location::new(SegmentIndex::new(999_999), MaxCut::new(K + 1));
+        assert!(build_and_query(query).expect("lookup must not error"));
     }
 }
