@@ -288,10 +288,9 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         Block::load_from_bytes(&buf, num_entries)
     }
 
-    /// Load a spilled block into memory, evicting the LRU block.
-    fn load_block_from_disk(&mut self, root_idx: usize) -> Result<usize, ClientError> {
-        let loaded = self.read_block_from_disk(root_idx)?;
-
+    /// Install a block read from `root[root_idx]` into memory,
+    /// removing its root entry and evicting the LRU block.
+    fn install_block(&mut self, root_idx: usize, loaded: Block) -> Result<usize, ClientError> {
         // Remove from root index — data is now in memory.
         self.storage.root.swap_remove(root_idx);
 
@@ -405,15 +404,21 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             while ri < self.storage.root.len() {
                 let node = self.storage.root[ri];
                 if location.max_cut >= node.min_max_cut && location.max_cut <= node.max_max_cut {
-                    // Load block into memory (removes root[ri] via swap_remove).
-                    let bi = self.load_block_from_disk(ri)?;
-                    if let Some(ei) = self.storage.blocks[bi].find(location) {
+                    // Probe a copy without touching the root index or
+                    // evicting an in-memory block, so `ri` advances past
+                    // every miss and the scan terminates even when all
+                    // block ranges cover `location.max_cut`. Installing
+                    // on a miss would re-append the evicted block to the
+                    // root and the scan would never run out of entries.
+                    let probed = self.read_block_from_disk(ri)?;
+                    if let Some(ei) = probed.find(location) {
+                        // Install only on a hit (removes root[ri]), so
+                        // the entry can be consumed in memory.
+                        let bi = self.install_block(ri, probed)?;
                         return self.consume_entry(bi, ei);
                     }
-                    // Don't increment ri — swap_remove moved a new entry here.
-                } else {
-                    ri = ri.checked_add(1).assume("ri must not overflow")?;
                 }
+                ri = ri.checked_add(1).assume("ri must not overflow")?;
             }
         }
 
@@ -544,7 +549,10 @@ mod livelock_tests {
             unreachable!("BFS must not touch storage in this test")
         }
 
-        fn write(&mut self, _perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {
+        fn write(
+            &mut self,
+            _perspective: Self::Perspective,
+        ) -> Result<Self::Segment, StorageError> {
             unreachable!("BFS must not touch storage in this test")
         }
 
@@ -702,22 +710,22 @@ mod livelock_tests {
                 "livelock: spilled-block scan exceeded its spill write budget \
                  (blocks are thrashing between memory and the root index)"
             ),
-            Err(mpsc::RecvTimeoutError::Timeout) => panic!(
-                "livelock: ConvergenceMap::should_continue did not return within 10s"
-            ),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                panic!("livelock: ConvergenceMap::should_continue did not return within 10s")
+            }
         }
     }
 
     /// A location whose `max_cut` is covered by every block's range but
     /// which is present in none of them must still terminate.
     ///
-    /// This currently livelocks: in `should_continue`'s disk scan, each
-    /// `load_block_from_disk` swap-removes root[ri] and re-appends the
-    /// evicted in-memory block to the root. Since `access_counter` is
-    /// bumped only once per call, all reloaded blocks tie on
-    /// `last_accessed` and `lru_block`'s strict `<` always evicts index 0,
-    /// so the scan cycles the same covering blocks through root[ri]
-    /// forever and `ri` never reaches `root.len()`.
+    /// Regression test: this used to livelock. `should_continue`'s disk
+    /// scan installed every probed block, swap-removing root[ri] and
+    /// re-appending the evicted in-memory block to the root, so the root
+    /// never ran out of covering entries: the scan cycled the same blocks
+    /// through root[ri] forever and `ri` never reached `root.len()`.
+    /// Fixed by probing a copy (`read_block_from_disk`) and installing
+    /// only on a hit, so `ri` strictly advances past every miss.
     #[test]
     fn covered_but_absent_lookup_terminates() {
         // Segment 999_999 was never inserted; max_cut K is inside every
