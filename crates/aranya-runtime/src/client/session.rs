@@ -422,10 +422,13 @@ where
     fn add_command(
         &mut self,
         command: &impl Command,
-        _priority: Priority,
+        priority: Priority,
     ) -> Result<usize, StorageError> {
         // Session commands are ephemeral and never braided, so the priority
         // is not persisted.
+        if !matches!(priority, Priority::Basic(_)) {
+            bug!("session command has bad priority");
+        }
         let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
         self.message_sink.consume(&command.serialize());
 

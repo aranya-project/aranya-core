@@ -1178,14 +1178,14 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         // Priorities are derived locally at ingest; persisting one that
         // contradicts the command's structure would poison braid ordering, so
         // catch caller bugs before the value becomes durable.
-        debug_assert!(
-            match command.parent() {
-                Prior::Merge(..) => priority == Priority::Merge,
-                Prior::None => priority == Priority::Init,
-                Prior::Single(..) => matches!(priority, Priority::Basic(_) | Priority::Finalize),
-            },
-            "priority must match command structure"
-        );
+        let priority_matches = match command.parent() {
+            Prior::Merge(..) => priority == Priority::Merge,
+            Prior::None => priority == Priority::Init,
+            Prior::Single(..) => matches!(priority, Priority::Basic(_) | Priority::Finalize),
+        };
+        if !priority_matches {
+            bug!("priority must match command structure");
+        }
 
         self.commands.push(CommandData {
             id: command.id(),
@@ -1346,11 +1346,14 @@ mod test {
     /// Defense-in-depth for the ingest-time priority derivation in
     /// `Transaction`: persisting a priority that contradicts the command's
     /// structure would poison braid ordering, so `add_command` must catch
-    /// caller bugs in debug builds.
-    #[cfg(debug_assertions)]
+    /// caller bugs. `bug!` panics in debug builds and returns an error in
+    /// release builds, so this test accepts either.
     #[test]
-    #[should_panic(expected = "priority must match command structure")]
-    fn test_add_command_asserts_priority_matches_structure() {
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "priority must match command structure")
+    )]
+    fn test_add_command_rejects_priority_structure_mismatch() {
         struct Init;
         impl Command for Init {
             fn id(&self) -> CmdId {
@@ -1370,7 +1373,10 @@ mod test {
         let mut provider = LinearStorageProvider::new(Manager::new());
         let mut p = provider.new_perspective(PolicyId::new(0));
         // An init-shaped command must be persisted with Priority::Init.
-        let _ = p.add_command(&Init, Priority::Basic(0));
+        assert!(matches!(
+            p.add_command(&Init, Priority::Basic(0)),
+            Err(StorageError::Bug(_))
+        ));
     }
 
     struct LinearBackend;
