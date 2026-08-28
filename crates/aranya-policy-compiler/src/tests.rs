@@ -324,3 +324,160 @@ fn test_validate_publish() {
         assert!(validate(&m), "Expected case to be invalid: {}", p);
     }
 }
+
+#[test]
+fn test_validate_action_return_or_publish() {
+    let concat = |text| {
+        let base = r#"
+            function double(x int) int {
+                return saturating_add(x, x)
+            }
+
+            command Foo {
+                fields {
+                    a int
+                }
+                policy {
+                    finish {}
+                }
+                recall default() {
+                    finish {}
+                }
+            }
+        "#;
+        format!("{base}{text}")
+    };
+
+    let valid = [
+        // An action which returns an `Err` does not have to publish.
+        concat(
+            r#"
+            action a() result[unit, string] {
+                return Err("nope") // ok
+            }
+        "#,
+        ),
+        // Publish on one path, return an error on the other.
+        concat(
+            r#"
+            action b(n int) result[unit, string] {
+                if n < 0 {
+                    return Err("not positive")
+                }
+                publish Foo { a: n }
+                return Ok(Unit)
+            }
+        "#,
+        ),
+        // Publish on each branch
+        concat(
+            r#"
+            action b(n int) {
+                if n < 0 {
+                    publish Foo { a: n }    
+                }
+                else {
+                    publish Foo { a: n }
+                }
+            }
+        "#,
+        ),
+        // Ignore `Return`s from nested callees
+        concat(
+            r#"
+            action c(n int) {
+                let d = double(n)
+                publish Foo { a: d }
+            }
+        "#,
+        ),
+        // Publish on all match arms
+        concat(
+            r#"
+            action d(n int) {
+                match n {
+                    0 => { publish Foo { a: 0 } }
+                    _ => { publish Foo { a: n } }
+                }
+            }
+        "#,
+        ),
+        // A nested action's `publish` satisfies the caller.
+        concat(
+            r#"
+            action h() {
+                publish Foo { a: 0 }
+            }
+
+            action i() {
+                action h() // ok
+            }
+        "#,
+        ),
+    ];
+
+    let invalid = [
+        // Returning `Ok` without publishing is a no-op action.
+        concat(
+            r#"
+            action a2() result[unit, string] {
+                return Ok(Unit) // fail
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action e() {
+                // neither publishes nor returns - fail
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action f(n int) {
+                if n > 0 {
+                    publish Foo { a: n }
+                }
+                // missing publish when the branch is not taken
+            }
+        "#,
+        ),
+        concat(
+            r#"
+            action g(n int) {
+                match n {
+                    0 => { publish Foo { a: 0 } }
+                    _ => { } // missing publish
+                }
+            }
+        "#,
+        ),
+        // The callee's `Err` path publishes nothing, and the VM swallows a
+        // nested `Err`, so the caller still has a path with no publish.
+        concat(
+            r#"
+            action j(n int) result[unit, string] {
+                if n < 0 {
+                    return Err("negative")
+                }
+                publish Foo { a: n }
+                return Ok(Unit)
+            }
+
+            action k(n int) {
+                action j(n) // fail
+            }
+        "#,
+        ),
+    ];
+
+    for p in valid {
+        let m = compile_pass(&p);
+        assert!(!validate(&m), "Expected case to be valid: {}", p);
+    }
+
+    for p in invalid {
+        let m = compile_pass(&p);
+        assert!(validate(&m), "Expected case to be invalid: {}", p);
+    }
+}
