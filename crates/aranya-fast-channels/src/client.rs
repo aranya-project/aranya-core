@@ -132,7 +132,6 @@ impl<S: AfcState> Client<S> {
         let (rest, header) = data
             .split_last_chunk_mut()
             .assume("we've already checked that `data` can fit a header")?;
-        #[allow(clippy::incompatible_msrv)] // clippy#12280
         let (out, tag) = rest
             .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
