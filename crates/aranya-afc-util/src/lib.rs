@@ -6,6 +6,7 @@
 
 mod ffi;
 mod handler;
+pub mod replay;
 mod shared;
 pub mod testing;
 mod tests;
@@ -15,4 +16,5 @@ mod transform;
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub use ffi::*;
 pub use handler::*;
+pub use replay::{ReplayStore, Verdict};
 pub use transform::Transform;

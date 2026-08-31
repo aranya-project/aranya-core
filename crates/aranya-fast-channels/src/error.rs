@@ -2,7 +2,7 @@ use core::{alloc::LayoutError, convert::Infallible};
 
 use aranya_crypto::{
     ImportError,
-    afc::{OpenError, SealError},
+    afc::{OpenError, SealError, Seq},
 };
 use buggy::Bug;
 
@@ -35,6 +35,15 @@ pub enum Error {
     /// The ciphertext could not be authenticated.
     #[error("authentication failure")]
     Authentication,
+    /// The data frame's sequence number was already accepted,
+    /// or is older than the receive window.
+    ///
+    /// See [`ReplayWindow`][crate::ReplayWindow].
+    #[error("replayed or too-old sequence number: {seq}")]
+    ReplayedSeq {
+        /// The rejected sequence number.
+        seq: Seq,
+    },
     /// Some other cryptographic error occurred.
     #[error("other cryptographic error: {0}")]
     Crypto(#[from] aranya_crypto::Error),

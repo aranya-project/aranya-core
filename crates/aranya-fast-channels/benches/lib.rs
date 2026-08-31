@@ -20,11 +20,11 @@ use aranya_crypto::{
     typenum::U16,
 };
 use aranya_fast_channels::{
-    AfcState as _, AranyaState as _, Client, Directed,
+    AranyaState as _, Client, Directed, OpenCtx,
     crypto::Aes256Gcm,
-    shm::{self, Flag, Mode, OpenCtx, Path, SealCtx},
+    shm::{self, Flag, Mode, Path, SealCtx},
 };
-use criterion::{BenchmarkId, Criterion, Throughput, criterion_main};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_main};
 
 pub struct NoopAead;
 
@@ -119,8 +119,9 @@ macro_rules! bench_impl {
 			.expect("should not fail");
 			let afc = shm::ReadState::open(path, Flag::OpenOnly, Mode::ReadWrite, MAX_CHANS)
 				.expect("should not fail");
+			let client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 
-			let mut chans: [(SealCtx<CS<$aead, $kdf>>, OpenCtx<CS<$aead, $kdf>>); USED_CHANS] = array::from_fn(|_| {
+			let mut chans: [(SealCtx<CS<$aead, $kdf>>, OpenCtx<shm::OpenCtx<CS<$aead, $kdf>>>); USED_CHANS] = array::from_fn(|_| {
 				let label = LabelId::random(Rng);
 
 				// Use the same key to simplify the decryption
@@ -141,11 +142,10 @@ macro_rules! bench_impl {
 
                 let seal_local_id = aranya.add(seal_key, label, DeviceId::random(Rng)).unwrap();
                 let open_local_id = aranya.add(open_key, label, DeviceId::random(Rng)).unwrap();
-                let seal_ctx = afc.setup_seal_ctx(seal_local_id).unwrap();
-				let open_ctx = afc.setup_open_ctx(open_local_id).unwrap();
+                let seal_ctx = client.setup_seal_ctx(seal_local_id).unwrap();
+				let open_ctx = client.setup_open_ctx(open_local_id).unwrap();
 				(seal_ctx, open_ctx)
 			});
-			let client = Client::<shm::ReadState<CS<$aead, $kdf>>>::new(afc);
 
 			for size in SIZES {
 				let mut g = c.benchmark_group(stringify!($aead));
@@ -193,20 +193,29 @@ macro_rules! bench_impl {
 
 				// The best case scenario: the peer's info is
 				// always cached.
+				//
+				// Replay protection means each ciphertext can
+				// only be opened once, so seal a fresh one per
+				// iteration (outside the timed region).
 				let (seal_ctx, open_ctx) = chans.last_mut().unwrap();
-				client
-					.seal(seal_ctx, &mut ciphertext, &input)
-					.expect("open_hit: unable to encrypt");
-
 				g.bench_function(BenchmarkId::new("open_hit", *size), |b| {
-					b.iter(|| {
-						let _ = black_box(client.open(
-							black_box(open_ctx),
-							black_box(&mut plaintext),
-							black_box(&ciphertext),
-						))
-						.expect("open_hit: unable to decrypt");
-					})
+					b.iter_batched(
+						|| {
+							client
+								.seal(seal_ctx, &mut ciphertext, &input)
+								.expect("open_hit: unable to encrypt");
+							ciphertext.clone()
+						},
+						|ciphertext| {
+							let _ = black_box(client.open(
+								black_box(open_ctx),
+								black_box(&mut plaintext),
+								black_box(&ciphertext),
+							))
+							.expect("open_hit: unable to decrypt");
+						},
+						BatchSize::SmallInput,
+					)
 				});
 
 				// TODO(#482): open_miss no longer misses since each channel gets

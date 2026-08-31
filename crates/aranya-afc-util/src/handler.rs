@@ -8,7 +8,11 @@ use aranya_crypto::{
 use aranya_fast_channels::Directed;
 use serde::{Deserialize, Serialize};
 
-use crate::{shared::decode_enc_pk, transform::Transform};
+use crate::{
+    replay::{ReplayStore, Verdict},
+    shared::decode_enc_pk,
+    transform::Transform,
+};
 
 /// Wraps `tracing::error` to always use the `afc-handler`
 /// target.
@@ -71,6 +75,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label_id: effect.label_id,
+            epoch: effect.epoch,
         };
 
         UniKey::new(&ch, secret, UniKey::SealOnly)
@@ -78,18 +83,40 @@ impl<S: KeyStore> Handler<S> {
 
     /// Converts a [`UniPeerEncap`] into a key suitable for
     /// [`AranyaState`][aranya_fast_channels::AranyaState].
-    pub fn uni_channel_received<E, SK, OK>(
+    ///
+    /// The control message is first checked for freshness via
+    /// [`ReplayStore::accept`]: anything other than
+    /// [`Verdict::Fresh`] fails with [`Error::Replay`] before any
+    /// key material is derived. The message is recorded durably
+    /// before this returns, so a crash before the key is
+    /// installed loses the channel (the sender creates a new
+    /// one), but the message can never be accepted twice.
+    pub fn uni_channel_received<E, R, SK, OK>(
         &mut self,
         eng: &E,
+        replay: &mut R,
+        graph: BaseId,
         effect: &UniChannelReceived<'_>,
     ) -> Result<UniKey<SK, OK>, Error>
     where
         E: Engine,
+        R: ReplayStore,
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
         if effect.seal_id == self.device_id {
             return Err(Error::AuthorMustBeSealer);
+        }
+
+        // Freshness, before any key material exists.
+        match replay
+            .accept(graph, effect.seal_id, effect.epoch, effect.cmd_id)
+            .map_err(|err| {
+                error!("replay store failed: {err}");
+                Error::ReplayStore
+            })? {
+            Verdict::Fresh => {}
+            verdict => return Err(Error::Replay(verdict)),
         }
 
         let encap =
@@ -111,6 +138,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label_id: effect.label_id,
+            epoch: effect.epoch,
         };
 
         UniKey::new(&ch, encap, UniKey::OpenOnly)
@@ -132,6 +160,8 @@ pub struct UniChannelCreated<'a> {
     pub label_id: LabelId,
     /// The unique key identifier for the [`UniAuthorSecret`].
     pub key_id: UniKeyId,
+    /// The channel author's epoch at creation time.
+    pub epoch: u64,
 }
 
 /// Data from the `AfcUniChannelReceived` effect.
@@ -149,6 +179,12 @@ pub struct UniChannelReceived<'a> {
     pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
+    /// The channel author's epoch at creation time.
+    pub epoch: u64,
+    /// The ID of the control command that created the channel.
+    ///
+    /// This is the replay-protection nonce.
+    pub cmd_id: CmdId,
 }
 
 /// Uniquely identifies a unirectional channel.
@@ -221,4 +257,10 @@ pub enum Error {
     /// A `crypto` crate error.
     #[error(transparent)]
     Crypto(#[from] aranya_crypto::Error),
+    /// The control message was rejected by the [`ReplayStore`].
+    #[error("control message rejected: {0}")]
+    Replay(Verdict),
+    /// The [`ReplayStore`] failed.
+    #[error("replay store failure")]
+    ReplayStore,
 }

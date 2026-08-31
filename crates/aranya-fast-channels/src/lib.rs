@@ -31,6 +31,15 @@
 //! but it is possible to do so by passing a "new" [`AfcState::SealCtx`] to the seal methods
 //! on [`Client`].
 //!
+//! On the receiving side, [`Client::open`] and
+//! [`Client::open_in_place`] enforce a per-channel sliding
+//! [`ReplayWindow`] over the sequence number: each frame is
+//! delivered at most once and frames older than the window are
+//! rejected with [`Error::ReplayedSeq`]. The window lives in the
+//! [`OpenCtx`] returned by [`Client::setup_open_ctx`], so, like
+//! the seal context, it should be created once per channel per
+//! process.
+//!
 //! # Example
 //!
 //! The following example demonstrates two [`Client`]s encrypting
@@ -92,6 +101,8 @@
 //!
 //! // The label ID used for encryption and decryption.
 //! let label_id = LabelId::random(Rng);
+//! // The channel author's epoch, read from the Aranya graph.
+//! let epoch = 0;
 //!
 //! let ch1 = UniChannel {
 //!     parent_cmd_id: CmdId::random(&eng),
@@ -100,6 +111,7 @@
 //!     their_pk: &device2_enc_sk.public()?,
 //!     open_id: device2_id,
 //!     label_id,
+//!     epoch,
 //! };
 //! let UniSecrets { author, peer } = UniSecrets::new(&eng, &ch1)?;
 //!
@@ -115,6 +127,7 @@
 //!     their_pk: &device1_enc_sk.public()?,
 //!     seal_id: device1_id,
 //!     label_id,
+//!     epoch,
 //! };
 //!
 //! // Inform device2 about device1.
@@ -221,6 +234,7 @@ mod error;
 mod header;
 pub mod memory;
 mod mutex;
+mod replay;
 pub mod rust;
 pub mod shm;
 mod state;
@@ -231,6 +245,7 @@ pub use buf::*;
 pub use client::*;
 pub use error::*;
 pub use header::*;
+pub use replay::*;
 pub use state::*;
 #[cfg(feature = "unsafe_debug")]
 pub use util::init_debug_logging;
