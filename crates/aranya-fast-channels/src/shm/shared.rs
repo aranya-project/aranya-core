@@ -712,7 +712,7 @@ struct ChanList<CS> {
     /// The locked list data.
     data: Mutex<ChanListData<CS>>,
 }
-assert_ffi_safe!(ChanList<aranya_crypto::default::DefaultEngine<aranya_crypto::Rng>>);
+assert_ffi_safe!(ChanList<aranya_crypto::default::DefaultCipherSuite>);
 
 impl<CS: CipherSuite> ChanList<CS> {
     const MAGIC: U32 = U32::new(0x1b771244);
@@ -801,7 +801,7 @@ pub(super) struct ChanListData<CS> {
     /// It is a ZST and does not affect the memory layout.
     chans: PhantomData<CS>,
 }
-assert_ffi_safe!(ChanListData<aranya_crypto::default::DefaultEngine<aranya_crypto::Rng>>);
+assert_ffi_safe!(ChanListData<aranya_crypto::default::DefaultCipherSuite>);
 
 const_assert!(
     // `Mutex` is 8 bytes, so ensure that `Mutex<ChanListData>`
