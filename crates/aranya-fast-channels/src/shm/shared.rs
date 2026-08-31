@@ -10,7 +10,7 @@ use core::{
 use aranya_crypto::{
     CipherSuite, Csprng, DeviceId, Random,
     afc::{RawOpenKey, RawSealKey},
-    dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
+    dangerous::spideroak_crypto::aead::Aead,
     policy::LabelId,
 };
 use buggy::{Bug, BugExt as _};
@@ -366,8 +366,6 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// The key/nonce used to decrypt data from the channel peer.
     #[derive_where(skip(Debug))]
     pub open_key: RawOpenKey<CS>,
-    /// Uniquely identifies `seal_key` and `open_key`.
-    pub key_id: KeyId,
 }
 assert_ffi_safe!(ShmChan<aranya_crypto::default::DefaultCipherSuite>);
 
@@ -408,7 +406,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
         // a ciphertext.
         let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(&rng));
         let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(&rng));
-        let key_id = KeyId::new(&seal_key, &open_key);
         let chan = Self {
             magic: Self::MAGIC,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
@@ -417,7 +414,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
             peer_id,
             seal_key,
             open_key,
-            key_id,
         };
         ptr.write(chan);
     }
@@ -1061,29 +1057,6 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         Ok(self.chans_mut()?.iter_mut())
-    }
-}
-
-/// Uniquely identifies a [`RawSealKey`], [`RawOpenKey`] tuple.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(super) struct KeyId([u8; 16]);
-
-impl KeyId {
-    fn new<CS: CipherSuite>(seal: &RawSealKey<CS>, open: &RawOpenKey<CS>) -> Self {
-        let id = tuple_hash::<CS::Hash, _>([
-            seal.key.as_bytes(),
-            &seal.base_nonce,
-            open.key.as_bytes(),
-            &open.base_nonce,
-        ])
-        .into_array();
-        #[allow(
-            clippy::unwrap_used,
-            clippy::indexing_slicing,
-            reason = "The compiler proves that this does not panic."
-        )]
-        Self(id[..16].try_into().unwrap())
     }
 }
 
