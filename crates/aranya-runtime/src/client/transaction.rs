@@ -332,6 +332,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
+        policy.validate_merge(command)?;
+
         // Braid commands from left and right into an ordered sequence.
         let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
@@ -791,6 +793,11 @@ mod test {
             let id = hash_for_testing_only(parents.as_flattened());
 
             Ok(SeqCommand::new(id, Prior::Merge(left, right)))
+        }
+
+        fn validate_merge(&self, _command: &impl Command) -> Result<(), PolicyError> {
+            // No validation to allow `"a" "b" < "m"` in `graph!` dsl.
+            Ok(())
         }
     }
 
