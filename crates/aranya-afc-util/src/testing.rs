@@ -31,7 +31,8 @@ use spin::Mutex;
 use crate::{
     ffi::{AfcUniChannel, Ffi, FfiError},
     handler::{
-        Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived, UniKey,
+        EpochRotated, Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived,
+        UniKey,
     },
     replay::{MemStore as ReplayMemStore, ReplayStore, Verdict},
     transform::Transform,
@@ -388,6 +389,16 @@ impl<T: TestImpl> Device<T> {
         self.afc_state
             .add(keys.into(), ch.label_id, author.device_id)
             .expect("peer should be able to add channel")
+    }
+
+    /// Handles the `AfcEpochRotated` effect: `device_id`
+    /// rotated to `epoch`.
+    fn epoch_rotated(&mut self, device_id: DeviceId, epoch: u64) {
+        let mut replay = self.replay.clone();
+        let graph = self.graph;
+        self.handler
+            .epoch_rotated(&mut replay, graph, &EpochRotated { device_id, epoch })
+            .expect("`epoch_rotated` should succeed");
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
@@ -961,9 +972,7 @@ where
 
     // The sender rotates to epoch 1; the receiver learns about
     // it via the `AfcEpochRotated` effect.
-    peer.replay
-        .raise_floor(graph, author.device_id, 1)
-        .expect("raise_floor should succeed");
+    peer.epoch_rotated(author.device_id, 1);
     assert_eq!(peer.replay.epoch(graph, author.device_id), 1);
     assert_eq!(peer.replay.nonces(graph, author.device_id), 0);
 
@@ -997,16 +1006,12 @@ where
     Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
     assert_eq!(peer.replay.epoch(graph, author.device_id), 2);
     assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
-    peer.replay
-        .raise_floor(graph, author.device_id, 2)
-        .expect("raise_floor should succeed");
+    peer.epoch_rotated(author.device_id, 2);
     assert_eq!(peer.replay.epoch(graph, author.device_id), 2);
     assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
 
     // Another rotation forgets everything again.
-    peer.replay
-        .raise_floor(graph, author.device_id, 3)
-        .expect("raise_floor should succeed");
+    peer.epoch_rotated(author.device_id, 3);
     assert_eq!(peer.replay.nonces(graph, author.device_id), 0);
     let mut replay = peer.replay.clone();
     let err = peer
@@ -1020,6 +1025,11 @@ where
         ),
         "{err}"
     );
+
+    // A device's own rotation effect is a no-op for its replay
+    // state: it never accepts messages from itself.
+    peer.epoch_rotated(peer.device_id, 100);
+    assert_eq!(peer.replay.epoch(graph, peer.device_id), 0);
 }
 
 /// Once the per-epoch nonce cap is exhausted, the receiver fails
@@ -1104,6 +1114,21 @@ where
         .receive(&author, &ch, &mut FailingStore)
         .err()
         .expect("unavailable replay store should be an error");
+    assert!(matches!(err, EffectHandlerError::ReplayStore), "{err}");
+
+    // `epoch_rotated` surfaces the same error.
+    let graph = peer.graph;
+    let err = peer
+        .handler
+        .epoch_rotated(
+            &mut FailingStore,
+            graph,
+            &EpochRotated {
+                device_id: author.device_id,
+                epoch: 1,
+            },
+        )
+        .expect_err("unavailable replay store should be an error");
     assert!(matches!(err, EffectHandlerError::ReplayStore), "{err}");
 
     // Once the store is available again the same message is

@@ -32,6 +32,34 @@ impl<S> Handler<S> {
     pub const fn new(device_id: DeviceId, store: S) -> Self {
         Self { device_id, store }
     }
+
+    /// Handles the `AfcEpochRotated` effect by raising the
+    /// replay floor for the rotated device via
+    /// [`ReplayStore::raise_floor`], forgetting the nonces
+    /// recorded for its older epochs.
+    ///
+    /// A device's own rotation is a no-op: replay state is only
+    /// kept for messages from *other* devices (see
+    /// [`Error::AuthorMustBeSealer`]).
+    pub fn epoch_rotated<R>(
+        &mut self,
+        replay: &mut R,
+        graph: BaseId,
+        effect: &EpochRotated,
+    ) -> Result<(), Error>
+    where
+        R: ReplayStore,
+    {
+        if effect.device_id == self.device_id {
+            return Ok(());
+        }
+        replay
+            .raise_floor(graph, effect.device_id, effect.epoch)
+            .map_err(|err| {
+                error!("replay store failed: {err}");
+                Error::ReplayStore
+            })
+    }
 }
 
 // Uni impl.
@@ -185,6 +213,15 @@ pub struct UniChannelReceived<'a> {
     ///
     /// This is the replay-protection nonce.
     pub cmd_id: CmdId,
+}
+
+/// Data from the `AfcEpochRotated` effect.
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct EpochRotated {
+    /// The device whose epoch was rotated.
+    pub device_id: DeviceId,
+    /// The new epoch.
+    pub epoch: u64,
 }
 
 /// Uniquely identifies a unirectional channel.
