@@ -105,3 +105,6 @@ always_include_features = [
 # low-mem-usage breaks brittle dsl tests and is only
 # needed for the embedded build so we exclude it here.
 denylist = ["low-mem-usage"]
+
+[package.metadata.docs.rs]
+all-features = true

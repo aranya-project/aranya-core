@@ -35,3 +35,7 @@ low-mem-usage = ["aranya-runtime/low-mem-usage"]
 custom-engine = []
 
 memstore = ["aranya-crypto/memstore"]
+
+
+[package.metadata.docs.rs]
+all-features = true

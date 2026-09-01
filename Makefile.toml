@@ -1,9 +1,9 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
 CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "canaries/*"
-RUSTDOCFLAGS = { value = "", condition = { env_not_set = ["RUSTDOCFLAGS"] } }
 
 RUSTFLAGS = { value = "-Dwarnings", condition = { env_true = ["CARGO_MAKE_CI"] } }
+RUSTDOCFLAGS = { value = "-Dwarnings", condition = { env_true = ["CARGO_MAKE_CI"] } }
 
 [config]
 default_to_workspace = false
@@ -263,14 +263,8 @@ install_crate = { crate_name = "cargo-machete", version = "0.9.1", binary = "car
 category = "docs"
 description = "Generate docs"
 env.RUSTC_BOOTSTRAP = "1"
-env.RUSTDOCFLAGS = "--cfg docsrs ${RUSTDOCFLAGS}"
-command = "cargo"
-args = ["doc", "--all-features"]
-
-[tasks.zip-docs]
-category = "docs"
-description = "Zip docs"
-script = "zip -qr docs.zip target/doc"
+command = "scripts/docs-rs.py"
+install_crate = { crate_name = "cargo-docs-rs", version = "1.0.4", binary = "cargo-docs-rs", test_arg = "-V" }
 
 
 # Misc

@@ -31,3 +31,7 @@ tracing = { workspace = true }
 anyhow = { workspace = true }
 insta = { workspace = true }
 rstest = { workspace = true }
+
+
+[package.metadata.docs.rs]
+all-features = true

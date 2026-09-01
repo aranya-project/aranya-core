@@ -35,3 +35,7 @@ thiserror = { workspace = true }
 always_include_features = [
 	"std",
 ]
+
+
+[package.metadata.docs.rs]
+all-features = true
