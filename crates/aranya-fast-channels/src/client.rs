@@ -201,7 +201,6 @@ impl<S: AfcState> Client<S> {
         let (rest, header) = data
             .split_last_chunk_mut()
             .assume("we've already checked that `data` can fit a header")?;
-        #[allow(clippy::incompatible_msrv)] // clippy#12280
         let (out, tag) = rest
             .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
@@ -348,28 +347,29 @@ impl<S: AfcState> Client<S> {
         // like so:
         //    ciphertext || tag || header
 
-        // Split `data` into its components.
-        let (seq, out, tag) = {
-            let (rest, header) = data
+        let (seq, ciphertext) = {
+            let (ciphertext, header) = data
                 .split_last_chunk_mut()
                 .ok_or(HeaderError::InvalidSize)?;
             let DataHeader { seq, .. } = DataHeader::try_parse(header)?;
 
-            #[allow(clippy::incompatible_msrv)] // clippy#12280
-            let (ciphertext, tag) = rest
-                .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
-                // Missing an authentication tag, so by
-                // definition we cannot authenticate the
-                // ciphertext.
-                .ok_or(Error::Authentication)?;
-            (seq, ciphertext, tag)
+            (seq, ciphertext)
         };
+
+        let plaintext_len = ciphertext
+            .len()
+            .checked_sub(Self::TAG_SIZE)
+            // We're missing an authentication tag, so by
+            // definition we cannot authenticate the ciphertext.
+            .ok_or(Error::Authentication)?;
+        let (out, tag) = ciphertext
+            .split_at_mut_checked(plaintext_len)
+            .ok_or(Error::Authentication)?;
         debug!("data=[{:?}; {}]", out.as_ptr(), out.len());
 
         // Reject replays before doing any cryptographic work.
         ctx.window.check(seq)?;
 
-        let plaintext_len = out.len();
         let label_id = self
             .do_open(&mut ctx.inner, seq, |aead, ad, seq| {
                 aead.open_in_place(out, tag, ad, seq)?;
