@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unused variable(s): `z`, `x`
+  |
+3 | function g(x int, y int, z int) int {
+  |            ^ never used  ^ never used
