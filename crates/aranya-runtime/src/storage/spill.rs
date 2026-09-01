@@ -11,7 +11,6 @@
 //! - [`MemSpill`] (`testing`): in-memory `Vec<u8>` buffer,
 //!   suitable for unit tests and environments without a filesystem.
 
-#[cfg(feature = "testing")]
 use alloc::vec::Vec;
 
 use crate::{StorageError, storage::Spill};
@@ -107,23 +106,24 @@ impl Spill for LibcSpill {
     }
 }
 
-// --- testing (in-memory) backend ---
+/// Convenience function for passing as `make_spill` argument.
+pub const fn mem_spill() -> Result<MemSpill, StorageError> {
+    Ok(MemSpill::new())
+}
 
 /// In-memory spill backed by a growable byte buffer.
-#[cfg(feature = "testing")]
+#[derive(Default)]
 pub struct MemSpill {
     buf: Vec<u8>,
 }
 
-#[cfg(feature = "testing")]
 impl MemSpill {
     /// Create an empty in-memory spill.
-    pub fn new() -> Result<Self, StorageError> {
-        Ok(Self { buf: Vec::new() })
+    pub const fn new() -> Self {
+        Self { buf: Vec::new() }
     }
 }
 
-#[cfg(feature = "testing")]
 impl Spill for MemSpill {
     fn write_at(&mut self, offset: usize, data: &[u8]) -> Result<(), StorageError> {
         let end = offset

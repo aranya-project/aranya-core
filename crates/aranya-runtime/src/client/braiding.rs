@@ -508,14 +508,14 @@ mod braid_result_tests {
 
     #[test]
     fn empty_result_yields_nothing() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         let mut iter = result.iter().unwrap();
         assert!(iter.next().is_none());
     }
 
     #[test]
     fn single_entry() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         result.push(loc(0, 1)).unwrap();
         let mut iter = result.iter().unwrap();
         assert_eq!(iter.next().unwrap().unwrap(), loc(0, 1));
@@ -524,7 +524,7 @@ mod braid_result_tests {
 
     #[test]
     fn yields_in_reverse_push_order() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         result.push(loc(0, 3)).unwrap();
         result.push(loc(1, 2)).unwrap();
         result.push(loc(2, 1)).unwrap();
@@ -538,7 +538,7 @@ mod braid_result_tests {
 
     #[test]
     fn spill_to_disk_and_iterate() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         // Push more than BRAID_BLOCK_ENTRIES (256) to force a disk spill.
         let total = BRAID_BLOCK_ENTRIES + 10;
         for i in 0..total {
@@ -557,7 +557,7 @@ mod braid_result_tests {
 
     #[test]
     fn multiple_spills() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         // Push 3 full blocks worth to force multiple spills.
         let total = BRAID_BLOCK_ENTRIES * 3 + 5;
         for i in 0..total {

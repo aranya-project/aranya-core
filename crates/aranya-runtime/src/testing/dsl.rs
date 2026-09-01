@@ -74,9 +74,9 @@ use tracing::{debug, error};
 use crate::{
     Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _,
     CommandExt as _, GraphId, Keys, Location, MAX_COMMAND_LENGTH, MAX_SYNC_MESSAGE_SIZE, MaxCut,
-    MemSpill, PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncHello, SyncIncoming, SyncRequester,
-    SyncResponder, Transaction, TraversalBuffer, TraversalBuffers,
+    PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _, Storage, StorageError,
+    StorageProvider, SyncError, SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction,
+    TraversalBuffer, TraversalBuffers, mem_spill,
     sync::wire::{SyncHelloType, SyncType},
     testing::{
         protocol::{TestActions, TestEffect, TestPolicy, TestPolicyStore, TestSink},
@@ -347,7 +347,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                             break;
                         }
                     }
-                    request_client.commit(trx, sink, rt_buffers, MemSpill::new)?;
+                    request_client.commit(trx, sink, rt_buffers, mem_spill)?;
                     request_client.update_heads(
                         graph_id,
                         received_addrs,
@@ -1385,7 +1385,7 @@ where
                             break;
                         }
                     }
-                    request_client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                    request_client.commit(trx, &mut sink, &mut rt_buffers, mem_spill)?;
                     let mut request_cache = client_heads
                         .get(&(graph, client, from))
                         .assume("cache must exist")?
@@ -1454,7 +1454,7 @@ where
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValuePriority(key, value, priority);
-                    state.action(*graph_id, &mut sink, set, &mut rt_buffers, MemSpill::new)?;
+                    state.action(*graph_id, &mut sink, set, &mut rt_buffers, mem_spill)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -1494,7 +1494,7 @@ where
                     &mut sink,
                     TestActions::DeleteValue(key, priority),
                     &mut rt_buffers,
-                    MemSpill::new,
+                    mem_spill,
                 )?;
 
                 assert_eq!(0, sink.count());
@@ -1534,7 +1534,7 @@ where
                     &mut sink,
                     TestActions::NoOp(nonce, priority),
                     &mut rt_buffers,
-                    MemSpill::new,
+                    mem_spill,
                 )?;
 
                 assert_eq!(0, sink.count());
@@ -1596,7 +1596,7 @@ where
                     &mut sink,
                     core::slice::from_ref(&poison),
                     &mut rt_buffers,
-                    MemSpill::new,
+                    mem_spill,
                 );
                 assert!(
                     matches!(result, Err(ClientError::PolicyError(PolicyError::Rejected))),
@@ -1613,10 +1613,10 @@ where
                     &mut sink,
                     core::slice::from_ref(&cmd),
                     &mut rt_buffers,
-                    MemSpill::new,
+                    mem_spill,
                 )?;
                 assert_eq!(1, added);
-                state.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                state.commit(trx, &mut sink, &mut rt_buffers, mem_spill)?;
             }
             TestRule::PrintGraph { client, graph } => {
                 let state = clients
@@ -1801,7 +1801,7 @@ where
                                 .get(&i)
                                 .ok_or(TestError::MissingClient)?
                                 .borrow_mut();
-                            client.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)?;
+                            client.commit(trx, &mut sink, &mut rt_buffers, mem_spill)?;
                         }
                     }
 
@@ -2111,8 +2111,7 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received =
-            request_state.add_commands(request_trx, sink, &cmds, rt_buffers, MemSpill::new)?;
+        received = request_state.add_commands(request_trx, sink, &cmds, rt_buffers, mem_spill)?;
 
         // Persist any in-flight perspective so the next exchange's overlay
         // sees every accumulated command at a real location. This is what
@@ -2461,7 +2460,7 @@ mod tests {
             &mut sink,
             TestActions::SetValue(7, 9),
             &mut buffers,
-            MemSpill::new,
+            mem_spill,
         )?;
 
         let storage = state.provider().get_storage(graph_id)?;
@@ -2486,7 +2485,7 @@ mod tests {
             TestActions::SetValue(8, 10),
             TestActions::DeleteValue(7, 0),
         ] {
-            state.action(graph_id, &mut sink, action, &mut buffers, MemSpill::new)?;
+            state.action(graph_id, &mut sink, action, &mut buffers, mem_spill)?;
         }
 
         let storage = state.provider().get_storage(graph_id)?;
@@ -2508,7 +2507,7 @@ mod tests {
             &mut sink,
             TestActions::SetValuePriority(1, 2, 7),
             &mut buffers,
-            MemSpill::new,
+            mem_spill,
         )?;
 
         let storage = state.provider().get_storage(graph_id)?;
@@ -2606,7 +2605,7 @@ mod tests {
         let mut buffers = RuntimeBuffers::new();
         let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
         for action in [TestActions::SetValue(7, 9), TestActions::NoOp(42, 1)] {
-            state.action(graph_id, &mut sink, action, &mut buffers, MemSpill::new)?;
+            state.action(graph_id, &mut sink, action, &mut buffers, mem_spill)?;
         }
 
         let storage = state.provider().get_storage(graph_id)?;

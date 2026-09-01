@@ -760,7 +760,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ClientState, MemSpill, RuntimeBuffers,
+        ClientState, RuntimeBuffers, mem_spill,
         storage::linear::testing::MemStorageProvider,
         sync::{MAX_SYNC_MESSAGE_SIZE, SyncIncoming, SyncRequester},
         testing::protocol::{TestActions, TestPolicyStore, TestSink},
@@ -836,10 +836,10 @@ mod tests {
                 break;
             };
             received += dest
-                .add_commands(&mut trx, &mut sink, &cmds, &mut rt_buffers, MemSpill::new)
+                .add_commands(&mut trx, &mut sink, &cmds, &mut rt_buffers, mem_spill)
                 .expect("add_commands");
         }
-        dest.commit(trx, &mut sink, &mut rt_buffers, MemSpill::new)
+        dest.commit(trx, &mut sink, &mut rt_buffers, mem_spill)
             .expect("commit");
         received
     }
@@ -862,7 +862,7 @@ mod tests {
                 &mut sink,
                 TestActions::SetValue(i, i),
                 &mut rt_buffers,
-                MemSpill::new,
+                mem_spill,
             )
             .expect("action");
         }
@@ -882,7 +882,7 @@ mod tests {
                 &mut sink,
                 TestActions::SetValue(i, i),
                 &mut rt_buffers,
-                MemSpill::new,
+                mem_spill,
             )
             .expect("action");
         }
