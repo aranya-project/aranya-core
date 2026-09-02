@@ -10,8 +10,8 @@ use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientError, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, NullSink, PeerCache,
-    RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+    ClientError, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
+    RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError, mem_spill,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
@@ -95,9 +95,9 @@ command Increment {
     seal { return envelope::do_seal(payload) }
     open { return envelope::do_open(payload, envelope) }
     policy {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         check stuff.y > 0 else recall default()
-        let new_y = unwrap add(stuff.y, this.amount)
+        let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
@@ -105,7 +105,7 @@ command Increment {
     }
 
     recall default() {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
                 value: stuff.y,
@@ -137,9 +137,9 @@ ephemeral command IncrementEphemeral {
     seal { return envelope::do_seal(payload) }
     open { return envelope::do_open(payload, envelope) }
     policy {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         check stuff.y > 0 else recall default()
-        let new_y = unwrap add(stuff.y, this.amount)
+        let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
@@ -147,7 +147,7 @@ ephemeral command IncrementEphemeral {
     }
 
     recall default() {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
                 value: stuff.y,
@@ -193,7 +193,7 @@ command Invalidate {
     seal { return envelope::do_seal(payload) }
     open { return envelope::do_open(payload, envelope) }
     policy {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         let newval = -1  // hack around negative number parse bug; see #869
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: newval}
@@ -388,7 +388,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
         &mut sink,
         vm_action!(create_action(3)),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
 
@@ -401,7 +401,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
         &mut sink,
         vm_action!(increment()),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
 
@@ -493,7 +493,7 @@ pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPoli
         &mut NullSink,
         vm_action!(create_action(1)),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("can create");
 
@@ -551,7 +551,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
         &mut sink,
         vm_action!(create_action(3)),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
 
@@ -564,7 +564,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
         &mut sink,
         vm_action!(increment()),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
 
@@ -622,7 +622,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
             &mut sink,
             vm_action!(increment()),
             &mut buffers,
-            MemSpill::new,
+            mem_spill,
         )
         .expect("could not call action");
 
@@ -698,12 +698,12 @@ fn test_sync<PS, P, S>(
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds, rt_buffers, MemSpill::new)
+            cs2.add_commands(&mut req_transaction, sink, &cmds, rt_buffers, mem_spill)
                 .expect("add commands");
         }
     }
 
-    cs2.commit(req_transaction, sink, rt_buffers, MemSpill::new)
+    cs2.commit(req_transaction, sink, rt_buffers, mem_spill)
         .expect("commit");
 }
 
@@ -731,7 +731,7 @@ pub fn test_effect_metadata(
         &mut sink,
         vm_action!(create_action(1)),
         &mut rt_buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
@@ -753,7 +753,7 @@ pub fn test_effect_metadata(
         &mut sink,
         vm_action!(increment()),
         &mut rt_buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 2 }));
@@ -768,7 +768,7 @@ pub fn test_effect_metadata(
         &mut sink,
         vm_action!(invalidate()),
         &mut rt_buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: -1 }));

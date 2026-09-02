@@ -309,8 +309,8 @@ command Increment {
     open { return open_basic_command(payload, envelope) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = add(stuff.x, this.value) or test_fail()
         check new_x < 25 else test_fail("new_x out of range")
 
         finish {
@@ -342,8 +342,8 @@ command Decrement {
 
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap sub(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = sub(stuff.x, this.value) or test_fail()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -411,7 +411,7 @@ ephemeral command VerifyGreeting {
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
         check greeting.value == this.value else test_fail("greeting mismatch")

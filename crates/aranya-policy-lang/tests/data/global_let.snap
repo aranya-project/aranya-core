@@ -11,63 +11,80 @@ Policy {
             persistence: Persistent,
             identifier: "foo" @ 32..35,
             arguments: [],
-            return_type: Unit @ 0..0,
+            return_type: Result(
+                ResultTypeKind {
+                    ok: Unit @ 45..49,
+                    err: Unit @ 51..55,
+                },
+            ) @ 38..56,
             statements: [
                 Let(
                     LetStatement {
-                        identifier: "a" @ 48..49,
-                        expression: Unwrap(
+                        identifier: "a" @ 67..68,
+                        expression: Coalesce(
                             FunctionCall(
                                 FunctionCall {
-                                    identifier: "add" @ 59..62,
+                                    identifier: "add" @ 71..74,
                                     arguments: [
                                         Identifier(
-                                            "x" @ 63..64,
-                                        ) @ 63..64,
+                                            "x" @ 75..76,
+                                        ) @ 75..76,
                                         Int(
-                                            1 @ 66..67,
-                                        ) @ 66..67,
+                                            1 @ 78..79,
+                                        ) @ 78..79,
                                     ],
                                 },
-                            ) @ 59..68,
-                        ) @ 52..68,
+                            ) @ 71..80,
+                            Return(
+                                Err(
+                                    Unit @ 95..99,
+                                ) @ 91..100,
+                            ) @ 84..105,
+                        ) @ 71..105,
                     },
-                ) @ 44..73,
+                ) @ 63..105,
                 Let(
                     LetStatement {
-                        identifier: "c" @ 77..78,
+                        identifier: "c" @ 109..110,
                         expression: Not(
                             Identifier(
-                                "z" @ 82..83,
-                            ) @ 82..83,
-                        ) @ 81..83,
+                                "z" @ 114..115,
+                            ) @ 114..115,
+                        ) @ 113..115,
                     },
-                ) @ 73..88,
+                ) @ 105..120,
                 Emit(
                     NamedStruct(
                         NamedStruct {
-                            identifier: "Bar" @ 93..96,
+                            identifier: "Bar" @ 125..128,
                             fields: [
                                 (
-                                    "a" @ 107..108,
+                                    "a" @ 139..140,
                                     Identifier(
-                                        "a" @ 110..111,
-                                    ) @ 110..111,
+                                        "a" @ 142..143,
+                                    ) @ 142..143,
                                 ),
                                 (
-                                    "c" @ 121..122,
+                                    "c" @ 153..154,
                                     Identifier(
-                                        "c" @ 124..125,
-                                    ) @ 124..125,
+                                        "c" @ 156..157,
+                                    ) @ 156..157,
                                 ),
                             ],
                             sources: [],
-                            span: 93..132,
+                            span: 125..164,
                         },
-                    ) @ 93..132,
-                ) @ 88..133,
+                    ) @ 125..164,
+                ) @ 120..169,
+                Return(
+                    ReturnStatement {
+                        expression: Ok(
+                            Unit @ 179..183,
+                        ) @ 176..184,
+                    },
+                ) @ 169..185,
             ],
-            span: 25..134,
+            span: 25..186,
         },
     ],
     effects: [],
@@ -92,5 +109,5 @@ Policy {
             span: 11..25,
         },
     ],
-    text: "let x = 42\nlet z = true\n\naction foo() {\n    let a = unwrap add(x, 1)\n    let c = !z\n    emit Bar {\n        a: a,\n        c: c,\n    }\n}\n",
+    text: "let x = 42\nlet z = true\n\naction foo() result[unit, unit] {\n    let a = add(x, 1) or return Err(Unit)\n    let c = !z\n    emit Bar {\n        a: a,\n        c: c,\n    }\n    return Ok(Unit)\n}\n",
 }

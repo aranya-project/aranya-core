@@ -827,10 +827,6 @@ impl<'a> CompileState<'a> {
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
-            thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
-            thir::ExprKind::CheckUnwrap(e) => {
-                self.compile_unwrap_option(*e, ExitReason::Check)?;
-            }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
@@ -1226,33 +1222,6 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
-    fn compile_unwrap_option(
-        &mut self,
-        e: thir::Expression,
-        exit_reason: ExitReason,
-    ) -> Result<(), CompileError> {
-        let not_none = self.anonymous_label();
-        // evaluate the expression
-        self.compile_typed_expression(e)?;
-        // Duplicate value for testing
-        self.append_instruction(Instruction::Dup);
-        // Push a None to compare against
-        self.append_instruction(Instruction::Const(ConstValue::NONE));
-        // Is the value not equal to None?
-        self.append_instruction(Instruction::Eq);
-        self.append_instruction(Instruction::Not);
-        // Then branch over the Panic
-        self.append_instruction(Instruction::Branch(Target::Unresolved(not_none.clone())));
-        // If the value is equal to None, panic
-        self.append_instruction(Instruction::Exit(exit_reason));
-        // Define the target of the branch as the instruction after the Panic
-        self.define_label(not_none, self.wp)?;
-        self.append_instruction(Instruction::Unwrap(WrapType::Some));
-
-        Ok(())
-    }
-
     fn compile_recall(&mut self, recall: thir::RecallCall) -> Result<(), CompileError> {
         // Compile args for command recall
         for arg_e in recall.arguments {
@@ -1448,7 +1417,9 @@ impl<'a> CompileState<'a> {
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 
-        self.identifier_types.exit_function();
+        self.identifier_types
+            .exit_function()
+            .map_err(|e| self.err(e))?;
         Ok(())
     }
 
@@ -1570,7 +1541,9 @@ impl<'a> CompileState<'a> {
 
     /// Exit match arm (exit scope, jump to end)
     fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
-        self.identifier_types.exit_block();
+        self.identifier_types
+            .exit_block()
+            .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::End);
         self.append_instruction(Instruction::Jump(Target::Unresolved(end_label.clone())));
 
@@ -2353,7 +2326,7 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(),
+            identifier_types: IdentifierTypeStack::new(self.is_debug),
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,

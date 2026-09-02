@@ -6,9 +6,9 @@ use derive_where::derive_where;
 use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
     csprng::{Csprng, Random},
+    ctutils::{Choice, CtEq},
     hash::{Digest, Hash},
     import::Import,
-    subtle::{Choice, ConstantTimeEq},
     typenum::U64,
     zeroize::{Zeroize as _, ZeroizeOnDrop},
 };
@@ -18,7 +18,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::unwrapped,
     error::Error,
-    generic_array::GenericArray,
+    hybrid_array::Array,
     id::{IdError, Identified, custom_id},
     policy::CmdId,
 };
@@ -256,7 +256,7 @@ impl<CS: CipherSuite> Identified for GroupKey<CS> {
     }
 }
 
-impl<CS: CipherSuite> ConstantTimeEq for GroupKey<CS> {
+impl<CS: CipherSuite> CtEq for GroupKey<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.seed.ct_eq(&other.seed)
@@ -307,7 +307,7 @@ custom_id! {
 /// An encrypted [`GroupKey`].
 #[derive_where(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedGroupKey<CS: CipherSuite> {
-    pub(crate) ciphertext: GenericArray<u8, U64>,
+    pub(crate) ciphertext: Array<u8, U64>,
     pub(crate) tag: Tag<CS::Aead>,
 }
 

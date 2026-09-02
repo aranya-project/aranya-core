@@ -9,8 +9,8 @@ use spideroak_crypto::{
     aead::{Aead, OpenError},
     csprng::Random,
     default::Rng,
-    generic_array::ArrayLength,
     hpke::HpkeError,
+    hybrid_array::ArraySize,
     typenum::{Sum, U64},
 };
 
@@ -558,7 +558,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &E) {
 pub fn test_encrypted_group_key_encode<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
+    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArraySize,
 {
     let enc_key = EncryptionKey::<E::CS>::new(eng);
 
@@ -585,7 +585,7 @@ where
 pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
+    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArraySize,
 {
     const RECORD: &[u8] = b"some encoded record";
 
@@ -641,7 +641,7 @@ where
 pub fn test_simple_seal_topic_key<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
+    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArraySize,
 {
     let send_sk = SenderSecretKey::<E::CS>::new(eng);
     let send_pk = send_sk.public().expect("sender public key should be valid");

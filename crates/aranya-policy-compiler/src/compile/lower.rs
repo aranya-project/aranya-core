@@ -918,10 +918,6 @@ impl CompileState<'_> {
                     span: expression.span,
                 }
             }
-            ExprKind::Unwrap(e) => self.lower_unwrap(e, thir::ExprKind::Unwrap, expression.span)?,
-            ExprKind::CheckUnwrap(e) => {
-                self.lower_unwrap(e, thir::ExprKind::CheckUnwrap, expression.span)?
-            }
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 let e = self.lower_expression(e)?;
@@ -952,7 +948,9 @@ impl CompileState<'_> {
                 let statements = self.lower_statements(statements, Scope::Same)?;
                 let subexpr = self.lower_expression(e)?;
                 let vtype = subexpr.vtype.clone();
-                self.identifier_types.exit_block();
+                self.identifier_types
+                    .exit_block()
+                    .map_err(|e| self.err(e))?;
 
                 thir::Expression {
                     kind: thir::ExprKind::Block(statements, Box::new(subexpr)),
@@ -1079,35 +1077,6 @@ impl CompileState<'_> {
             command_name: cmd.identifier.clone(),
             recall_name: fc.identifier.clone(),
             arguments,
-        })
-    }
-
-    /// Lowers a (check) unwrap expression.
-    ///
-    /// The `constructor` param is used to wrap the inner expression in either
-    /// [`thir::ExprKind::Unwrap`] or [`thir::ExprKind::CheckUnwrap`].
-    fn lower_unwrap(
-        &mut self,
-        e: &Expression,
-        constructor: impl FnOnce(Box<thir::Expression>) -> thir::ExprKind,
-        span: Span,
-    ) -> Result<thir::Expression, CompileError> {
-        let e = self.lower_expression(e)?;
-        let vtype = match &e.vtype {
-            VType {
-                inner: TypeKind::Optional(t),
-                ..
-            } => (**t).clone(),
-            _ => {
-                let err =
-                    InvalidType::new("option[T]".to_owned(), None, e.vtype.to_string(), e.span);
-                return Err(self.err(err));
-            }
-        };
-        Ok(thir::Expression {
-            kind: constructor(Box::new(e)),
-            vtype,
-            span,
         })
     }
 
@@ -1472,7 +1441,9 @@ impl CompileState<'_> {
                     let stmts = self.lower_statements(&arm.statements, Scope::Same)?;
 
                     // Exit the scope for this arm
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
 
                     arms.push(thir::MatchArm {
                         pattern,
@@ -1521,7 +1492,9 @@ impl CompileState<'_> {
                     let etype = e.vtype.clone();
 
                     // Exit the scope for this arm
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
 
                     match expr_type {
                         None => expr_type = Some(etype),
@@ -1779,7 +1752,9 @@ impl CompileState<'_> {
                         .map_err(|e| self.err(e))?;
                     // body
                     let s = self.lower_statements(&map_stmt.statements, Scope::Same)?;
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
                     thir::StmtKind::Map(thir::MapStatement {
                         fact,
                         identifier: map_stmt.identifier.clone(),
@@ -1958,7 +1933,9 @@ impl CompileState<'_> {
             });
         }
         if scope == Scope::Layered {
-            self.identifier_types.exit_block();
+            self.identifier_types
+                .exit_block()
+                .map_err(|e| self.err(e))?;
         }
         Ok(output)
     }

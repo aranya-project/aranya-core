@@ -679,7 +679,6 @@ impl SyncResponder {
             if commands.is_full() {
                 break;
             }
-            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
             let Some(&location) = self.to_send.get(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
@@ -691,7 +690,12 @@ impl SyncResponder {
 
             let found = segment.get_from(location);
 
+            let mut sent: usize = 0;
             for command in &found {
+                if commands.is_full() {
+                    break;
+                }
+
                 let mut policy_length = 0;
 
                 // Stored command sizes are not bounded by
@@ -719,20 +723,213 @@ impl SyncResponder {
                     length: bytes.len() as u32,
                 };
 
-                // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
-                commands
-                    .push(meta)
-                    .ok()
-                    .assume("too many commands in segment")?;
-                if commands.is_full() {
-                    break;
-                }
+                commands.push(meta).ok().assume("commands is not full")?;
+                sent = sent.checked_add(1).assume("sent + 1 mustn't overflow")?;
             }
+
+            if sent < found.len() {
+                // The response filled up partway through this segment.
+                // Point this entry at the first unsent command so the next
+                // response resumes inside the segment; a command's location
+                // within a segment advances one max_cut per command.
+                let resume_max_cut = location
+                    .max_cut
+                    .checked_add(sent as u64)
+                    .assume("max_cut + sent mustn't overflow")?;
+                *self.to_send.get_mut(i).assume("send index in bounds")? =
+                    Location::new(location.segment, resume_max_cut);
+                index = i;
+                break;
+            }
+
+            index = i.checked_add(1).assume("index + 1 mustn't overflow")?;
         }
         Ok((commands, command_data, index))
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {
         Ok(self.session_id.assume("session id is set")?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::arithmetic_side_effects)]
+
+    use aranya_crypto::Rng;
+
+    use super::*;
+    use crate::{
+        ClientState, RuntimeBuffers, mem_spill,
+        storage::linear::testing::MemStorageProvider,
+        sync::{MAX_SYNC_MESSAGE_SIZE, SyncIncoming, SyncRequester},
+        testing::protocol::{TestActions, TestPolicyStore, TestSink},
+    };
+
+    type TestClient = ClientState<TestPolicyStore, MemStorageProvider>;
+
+    fn new_client() -> TestClient {
+        ClientState::new(TestPolicyStore::new(), MemStorageProvider::default())
+    }
+
+    fn new_sink() -> TestSink {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        sink
+    }
+
+    /// Runs one complete sync session from `source` (responder side) to
+    /// `dest` (requester side), reusing a single `SyncResponder` and polling
+    /// it repeatedly until it reports `SyncEnd`, exactly like a production
+    /// transport's poll loop. Returns the number of new commands `dest`
+    /// accepted.
+    fn run_full_session(
+        source: &mut TestClient,
+        dest: &mut TestClient,
+        graph_id: GraphId,
+    ) -> usize {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        let req_cache = PeerCache::new();
+        let mut resp_cache = PeerCache::new();
+
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut responder = SyncResponder::new();
+
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _sent) = requester
+            .poll(
+                &mut buffer,
+                dest.provider(),
+                &req_cache.session_heads(),
+                &mut rt_buffers.traversal.primary,
+            )
+            .expect("requester poll");
+
+        match SyncIncoming::decode(&buffer[..len]).expect("decode") {
+            SyncIncoming::Poll(poll) => responder.receive(poll).expect("responder receive"),
+            _ => panic!("expected a poll message"),
+        }
+
+        let mut trx = dest.transaction(graph_id);
+        let mut received = 0;
+        let mut rounds = 0;
+        while responder.ready() {
+            rounds += 1;
+            assert!(rounds <= 64, "sync session did not terminate");
+            let len = responder
+                .poll(
+                    &mut buffer,
+                    source.provider(),
+                    &mut resp_cache,
+                    &mut rt_buffers.traversal,
+                )
+                .expect("responder poll");
+            if len == 0 {
+                break;
+            }
+            let Some(cmds) = requester
+                .receive(&buffer[..len])
+                .expect("requester receive")
+            else {
+                // SyncEnd: the responder claims the session is complete.
+                break;
+            };
+            received += dest
+                .add_commands(&mut trx, &mut sink, &cmds, &mut rt_buffers, mem_spill)
+                .expect("add_commands");
+        }
+        dest.commit(trx, &mut sink, &mut rt_buffers, mem_spill)
+            .expect("commit");
+        received
+    }
+
+    /// Builds a client whose graph is `2 * stage` commands arranged so a
+    /// *second* client that syncs from it holds exactly two `stage`-command
+    /// segments (the receiver batches each session's contiguous commands
+    /// into one segment). Returns the second client.
+    fn client_with_two_segments(stage: u64) -> (TestClient, GraphId) {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        let mut a = new_client();
+        let graph_id = a
+            .new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)
+            .expect("new_graph");
+        // Stage 1: init + (stage - 1) actions = `stage` commands.
+        for i in 1..stage {
+            a.action(
+                graph_id,
+                &mut sink,
+                TestActions::SetValue(i, i),
+                &mut rt_buffers,
+                mem_spill,
+            )
+            .expect("action");
+        }
+        let mut b = new_client();
+        run_full_session(&mut a, &mut b, graph_id);
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            a.head_address(graph_id).expect("a head"),
+            "stage 1 sync must fully transfer (below response limit)"
+        );
+
+        // Stage 2: `stage` more commands, transferred in a second session so
+        // they land in a second segment on `b`.
+        for i in stage..(2 * stage) {
+            a.action(
+                graph_id,
+                &mut sink,
+                TestActions::SetValue(i, i),
+                &mut rt_buffers,
+                mem_spill,
+            )
+            .expect("action");
+        }
+        run_full_session(&mut a, &mut b, graph_id);
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            a.head_address(graph_id).expect("a head"),
+            "stage 2 sync must fully transfer (below response limit)"
+        );
+
+        (b, graph_id)
+    }
+
+    /// Harness soundness check: with two 40-command segments (80 total,
+    /// under `COMMAND_RESPONSE_MAX`), a full session transfers everything.
+    #[test]
+    fn multi_round_session_below_response_max_converges() {
+        let (mut b, graph_id) = client_with_two_segments(40);
+        let mut c = new_client();
+        let received = run_full_session(&mut b, &mut c, graph_id);
+        assert_eq!(received, 80);
+        assert_eq!(
+            c.head_address(graph_id).expect("c head"),
+            b.head_address(graph_id).expect("b head"),
+        );
+    }
+
+    /// Reproduces S1: `get_commands` advances `next_send` past a segment
+    /// *before* copying its commands, so when `COMMAND_RESPONSE_MAX` fills
+    /// mid-segment the rest of that segment is never sent for the remainder
+    /// of the session, which nonetheless ends with a clean
+    /// `SyncEnd { remaining: false }`.
+    ///
+    /// Layout: two 60-command segments (120 commands). Round 1 sends 100
+    /// commands (all of segment 1 + 40 of segment 2) but records both
+    /// segments as fully sent; round 2 emits `SyncEnd`, silently dropping
+    /// the last 20 commands.
+    #[test]
+    fn multi_round_session_drops_tail_of_straddling_segment() {
+        let (mut b, graph_id) = client_with_two_segments(60);
+        let mut c = new_client();
+        let received = run_full_session(&mut b, &mut c, graph_id);
+        assert_eq!(
+            c.head_address(graph_id).expect("c head"),
+            b.head_address(graph_id).expect("b head"),
+            "session ended with SyncEnd but receiver is missing commands \
+             (received {received} of 120)",
+        );
     }
 }

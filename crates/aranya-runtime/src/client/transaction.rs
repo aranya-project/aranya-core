@@ -332,6 +332,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
+        policy.validate_merge(command)?;
+
         // Braid commands from left and right into an ordered sequence.
         let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
@@ -691,7 +693,7 @@ mod test {
     use super::*;
     use crate::{
         Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, NullSink, Perspective, Policy,
-        Priority, TraversalBuffer,
+        Priority, TraversalBuffer, mem_spill,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -793,6 +795,11 @@ mod test {
 
             Ok(SeqCommand::new(id, Prior::Merge(left, right)))
         }
+
+        fn validate_merge(&self, _command: &impl Command) -> Result<(), PolicyError> {
+            // No validation to allow `"a" "b" < "m"` in `graph!` dsl.
+            Ok(())
+        }
     }
 
     impl SeqCommand {
@@ -884,7 +891,7 @@ mod test {
                     &mut client.policy_store,
                     &mut NullSink,
                     &mut buffers,
-                    &MemSpill::new,
+                    &mem_spill,
                 )?;
                 max_cuts.insert(id, max_cut);
                 prior = Prior::Single(Address { id, max_cut });
@@ -916,7 +923,7 @@ mod test {
                     &mut self.client.policy_store,
                     &mut NullSink,
                     &mut self.buffers,
-                    &MemSpill::new,
+                    &mem_spill,
                 )?;
                 self.max_cuts.insert(id, max_cut);
                 prev = Address { id, max_cut };
@@ -934,7 +941,7 @@ mod test {
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffers,
-                &MemSpill::new,
+                &mem_spill,
             )?;
             self.max_cuts.insert(id, max_cut);
             Ok(())
@@ -955,7 +962,7 @@ mod test {
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffers,
-                &MemSpill::new,
+                &mem_spill,
             )?;
             for &id in &ids[1..] {
                 let cmd = SeqCommand::new(id, Prior::Single(prev));
@@ -967,7 +974,7 @@ mod test {
                     &mut self.client.policy_store,
                     &mut NullSink,
                     &mut self.buffers,
-                    &MemSpill::new,
+                    &mem_spill,
                 )?;
             }
             Ok(())
@@ -997,7 +1004,7 @@ mod test {
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffers,
-                &MemSpill::new,
+                &mem_spill
             )?);
             Ok(())
         }
@@ -1280,7 +1287,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
 
@@ -1292,7 +1299,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("sibling ingest must succeed");
         }
@@ -1303,7 +1310,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("commit must succeed")
         );
@@ -1326,7 +1333,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("extend ingest must succeed");
         assert!(
@@ -1335,7 +1342,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("extend commit must succeed")
         );
@@ -1386,7 +1393,7 @@ mod test {
             &mut client.policy_store,
             heads,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .unwrap();
 
@@ -1438,7 +1445,7 @@ mod test {
                 &mut ahead.policy_store,
                 heads,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .unwrap();
             let segment = storage.get_segment(loc).unwrap();
@@ -1505,7 +1512,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
 
@@ -1520,7 +1527,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("sibling ingest must succeed");
         }
@@ -1531,7 +1538,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("commit must succeed")
         );
@@ -1575,7 +1582,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("add_commands must succeed");
 
@@ -1633,7 +1640,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
         trx.commit(
@@ -1641,7 +1648,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("commit must succeed");
 
@@ -1668,7 +1675,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("ingest must succeed");
         let storage = client.provider.get_storage(graph_id).unwrap();
@@ -1732,7 +1739,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
         trx.commit(
@@ -1740,7 +1747,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("commit must succeed");
 
@@ -1752,7 +1759,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("ingest must succeed");
         let storage = client.provider.get_storage(graph_id).unwrap();
@@ -1783,7 +1790,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("commit must succeed");
         let storage = client.provider.get_storage(graph_id).unwrap();
@@ -1820,7 +1827,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init add_commands must succeed");
         assert!(
@@ -1829,7 +1836,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("init commit must succeed")
         );
@@ -1842,7 +1849,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("trx1 add_commands must succeed");
 
@@ -1854,7 +1861,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("trx2 add_commands must succeed");
         assert!(
@@ -1863,7 +1870,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("trx2 commit must succeed")
         );
@@ -1875,7 +1882,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect_err("trx1 commit must fail after trx2 committed");
         assert!(

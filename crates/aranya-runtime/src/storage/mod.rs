@@ -5,25 +5,23 @@
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
 
+pub mod head_set;
+pub mod linear;
+mod spill;
+
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
 use rend::u64_le;
 
-use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior};
-
-pub mod head_set;
-pub use head_set::HeadSet;
-
-pub mod linear;
-
-#[cfg(any(feature = "libc", feature = "testing"))]
-mod spill;
 #[cfg(feature = "libc")]
-pub use spill::LibcSpill;
-#[cfg(feature = "testing")]
-pub use spill::MemSpill;
+pub use self::spill::LibcSpill;
+pub use self::{
+    head_set::HeadSet,
+    spill::{MemSpill, mem_spill},
+};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior};
 
 /// Byte-addressable overflow storage for braid and convergence data.
 ///

@@ -248,19 +248,20 @@ command GetDevice {
     }
 
     policy {
-        let device_q = query Device[dev: this.device_id]
-        if device_q is Some {
-            let device_info = unwrap device_q
-            finish {
-                emit DeviceInfo {
-                    device_id: device_info.dev,
-                    device_key: device_info.key,
+        match query Device[dev: this.device_id] {
+            Some(device_info) => {
+                finish {
+                    emit DeviceInfo {
+                        device_id: device_info.dev,
+                        device_key: device_info.key,
+                    }
                 }
             }
-        } else {
-            finish {
-                emit DeviceNotFound {
-                    device_id: this.device_id,
+            None => {
+                finish {
+                    emit DeviceNotFound {
+                        device_id: this.device_id,
+                    }
                 }
             }
         }

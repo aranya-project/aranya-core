@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1](https://github.com/aranya-project/aranya-core/compare/aranya-libc-v0.4.0...aranya-libc-v0.4.1) - 2026-08-25
+
+### Other
+
+- Optimize fsync ([#717](https://github.com/aranya-project/aranya-core/pull/717))
+- fix gates for android builds ([#749](https://github.com/aranya-project/aranya-core/pull/749))
+
 ## [0.4.0](https://github.com/aranya-project/aranya-core/compare/aranya-libc-v0.3.2...aranya-libc-v0.4.0) - 2025-10-16
 
 ### Other

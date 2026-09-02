@@ -13,8 +13,8 @@ use siphasher::sip128::SipHasher24;
 use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
     csprng::{Csprng, Random},
-    generic_array::{ArrayLength, GenericArray},
     hex::ToHex as _,
+    hybrid_array::{Array, ArraySize},
     import::{Import, ImportError},
     kem::DecapKey as _,
     keys::PublicKey as _,
@@ -523,7 +523,7 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
     ) -> Result<TopicKey<CS>, Error>
     where
         <CS::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
+        Sum<<CS::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // ad = concat(
         //     "TopicKeyRotation-v1",
@@ -629,7 +629,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ) -> Result<(Encap<CS>, EncryptedTopicKey<CS>), Error>
     where
         <CS::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
+        Sum<<CS::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // ad = concat(
         //     "TopicKeyRotation-v1",
@@ -651,7 +651,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         // )
         let (enc, mut ctx) =
             hpke::setup_send::<CS, _>(rng, Mode::Auth(&sk.sk), &self.pk, [ad.as_bytes()])?;
-        let mut dst = GenericArray::default();
+        let mut dst = Array::default();
         ctx.seal(&mut dst, &key.seed, ad.as_bytes())?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))
     }

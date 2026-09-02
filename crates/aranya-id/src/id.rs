@@ -104,9 +104,9 @@ impl<Tag: IdTag> Default for Id<Tag> {
     }
 }
 
-impl<Tag: IdTag> subtle::ConstantTimeEq for Id<Tag> {
+impl<Tag: IdTag> ctutils::CtEq for Id<Tag> {
     #[inline]
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+    fn ct_eq(&self, other: &Self) -> ctutils::Choice {
         self.bytes.ct_eq(&other.bytes)
     }
 }

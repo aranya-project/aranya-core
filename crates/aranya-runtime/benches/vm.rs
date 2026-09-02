@@ -3,7 +3,7 @@ fn benchmark_1() {
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{bench_measurements, ffi::FfiModule as _};
     use aranya_runtime::{
-        ClientState, MemSpill, RuntimeBuffers,
+        ClientState, RuntimeBuffers, mem_spill,
         storage::linear::testing::MemStorageProvider,
         testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
         vm_action, vm_effect,
@@ -32,7 +32,7 @@ fn benchmark_1() {
         &mut sink,
         vm_action!(create_action(3)),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("could not call action");
 
@@ -43,7 +43,7 @@ fn benchmark_1() {
         &mut sink,
         vm_action!(increment()),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("should call increment");
 
@@ -111,7 +111,7 @@ policy-version: 1
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
     use aranya_runtime::{
-        ClientState, MemSpill, RuntimeBuffers,
+        ClientState, RuntimeBuffers, mem_spill,
         storage::linear::testing::MemStorageProvider,
         testing::vm::{TestPolicyStore, TestSink},
         vm_action,
@@ -140,7 +140,7 @@ policy-version: 1
             &mut sink,
             vm_action!(insert(i, text)),
             &mut buffers,
-            MemSpill::new,
+            mem_spill,
         )
         .expect("action `insert` failed");
     }
@@ -149,7 +149,7 @@ policy-version: 1
         &mut sink,
         vm_action!(run()),
         &mut buffers,
-        MemSpill::new,
+        mem_spill,
     )
     .expect("action `run` failed");
 
