@@ -487,8 +487,8 @@ mod test {
 
     use super::*;
     use crate::{
-        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MemSpill, MergeIds,
-        Perspective, Policy, PolicyStore, Priority, RuntimeBuffers,
+        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MergeIds, Perspective, Policy,
+        PolicyStore, Priority, RuntimeBuffers, mem_spill,
         policy::{ActionPlacement, CommandPlacement, NullSink, PolicyError, Sink},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -686,7 +686,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("add init");
         trx.add_commands(
@@ -695,7 +695,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("add b");
         trx.add_commands(
@@ -704,7 +704,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("add c");
         trx.commit(
@@ -712,7 +712,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("commit");
 
