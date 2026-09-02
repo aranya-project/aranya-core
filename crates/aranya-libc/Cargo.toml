@@ -24,7 +24,6 @@ std = [
 
 
 [dependencies]
-cfg-if = { workspace = true, default-features = false }
 errno = { workspace = true, default-features = false }
 libc = { workspace = true, default-features = false }
 memchr = { version = "2.7.2", default-features = false }

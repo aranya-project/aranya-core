@@ -84,26 +84,24 @@ pub fn init_debug_logging() {
 /// `unsafe_debug` feature is enabled.
 macro_rules! debug {
     (target: $target:expr, $($arg:tt)+) => (
-		cfg_if::cfg_if! {
-			if #[cfg(feature = "unsafe_debug")] {
-				log::debug!(target: $target, $($arg)+)
-			} else {
-				if false {
-					let _: &str = $target;
-					::core::format_args!($($arg)+);
-				}
+		cfg_select! {
+			feature = "unsafe_debug" => {
+				log::debug!(target: $target, $($arg)+);
 			}
+            _ => if false {
+                let _: &str = $target;
+                ::core::format_args!($($arg)+);
+            }
 		}
     );
 	($($arg:tt)+) => (
-		cfg_if::cfg_if! {
-			if #[cfg(feature = "unsafe_debug")] {
-				log::debug!($($arg)+)
-			} else {
-				if false {
-					::core::format_args!($($arg)+);
-				}
-			}
+		cfg_select! {
+			feature = "unsafe_debug" => {
+                log::debug!($($arg)+);
+            }
+            _ => if false {
+                ::core::format_args!($($arg)+);
+            }
 		}
     );
 }

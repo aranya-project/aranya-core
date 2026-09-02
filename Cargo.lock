@@ -173,7 +173,6 @@ dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
  "buggy",
- "cfg-if",
  "ciborium-io",
  "const_format",
  "elain",
@@ -232,7 +231,6 @@ dependencies = [
  "aranya-id",
  "buggy",
  "byteorder",
- "cfg-if",
  "ciborium",
  "ciborium-io",
  "criterion",
@@ -288,7 +286,6 @@ dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
  "buggy",
- "cfg-if",
  "const_format",
  "criterion",
  "derive-where",
@@ -337,7 +334,6 @@ dependencies = [
 name = "aranya-libc"
 version = "0.4.1"
 dependencies = [
- "cfg-if",
  "errno",
  "libc",
  "memchr",

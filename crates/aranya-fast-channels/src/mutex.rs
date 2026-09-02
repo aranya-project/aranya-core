@@ -15,10 +15,11 @@ use crate::util::const_assert;
 
 // A mutex that can NOT be used in shared memory.
 #[cfg(any(test, feature = "memory"))]
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
+cfg_select! {
+    feature = "std" => {
         pub(crate) type StdMutex<T> = std::sync::Mutex<T>;
-    } else {
+    }
+    _ => {
         pub(crate) type StdMutex<T> = Mutex<T>;
     }
 }

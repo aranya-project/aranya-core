@@ -14,11 +14,10 @@ use aranya_crypto::{
     policy::LabelId,
 };
 use buggy::{Bug, BugExt as _};
-use cfg_if::cfg_if;
 use derive_where::derive_where;
 
 use super::{
-    align::{CacheAligned, layout_repeat},
+    align::CacheAligned,
     error::{
         Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
         bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
@@ -37,10 +36,11 @@ use crate::{
     util::{const_assert, debug},
 };
 
-cfg_if! {
-    if #[cfg(feature = "sdlib")] {
+cfg_select! {
+    feature = "sdlib" => {
         use super::sdlib::Mapping;
-    } else {
+    }
+    _ => {
         use super::posix::Mapping;
     }
 }
@@ -717,11 +717,10 @@ impl<CS: CipherSuite> ChanList<CS> {
     ///
     /// It reports whether it is page aligned.
     fn layout(max_chans: usize) -> Result<(Layout, bool), LayoutError> {
-        let chans = layout_repeat(ShmChan::<CS>::layout(), max_chans)?;
+        let chans = ShmChan::<CS>::layout().repeat(max_chans)?.0;
 
         // Extend by the size of the trailing data.
-        let layout = Layout::new::<Self>();
-        let (layout, _) = layout.extend(chans)?;
+        let layout = Layout::new::<Self>().extend(chans)?.0;
 
         // If the cumulative size of the two sides are going to
         // straddle multiple pages, align each to the page size.
