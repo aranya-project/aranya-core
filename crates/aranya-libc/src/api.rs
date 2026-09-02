@@ -4,18 +4,19 @@ use core::{
     marker::PhantomData,
 };
 
-use cfg_if::cfg_if;
-
 use super::{errno::Errno, path::Path};
 
-cfg_if! {
-    if #[cfg(target_os = "vxworks")] {
+cfg_select! {
+    target_os = "vxworks" => {
         use super::sys::vxworks as imp;
-    } else if #[cfg(any(target_os = "linux", target_os = "android"))] {
+    }
+    any(target_os = "linux", target_os = "android") => {
         use super::sys::linux as imp;
-    } else if #[cfg(target_os = "macos")] {
+    }
+    target_os = "macos" => {
         use super::sys::macos as imp;
-    } else {
+    }
+    _ => {
         compile_error!("unsupported OS");
     }
 }
