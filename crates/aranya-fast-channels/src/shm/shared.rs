@@ -672,7 +672,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         let list = unsafe {
             let ptr = ptr::from_ref::<Self>(self).byte_add(off.into());
             let ptr = ptr.cast::<ChanList<CS>>();
-            &*ptr
+            ptr.as_ref_unchecked()
         };
         list.check()?;
         Ok(&list.data)
@@ -1007,7 +1007,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
             // SAFETY: `chan` is borrowed from self then
             // immediately returned. The lifetime of the
             // returned value is tied to self.
-            return Ok(Some((unsafe { &mut *chan }, hint)));
+            return Ok(Some((unsafe { chan.as_mut_unchecked() }, hint)));
         }
 
         // The index (if any) wasn't valid, so fall back to

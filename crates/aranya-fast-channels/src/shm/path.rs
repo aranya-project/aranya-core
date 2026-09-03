@@ -57,7 +57,7 @@ impl Path {
     pub fn from_cstr(path: &CStr) -> Result<&Self, InvalidPathError> {
         Self::validate(path)?;
         // SAFETY: Path and CStr have the same layout.
-        Ok(unsafe { &*(ptr::from_ref(path) as *const Self) })
+        Ok(unsafe { (ptr::from_ref(path) as *const Self).as_ref_unchecked() })
     }
 
     /// Create a [`Path`] from bytes.

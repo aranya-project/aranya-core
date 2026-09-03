@@ -153,7 +153,7 @@ impl<S, X> Loan<S, X> {
     pub fn get_ref(&self) -> Option<(&S, &X)> {
         let data = self.data.get_if_shared()?;
         // SAFETY: Only `Loan` accesses `exclusive`, so we can borrow it as if we held it directly.
-        let exclusive = unsafe { &*data.exclusive.get() };
+        let exclusive = unsafe { data.exclusive.get().as_ref_unchecked() };
         Some((&data.shared, exclusive))
     }
 
@@ -164,7 +164,7 @@ impl<S, X> Loan<S, X> {
     pub fn get_mut(&mut self) -> Option<(&S, &mut X)> {
         let data = self.data.get_if_shared()?;
         // SAFETY: Only `Loan` accesses `exclusive`, so we can borrow it as if we held it directly.
-        let exclusive = unsafe { &mut *data.exclusive.get() };
+        let exclusive = unsafe { data.exclusive.get().as_mut_unchecked() };
         Some((&data.shared, exclusive))
     }
 }

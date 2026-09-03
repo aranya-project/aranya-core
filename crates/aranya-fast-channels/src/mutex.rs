@@ -50,7 +50,7 @@ impl<T: ?Sized> Deref for MutexGuard<'_, T> {
     fn deref(&self) -> &T {
         // SAFETY: the mutex prevents data races and the value is
         // being dropped
-        unsafe { &*self.lock.data.get() }
+        unsafe { self.lock.data.get().as_ref_unchecked() }
     }
 }
 
@@ -58,7 +58,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         // SAFETY: the mutex prevents data races and the value is
         // being dropped
-        unsafe { &mut *self.lock.data.get() }
+        unsafe { self.lock.data.get().as_mut_unchecked() }
     }
 }
 
@@ -125,7 +125,7 @@ impl<T: ?Sized> Mutex<T> {
         // SAFETY: the caller is providing their own
         // synchronization, the pointer is non-null and aligned,
         // etc.
-        unsafe { &*self.data.get() }
+        unsafe { self.data.get().as_ref_unchecked() }
     }
 
     /// Lock the mutex.
