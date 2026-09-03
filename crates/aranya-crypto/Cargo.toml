@@ -174,17 +174,7 @@ name = "hsm"
 crate-type = ["lib"]
 
 [package.metadata.docs.rs]
-features = [
-	"clone-aead",
-	"committing-aead",
-	"ed25519_batch",
-	"fs-keystore",
-	"memstore",
-	"rand_compat",
-	"std",
-	"test_util",
-	"trng",
-]
+all-features = true
 
 [package.metadata.cargo-all-features]
 always_include_features = [

@@ -25,3 +25,6 @@ clap = { version = "4.4", features = ["derive"] }
 [[bin]]
 name = "aranya-policy-vm-explorer"
 path = "src/main.rs"
+
+[package.metadata.docs.rs]
+all-features = true

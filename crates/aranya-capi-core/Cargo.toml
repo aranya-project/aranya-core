@@ -48,3 +48,7 @@ ciborium-io = { version = "0.2.2", default-features = false, optional = true }
 libc = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry", "std"] }
 tracing-test = { version = "0.2.5" }
+
+
+[package.metadata.docs.rs]
+all-features = true

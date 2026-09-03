@@ -32,3 +32,6 @@ clap = { version = "4", features = ["derive"] }
 [[bench]]
 name = "bench"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
