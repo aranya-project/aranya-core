@@ -14,7 +14,7 @@ use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, Instruction, Label,
-    LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion, WrapType,
+    LabelType, Module, ModuleContract, ModuleData, StructDef, Target, UnsupportedVersion, WrapType,
     automap::AutoMap,
 };
 use buggy::{Bug, BugExt as _};
@@ -137,6 +137,8 @@ pub struct Machine {
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
     pub globals: BTreeMap<Identifier, ConstValue>,
+    /// Module contract
+    pub contract: Option<ModuleContract>,
 }
 
 impl Machine {
@@ -155,6 +157,7 @@ impl Machine {
             enum_defs: AutoMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
+            contract: None,
         }
     }
 
@@ -170,6 +173,7 @@ impl Machine {
             enum_defs: AutoMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
+            contract: None,
         }
     }
 
@@ -179,33 +183,26 @@ impl Machine {
             ModuleData::V0(m) => Ok(Self {
                 progmem: m.progmem.into(),
                 labels: m.labels,
-                action_defs: m
-                    .action_defs
-                    .into_iter()
-                    .map(|a| (a.name.clone(), a))
-                    .collect(),
-                command_defs: m
-                    .command_defs
-                    .into_iter()
-                    .map(|c| (c.name.clone(), c))
-                    .collect(),
-                fact_defs: m
-                    .fact_defs
-                    .into_iter()
-                    .map(|i| (i.name.clone(), i))
-                    .collect(),
-                struct_defs: m
-                    .struct_defs
-                    .into_iter()
-                    .map(|i| (i.name.clone(), i))
-                    .collect(),
-                enum_defs: m
-                    .enum_defs
-                    .into_iter()
-                    .map(|i| (i.name.clone(), i))
-                    .collect(),
+                action_defs: m.action_defs.into_iter().collect(),
+                command_defs: m.command_defs.into_iter().collect(),
+                fact_defs: m.fact_defs.into_iter().collect(),
+                struct_defs: m.struct_defs.into_iter().collect(),
+                enum_defs: m.enum_defs.into_iter().collect(),
                 codemap: m.codemap,
                 globals: m.globals,
+                contract: None,
+            }),
+            ModuleData::V1(m) => Ok(Self {
+                progmem: m.progmem.into(),
+                labels: m.labels,
+                action_defs: m.action_defs.into_iter().collect(),
+                command_defs: m.command_defs.into_iter().collect(),
+                fact_defs: m.fact_defs.into_iter().collect(),
+                struct_defs: m.struct_defs.into_iter().collect(),
+                enum_defs: m.enum_defs.into_iter().collect(),
+                codemap: m.codemap,
+                globals: m.globals,
+                contract: Some(m.contract),
             }),
         }
     }
