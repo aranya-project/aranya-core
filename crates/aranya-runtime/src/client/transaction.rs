@@ -719,7 +719,7 @@ mod test {
         type Effect = ();
 
         fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
-            Ok(PolicyId::new(0))
+            Ok(PolicyId::default())
         }
 
         fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {

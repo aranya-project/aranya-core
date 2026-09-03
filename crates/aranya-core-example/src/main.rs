@@ -6,7 +6,7 @@
 //! The FFI/compiler/VM crates are needed for one-time policy compilation
 //! and FFI module wiring.
 
-use std::fs;
+use std::{fs, sync::Arc};
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
@@ -16,7 +16,7 @@ use aranya_core::{
     keystore::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStoreExt as _, MemStore, SigningKey,
     },
-    policy::{FfiCallable, VmEffect, VmPolicy, VmPolicyStore},
+    policy::{FfiSet, VmEffect, VmPolicyStore},
     storage::{FileManager, LibcSpill, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
@@ -27,7 +27,7 @@ use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::{Machine, ffi::FfiModule as _};
+use aranya_policy_vm::ffi::FfiModule as _;
 
 #[allow(dead_code)]
 mod policy;
@@ -39,7 +39,7 @@ use policy::{Effect, PublicKeys, add_device, increment_counter, init, set_counte
 // ---------------------------------------------------------------------------
 
 type CS = DefaultCipherSuite;
-type CE = DefaultEngine<Rng, CS>;
+type CE = Arc<DefaultEngine<Rng, CS>>;
 
 struct PrintSink {
     effects: Vec<VmEffect>,
@@ -90,6 +90,7 @@ struct Device {
 
 fn create_device() -> Result<Device> {
     let (eng, _) = DefaultEngine::<_, DefaultCipherSuite>::from_entropy(Rng);
+    let eng = Arc::new(eng);
     let mut store = MemStore::new();
 
     // Generate keys
@@ -143,7 +144,17 @@ fn create_device() -> Result<Device> {
 
 const POLICY_SOURCE: &str = include_str!("policy.md");
 
-fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPolicyStore<CE>> {
+fn create_policy_store(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPolicyStore<CE>> {
+    let ffis = FfiSet::new()
+        .with(CryptoFfi::new(store.clone()))?
+        .with(DeviceFfi::new(device_id))?
+        .with(EnvelopeFfi)?
+        .with(IdamFfi::new(store))?
+        .with(PerspectiveFfi)?;
+    Ok(VmPolicyStore::new(eng, ffis))
+}
+
+fn compile_policy() -> Result<Vec<u8>> {
     let ast = parse_policy_document(POLICY_SOURCE).context("parse policy document")?;
     let module = Compiler::new(&ast)
         .ffi_modules(&[
@@ -156,18 +167,12 @@ fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPol
         .compile()
         .context("compile policy")?;
 
-    let machine = Machine::from_module(module).context("create machine")?;
-
-    let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
-        Box::from(CryptoFfi::new(store.clone())),
-        Box::from(DeviceFfi::new(device_id)),
-        Box::from(EnvelopeFfi),
-        Box::from(IdamFfi::new(store)),
-        Box::from(PerspectiveFfi),
-    ];
-
-    let policy = VmPolicy::new(machine, eng, ffis).context("create VmPolicy")?;
-    Ok(VmPolicyStore::new(policy))
+    let mut buf = vec![0u8; 100_000];
+    let n = module
+        .write_to_slice(&mut buf)
+        .context("serialize module")?;
+    buf.truncate(n);
+    Ok(buf)
 }
 
 // ---------------------------------------------------------------------------
@@ -278,7 +283,8 @@ fn main() -> Result<()> {
     // Step 3: Compile policy for Device A, create Client A
     println!("\n== Device A: Create Team ==");
     println!("\nStep 3: Compiling policy for Device A...");
-    let policy_store_a = compile_policy(dev_a.engine, dev_a.store, dev_a.device_id)?;
+    let policy_module = compile_policy()?;
+    let policy_store_a = create_policy_store(dev_a.engine, dev_a.store, dev_a.device_id)?;
     let mut cs_a = ClientState::new(policy_store_a, provider_a);
     let mut sink = PrintSink::new();
     let mut rt_buffers = RuntimeBuffers::new();
@@ -287,7 +293,12 @@ fn main() -> Result<()> {
     // Step 4: Create graph with init action
     println!("\nStep 4: Creating graph (init)...");
     let graph_id = init(dev_a.public_keys, 42)
-        .with_action(|action| cs_a.new_graph(&[0u8], action, &mut sink))
+        .with_action(|mut action| {
+            // TODO(jdygert): fix leak.
+            let policy = policy_module.leak();
+            action.policy = Some(policy);
+            cs_a.new_graph(policy, action, &mut sink)
+        })
         .context("new_graph")?;
     sink.drain_and_print("Device A / init");
     println!("  Graph ID: {graph_id}");
@@ -318,7 +329,7 @@ fn main() -> Result<()> {
     // Step 8: Compile policy for Device B, create Client B
     println!("\n== Sync: A -> B ==");
     println!("\nStep 8: Compiling policy for Device B...");
-    let policy_store_b = compile_policy(dev_b.engine, dev_b.store, dev_b.device_id)?;
+    let policy_store_b = create_policy_store(dev_b.engine, dev_b.store, dev_b.device_id)?;
     let mut cs_b = ClientState::new(policy_store_b, provider_b);
 
     // Step 9: Sync graph from A to B
