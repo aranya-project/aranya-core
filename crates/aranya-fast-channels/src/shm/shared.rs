@@ -161,14 +161,14 @@ impl<CS: CipherSuite> State<CS> {
     }
 
     /// Loads the [`ChanList`] at the current `read_off`.
-    pub(super) fn load_read_list(&self) -> Result<&Mutex<ChanListData<CS>>, Corrupted> {
+    pub(super) fn load_read_list(&self) -> Result<&ChanList<CS>, Corrupted> {
         let shm = self.shm();
         let off = self.read_off(shm)?;
         shm.side(off)
     }
 
     /// Loads the [`ChanList`] at the current `write_off`.
-    pub(super) fn load_write_list(&self) -> Result<&Mutex<ChanListData<CS>>, Corrupted> {
+    pub(super) fn load_write_list(&self) -> Result<&ChanList<CS>, Corrupted> {
         let shm = self.shm();
         let off = self.write_off(shm)?;
         shm.side(off)
@@ -219,7 +219,7 @@ impl<CS: CipherSuite> State<CS> {
         ch: LocalChannelId,
         hint: Option<Index>,
     ) -> Result<Option<(ShmChan<CS>, Index)>, Corrupted> {
-        let list = self.load_read_list()?.lock().assume("poisoned")?;
+        let list = self.load_read_list()?.lock();
         list.find(ch, hint, Op::Any)
             .map(|res| res.map(|(chan, idx)| ((*chan).clone(), idx)))
     }
@@ -664,7 +664,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
     }
 
     /// Returns the side corresponding with `off`.
-    pub fn side(&self, off: Offset) -> Result<&Mutex<ChanListData<CS>>, Corrupted> {
+    pub fn side(&self, off: Offset) -> Result<&ChanList<CS>, Corrupted> {
         self.check()?;
 
         // SAFETY: ptr is non-null, suitably aligned, and won't
@@ -675,7 +675,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
             &*ptr
         };
         list.check()?;
-        Ok(&list.data)
+        Ok(list)
     }
 }
 
@@ -700,11 +700,15 @@ impl<CS: CipherSuite> SharedMem<CS> {
     repr(C, align(32))
 )]
 #[derive_where(Debug)]
-struct ChanList<CS> {
+pub(super) struct ChanList<CS> {
     /// Identifies this memory as a [`ChanList`].
     ///
     /// Should be [`Self::MAGIC`].
     magic: U32,
+    /// The current generation.
+    ///
+    /// It is incremented each time the list is modified.
+    pub(super) generation: AtomicU32,
     /// The locked list data.
     data: Mutex<ChanListData<CS>>,
 }
@@ -762,13 +766,37 @@ impl<CS: CipherSuite> ChanList<CS> {
     fn new(max_chans: usize) -> Self {
         Self {
             magic: Self::MAGIC,
+            generation: AtomicU32::new(0),
             data: Mutex::new(ChanListData {
-                generation: AtomicU32::new(0),
                 len: U64::new(0),
                 cap: U64::new(max_chans as u64),
                 chans: PhantomData,
             }),
         }
+    }
+
+    pub(super) fn lock(&self) -> LockedChanList<'_, CS> {
+        LockedChanList {
+            generation: &self.generation,
+            data: self.data.lock().unwrap_or_else(|e| match e {}),
+        }
+    }
+}
+
+pub(super) struct LockedChanList<'a, CS> {
+    pub(super) generation: &'a AtomicU32,
+    data: crate::mutex::MutexGuard<'a, ChanListData<CS>>,
+}
+
+impl<CS> core::ops::Deref for LockedChanList<'_, CS> {
+    type Target = ChanListData<CS>;
+    fn deref(&self) -> &Self::Target {
+        self.data.deref()
+    }
+}
+impl<CS> core::ops::DerefMut for LockedChanList<'_, CS> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.data.deref_mut()
     }
 }
 
@@ -778,20 +806,10 @@ impl<CS: CipherSuite> ChanList<CS> {
 #[repr(C, align(8))]
 #[derive_where(Debug)]
 pub(super) struct ChanListData<CS> {
-    /// The current generation.
-    ///
-    /// It is incremented each time the list is modified.
-    ///
-    /// It is atomic so that `ReadState` can safely read it even
-    /// while this struct is locked.
-    ///
-    /// Putting it as the first field significantly decreases the
-    /// size of the struct.
-    pub generation: AtomicU32,
     /// The current number of channels.
-    pub len: U64,
+    pub(super) len: U64,
     /// The maximum number of channels.
-    pub cap: U64,
+    pub(super) cap: U64,
     /// This is actually `[ShmChan; cap]`.
     ///
     /// It is a ZST and does not affect the memory layout.
@@ -805,7 +823,7 @@ const_assert!(
     size_of::<Mutex<ChanListData<()>>>() == 8 + size_of::<ChanListData<()>>()
 );
 
-impl<CS: CipherSuite> ChanListData<CS> {
+impl<CS: CipherSuite> LockedChanList<'_, CS> {
     /// Performs basic sanity checking.
     #[track_caller]
     fn check(&self) {
