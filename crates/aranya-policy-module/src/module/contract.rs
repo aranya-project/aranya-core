@@ -180,6 +180,14 @@ impl FunctionContract {
                 self.name, other.name
             )));
         }
+        if self.args.len() != other.args.len() {
+            return Err(ContractValidationError(format!(
+                "function `{}` has {} arguments but expected {}",
+                self.name,
+                other.args.len(),
+                self.args.len()
+            )));
+        }
         for (a1, a2) in self.args.iter().zip(other.args.iter()) {
             a1.validate(a2)
                 .prepend(format!("function `{}` arg `{}`,", self.name, a1.name))?;
@@ -399,23 +407,4 @@ impl From<&ffi::ModuleSchema<'_>> for FfiContract {
             enums: ms.enums.iter().map(EnumContract::from).collect(),
         }
     }
-}
-
-/// Describes the policy module contract so that this module can be validated against the expected
-/// contract.
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub struct ModuleContract {
-    /// FFI module names
-    pub ffis: Vec<FfiContract>,
-    // TODO(chip): catalog other public-facing module items
 }

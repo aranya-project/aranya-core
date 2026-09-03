@@ -3,12 +3,15 @@
 extern crate alloc;
 
 mod contract;
+mod io;
+pub mod v1;
 
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{self as ast, Identifier};
 pub use contract::*;
+pub use io::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -31,6 +34,23 @@ impl Version {
         match self {
             Self::V0 => "V0",
             Self::V1 => "V1",
+        }
+    }
+
+    /// Convert this version into a u32
+    pub const fn to_u32(&self) -> u32 {
+        match self {
+            Self::V0 => 0,
+            Self::V1 => 1,
+        }
+    }
+
+    /// Convert a u32 into a version, if the u32 describes a valid version
+    pub const fn try_from_u32(v: u32) -> Option<Self> {
+        match v {
+            0 => Some(Self::V0),
+            1 => Some(Self::V1),
+            _ => None,
         }
     }
 }
@@ -143,40 +163,24 @@ pub struct ModuleV0 {
 )]
 #[serde(deny_unknown_fields)]
 pub struct ModuleV1 {
-    /// Program memory
-    pub progmem: Box<[Instruction]>,
-    /// Labels
-    pub labels: BTreeMap<Label, usize>,
-    /// Action definitions
-    pub action_defs: Vec<ActionDef>,
-    /// Command definitions
-    pub command_defs: Vec<CommandDef>,
-    /// Fact definitions
-    pub fact_defs: Vec<FactDef>,
-    /// Struct definitions
-    pub struct_defs: Vec<StructDef>,
-    /// Enum definitions
-    pub enum_defs: Vec<EnumDef>,
-    /// Code map
-    pub codemap: Option<CodeMap>,
-    /// Global static data
-    pub globals: BTreeMap<Identifier, ConstValue>,
-    /// Module contract metadata
-    pub contract: ModuleContract,
+    /// Program code and execution information
+    pub program: v1::Program,
+    /// Metadata defininit the capabilities and expectations of the module
+    pub contract: v1::Contract,
 }
 
 impl From<ModuleV1> for ModuleV0 {
     fn from(value: ModuleV1) -> Self {
         Self {
-            progmem: value.progmem,
-            labels: value.labels,
-            action_defs: value.action_defs,
-            command_defs: value.command_defs,
-            fact_defs: value.fact_defs,
-            struct_defs: value.struct_defs,
-            enum_defs: value.enum_defs,
-            codemap: value.codemap,
-            globals: value.globals,
+            progmem: value.program.progmem,
+            labels: value.program.labels,
+            action_defs: value.contract.actions,
+            command_defs: value.contract.commands,
+            fact_defs: value.contract.facts,
+            struct_defs: value.contract.structs,
+            enum_defs: value.contract.enums,
+            codemap: value.program.codemap,
+            globals: value.program.globals,
         }
     }
 }

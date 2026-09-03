@@ -109,13 +109,13 @@ impl fmt::Debug for ModuleSnapshotWrapper {
             ),
             ModuleData::V1(m) => (
                 "1",
-                &m.labels,
-                &m.action_defs,
-                &m.command_defs,
-                &m.fact_defs,
-                &m.struct_defs,
-                &m.enum_defs,
-                &m.globals,
+                &m.program.labels,
+                &m.contract.actions,
+                &m.contract.commands,
+                &m.contract.facts,
+                &m.contract.structs,
+                &m.contract.enums,
+                &m.program.globals,
             ),
         };
 
@@ -141,7 +141,7 @@ impl fmt::Debug for ModuleSnapshotWrapper {
 fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
     let (progmem, m_labels) = match &m.data {
         ModuleData::V0(m) => (&m.progmem, &m.labels),
-        ModuleData::V1(m) => (&m.progmem, &m.labels),
+        ModuleData::V1(m) => (&m.program.progmem, &m.program.labels),
     };
 
     let mut labels: HashMap<usize, &Label> = HashMap::new();
