@@ -1,7 +1,7 @@
 //! VM tests.
 
 extern crate alloc;
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use aranya_crypto::{DeviceId, Rng, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
@@ -323,7 +323,7 @@ impl TestPolicyStore {
         let policy = VmPolicy::new(
             machine,
             eng,
-            vec![Box::from(TestFfiEnvelope {
+            vec![Arc::from(TestFfiEnvelope {
                 device: DeviceId::random(Rng),
             })],
         )
@@ -336,8 +336,8 @@ impl PolicyStore for TestPolicyStore {
     type Policy = VmPolicy<DefaultEngine<Rng>>;
     type Effect = VmEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
-        Ok(PolicyId::new(policy[0].into()))
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        Ok(PolicyId::default())
     }
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
