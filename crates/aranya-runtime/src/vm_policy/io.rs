@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use alloc::{borrow::ToOwned as _, boxed::Box, vec::Vec};
-use core::ops::{Deref, DerefMut};
+use core::ops::Deref;
 
 use aranya_crypto::{BaseId, policy::CmdId};
 use aranya_policy_vm::{
@@ -75,8 +75,7 @@ where
     P: FactPerspective,
     S: Sink<VmEffect>,
     CE: aranya_crypto::Engine,
-    FFI: DerefMut,
-    <FFI as Deref>::Target: FfiCallable<CE>,
+    FFI: Deref<Target: FfiCallable<CE>>,
 {
     type QueryIterator = VmFactCursor<P>;
 

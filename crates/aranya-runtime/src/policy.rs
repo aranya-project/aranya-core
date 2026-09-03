@@ -3,8 +3,8 @@
 //! A [`PolicyStore`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+use aranya_crypto::custom_id;
 use buggy::Bug;
-use rend::u64_le;
 
 use crate::{
     Address, MAX_COMMAND_LENGTH,
@@ -36,32 +36,8 @@ impl From<core::convert::Infallible> for PolicyError {
     }
 }
 
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Ord,
-    PartialOrd,
-    Eq,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    rkyv::Portable,
-    rkyv::bytecheck::CheckBytes,
-)]
-#[rkyv(as = Self)]
-#[bytecheck(crate = rkyv::bytecheck)]
-#[serde(transparent)]
-#[repr(transparent)]
-pub struct PolicyId(#[serde(with = "crate::util::u64_le_serde")] u64_le);
-
-impl PolicyId {
-    pub fn new(id: u64) -> Self {
-        Self(id.into())
-    }
+custom_id! {
+    pub struct PolicyId;
 }
 
 /// The [`PolicyStore`] manages storing and retrieving [`Policy`].

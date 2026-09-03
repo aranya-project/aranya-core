@@ -1,6 +1,8 @@
 #![cfg(test)]
 #![allow(clippy::panic)]
 
+use std::sync::Arc;
+
 use aranya_crypto::{
     DeviceId, Rng,
     default::{DefaultCipherSuite, DefaultEngine},
@@ -65,7 +67,7 @@ fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect
     let r = VmPolicy::new(
         machine,
         eng,
-        vec![Box::from(TestFfiEnvelope {
+        vec![Arc::from(TestFfiEnvelope {
             device: DeviceId::random(Rng),
         })],
     );
