@@ -13,6 +13,7 @@ use crate::{
     buf::Buf,
     error::Error,
     header::{DataHeader, Header, HeaderError, MsgType, Version},
+    replay::{DEFAULT_REPLAY_WINDOW, ReplayWindow},
     state::{AfcState, LocalChannelId},
     util::debug,
 };
@@ -23,17 +24,72 @@ use crate::{
 #[derive(Debug)]
 pub struct Client<S> {
     state: S,
+    /// The [`ReplayWindow`] size for new [`OpenCtx`]s.
+    replay_window: u16,
 }
 
 impl<S> Client<S> {
-    /// Create a [`Client`].
+    /// Create a [`Client`] with the [`DEFAULT_REPLAY_WINDOW`].
     pub const fn new(state: S) -> Self {
-        Self { state }
+        Self {
+            state,
+            replay_window: DEFAULT_REPLAY_WINDOW,
+        }
+    }
+
+    /// Create a [`Client`] whose [`OpenCtx`]s use a
+    /// [`ReplayWindow`] of `size` frames.
+    ///
+    /// `size` must be in `1..=MAX_REPLAY_WINDOW`; larger windows
+    /// tolerate deeper reordering at a cost of one bit per
+    /// position. See [`ReplayWindow`] for details.
+    ///
+    /// [`MAX_REPLAY_WINDOW`]: crate::MAX_REPLAY_WINDOW
+    pub fn with_replay_window(state: S, size: u16) -> Result<Self, Error> {
+        ReplayWindow::validate(size)?;
+        Ok(Self {
+            state,
+            replay_window: size,
+        })
     }
 
     /// Returns the current state.
     pub fn state(&self) -> &S {
         &self.state
+    }
+
+    /// Returns the [`ReplayWindow`] size used for new
+    /// [`OpenCtx`]s.
+    pub const fn replay_window(&self) -> u16 {
+        self.replay_window
+    }
+}
+
+/// Opening context with replay protection.
+///
+/// Wraps the state's [`AfcState::OpenCtx`] together with the
+/// channel's [`ReplayWindow`]. Created by
+/// [`Client::setup_open_ctx`].
+#[derive(Debug)]
+pub struct OpenCtx<C> {
+    inner: C,
+    window: ReplayWindow,
+}
+
+impl<C> OpenCtx<C> {
+    /// Returns the underlying [`AfcState::OpenCtx`].
+    pub const fn inner(&self) -> &C {
+        &self.inner
+    }
+
+    /// Returns the underlying [`AfcState::OpenCtx`].
+    pub const fn inner_mut(&mut self) -> &mut C {
+        &mut self.inner
+    }
+
+    /// Returns the channel's [`ReplayWindow`].
+    pub const fn window(&self) -> &ReplayWindow {
+        &self.window
     }
 }
 
@@ -64,8 +120,21 @@ impl<S: AfcState> Client<S> {
     }
 
     /// Set up the open context for the given channel.
-    pub fn setup_open_ctx(&self, id: LocalChannelId) -> Result<S::OpenCtx, Error> {
-        self.state.setup_open_ctx(id)
+    ///
+    /// The returned context carries the channel's
+    /// [`ReplayWindow`]. It should be created once per channel
+    /// per process and reused for every frame on that channel:
+    /// a fresh context has no history, so frames received before
+    /// it was created can be accepted again (once each) until the
+    /// window catches up. This is the same class of exposure the
+    /// seal side accepts for its own sequence counter.
+    pub fn setup_open_ctx(&self, id: LocalChannelId) -> Result<OpenCtx<S::OpenCtx>, Error> {
+        let inner = self.state.setup_open_ctx(id)?;
+        Ok(OpenCtx {
+            inner,
+            // `replay_window` was validated at construction.
+            window: ReplayWindow::new_unchecked(self.replay_window),
+        })
     }
 
     /// Encrypts and authenticates `plaintext` for a channel.
@@ -189,9 +258,15 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
+    ///
+    /// The sequence number is checked against the context's
+    /// [`ReplayWindow`] before any cryptographic work is done;
+    /// a duplicate or too-old frame fails with
+    /// [`Error::ReplayedSeq`]. The window is only advanced after
+    /// the ciphertext has been authenticated.
     pub fn open(
         &self,
-        ctx: &mut S::OpenCtx,
+        ctx: &mut OpenCtx<S::OpenCtx>,
         dst: &mut [u8],
         ciphertext: &[u8],
     ) -> Result<(LabelId, Seq), Error> {
@@ -213,6 +288,9 @@ impl<S: AfcState> Client<S> {
             ciphertext.len()
         );
 
+        // Reject replays before doing any cryptographic work.
+        ctx.window.check(seq)?;
+
         let plaintext_len = ciphertext
             .len()
             .checked_sub(Self::TAG_SIZE)
@@ -225,7 +303,7 @@ impl<S: AfcState> Client<S> {
         }
 
         let label_id = self
-            .do_open(ctx, seq, |aead, ad, seq| {
+            .do_open(&mut ctx.inner, seq, |aead, ad, seq| {
                 aead.open(dst, ciphertext, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -234,6 +312,11 @@ impl<S: AfcState> Client<S> {
             // should already do this, but it doesn't hurt to be
             // extra careful.
             .inspect_err(|_| dst.zeroize())?;
+
+        // The frame is authentic, so record it. Doing this only
+        // after authentication means a forged frame cannot move
+        // the window.
+        ctx.window.commit(seq);
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
@@ -249,9 +332,15 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
+    ///
+    /// The sequence number is checked against the context's
+    /// [`ReplayWindow`] before any cryptographic work is done;
+    /// a duplicate or too-old frame fails with
+    /// [`Error::ReplayedSeq`]. The window is only advanced after
+    /// the ciphertext has been authenticated.
     pub fn open_in_place<T: Buf>(
         &self,
-        ctx: &mut S::OpenCtx,
+        ctx: &mut OpenCtx<S::OpenCtx>,
         data: &mut T,
     ) -> Result<(LabelId, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
@@ -278,8 +367,11 @@ impl<S: AfcState> Client<S> {
             .ok_or(Error::Authentication)?;
         debug!("data=[{:?}; {}]", out.as_ptr(), out.len());
 
+        // Reject replays before doing any cryptographic work.
+        ctx.window.check(seq)?;
+
         let label_id = self
-            .do_open(ctx, seq, |aead, ad, seq| {
+            .do_open(&mut ctx.inner, seq, |aead, ad, seq| {
                 aead.open_in_place(out, tag, ad, seq)?;
                 Ok(ad.label_id)
             })
@@ -290,6 +382,11 @@ impl<S: AfcState> Client<S> {
             // already do this, but it doesn't hurt to be extra
             // careful.
             .inspect_err(|_| data.zeroize())?;
+
+        // The frame is authentic, so record it. Doing this only
+        // after authentication means a forged frame cannot move
+        // the window.
+        ctx.window.commit(seq);
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.

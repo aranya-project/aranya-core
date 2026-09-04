@@ -28,14 +28,24 @@ use aranya_crypto::{
 use crate::{
     AfcState, LocalChannelId,
     buf::FixedBuf,
-    client::Client,
+    client::{Client, OpenCtx, Seq},
     error::Error,
     header::DataHeader,
+    replay::{DEFAULT_REPLAY_WINDOW, MAX_REPLAY_WINDOW},
     testing::util::{
         Aranya, ChanOp, DataHeaderBuilder, Device, DeviceIdx, GlobalChannelId, LimitedAead,
         TestEngine, TestImpl,
     },
 };
+
+/// The [`OpenCtx`] for a [`TestImpl`]'s [`AfcState`].
+type TestOpenCtx<T, CS> = OpenCtx<<<T as TestImpl>::Afc<CS> as AfcState>::OpenCtx>;
+
+/// Open contexts keyed by sender and channel.
+type OpenCtxs<T, CS> = HashMap<(DeviceIdx, GlobalChannelId), TestOpenCtx<T, CS>>;
+
+/// The cipher suite for [`TestEngine<A>`].
+type TestCs<A> = <TestEngine<A> as Engine>::CS;
 
 /// Performs all of the tests in the [`testing`][crate::testing]
 /// module.
@@ -111,6 +121,20 @@ macro_rules! __test_impl {
 			test!(test_open_modified_tag);
 			test!(test_open_different_seq);
 			test!(test_seal_unknown_channel_label);
+
+			// Replay protection.
+			test!(test_replay_in_order);
+			test!(test_replay_duplicate);
+			test!(test_replay_duplicate_in_place);
+			test!(test_replay_reorder_within_window);
+			test!(test_replay_gap_and_late_fill);
+			test!(test_replay_far_ahead_advance);
+			test!(test_replay_first_frame_high_seq);
+			test!(test_replay_forged_high_seq);
+			test!(test_replay_window_size_one);
+			test!(test_replay_window_size_max);
+			test!(test_replay_window_bounds);
+			test!(test_replay_fresh_ctx_resets_window);
 		}
 	};
 }
@@ -245,7 +269,7 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
         label_id: LabelId,
         seqs: &mut HashMap<(DeviceIdx, DeviceIdx, LabelId), u64>,
         seal_ctxs: &mut HashMap<(DeviceIdx, GlobalChannelId), <T::Afc<CS> as AfcState>::SealCtx>,
-        open_ctxs: &mut HashMap<(DeviceIdx, GlobalChannelId), <T::Afc<CS> as AfcState>::OpenCtx>,
+        open_ctxs: &mut OpenCtxs<T, CS>,
     ) {
         let (global_id, label_id) = {
             let send_device = devices.get(send).expect("device to exist");
@@ -1444,4 +1468,380 @@ pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
             assert_eq!(got_seq, want_seq, "{want_seq},{label_id}");
         }
     }
+}
+
+/// A pair of clients with one seal-only channel from `c1` to
+/// `c2`, plus the sealed frames `0..n` in order.
+///
+/// Returned as `(c1, c2, d1_channel_id, d2_channel_id)` along
+/// with the [`Aranya`] instance that owns the devices.
+struct ReplayFixture<T: TestImpl, A: Aead> {
+    c1: Client<T::Afc<TestCs<A>>>,
+    c2: Client<T::Afc<TestCs<A>>>,
+    seal_ctx: <T::Afc<TestCs<A>> as AfcState>::SealCtx,
+    /// `None` only transiently, while the context is being
+    /// recreated.
+    open_ctx: Option<TestOpenCtx<T, TestCs<A>>>,
+    d2_channel_id: LocalChannelId,
+    /// `frames[i]` has `seq == i`.
+    frames: Vec<Vec<u8>>,
+}
+
+impl<T: TestImpl, A: Aead> ReplayFixture<T, A> {
+    const GOLDEN: &'static [u8] = b"hello, world!";
+
+    /// Creates the fixture with `n` sealed frames. `window` is
+    /// the receiver's replay window size, or `None` for the
+    /// default.
+    fn new(name: &str, n: usize, window: Option<u16>) -> Self {
+        let (eng, _) = TestEngine::<A>::from_entropy(Rng);
+        let label_id = LabelId::random(&eng);
+        let mut d = Aranya::<T, _>::new(name, 4, eng);
+        let (c1, id1) = d.new_client_with_type([(label_id, ChanOp::SealOnly)]);
+        let (c2, id2) = match window {
+            Some(w) => d.new_client_with_window([label_id], w),
+            None => d.new_client([label_id]),
+        };
+        let d1 = d.devices.get(id1).expect("device to exist");
+        let d2 = d.devices.get(id2).expect("device to exist");
+
+        let (global_id, _) = d1.common_channels(d2).next().expect("channel should exist");
+        let d1_channel_id = d1
+            .get_local_channel_id(global_id)
+            .expect("device 1 should have channel");
+        let d2_channel_id = d2
+            .get_local_channel_id(global_id)
+            .expect("device 2 should have channel");
+
+        let mut seal_ctx = c1.setup_seal_ctx(d1_channel_id).expect("can set up ctx");
+        let open_ctx = c2.setup_open_ctx(d2_channel_id).expect("can set up ctx");
+
+        let frames = (0..n)
+            .map(|i| {
+                let mut dst = vec![0u8; Self::GOLDEN.len() + overhead(&c1)];
+                c1.seal(&mut seal_ctx, &mut dst[..], Self::GOLDEN)
+                    .unwrap_or_else(|err| panic!("seal #{i}: {err}"));
+                let hdr = DataHeader::try_parse(dst.last_chunk().expect("should have header"))
+                    .expect("should parse header");
+                assert_eq!(hdr.seq, i as u64);
+                dst
+            })
+            .collect();
+
+        Self {
+            c1,
+            c2,
+            seal_ctx,
+            open_ctx: Some(open_ctx),
+            d2_channel_id,
+            frames,
+        }
+    }
+
+    /// Returns the open context.
+    fn open_ctx(&mut self) -> &mut TestOpenCtx<T, TestCs<A>> {
+        self.open_ctx.as_mut().expect("open context should exist")
+    }
+
+    /// Drops the open context and creates a fresh one.
+    fn reset_open_ctx(&mut self) {
+        // Some backends only allow one live context per channel,
+        // so drop the old one first.
+        self.open_ctx = None;
+        self.open_ctx = Some(
+            self.c2
+                .setup_open_ctx(self.d2_channel_id)
+                .expect("can set up ctx"),
+        );
+    }
+
+    /// Opens `frames[seq]` with the fixture's open context.
+    fn open(&mut self, seq: u64) -> Result<Seq, Error> {
+        let frame = self
+            .frames
+            .get(usize::try_from(seq).expect("seq fits"))
+            .unwrap_or_else(|| panic!("no frame for seq {seq}"));
+        let mut dst = vec![0u8; frame.len() - overhead(&self.c2)];
+        let ctx = self.open_ctx.as_mut().expect("open context should exist");
+        let (_, got) = self.c2.open(ctx, &mut dst[..], frame)?;
+        assert_eq!(&dst[..], Self::GOLDEN, "seq {seq}");
+        assert_eq!(got, seq);
+        Ok(got)
+    }
+
+    /// Opens `frames[seq]` in place with the fixture's open
+    /// context.
+    fn open_in_place(&mut self, seq: u64) -> Result<Seq, Error> {
+        let frame = self
+            .frames
+            .get(usize::try_from(seq).expect("seq fits"))
+            .unwrap_or_else(|| panic!("no frame for seq {seq}"));
+        let mut data = frame.clone();
+        let ctx = self.open_ctx.as_mut().expect("open context should exist");
+        let (_, got) = self.c2.open_in_place(ctx, &mut data)?;
+        assert_eq!(&data[..], Self::GOLDEN, "seq {seq}");
+        assert_eq!(got, seq);
+        Ok(got)
+    }
+
+    /// Asserts that `frames[seq]` is accepted.
+    fn accept(&mut self, seq: u64) {
+        self.open(seq)
+            .unwrap_or_else(|err| panic!("seq {seq} should be accepted: {err}"));
+    }
+
+    /// Asserts that `frames[seq]` is rejected as a replay.
+    fn reject(&mut self, seq: u64) {
+        let err = self
+            .open(seq)
+            .err()
+            .unwrap_or_else(|| panic!("seq {seq} should be rejected"));
+        assert_eq!(err, Error::ReplayedSeq { seq: Seq::new(seq) }, "seq {seq}");
+    }
+
+    /// Seals one more frame and appends it to `frames`.
+    fn seal_more(&mut self) {
+        let mut dst = vec![0u8; Self::GOLDEN.len() + overhead(&self.c1)];
+        self.c1
+            .seal(&mut self.seal_ctx, &mut dst[..], Self::GOLDEN)
+            .expect("should seal");
+        self.frames.push(dst);
+    }
+}
+
+/// Frames delivered in order are all accepted.
+pub fn test_replay_in_order<T: TestImpl, A: Aead>() {
+    let n = 3 * usize::from(DEFAULT_REPLAY_WINDOW);
+    let mut f = ReplayFixture::<T, A>::new("test_replay_in_order", n, None);
+    for seq in 0..n as u64 {
+        f.accept(seq);
+        assert_eq!(f.open_ctx().window().high(), Some(Seq::new(seq)));
+    }
+}
+
+/// A duplicate frame is rejected before the AEAD runs.
+pub fn test_replay_duplicate<T: TestImpl, A: Aead>() {
+    let mut f = ReplayFixture::<T, A>::new("test_replay_duplicate", 3, None);
+    f.accept(0);
+    f.reject(0);
+    f.accept(1);
+    f.reject(1);
+    f.reject(0);
+
+    // The replay check runs before authentication: a replayed
+    // frame with a corrupted tag is reported as a replay, not
+    // as an authentication failure.
+    let mut frame = f.frames[1].clone();
+    frame[0] = frame[0].wrapping_add(1);
+    let mut dst = vec![0u8; frame.len() - overhead(&f.c2)];
+    let err =
+        f.c2.open(
+            f.open_ctx.as_mut().expect("open context should exist"),
+            &mut dst[..],
+            &frame,
+        )
+        .expect_err("should be rejected");
+    assert_eq!(err, Error::ReplayedSeq { seq: Seq::new(1) });
+
+    // The same corrupted frame with a fresh `seq` fails
+    // authentication instead.
+    let mut frame = f.frames[2].clone();
+    frame[0] = frame[0].wrapping_add(1);
+    let err =
+        f.c2.open(
+            f.open_ctx.as_mut().expect("open context should exist"),
+            &mut dst[..],
+            &frame,
+        )
+        .expect_err("should be rejected");
+    assert_eq!(err, Error::Authentication);
+    // ...and does not consume the sequence number.
+    f.accept(2);
+}
+
+/// Like [`test_replay_duplicate`], but for
+/// [`Client::open_in_place`].
+pub fn test_replay_duplicate_in_place<T: TestImpl, A: Aead>() {
+    let mut f = ReplayFixture::<T, A>::new("test_replay_duplicate_in_place", 3, None);
+    f.open_in_place(0).expect("seq 0 should be accepted");
+    assert_eq!(
+        f.open_in_place(0).err(),
+        Some(Error::ReplayedSeq { seq: Seq::new(0) })
+    );
+    f.open_in_place(2).expect("seq 2 should be accepted");
+    f.open_in_place(1).expect("seq 1 should be accepted");
+    assert_eq!(
+        f.open_in_place(1).err(),
+        Some(Error::ReplayedSeq { seq: Seq::new(1) })
+    );
+    // Mixing `open` and `open_in_place` shares the window.
+    f.reject(2);
+    f.reject(0);
+}
+
+/// Frames reordered within the window are accepted exactly
+/// once.
+pub fn test_replay_reorder_within_window<T: TestImpl, A: Aead>() {
+    let mut f = ReplayFixture::<T, A>::new("test_replay_reorder_within_window", 3, None);
+    f.accept(0);
+    f.accept(2);
+    f.accept(1);
+    f.reject(1);
+    f.reject(2);
+    f.reject(0);
+    assert_eq!(f.open_ctx().window().high(), Some(Seq::new(2)));
+}
+
+/// After a gap, late frames inside the window are accepted and
+/// frames just outside it are rejected.
+pub fn test_replay_gap_and_late_fill<T: TestImpl, A: Aead>() {
+    let w = u64::from(DEFAULT_REPLAY_WINDOW);
+    let n = usize::try_from(w + 6).expect("fits");
+    let mut f = ReplayFixture::<T, A>::new("test_replay_gap_and_late_fill", n, None);
+    f.accept(0);
+    f.accept(w + 5);
+    // The window is now `(5, W + 5]`.
+    f.accept(6);
+    f.reject(5);
+    f.reject(4);
+    f.reject(0);
+    for seq in 7..w + 5 {
+        f.accept(seq);
+    }
+    for seq in 6..=w + 5 {
+        f.reject(seq);
+    }
+}
+
+/// Advancing far ahead forgets everything below the new window.
+pub fn test_replay_far_ahead_advance<T: TestImpl, A: Aead>() {
+    let w = u64::from(DEFAULT_REPLAY_WINDOW);
+    let high = 10 + 2 * w;
+    let n = usize::try_from(high + 1).expect("fits");
+    let mut f = ReplayFixture::<T, A>::new("test_replay_far_ahead_advance", n, None);
+    for seq in 0..=10 {
+        f.accept(seq);
+    }
+    f.accept(high);
+    for seq in 0..=10 {
+        f.reject(seq);
+    }
+    f.reject(high);
+    // The bitmap holds only the new `high`.
+    for seq in (high - w + 1)..high {
+        f.accept(seq);
+    }
+    f.reject(high - w);
+}
+
+/// The first frame establishes the window wherever it lands.
+pub fn test_replay_first_frame_high_seq<T: TestImpl, A: Aead>() {
+    let w = u64::from(DEFAULT_REPLAY_WINDOW);
+    let mut f = ReplayFixture::<T, A>::new("test_replay_first_frame_high_seq", 1001, None);
+    f.accept(1000);
+    f.accept(999);
+    f.reject(1000 - w);
+    f.accept(1000 - w + 1);
+    f.reject(999);
+}
+
+/// A forged frame with a high `seq` fails authentication and
+/// does not move the window.
+pub fn test_replay_forged_high_seq<T: TestImpl, A: Aead>() {
+    let mut f = ReplayFixture::<T, A>::new("test_replay_forged_high_seq", 3, None);
+    f.accept(0);
+
+    // Rewrite frame 1's header to claim a very high `seq`.
+    let mut forged = f.frames[1].clone();
+    DataHeaderBuilder::new().seq(1 << 40).encode(&mut forged);
+    let mut dst = vec![0u8; forged.len() - overhead(&f.c2)];
+    let err =
+        f.c2.open(
+            f.open_ctx.as_mut().expect("open context should exist"),
+            &mut dst[..],
+            &forged,
+        )
+        .expect_err("forged frame should be rejected");
+    assert_eq!(err, Error::Authentication);
+    assert_eq!(f.open_ctx().window().high(), Some(Seq::new(0)));
+
+    // Legitimate traffic is unaffected.
+    f.accept(1);
+    f.accept(2);
+    f.reject(0);
+}
+
+/// `W = 1` accepts only strictly increasing sequence numbers.
+pub fn test_replay_window_size_one<T: TestImpl, A: Aead>() {
+    let mut f = ReplayFixture::<T, A>::new("test_replay_window_size_one", 4, Some(1));
+    assert_eq!(f.c2.replay_window(), 1);
+    f.accept(0);
+    f.accept(1);
+    f.reject(0);
+    f.reject(1);
+    f.accept(3);
+    f.reject(2);
+    f.reject(3);
+}
+
+/// `W = MAX_REPLAY_WINDOW` boundary behavior.
+pub fn test_replay_window_size_max<T: TestImpl, A: Aead>() {
+    let w = u64::from(MAX_REPLAY_WINDOW);
+    let n = usize::try_from(w + 2).expect("fits");
+    let mut f =
+        ReplayFixture::<T, A>::new("test_replay_window_size_max", n, Some(MAX_REPLAY_WINDOW));
+    assert_eq!(f.c2.replay_window(), MAX_REPLAY_WINDOW);
+    f.accept(w);
+    // `(0, W]` is inside the window.
+    f.accept(1);
+    f.reject(0);
+    f.accept(w - 1);
+    f.accept(w + 1);
+    // Now the window is `(1, W + 1]`.
+    f.reject(1);
+    f.accept(2);
+}
+
+/// `with_replay_window(0)` and `> MAX_REPLAY_WINDOW` are
+/// construction errors.
+pub fn test_replay_window_bounds<T: TestImpl, A: Aead>() {
+    for (i, size) in [0u16, MAX_REPLAY_WINDOW + 1, u16::MAX]
+        .into_iter()
+        .enumerate()
+    {
+        let states = T::new_states::<TestCs<A>>("test_replay_window_bounds", i, 1);
+        let err = Client::<T::Afc<TestCs<A>>>::with_replay_window(states.afc, size)
+            .err()
+            .unwrap_or_else(|| panic!("size {size} should be rejected"));
+        assert!(matches!(err, Error::InvalidArgument(_)), "{err}");
+    }
+    for (i, size) in [1u16, DEFAULT_REPLAY_WINDOW, MAX_REPLAY_WINDOW]
+        .into_iter()
+        .enumerate()
+    {
+        let states = T::new_states::<TestCs<A>>("test_replay_window_bounds", i + 3, 1);
+        let client = Client::<T::Afc<TestCs<A>>>::with_replay_window(states.afc, size)
+            .unwrap_or_else(|err| panic!("size {size} should be accepted: {err}"));
+        assert_eq!(client.replay_window(), size);
+    }
+}
+
+/// A freshly created [`OpenCtx`] has no history.
+pub fn test_replay_fresh_ctx_resets_window<T: TestImpl, A: Aead>() {
+    let mut f = ReplayFixture::<T, A>::new("test_replay_fresh_ctx_resets_window", 3, None);
+    f.accept(0);
+    f.accept(1);
+    f.reject(0);
+
+    f.reset_open_ctx();
+    assert_eq!(f.open_ctx().window().high(), None);
+    f.accept(0);
+    f.accept(1);
+    f.reject(1);
+
+    // Frames sealed after the reset behave normally.
+    f.seal_more();
+    f.accept(3);
+    f.accept(2);
+    f.reject(2);
 }

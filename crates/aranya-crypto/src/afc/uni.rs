@@ -65,6 +65,8 @@ use crate::{
 /// let (eng, _) = E::from_entropy(Rng);
 /// let parent_cmd_id = CmdId::random(&eng);
 /// let label_id = LabelId::random(&eng);
+/// // The channel author's current epoch, read from the graph.
+/// let epoch = 0;
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&eng)
@@ -87,6 +89,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label_id,
+///     epoch,
 /// };
 /// let UniSecrets { author, peer } =
 ///     UniSecrets::new(&eng, &device1_ch).expect("unable to create `UniSecrets`");
@@ -103,6 +106,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label_id,
+///     epoch,
 /// };
 /// let device2 = key_from_peer(&device2_ch, peer);
 ///
@@ -149,23 +153,27 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     pub open_id: DeviceId,
     /// The policy label applied to the channel.
     pub label_id: LabelId,
+    /// The channel author's epoch at creation time.
+    pub epoch: u64,
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
     pub(crate) const fn info(&self) -> Info {
         // info = concat(
-        //     "AfcUniKey-v1",
+        //     "AfcUniKey-v2",
         //     parent_cmd_id,
         //     seal_id,
         //     open_id,
-        //     i2osp(label, 4),
+        //     label_id,
+        //     i2osp(epoch, 8),
         // )
         Info {
-            domain: *b"AfcUniKey-v1",
+            domain: *b"AfcUniKey-v2",
             parent_cmd_id: self.parent_cmd_id,
             seal_id: self.seal_id,
             open_id: self.open_id,
             label_id: self.label_id,
+            epoch: self.epoch.to_be_bytes(),
         }
     }
 }
@@ -178,6 +186,8 @@ pub(crate) struct Info {
     seal_id: DeviceId,
     open_id: DeviceId,
     label_id: LabelId,
+    /// Big-endian `u64`.
+    epoch: [u8; 8],
 }
 
 /// A unirectional channel author's secret.
@@ -405,7 +415,12 @@ mod tests {
     use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust};
 
     use super::*;
-    use crate::{afc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
+    use crate::{
+        Rng,
+        afc::{AuthData, shared::RootChannelKey},
+        default::DhKemP256HkdfSha256,
+        test_util::TestCs,
+    };
 
     type CS = TestCs<
         rust::Aes256Gcm,
@@ -443,5 +458,115 @@ mod tests {
 
             assert_eq!(got_id, expected, "test case #{i}");
         }
+    }
+
+    /// Golden test for the [`Info`] byte layout.
+    #[test]
+    fn test_uni_info_layout() {
+        let parent_cmd_id = CmdId::from([0x11; 32]);
+        let seal_id = DeviceId::from([0x22; 32]);
+        let open_id = DeviceId::from([0x33; 32]);
+        let label_id = LabelId::from([0x44; 32]);
+        let epoch = 0x0102_0304_0506_0708u64;
+
+        let sk = EncryptionKey::<CS>::new(Rng);
+        let pk = sk.public().expect("public key should be valid");
+        let ch = UniChannel {
+            parent_cmd_id,
+            our_sk: &sk,
+            their_pk: &pk,
+            seal_id,
+            open_id,
+            label_id,
+            epoch,
+        };
+        let info = ch.info();
+        let got = info.as_bytes();
+
+        let mut want = Vec::<u8>::new();
+        want.extend_from_slice(b"AfcUniKey-v2");
+        want.extend_from_slice(&[0x11; 32]);
+        want.extend_from_slice(&[0x22; 32]);
+        want.extend_from_slice(&[0x33; 32]);
+        want.extend_from_slice(&[0x44; 32]);
+        want.extend_from_slice(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+
+        assert_eq!(got.len(), 148);
+        assert_eq!(got, &want[..]);
+    }
+
+    /// Keys derived with the same epoch interoperate; keys
+    /// derived with different epochs do not.
+    #[test]
+    fn test_uni_epoch_binding() {
+        let eng = crate::default::DefaultEngine::<Rng, CS>::from_entropy(Rng).0;
+        let author_sk = EncryptionKey::<CS>::new(&eng);
+        let peer_sk = EncryptionKey::<CS>::new(&eng);
+        let author_pk = author_sk.public().expect("public key should be valid");
+        let peer_pk = peer_sk.public().expect("public key should be valid");
+
+        let parent_cmd_id = CmdId::random(&eng);
+        let seal_id = DeviceId::random(&eng);
+        let open_id = DeviceId::random(&eng);
+        let label_id = LabelId::random(&eng);
+        const EPOCH: u64 = 7;
+
+        let author_ch = UniChannel {
+            parent_cmd_id,
+            our_sk: &author_sk,
+            their_pk: &peer_pk,
+            seal_id,
+            open_id,
+            label_id,
+            epoch: EPOCH,
+        };
+        let UniSecrets { author, peer } =
+            UniSecrets::new(&eng, &author_ch).expect("should create secrets");
+        let mut seal = UniSealKey::from_author_secret(&author_ch, author)
+            .expect("should derive seal key")
+            .into_key()
+            .expect("should convert seal key");
+
+        const GOLDEN: &[u8] = b"hello, world!";
+        let ad = AuthData {
+            version: 1,
+            label_id,
+        };
+        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
+        let seq = seal
+            .seal(&mut ciphertext, GOLDEN, &ad)
+            .expect("should seal");
+
+        let open_with = |epoch: u64| {
+            let peer_ch = UniChannel {
+                parent_cmd_id,
+                our_sk: &peer_sk,
+                their_pk: &author_pk,
+                seal_id,
+                open_id,
+                label_id,
+                epoch,
+            };
+            let open = UniOpenKey::from_peer_encap(
+                &peer_ch,
+                UniPeerEncap::from_bytes(peer.as_bytes()).expect("should decode encap"),
+            )
+            .expect("should derive open key")
+            .into_key()
+            .expect("should convert open key");
+            let mut plaintext = vec![0u8; ciphertext.len()];
+            open.open(&mut plaintext, &ciphertext, &ad, seq).map(|()| {
+                plaintext.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);
+                plaintext
+            })
+        };
+
+        // Same epoch: round trip.
+        let plaintext = open_with(EPOCH).expect("same epoch should open");
+        assert_eq!(&plaintext[..], GOLDEN);
+
+        // Different epoch: authentication failure.
+        open_with(EPOCH + 1).expect_err("different epoch should not open");
+        open_with(0).expect_err("different epoch should not open");
     }
 }

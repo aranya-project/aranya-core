@@ -29,10 +29,12 @@ use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
 use crate::{
-    ffi::{AfcUniChannel, Ffi},
+    ffi::{AfcUniChannel, Ffi, FfiError},
     handler::{
-        Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived, UniKey,
+        EpochRotated, Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived,
+        UniKey,
     },
+    replay::{MemStore as ReplayMemStore, ReplayStore, Verdict},
     transform::Transform,
 };
 
@@ -213,6 +215,16 @@ pub struct Device<T: TestImpl> {
     afc_client: Client<T::Afc>,
     /// Aranya's view of the shared state.
     afc_state: T::Aranya,
+    /// The graph this device participates in.
+    graph: BaseId,
+    /// Receiver-side replay protection.
+    replay: ReplayMemStore,
+    /// The device's encryption key (also in `store`).
+    #[cfg_attr(not(any(test, feature = "std")), allow(dead_code))]
+    enc_sk: EncryptionKey<<T::Engine as Engine>::CS>,
+    /// The device's keystore.
+    #[cfg_attr(not(any(test, feature = "std")), allow(dead_code))]
+    store: T::Store,
 }
 
 impl<T: TestImpl> Device<T> {
@@ -230,19 +242,163 @@ impl<T: TestImpl> Device<T> {
         );
 
         let enc_key_id = store
-            .insert_key(&eng, enc_sk)
+            .insert_key(&eng, enc_sk.clone())
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
-            eng,
             device_id,
             enc_key_id,
             enc_pk,
             ffi: Ffi::new(store.clone()),
-            handler: Handler::new(device_id, store),
+            handler: Handler::new(device_id, store.clone()),
             afc_client: Client::new(afc),
             afc_state: aranya,
+            graph: BaseId::random(Rng),
+            replay: ReplayMemStore::new(),
+            enc_sk,
+            store,
+            eng,
         }
+    }
+
+    /// Creates a unidirectional channel from `self` to `peer` via
+    /// the FFI, returning the effect data the peer would receive.
+    fn create_uni_channel(&self, peer: &Self, label_id: LabelId, epoch: u64) -> CreatedChannel {
+        let parent_cmd_id = CmdId::random(Rng);
+        let ctx = CommandContext::Action(ActionContext {
+            name: ident!("CreateUniChannel"),
+            head_id: parent_cmd_id,
+        });
+        let AfcUniChannel { peer_encap, key_id } = self
+            .ffi
+            .create_uni_channel(
+                &ctx,
+                &self.eng,
+                parent_cmd_id,
+                self.enc_key_id,
+                peer.enc_pk.clone(),
+                self.device_id,
+                peer.device_id,
+                label_id,
+                i64::try_from(epoch).expect("epoch should fit in i64"),
+            )
+            .expect("author should be able to create a uni channel");
+        CreatedChannel {
+            parent_cmd_id,
+            label_id,
+            epoch,
+            cmd_id: CmdId::random(Rng),
+            peer_encap,
+            key_id,
+        }
+    }
+
+    /// Handles the `AfcUniChannelCreated` effect for `ch` and
+    /// installs the resulting seal key.
+    fn install_created(&mut self, peer: &Self, ch: &CreatedChannel) -> LocalChannelId
+    where
+        <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+            &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+            UniAuthorSecret<<T::Engine as Engine>::CS>,
+        )>,
+        <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+            &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+            UniAuthorSecret<<T::Engine as Engine>::CS>,
+        )>,
+    {
+        let keys = self
+            .handler
+            .uni_channel_created(
+                &self.eng,
+                &UniChannelCreated {
+                    parent_cmd_id: ch.parent_cmd_id,
+                    open_id: peer.device_id,
+                    author_enc_key_id: self.enc_key_id,
+                    peer_enc_pk: &peer.enc_pk,
+                    label_id: ch.label_id,
+                    key_id: ch.key_id.into(),
+                    epoch: ch.epoch,
+                },
+            )
+            .expect("author should be able to load encryption key");
+        assert!(matches!(keys, UniKey::SealOnly(_)));
+        self.afc_state
+            .add(keys.into(), ch.label_id, peer.device_id)
+            .expect("author should be able to add channel")
+    }
+
+    /// Handles the `AfcUniChannelReceived` effect for `ch` with
+    /// `replay`, without installing the key.
+    #[allow(clippy::type_complexity)]
+    fn receive<R: ReplayStore>(
+        &mut self,
+        author: &Self,
+        ch: &CreatedChannel,
+        replay: &mut R,
+    ) -> Result<
+        UniKey<<T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>,
+        EffectHandlerError,
+    >
+    where
+        <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+            &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+            UniPeerEncap<<T::Engine as Engine>::CS>,
+        )>,
+        <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+            &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+            UniPeerEncap<<T::Engine as Engine>::CS>,
+        )>,
+    {
+        let graph = self.graph;
+        self.handler.uni_channel_received(
+            &self.eng,
+            replay,
+            graph,
+            &UniChannelReceived {
+                parent_cmd_id: ch.parent_cmd_id,
+                seal_id: author.device_id,
+                author_enc_pk: &author.enc_pk,
+                peer_enc_key_id: self.enc_key_id,
+                label_id: ch.label_id,
+                encap: &ch.peer_encap,
+                epoch: ch.epoch,
+                cmd_id: ch.cmd_id,
+            },
+        )
+    }
+
+    /// Handles the `AfcUniChannelReceived` effect for `ch` with
+    /// this device's own replay store and installs the resulting
+    /// open key.
+    fn install_received(&mut self, author: &Self, ch: &CreatedChannel) -> LocalChannelId
+    where
+        <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+            &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+            UniPeerEncap<<T::Engine as Engine>::CS>,
+        )>,
+        <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+            &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+            UniPeerEncap<<T::Engine as Engine>::CS>,
+        )>,
+    {
+        let mut replay = self.replay.clone();
+        let keys = self
+            .receive(author, ch, &mut replay)
+            .expect("peer should be able to load decryption key");
+        assert!(matches!(keys, UniKey::OpenOnly(_)));
+        self.afc_state
+            .add(keys.into(), ch.label_id, author.device_id)
+            .expect("peer should be able to add channel")
+    }
+
+    /// Handles the `AfcEpochRotated` effect: `device_id`
+    /// rotated to `epoch`.
+    fn epoch_rotated(&mut self, device_id: DeviceId, epoch: u64) {
+        let mut replay = self.replay.clone();
+        let graph = self.graph;
+        self.handler
+            .epoch_rotated(&mut replay, graph, &EpochRotated { device_id, epoch })
+            .expect("`epoch_rotated` should succeed");
     }
 
     /// Tests that `opener` can decrypt what `sealer` encrypts.
@@ -287,6 +443,48 @@ impl<T: TestImpl> Device<T> {
             .map(|_| ())
             .expect_err("should have failed");
         assert_eq!(err, aranya_fast_channels::Error::NotFound(channel_id));
+    }
+}
+
+/// The result of creating a channel via the FFI, plus the fields
+/// the policy would place in the resulting effects.
+struct CreatedChannel {
+    parent_cmd_id: CmdId,
+    label_id: LabelId,
+    epoch: u64,
+    /// The ID of the (ephemeral) control command.
+    cmd_id: CmdId,
+    peer_encap: Vec<u8>,
+    key_id: BaseId,
+}
+
+/// A [`ReplayStore`] that always fails.
+struct FailingStore;
+
+#[derive(Debug, thiserror::Error)]
+#[error("replay store is unavailable")]
+struct FailingStoreError;
+
+impl ReplayStore for FailingStore {
+    type Error = FailingStoreError;
+
+    fn accept(
+        &mut self,
+        _graph: BaseId,
+        _sender: DeviceId,
+        _epoch: u64,
+        _nonce: CmdId,
+    ) -> Result<Verdict, Self::Error> {
+        Err(FailingStoreError)
+    }
+
+    fn raise_floor(
+        &mut self,
+        _graph: BaseId,
+        _sender: DeviceId,
+        _epoch: u64,
+    ) -> Result<(), Self::Error> {
+        Err(FailingStoreError)
     }
 }
 
@@ -340,6 +538,12 @@ macro_rules! test_all {
             test!(test_create_seal_only_uni_channel);
             test!(test_create_open_only_uni_channel);
             test!(test_receive_seal_only_uni_channel);
+            test!(test_create_uni_channel_negative_epoch);
+            test!(test_receive_replayed_uni_channel);
+            test!(test_receive_stale_epoch_uni_channel);
+            test!(test_rotation_forgets_nonces);
+            test!(test_sender_must_rotate);
+            test!(test_replay_store_error);
         }
     };
 }
@@ -388,6 +592,7 @@ where
             author.device_id,
             peer.device_id,
             label_id,
+            0,
         )
         .expect("author should be able to create a uni channel");
 
@@ -405,6 +610,7 @@ where
                     peer_enc_pk: &peer.enc_pk,
                     label_id,
                     key_id: key_id.into(),
+                    epoch: 0,
                 },
             )
             .expect("author should be able to load encryption key");
@@ -419,10 +625,14 @@ where
     // This is called by the channel peer after receiving the
     // effect.
     let peer_chan_id = {
+        let mut replay = peer.replay.clone();
+        let graph = peer.graph;
         let keys = peer
             .handler
             .uni_channel_received(
                 &peer.eng,
+                &mut replay,
+                graph,
                 &UniChannelReceived {
                     parent_cmd_id,
                     seal_id: author.device_id,
@@ -430,6 +640,8 @@ where
                     peer_enc_key_id: peer.enc_key_id,
                     label_id,
                     encap: &peer_encap,
+                    epoch: 0,
+                    cmd_id: CmdId::random(Rng),
                 },
             )
             .expect("peer should be able to load decryption key");
@@ -490,6 +702,7 @@ where
             author.device_id,
             peer.device_id,
             label_id,
+            0,
         )
         .expect("author should be able to create a uni channel");
 
@@ -506,6 +719,7 @@ where
                     peer_enc_pk: &peer.enc_pk,
                     label_id,
                     key_id: key_id.into(),
+                    epoch: 0,
                 },
             ) {
                 Ok(_) => panic!("author should not be the opener"),
@@ -559,15 +773,20 @@ where
             author.device_id,
             peer.device_id,
             label_id,
+            0,
         )
         .expect("author should be able to create a uni channel");
 
     // This is called by the peer of the channel after
     // receiving the effect.
+    let mut replay = peer.replay.clone();
+    let graph = peer.graph;
     match peer
             .handler
-            .uni_channel_received::<_,  <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
+            .uni_channel_received::<_, _, <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
                 &author.eng,
+                &mut replay,
+                graph,
                 &UniChannelReceived {
                     parent_cmd_id,
                     seal_id: peer.device_id,
@@ -575,9 +794,456 @@ where
                     label_id,
                     encap: &encap,
                     peer_enc_key_id: peer.enc_key_id,
+                    epoch: 0,
+                    cmd_id: CmdId::random(Rng),
                 },
             ) {
                 Ok(_) => panic!("author should not be the opener"),
                 Err(err) => assert!(matches!(err, EffectHandlerError::AuthorMustBeSealer)),
             }
+    // A message rejected before the replay check must not
+    // consume a nonce slot.
+    assert_eq!(replay.nonces(graph, peer.device_id), 0);
+}
+
+/// A negative test for the FFI: the epoch must be non-negative.
+pub fn test_create_uni_channel_negative_epoch<T: TestImpl>() {
+    let author = T::new();
+    let peer = T::new();
+
+    let label_id = LabelId::random(Rng);
+    let parent_cmd_id = CmdId::random(Rng);
+    let ctx = CommandContext::Action(ActionContext {
+        name: ident!("CreateUniChannel"),
+        head_id: parent_cmd_id,
+    });
+    let err = author
+        .ffi
+        .create_uni_channel(
+            &ctx,
+            &author.eng,
+            parent_cmd_id,
+            author.enc_key_id,
+            peer.enc_pk.clone(),
+            author.device_id,
+            peer.device_id,
+            label_id,
+            -1,
+        )
+        .expect_err("negative epoch should be rejected");
+    assert!(matches!(err, FfiError::InvalidEpoch), "{err}");
+}
+
+/// Delivering the same control message twice installs exactly
+/// one key: the second delivery is rejected as a replay.
+pub fn test_receive_replayed_uni_channel<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let mut author = T::new();
+    let mut peer = T::new();
+    let label_id = LabelId::random(Rng);
+
+    let ch = author.create_uni_channel(&peer, label_id, 0);
+    let author_chan_id = author.install_created(&peer, &ch);
+    let peer_chan_id = peer.install_received(&author, &ch);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 1);
+
+    // Replay the exact same control message.
+    let mut replay = peer.replay.clone();
+    let err = peer
+        .receive(&author, &ch, &mut replay)
+        .err()
+        .expect("replayed control message should be rejected");
+    assert!(
+        matches!(err, EffectHandlerError::Replay(Verdict::Replay)),
+        "{err}"
+    );
+    assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 1);
+
+    // A different control message from the same sender at the
+    // same epoch is still accepted.
+    let ch2 = author.create_uni_channel(&peer, label_id, 0);
+    let author_chan_id2 = author.install_created(&peer, &ch2);
+    let peer_chan_id2 = peer.install_received(&author, &ch2);
+    Device::test_roundtrip((&mut author, author_chan_id2), (&mut peer, peer_chan_id2));
+    assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 2);
+}
+
+/// A control message from an older epoch than the highest
+/// accepted from that sender is rejected.
+pub fn test_receive_stale_epoch_uni_channel<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let mut author = T::new();
+    let mut peer = T::new();
+    let label_id = LabelId::random(Rng);
+
+    let old = author.create_uni_channel(&peer, label_id, 1);
+    let new = author.create_uni_channel(&peer, label_id, 2);
+
+    // Accept the newer epoch first...
+    let author_chan_id = author.install_created(&peer, &new);
+    let peer_chan_id = peer.install_received(&author, &new);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.epoch(peer.graph, author.device_id), 2);
+
+    // ...then the older one is stale.
+    let mut replay = peer.replay.clone();
+    let err = peer
+        .receive(&author, &old, &mut replay)
+        .err()
+        .expect("stale epoch should be rejected");
+    assert!(
+        matches!(
+            err,
+            EffectHandlerError::Replay(Verdict::StaleEpoch { current: 2 })
+        ),
+        "{err}"
+    );
+    assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 1);
+}
+
+/// Rotating the sender's epoch (as observed via the graph)
+/// invalidates outstanding control messages and lets the
+/// receiver forget old nonces.
+pub fn test_rotation_forgets_nonces<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let mut author = T::new();
+    let mut peer = T::new();
+    let label_id = LabelId::random(Rng);
+    let graph = peer.graph;
+
+    let ch0 = author.create_uni_channel(&peer, label_id, 0);
+    let author_chan_id = author.install_created(&peer, &ch0);
+    let peer_chan_id = peer.install_received(&author, &ch0);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.epoch(graph, author.device_id), 0);
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
+
+    // The sender rotates to epoch 1; the receiver learns about
+    // it via the `AfcEpochRotated` effect.
+    peer.epoch_rotated(author.device_id, 1);
+    assert_eq!(peer.replay.epoch(graph, author.device_id), 1);
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 0);
+
+    // An old control message is now stale.
+    let mut replay = peer.replay.clone();
+    let err = peer
+        .receive(&author, &ch0, &mut replay)
+        .err()
+        .expect("old epoch should be rejected");
+    assert!(
+        matches!(
+            err,
+            EffectHandlerError::Replay(Verdict::StaleEpoch { current: 1 })
+        ),
+        "{err}"
+    );
+
+    // Channels at the new epoch work.
+    let ch1 = author.create_uni_channel(&peer, label_id, 1);
+    let author_chan_id = author.install_created(&peer, &ch1);
+    let peer_chan_id = peer.install_received(&author, &ch1);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
+
+    // A control message with a newer epoch also ratchets the
+    // receiver forward and forgets the old nonces, so a later
+    // `AfcEpochRotated` for that epoch is a no-op.
+    let ch2 = author.create_uni_channel(&peer, label_id, 2);
+    let author_chan_id = author.install_created(&peer, &ch2);
+    let peer_chan_id = peer.install_received(&author, &ch2);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.epoch(graph, author.device_id), 2);
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
+    peer.epoch_rotated(author.device_id, 2);
+    assert_eq!(peer.replay.epoch(graph, author.device_id), 2);
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
+
+    // Another rotation forgets everything again.
+    peer.epoch_rotated(author.device_id, 3);
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 0);
+    let mut replay = peer.replay.clone();
+    let err = peer
+        .receive(&author, &ch2, &mut replay)
+        .err()
+        .expect("old epoch should be rejected");
+    assert!(
+        matches!(
+            err,
+            EffectHandlerError::Replay(Verdict::StaleEpoch { current: 3 })
+        ),
+        "{err}"
+    );
+
+    // A device's own rotation effect is a no-op for its replay
+    // state: it never accepts messages from itself.
+    peer.epoch_rotated(peer.device_id, 100);
+    assert_eq!(peer.replay.epoch(graph, peer.device_id), 0);
+}
+
+/// Once the per-epoch nonce cap is exhausted, the receiver fails
+/// closed until the sender rotates.
+pub fn test_sender_must_rotate<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let mut author = T::new();
+    let mut peer = T::new();
+    let label_id = LabelId::random(Rng);
+    peer.replay = ReplayMemStore::with_cap(2);
+
+    let ch1 = author.create_uni_channel(&peer, label_id, 0);
+    let ch2 = author.create_uni_channel(&peer, label_id, 0);
+    let ch3 = author.create_uni_channel(&peer, label_id, 0);
+    peer.install_received(&author, &ch1);
+    peer.install_received(&author, &ch2);
+
+    let mut replay = peer.replay.clone();
+    let err = peer
+        .receive(&author, &ch3, &mut replay)
+        .err()
+        .expect("third channel should exceed the cap");
+    assert!(
+        matches!(
+            err,
+            EffectHandlerError::Replay(Verdict::SenderMustRotate { cap: 2 })
+        ),
+        "{err}"
+    );
+
+    // Rotating clears the cap.
+    let ch4 = author.create_uni_channel(&peer, label_id, 1);
+    let author_chan_id = author.install_created(&peer, &ch4);
+    let peer_chan_id = peer.install_received(&author, &ch4);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+}
+
+/// A failing replay store surfaces as
+/// [`Error::ReplayStore`][EffectHandlerError::ReplayStore].
+pub fn test_replay_store_error<T: TestImpl>()
+where
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    let author = T::new();
+    let mut peer = T::new();
+    let label_id = LabelId::random(Rng);
+
+    let ch = author.create_uni_channel(&peer, label_id, 0);
+    let err = peer
+        .receive(&author, &ch, &mut FailingStore)
+        .err()
+        .expect("unavailable replay store should be an error");
+    assert!(matches!(err, EffectHandlerError::ReplayStore), "{err}");
+
+    // `epoch_rotated` surfaces the same error.
+    let graph = peer.graph;
+    let err = peer
+        .handler
+        .epoch_rotated(
+            &mut FailingStore,
+            graph,
+            &EpochRotated {
+                device_id: author.device_id,
+                epoch: 1,
+            },
+        )
+        .expect_err("unavailable replay store should be an error");
+    assert!(matches!(err, EffectHandlerError::ReplayStore), "{err}");
+
+    // Once the store is available again the same message is
+    // accepted: the failed attempt did not record it.
+    let mut replay = peer.replay.clone();
+    let keys = peer
+        .receive(&author, &ch, &mut replay)
+        .expect("peer should be able to load decryption key");
+    assert!(matches!(keys, UniKey::OpenOnly(_)));
+}
+
+/// Two concurrent deliveries of the same control message yield
+/// exactly one key.
+///
+/// Each thread models an independent daemon worker: it has its
+/// own [`Handler`] and keystore (holding the receiver's
+/// encryption key) and shares only the [`ReplayStore`].
+#[cfg(any(test, feature = "std"))]
+pub fn test_concurrent_uni_channel_received<T: TestImpl>()
+where
+    EncryptionKey<<T::Engine as Engine>::CS>: Send,
+    <T::Aranya as AranyaState>::SealKey: Send,
+    <T::Aranya as AranyaState>::OpenKey: Send,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+{
+    const THREADS: usize = 8;
+    const ROUNDS: usize = 16;
+
+    let author = T::new();
+    let peer = T::new();
+    let label_id = LabelId::random(Rng);
+
+    for round in 0..ROUNDS {
+        let ch = author.create_uni_channel(&peer, label_id, 0);
+
+        let barrier = std::sync::Barrier::new(THREADS);
+        let results: Vec<_> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..THREADS)
+                .map(|_| {
+                    let mut replay = peer.replay.clone();
+                    let peer_enc_sk = peer.enc_sk.clone();
+                    let peer_device_id = peer.device_id;
+                    let peer_enc_key_id = peer.enc_key_id;
+                    let graph = peer.graph;
+                    let author_device_id = author.device_id;
+                    let author_enc_pk = author.enc_pk.clone();
+                    let (parent_cmd_id, epoch, cmd_id, peer_encap) =
+                        (ch.parent_cmd_id, ch.epoch, ch.cmd_id, ch.peer_encap.clone());
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        // An independent worker with its own
+                        // engine and keystore.
+                        let worker = T::new();
+                        let mut store = worker.store.clone();
+                        let key_id = store
+                            .insert_key(&worker.eng, peer_enc_sk)
+                            .expect("should be able to insert wrapped `EncryptionKey`");
+                        assert_eq!(key_id, peer_enc_key_id);
+                        let mut handler = Handler::new(peer_device_id, store);
+
+                        let effect = UniChannelReceived {
+                            parent_cmd_id,
+                            seal_id: author_device_id,
+                            author_enc_pk: &author_enc_pk,
+                            peer_enc_key_id,
+                            label_id,
+                            encap: &peer_encap,
+                            epoch,
+                            cmd_id,
+                        };
+
+                        barrier.wait();
+                        handler
+                            .uni_channel_received::<_, _, <T::Aranya as AranyaState>::SealKey, <T::Aranya as AranyaState>::OpenKey>(
+                                &worker.eng, &mut replay, graph, &effect,
+                            )
+                            .map(|keys| matches!(keys, UniKey::OpenOnly(_)))
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("thread should not panic"))
+                .collect()
+        });
+
+        let fresh = results.iter().filter(|r| matches!(r, Ok(true))).count();
+        let replays = results
+            .iter()
+            .filter(|r| matches!(r, Err(EffectHandlerError::Replay(Verdict::Replay))))
+            .count();
+        assert_eq!(
+            fresh, 1,
+            "round {round}: exactly one delivery should succeed"
+        );
+        assert_eq!(
+            replays,
+            THREADS - 1,
+            "round {round}: the rest should be replays"
+        );
+        assert_eq!(peer.replay.nonces(peer.graph, author.device_id), round + 1);
+    }
 }
