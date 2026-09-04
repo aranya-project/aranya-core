@@ -74,7 +74,7 @@ pub enum Value {
     /// Optional value
     Option(Option<Box<Self>>),
     /// Result value
-    Result(Result<Box<Value>, Box<Value>>),
+    Result(Result<Box<Self>, Box<Self>>),
 }
 
 impl Value {

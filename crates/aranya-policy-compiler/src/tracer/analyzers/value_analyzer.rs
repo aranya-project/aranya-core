@@ -53,10 +53,8 @@ impl Analyzer for ValueAnalyzer {
                     return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
                 }
             }
-            Instruction::Get(s) => {
-                if !self.contains(s) {
-                    return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
-                }
+            Instruction::Get(s) if !self.contains(s) => {
+                return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
             }
             _ => (),
         }

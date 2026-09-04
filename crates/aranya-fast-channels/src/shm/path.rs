@@ -113,7 +113,7 @@ impl fmt::Display for Path {
         let data = self.as_cstr().to_bytes();
         match str::from_utf8(data) {
             Ok(s) => write!(f, "{s}"),
-            Err(_) => write!(f, "invalid UTF-8: {:?}", &data),
+            Err(_) => write!(f, "invalid UTF-8: {:?}", data),
         }
     }
 }
