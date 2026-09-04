@@ -59,4 +59,4 @@ jobs:
         run: |
             . /home/runner/export-esp.sh
             cd aranya-embedded/crates/chat-app
-            cargo build
+            cargo build || echo '::error file=.github/workflows/embedded.yml,line=1::Failed to build aranya-embedded at this revision'
