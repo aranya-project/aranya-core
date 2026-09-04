@@ -113,7 +113,7 @@ impl MemStoreInner {
 
         // SAFETY: we've locked `self.mutex`, so access to
         // `self.store` is exclusive.
-        let store = unsafe { &mut *self.store.get() };
+        let store = unsafe { self.store.get().as_mut_unchecked() };
 
         let entry = match store.entry(id)? {
             Entry::Vacant(entry) => {

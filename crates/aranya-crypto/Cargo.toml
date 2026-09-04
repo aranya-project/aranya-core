@@ -69,7 +69,6 @@ ed25519_batch = [
 fs-keystore = [
 	"alloc", # ciborium already requires alloc
 
-	"dep:cfg-if",
 	"dep:ciborium",
 	"dep:ciborium-io",
 	"dep:rustix",
@@ -143,7 +142,6 @@ spideroak-base58 = { workspace = true, default-features = false }
 spideroak-crypto = { version = "0.8.0", default-features = false, features = ["serde"] }
 
 byteorder = { workspace = true, default-features = false, optional = true }
-cfg-if = { workspace = true, default-features = false, optional = true }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
 derive-where = { workspace = true, default-features = false, features = ["serde"] }

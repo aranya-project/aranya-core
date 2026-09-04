@@ -89,7 +89,7 @@ impl<T> TryFromFfi for &T {
         }
         // SAFETY: `val` is non-null and aligned. See also the
         // method's safety docs.
-        let xref = unsafe { &*val };
+        let xref = unsafe { val.as_ref_unchecked() };
         Ok(xref)
     }
 }

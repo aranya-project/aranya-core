@@ -3,8 +3,6 @@ use core::{
     fmt, ptr, str,
 };
 
-use cfg_if::cfg_if;
-
 use crate::errno::Errno;
 
 /// The path is invalid.
@@ -59,7 +57,7 @@ impl Path {
     pub fn from_cstr(path: &CStr) -> Result<&Self, InvalidPathError> {
         Self::validate(path)?;
         // SAFETY: Path and CStr have the same layout.
-        Ok(unsafe { &*(ptr::from_ref(path) as *const Self) })
+        Ok(unsafe { (ptr::from_ref(path) as *const Self).as_ref_unchecked() })
     }
 
     /// Create a [`Path`] from bytes.
@@ -147,12 +145,9 @@ pub fn unlink<P>(path: P) -> Result<(), Errno>
 where
     P: AsRef<Path>,
 {
-    cfg_if! {
-        if #[cfg(feature = "sdlib")] {
-            super::sdlib::unlink(path)
-        } else {
-            super::posix::shm_unlink(path)
-        }
+    cfg_select! {
+        feature = "sdlib" => super::sdlib::unlink(path),
+        _ => super::posix::shm_unlink(path),
     }
 }
 

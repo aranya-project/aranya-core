@@ -55,7 +55,7 @@ impl Path {
     fn from_raw_bytes(path: &[u8]) -> &Self {
         // SAFETY: `&[u8]` and `&Self` have the same
         // memory layout.
-        unsafe { &*(ptr::from_ref::<[u8]>(path) as *const Self) }
+        unsafe { (ptr::from_ref::<[u8]>(path) as *const Self).as_ref_unchecked() }
     }
 
     /// Create a `Path` from bytes that end with a null
@@ -477,7 +477,7 @@ mod tests {
         ($path:literal) => {{
             let path: &[u8] = $path.as_ref();
             // SAFETY: `&Path` has the same size as `&[u8]`.
-            unsafe { &*(ptr::from_ref::<[u8]>(path) as *const Path) }
+            unsafe { (ptr::from_ref::<[u8]>(path) as *const Path).as_ref_unchecked() }
         }};
     }
 

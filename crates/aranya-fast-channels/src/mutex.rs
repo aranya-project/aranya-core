@@ -15,10 +15,11 @@ use crate::util::const_assert;
 
 // A mutex that can NOT be used in shared memory.
 #[cfg(any(test, feature = "memory"))]
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
+cfg_select! {
+    feature = "std" => {
         pub(crate) type StdMutex<T> = std::sync::Mutex<T>;
-    } else {
+    }
+    _ => {
         pub(crate) type StdMutex<T> = Mutex<T>;
     }
 }
@@ -49,7 +50,7 @@ impl<T: ?Sized> Deref for MutexGuard<'_, T> {
     fn deref(&self) -> &T {
         // SAFETY: the mutex prevents data races and the value is
         // being dropped
-        unsafe { &*self.lock.data.get() }
+        unsafe { self.lock.data.get().as_ref_unchecked() }
     }
 }
 
@@ -57,7 +58,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         // SAFETY: the mutex prevents data races and the value is
         // being dropped
-        unsafe { &mut *self.lock.data.get() }
+        unsafe { self.lock.data.get().as_mut_unchecked() }
     }
 }
 
@@ -124,7 +125,7 @@ impl<T: ?Sized> Mutex<T> {
         // SAFETY: the caller is providing their own
         // synchronization, the pointer is non-null and aligned,
         // etc.
-        unsafe { &*self.data.get() }
+        unsafe { self.data.get().as_ref_unchecked() }
     }
 
     /// Lock the mutex.
