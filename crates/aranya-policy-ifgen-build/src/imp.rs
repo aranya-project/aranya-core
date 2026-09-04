@@ -288,11 +288,9 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         ty: &TypeKind,
     ) {
         match ty {
-            TypeKind::Struct(s) => {
-                if found.insert(s.inner.clone()) {
-                    for field in struct_defs[s.as_str()] {
-                        visit(struct_defs, found, &field.field_type.inner);
-                    }
+            TypeKind::Struct(s) if found.insert(s.inner.clone()) => {
+                for field in struct_defs[s.as_str()] {
+                    visit(struct_defs, found, &field.field_type.inner);
                 }
             }
             TypeKind::Enum(s) => {
