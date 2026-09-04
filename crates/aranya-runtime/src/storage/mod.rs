@@ -21,7 +21,7 @@ pub use self::{
     head_set::HeadSet,
     spill::{MemSpill, mem_spill},
 };
-use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, util::mem_usage};
 
 /// Byte-addressable overflow storage for braid and convergence data.
 ///
@@ -362,10 +362,7 @@ impl Default for TraversalBuffers {
     }
 }
 
-#[cfg(feature = "low-mem-usage")]
-pub const MAX_COMMAND_LENGTH: usize = 400;
-#[cfg(not(feature = "low-mem-usage"))]
-pub const MAX_COMMAND_LENGTH: usize = 2048;
+pub const MAX_COMMAND_LENGTH: usize = mem_usage(400, 2048);
 
 aranya_crypto::custom_id! {
     /// The ID of the graph, taken from initialization.
