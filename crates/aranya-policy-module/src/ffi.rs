@@ -24,9 +24,9 @@ pub enum Type<'a> {
     /// A named enum.
     Enum(Identifier),
     /// An optional type of some other type.
-    Optional(&'a Type<'a>),
+    Optional(&'a Self),
     /// Result
-    Result(&'a Type<'a>, &'a Type<'a>),
+    Result(&'a Self, &'a Self),
 }
 
 impl Type<'_> {

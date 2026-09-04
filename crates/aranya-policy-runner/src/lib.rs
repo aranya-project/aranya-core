@@ -191,7 +191,7 @@ impl PolicyRunner {
         CE: Engine,
         KS: KeyStore,
     {
-        let mut policy_doc = self.policy.to_string();
+        let mut policy_doc = self.policy.clone();
         // Append generated policy thunks to the policy doc
         policy_doc.push_str("\n```policy\n");
         let mut thunk_counter = 0usize;
