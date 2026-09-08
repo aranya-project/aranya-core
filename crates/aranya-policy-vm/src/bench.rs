@@ -156,7 +156,7 @@ impl BenchMeasurements {
                 }
             })
             .collect();
-        m.sort_by(|a, b| b.mean.cmp(&a.mean));
+        m.sort_by_key(|a| core::cmp::Reverse(a.mean));
         m
     }
 

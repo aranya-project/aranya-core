@@ -127,7 +127,7 @@ impl TraceAnalyzer<'_> {
 
         // Multiple paths may give us the same failures. Sort them by responsible
         // instruction and consider them identical if they have the same message.
-        failures.sort_by(|a, b| a.responsible_instruction.cmp(&b.responsible_instruction));
+        failures.sort_by_key(|a| a.responsible_instruction);
         failures.dedup_by(|a, b| {
             a.message == b.message && a.responsible_instruction == b.responsible_instruction
         });

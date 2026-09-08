@@ -301,10 +301,8 @@ impl TraversalQueue {
 
     /// Drain all entries. Uncovered entries are passed to `f`.
     /// Covered entries are discarded. O(n) single pass.
-    pub fn drain_all(&mut self, mut f: impl FnMut(Location)) {
-        for i in 0..self.partition {
-            f(self.entries[i]);
-        }
+    pub fn drain_all(&mut self, f: impl FnMut(Location)) {
+        self.entries[..self.partition].iter().copied().for_each(f);
         self.entries.clear();
         self.partition = 0;
     }

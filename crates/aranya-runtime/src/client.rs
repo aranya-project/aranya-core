@@ -1,7 +1,6 @@
 use core::{fmt, iter::DoubleEndedIterator};
 
 use buggy::Bug;
-use tracing::error;
 
 use crate::{
     Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,

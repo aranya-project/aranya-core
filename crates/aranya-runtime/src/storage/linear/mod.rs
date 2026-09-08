@@ -840,14 +840,11 @@ impl<R: Read> Segment for LinearSegment<R> {
         let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
         let data = self.repr.commands.get(cmd_idx)?;
         let parent = if let Some(prev) = usize::checked_sub(cmd_idx, 1) {
-            if let Some(max_cut) = self.repr.max_cut.checked_add(prev as u64) {
-                Prior::Single(Address {
-                    id: self.repr.commands[prev].id,
-                    max_cut,
-                })
-            } else {
-                return None;
-            }
+            let max_cut = self.repr.max_cut.checked_add(prev as u64)?;
+            Prior::Single(Address {
+                id: self.repr.commands[prev].id,
+                max_cut,
+            })
         } else {
             self.repr.parents
         };

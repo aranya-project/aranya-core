@@ -45,7 +45,7 @@ impl<'i> PairContext<'i, '_> {
         match (self.to_ast_span)(self.span) {
             Ok(span) => ParseError::new(
                 ParseErrorKind::Unknown,
-                format!("{:?}", &self.span),
+                format!("{:?}", self.span),
                 Some(span),
             ),
             Err(err) => err,
