@@ -3,7 +3,7 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PollIncoming,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PollIncoming,
     SEGMENT_BUFFER_MAX, SyncError,
     requester::SyncRequestMessage,
     wire::{CommandMeta, SyncType},
@@ -16,6 +16,9 @@ use crate::{
         TraversalBuffers,
     },
 };
+
+/// The maximum number of heads that will be stored for a peer.
+const PEER_HEAD_MAX: usize = 10;
 
 #[derive(Default, Debug)]
 pub struct PeerCache {
