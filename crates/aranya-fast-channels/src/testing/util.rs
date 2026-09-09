@@ -281,43 +281,12 @@ where
     where
         I: IntoIterator<Item = (LabelId, ChanOp)>,
     {
-        self.new_client_inner(labels, None)
-    }
-
-    /// Like [`new_client`][Self::new_client], but the
-    /// [`Client`] uses a replay window of `window` frames.
-    pub fn new_client_with_window<I>(
-        &mut self,
-        labels: I,
-        window: u16,
-    ) -> (Client<T::Afc<E::CS>>, DeviceIdx)
-    where
-        I: IntoIterator<Item = LabelId>,
-    {
-        self.new_client_inner(
-            labels.into_iter().zip(iter::repeat(ChanOp::Any)),
-            Some(window),
-        )
-    }
-
-    fn new_client_inner<I>(
-        &mut self,
-        labels: I,
-        window: Option<u16>,
-    ) -> (Client<T::Afc<E::CS>>, DeviceIdx)
-    where
-        I: IntoIterator<Item = (LabelId, ChanOp)>,
-    {
         let device_id = self.devices.len();
 
         let States { afc, aranya } =
             T::new_states::<E::CS>(self.name.as_str(), device_id, self.max_chans);
         let mut device = Device::new(&self.eng, aranya);
-        let client = match window {
-            Some(window) => Client::<T::Afc<E::CS>>::with_replay_window(afc, window)
-                .expect("replay window size should be valid"),
-            None => Client::<T::Afc<E::CS>>::new(afc),
-        };
+        let client = Client::<T::Afc<E::CS>>::new(afc);
 
         for (label, device_type) in labels {
             // Find all the peers that we're able to create

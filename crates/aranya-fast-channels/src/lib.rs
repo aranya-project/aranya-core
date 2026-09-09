@@ -31,15 +31,6 @@
 //! but it is possible to do so by passing a "new" [`AfcState::SealCtx`] to the seal methods
 //! on [`Client`].
 //!
-//! On the receiving side, [`Client::open`] and
-//! [`Client::open_in_place`] enforce a per-channel sliding
-//! [`ReplayWindow`] over the sequence number: each frame is
-//! delivered at most once and frames older than the window are
-//! rejected with [`Error::ReplayedSeq`]. The window lives in the
-//! [`OpenCtx`] returned by [`Client::setup_open_ctx`], so, like
-//! the seal context, it should be created once per channel per
-//! process.
-//!
 //! # Example
 //!
 //! The following example demonstrates two [`Client`]s encrypting
@@ -234,7 +225,6 @@ mod error;
 mod header;
 pub mod memory;
 mod mutex;
-mod replay;
 pub mod rust;
 pub mod shm;
 mod state;
@@ -245,7 +235,6 @@ pub use buf::*;
 pub use client::*;
 pub use error::*;
 pub use header::*;
-pub use replay::*;
 pub use state::*;
 #[cfg(feature = "unsafe_debug")]
 pub use util::init_debug_logging;
