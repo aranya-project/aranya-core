@@ -66,7 +66,8 @@ pub mod policy {
 
     #[doc(inline)]
     pub use aranya_runtime::vm_policy::{
-        FfiCallable, VmAction, VmEffect, VmEffectData, VmPolicy, VmPolicyError,
+        FfiCallable, StandardOpen, StandardSeal, VmAction, VmEffect, VmEffectData, VmPolicy,
+        VmPolicyError,
     };
 
     #[doc(inline)]
@@ -129,6 +130,7 @@ pub mod keystore {
     #[doc(inline)]
     pub use aranya_crypto::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStore, KeyStoreExt, SigningKey,
+        SigningKeyId,
     };
 }
 

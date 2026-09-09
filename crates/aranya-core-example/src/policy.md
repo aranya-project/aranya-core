@@ -80,20 +80,22 @@ command Init {
     }
 
     fields {
-        owner_keys struct PublicKeys,
         nonce int,
+        ident_pk bytes,
+        sign_pk bytes,
+        enc_pk bytes,
     }
 
     policy {
         let author_id = envelope::author_id(envelope)
-        check author_id == idam::derive_device_id(this.owner_keys.ident_key) else test_fail("not authorized")
+        check author_id == idam::derive_device_id(this.ident_pk) else test_fail("not authorized")
 
-        let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
+        let sign_key_id = idam::derive_sign_key_id(this.sign_pk)
 
         finish {
             create DeviceSignPubKey[device_id: author_id]=>{
                 key_id: sign_key_id,
-                key: this.owner_keys.sign_key,
+                key: this.sign_pk,
             }
             create Owner[]=>{device_id: author_id}
             emit Initialized{device_id: author_id}
@@ -207,8 +209,10 @@ ephemeral command GetCounter {
 ```policy
 action init(owner_keys struct PublicKeys, nonce int) {
     publish Init {
-        owner_keys: owner_keys,
         nonce: nonce,
+        ident_pk: owner_keys.ident_key,
+        sign_pk: owner_keys.sign_key,
+        enc_pk: owner_keys.enc_key,
     }
 }
 

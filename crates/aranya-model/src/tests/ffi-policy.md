@@ -45,7 +45,7 @@ effect Success {
 }
 
 // A device's public SigningKey.
-fact DeviceSignKey[device_id id]=>{key_id id, key bytes}
+fact DeviceSignPubKey[device_id id]=>{key_id id, key bytes}
 
 // A device's public IdentityKey.
 //
@@ -111,8 +111,8 @@ command Init {
         check this.nonce > 0 else test_fail("nonce must be positive")
         finish {}
     }
-
 }
+
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
     publish AddDeviceKeys {
         ident_pk: ident_pk,
@@ -147,7 +147,7 @@ command AddDeviceKeys {
         }
 
         finish {
-            create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
+            create DeviceSignPubKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
             create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
         }
     }

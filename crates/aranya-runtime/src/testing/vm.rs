@@ -1,9 +1,9 @@
 //! VM tests.
 
 extern crate alloc;
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
-use aranya_crypto::{Rng, default::DefaultEngine};
+use aranya_crypto::{DeviceId, Rng, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value, ast::ident};
 use tracing::trace;
@@ -16,6 +16,7 @@ use crate::{
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
+    vm_policy::testing::{TestOpen, TestSeal},
 };
 
 /// The policy used by these tests.
@@ -312,6 +313,8 @@ impl TestPolicyStore {
             eng,
             // TODO(jdygert): Do we need to test an ffi here?
             vec![],
+            Arc::new(TestSeal(DeviceId::random(Rng))),
+            Arc::new(TestOpen),
         )
         .expect("Could not load policy");
         Self { policy }

@@ -114,7 +114,7 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::fmt;
 
 use aranya_crypto::BaseId;
@@ -135,11 +135,13 @@ use crate::{
 mod error;
 mod io;
 mod protocol;
+mod seal_open;
 pub mod testing;
 
 pub use error::*;
 pub use io::*;
 pub use protocol::*;
+pub use seal_open::*;
 
 /// Creates a [`VmAction`].
 ///
@@ -193,6 +195,8 @@ pub struct VmPolicy<CE> {
     engine: CE,
     ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
+    seal: Arc<dyn Seal<CE>>,
+    open: Arc<dyn Open<CE>>,
 }
 
 impl<CE> VmPolicy<CE> {
@@ -201,6 +205,8 @@ impl<CE> VmPolicy<CE> {
         machine: Machine,
         engine: CE,
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
+        seal: Arc<dyn Seal<CE>>,
+        open: Arc<dyn Open<CE>>,
     ) -> Result<Self, VmPolicyError> {
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
@@ -208,6 +214,8 @@ impl<CE> VmPolicy<CE> {
             engine,
             ffis,
             priority_map,
+            seal,
+            open,
         })
     }
 
@@ -367,29 +375,43 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         }
     }
 
-    #[instrument(skip_all, fields(name = this_data.name.as_str()))]
-    fn open_command<P>(
+    fn seal_command(
         &self,
-        this_data: Struct,
-        _payload: Vec<u8>,
-        _envelope: Envelope<'_>,
-        _facts: &mut P,
-    ) -> Result<(), PolicyError>
-    where
-        P: FactPerspective,
-    {
-        todo!()
+        command_struct: &Struct,
+        parent_id: CmdId,
+    ) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
+        let payload = self.machine.serialize_struct(command_struct).map_err(|e| {
+            error!(error = %e, "cannot serialize command");
+            PolicyError::Write
+        })?;
+
+        let envelope = self
+            .seal
+            .seal_command(&self.engine, command_struct, &payload, parent_id)
+            .map_err(|error| {
+                tracing::error!(%error, "could not seal command");
+                PolicyError::Panic
+            })?;
+
+        Ok((payload, envelope))
     }
 
-    fn seal_command(&self, command_struct: Struct) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
-        let _payload = self
-            .machine
-            .serialize_struct(&command_struct)
-            .map_err(|e| {
-                error!(error = %e, "cannot serialize command");
-                PolicyError::Write
+    #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
+    fn open_command(
+        &self,
+        command_struct: &Struct,
+        payload: &[u8],
+        envelope: &Envelope<'_>,
+        facts: &mut impl QueryValue,
+    ) -> Result<(), PolicyError> {
+        self.open
+            .open_command(command_struct, payload, envelope, facts)
+            .map_err(|error| {
+                tracing::warn!(%error, "could not open command");
+                PolicyError::Panic
             })?;
-        todo!()
+
+        Ok(())
     }
 }
 
@@ -557,12 +579,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
         match placement {
             CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
-                self.open_command(
-                    command_struct.clone(),
-                    payload.to_vec(),
-                    envelope.clone(),
-                    facts,
-                )?;
+                self.open_command(&command_struct, payload, &envelope, facts)?;
             }
             CommandPlacement::OnGraphInBraid => {
                 // Bypass real open and just deserialize.
@@ -672,11 +689,18 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
                         let command_name = command_struct.name.clone();
 
-                        let (payload, envelope) = self.seal_command(command_struct)?;
-
                         // The parent of a basic command should be the command that was added to the perspective on the previous
                         // iteration of the loop
                         let parent = rs.io.facts.head_address()?;
+
+                        let parent_id = match parent {
+                            Prior::None => CmdId::default(),
+                            Prior::Single(x) => x.id,
+                            Prior::Merge(_, _) => todo!(),
+                        };
+
+                        let (payload, envelope) = self.seal_command(&command_struct, parent_id)?;
+
                         let priority = self.get_command_priority(&command_name).into();
 
                         let policy;

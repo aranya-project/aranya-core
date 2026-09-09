@@ -20,7 +20,7 @@ use idam
 
 ```policy
 // A device has an ID and a key. The key is used for signing commands.
-fact Device[dev id]=>{key bytes}
+fact DeviceSignPubKey[device_id id]=>{key bytes}
 ```
 
 ## Team Creation
@@ -30,9 +30,9 @@ power than any other user, as there are no privilege levels in this policy, but 
 the first device in the team. See `init.run`.
 
 ```policy
-action init(owner_key bytes) {
-    publish Init{
-        owner_key: owner_key,
+action init(sign_pk bytes) {
+    publish Init {
+        sign_pk: sign_pk
     }
 }
 
@@ -47,13 +47,13 @@ command Init {
     }
 
     fields {
-        owner_key bytes,
+        sign_pk bytes,
     }
 
     policy {
         let device_id = device::current_device_id()
         finish {
-            create Device[dev: device_id]=>{key: this.owner_key}
+            create DeviceSignPubKey[device_id: device_id]=>{key: this.sign_pk}
             emit TeamCreated {
                 owner_dev: device_id,
             }
@@ -64,7 +64,7 @@ command Init {
 
 ## Add User
 
-Adding a user is a fairly simple operation of adding their key to the `Device` fact. Their device
+Adding a user is a fairly simple operation of adding their key to the `DeviceSignPubKey` fact. Their device
 ID is the id of this command. See `init.run`.
 
 ```policy
@@ -89,14 +89,14 @@ command AddUser {
     }
 
     policy {
-        let dev_id = envelope::command_id(envelope)
+        let device_id = envelope::command_id(envelope)
         // Check that this device has not already been added
-        check !exists Device[dev: dev_id] else test_fail("no device")
+        check !exists DeviceSignPubKey[device_id: device_id] else test_fail("no device")
 
         finish {
-            create Device[dev: dev_id]=>{key: this.new_user_key}
+            create DeviceSignPubKey[device_id: device_id]=>{key: this.new_user_key}
             emit UserAdded {
-                dev: dev_id,
+                dev: device_id
             }
         }
     }
@@ -128,10 +128,10 @@ command AddDevice {
     }
 
     policy {
-        check !exists Device[dev: this.device_id] else test_fail("no device")
+        check !exists DeviceSignPubKey[device_id: this.device_id] else test_fail("no device")
 
         finish {
-            create Device[dev: this.device_id]=>{key: this.device_key}
+            create DeviceSignPubKey[device_id: this.device_id]=>{key: this.device_key}
             emit UserAdded {
                 dev: this.device_id,
             }
@@ -142,7 +142,7 @@ command AddDevice {
 
 # Get Raw Device
 
-This simply fetches the keys from the `Device` fact, or reports that the device is not found. See
+This simply fetches the keys from the `DeviceSignPubKey` fact, or reports that the device is not found. See
 `get_raw_device.run` and `get_raw_device_not_found.run`.
 
 ```policy
@@ -171,11 +171,11 @@ command GetDevice {
     }
 
     policy {
-        match query Device[dev: this.device_id] {
+        match query DeviceSignPubKey[device_id: this.device_id] {
             Some(device_info) => {
                 finish {
                     emit DeviceInfo {
-                        device_id: device_info.dev,
+                        device_id: device_info.device_id,
                         device_key: device_info.key,
                     }
                 }

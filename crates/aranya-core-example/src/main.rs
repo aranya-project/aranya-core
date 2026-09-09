@@ -6,7 +6,7 @@
 //! The FFI/compiler/VM crates are needed for one-time policy compilation
 //! and FFI module wiring.
 
-use std::fs;
+use std::{fs, sync::Arc};
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
@@ -15,8 +15,9 @@ use aranya_core::{
     ifgen::Actionable as _,
     keystore::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStoreExt as _, MemStore, SigningKey,
+        SigningKeyId,
     },
-    policy::{FfiCallable, VmEffect, VmPolicy, VmPolicyStore},
+    policy::{FfiCallable, StandardOpen, StandardSeal, VmEffect, VmPolicy, VmPolicyStore},
     storage::{FileManager, LibcSpill, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
@@ -82,7 +83,7 @@ struct Device {
     engine: CE,
     store: MemStore,
     device_id: DeviceId,
-    sign_id: <SigningKey<CS> as Identified>::Id,
+    sign_id: SigningKeyId,
     enc_id: <EncryptionKey<CS> as Identified>::Id,
     public_keys: PublicKeys,
 }
@@ -142,7 +143,12 @@ fn create_device() -> Result<Device> {
 
 const POLICY_SOURCE: &str = include_str!("policy.md");
 
-fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPolicyStore<CE>> {
+fn compile_policy(
+    eng: CE,
+    store: MemStore,
+    device_id: DeviceId,
+    sign_id: SigningKeyId,
+) -> Result<VmPolicyStore<CE>> {
     let ast = parse_policy_document(POLICY_SOURCE).context("parse policy document")?;
     let module = Compiler::new(&ast)
         .ffi_modules(&[
@@ -159,11 +165,14 @@ fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPol
     let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
         Box::from(DeviceFfi::new(device_id)),
         Box::from(EnvelopeFfi),
-        Box::from(IdamFfi::new(store)),
+        Box::from(IdamFfi::new(store.clone())),
         Box::from(PerspectiveFfi),
     ];
 
-    let policy = VmPolicy::new(machine, eng, ffis).context("create VmPolicy")?;
+    let seal = Arc::new(StandardSeal::new(device_id, sign_id, store));
+    let open = Arc::new(StandardOpen);
+
+    let policy = VmPolicy::new(machine, eng, ffis, seal, open).context("create VmPolicy")?;
     Ok(VmPolicyStore::new(policy))
 }
 
@@ -275,7 +284,7 @@ fn main() -> Result<()> {
     // Step 3: Compile policy for Device A, create Client A
     println!("\n== Device A: Create Team ==");
     println!("\nStep 3: Compiling policy for Device A...");
-    let policy_store_a = compile_policy(dev_a.engine, dev_a.store, dev_a.device_id)?;
+    let policy_store_a = compile_policy(dev_a.engine, dev_a.store, dev_a.device_id, dev_a.sign_id)?;
     let mut cs_a = ClientState::new(policy_store_a, provider_a);
     let mut sink = PrintSink::new();
     let mut rt_buffers = RuntimeBuffers::new();
@@ -315,7 +324,7 @@ fn main() -> Result<()> {
     // Step 8: Compile policy for Device B, create Client B
     println!("\n== Sync: A -> B ==");
     println!("\nStep 8: Compiling policy for Device B...");
-    let policy_store_b = compile_policy(dev_b.engine, dev_b.store, dev_b.device_id)?;
+    let policy_store_b = compile_policy(dev_b.engine, dev_b.store, dev_b.device_id, dev_b.sign_id)?;
     let mut cs_b = ClientState::new(policy_store_b, provider_b);
 
     // Step 9: Sync graph from A to B

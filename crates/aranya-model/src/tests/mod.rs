@@ -1,12 +1,15 @@
 mod keygen;
+
 extern crate alloc;
-use alloc::vec::Vec;
-use core::cell::RefCell;
-use std::{fs, marker::PhantomData};
+
+use alloc::{sync::Arc, vec::Vec};
+use core::{cell::RefCell, marker::PhantomData};
+use std::fs;
 
 use aranya_crypto::{
-    Rng,
+    DeviceId, Rng,
     default::{DefaultCipherSuite, DefaultEngine},
+    id::IdExt as _,
     keystore::fs_keystore::Store,
 };
 use aranya_device_ffi::FfiDevice as DeviceFfi;
@@ -21,10 +24,17 @@ use aranya_policy_vm::{
     text,
 };
 use aranya_runtime::{
-    ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
-    storage::{linear, linear::testing::MemStorageProvider},
+    ClientState,
+    policy::PolicyStore,
+    storage::{
+        StorageProvider,
+        linear::{self, testing::MemStorageProvider},
+    },
     vm_action, vm_effect,
-    vm_policy::VmPolicy,
+    vm_policy::{
+        FfiCallable, NoSeal, OpenError, StandardOpen, StandardSeal, VmEffect, VmPolicy,
+        testing::{TestOpen, TestSeal},
+    },
 };
 use tempfile::tempdir;
 use test_log::test;
@@ -51,7 +61,9 @@ impl BasicClientFactory {
     fn new(policy_doc: &str) -> Result<Self, ModelError> {
         let policy_ast = parse_policy_document(policy_doc)?;
         // Create policy machine
-        let module = Compiler::new(&policy_ast).compile()?;
+        let module = Compiler::new(&policy_ast)
+            .ffi_modules(&[EnvelopeFfi::SCHEMA])
+            .compile()?;
         let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
         Ok(Self { machine })
@@ -76,9 +88,14 @@ impl ClientFactory for BasicClientFactory {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
 
         // Configure testing FFIs
-        let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![];
+        let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
+            vec![Box::new(EnvelopeFfi)];
 
-        let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
+        let seal = Arc::new(TestSeal(DeviceId::random(Rng)));
+        let open = Arc::new(TestOpen);
+
+        let policy = VmPolicy::new(self.machine.clone(), eng, ffis, seal, open)
+            .expect("should create policy");
         let policy_store = ModelPolicyStore::new(policy);
         let provider = Lsp::default();
 
@@ -147,16 +164,56 @@ impl ClientFactory for FfiClientFactory {
             Box::from(DeviceFfi::new(bundle.device_id)),
             Box::from(EnvelopeFfi),
             Box::from(PerspectiveFfi),
-            Box::from(IdamFfi::new(store)),
+            Box::from(IdamFfi::new(
+                store.try_clone().expect("should clone key store"),
+            )),
         ];
 
-        let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
+        let seal = Arc::new(StandardSeal::new(bundle.device_id, bundle.sign_id, store));
+        let open = Arc::new(ModelOpen);
+
+        let policy = VmPolicy::new(self.machine.clone(), eng, ffis, seal, open)
+            .expect("should create policy");
         let policy_store = ModelPolicyStore::new(policy);
         let provider = Lsp::default();
 
         ModelClient {
             state: RefCell::new(ClientState::new(policy_store, provider)),
             public_keys,
+        }
+    }
+}
+
+struct ModelOpen;
+impl<CE: aranya_crypto::Engine> aranya_runtime::Open<CE> for ModelOpen {
+    fn open_command(
+        &self,
+        command_struct: &aranya_policy_vm::Struct,
+        payload: &[u8],
+        envelope: &aranya_runtime::Envelope<'_>,
+        facts: &dyn aranya_runtime::QueryValue,
+    ) -> Result<(), OpenError> {
+        if command_struct.name == "AddDeviceKeys" {
+            let key = command_struct
+                .fields
+                .iter()
+                .find(|(name, _)| name.as_str() == "sign_pk")
+                .ok_or(OpenError::BadStruct)?
+                .1;
+            let Value::Bytes(key) = key else {
+                return Err(OpenError::BadStruct);
+            };
+            let key: aranya_crypto::VerifyingKey<CE::CS> =
+                postcard::from_bytes(key).map_err(OpenError::BadKey)?;
+            aranya_runtime::vm_policy::open_with_key(command_struct, payload, envelope, key)
+        } else {
+            aranya_runtime::Open::<CE>::open_command(
+                &StandardOpen,
+                command_struct,
+                payload,
+                envelope,
+                facts,
+            )
         }
     }
 }
@@ -1401,10 +1458,16 @@ fn should_create_clients_with_args() {
                 Box::from(DeviceFfi::new(bundle.device_id)),
                 Box::from(EnvelopeFfi),
                 Box::from(PerspectiveFfi),
-                Box::from(IdamFfi::new(store)),
+                Box::from(IdamFfi::new(
+                    store.try_clone().expect("should clone key store"),
+                )),
             ];
 
-            let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
+            let seal = Arc::new(StandardSeal::new(bundle.device_id, bundle.sign_id, store));
+            let open = Arc::new(ModelOpen);
+
+            let policy = VmPolicy::new(machine.clone(), eng, ffis, seal, open)
+                .expect("should create policy");
             let policy_store = ModelPolicyStore::new(policy);
             let provider = MemStorageProvider::default();
 
@@ -1467,10 +1530,16 @@ fn should_create_clients_with_args() {
                 Box::from(DeviceFfi::new(bundle.device_id)),
                 Box::from(EnvelopeFfi),
                 Box::from(PerspectiveFfi),
-                Box::from(IdamFfi::new(store)),
+                Box::from(IdamFfi::new(
+                    store.try_clone().expect("should clone key store"),
+                )),
             ];
 
-            let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");
+            let seal = Arc::new(NoSeal);
+            let open = Arc::new(ModelOpen);
+
+            let policy =
+                VmPolicy::new(machine, eng, ffis, seal, open).expect("should create policy");
             let policy_store = ModelPolicyStore::new(policy);
             let provider = MemStorageProvider::default();
 

@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use aranya_afc_util::Ffi as AfcFfi;
-use aranya_crypto::{DeviceId, keystore::fs_keystore};
+use aranya_crypto::{DeviceId, SigningKeyId, keystore::fs_keystore};
 use aranya_device_ffi::FfiDevice as DeviceFfi;
 use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
@@ -9,7 +11,7 @@ use aranya_policy_vm::{
     Machine,
     ffi::{FfiModule as _, ModuleSchema},
 };
-use aranya_runtime::{FfiCallable, VmPolicy};
+use aranya_runtime::{FfiCallable, StandardOpen, StandardSeal, VmPolicy};
 
 type KS = fs_keystore::Store;
 
@@ -39,11 +41,18 @@ pub fn create_vmpolicy<CE: aranya_crypto::Engine>(
         Box::from(AfcFfi::new(keystore.try_clone()?)),
         Box::from(DeviceFfi::new(device_id)),
         Box::from(EnvelopeFfi),
-        Box::from(IdamFfi::new(keystore)),
+        Box::from(IdamFfi::new(keystore.try_clone()?)),
         Box::from(PerspectiveFfi),
     ];
 
+    let seal = Arc::new(StandardSeal::new(
+        device_id,
+        SigningKeyId::default(), // hmmm
+        keystore,
+    ));
+    let open = Arc::new(StandardOpen);
+
     // create an instance of the policy VM.
     tracing::debug!("Creating Policy Runtime");
-    VmPolicy::new(machine, crypto_engine, ffis).context("unable to create `VmPolicy`")
+    VmPolicy::new(machine, crypto_engine, ffis, seal, open).context("unable to create `VmPolicy`")
 }
