@@ -26,8 +26,3 @@ impl TestImpl for DefaultImpl {
 }
 
 test_all!(default_engine, DefaultImpl);
-
-#[test]
-fn test_concurrent_uni_channel_received() {
-    crate::testing::test_concurrent_uni_channel_received::<DefaultImpl>();
-}

@@ -3,7 +3,7 @@ use core::{cell::OnceCell, iter};
 use buggy::BugExt as _;
 use derive_where::derive_where;
 use spideroak_crypto::{csprng::Random as _, import::ImportError, kem::Kem};
-use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned, little_endian::U64};
 
 use crate::{
     CmdId,
@@ -165,7 +165,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     seal_id,
         //     open_id,
         //     label_id,
-        //     i2osp(epoch, 8),
+        //     epoch (little-endian u64),
         // )
         Info {
             domain: *b"AfcUniKey-v2",
@@ -173,7 +173,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
             seal_id: self.seal_id,
             open_id: self.open_id,
             label_id: self.label_id,
-            epoch: self.epoch.to_be_bytes(),
+            epoch: U64::new(self.epoch),
         }
     }
 }
@@ -186,8 +186,8 @@ pub(crate) struct Info {
     seal_id: DeviceId,
     open_id: DeviceId,
     label_id: LabelId,
-    /// Big-endian `u64`.
-    epoch: [u8; 8],
+    /// Little-endian `u64`.
+    epoch: U64,
 }
 
 /// A unirectional channel author's secret.
@@ -489,7 +489,7 @@ mod tests {
         want.extend_from_slice(&[0x22; 32]);
         want.extend_from_slice(&[0x33; 32]);
         want.extend_from_slice(&[0x44; 32]);
-        want.extend_from_slice(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+        want.extend_from_slice(&[0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
 
         assert_eq!(got.len(), 148);
         assert_eq!(got, &want[..]);

@@ -11,10 +11,6 @@ pub const DEFAULT_NONCE_CAP: usize = 16_384;
 ///
 /// Records are keyed by `(graph, sender)`. `graph` is the graph's
 /// ID as a [`BaseId`].
-///
-/// Per `(graph, sender)` the store conceptually holds
-/// `Record { epoch_max: u64, seen: Set<CmdId> }`, with an absent
-/// record meaning `{ 0, ∅ }`.
 pub trait ReplayStore {
     /// The error returned by the store.
     type Error: core::error::Error;
@@ -123,14 +119,10 @@ impl fmt::Display for Verdict {
 mod memstore {
     extern crate alloc;
 
-    use alloc::{
-        collections::{BTreeMap, BTreeSet},
-        sync::Arc,
-    };
+    use alloc::collections::{BTreeMap, BTreeSet};
     use core::convert::Infallible;
 
     use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
-    use spin::Mutex;
 
     use super::{DEFAULT_NONCE_CAP, ReplayStore, Verdict};
 
@@ -141,24 +133,16 @@ mod memstore {
         seen: BTreeSet<CmdId>,
     }
 
-    #[derive(Debug)]
-    struct Inner {
-        cap: usize,
-        records: BTreeMap<(BaseId, DeviceId), Record>,
-    }
-
     /// An in-memory [`ReplayStore`].
     ///
     /// This is the fixture for the crate's tests and a template
     /// for a daemon's implementation. It is **not durable** and
     /// must not be used in production.
-    ///
-    /// Cloning a `MemStore` yields a handle to the same
-    /// underlying state.
-    #[derive(Clone, Debug)]
+    #[derive(Debug)]
     #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
     pub struct MemStore {
-        inner: Arc<Mutex<Inner>>,
+        cap: usize,
+        records: BTreeMap<(BaseId, DeviceId), Record>,
     }
 
     impl Default for MemStore {
@@ -169,27 +153,23 @@ mod memstore {
 
     impl MemStore {
         /// Creates a `MemStore` with [`DEFAULT_NONCE_CAP`].
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self::with_cap(DEFAULT_NONCE_CAP)
         }
 
         /// Creates a `MemStore` with a custom per-sender,
         /// per-epoch nonce cap.
-        pub fn with_cap(cap: usize) -> Self {
+        pub const fn with_cap(cap: usize) -> Self {
             Self {
-                inner: Arc::new(Mutex::new(Inner {
-                    cap,
-                    records: BTreeMap::new(),
-                })),
+                cap,
+                records: BTreeMap::new(),
             }
         }
 
         /// Returns the stored epoch high-water mark for `(graph,
         /// sender)`.
         pub fn epoch(&self, graph: BaseId, sender: DeviceId) -> u64 {
-            self.inner
-                .lock()
-                .records
+            self.records
                 .get(&(graph, sender))
                 .map_or(0, |r| r.epoch_max)
         }
@@ -197,9 +177,7 @@ mod memstore {
         /// Returns the number of nonces recorded for `(graph,
         /// sender)` in its current epoch.
         pub fn nonces(&self, graph: BaseId, sender: DeviceId) -> usize {
-            self.inner
-                .lock()
-                .records
+            self.records
                 .get(&(graph, sender))
                 .map_or(0, |r| r.seen.len())
         }
@@ -215,9 +193,8 @@ mod memstore {
             epoch: u64,
             nonce: CmdId,
         ) -> Result<Verdict, Self::Error> {
-            let mut inner = self.inner.lock();
-            let cap = inner.cap;
-            let rec = inner.records.entry((graph, sender)).or_default();
+            let cap = self.cap;
+            let rec = self.records.entry((graph, sender)).or_default();
 
             if epoch > rec.epoch_max {
                 rec.epoch_max = epoch;
@@ -246,8 +223,7 @@ mod memstore {
             sender: DeviceId,
             epoch: u64,
         ) -> Result<(), Self::Error> {
-            let mut inner = self.inner.lock();
-            let rec = inner.records.entry((graph, sender)).or_default();
+            let rec = self.records.entry((graph, sender)).or_default();
             if epoch > rec.epoch_max {
                 rec.epoch_max = epoch;
                 rec.seen.clear();
@@ -405,15 +381,5 @@ mod tests {
         assert_eq!(store.epoch(g1, s1), 9);
         assert_eq!(store.epoch(g1, s2), 0);
         assert_eq!(store.epoch(g2, s1), 0);
-    }
-
-    #[test]
-    fn test_shared_handles() {
-        let (g, s) = ids();
-        let mut a = MemStore::new();
-        let mut b = a.clone();
-        let n = CmdId::random(Rng);
-        assert_eq!(a.accept(g, s, 0, n).unwrap(), Verdict::Fresh);
-        assert_eq!(b.accept(g, s, 0, n).unwrap(), Verdict::Replay);
     }
 }

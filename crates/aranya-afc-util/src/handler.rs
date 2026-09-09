@@ -37,10 +37,6 @@ impl<S> Handler<S> {
     /// replay floor for the rotated device via
     /// [`ReplayStore::raise_floor`], forgetting the nonces
     /// recorded for its older epochs.
-    ///
-    /// A device's own rotation is a no-op: replay state is only
-    /// kept for messages from *other* devices (see
-    /// [`Error::AuthorMustBeSealer`]).
     pub fn epoch_rotated<R>(
         &mut self,
         replay: &mut R,
@@ -115,10 +111,7 @@ impl<S: KeyStore> Handler<S> {
     /// The control message is first checked for freshness via
     /// [`ReplayStore::accept`]: anything other than
     /// [`Verdict::Fresh`] fails with [`Error::Replay`] before any
-    /// key material is derived. The message is recorded durably
-    /// before this returns, so a crash before the key is
-    /// installed loses the channel (the sender creates a new
-    /// one), but the message can never be accepted twice.
+    /// key material is derived. 
     pub fn uni_channel_received<E, R, SK, OK>(
         &mut self,
         eng: &E,
@@ -209,9 +202,7 @@ pub struct UniChannelReceived<'a> {
     pub encap: &'a [u8],
     /// The channel author's epoch at creation time.
     pub epoch: u64,
-    /// The ID of the control command that created the channel.
-    ///
-    /// This is the replay-protection nonce.
+    /// The ID of the control command that created the channel, used as replay-protection nonce.
     pub cmd_id: CmdId,
 }
 
