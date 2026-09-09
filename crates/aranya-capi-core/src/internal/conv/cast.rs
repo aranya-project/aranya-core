@@ -363,7 +363,11 @@ impl ToInnerTag {
             //
             // - `ToInner<T>` has the same memory layout as `T`.
             // - `val` is a ref, so the pointer is never null.
-            unsafe { &*ptr::from_ref::<T>(val).cast::<ToInner<T>>() },
+            unsafe {
+                ptr::from_ref::<T>(val)
+                    .cast::<ToInner<T>>()
+                    .as_ref_unchecked()
+            },
         )
     }
 
@@ -375,7 +379,11 @@ impl ToInnerTag {
             // - `ToInner<T>` has the same memory layout as `T`.
             // - `val` is an exclusive ref, so the pointer is
             //   never null.
-            unsafe { &mut *ptr::from_mut::<T>(val).cast::<ToInner<T>>() },
+            unsafe {
+                ptr::from_mut::<T>(val)
+                    .cast::<ToInner<T>>()
+                    .as_mut_unchecked()
+            },
         )
     }
 
@@ -398,7 +406,7 @@ impl ToInnerTag {
             // - `val` is a ref, so the pointer is never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &*(ptr::from_ref::<[T]>(val) as *const [ToInner<T>]) },
+            unsafe { (ptr::from_ref::<[T]>(val) as *const [ToInner<T>]).as_ref_unchecked() },
         )
     }
 
@@ -412,7 +420,7 @@ impl ToInnerTag {
             //   never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &mut *(ptr::from_mut::<[T]>(val) as *mut [ToInner<T>]) },
+            unsafe { (ptr::from_mut::<[T]>(val) as *mut [ToInner<T>]).as_mut_unchecked() },
         )
     }
 }
@@ -460,7 +468,11 @@ impl FromInnerTag {
             // - `FromInner<T>` has the same memory layout as
             //   `T::Inner`.
             // - `val` is a ref, so the pointer is never null.
-            unsafe { &*ptr::from_ref::<T::Inner>(val).cast::<FromInner<T::Inner>>() },
+            unsafe {
+                ptr::from_ref::<T::Inner>(val)
+                    .cast::<FromInner<T::Inner>>()
+                    .as_ref_unchecked()
+            },
         )
     }
 
@@ -473,7 +485,11 @@ impl FromInnerTag {
             //   `T::Inner`.
             // - `val` is an exclusive ref, so the pointer is
             //   never null.
-            unsafe { &mut *ptr::from_mut::<T::Inner>(val).cast::<FromInner<T::Inner>>() },
+            unsafe {
+                ptr::from_mut::<T::Inner>(val)
+                    .cast::<FromInner<T::Inner>>()
+                    .as_mut_unchecked()
+            },
         )
     }
 
@@ -496,7 +512,10 @@ impl FromInnerTag {
             // - `val` is a ref, so the pointer is never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &*(ptr::from_ref::<[T::Inner]>(val) as *const [FromInner<T::Inner>]) },
+            unsafe {
+                (ptr::from_ref::<[T::Inner]>(val) as *const [FromInner<T::Inner>])
+                    .as_ref_unchecked()
+            },
         )
     }
 
@@ -510,7 +529,9 @@ impl FromInnerTag {
             //   never null.
             // - `val` is a slice, so its length is always less
             //   than `isize::MAX`.
-            unsafe { &mut *(ptr::from_mut::<[T::Inner]>(val) as *mut [FromInner<T::Inner>]) },
+            unsafe {
+                (ptr::from_mut::<[T::Inner]>(val) as *mut [FromInner<T::Inner>]).as_mut_unchecked()
+            },
         )
     }
 }

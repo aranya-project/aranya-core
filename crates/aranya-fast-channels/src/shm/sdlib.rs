@@ -6,7 +6,7 @@ use core::{
     ptr,
 };
 
-use buggy::BugExt;
+use buggy::BugExt as _;
 use derive_where::derive_where;
 use libc::off_t;
 
@@ -158,7 +158,7 @@ impl<T> Mapping<T> {
             Err(Error::Errno(errno()))
         } else {
             let ptr = Aligned::new(addr.cast::<T>(), layout).assume("unable to align pointer")?;
-            Ok(Mapping { ptr, id })
+            Ok(Self { ptr, id })
         }
     }
 }

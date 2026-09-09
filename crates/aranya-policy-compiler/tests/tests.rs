@@ -3,7 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use aranya_policy_ast::{Version, ident};
@@ -52,21 +52,21 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
 ];
 
 #[track_caller]
-fn compile(text: &str) -> Result<Module, CompileError> {
+fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
     let policy = match parse_policy_str(text, Version::V2) {
         Ok(p) => p,
         Err(err) => panic!("{err}"),
     };
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
-        .debug(true)
+        .debug(is_debug)
         .compile()
 }
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
-fn compile_pass(text: &str) -> Module {
-    match compile(text) {
+fn compile_pass(text: &str, allow_unused: bool) -> Module {
+    match compile(text, allow_unused) {
         Ok(m) => m,
         Err(err) => panic!("{err}"),
     }
@@ -74,8 +74,8 @@ fn compile_pass(text: &str) -> Module {
 
 // Helper function which parses and compiles policy expecting compile failure.
 #[track_caller]
-fn compile_fail(text: &str) -> CompileError {
-    match compile(text) {
+fn compile_fail(text: &str, allow_unused: bool) -> CompileError {
+    match compile(text, allow_unused) {
         Ok(_) => panic!("policy compilation should have failed - src: {text}"),
         Err(err) => err,
     }
@@ -146,7 +146,7 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
         writeln!(
             f,
             "    {}",
-            fmt_fn(|f| {
+            core::fmt::from_fn(|f| {
                 match ins {
                     // Show target label for calls.
                     Instruction::Call(t) => {
@@ -171,41 +171,41 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
     Ok(())
 }
 
-/// Display based on supplied function.
-///
-/// Adapted from [`core::fmt::from_fn`] (1.93+).
-fn fmt_fn(f: impl Fn(&mut fmt::Formatter<'_>) -> fmt::Result) -> impl fmt::Display {
-    struct FmtFn<F>(F);
-    impl<F> fmt::Display for FmtFn<F>
-    where
-        F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
-    {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            (self.0)(f)
-        }
-    }
-
-    FmtFn(f)
+/// Compiles every fixture except those under `data/unused`, which get their own
+/// test below, and snapshots the resulting module or error.
+#[rstest::rstest]
+fn test_policy(
+    #[files("tests/data/**/*.policy")]
+    #[exclude("unused/")]
+    src: PathBuf,
+) {
+    check_policy_fixture(&src, true);
 }
 
+/// Fixtures that exercise unused-variable detection. We need to disable debug mode in order to capture the errors.
 #[rstest::rstest]
-fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
+fn test_unused_policy(#[files("tests/data/unused/*.policy")] src: PathBuf) {
+    check_policy_fixture(&src, false);
+}
+
+#[track_caller]
+fn check_policy_fixture(src: &Path, allow_unused: bool) {
     let base = src.parent().expect("can't get parent");
     let name = src
         .file_stem()
         .expect("can't get filename stem")
         .to_str()
         .expect("filename not utf8");
-    let text = std::fs::read_to_string(src.as_path()).expect("could not read source file");
+    let text = std::fs::read_to_string(src).expect("could not read source file");
 
     if name.ends_with(".pass") {
-        let module = ModuleSnapshotWrapper(compile_pass(&text));
+        let module = ModuleSnapshotWrapper(compile_pass(&text, allow_unused));
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
             insta::assert_debug_snapshot!(name, module);
         });
     } else if name.ends_with(".fail") {
-        let error = compile_fail(&text);
+        let error = compile_fail(&text, allow_unused);
 
         insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
             insta::assert_snapshot!(name, error);
@@ -214,6 +214,6 @@ fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
         panic!(
             "Test file '{}', must end in '.pass.policy' or '.fail.policy'.",
             src.display()
-        )
+        );
     }
 }

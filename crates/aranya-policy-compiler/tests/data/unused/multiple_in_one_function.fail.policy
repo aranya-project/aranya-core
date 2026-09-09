@@ -1,0 +1,7 @@
+// Multiple unused variables in the same function
+function baz() int {
+    let x = 1 // unused
+    let y = 2
+    let z = 3 // unused
+    return y
+}

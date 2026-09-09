@@ -47,3 +47,7 @@ serde_json = { version = "1", features = ["alloc"] }
 ignored = [
 	"zerocopy", # for zerocopy-derive
 ]
+
+
+[package.metadata.docs.rs]
+all-features = true

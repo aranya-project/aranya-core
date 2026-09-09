@@ -15,6 +15,7 @@ use crate::{
     Address, Prior,
     command::{CmdId, Command, Priority},
     storage::{GraphId, LocatedAddress, Location, MAX_COMMAND_LENGTH, StorageError},
+    util::mem_usage,
 };
 
 mod requester;
@@ -70,33 +71,18 @@ impl PeerCache {
 
 // TODO: These should all be compile time parameters
 
-/// The maximum number of heads that will be stored for a peer.
-pub const PEER_HEAD_MAX: usize = 10;
-
 /// The maximum number of samples in a request
-#[cfg(feature = "low-mem-usage")]
-const COMMAND_SAMPLE_MAX: usize = 20;
-#[cfg(not(feature = "low-mem-usage"))]
-const COMMAND_SAMPLE_MAX: usize = 100;
+const COMMAND_SAMPLE_MAX: usize = mem_usage(20, 100);
 
 /// The maximum number of missing segments that can be requested
 /// in a single message
-#[cfg(feature = "low-mem-usage")]
-const REQUEST_MISSING_MAX: usize = 1;
-#[cfg(not(feature = "low-mem-usage"))]
-const REQUEST_MISSING_MAX: usize = 100;
+const REQUEST_MISSING_MAX: usize = mem_usage(1, 100);
 
 /// The maximum number of commands in a response
-#[cfg(feature = "low-mem-usage")]
-pub const COMMAND_RESPONSE_MAX: usize = 5;
-#[cfg(not(feature = "low-mem-usage"))]
-pub const COMMAND_RESPONSE_MAX: usize = 100;
+pub const COMMAND_RESPONSE_MAX: usize = mem_usage(5, 100);
 
 /// The maximum number of segments which can be stored to send
-#[cfg(feature = "low-mem-usage")]
-const SEGMENT_BUFFER_MAX: usize = 10;
-#[cfg(not(feature = "low-mem-usage"))]
-const SEGMENT_BUFFER_MAX: usize = 100;
+const SEGMENT_BUFFER_MAX: usize = mem_usage(10, 100);
 
 /// The maximum size of a sync message
 // TODO: Use postcard to calculate max size (which accounts for overhead)

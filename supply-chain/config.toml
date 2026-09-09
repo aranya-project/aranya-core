@@ -606,10 +606,6 @@ version = "3.0.0"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.simdutf8]]
-version = "0.1.5"
-criteria = "safe-to-deploy"
-
 [[exemptions.similar]]
 version = "2.6.0"
 criteria = "safe-to-run"

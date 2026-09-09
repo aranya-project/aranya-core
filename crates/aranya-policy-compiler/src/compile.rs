@@ -1417,7 +1417,9 @@ impl<'a> CompileState<'a> {
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 
-        self.identifier_types.exit_function();
+        self.identifier_types
+            .exit_function()
+            .map_err(|e| self.err(e))?;
         Ok(())
     }
 
@@ -1539,7 +1541,9 @@ impl<'a> CompileState<'a> {
 
     /// Exit match arm (exit scope, jump to end)
     fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
-        self.identifier_types.exit_block();
+        self.identifier_types
+            .exit_block()
+            .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::End);
         self.append_instruction(Instruction::Jump(Target::Unresolved(end_label.clone())));
 
@@ -2322,7 +2326,7 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(),
+            identifier_types: IdentifierTypeStack::new(self.is_debug),
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
