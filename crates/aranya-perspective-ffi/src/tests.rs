@@ -6,9 +6,7 @@ use aranya_crypto::{
     default::{DefaultEngine, Rng},
     policy::CmdId,
 };
-use aranya_policy_vm::{
-    ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext, ident,
-};
+use aranya_policy_vm::{ActionContext, CommandContext, MachineErrorType, PolicyContext, ident};
 
 use crate::FfiPerspective;
 
@@ -24,26 +22,6 @@ fn test_head_id() {
             head_id,
         });
         assert_eq!(perspective.head_id(&context, &eng).unwrap(), head_id);
-    }
-
-    {
-        let context = CommandContext::Seal(SealContext {
-            name: ident!("seal"),
-            head_id,
-        });
-        assert_eq!(perspective.head_id(&context, &eng).unwrap(), head_id);
-    }
-
-    {
-        let context = CommandContext::Open(OpenContext {
-            name: ident!("open"),
-        });
-        assert_eq!(
-            perspective.head_id(&context, &eng).unwrap_err().err_type,
-            MachineErrorType::Unknown(
-                "head_id is only available in Seal and Action contexts".to_string()
-            )
-        );
     }
 
     {

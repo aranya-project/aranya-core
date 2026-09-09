@@ -61,8 +61,6 @@
 //!     fields {
 //!         nonce int,
 //!     }
-//!     seal { ... }
-//!     open { ... }
 //!     policy {
 //!         finish {}
 //!     }
@@ -122,8 +120,7 @@ use core::fmt;
 use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, OpenContext, Persistence, PolicyContext, RunState, Stack as _, Struct, Value,
-    ast::Identifier,
+    MachineStack, Persistence, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
@@ -132,7 +129,7 @@ use crate::{
     ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior,
     Priority,
     command::{CmdId, Command},
-    policy::{NullSink, Policy, PolicyError, Sink},
+    policy::{Policy, PolicyError, Sink},
 };
 
 mod error;
@@ -374,38 +371,25 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
     fn open_command<P>(
         &self,
         this_data: Struct,
-        payload: Vec<u8>,
-        envelope: Envelope<'_>,
-        facts: &mut P,
+        _payload: Vec<u8>,
+        _envelope: Envelope<'_>,
+        _facts: &mut P,
     ) -> Result<(), PolicyError>
     where
         P: FactPerspective,
     {
-        let mut sink = NullSink;
-        let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
-        let ctx = CommandContext::Open(OpenContext {
-            name: this_data.name.clone(),
-        });
-        let mut rs = self.machine.create_run_state(&mut io, ctx);
-        let status = rs.call_open(this_data, payload, envelope.into());
-        match status {
-            Ok(reason) => match reason {
-                ExitReason::Normal => Ok(()),
-                ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check => {
-                    info!("Check: {}", self.source_location(&rs));
-                    Err(PolicyError::Rejected)
-                }
-                ExitReason::Panic => {
-                    info!("Panicked {}", self.source_location(&rs));
-                    Err(PolicyError::Rejected)
-                }
-            },
-            Err(e) => {
-                error!("\n{e}");
-                Err(PolicyError::InternalError)
-            }
-        }
+        todo!()
+    }
+
+    fn seal_command(&self, command_struct: Struct) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
+        let _payload = self
+            .machine
+            .serialize_struct(&command_struct)
+            .map_err(|e| {
+                error!(error = %e, "cannot serialize command");
+                PolicyError::Write
+            })?;
+        todo!()
     }
 }
 
@@ -685,40 +669,10 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             error!("should have command struct: {e}");
                             PolicyError::InternalError
                         })?;
+
                         let command_name = command_struct.name.clone();
 
-                        let payload =
-                            self.machine
-                                .serialize_struct(&command_struct)
-                                .map_err(|e| {
-                                    error!(error = %e, "cannot serialize command");
-                                    PolicyError::Write
-                                })?;
-
-                        let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
-                        let mut rs_seal = self.machine.create_run_state(rs.io, seal_ctx);
-                        match rs_seal
-                            .call_seal(command_struct, payload.clone())
-                            .map_err(|e| {
-                                error!("Cannot seal command: {}", e);
-                                PolicyError::Panic
-                            })? {
-                            ExitReason::Normal => (),
-                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
-                                error!("Could not seal command: {}", r);
-                                return Err(PolicyError::Panic);
-                            }
-                        }
-
-                        // Grab sealed envelope from stack
-                        let envelope_struct: Struct = rs_seal.stack.pop().map_err(|e| {
-                            error!("Expected a sealed envelope {e}");
-                            PolicyError::InternalError
-                        })?;
-                        let envelope = Envelope::try_from(envelope_struct).map_err(|e| {
-                            error!("Malformed envelope: {e}");
-                            PolicyError::InternalError
-                        })?;
+                        let (payload, envelope) = self.seal_command(command_struct)?;
 
                         // The parent of a basic command should be the command that was added to the perspective on the previous
                         // iteration of the loop
@@ -863,15 +817,11 @@ mod test {
         let cases = [
             r#"command Test {
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
             r#"command Test {
                 attributes {}
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
             r#"command Test {
@@ -880,8 +830,6 @@ mod test {
                     finalize: false,
                 }
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
         ];
@@ -910,8 +858,6 @@ mod test {
                         {attrs}
                     }}
                     fields {{ }}
-                    seal {{ return todo() }}
-                    open {{ return todo() }}
                     policy {{ }}
                 }}
                 "#

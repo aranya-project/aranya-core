@@ -1,14 +1,11 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 199
 expression: module
 ---
 Module {
     version: "0",
     labels: {
         <policy 'Cmd'>: 1,
-        <seal 'Cmd'>: 13,
-        <open 'Cmd'>: 20,
         <recall 'Cmd_handle'>: 9,
     },
     action_defs: [],
@@ -57,20 +54,3 @@ Module {
     def 'this'
     def 'x'
     exit check
-<seal 'Cmd'>:
-    def 'payload'
-    def 'this'
-    save SP
-    exit panic
-    restore SP
-    return
-    exit panic
-<open 'Cmd'>:
-    def 'envelope'
-    def 'payload'
-    def 'this'
-    save SP
-    exit panic
-    restore SP
-    return
-    exit panic

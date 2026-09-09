@@ -83,8 +83,6 @@ fn test_bytes() -> anyhow::Result<()> {
                 id_field id,
                 x bytes,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -133,8 +131,6 @@ fn test_structs() -> anyhow::Result<()> {
                 id_field id,
                 bar struct Bar,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -187,7 +183,7 @@ fn test_structs() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Basic entry points - action, policy, seal, open (TODO: recall)
+// Basic entry points - action, policy (TODO: recall)
 
 #[test]
 fn test_action() -> anyhow::Result<()> {
@@ -473,8 +469,6 @@ fn test_fact_exists() -> anyhow::Result<()> {
 
     command setup {
         fields {}
-        seal { return todo() }
-        open { return todo() }
         policy {
             finish {
                 create Foo[] => {x: 3}
@@ -528,8 +522,6 @@ fn test_counting() -> anyhow::Result<()> {
         fact Foo[i int]=>{}
 
         command Setup {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Foo[i:1]=>{}
@@ -540,8 +532,6 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestUpTo {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
                 check count_one == 1 else test_fail()
@@ -556,8 +546,6 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestAtLeast {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 check at_least 1 Foo[i:?] else test_fail()
                 check at_least 3 Foo[i:?] else test_fail()
@@ -567,8 +555,6 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestAtMost {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 check at_most 1 Foo[i:?] == false else test_fail()
                 check at_most 3 Foo[i:?] else test_fail()
@@ -578,8 +564,6 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestExactly {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 check exactly 1 Foo[i:?] == false else test_fail()
                 check exactly 3 Foo[i:?] else test_fail()
@@ -667,8 +651,6 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 x int,
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
                 finish {
@@ -683,8 +665,6 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 a int
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
                 let x = get_foo(this.a)
@@ -755,8 +735,6 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         command Setup {
             fields {}
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Foo[i: 1, j: 1]=>{x: 1, s: "a"}
@@ -835,8 +813,6 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
         command Setup {
             fields {}
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Bar[i: Foo::A] => {x: Foo::A}
@@ -932,8 +908,6 @@ fn test_if_branches() -> anyhow::Result<()> {
             fields {
                 s string
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -1030,8 +1004,6 @@ fn test_match_alternation() -> anyhow::Result<()> {
             fields {
                 x int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -1067,8 +1039,6 @@ fn test_match_default() -> anyhow::Result<()> {
             fields {
                 x int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -1127,8 +1097,6 @@ fn test_match_expression() -> anyhow::Result<()> {
     let text = r#"
         command F {
             fields { x int }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
         action foo(x int) {
@@ -1159,8 +1127,6 @@ fn test_match_optional_binding() -> anyhow::Result<()> {
     let text = r#"
         command F {
             fields { x int }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
         action foo(o option[int]) {
@@ -1257,8 +1223,6 @@ fn test_pure_function() -> anyhow::Result<()> {
             fields {
                 x int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -1303,8 +1267,6 @@ fn test_finish_function() -> anyhow::Result<()> {
                 x int,
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
                 finish {
@@ -1342,8 +1304,6 @@ fn test_check_errors() -> anyhow::Result<()> {
     let cases = [
         r#"command Foo {
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {
                     check false else recall default()
                 }
@@ -1352,8 +1312,6 @@ fn test_check_errors() -> anyhow::Result<()> {
             }"#,
         r#"command Foo {
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {
                     check false else recall bar()
                 }
@@ -1388,8 +1346,6 @@ fn test_coalesce_or() -> anyhow::Result<()> {
 
         command Setup {
             fields {}
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Foo[i: 1]=>{x: 42}
@@ -1519,8 +1475,6 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             fields {
                 test bytes
             }
-            seal { return todo() }
-            open { return todo() }
 
             policy {
                 check false else recall default()
@@ -1661,8 +1615,6 @@ fn test_global_let_statements() -> anyhow::Result<()> {
                 c bool,
                 d struct Bar,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -1740,8 +1692,6 @@ fn test_enum_reference() -> anyhow::Result<()> {
             fields {
                 a string
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -1856,8 +1806,6 @@ command Set {
 fields {
     a int,
 }
-seal { return todo() }
-open { return todo() }
 policy {
     let x = this.a
     finish {
@@ -1869,8 +1817,6 @@ policy {
 
 command Clear {
 fields {}
-seal { return todo() }
-open { return todo() }
 policy {
     finish {
         delete Foo[]
@@ -1880,8 +1826,6 @@ policy {
 
 command Increment {
 fields {}
-seal { return todo() }
-open { return todo() }
 policy {
     let r = query Foo[]=>{x: ?} or test_fail()
     let new_x = add(r.x, 1) or test_fail()
@@ -1918,8 +1862,6 @@ fn test_map() -> anyhow::Result<()> {
         }
 
         command Setup {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create F[i:1]=>{n:1}
@@ -1933,8 +1875,6 @@ fn test_map() -> anyhow::Result<()> {
             fields {
                 value int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     emit Result {
@@ -2008,8 +1948,6 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
                 maybe_int option[int],
                 name string,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {}
             }
@@ -2094,8 +2032,6 @@ fn test_block_expression() -> anyhow::Result<()> {
                 x int
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
             }
@@ -2138,8 +2074,6 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
                 x int,
                 y bool,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
         struct Bar {
@@ -2186,8 +2120,6 @@ fn test_struct_composition() -> anyhow::Result<()> {
                 y bool,
                 z string,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
         struct Bar {
@@ -2335,8 +2267,6 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 
         command Bar {
             fields { x int, y string }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -2510,8 +2440,6 @@ fn test_result() -> anyhow::Result<()> {
             fields {
                 succeed bool
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 let e = match try(this.succeed) {
                     Ok(v) => Result { r: Ok(v) }
@@ -2601,8 +2529,6 @@ fn test_match_patterns() -> anyhow::Result<()> {
             fields {
                 n int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 let r = Ok(this.n)
                 let out = match r {
@@ -2689,8 +2615,6 @@ fn test_unit() -> anyhow::Result<()> {
             fields {
                 n int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 match verify(this.n) {
                     Ok(Unit) => {
@@ -2769,8 +2693,6 @@ fn test_recall_with_args() -> anyhow::Result<()> {
                 x int,
                 y string
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 check false else recall test(1, "oops")
             }

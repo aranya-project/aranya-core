@@ -236,10 +236,6 @@ pub enum Instruction {
     QueryStart,
     /// Fetches the next result, and pushes it onto the stack
     QueryNext(Identifier),
-    /// Serialize a command struct
-    Serialize,
-    /// Deserialize a command struct
-    Deserialize,
     /// Save the stack depth for later restoration.
     SaveSP,
     /// Restore the stack depth.
@@ -297,8 +293,6 @@ impl Display for Instruction {
             Self::FactCount(limit) => write!(f, "fact.count {limit}"),
             Self::QueryStart => write!(f, "query.start"),
             Self::QueryNext(ident) => write!(f, "query.next '{ident}'"),
-            Self::Serialize => write!(f, "serialize"),
-            Self::Deserialize => write!(f, "deserialize"),
             Self::SaveSP => write!(f, "save SP"),
             Self::RestoreSP => write!(f, "restore SP"),
             Self::Meta(m) => write!(f, "meta: {m}"),
