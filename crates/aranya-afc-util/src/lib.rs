@@ -16,5 +16,5 @@ mod transform;
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub use ffi::*;
 pub use handler::*;
-pub use replay::{ReplayStore, Verdict};
+pub use replay::ReplayStore;
 pub use transform::Transform;

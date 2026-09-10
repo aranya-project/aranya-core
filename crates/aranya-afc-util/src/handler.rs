@@ -8,11 +8,7 @@ use aranya_crypto::{
 use aranya_fast_channels::Directed;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    replay::{ReplayStore, Verdict},
-    shared::decode_enc_pk,
-    transform::Transform,
-};
+use crate::{replay::ReplayStore, shared::decode_enc_pk, transform::Transform};
 
 /// Wraps `tracing::error` to always use the `afc-handler`
 /// target.
@@ -33,10 +29,9 @@ impl<S> Handler<S> {
         Self { device_id, store }
     }
 
-    /// Handles the `AfcEpochRotated` effect by raising the
-    /// replay floor for the rotated device via
-    /// [`ReplayStore::raise_floor`], forgetting the nonces
-    /// recorded for its older epochs.
+    /// Handles the `AfcEpochRotated` effect by calling
+    /// [`ReplayStore::clear`] for the rotated device, forgetting
+    /// the nonces recorded for its epochs below the new one.
     pub fn epoch_rotated<R>(
         &mut self,
         replay: &mut R,
@@ -50,7 +45,7 @@ impl<S> Handler<S> {
             return Ok(());
         }
         replay
-            .raise_floor(graph, effect.device_id, effect.epoch)
+            .clear(graph, effect.device_id, effect.epoch)
             .map_err(|err| {
                 error!("replay store failed: {err}");
                 Error::ReplayStore
@@ -108,10 +103,10 @@ impl<S: KeyStore> Handler<S> {
     /// Converts a [`UniPeerEncap`] into a key suitable for
     /// [`AranyaState`][aranya_fast_channels::AranyaState].
     ///
-    /// The control message is first checked for freshness via
-    /// [`ReplayStore::accept`]: anything other than
-    /// [`Verdict::Fresh`] fails with [`Error::Replay`] before any
-    /// key material is derived. 
+    /// The control message's nonce is first recorded via
+    /// [`ReplayStore::insert`]; a nonce that was already recorded
+    /// fails with [`Error::Replay`] before any key material is
+    /// derived. The record is durable before this returns.
     pub fn uni_channel_received<E, R, SK, OK>(
         &mut self,
         eng: &E,
@@ -130,14 +125,14 @@ impl<S: KeyStore> Handler<S> {
         }
 
         // Freshness, before any key material exists.
-        match replay
-            .accept(graph, effect.seal_id, effect.epoch, effect.cmd_id)
+        let fresh = replay
+            .insert(graph, effect.seal_id, effect.epoch, effect.cmd_id)
             .map_err(|err| {
                 error!("replay store failed: {err}");
                 Error::ReplayStore
-            })? {
-            Verdict::Fresh => {}
-            verdict => return Err(Error::Replay(verdict)),
+            })?;
+        if !fresh {
+            return Err(Error::Replay);
         }
 
         let encap =
@@ -285,9 +280,10 @@ pub enum Error {
     /// A `crypto` crate error.
     #[error(transparent)]
     Crypto(#[from] aranya_crypto::Error),
-    /// The control message was rejected by the [`ReplayStore`].
-    #[error("control message rejected: {0}")]
-    Replay(Verdict),
+    /// The control message's nonce was already recorded by the
+    /// [`ReplayStore`].
+    #[error("replayed control message")]
+    Replay,
     /// The [`ReplayStore`] failed.
     #[error("replay store failure")]
     ReplayStore,

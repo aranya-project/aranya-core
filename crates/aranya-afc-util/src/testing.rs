@@ -34,7 +34,7 @@ use crate::{
         EpochRotated, Error as EffectHandlerError, Handler, UniChannelCreated, UniChannelReceived,
         UniKey,
     },
-    replay::{MemStore as ReplayMemStore, ReplayStore, Verdict},
+    replay::{MemStore as ReplayMemStore, ReplayStore},
     transform::Transform,
 };
 
@@ -468,22 +468,17 @@ struct FailingStoreError;
 impl ReplayStore for FailingStore {
     type Error = FailingStoreError;
 
-    fn accept(
+    fn insert(
         &mut self,
         _graph: BaseId,
         _sender: DeviceId,
         _epoch: u64,
         _nonce: CmdId,
-    ) -> Result<Verdict, Self::Error> {
+    ) -> Result<bool, Self::Error> {
         Err(FailingStoreError)
     }
 
-    fn raise_floor(
-        &mut self,
-        _graph: BaseId,
-        _sender: DeviceId,
-        _epoch: u64,
-    ) -> Result<(), Self::Error> {
+    fn clear(&mut self, _graph: BaseId, _sender: DeviceId, _epoch: u64) -> Result<(), Self::Error> {
         Err(FailingStoreError)
     }
 }
@@ -540,9 +535,8 @@ macro_rules! test_all {
             test!(test_receive_seal_only_uni_channel);
             test!(test_create_uni_channel_negative_epoch);
             test!(test_receive_replayed_uni_channel);
-            test!(test_receive_stale_epoch_uni_channel);
+            test!(test_epochs_are_independent_in_store);
             test!(test_rotation_forgets_nonces);
-            test!(test_sender_must_rotate);
             test!(test_replay_store_error);
         }
     };
@@ -866,10 +860,7 @@ where
         .receive(&author, &ch)
         .err()
         .expect("replayed control message should be rejected");
-    assert!(
-        matches!(err, EffectHandlerError::Replay(Verdict::Replay)),
-        "{err}"
-    );
+    assert!(matches!(err, EffectHandlerError::Replay), "{err}");
     assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 1);
 
     // A different control message from the same sender at the
@@ -881,9 +872,11 @@ where
     assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 2);
 }
 
-/// A control message from an older epoch than the highest
-/// accepted from that sender is rejected.
-pub fn test_receive_stale_epoch_uni_channel<T: TestImpl>()
+/// The store does not order epochs: a control message from an
+/// older epoch than one already accepted is still recorded and
+/// accepted by the handler. Rejecting it is the policy rule's job
+/// (`epoch >= AfcEpoch[author]`), not the store's.
+pub fn test_epochs_are_independent_in_store<T: TestImpl>()
 where
     <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
         &'a UniChannel<'a, <T::Engine as Engine>::CS>,
@@ -906,33 +899,34 @@ where
     let mut peer = T::new();
     let label_id = LabelId::random(Rng);
 
-    let old = author.create_uni_channel(&peer, label_id, 1);
-    let new = author.create_uni_channel(&peer, label_id, 2);
+    let older = author.create_uni_channel(&peer, label_id, 1);
+    let newer = author.create_uni_channel(&peer, label_id, 2);
 
     // Accept the newer epoch first...
-    let author_chan_id = author.install_created(&peer, &new);
-    let peer_chan_id = peer.install_received(&author, &new);
+    let author_chan_id = author.install_created(&peer, &newer);
+    let peer_chan_id = peer.install_received(&author, &newer);
     Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
-    assert_eq!(peer.replay.epoch(peer.graph, author.device_id), 2);
-
-    // ...then the older one is stale.
-    let err = peer
-        .receive(&author, &old)
-        .err()
-        .expect("stale epoch should be rejected");
-    assert!(
-        matches!(
-            err,
-            EffectHandlerError::Replay(Verdict::StaleEpoch { current: 2 })
-        ),
-        "{err}"
-    );
     assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 1);
+
+    // ...then the older one is still accepted by the handler.
+    let author_chan_id = author.install_created(&peer, &older);
+    let peer_chan_id = peer.install_received(&author, &older);
+    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 2);
+
+    // Replays of either are rejected.
+    for ch in [&older, &newer] {
+        let err = peer
+            .receive(&author, ch)
+            .err()
+            .expect("replayed control message should be rejected");
+        assert!(matches!(err, EffectHandlerError::Replay), "{err}");
+    }
+    assert_eq!(peer.replay.nonces(peer.graph, author.device_id), 2);
 }
 
-/// Rotating the sender's epoch (as observed via the graph)
-/// invalidates outstanding control messages and lets the
-/// receiver forget old nonces.
+/// Rotating the sender's epoch (as observed via the graph) lets
+/// the receiver forget nonces from older epochs, and only those.
 pub fn test_rotation_forgets_nonces<T: TestImpl>()
 where
     <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
@@ -961,118 +955,49 @@ where
     let author_chan_id = author.install_created(&peer, &ch0);
     let peer_chan_id = peer.install_received(&author, &ch0);
     Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
-    assert_eq!(peer.replay.epoch(graph, author.device_id), 0);
     assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
 
-    // The sender rotates to epoch 1; the receiver learns about
-    // it via the `AfcEpochRotated` effect.
-    peer.epoch_rotated(author.device_id, 1);
-    assert_eq!(peer.replay.epoch(graph, author.device_id), 1);
-    assert_eq!(peer.replay.nonces(graph, author.device_id), 0);
-
-    // An old control message is now stale.
-    let err = peer
-        .receive(&author, &ch0)
-        .err()
-        .expect("old epoch should be rejected");
-    assert!(
-        matches!(
-            err,
-            EffectHandlerError::Replay(Verdict::StaleEpoch { current: 1 })
-        ),
-        "{err}"
-    );
-
-    // Channels at the new epoch work.
+    // The sender rotates to epoch 1 and creates a channel at the
+    // new epoch. The control message reaches the receiver before
+    // the `AfcEpochRotated` effect does (the rotation has not
+    // synced yet).
     let ch1 = author.create_uni_channel(&peer, label_id, 1);
     let author_chan_id = author.install_created(&peer, &ch1);
     let peer_chan_id = peer.install_received(&author, &ch1);
     Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 2);
+
+    // The rotation syncs. Only epoch-0 nonces are forgotten.
+    peer.epoch_rotated(author.device_id, 1);
     assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
 
-    // A control message with a newer epoch also ratchets the
-    // receiver forward and forgets the old nonces, so a later
-    // `AfcEpochRotated` for that epoch is a no-op.
-    let ch2 = author.create_uni_channel(&peer, label_id, 2);
-    let author_chan_id = author.install_created(&peer, &ch2);
-    let peer_chan_id = peer.install_received(&author, &ch2);
-    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
-    assert_eq!(peer.replay.epoch(graph, author.device_id), 2);
-    assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
-    peer.epoch_rotated(author.device_id, 2);
-    assert_eq!(peer.replay.epoch(graph, author.device_id), 2);
-    assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
-
-    // Another rotation forgets everything again.
-    peer.epoch_rotated(author.device_id, 3);
-    assert_eq!(peer.replay.nonces(graph, author.device_id), 0);
+    // `ch1` was recorded under epoch 1, so it survived the clear
+    // and a replay is still rejected.
     let err = peer
-        .receive(&author, &ch2)
+        .receive(&author, &ch1)
         .err()
-        .expect("old epoch should be rejected");
-    assert!(
-        matches!(
-            err,
-            EffectHandlerError::Replay(Verdict::StaleEpoch { current: 3 })
-        ),
-        "{err}"
-    );
+        .expect("replayed control message should be rejected");
+    assert!(matches!(err, EffectHandlerError::Replay), "{err}");
+
+    // Processing the same rotation again is a no-op.
+    peer.epoch_rotated(author.device_id, 1);
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 1);
+
+    // `ch0`'s nonce is gone, so the store no longer rejects it.
+    // In production the policy rule rejects it instead, because
+    // its epoch is below the sender's `AfcEpoch` fact.
+    peer.receive(&author, &ch0)
+        .expect("store does not enforce epoch ordering");
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 2);
+
+    // A later rotation forgets both epochs.
+    peer.epoch_rotated(author.device_id, 2);
+    assert_eq!(peer.replay.nonces(graph, author.device_id), 0);
 
     // A device's own rotation effect is a no-op for its replay
     // state: it never accepts messages from itself.
     peer.epoch_rotated(peer.device_id, 100);
-    assert_eq!(peer.replay.epoch(graph, peer.device_id), 0);
-}
-
-/// Once the per-epoch nonce cap is exhausted, the receiver fails
-/// closed until the sender rotates.
-pub fn test_sender_must_rotate<T: TestImpl>()
-where
-    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniAuthorSecret<<T::Engine as Engine>::CS>,
-    )>,
-    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniAuthorSecret<<T::Engine as Engine>::CS>,
-    )>,
-    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniPeerEncap<<T::Engine as Engine>::CS>,
-    )>,
-    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
-        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
-        UniPeerEncap<<T::Engine as Engine>::CS>,
-    )>,
-{
-    let mut author = T::new();
-    let mut peer = T::new();
-    let label_id = LabelId::random(Rng);
-    peer.replay = ReplayMemStore::with_cap(2);
-
-    let ch1 = author.create_uni_channel(&peer, label_id, 0);
-    let ch2 = author.create_uni_channel(&peer, label_id, 0);
-    let ch3 = author.create_uni_channel(&peer, label_id, 0);
-    peer.install_received(&author, &ch1);
-    peer.install_received(&author, &ch2);
-
-    let err = peer
-        .receive(&author, &ch3)
-        .err()
-        .expect("third channel should exceed the cap");
-    assert!(
-        matches!(
-            err,
-            EffectHandlerError::Replay(Verdict::SenderMustRotate { cap: 2 })
-        ),
-        "{err}"
-    );
-
-    // Rotating clears the cap.
-    let ch4 = author.create_uni_channel(&peer, label_id, 1);
-    let author_chan_id = author.install_created(&peer, &ch4);
-    let peer_chan_id = peer.install_received(&author, &ch4);
-    Device::test_roundtrip((&mut author, author_chan_id), (&mut peer, peer_chan_id));
+    assert_eq!(peer.replay.nonces(graph, peer.device_id), 0);
 }
 
 /// A failing replay store surfaces as
