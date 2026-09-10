@@ -693,19 +693,13 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         // iteration of the loop
                         let parent = rs.io.facts.head_address()?;
 
-                        let parent_id = match parent {
-                            Prior::None => CmdId::default(),
-                            Prior::Single(x) => x.id,
-                            Prior::Merge(_, _) => todo!(),
-                        };
-
-                        let (payload, envelope) = self.seal_command(&command_struct, parent_id)?;
-
                         let priority = self.get_command_priority(&command_name).into();
 
+                        let parent_id;
                         let policy;
                         match parent {
                             Prior::None => {
+                                parent_id = CmdId::default();
                                 // TODO(chip): where does the policy value come from?
                                 policy = Some(0u64.to_le_bytes());
                                 if !matches!(priority, Priority::Init) {
@@ -715,7 +709,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                                     return Err(PolicyError::InternalError);
                                 }
                             }
-                            Prior::Single(_) => {
+                            Prior::Single(p) => {
+                                parent_id = p.id;
                                 policy = None;
                                 if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
                                     error!(
@@ -726,6 +721,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
                         }
+
+                        let (payload, envelope) = self.seal_command(&command_struct, parent_id)?;
 
                         let data = VmProtocolData {
                             author_id: envelope.author_id,
