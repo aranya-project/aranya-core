@@ -1,18 +1,17 @@
 fn benchmark_1() {
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{bench_measurements, ffi::FfiModule as _};
+    use aranya_policy_vm::bench_measurements;
     use aranya_runtime::{
         ClientState, RuntimeBuffers, mem_spill,
         storage::linear::testing::MemStorageProvider,
         testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
         vm_action, vm_effect,
-        vm_policy::testing::TestFfiEnvelope,
     };
 
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
     let module = Compiler::new(&policy)
-        .ffi_modules(&[TestFfiEnvelope::SCHEMA])
+        .debug(true)
         .compile()
         .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
@@ -52,13 +51,15 @@ fn benchmark_1() {
 
 fn benchmark_map() {
     let test = r#"---
-policy-version: 1
+policy-version: 2
 ---
 ```policy
-        use envelope
         fact F[i int]=>{ value string }
 
         command Init {
+            attributes {
+                init: true,
+            }
             policy {
                 finish {}
             }
@@ -73,6 +74,9 @@ policy-version: 1
         }
 
         command Insert {
+            attributes {
+                priority: 10,
+            }
             fields {
                 i int,
                 value string
@@ -91,6 +95,9 @@ policy-version: 1
         }
 
         command DoSomething {
+            attributes {
+                priority: 5,
+            }
             fields { i int }
             policy {
                 finish {
@@ -103,20 +110,16 @@ policy-version: 1
 
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
+    use aranya_policy_vm::{Text, bench_measurements};
     use aranya_runtime::{
         ClientState, RuntimeBuffers, mem_spill,
         storage::linear::testing::MemStorageProvider,
         testing::vm::{TestPolicyStore, TestSink},
         vm_action,
-        vm_policy::testing::TestFfiEnvelope,
     };
 
     let policy = parse_policy_document(test).expect("should parse");
-    let module = Compiler::new(&policy)
-        .ffi_modules(&[TestFfiEnvelope::SCHEMA])
-        .compile()
-        .expect("should compile");
+    let module = Compiler::new(&policy).compile().expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
