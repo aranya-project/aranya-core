@@ -1,20 +1,15 @@
-use core::mem::size_of;
-
 use buggy::BugExt as _;
+use zerocopy::{FromZeros as _, IntoBytes as _};
 
 use crate::{
     ClientError, Location, MaxCut, Segment as _, Storage, StorageError,
     storage::{Spill, TraversalQueue},
 };
 
-/// Size of one entry on disk: three `u64`s (segment, max_cut, count).
-const ENTRY_BYTES: usize = size_of::<u64>() * 3;
 /// Maximum entries per block. Larger blocks mean a bigger in-memory
 /// working set before spilling, but coarser `max_cut` range granularity
 /// per root-index entry.
 const BLOCK_ENTRIES: usize = 256;
-/// Size of one block on disk.
-const BLOCK_BYTES: usize = BLOCK_ENTRIES * ENTRY_BYTES;
 /// Number of in-memory blocks retained via LRU before spilling to disk.
 const NUM_BLOCKS: usize = 3;
 /// Maximum entries in the root index. Each root entry points to one
@@ -23,31 +18,18 @@ const NUM_BLOCKS: usize = 3;
 const ROOT_CAPACITY: usize = 512;
 
 /// A convergence point: location and remaining arrival count.
-#[derive(Clone, Copy)]
+#[derive(
+    Copy,
+    Clone,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[repr(C)]
 struct Entry {
     location: Location,
-    count: usize,
-}
-
-impl Entry {
-    fn to_bytes(self) -> [u8; ENTRY_BYTES] {
-        let mut buf = [0u8; ENTRY_BYTES];
-        buf[0..8].copy_from_slice(&self.location.segment.get().to_ne_bytes());
-        buf[8..16].copy_from_slice(&self.location.max_cut.get().to_ne_bytes());
-        buf[16..24].copy_from_slice(&(self.count as u64).to_ne_bytes());
-        buf
-    }
-
-    #[allow(clippy::unwrap_used)] // infallible: slices are exactly 8 bytes
-    fn from_bytes(buf: &[u8; ENTRY_BYTES]) -> Self {
-        let segment = u64::from_ne_bytes(buf[0..8].try_into().unwrap());
-        let max_cut = u64::from_ne_bytes(buf[8..16].try_into().unwrap());
-        let count = u64::from_ne_bytes(buf[16..24].try_into().unwrap()) as usize;
-        Self {
-            location: Location::new(crate::SegmentIndex::new(segment), MaxCut::new(max_cut)),
-            count,
-        }
-    }
+    count: u64,
 }
 
 /// Index entry in the root node pointing to a block on disk.
@@ -105,38 +87,6 @@ impl Block {
         self.min_max_cut = MaxCut::new(u64::MAX);
         self.max_max_cut = MaxCut::new(0);
         self.last_accessed = 0;
-    }
-
-    fn to_bytes(&self) -> Result<[u8; BLOCK_BYTES], ClientError> {
-        let mut buf = [0u8; BLOCK_BYTES];
-        for (i, entry) in self.entries.iter().enumerate() {
-            let offset = i
-                .checked_mul(ENTRY_BYTES)
-                .assume("block offset must not overflow")?;
-            let end = offset
-                .checked_add(ENTRY_BYTES)
-                .assume("block end must not overflow")?;
-            buf[offset..end].copy_from_slice(&entry.to_bytes());
-        }
-        Ok(buf)
-    }
-
-    fn load_from_bytes(buf: &[u8; BLOCK_BYTES], num_entries: usize) -> Result<Self, ClientError> {
-        let mut block = Self::new();
-        for i in 0..num_entries {
-            let offset = i
-                .checked_mul(ENTRY_BYTES)
-                .assume("block offset must not overflow")?;
-            let end = offset
-                .checked_add(ENTRY_BYTES)
-                .assume("block end must not overflow")?;
-            let entry_bytes: &[u8; ENTRY_BYTES] = buf[offset..end]
-                .try_into()
-                .assume("slice is exactly ENTRY_BYTES")?;
-            let entry = Entry::from_bytes(entry_bytes);
-            block.insert(entry);
-        }
-        Ok(block)
     }
 }
 
@@ -242,14 +192,12 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             return Ok(());
         }
 
-        let data = block.to_bytes()?;
+        let data = block.entries.as_slice().as_bytes();
         let num_entries = block.entries.len();
         let offset = self.next_file_offset;
 
-        let byte_len = num_entries
-            .checked_mul(ENTRY_BYTES)
-            .assume("spill byte length must not overflow")?;
-        self.spill_file.write_at(offset, &data[..byte_len])?;
+        let byte_len = data.len();
+        self.spill_file.write_at(offset, data)?;
 
         // Add to root index.
         if self.storage.root.is_full() {
@@ -276,16 +224,23 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     fn read_block_from_disk(&mut self, root_idx: usize) -> Result<Block, ClientError> {
         let node = self.storage.root[root_idx];
 
-        let num_entries = node.num_entries;
-        let byte_len = num_entries
-            .checked_mul(ENTRY_BYTES)
-            .assume("disk byte length must not overflow")?;
+        let mut block = Block::new();
 
-        let mut buf = [0u8; BLOCK_BYTES];
-        self.spill_file
-            .read_at(node.file_offset, &mut buf[..byte_len])?;
+        // Use entries as buffer of appropriate length to read directly into.
+        block
+            .entries
+            .resize(node.num_entries, Entry::new_zeroed())
+            .ok()
+            .assume("block size is valid")?;
+        let buf = block.entries.as_mut_slice().as_mut_bytes();
 
-        Block::load_from_bytes(&buf, num_entries)
+        // Read entries directly into block.
+        self.spill_file.read_at(node.file_offset, buf)?;
+
+        block.min_max_cut = node.min_max_cut;
+        block.max_max_cut = node.max_max_cut;
+
+        Ok(block)
     }
 
     /// Load a spilled block into memory, evicting the LRU block.
@@ -327,7 +282,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             if count >= 2 {
                 self.insert_entry(Entry {
                     location: loc,
-                    count,
+                    count: count.try_into().assume("count fits u64")?,
                 })?;
             }
 
