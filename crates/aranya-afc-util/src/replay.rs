@@ -39,24 +39,6 @@ pub trait ReplayStore {
     fn clear(&mut self, graph: BaseId, sender: DeviceId, epoch: u64) -> Result<(), Self::Error>;
 }
 
-impl<T: ReplayStore + ?Sized> ReplayStore for &mut T {
-    type Error = T::Error;
-
-    fn insert(
-        &mut self,
-        graph: BaseId,
-        sender: DeviceId,
-        epoch: u64,
-        nonce: CmdId,
-    ) -> Result<bool, Self::Error> {
-        (**self).insert(graph, sender, epoch, nonce)
-    }
-
-    fn clear(&mut self, graph: BaseId, sender: DeviceId, epoch: u64) -> Result<(), Self::Error> {
-        (**self).clear(graph, sender, epoch)
-    }
-}
-
 #[cfg(any(test, feature = "testing"))]
 mod memstore {
     extern crate alloc;
