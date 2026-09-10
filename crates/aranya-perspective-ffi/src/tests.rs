@@ -33,9 +33,7 @@ fn test_head_id() {
         });
         assert_eq!(
             perspective.head_id(&context, &eng).expect_err("").err_type,
-            MachineErrorType::Unknown(
-                "head_id is only available in Seal and Action contexts".to_string()
-            )
+            MachineErrorType::Unknown("head_id is only available in Action context".to_string())
         );
     }
 
@@ -48,9 +46,7 @@ fn test_head_id() {
         });
         assert_eq!(
             perspective.head_id(&context, &eng).expect_err("").err_type,
-            MachineErrorType::Unknown(
-                "head_id is only available in Seal and Action contexts".to_string()
-            )
+            MachineErrorType::Unknown("head_id is only available in Action context".to_string())
         );
     }
 }
