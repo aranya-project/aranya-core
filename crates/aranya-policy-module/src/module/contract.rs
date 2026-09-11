@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::fmt;
 
 use aranya_policy_ast::Identifier;
