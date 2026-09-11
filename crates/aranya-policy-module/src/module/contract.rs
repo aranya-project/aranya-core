@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{boxed::Box, format, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use core::fmt;
 
 use aranya_policy_ast::Identifier;
@@ -10,20 +10,33 @@ use crate::ffi;
 
 /// An error when validating the contract against expectations
 #[derive(Debug, thiserror::Error)]
-pub struct ContractValidationError(/* TODO(chip): Add detail */ pub String);
+#[error("Contact Validation Error: {msg}")]
+pub struct ContractValidationError {
+    // TODO(chip): Add detail
+    msg: String,
+}
+
+impl ContractValidationError {
+    /// Construct a new `ContractValidationError` from something `Display`able.
+    pub fn new<C: fmt::Display>(msg: C) -> Self {
+        Self {
+            msg: msg.to_string(),
+        }
+    }
+
+    /// Get the interior error value for testing.
+    pub fn error_str(&self) -> &str {
+        &self.msg
+    }
+}
+
 trait PrependError {
     fn prepend<C: fmt::Display>(self, s: C) -> Self;
 }
 
 impl<T> PrependError for Result<T, ContractValidationError> {
     fn prepend<C: fmt::Display>(self, s: C) -> Self {
-        self.map_err(|e| ContractValidationError(format!("{s} {}", e.0)))
-    }
-}
-
-impl fmt::Display for ContractValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Contract Validation Error: {}", self.0)
+        self.map_err(|e| ContractValidationError::new(format_args!("{s} {}", e.msg)))
     }
 }
 
@@ -68,9 +81,9 @@ pub enum TypeContract {
     /// Named enumeration
     Enum(Identifier),
     /// An optional type of some other type
-    Optional(#[rkyv(omit_bounds)] Box<TypeContract>),
+    Optional(#[rkyv(omit_bounds)] Box<Self>),
     /// Result with value, or error
-    Result(#[rkyv(omit_bounds)] Box<(TypeContract, TypeContract)>),
+    Result(#[rkyv(omit_bounds)] Box<(Self, Self)>),
     /// Unit value
     Unit,
 }
@@ -79,7 +92,7 @@ impl TypeContract {
     fn validate(&self, other: &ffi::Type<'_>) -> Result<(), ContractValidationError> {
         let other_tc = other.into();
         if self != &other_tc {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "{self:?} but VM expected {other_tc:?}"
             )));
         }
@@ -130,7 +143,7 @@ pub struct ArgContract {
 impl ArgContract {
     fn validate(&self, other: &ffi::Arg<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "VM expected `{}`",
                 other.name
             )));
@@ -175,18 +188,18 @@ pub struct FunctionContract {
 impl FunctionContract {
     fn validate(&self, other: &ffi::Func<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "function `{}`, VM expected `{}`",
                 self.name, other.name
             )));
         }
         for (a1, a2) in self.args.iter().zip(other.args.iter()) {
             a1.validate(a2)
-                .prepend(format!("function `{}` arg `{}`,", self.name, a1.name))?;
+                .prepend(format_args!("function `{}` arg `{}`,", self.name, a1.name))?;
         }
         self.return_type
             .validate(&other.return_type)
-            .prepend(format!("function `{}` return type", self.name))?;
+            .prepend(format_args!("function `{}` return type", self.name))?;
         Ok(())
     }
 }
@@ -225,13 +238,13 @@ pub struct StructContract {
 impl StructContract {
     fn validate(&self, other: &ffi::Struct<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "`struct {}`, VM expected `struct {}`",
                 self.name, other.name
             )));
         }
         if self.fields.len() != other.fields.len() {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "`struct {}` has {} fields but VM expects {}",
                 self.name,
                 self.fields.len(),
@@ -240,7 +253,7 @@ impl StructContract {
         }
         for (f1, f2) in self.fields.iter().zip(other.fields.iter()) {
             f1.validate(f2)
-                .prepend(format!("`struct {}` field `{}`,", self.name, f1.name))?;
+                .prepend(format_args!("`struct {}` field `{}`,", self.name, f1.name))?;
         }
         Ok(())
     }
@@ -279,13 +292,13 @@ pub struct EnumContract {
 impl EnumContract {
     fn validate(&self, other: &ffi::Enum<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "`enum {}`, VM expected `enum {}`",
                 self.name, other.name
             )));
         }
         if self.variants.len() != other.variants.len() {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "`enum {}` has {} variants but VM expects {}",
                 self.name,
                 self.variants.len(),
@@ -294,7 +307,7 @@ impl EnumContract {
         }
         for (v1, v2) in self.variants.iter().zip(other.variants.iter()) {
             if v1 != v2 {
-                return Err(ContractValidationError(format!(
+                return Err(ContractValidationError::new(format_args!(
                     "`enum {}` has variant `{}` but VM expected `{}`",
                     self.name, v1, v2
                 )));
@@ -342,14 +355,14 @@ impl FfiContract {
     /// Validates a contract against a [`ModuleSchema`](ffi::ModuleSchema).
     pub fn validate(&self, other: &ffi::ModuleSchema<'_>) -> Result<(), ContractValidationError> {
         if self.name != other.name {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "FFI module `{}`, VM expected `{}`",
                 self.name, other.name
             )));
         }
 
         if self.functions.len() != other.functions.len() {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "FFI module `{}` has {} functions but VM expects {}",
                 self.name,
                 self.functions.len(),
@@ -358,11 +371,11 @@ impl FfiContract {
         }
         for (f1, f2) in self.functions.iter().zip(other.functions.iter()) {
             f1.validate(f2)
-                .prepend(format!("FFI module `{}`,", self.name))?;
+                .prepend(format_args!("FFI module `{}`,", self.name))?;
         }
 
         if self.structs.len() != other.structs.len() {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "FFI module `{}` has {} structs but VM expects {}",
                 self.name,
                 self.structs.len(),
@@ -371,11 +384,11 @@ impl FfiContract {
         }
         for (s1, s2) in self.structs.iter().zip(other.structs.iter()) {
             s1.validate(s2)
-                .prepend(format!("FFI module `{}`,", self.name))?;
+                .prepend(format_args!("FFI module `{}`,", self.name))?;
         }
 
         if self.enums.len() != other.enums.len() {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "FFI module `{}` has {} enums but VM expects {}",
                 self.name,
                 self.enums.len(),
@@ -384,7 +397,7 @@ impl FfiContract {
         }
         for (e1, e2) in self.enums.iter().zip(other.enums.iter()) {
             e1.validate(e2)
-                .prepend(format!("FFI module `{}`,", self.name))?;
+                .prepend(format_args!("FFI module `{}`,", self.name))?;
         }
         Ok(())
     }

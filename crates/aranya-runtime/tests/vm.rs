@@ -8,9 +8,7 @@ use aranya_crypto::{
 };
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::{
-    ContractValidationError, Machine, ModuleContract, TypeContract, ffi::FfiModule as _, ident,
-};
+use aranya_policy_vm::{Machine, ModuleContract, TypeContract, ffi::FfiModule as _, ident};
 use aranya_runtime::{
     VmPolicy, VmPolicyError,
     testing::vm::{self, TestPolicyStore},
@@ -69,10 +67,10 @@ fn contract_tester<F: FnOnce(&mut ModuleContract)>(contract_mutator: F, expect_e
             device: DeviceId::random(Rng),
         })],
     );
-    let Err(VmPolicyError::ContractValidation(ContractValidationError(got_error))) = r else {
+    let Err(VmPolicyError::ContractValidation(got_error)) = r else {
         panic!("Did not get Contract Validation error")
     };
-    assert_eq!(got_error, expect_error);
+    assert_eq!(got_error.error_str(), expect_error);
 }
 
 #[test]

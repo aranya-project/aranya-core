@@ -208,13 +208,13 @@ impl<CE> VmPolicy<CE> {
         if let Some(contract) = &machine.contract {
             // validate FFI schema against machine
             if contract.ffis.len() != ffis.len() {
-                return Err(VmPolicyError::ContractValidation(ContractValidationError(
-                    alloc::format!(
+                return Err(VmPolicyError::ContractValidation(
+                    ContractValidationError::new(format_args!(
                         "Module has {} FFI modules but VM expects {}",
                         contract.ffis.len(),
                         ffis.len()
-                    ),
-                )));
+                    )),
+                ));
             }
             for (mod_ffi, vm_ffi) in contract.ffis.iter().zip(ffis.iter().map(|m| m.schema())) {
                 mod_ffi.validate(&vm_ffi)?;
