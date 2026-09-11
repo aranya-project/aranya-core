@@ -1,4 +1,5 @@
 #![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
 
 use std::{
     collections::{HashMap, HashSet},
