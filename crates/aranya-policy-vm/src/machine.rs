@@ -623,8 +623,6 @@ where
                     }
                 }
             }
-            Instruction::Next => todo!(),
-            Instruction::Last => todo!(),
             Instruction::Call(t) => match t {
                 Target::Unresolved(label) => {
                     return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
@@ -972,49 +970,6 @@ where
                         self.ipush(Value::Bool(true))?;
                     }
                 }
-            }
-            Instruction::Serialize => {
-                let CommandContext::Seal(SealContext { name, .. }) = &self.ctx else {
-                    return Err(self.err(MachineErrorType::BadState(
-                        "Serialize: expected seal context",
-                    )));
-                };
-                let name = name.clone();
-
-                let command_struct: Struct = self.ipop()?;
-                if command_struct.name != name {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::BadState(
-                            "Serialize: context name doesn't match command name",
-                        ),
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                }
-
-                let bytes = self
-                    .machine
-                    .serialize_struct(&command_struct)
-                    .map_err(|e| self.err(e.into()))?;
-                self.ipush(bytes)?;
-            }
-            Instruction::Deserialize => {
-                let CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::InvalidInstruction,
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                };
-                let name = name.clone();
-
-                let bytes: Vec<u8> = self.ipop()?;
-                let s = self
-                    .machine
-                    .deserialize_struct(name, &bytes)
-                    .map_err(|e| self.err(e.into()))?;
-
-                self.ipush(s)?;
             }
             Instruction::Meta(_m) => {}
             Instruction::Wrap(wrap_type) => {
