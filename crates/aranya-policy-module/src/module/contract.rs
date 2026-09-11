@@ -20,7 +20,7 @@ impl ContractValidationError {
     /// Construct a new `ContractValidationError` from something `Display`able.
     pub fn new<C: fmt::Display>(msg: C) -> Self {
         Self {
-            msg: msg.to_string(),
+            msg: format!("{msg}"),
         }
     }
 
