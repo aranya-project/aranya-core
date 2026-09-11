@@ -31,3 +31,7 @@ postcard = { workspace = true, features = ["alloc"] }
 aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
 
 anyhow = { workspace = true, features = ["std"] }
+
+
+[package.metadata.docs.rs]
+all-features = true

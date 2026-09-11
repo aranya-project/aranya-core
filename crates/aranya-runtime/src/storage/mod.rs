@@ -5,25 +5,23 @@
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
 
+pub mod head_set;
+pub mod linear;
+mod spill;
+
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
 use rend::u64_le;
 
-use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior};
-
-pub mod head_set;
-pub use head_set::HeadSet;
-
-pub mod linear;
-
-#[cfg(any(feature = "libc", feature = "testing"))]
-mod spill;
 #[cfg(feature = "libc")]
-pub use spill::LibcSpill;
-#[cfg(feature = "testing")]
-pub use spill::MemSpill;
+pub use self::spill::LibcSpill;
+pub use self::{
+    head_set::HeadSet,
+    spill::{MemSpill, mem_spill},
+};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, util::mem_usage};
 
 /// Byte-addressable overflow storage for braid and convergence data.
 ///
@@ -303,10 +301,8 @@ impl TraversalQueue {
 
     /// Drain all entries. Uncovered entries are passed to `f`.
     /// Covered entries are discarded. O(n) single pass.
-    pub fn drain_all(&mut self, mut f: impl FnMut(Location)) {
-        for i in 0..self.partition {
-            f(self.entries[i]);
-        }
+    pub fn drain_all(&mut self, f: impl FnMut(Location)) {
+        self.entries[..self.partition].iter().copied().for_each(f);
         self.entries.clear();
         self.partition = 0;
     }
@@ -364,10 +360,7 @@ impl Default for TraversalBuffers {
     }
 }
 
-#[cfg(feature = "low-mem-usage")]
-pub const MAX_COMMAND_LENGTH: usize = 400;
-#[cfg(not(feature = "low-mem-usage"))]
-pub const MAX_COMMAND_LENGTH: usize = 2048;
+pub const MAX_COMMAND_LENGTH: usize = mem_usage(400, 2048);
 
 aranya_crypto::custom_id! {
     /// The ID of the graph, taken from initialization.

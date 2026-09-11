@@ -48,15 +48,11 @@ impl Analyzer for ValueAnalyzer {
             Instruction::Return => {
                 self.value_sets.pop();
             }
-            Instruction::Def(s) => {
-                if !self.insert(s.clone()) {
-                    return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
-                }
+            Instruction::Def(s) if !self.insert(s.clone()) => {
+                return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
             }
-            Instruction::Get(s) => {
-                if !self.contains(s) {
-                    return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
-                }
+            Instruction::Get(s) if !self.contains(s) => {
+                return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
             }
             _ => (),
         }

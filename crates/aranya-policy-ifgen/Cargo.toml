@@ -33,3 +33,7 @@ aranya-policy-lang = { path = "../aranya-policy-lang" }
 
 goldenfile = "1.6.0"
 syn = { workspace = true }
+
+
+[package.metadata.docs.rs]
+all-features = true

@@ -1681,7 +1681,9 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
                 <#inner as #capi::InitDefault>::init_default(
                     // SAFETY: TODO
                     unsafe {
-                        &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out).cast::<::core::mem::MaybeUninit<#inner>>()
+                        ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                            .cast::<::core::mem::MaybeUninit<#inner>>()
+                            .as_mut_unchecked()
                     }
                 );
             }

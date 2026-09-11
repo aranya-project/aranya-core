@@ -170,7 +170,7 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
         writeln!(
             f,
             "    {}",
-            fmt_fn(|f| {
+            core::fmt::from_fn(|f| {
                 match ins {
                     // Show target label for calls.
                     Instruction::Call(t) => {
@@ -193,23 +193,6 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
     }
 
     Ok(())
-}
-
-/// Display based on supplied function.
-///
-/// Adapted from [`core::fmt::from_fn`] (1.93+).
-fn fmt_fn(f: impl Fn(&mut fmt::Formatter<'_>) -> fmt::Result) -> impl fmt::Display {
-    struct FmtFn<F>(F);
-    impl<F> fmt::Display for FmtFn<F>
-    where
-        F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
-    {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            (self.0)(f)
-        }
-    }
-
-    FmtFn(f)
 }
 
 /// Compiles every fixture except those under `data/unused`, which get their own
