@@ -9,14 +9,8 @@ use crate::{Compiler, validate::validate};
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
 fn compile_pass(text: &str) -> Module {
-    let policy = match parse_policy_str(text, Version::V2) {
-        Ok(p) => p,
-        Err(err) => panic!("{err}"),
-    };
-    match Compiler::new(&policy).debug(true).compile() {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    }
+    let policy = parse_policy_str(text, Version::V2).unwrap();
+    Compiler::new(&policy).debug(true).compile().unwrap()
 }
 
 #[test]

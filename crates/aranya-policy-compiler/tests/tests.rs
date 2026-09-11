@@ -53,10 +53,7 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
 
 #[track_caller]
 fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let policy = match parse_policy_str(text, Version::V2) {
-        Ok(p) => p,
-        Err(err) => panic!("{err}"),
-    };
+    let policy = parse_policy_str(text, Version::V2).unwrap();
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
         .debug(is_debug)
@@ -66,10 +63,7 @@ fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
 fn compile_pass(text: &str, allow_unused: bool) -> Module {
-    match compile(text, allow_unused) {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    }
+    compile(text, allow_unused).unwrap()
 }
 
 // Helper function which parses and compiles policy expecting compile failure.
