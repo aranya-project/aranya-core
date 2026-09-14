@@ -1,7 +1,7 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern, MatchStatement,
-    NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
+    NamedStruct, Param, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
     WithSpanExt as _, thir,
 };
 use buggy::{BugExt as _, bug};
@@ -482,20 +482,7 @@ impl CompileState<'_> {
                         None,
                     )));
                 };
-                // For now all we can do is check that the argument
-                // list has the same length.
-                // TODO(chip): Do more deep type analysis to check
-                // arguments and return types.
-                if signature.args.len() != f.arguments.len() {
-                    let note = format!(
-                        "call to `{}` has {} arguments and it should have {}",
-                        f.identifier,
-                        f.arguments.len(),
-                        signature.args.len()
-                    );
-                    return Err(self.err(BadArgument(note, f.span())));
-                }
-                let f = self.lower_function_call(f)?;
+                let f = self.lower_function_call(f, f.span())?;
 
                 thir::Expression {
                     kind: thir::ExprKind::FunctionCall(f),
@@ -632,6 +619,17 @@ impl CompileState<'_> {
                     },
                     span: expression.span,
                 }
+            }
+            ExprKind::ActionCall(fc) => {
+                if !matches!(self.get_statement_context()?, StatementContext::Action(_)) {
+                    let note = "`action` calls are only valid in actions";
+                    return Err(self.err(InvalidExpression(
+                        note,
+                        expression.clone(),
+                        Some(expression.span),
+                    )));
+                }
+                self.lower_action_call(fc, expression.span)?
             }
             ExprKind::Recall(fc) => {
                 let cmd = match self.get_statement_context()? {
@@ -1002,23 +1000,27 @@ impl CompileState<'_> {
         })
     }
 
-    fn lower_function_call(
+    /// Lowers a call's arguments, checking the arity and each argument against
+    /// the parameter it fills. `span` covers the whole call.
+    fn lower_call_args(
         &mut self,
         fc: &FunctionCall,
-    ) -> Result<thir::FunctionCall, CompileError> {
-        let arg_defs = self
-            .function_signatures
-            .get(&fc.identifier.inner)
-            .ok_or_else(|| {
-                let note = format!("function `{}` not defined", fc.identifier);
-                self.err(NotDefined(note, fc.identifier.span))
-            })?
-            .args
-            .clone();
+        params: &[Param],
+        span: Span,
+    ) -> Result<Vec<thir::Expression>, CompileError> {
+        if params.len() != fc.arguments.len() {
+            let note = format!(
+                "call to `{}` has {} arguments, but it should have {}",
+                fc.identifier,
+                fc.arguments.len(),
+                params.len()
+            );
+            return Err(self.err(BadArgument(note, span)));
+        }
 
         let mut arguments = Vec::new();
 
-        for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
+        for (param, arg_e) in params.iter().zip(&fc.arguments) {
             let arg_te = self.lower_expression(arg_e)?;
             if !arg_te.vtype.fits_type(&param.ty) {
                 let err = InvalidType::new(
@@ -1032,9 +1034,72 @@ impl CompileState<'_> {
             arguments.push(arg_te);
         }
 
+        Ok(arguments)
+    }
+
+    fn lower_function_call(
+        &mut self,
+        fc: &FunctionCall,
+        span: Span,
+    ) -> Result<thir::FunctionCall, CompileError> {
+        let arg_defs = self
+            .function_signatures
+            .get(&fc.identifier.inner)
+            .ok_or_else(|| {
+                let note = format!("function `{}` not defined", fc.identifier);
+                self.err(NotDefined(note, fc.identifier.span))
+            })?
+            .args
+            .clone();
+
+        let arguments = self.lower_call_args(fc, &arg_defs, span)?;
+
         Ok(thir::FunctionCall {
             identifier: fc.identifier.clone(),
             arguments,
+        })
+    }
+
+    /// Lowers an action invocation (`action foo(args)`), validating that the
+    /// action exists and that the argument types match its parameters.
+    ///
+    /// The resulting expression's type is the action's return type: `never` for
+    /// an action that doesn't return, or `result[unit, E]` for a fallible one.
+    /// `span` covers the whole call, including the `action` keyword.
+    fn lower_action_call(
+        &mut self,
+        fc: &FunctionCall,
+        span: Span,
+    ) -> Result<thir::Expression, CompileError> {
+        let Some(action_def) = self
+            .policy
+            .actions
+            .iter()
+            .find(|a| a.identifier == fc.identifier.inner)
+        else {
+            let note = format!("action `{}` not defined", fc.identifier);
+            return Err(self.err(NotDefined(note, fc.identifier.span)));
+        };
+
+        // A non-returning action leaves nothing behind, so its call has type
+        // `never`. A fallible one evaluates to its declared `result`.
+        let return_type = match &action_def.return_type.inner {
+            TypeKind::Unit => VType {
+                inner: TypeKind::Never,
+                span,
+            },
+            _ => action_def.return_type.clone(),
+        };
+        let params = action_def.arguments.clone();
+        let arguments = self.lower_call_args(fc, &params, span)?;
+
+        Ok(thir::Expression {
+            kind: thir::ExprKind::ActionCall(thir::FunctionCall {
+                identifier: fc.identifier.clone(),
+                arguments,
+            }),
+            vtype: return_type,
+            span,
         })
     }
 
@@ -1854,64 +1919,20 @@ impl CompileState<'_> {
                             Some(*finish_ctx_span),
                         )));
                     }
-                    // For now all we can do is check that the argument
-                    // list has the same length.
-                    // TODO(chip): Do more deep type analysis to check
-                    // arguments and return types.
-                    if signature.args.len() != f.arguments.len() {
-                        let note = format!(
-                            "call to `{}` has {} arguments but it should have {}",
-                            f.identifier,
-                            f.arguments.len(),
-                            signature.args.len()
-                        );
-                        return Err(self.err(BadArgument(note, statement.span)));
-                    }
-                    let f = self.lower_function_call(f)?;
+                    let f = self.lower_function_call(f, statement.span)?;
                     thir::StmtKind::FunctionCall(f)
                 }
-                (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
-                    let Some(action_def) = self
-                        .policy
-                        .actions
-                        .iter()
-                        .find(|a| a.identifier == fc.identifier.inner)
-                    else {
-                        let note = format!("action `{}` not defined", fc.identifier);
-                        return Err(self.err(NotDefined(note, fc.identifier.span)));
-                    };
-
-                    if action_def.arguments.len() != fc.arguments.len() {
-                        let note = format!(
-                            "call to `{}` has {} arguments, but it should have {}",
-                            fc.identifier.inner,
-                            fc.arguments.len(),
-                            action_def.arguments.len()
-                        );
-                        return Err(self.err(BadArgument(note, statement.span)));
+                (StmtKind::Expression(e), _) => {
+                    // The context check lives in the expression itself, so a
+                    // call outside an action reports the same error either way.
+                    let te = self.lower_expression(e)?;
+                    // Only `never` leaves nothing behind. Any other value would
+                    // be thrown away here, so make the caller use it.
+                    if !matches!(te.vtype.inner, TypeKind::Never) {
+                        let note = "expression result must be used";
+                        return Err(self.err(InvalidExpression(note, e.clone(), None)));
                     }
-
-                    let mut args = Vec::new();
-                    for (arg, expected_arg) in fc.arguments.iter().zip(action_def.arguments.iter())
-                    {
-                        let arg = self.lower_expression(arg)?;
-                        if !arg.vtype.fits_type(&expected_arg.ty) {
-                            // TODO(Steve): Replace with an 'InvalidType' error to make it consistent with calls to pure functions
-                            let note = format!(
-                                "invalid argument type for `{}`: expected `{}`, but got `{}`",
-                                expected_arg.name,
-                                DisplayType(&expected_arg.ty),
-                                arg.vtype,
-                            );
-                            return Err(self.err(BadArgument(note, statement.span)));
-                        }
-                        args.push(arg);
-                    }
-
-                    thir::StmtKind::ActionCall(thir::FunctionCall {
-                        identifier: fc.identifier.clone(),
-                        arguments: args,
-                    })
+                    thir::StmtKind::Expression(te)
                 }
                 (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
                     let fc_thir = self.lower_recall_call(fc, cmd)?;
