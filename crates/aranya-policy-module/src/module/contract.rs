@@ -189,7 +189,7 @@ impl FunctionContract {
             )));
         }
         if self.args.len() != other.args.len() {
-            return Err(ContractValidationError(format!(
+            return Err(ContractValidationError::new(format_args!(
                 "function `{}` has {} arguments but expected {}",
                 self.name,
                 other.args.len(),
