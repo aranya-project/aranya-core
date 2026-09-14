@@ -6,24 +6,20 @@
 //! from the runtime. It answers one question — *which graph shapes are worth
 //! testing* — and [`super::harness`] answers the rest.
 //!
-//! The realizable shapes are exactly the *braidable prime blocks*: single-sink
-//! prime DAGs whose singles have one parent and merges two concurrent parents
-//! (a parent pair merges at most once), no wider than [`PEERS`]. A peer's own
-//! commands form a chain — each descends from its previous head — so any
-//! antichain has at most one command per peer: a graph is never wider than the
-//! peer count. Conversely every such graph is reachable: assign one peer per
-//! chain of a width decomposition (see [`chain_clients`]) and let each sync a
-//! command's parents just before authoring it (partial sync delivers any causal
-//! prefix, so even a bare merge head is observable).
+//! A client-holdable shape is a DAG grown from a lone init by the moves in
+//! [`extensions`]: a single child of any command, or a merge of two concurrent
+//! commands not already merged (a pair merges at most once), such that the
+//! graph splits into at most [`PEERS`] chains ([`chain_clients`]). Each chain
+//! is one peer's line of authorship, and every such graph is reachable: let
+//! each peer sync a command's parents just before authoring it (partial sync
+//! delivers any causal prefix, so even a bare merge head is observable).
 //!
-//! [`enumerate_braidable`] walks that structural space directly, one
-//! representative per isomorphism class.
+//! [`enumerate_shapes`] walks that space exhaustively, one representative per
+//! isomorphism class; the random sweep in [`super::harness`] samples paths
+//! through it. Both use [`extensions`], so there is one definition of the
+//! shape space.
 
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    vec,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 
 /// Parent choice for a command; indices are 0-based command numbers in the
 /// graph's structure (a topological labeling: command 0 is init, and every
@@ -35,18 +31,18 @@ pub enum ProgParents {
     Merge(usize, usize),
 }
 
-/// The peer count, and so the width cap: a graph is no wider than the number
-/// of peers concurrently authoring (each peer's commands form a single chain).
+/// The peer count, and so the chain cap: a shape splits into at most this
+/// many chains, one per peer authoring it.
 pub const PEERS: usize = 3;
 
 /// The bit for command index `i` (i < 64, always true for our sizes).
-pub(crate) fn cmd_bit(i: usize) -> u64 {
+fn cmd_bit(i: usize) -> u64 {
     1u64.checked_shl(u32::try_from(i).expect("command index < 64"))
         .expect("command index < 64")
 }
 
 /// `anc[i]` = bitmask of command i and all of its ancestors.
-pub(crate) fn anc_masks(structure: &[ProgParents]) -> Vec<u64> {
+fn anc_masks(structure: &[ProgParents]) -> Vec<u64> {
     let n = structure.len();
     let mut anc = vec![0u64; n];
     for i in 0..n {
@@ -66,162 +62,68 @@ pub(crate) fn concurrent(anc: &[u64], a: usize, b: usize) -> bool {
     a != b && anc[a] & cmd_bit(b) == 0 && anc[b] & cmd_bit(a) == 0
 }
 
-/// `has_child[i]` = whether some command names `i` as a parent.
-pub(crate) fn has_child(structure: &[ProgParents]) -> Vec<bool> {
-    let mut has_child = vec![false; structure.len()];
-    for p in structure {
-        match *p {
-            ProgParents::Init => {}
-            ProgParents::Single(j) => has_child[j] = true,
-            ProgParents::Merge(j, k) => {
-                has_child[j] = true;
-                has_child[k] = true;
-            }
-        }
-    }
-    has_child
-}
-
-/// A graph is a *prime block* when the only width-1 points — commands
-/// comparable (ancestor-or-descendant) to every other — are the base and the
-/// closing merge, i.e. exactly two. An intermediate width-1 point would split
-/// it into smaller braidable regions.
-fn is_prime(structure: &[ProgParents]) -> bool {
-    let n = structure.len();
-    if n < 3 {
-        return false;
-    }
-    let anc = anc_masks(structure);
-    (0..n)
-        .filter(|&c| (0..n).all(|d| !concurrent(&anc, c, d)))
-        .count()
-        == 2
-}
-
 /// The index of the merge of parents `a < b`, if the graph already has it.
-pub(crate) fn find_merge(structure: &[ProgParents], a: usize, b: usize) -> Option<usize> {
+fn find_merge(structure: &[ProgParents], a: usize, b: usize) -> Option<usize> {
     structure
         .iter()
         .position(|p| matches!(*p, ProgParents::Merge(x, y) if x == a && y == b))
 }
 
-/// The number of commands with no child — the graph's global heads.
-fn global_sink_count(structure: &[ProgParents]) -> usize {
-    has_child(structure).iter().filter(|&&c| !c).count()
+/// The number of chains [`chain_clients`] splits the shape into.
+pub(crate) fn chain_count(structure: &[ProgParents]) -> usize {
+    chain_clients(structure)
+        .iter()
+        .max()
+        .map_or(0, |&m| m.checked_add(1).expect("chain count fits"))
 }
 
-/// The width (largest antichain) of a shape: a minimum chain cover of the
-/// reachability order, which by König/Dilworth is `n` minus a maximum bipartite
-/// matching of the proper-ancestor relation.
-pub(crate) fn graph_width(structure: &[ProgParents]) -> usize {
+/// Every shape one command larger: a single child of any command, or a merge
+/// of any concurrent pair not already merged, keeping at most [`PEERS`]
+/// chains. This is the one definition of the shape space.
+///
+/// The chain cap can be applied while growing because removing a sink never
+/// increases a minimum path cover, so every prefix of a shape within the cap
+/// is itself within the cap. A single child of the newest command (a sink)
+/// never adds a chain, so the result is never empty.
+pub fn extensions(structure: &[ProgParents]) -> Vec<Vec<ProgParents>> {
     let n = structure.len();
     let anc = anc_masks(structure);
-    // desc[x] = the commands x is a proper ancestor of (its right-side edges).
-    let mut desc: Vec<Vec<usize>> = vec![Vec::new(); n];
-    for (y, &anc_y) in anc.iter().enumerate() {
-        for (x, edges) in desc.iter_mut().enumerate() {
-            if x != y && anc_y & cmd_bit(x) != 0 {
-                edges.push(y);
+    let mut moves: Vec<ProgParents> = (0..n).map(ProgParents::Single).collect();
+    for k in 0..n {
+        for j in 0..k {
+            if concurrent(&anc, j, k) && find_merge(structure, j, k).is_none() {
+                moves.push(ProgParents::Merge(j, k));
             }
         }
     }
-    let mut match_pred: Vec<Option<usize>> = vec![None; n];
-    for u in 0..n {
-        let mut used = vec![false; n];
-        augment(u, &desc, &mut match_pred, &mut used);
-    }
-    let matched = match_pred.iter().filter(|m| m.is_some()).count();
-    n.checked_sub(matched).expect("matching size <= n")
+    moves
+        .into_iter()
+        .map(|parents| {
+            let mut next = structure.to_vec();
+            next.push(parents);
+            next
+        })
+        .filter(|next| chain_count(next) <= PEERS)
+        .collect()
 }
 
-/// One augmenting step of Kuhn's maximum-bipartite-matching, shared by the two
-/// matchings this module builds ([`graph_width`] over the ancestor relation and
-/// [`chain_clients`] over direct parent edges).
-fn augment(
-    u: usize,
-    children: &[Vec<usize>],
-    match_pred: &mut [Option<usize>],
-    used: &mut [bool],
-) -> bool {
-    for &v in &children[u] {
-        if used[v] {
-            continue;
-        }
-        used[v] = true;
-        if match_pred[v].is_none()
-            || augment(match_pred[v].expect("some"), children, match_pred, used)
-        {
-            match_pred[v] = Some(u);
-            return true;
-        }
-    }
-    false
-}
-
-/// Every braidable prime block of at most `max_n` commands, one representative
-/// per isomorphism class, as a bare parent structure.
-///
-/// The shapes are exactly the graphs a client can hold: single-sink prime DAGs
-/// with singles (one parent) and merges (two concurrent parents, each pair
-/// merged at most once), no wider than [`PEERS`]. A breadth-first walk grows
-/// every such graph — adding a single child of any command, or a merge of any
-/// concurrent not-yet-merged pair — deduplicated up to isomorphism and pruned
-/// on width and command budget. [`super::harness::shape_only_program`] turns a
-/// shape into a runnable distributed schedule.
-pub fn enumerate_braidable(max_n: usize) -> Vec<Vec<ProgParents>> {
-    let mut visited: BTreeSet<Vec<(u8, usize, usize)>> = BTreeSet::new();
-    let mut blocks: BTreeMap<Vec<(u8, usize, usize)>, Vec<ProgParents>> = BTreeMap::new();
-    let mut stack: Vec<Vec<ProgParents>> = vec![vec![ProgParents::Init]];
-
+/// Every client-holdable shape of at most `max_n` commands, one representative
+/// per isomorphism class: a depth-first walk over [`extensions`] from the lone
+/// init, deduplicated by [`canonical_key`]. Isomorphic shapes have isomorphic
+/// extensions, so expanding one representative per class loses nothing.
+pub fn enumerate_shapes(max_n: usize) -> Vec<Vec<ProgParents>> {
+    let mut seen: BTreeMap<Vec<(u8, usize, usize)>, Vec<ProgParents>> = BTreeMap::new();
+    let mut stack = vec![vec![ProgParents::Init]];
     while let Some(structure) = stack.pop() {
-        let key = canonical_key(&structure);
-        if !visited.insert(key.clone()) {
+        if seen.contains_key(&canonical_key(&structure)) {
             continue;
         }
-        let sinks = global_sink_count(&structure);
-        // A block is closed (one head) and irreducible (no interior width-1
-        // point that would split it into smaller braidable regions).
-        if sinks == 1 && is_prime(&structure) {
-            blocks.entry(key).or_insert_with(|| structure.clone());
+        if structure.len() < max_n {
+            stack.extend(extensions(&structure));
         }
-        if structure.len() >= max_n {
-            continue;
-        }
-        // Budget prune: s heads need at least s-1 more merges to reconverge to
-        // a single head, so a shape that cannot afford them in the commands
-        // left can never close a block.
-        if sinks > 1 {
-            let remaining = max_n.checked_sub(structure.len()).expect("len <= max_n");
-            if remaining < sinks.checked_sub(1).expect("sinks >= 1") {
-                continue;
-            }
-        }
-        let n = structure.len();
-        let anc = anc_masks(&structure);
-        // A single child of any command.
-        for v in 0..n {
-            let mut next = structure.clone();
-            next.push(ProgParents::Single(v));
-            if graph_width(&next) <= PEERS {
-                stack.push(next);
-            }
-        }
-        // A merge of any concurrent pair not already merged (init, ancestor of
-        // all, is never concurrent with anything).
-        for k in 0..n {
-            for j in 0..k {
-                if concurrent(&anc, j, k) && find_merge(&structure, j, k).is_none() {
-                    let mut next = structure.clone();
-                    next.push(ProgParents::Merge(j, k));
-                    if graph_width(&next) <= PEERS {
-                        stack.push(next);
-                    }
-                }
-            }
-        }
+        seen.insert(canonical_key(&structure), structure);
     }
-
-    blocks.into_values().collect()
+    seen.into_values().collect()
 }
 
 /// Canonical isomorphism key of a shape: the lexicographically-minimal parent
@@ -304,6 +206,29 @@ fn canonical_key(structure: &[ProgParents]) -> Vec<(u8, usize, usize)> {
             placed[i] = false;
         }
     }
+}
+
+/// One augmenting step of Kuhn's maximum-bipartite-matching, used by
+/// [`chain_clients`] to build a minimum path cover over direct parent edges.
+fn augment(
+    u: usize,
+    children: &[Vec<usize>],
+    match_pred: &mut [Option<usize>],
+    used: &mut [bool],
+) -> bool {
+    for &v in &children[u] {
+        if used[v] {
+            continue;
+        }
+        used[v] = true;
+        if match_pred[v].is_none()
+            || augment(match_pred[v].expect("some"), children, match_pred, used)
+        {
+            match_pred[v] = Some(u);
+            return true;
+        }
+    }
+    false
 }
 
 /// Assign each command to a client by a minimum chain decomposition of the
@@ -400,64 +325,85 @@ mod tests {
         assert_ne!(canonical_key(&left), canonical_key(&chain));
     }
 
-    /// Braidable prime blocks by command count, up to isomorphism, through
-    /// n=9. The sequence continues with 1157 at n=10, validated out of band
-    /// under a release build.
     #[test]
-    fn braidable_shape_counts() {
-        let mut by_n = [0usize; 10];
-        for structure in enumerate_braidable(9) {
+    fn extensions_are_client_holdable() {
+        // Every move from every small shape keeps the structure valid:
+        // parents precede the new command, merges join a concurrent pair
+        // merged nowhere else, and the chain cap holds.
+        for structure in enumerate_shapes(5) {
+            let anc = anc_masks(&structure);
+            for next in extensions(&structure) {
+                let i = structure.len();
+                assert_eq!(&next[..i], &structure[..]);
+                match next[i] {
+                    ProgParents::Init => panic!("init only at index 0"),
+                    ProgParents::Single(j) => assert!(j < i),
+                    ProgParents::Merge(j, k) => {
+                        assert!(j < k && k < i);
+                        assert!(concurrent(&anc, j, k), "merge of non-concurrent pair");
+                        assert!(find_merge(&structure, j, k).is_none(), "pair merged twice");
+                    }
+                }
+                assert!(chain_count(&next) <= PEERS);
+            }
+        }
+    }
+
+    /// Client-holdable shapes by command count, up to isomorphism.
+    #[test]
+    fn shape_counts() {
+        let mut by_n = [0usize; 9];
+        for structure in enumerate_shapes(8) {
             by_n[structure.len()] = by_n[structure.len()].checked_add(1).expect("count fits");
         }
-        let seq: Vec<usize> = (4..=9).map(|n| by_n[n]).collect();
         assert_eq!(
-            seq,
-            vec![1, 1, 4, 13, 53, 234],
-            "braidable shape counts changed"
+            by_n[1..],
+            [1, 1, 2, 5, 13, 41, 151, 635],
+            "shape counts changed"
         );
     }
 
     #[test]
     fn chain_clients_one_per_branch() {
-        let width = |s: &[ProgParents]| *chain_clients(s).iter().max().unwrap();
+        let chains = |s: &[ProgParents]| chain_count(s);
         // A chain is one branch; a fork two; a three-way fan-out three; a
-        // diamond has width two.
+        // diamond has two.
         assert_eq!(
-            width(&[
+            chains(&[
                 ProgParents::Init,
                 ProgParents::Single(0),
                 ProgParents::Single(1)
             ]),
-            0
+            1
         );
         assert_eq!(
-            width(&[
+            chains(&[
                 ProgParents::Init,
                 ProgParents::Single(0),
                 ProgParents::Single(0)
             ]),
-            1
+            2
         );
         assert_eq!(
-            width(&[
+            chains(&[
                 ProgParents::Init,
                 ProgParents::Single(0),
                 ProgParents::Single(0),
                 ProgParents::Single(0),
             ]),
-            2
+            3
         );
         assert_eq!(
-            width(&[
+            chains(&[
                 ProgParents::Init,
                 ProgParents::Single(0),
                 ProgParents::Single(0),
                 ProgParents::Merge(1, 2),
             ]),
-            1
+            2
         );
         // Init is always client 0.
-        for structure in enumerate_braidable(6) {
+        for structure in enumerate_shapes(6) {
             assert_eq!(chain_clients(&structure)[0], 0);
         }
     }
