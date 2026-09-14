@@ -21,22 +21,13 @@ use ciborium as cbor;
 #[track_caller]
 fn compile(text: &str) -> Machine {
     let text = text.trim_start_matches('\n');
-    let policy = match parse_policy_str(text, Version::V2) {
-        Ok(p) => p,
-        Err(err) => panic!("{err}"),
-    };
-    let module = match Compiler::new(&policy)
+    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .debug(true)
         .compile()
-    {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    };
-    match Machine::from_module(module) {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    }
+        .unwrap();
+    Machine::from_module(module).unwrap()
 }
 
 fn dummy_ctx_action(name: Identifier) -> CommandContext {

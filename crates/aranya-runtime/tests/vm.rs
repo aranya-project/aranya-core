@@ -18,11 +18,11 @@ use test_log::test;
 
 /// Creates a `TestPolicyStore` from a policy document.
 fn new_policy_store() -> TestPolicyStore {
-    let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap_or_else(|e| panic!("{e}"));
+    let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap();
     let module = Compiler::new(&ast)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
-        .unwrap_or_else(|e| panic!("{e}"));
+        .unwrap();
     TestPolicyStore::from_module(module)
 }
 
