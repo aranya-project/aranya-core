@@ -1,15 +1,12 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 205
 expression: module
 ---
 Module {
     version: "0",
     labels: {
         <policy 'Foo'>: 1,
-        <seal 'Foo'>: 8,
-        <open 'Foo'>: 15,
-        <action 'foo'>: 23,
+        <action 'foo'>: 8,
     },
     action_defs: [
         ActionDef {
@@ -71,23 +68,6 @@ Module {
     end
     exit normal
     exit panic
-<seal 'Foo'>:
-    def 'payload'
-    def 'this'
-    save SP
-    exit panic
-    restore SP
-    return
-    exit panic
-<open 'Foo'>:
-    def 'envelope'
-    def 'payload'
-    def 'this'
-    save SP
-    exit panic
-    restore SP
-    return
-    exit panic
 <action 'foo'>:
     def 'b'
     const 4
@@ -95,18 +75,18 @@ Module {
     get 'b'
     const 0
     eq
-    branch 34
+    branch 19
     block
     const 3
     end
-    jump 39
-<34>:
+    jump 24
+<19>:
     block
     const 4
     get 'i'
     saturating_add
     end
-<39>:
+<24>:
     def 'x'
     struct.new 'Foo'
     get 'x'

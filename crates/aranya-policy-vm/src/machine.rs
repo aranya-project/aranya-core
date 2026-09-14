@@ -23,8 +23,8 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, OpenContext,
-    PolicyContext, SealContext, Struct, TryAsMut, Value, ValueConversionError,
+    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, PolicyContext,
+    Struct, TryAsMut, Value, ValueConversionError,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -877,7 +877,7 @@ where
                 let (command, recall) = match &self.ctx {
                     CommandContext::Policy(ctx) => (ctx.id, false),
                     CommandContext::Recall(ctx) => (ctx.id, true),
-                    _ => {
+                    CommandContext::Action(_) => {
                         return Err(
                             self.err(MachineErrorType::BadState("Emit: wrong command context"))
                         );
@@ -1249,48 +1249,6 @@ where
             return Err(MachineErrorType::ContextMismatch.into());
         }
         self.setup_action(name, args)?;
-        self.run()
-    }
-
-    /// Call the seal block on this command to produce an envelope. The
-    /// seal block is given an implicit parameter `this` and should
-    /// return an opaque envelope struct on the stack.
-    pub fn call_seal(
-        &mut self,
-        this_data: Struct,
-        payload: Vec<u8>,
-    ) -> Result<ExitReason, MachineError> {
-        let name = this_data.name.clone();
-        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
-
-        // Seal/Open pushes the argument and defines it itself, because
-        // it calls through a function stub. So we just push `this_data`
-        // onto the stack.
-        self.ipush(this_data)?;
-        self.ipush(payload)?;
-        self.run()
-    }
-
-    /// Call the open block on an envelope struct to produce a command struct.
-    pub fn call_open(
-        &mut self,
-        this_data: Struct,
-        payload: Vec<u8>,
-        envelope: Struct,
-    ) -> Result<ExitReason, MachineError> {
-        let name = this_data.name.clone();
-        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
-        self.ipush(this_data)?;
-        self.ipush(payload)?;
-        self.ipush(envelope)?;
         self.run()
     }
 

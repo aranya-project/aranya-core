@@ -301,6 +301,35 @@ fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
     })
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub enum QueryValueError {
+    Storage(#[from] crate::storage::StorageError),
+    MachineIo(#[from] MachineIOError),
+}
+
+pub trait QueryValue {
+    fn query_value(
+        &self,
+        name: &str,
+        keys: &[FactKey],
+    ) -> Result<Option<Vec<FactValue>>, QueryValueError>;
+}
+
+impl<Q: Query> QueryValue for Q {
+    fn query_value(
+        &self,
+        name: &str,
+        keys: &[FactKey],
+    ) -> Result<Option<Vec<FactValue>>, QueryValueError> {
+        let keys: Vec<_> = keys.iter().map(ser_key).collect();
+        Ok(match self.query(name, &keys)? {
+            Some(bytes) => Some(deser_values(bytes)?),
+            None => None,
+        })
+    }
+}
+
 /// An Iterator that returns a sequence of matching facts from a query. It is produced by
 /// the [VmPolicyIO](super::VmPolicyIO) when a query is made by the VM.
 pub struct VmFactCursor<P: Query> {

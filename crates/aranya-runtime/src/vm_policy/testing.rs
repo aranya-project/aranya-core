@@ -1,82 +1,62 @@
 #![cfg(feature = "testing")]
 
-use alloc::vec::Vec;
-use core::convert::Infallible;
+use alloc::borrow::Cow;
 
-use aranya_crypto::{DeviceId, policy::CmdId};
-use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
-use buggy::{BugExt as _, bug};
+use aranya_crypto::{CipherSuite, DeviceId, Engine};
+use aranya_policy_vm::Struct;
 
-use crate::testing::hash_for_testing_only;
+use crate::{
+    command::CmdId,
+    vm_policy::{Envelope, Open, OpenError, QueryValue, Seal, SealError},
+};
 
-pub struct TestFfiEnvelope {
-    pub device: DeviceId,
-}
+pub struct TestSeal(pub DeviceId);
 
-#[ffi(
-    module = "envelope",
-    def = r#"
-struct Envelope {
-    // The parent command ID.
-    parent_id id,
-    // The author's device ID.
-    author_id id,
-    // Uniquely identifies the command.
-    command_id id,
-    // The signature over the command and its contextual
-    // bindings.
-    signature bytes,
-}
-"#
-)]
-impl TestFfiEnvelope {
-    #[ffi_export(def = "function do_seal(payload bytes) struct Envelope")]
-    fn seal<CE>(
+impl<CE: Engine> Seal<CE> for TestSeal {
+    fn seal_command(
         &self,
-        ctx: &CommandContext,
-        _eng: &CE,
-        payload: Vec<u8>,
-    ) -> Result<Envelope, MachineError> {
-        #[derive(serde::Serialize)]
-        struct HashedFields<'a> {
-            parent_id: CmdId,
-            author_id: DeviceId,
-            payload: &'a [u8],
-        }
+        _engine: &CE,
+        _command_struct: &Struct,
+        payload: &[u8],
+        parent_id: CmdId,
+    ) -> Result<Envelope<'_>, SealError> {
+        let author_id = self.0;
 
-        let CommandContext::Seal(ctx) = ctx else {
-            bug!("envelope::do_seal called outside seal context");
-        };
-
-        let parent_id = ctx.head_id;
-        let author_id = self.device;
-
-        let data = postcard::to_allocvec(&HashedFields {
-            parent_id,
-            author_id,
-            payload: &payload,
-        })
-        .assume("can serialize `HashedFields`")?;
-
-        let command_id = hash_for_testing_only(&data);
+        let command_id = cmd_id::<CE::CS>(parent_id, author_id, payload);
 
         Ok(Envelope {
-            parent_id: parent_id.as_base(),
-            author_id: author_id.as_base(),
-            command_id: command_id.as_base(),
-            // TODO(chip): use an actual signature
-            signature: b"LOL".to_vec(),
+            parent_id,
+            author_id,
+            command_id,
+            signature: Cow::Borrowed(b"LOL"),
         })
     }
+}
 
-    #[ffi_export(def = "function do_open(payload bytes, envelope_input struct Envelope) unit")]
-    fn open<CE>(
+pub struct TestOpen;
+
+impl<CE: Engine> Open<CE> for TestOpen {
+    fn open_command(
         &self,
-        _ctx: &CommandContext,
-        _eng: &CE,
-        _payload: Vec<u8>,
-        _envelope_input: Envelope,
-    ) -> Result<(), Infallible> {
+        _command_struct: &Struct,
+        payload: &[u8],
+        envelope: &Envelope<'_>,
+        _facts: &dyn QueryValue,
+    ) -> Result<(), OpenError> {
+        let command_id = cmd_id::<CE::CS>(envelope.parent_id, envelope.author_id, payload);
+
+        if envelope.command_id != command_id {
+            return Err(OpenError::IdMismatch);
+        }
+
         Ok(())
     }
+}
+
+fn cmd_id<CS: CipherSuite>(parent_id: CmdId, author_id: DeviceId, payload: &[u8]) -> CmdId {
+    use aranya_crypto::id::IdExt as _;
+    CmdId::new::<CS>(
+        b"TestSealCommandId",
+        [parent_id.as_bytes(), author_id.as_bytes(), payload],
+    )
 }

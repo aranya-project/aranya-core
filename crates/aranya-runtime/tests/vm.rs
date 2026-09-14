@@ -3,18 +3,13 @@
 
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
-use aranya_policy_vm::ffi::FfiModule as _;
-use aranya_runtime::{
-    testing::vm::{self, TestPolicyStore},
-    vm_policy::testing::TestFfiEnvelope,
-};
+use aranya_runtime::testing::vm::{self, TestPolicyStore};
 use test_log::test;
 
 /// Creates a `TestPolicyStore` from a policy document.
 fn new_policy_store() -> TestPolicyStore {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap();
     let module = Compiler::new(&ast)
-        .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
         .unwrap();
     TestPolicyStore::from_module(module)

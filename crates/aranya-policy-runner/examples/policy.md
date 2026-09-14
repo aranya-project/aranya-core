@@ -20,58 +20,7 @@ use idam
 
 ```policy
 // A device has an ID and a key. The key is used for signing commands.
-fact Device[dev id]=>{key bytes}
-```
-
-## Envelope management
-
-```policy
-// General signing function. It creates an envelope with the given payload (a serialized command)
-// and signing key.
-function sign_command(payload bytes, key option[bytes]) struct Envelope {
-    let parent_id = perspective::head_id()
-    let author_id = device::current_device_id()
-    let author_sign_key_id = match key {
-        Some(k) => Some(idam::derive_sign_key_id(k))
-        None => None
-    }
-    let signed = crypto::sign(
-        author_sign_key_id,
-        payload,
-    )
-    return envelope::new(
-    	parent_id,
-        author_id,
-        signed.command_id,
-        signed.signature,
-    )
-}
-
-// General open function. Opens an envelope using the given signing key and returns the verified
-// payload.
-function open_command(payload bytes, e struct Envelope, key option[bytes]) unit {
-    return crypto::verify(
-        key,
-        envelope::parent_id(e),
-        payload,
-        envelope::command_id(e),
-        envelope::signature(e),
-    )
-}
-
-// Retrieves a device key by taking the current device ID and looking it up in the Device fact.
-function current_device_key() option[bytes] {
-    let author_id = device::current_device_id()
-    let author_dev = query Device[dev: author_id] or return None
-    return Some(author_dev.key)
-}
-
-/// Retrieves a device key by taking the envelope author ID and looking it up in the Device fact.
-function envelope_author_key(envelope struct Envelope) option[bytes] {
-    let author_id = envelope::author_id(envelope)
-    let author_dev = query Device[dev: author_id] or return None
-    return Some(author_dev.key)
-}
+fact DeviceSignPubKey[device_id id]=>{key bytes}
 ```
 
 ## Team Creation
@@ -81,9 +30,9 @@ power than any other user, as there are no privilege levels in this policy, but 
 the first device in the team. See `init.run`.
 
 ```policy
-action init(owner_key bytes) {
-    publish Init{
-        owner_key: owner_key,
+action init(sign_pk bytes) {
+    publish Init {
+        sign_pk: sign_pk
     }
 }
 
@@ -98,18 +47,13 @@ command Init {
     }
 
     fields {
-        owner_key bytes,
+        sign_pk bytes,
     }
-
-    // Note the special case for both seal and open here. The owner key is used explicitly rather
-    // than a device key pulled from a fact, because that fact doesn't yet exist.
-    seal { return sign_command(payload, Some(this.owner_key)) }
-    open { return open_command(payload, envelope, Some(this.owner_key)) }
 
     policy {
         let device_id = device::current_device_id()
         finish {
-            create Device[dev: device_id]=>{key: this.owner_key}
+            create DeviceSignPubKey[device_id: device_id]=>{key: this.sign_pk}
             emit TeamCreated {
                 owner_dev: device_id,
             }
@@ -120,7 +64,7 @@ command Init {
 
 ## Add User
 
-Adding a user is a fairly simple operation of adding their key to the `Device` fact. Their device
+Adding a user is a fairly simple operation of adding their key to the `DeviceSignPubKey` fact. Their device
 ID is the id of this command. See `init.run`.
 
 ```policy
@@ -144,22 +88,15 @@ command AddUser {
         new_user_key bytes,
     }
 
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
-    }
-
     policy {
-        let dev_id = envelope::command_id(envelope)
+        let device_id = envelope::command_id(envelope)
         // Check that this device has not already been added
-        check !exists Device[dev: dev_id] else test_fail("no device")
+        check !exists DeviceSignPubKey[device_id: device_id] else test_fail("no device")
 
         finish {
-            create Device[dev: dev_id]=>{key: this.new_user_key}
+            create DeviceSignPubKey[device_id: device_id]=>{key: this.new_user_key}
             emit UserAdded {
-                dev: dev_id,
+                dev: device_id
             }
         }
     }
@@ -190,18 +127,11 @@ command AddDevice {
         device_key bytes,
     }
 
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
-    }
-
     policy {
-        check !exists Device[dev: this.device_id] else test_fail("no device")
+        check !exists DeviceSignPubKey[device_id: this.device_id] else test_fail("no device")
 
         finish {
-            create Device[dev: this.device_id]=>{key: this.device_key}
+            create DeviceSignPubKey[device_id: this.device_id]=>{key: this.device_key}
             emit UserAdded {
                 dev: this.device_id,
             }
@@ -212,7 +142,7 @@ command AddDevice {
 
 # Get Raw Device
 
-This simply fetches the keys from the `Device` fact, or reports that the device is not found. See
+This simply fetches the keys from the `DeviceSignPubKey` fact, or reports that the device is not found. See
 `get_raw_device.run` and `get_raw_device_not_found.run`.
 
 ```policy
@@ -240,19 +170,12 @@ command GetDevice {
         device_id id,
     }
 
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
-    }
-
     policy {
-        match query Device[dev: this.device_id] {
+        match query DeviceSignPubKey[device_id: this.device_id] {
             Some(device_info) => {
                 finish {
                     emit DeviceInfo {
-                        device_id: device_info.dev,
+                        device_id: device_info.device_id,
                         device_key: device_info.key,
                     }
                 }
@@ -286,13 +209,6 @@ command Hello {
 
     fields {
         msg string,
-    }
-
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {

@@ -242,11 +242,8 @@ impl RunFile {
     ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
             r#"use testing
-            struct Envelope {{ }}
             command CaptureVariables {{
                 fields {{ }}
-                seal {{ return Envelope {{ }} }}
-                open {{ return Unit }}
                 policy {{ }}
             }}
             action preamble() {{

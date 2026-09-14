@@ -1,7 +1,7 @@
 //! VM tests.
 
 extern crate alloc;
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use aranya_crypto::{DeviceId, Rng, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
@@ -16,7 +16,7 @@ use crate::{
     ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::testing::TestFfiEnvelope,
+    vm_policy::testing::{TestOpen, TestSeal},
 };
 
 /// The policy used by these tests.
@@ -25,8 +25,6 @@ policy-version: 2
 ---
 
 ```policy
-use envelope
-
 fact Stuff[x int]=>{y int}
 
 effect StuffHappened {
@@ -46,8 +44,6 @@ command Init {
     fields {
         nonce int,
     }
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
     policy {
         finish {}
     }
@@ -67,8 +63,6 @@ command Create {
         key int,
         value int,
     }
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
@@ -92,8 +86,6 @@ command Increment {
         key int,
         amount int,
     }
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         check stuff.y > 0 else recall default()
@@ -134,8 +126,6 @@ ephemeral command IncrementEphemeral {
         key int,
         amount int,
     }
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         check stuff.y > 0 else recall default()
@@ -190,8 +180,6 @@ command Invalidate {
     fields {
         key int
     }
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         let newval = -1  // hack around negative number parse bug; see #869
@@ -323,9 +311,10 @@ impl TestPolicyStore {
         let policy = VmPolicy::new(
             machine,
             eng,
-            vec![Box::from(TestFfiEnvelope {
-                device: DeviceId::random(Rng),
-            })],
+            // TODO(jdygert): Do we need to test an ffi here?
+            vec![],
+            Arc::new(TestSeal(DeviceId::random(Rng))),
+            Arc::new(TestOpen),
         )
         .expect("Could not load policy");
         Self { policy }

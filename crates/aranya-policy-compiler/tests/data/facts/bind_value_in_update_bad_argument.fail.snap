@@ -4,5 +4,5 @@ expression: error
 ---
 error: bad argument
   |
-9 |             update F[] => {s: ""} to {s: ?}
+7 |             update F[] => {s: ""} to {s: ?}
   |                                          ^ Cannot update fact to a bind value

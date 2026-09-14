@@ -141,8 +141,6 @@ fn test_validate_publish() {
                 fields {
                     a int
                 }
-                seal { return todo() }
-                open { return todo() }
                 policy {
                     finish {}
                 }

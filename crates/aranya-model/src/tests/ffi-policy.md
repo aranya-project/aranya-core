@@ -45,7 +45,7 @@ effect Success {
 }
 
 // A device's public SigningKey.
-fact DeviceSignKey[device_id id]=>{key_id id, key bytes}
+fact DeviceSignPubKey[device_id id]=>{key_id id, key bytes}
 
 // A device's public IdentityKey.
 //
@@ -90,45 +90,6 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
     })
 }
 
-// Seals a serialized basic command into an envelope, using the stored signing key for this device.
-function seal_basic_command(payload bytes) struct Envelope {
-    let parent_id = perspective::head_id()
-    let author_id = device::current_device_id()
-    let author_sign_id = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
-        Some(pk) => Some(pk.key_id)
-        None => None
-    }
-    let signed = crypto::sign(
-        author_sign_id,
-        payload,
-    )
-
-    return envelope::new(
-        parent_id,
-        author_id,
-        signed.command_id,
-        signed.signature,
-    )
-}
-
-// Opens a basic command from an envelope, using the author's stored signing key.
-function open_basic_command(payload bytes, envelope_input struct Envelope) unit {
-    let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
-        Some(pk) => Some(pk.key)
-        None => None
-    }
-    let parent_id = envelope::parent_id(envelope_input)
-
-    return crypto::verify(
-        author_sign_pk,
-        parent_id,
-        payload,
-        envelope::command_id(envelope_input),
-        envelope::signature(envelope_input),
-    )
-}
-
 action init(nonce int, sign_pk bytes) {
     publish Init {
         nonce: nonce,
@@ -146,45 +107,12 @@ command Init {
         sign_pk bytes,
     }
 
-    seal {
-        let parent_id = perspective::head_id()
-        let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
-
-        let signed = crypto::sign(
-            Some(author_sign_sk_id),
-            payload,
-        )
-
-        let author_id = device::current_device_id()
-
-        return envelope::new(
-            parent_id,
-            author_id,
-            signed.command_id,
-            signed.signature,
-        )
-    }
-
-    open {
-        let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
-        let author_sign_pk = this.sign_pk
-
-        return crypto::verify(
-            Some(author_sign_pk),
-            parent_id,
-            payload,
-            envelope::command_id(envelope),
-            envelope::signature(envelope),
-        )
-    }
-
     policy {
         check this.nonce > 0 else test_fail("nonce must be positive")
         finish {}
     }
-
 }
+
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
     publish AddDeviceKeys {
         ident_pk: ident_pk,
@@ -200,39 +128,6 @@ command AddDeviceKeys {
     fields {
         ident_pk bytes,
         sign_pk bytes,
-    }
-
-    seal {
-        let parent_id = perspective::head_id()
-        let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
-
-        let signed = crypto::sign(
-            Some(author_sign_sk_id),
-            payload,
-        )
-
-        let author_id = device::current_device_id()
-
-        return envelope::new(
-            parent_id,
-            author_id,
-            signed.command_id,
-            signed.signature,
-        )
-    }
-
-    open {
-        let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
-        let author_sign_pk = this.sign_pk
-
-        return crypto::verify(
-            Some(author_sign_pk),
-            parent_id,
-            payload,
-            envelope::command_id(envelope),
-            envelope::signature(envelope),
-        )
     }
 
     policy {
@@ -252,7 +147,7 @@ command AddDeviceKeys {
         }
 
         finish {
-            create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
+            create DeviceSignPubKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
             create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
         }
     }
@@ -276,9 +171,6 @@ command Create {
         key_a int,
         value int,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -304,9 +196,6 @@ command Increment {
         key_a int,
         value int,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
@@ -337,10 +226,6 @@ command Decrement {
         value int,
     }
 
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
-
-
     policy {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = sub(stuff.x, this.value) or test_fail()
@@ -367,9 +252,6 @@ ephemeral command CreateGreeting {
         key string,
         value string,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -404,9 +286,6 @@ ephemeral command VerifyGreeting {
         value string,
     }
 
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
-
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
     // with that data.
@@ -433,9 +312,6 @@ command VerifyNoHello {
     }
 
     fields {}
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")

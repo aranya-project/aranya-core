@@ -64,11 +64,6 @@ command Init {
         nonce int
     }
 
-    // Seal and open blocks are required by the policy_vm to transform an envelope
-    // into command fields and vice versa.
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
-
     // The policy block contains statements which query data and check its validity.
     policy {
         check this.nonce > 0 else test_fail("nonce must be positive")
@@ -98,9 +93,6 @@ command Create {
         value int,
     }
 
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
-
     policy {
         finish {
             create Stuff[a: this.key_a]=>{x: this.value}
@@ -121,9 +113,6 @@ ephemeral command CreateEphemeral {
         key_a int,
         value int,
     }
-
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {
@@ -154,9 +143,6 @@ command Increment {
         value int,
     }
 
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
-
     policy {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = add(stuff.x, this.value) or test_fail()
@@ -181,9 +167,6 @@ ephemeral command IncrementEphemeral {
         key_a int,
         value int,
     }
-
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
 
     policy {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
@@ -218,9 +201,6 @@ command Decrement {
         value int,
     }
 
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
-
     policy {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = sub(stuff.x, this.value) or test_fail()
@@ -246,9 +226,6 @@ ephemeral command GetStuff {
         key_a int,
     }
 
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
-
     policy {
         let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
         finish {
@@ -271,9 +248,6 @@ command GetStuffOnGraph {
     fields {
         key_a int,
     }
-
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
 
     policy {
         let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
@@ -299,9 +273,6 @@ ephemeral command CreateGreeting {
         key string,
         value string,
     }
-
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {
@@ -331,9 +302,6 @@ ephemeral command VerifyGreeting {
         key string,
         value string,
     }
-
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
 
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
@@ -366,9 +334,6 @@ command VerifyGreetingOnGraph {
         value string,
     }
 
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
-
     policy {
         let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         check greeting.value == this.value else test_fail("greeting mismatch")
@@ -400,9 +365,6 @@ command StoreSessionData {
         cmd bytes,
     }
 
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
-
     policy {
         finish {
             create PersistedSessionData[command_type: this.key]=>{value: this.cmd}
@@ -426,9 +388,6 @@ command Link {
 
     // Local variables for command
     fields {}
-
-    seal { return envelope::do_seal(payload) }
-    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {
