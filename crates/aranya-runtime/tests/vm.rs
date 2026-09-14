@@ -70,7 +70,10 @@ fn contract_tester<F: FnOnce(&mut ModuleContract)>(contract_mutator: F, expect_e
     let Err(VmPolicyError::ContractValidation(got_error)) = r else {
         panic!("Did not get Contract Validation error")
     };
-    assert_eq!(got_error.to_string(), format!("Contract Validation Error: {expect_error}"));
+    assert_eq!(
+        got_error.to_string(),
+        format!("Contract Validation Error: {expect_error}")
+    );
 }
 
 #[test]
