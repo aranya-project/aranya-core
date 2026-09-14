@@ -13,6 +13,7 @@ fn benchmark_1() {
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
     let module = Compiler::new(&policy)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
+        .debug(true)
         .compile()
         .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
@@ -52,13 +53,16 @@ fn benchmark_1() {
 
 fn benchmark_map() {
     let test = r#"---
-policy-version: 1
+policy-version: 2
 ---
 ```policy
         use envelope
         fact F[i int]=>{ value string }
 
         command Init {
+            attributes {
+                init: true,
+            }
             seal { return envelope::do_seal(payload) }
             open { return envelope::do_open(payload, envelope) }
             policy {
@@ -75,6 +79,9 @@ policy-version: 1
         }
 
         command Insert {
+            attributes {
+                priority: 10,
+            }
             fields {
                 i int,
                 value string
@@ -95,6 +102,9 @@ policy-version: 1
         }
 
         command DoSomething {
+            attributes {
+                priority: 5,
+            }
             fields { i int }
             seal { return envelope::do_seal(payload) }
             open { return envelope::do_open(payload, envelope) }
