@@ -11,6 +11,9 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
 [dependencies]
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false }
 aranya-id = { version = "0.3.0", path = "../aranya-id", default-features = false }

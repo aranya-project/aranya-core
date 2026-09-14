@@ -10,6 +10,10 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[[bin]]
+name = "aranya-policy-vm-explorer"
+bench = false
+
 [features]
 default = []
 
@@ -21,10 +25,6 @@ aranya-policy-vm = { path = "../aranya-policy-vm", features = ["std"] }
 
 anyhow = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
-
-[[bin]]
-name = "aranya-policy-vm-explorer"
-path = "src/main.rs"
 
 [package.metadata.docs.rs]
 all-features = true
