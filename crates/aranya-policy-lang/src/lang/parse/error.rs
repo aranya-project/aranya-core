@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use core::fmt::{self, Debug, Display};
 
 use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
@@ -18,7 +18,7 @@ pub struct InvalidOperator {
 }
 
 impl Display for InvalidOperator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Invalid operator")
     }
 }
@@ -31,7 +31,7 @@ pub struct InvalidVersion {
 }
 
 impl Display for InvalidVersion {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let found = &self.found;
         let required = &self.required;
         write!(
@@ -51,7 +51,7 @@ pub struct InvalidNestedOption {
 }
 
 impl Display for InvalidNestedOption {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Invalid nested option")
     }
 }
@@ -115,7 +115,7 @@ impl From<InvalidNestedOption> for ParseErrorKind {
 }
 
 impl Display for ParseErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidOperator(inner) => write!(f, "{inner}"),
             Self::InvalidNestedOption(inner) => write!(f, "{inner}"),
@@ -136,7 +136,7 @@ impl Display for ParseErrorKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ParseError {
     pub kind: Box<ParseErrorKind>,
     pub message: String,
@@ -209,3 +209,10 @@ impl From<Bug> for ParseError {
 
 // Implement default Error via Display and Debug
 impl core::error::Error for ParseError {}
+
+// Forward to display impl so e.g. `unwrap` looks good.
+impl Debug for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}

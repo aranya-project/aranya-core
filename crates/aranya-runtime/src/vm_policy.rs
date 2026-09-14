@@ -887,10 +887,8 @@ mod test {
         ];
 
         for case in cases {
-            let ast = parse_policy_str(case, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-            let module = Compiler::new(&ast)
-                .compile()
-                .unwrap_or_else(|e| panic!("{e}"));
+            let ast = parse_policy_str(case, Version::V2).unwrap();
+            let module = Compiler::new(&ast).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let err = get_command_priorities(&machine).expect_err("should fail");
             assert_eq!(
@@ -916,10 +914,8 @@ mod test {
                 }}
                 "#
             );
-            let ast = parse_policy_str(&policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-            let module = Compiler::new(&ast)
-                .compile()
-                .unwrap_or_else(|e| panic!("{e}"));
+            let ast = parse_policy_str(&policy, Version::V2).unwrap();
+            let module = Compiler::new(&ast).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let priorities = get_command_priorities(&machine)?;
             Ok(*priorities.get("Test").expect("priorities are mandatory"))
