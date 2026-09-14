@@ -260,6 +260,34 @@ fn test_action_call_action() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_action_call_expression() -> anyhow::Result<()> {
+    // An action call is an expression, so `outer` can propagate `inner`'s result.
+    let machine = compile(
+        r#"
+        action inner() result[unit, string] {
+            return Err("inner fail")
+        }
+
+        action outer() result[unit, string] {
+            return action inner()
+        }
+    "#,
+    );
+
+    let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(ident!("outer"));
+    let mut rs = machine.create_run_state(&mut io, ctx);
+    rs.call_action(ident!("outer"), iter::empty::<Value>())?
+        .success();
+    assert_eq!(
+        rs.stack.pop_value()?,
+        Value::Result(Err(Box::new(Value::String(text!("inner fail")))))
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_command_policy() -> anyhow::Result<()> {
     let name = ident!("Foo");
     let mut machine = compile(TEST_POLICY_1);

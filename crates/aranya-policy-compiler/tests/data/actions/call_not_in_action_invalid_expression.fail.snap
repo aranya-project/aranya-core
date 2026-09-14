@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid expression
+  |
+3 |     action bar()
+  |     ^^^^^^^^^^^^ `action` calls are only valid in actions

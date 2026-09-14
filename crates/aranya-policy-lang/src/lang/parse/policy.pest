@@ -149,6 +149,8 @@ function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)* ~ ","?)? 
 // A foreign function call is an identifier followed by double-colons
 // and a function call.
 foreign_function_call = { identifier ~ "::" ~ function_call }
+// Calls an action. Only valid inside action blocks.
+action_call = { "action" ~ function_call }
 // Split "Result::Ok" into enum name and value name in order to resolve value to integer
 enum_reference = { identifier ~ "::" ~ identifier }
 
@@ -226,6 +228,7 @@ atom = _{
     | recall_expression
     | function_call
     | foreign_function_call
+    | action_call
     | enum_reference
     | this
     | identifier
@@ -286,8 +289,6 @@ postfix_op = _{
 expression = { prefix_op* ~ atom ~ postfix_op* ~ (infix_op ~ prefix_op* ~ atom ~ postfix_op*)* }
 
 // # Statements
-// The action statement calls an action. Only valid inside an action block.
-action_call = { "action" ~ function_call }
 // The publish statement publishes the expression as a command.
 publish_statement = { "publish" ~ expression }
 // A let statement assigns a value to an identifier. Identifiers can
