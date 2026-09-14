@@ -5,4 +5,4 @@ expression: error
 error: bad argument
    |
 19 |             f()
-   |             ^^^ call to `f` has 0 arguments but it should have 1
+   |             ^^^ call to `f` has 0 arguments, but it should have 1

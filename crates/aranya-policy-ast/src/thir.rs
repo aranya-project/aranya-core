@@ -155,6 +155,8 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// Calls an action, evaluating to the action's return value.
+    ActionCall(FunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
     /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
@@ -394,8 +396,8 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Calls an action
-    ActionCall(FunctionCall),
+    /// Evaluate an expression and discard its value. Used for statement-form expressions, e.g. calling actions that don't return.
+    Expression(Expression),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
     Publish(Expression),

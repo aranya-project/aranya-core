@@ -604,6 +604,8 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// Calls an action, evaluating to the action's return value.
+    ActionCall(FunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
     /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
@@ -689,7 +691,9 @@ impl ExprKind {
             }
 
             // Function call
-            (Self::FunctionCall(a), Self::FunctionCall(b)) | (Self::Recall(a), Self::Recall(b)) => {
+            (Self::FunctionCall(a), Self::FunctionCall(b))
+            | (Self::ActionCall(a), Self::ActionCall(b))
+            | (Self::Recall(a), Self::Recall(b)) => {
                 a.identifier.matches(&b.identifier)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
@@ -880,7 +884,7 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
                     .all(|(s1, s2)| matches_statement(s1, s2))
         }
         (Return(r1), Return(r2)) => r1.expression.inner.matches(&r2.expression.inner),
-        (ActionCall(c1), ActionCall(c2)) | (FunctionCall(c1), FunctionCall(c2)) => {
+        (FunctionCall(c1), FunctionCall(c2)) => {
             c1.identifier.matches(&c2.identifier)
                 && c1.arguments.len() == c2.arguments.len()
                 && c1
@@ -889,9 +893,10 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
                     .zip(&c2.arguments)
                     .all(|(e1, e2)| e1.inner.matches(&e2.inner))
         }
-        (Publish(e1), Publish(e2)) | (Emit(e1), Emit(e2)) | (DebugAssert(e1), DebugAssert(e2)) => {
-            e1.inner.matches(&e2.inner)
-        }
+        (Publish(e1), Publish(e2))
+        | (Emit(e1), Emit(e2))
+        | (DebugAssert(e1), DebugAssert(e2))
+        | (Expression(e1), Expression(e2)) => e1.inner.matches(&e2.inner),
         (Create(c1), Create(c2)) => matches_fact_literal(&c1.fact, &c2.fact),
         (Delete(d1), Delete(d2)) => matches_fact_literal(&d1.fact, &d2.fact),
         (Update(u1), Update(u2)) => {
@@ -1172,8 +1177,9 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Calls an action
-    ActionCall(FunctionCall),
+    /// An [Expression] evaluated for its effect. Its type must be
+    /// [`TypeKind::Never`], so there is no value to discard.
+    Expression(Expression),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
     Publish(Expression),
