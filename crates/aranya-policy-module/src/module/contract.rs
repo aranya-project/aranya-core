@@ -10,7 +10,7 @@ use crate::ffi;
 
 /// An error when validating the contract against expectations
 #[derive(Debug, thiserror::Error)]
-#[error("Contact Validation Error: {msg}")]
+#[error("Contract Validation Error: {msg}")]
 pub struct ContractValidationError {
     // TODO(chip): Add detail
     msg: String,
@@ -22,11 +22,6 @@ impl ContractValidationError {
         Self {
             msg: format!("{msg}"),
         }
-    }
-
-    /// Get the interior error value for testing.
-    pub fn error_str(&self) -> &str {
-        &self.msg
     }
 }
 
