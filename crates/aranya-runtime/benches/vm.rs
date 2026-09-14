@@ -1,15 +1,15 @@
-fn benchmark_1() {
-    use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{bench_measurements, ffi::FfiModule as _};
-    use aranya_runtime::{
-        ClientState, RuntimeBuffers, mem_spill,
-        storage::linear::testing::MemStorageProvider,
-        testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
-        vm_action, vm_effect,
-        vm_policy::testing::TestFfiEnvelope,
-    };
+use aranya_policy_compiler::Compiler;
+use aranya_policy_lang::lang::parse_policy_document;
+use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
+use aranya_runtime::{
+    ClientState, RuntimeBuffers, mem_spill,
+    storage::linear::testing::MemStorageProvider,
+    testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
+    vm_action, vm_effect,
+    vm_policy::testing::TestFfiEnvelope,
+};
 
+fn benchmark_1() {
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
     let module = Compiler::new(&policy)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
@@ -116,17 +116,6 @@ policy-version: 2
         }
 ```
     "#;
-
-    use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
-    use aranya_runtime::{
-        ClientState, RuntimeBuffers, mem_spill,
-        storage::linear::testing::MemStorageProvider,
-        testing::vm::{TestPolicyStore, TestSink},
-        vm_action,
-        vm_policy::testing::TestFfiEnvelope,
-    };
 
     let policy = parse_policy_document(test).expect("should parse");
     let module = Compiler::new(&policy)
