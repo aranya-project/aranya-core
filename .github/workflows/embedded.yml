@@ -32,10 +32,10 @@ jobs:
           - ubuntu-latest
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Checkout aranya-embedded repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
             repository: aranya-project/aranya-embedded
             path: aranya-embedded
