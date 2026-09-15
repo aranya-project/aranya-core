@@ -21,13 +21,14 @@ use aranya_crypto::Rng;
 
 use super::{
     naive::{NaiveCommand, NaivePriority, naive_braid, spec_violation},
-    policy::{ProbeCommand, ProbePolicyStore},
+    policy::{ProbeCommand, ProbePolicyStore, merge_id},
     shapes::{ProgParents, chain_clients},
 };
 use crate::{
-    Address, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, MemSpill, PeerCache, Prior,
-    RuntimeBuffers, StorageProvider, SyncRequester,
+    Address, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, RuntimeBuffers,
+    StorageProvider, SyncRequester,
     command::CommandExt as _,
+    mem_spill,
     policy::NullSink,
     storage::{Query as _, Storage as _, linear::testing::MemStorageProvider},
     testing::{dsl::dispatch, hash_for_testing_only, short_b58},
@@ -61,25 +62,20 @@ pub struct RunResult {
     pub seqs: Vec<String>,
 }
 
-/// Deterministic, hash-distributed command IDs: unique within a program
-/// because the command index is part of the preimage.
-fn derive_id(index: usize, parents: ProgParents) -> CmdId {
-    let mut buf: Vec<u8> = Vec::new();
-    let idx = u8::try_from(index).expect("command index fits in u8");
+/// Deterministic, hash-distributed command ids. Init and single commands hash
+/// their index, so they are unique within a program; a merge takes the id
+/// production expects for its parent pair ([`merge_id`]), which is unique
+/// because a pair merges at most once.
+fn derive_id(index: usize, parents: ProgParents, ids: &[CmdId]) -> CmdId {
     match parents {
-        ProgParents::Init => buf.push(0),
-        ProgParents::Single(j) => {
-            buf.push(1);
-            buf.push(u8::try_from(j).expect("parent index fits in u8"));
+        ProgParents::Init | ProgParents::Single(_) => {
+            hash_for_testing_only(&[u8::try_from(index).expect("command index fits in u8")])
         }
         ProgParents::Merge(j, k) => {
-            buf.push(2);
-            buf.push(u8::try_from(j).expect("parent index fits in u8"));
-            buf.push(u8::try_from(k).expect("parent index fits in u8"));
+            let (a, b) = (ids[j], ids[k]);
+            merge_id(a.min(b), a.max(b))
         }
     }
-    buf.push(idx);
-    hash_for_testing_only(&buf)
 }
 
 /// Render an oracle order as the same string the probe policy builds.
@@ -119,7 +115,7 @@ impl GraphCommands {
         let mut naive_input: Vec<NaiveCommand> = Vec::with_capacity(structure.len());
         let mut ids: Vec<CmdId> = Vec::with_capacity(structure.len());
         for (i, &parents) in structure.iter().enumerate() {
-            let id = derive_id(i, parents);
+            let id = derive_id(i, parents, &ids);
             let (parent_indices, naive_priority) = match parents {
                 ProgParents::Init => (vec![], NaivePriority::Init),
                 ProgParents::Single(j) => (vec![j], NaivePriority::Basic(0)),
@@ -230,9 +226,9 @@ fn sync_pull(
 
         let mut trx = to_c.transaction(gid);
         let received = to_c
-            .add_commands(&mut trx, &mut NullSink, &commands, buffers, MemSpill::new)
+            .add_commands(&mut trx, &mut NullSink, &commands, buffers, mem_spill)
             .expect("add_commands succeeds");
-        to_c.commit(trx, &mut NullSink, buffers, MemSpill::new)
+        to_c.commit(trx, &mut NullSink, buffers, mem_spill)
             .expect("commit succeeds");
 
         let addrs: Vec<Address> = commands.iter().filter_map(|c| c.address().ok()).collect();
@@ -290,10 +286,10 @@ pub fn run_program(program: &Program) -> RunResult {
                 let cmd = graph.command(command);
                 let mut trx = clients[client].transaction(gid);
                 clients[client]
-                    .add_commands(&mut trx, &mut NullSink, &[cmd], &mut buffers, MemSpill::new)
+                    .add_commands(&mut trx, &mut NullSink, &[cmd], &mut buffers, mem_spill)
                     .expect("add_commands succeeds");
                 clients[client]
-                    .commit(trx, &mut NullSink, &mut buffers, MemSpill::new)
+                    .commit(trx, &mut NullSink, &mut buffers, mem_spill)
                     .expect("commit succeeds");
             }
             Step::Sync { from, to } => {

@@ -21,11 +21,18 @@ use crate::{
         Sink,
     },
     storage::{FactPerspective, Keys, Perspective},
-    testing::short_b58,
+    testing::{hash_for_testing_only, short_b58},
 };
 
 pub struct ProbePolicyStore;
 pub struct ProbePolicy;
+
+/// The id of the merge of `left < right`: a hash of the two parent ids.
+/// Production validates every merge it ingests by recomputing its id through
+/// [`Policy::merge`], so the harness derives its authored merge ids here too.
+pub(crate) fn merge_id(left: CmdId, right: CmdId) -> CmdId {
+    hash_for_testing_only([*left.as_array(), *right.as_array()].as_flattened())
+}
 
 /// A command with uniform priority: its rule appends the command's short ID
 /// to the `"seq"` fact, so the committed fact is production's evaluation
@@ -146,12 +153,16 @@ impl Policy for ProbePolicy {
     fn merge<'a>(
         &self,
         _target: &'a mut [u8],
-        _ids: MergeIds,
+        ids: MergeIds,
     ) -> Result<Self::Command<'a>, PolicyError> {
-        // Every merge in a program is authored explicitly, and commit braids
-        // a multi-head set without writing a merge, so production never asks
-        // for one here. That keeps the oracle's input graph exactly the
-        // production graph.
-        unimplemented!("the harness authors every merge explicitly")
+        // Reached only through `validate_merge`: every merge in a program is
+        // authored explicitly, and commit braids a multi-head set without
+        // writing a merge, so production never adds a merge the oracle does
+        // not know about.
+        let (left, right): (Address, Address) = ids.into();
+        Ok(ProbeCommand::new(
+            merge_id(left.id, right.id),
+            Prior::Merge(left, right),
+        ))
     }
 }
