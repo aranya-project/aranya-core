@@ -697,8 +697,8 @@ mod test {
 
     use super::*;
     use crate::{
-        Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
-        TraversalBuffer, mem_spill,
+        Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
+        Prioritized as _, Priority, TraversalBuffer, mem_spill,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -1304,7 +1304,7 @@ mod test {
             for mc in first.max_cut.get()..=last.max_cut.get() {
                 let at = Location::new(first.segment, MaxCut::new(mc));
                 let cmd = segment.get_command(at).unwrap();
-                let stored = segment.get_priority(at).unwrap();
+                let stored = cmd.priority();
                 let (expected, kind) = match cmd.parent() {
                     Prior::None => (Priority::Init, 0),
                     Prior::Merge(..) => (Priority::Merge, 1),

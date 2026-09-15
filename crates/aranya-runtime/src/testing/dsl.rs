@@ -2425,7 +2425,7 @@ test_vectors! {
 mod tests {
     use super::*;
     use crate::{
-        ClientState, Keys,
+        ClientState, Keys, Prioritized as _,
         storage::linear::testing::MemStorageProvider,
         testing::protocol::{TestActions, TestPolicyStore, TestSink},
     };
@@ -2514,7 +2514,7 @@ mod tests {
         let head = single_head(storage)?;
         let segment = storage.get_segment(head)?;
         assert_eq!(
-            segment.get_priority(head).unwrap(),
+            segment.get_command(head).unwrap().priority(),
             crate::Priority::Basic(7)
         );
         Ok(())
@@ -2618,7 +2618,7 @@ mod tests {
         let head = single_head(storage)?;
         let segment = storage.get_segment(head)?;
         assert_eq!(
-            segment.get_priority(head).unwrap(),
+            segment.get_command(head).unwrap().priority(),
             crate::Priority::Basic(1)
         );
         Ok(())

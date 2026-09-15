@@ -311,7 +311,8 @@ use super::convergence_map;
 
 pub(crate) mod strand_heap {
     use crate::{
-        ClientError, CmdId, Command as _, Location, Priority, Segment, Storage, StorageError,
+        ClientError, CmdId, Command as _, Location, Prioritized as _, Priority, Segment, Storage,
+        StorageError,
     };
 
     pub struct Strand<S> {
@@ -332,10 +333,7 @@ pub(crate) mod strand_heap {
                 let cmd = segment
                     .get_command(location)
                     .ok_or(StorageError::CommandOutOfBounds(location))?;
-                let priority = segment
-                    .get_priority(location)
-                    .ok_or(StorageError::CommandOutOfBounds(location))?;
-                (priority, cmd.id())
+                (cmd.priority(), cmd.id())
             };
 
             Ok(Self {
