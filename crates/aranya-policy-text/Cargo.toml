@@ -33,8 +33,7 @@ rkyv = { workspace = true }
 serde = { workspace = true, default-features = false, features = ["alloc"] }
 thiserror = { workspace = true, default-features = false }
 
-# TODO(jdygert): remove dependency on std (text regex)
-proptest = { workspace = true, default-features = false, features = ["alloc", "std"], optional = true }
+proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 
 
 [dev-dependencies]

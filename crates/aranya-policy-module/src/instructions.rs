@@ -160,10 +160,6 @@ pub enum Instruction {
     Jump(Target),
     /// Jump if top of stack is true
     Branch(Target),
-    /// Jump to the beginning of the block
-    Next,
-    /// Jump to the end of the block
-    Last,
     /// Call regular function at target
     Call(Target),
     /// Invoke the named recall block
@@ -236,10 +232,6 @@ pub enum Instruction {
     QueryStart,
     /// Fetches the next result, and pushes it onto the stack
     QueryNext(Identifier),
-    /// Serialize a command struct
-    Serialize,
-    /// Deserialize a command struct
-    Deserialize,
     /// Save the stack depth for later restoration.
     SaveSP,
     /// Restore the stack depth.
@@ -261,8 +253,6 @@ impl Display for Instruction {
             Self::End => write!(f, "end"),
             Self::Jump(t) => write!(f, "jump {t}"),
             Self::Branch(t) => write!(f, "branch {t}"),
-            Self::Next => write!(f, "next"),
-            Self::Last => write!(f, "last"),
             Self::Call(t) => write!(f, "call {t}"),
             Self::Recall(t) => write!(f, "recall {t}"),
             Self::ExtCall(module, proc) => write!(f, "extcall {module} {proc}"),
@@ -297,8 +287,6 @@ impl Display for Instruction {
             Self::FactCount(limit) => write!(f, "fact.count {limit}"),
             Self::QueryStart => write!(f, "query.start"),
             Self::QueryNext(ident) => write!(f, "query.next '{ident}'"),
-            Self::Serialize => write!(f, "serialize"),
-            Self::Deserialize => write!(f, "deserialize"),
             Self::SaveSP => write!(f, "save SP"),
             Self::RestoreSP => write!(f, "restore SP"),
             Self::Meta(m) => write!(f, "meta: {m}"),

@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, hash_map},
     fmt::{self, Display},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use aranya_policy_ast::{
@@ -8,12 +9,14 @@ use aranya_policy_ast::{
     TypeKind, VType,
 };
 use aranya_policy_module::ffi;
+use indexmap::IndexMap;
+use tracing::warn;
 
 use crate::{
     CompileError,
     compile::{
         CompileState,
-        error::{AlreadyDefined, InvalidType, NotDefined},
+        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable, rendering::Error as _},
     },
 };
 
@@ -27,18 +30,27 @@ pub(crate) enum UserType<'a> {
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
 /// scope" is the one on the top of the stack.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct IdentifierTypeStack {
     globals: HashMap<Ident, VType>,
-    locals: Vec<Vec<HashMap<Ident, VType>>>,
+    locals: Vec<Vec<IndexMap<Ident, Local>>>,
+    /// When set, don't error on unused vars
+    allow_unused: bool,
+}
+
+#[derive(Debug)]
+struct Local {
+    ty: VType,
+    used: AtomicBool,
 }
 
 impl IdentifierTypeStack {
     /// Create a new `IdentifierTypeStack`
-    pub fn new() -> Self {
+    pub fn new(allow_unused: bool) -> Self {
         Self {
             globals: HashMap::new(),
-            locals: vec![vec![HashMap::new()]],
+            locals: vec![vec![IndexMap::new()]],
+            allow_unused,
         }
     }
 
@@ -59,7 +71,7 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
-    pub fn add(&mut self, ident: Ident, value: VType) -> Result<(), AlreadyDefined> {
+    pub fn add(&mut self, ident: Ident, ty: VType) -> Result<(), AlreadyDefined> {
         if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
             return Err(AlreadyDefined::new(existing_global.clone(), ident));
         }
@@ -71,11 +83,14 @@ impl IdentifierTypeStack {
         }
         let block = locals.last_mut().expect("no block scope");
         match block.entry(ident) {
-            hash_map::Entry::Occupied(_) => {
+            indexmap::map::Entry::Occupied(_) => {
                 unreachable!();
             }
-            hash_map::Entry::Vacant(e) => {
-                e.insert(value);
+            indexmap::map::Entry::Vacant(e) => {
+                e.insert(Local {
+                    ty,
+                    used: AtomicBool::new(false),
+                });
             }
         }
         Ok(())
@@ -88,7 +103,8 @@ impl IdentifierTypeStack {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
-                    return Ok(v.clone());
+                    v.used.store(true, Ordering::Relaxed);
+                    return Ok(v.ty.clone());
                 }
             }
         }
@@ -100,13 +116,16 @@ impl IdentifierTypeStack {
 
     /// Push a new, empty scope on top of the type stack.
     pub fn enter_function(&mut self) {
-        self.locals.push(vec![HashMap::new()]);
+        self.locals.push(vec![IndexMap::new()]);
     }
 
     /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
     /// stack, as this indicates a mistake in the compiler.
-    pub fn exit_function(&mut self) {
-        self.locals.pop().expect("no function scope");
+    pub fn exit_function(&mut self) -> Result<(), UnusedVariable> {
+        let unused = self.exit_block();
+        let locals = self.locals.pop().expect("no function scope");
+        assert!(locals.is_empty());
+        unused
     }
 
     /// Enter a new block scope.
@@ -114,16 +133,36 @@ impl IdentifierTypeStack {
         self.locals
             .last_mut()
             .expect("no function scope")
-            .push(HashMap::new());
+            .push(IndexMap::new());
     }
 
-    /// Exit the current block scope.
-    pub fn exit_block(&mut self) {
-        self.locals
+    /// Exit the current block scope, reporting any bindings in it that was never
+    /// read.
+    pub fn exit_block(&mut self) -> Result<(), UnusedVariable> {
+        let scope = self
+            .locals
             .last_mut()
             .expect("no function scope")
             .pop()
             .expect("no block scope");
+
+        let unused: Vec<Ident> = scope
+            .into_iter()
+            .filter(|(_, local)| !local.used.load(Ordering::Relaxed))
+            .map(|(name, _)| name)
+            // Skip compiler-synthesized vars (like this, envelope, payload).
+            .filter(|name| !name.span().is_empty())
+            .collect();
+
+        if !unused.is_empty() {
+            let err = UnusedVariable { names: unused };
+            if self.allow_unused {
+                warn!("{}", err.description());
+            } else {
+                return Err(err);
+            }
+        }
+        Ok(())
     }
 }
 

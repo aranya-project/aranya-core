@@ -7,6 +7,7 @@ use super::{
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
     InvalidType, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm,
     SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError, UnreachableMatchArm,
+    UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -555,5 +556,26 @@ impl Error for UnknownError {
     }
     fn description(&self) -> String {
         format!("unknown error: {}", self.0)
+    }
+}
+
+impl Error for UnusedVariable {
+    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.description());
+
+        report.push(
+            title.element(
+                Snippet::source(input).annotations(self.names.iter().map(|name| {
+                    AnnotationKind::Primary
+                        .span(name.span.into())
+                        .label("never used")
+                })),
+            ),
+        );
+    }
+
+    fn description(&self) -> String {
+        let names: Vec<String> = self.names.iter().map(|n| format!("`{n}`")).collect();
+        format!("unused variable(s): {}", names.join(", "))
     }
 }

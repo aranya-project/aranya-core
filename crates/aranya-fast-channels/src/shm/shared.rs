@@ -10,15 +10,14 @@ use core::{
 use aranya_crypto::{
     CipherSuite, Csprng, DeviceId, Random,
     afc::{RawOpenKey, RawSealKey},
-    dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
+    dangerous::spideroak_crypto::aead::Aead,
     policy::LabelId,
 };
 use buggy::{Bug, BugExt as _};
-use cfg_if::cfg_if;
 use derive_where::derive_where;
 
 use super::{
-    align::{CacheAligned, layout_repeat},
+    align::CacheAligned,
     error::{
         Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
         bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
@@ -37,10 +36,11 @@ use crate::{
     util::{const_assert, debug},
 };
 
-cfg_if! {
-    if #[cfg(feature = "sdlib")] {
+cfg_select! {
+    feature = "sdlib" => {
         use super::sdlib::Mapping;
-    } else {
+    }
+    _ => {
         use super::posix::Mapping;
     }
 }
@@ -366,8 +366,6 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// The key/nonce used to decrypt data from the channel peer.
     #[derive_where(skip(Debug))]
     pub open_key: RawOpenKey<CS>,
-    /// Uniquely identifies `seal_key` and `open_key`.
-    pub key_id: KeyId,
 }
 assert_ffi_safe!(ShmChan<aranya_crypto::default::DefaultCipherSuite>);
 
@@ -408,7 +406,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
         // a ciphertext.
         let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(&rng));
         let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(&rng));
-        let key_id = KeyId::new(&seal_key, &open_key);
         let chan = Self {
             magic: Self::MAGIC,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
@@ -417,7 +414,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
             peer_id,
             seal_key,
             open_key,
-            key_id,
         };
         ptr.write(chan);
     }
@@ -676,7 +672,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         let list = unsafe {
             let ptr = ptr::from_ref::<Self>(self).byte_add(off.into());
             let ptr = ptr.cast::<ChanList<CS>>();
-            &*ptr
+            ptr.as_ref_unchecked()
         };
         list.check()?;
         Ok(&list.data)
@@ -712,7 +708,7 @@ struct ChanList<CS> {
     /// The locked list data.
     data: Mutex<ChanListData<CS>>,
 }
-assert_ffi_safe!(ChanList<aranya_crypto::default::DefaultEngine<aranya_crypto::Rng>>);
+assert_ffi_safe!(ChanList<aranya_crypto::default::DefaultCipherSuite>);
 
 impl<CS: CipherSuite> ChanList<CS> {
     const MAGIC: U32 = U32::new(0x1b771244);
@@ -721,11 +717,10 @@ impl<CS: CipherSuite> ChanList<CS> {
     ///
     /// It reports whether it is page aligned.
     fn layout(max_chans: usize) -> Result<(Layout, bool), LayoutError> {
-        let chans = layout_repeat(ShmChan::<CS>::layout(), max_chans)?;
+        let chans = ShmChan::<CS>::layout().repeat(max_chans)?.0;
 
         // Extend by the size of the trailing data.
-        let layout = Layout::new::<Self>();
-        let (layout, _) = layout.extend(chans)?;
+        let layout = Layout::new::<Self>().extend(chans)?.0;
 
         // If the cumulative size of the two sides are going to
         // straddle multiple pages, align each to the page size.
@@ -801,7 +796,7 @@ pub(super) struct ChanListData<CS> {
     /// It is a ZST and does not affect the memory layout.
     chans: PhantomData<CS>,
 }
-assert_ffi_safe!(ChanListData<aranya_crypto::default::DefaultEngine<aranya_crypto::Rng>>);
+assert_ffi_safe!(ChanListData<aranya_crypto::default::DefaultCipherSuite>);
 
 const_assert!(
     // `Mutex` is 8 bytes, so ensure that `Mutex<ChanListData>`
@@ -1012,7 +1007,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
             // SAFETY: `chan` is borrowed from self then
             // immediately returned. The lifetime of the
             // returned value is tied to self.
-            return Ok(Some((unsafe { &mut *chan }, hint)));
+            return Ok(Some((unsafe { chan.as_mut_unchecked() }, hint)));
         }
 
         // The index (if any) wasn't valid, so fall back to
@@ -1061,29 +1056,6 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         Ok(self.chans_mut()?.iter_mut())
-    }
-}
-
-/// Uniquely identifies a [`RawSealKey`], [`RawOpenKey`] tuple.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(super) struct KeyId([u8; 16]);
-
-impl KeyId {
-    fn new<CS: CipherSuite>(seal: &RawSealKey<CS>, open: &RawOpenKey<CS>) -> Self {
-        let id = tuple_hash::<CS::Hash, _>([
-            seal.key.as_bytes(),
-            &seal.base_nonce,
-            open.key.as_bytes(),
-            &open.base_nonce,
-        ])
-        .into_array();
-        #[allow(
-            clippy::unwrap_used,
-            clippy::indexing_slicing,
-            reason = "The compiler proves that this does not panic."
-        )]
-        Self(id[..16].try_into().unwrap())
     }
 }
 
