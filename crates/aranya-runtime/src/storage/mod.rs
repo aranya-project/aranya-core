@@ -889,7 +889,7 @@ pub trait Storage {
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
     type FactIndex: FactIndex;
-    type Command<'a>: Command
+    type Command<'a>: Command + Prioritized
     where
         Self: 'a;
 
@@ -907,13 +907,6 @@ pub trait Segment {
 
     /// Returns the command at the given location.
     fn get_command(&self, location: Location) -> Option<Self::Command<'_>>;
-
-    /// Returns the priority of the command at the given location.
-    ///
-    /// Priorities are assigned at ingest (structurally for merge and init
-    /// commands, by the policy for evaluated commands) and persisted with
-    /// the command.
-    fn get_priority(&self, location: Location) -> Option<Priority>;
 
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
@@ -1084,6 +1077,12 @@ pub trait QueryMut: Query {
 
     /// Delete any fact associated to the compound key, under the given name.
     fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
+}
+
+/// Stored commands hold their validated priority.
+pub trait Prioritized {
+    /// Get this command's priority.
+    fn priority(&self) -> Priority;
 }
 
 // TODO(jdygert): Expose this?

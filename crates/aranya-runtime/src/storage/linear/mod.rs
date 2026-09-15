@@ -37,8 +37,8 @@ use vec1::Vec1;
 use crate::{
     Address, Bytes, Checkpoint, CmdId, Command, CommandExt as _, Fact, FactIndex, FactPerspective,
     GraphId, HeadSet, HeadSetOffset, Keys, LocatedAddress, Location, MaxCut, Perspective, PolicyId,
-    Prior, Priority, Query, QueryMut, Revertable, Segment, SegmentIndex, Storage, StorageError,
-    StorageProvider,
+    Prior, Prioritized, Priority, Query, QueryMut, Revertable, Segment, SegmentIndex, Storage,
+    StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -104,6 +104,7 @@ struct CommandData {
 pub struct LinearCommand<'a> {
     id: &'a CmdId,
     parent: Prior<Address>,
+    priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
 }
@@ -850,17 +851,10 @@ impl<R: Read> Segment for LinearSegment<R> {
         Some(LinearCommand {
             id: &data.id,
             parent,
+            priority: data.priority.clone(),
             policy: data.policy.as_deref(),
             data: &data.data,
         })
-    }
-
-    fn get_priority(&self, location: Location) -> Option<Priority> {
-        if self.repr.offset != location.segment {
-            return None;
-        }
-        let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
-        Some(self.repr.commands.get(cmd_idx)?.priority.clone())
     }
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
@@ -1225,6 +1219,12 @@ impl From<Prior<Address>> for Prior<CmdId> {
             Prior::Single(l) => Self::Single(l.id),
             Prior::Merge(l, r) => Self::Merge(l.id, r.id),
         }
+    }
+}
+
+impl Prioritized for LinearCommand<'_> {
+    fn priority(&self) -> Priority {
+        self.priority.clone()
     }
 }
 
