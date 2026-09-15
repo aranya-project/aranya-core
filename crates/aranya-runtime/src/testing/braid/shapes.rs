@@ -109,7 +109,7 @@ pub fn extensions(structure: &[ProgParents]) -> Vec<Vec<ProgParents>> {
 
 /// Every client-holdable shape of at most `max_n` commands, one representative
 /// per isomorphism class: a depth-first walk over [`extensions`] from the lone
-/// init, deduplicated by [`canonical_key`]. Isomorphic shapes have isomorphic
+/// init, deduplicated by `canonical_key`. Isomorphic shapes have isomorphic
 /// extensions, so expanding one representative per class loses nothing.
 pub fn enumerate_shapes(max_n: usize) -> Vec<Vec<ProgParents>> {
     let mut seen: BTreeMap<Vec<(u8, usize, usize)>, Vec<ProgParents>> = BTreeMap::new();
@@ -235,8 +235,8 @@ fn augment(
 /// graph (minimum vertex-disjoint path cover over the direct parent edges).
 /// Commands in one chain are causally ordered, so two concurrent commands
 /// always land on different clients. The client count is the size of that
-/// path cover, which can exceed the graph's width ([`graph_width`], a chain
-/// cover over reachability): consecutive commands on one client must be
+/// path cover, which can exceed the graph's width (its largest antichain):
+/// consecutive commands on one client must be
 /// direct parent and child, so e.g. two stacked diamonds (width 2) take
 /// three clients. Init is always client 0.
 pub fn chain_clients(structure: &[ProgParents]) -> Vec<usize> {
