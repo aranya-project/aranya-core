@@ -347,9 +347,9 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     /// Look up a location in the in-memory blocks.
     /// Returns (block_index, entry_index) if found.
     fn find_in_memory(&self, location: Location) -> Option<(usize, usize)> {
-        for (bi, block) in self.storage.blocks.iter().enumerate() {
-            if let Some(ei) = block.find(location) {
-                return Some((bi, ei));
+        for (block_idx, block) in self.storage.blocks.iter().enumerate() {
+            if let Some(entry_idx) = block.find(location) {
+                return Some((block_idx, entry_idx));
             }
         }
         None
@@ -400,31 +400,34 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             .assume("access_counter must not overflow")?;
 
         // Check in-memory blocks.
-        if let Some((bi, ei)) = self.find_in_memory(location) {
-            return self.consume_entry(bi, ei);
+        if let Some((block_idx, entry_idx)) = self.find_in_memory(location) {
+            return self.consume_entry(block_idx, entry_idx);
         }
 
         // Check spilled blocks on disk.
         {
-            let mut ri = 0;
-            while ri < self.storage.root.len() {
-                let node = self.storage.root[ri];
+            let mut root_idx = 0;
+            while root_idx < self.storage.root.len() {
+                let node = self.storage.root[root_idx];
                 if location.max_cut >= node.min_max_cut && location.max_cut <= node.max_max_cut {
                     // Probe a copy without touching the root index or
-                    // evicting an in-memory block, so `ri` advances past
-                    // every miss and the scan terminates even when all
-                    // block ranges cover `location.max_cut`. Installing
-                    // on a miss would re-append the evicted block to the
-                    // root and the scan would never run out of entries.
-                    let probed = self.read_block_from_disk(ri)?;
-                    if let Some(ei) = probed.find(location) {
-                        // Install only on a hit (removes root[ri]), so
+                    // evicting an in-memory block, so `root_idx` advances
+                    // past every miss and the scan terminates even when
+                    // all block ranges cover `location.max_cut`.
+                    // Installing on a miss would re-append the evicted
+                    // block to the root and the scan would never run out
+                    // of entries.
+                    let probed = self.read_block_from_disk(root_idx)?;
+                    if let Some(entry_idx) = probed.find(location) {
+                        // Install only on a hit (removes root[root_idx]), so
                         // the entry can be consumed in memory.
-                        let bi = self.install_block(ri, probed)?;
-                        return self.consume_entry(bi, ei);
+                        let block_idx = self.install_block(root_idx, probed)?;
+                        return self.consume_entry(block_idx, entry_idx);
                     }
                 }
-                ri = ri.checked_add(1).assume("ri must not overflow")?;
+                root_idx = root_idx
+                    .checked_add(1)
+                    .assume("root_idx must not overflow")?;
             }
         }
 
@@ -644,12 +647,13 @@ mod livelock_tests {
     /// which is present in none of them must still terminate.
     ///
     /// Regression test: this used to livelock. `should_continue`'s disk
-    /// scan installed every probed block, swap-removing root[ri] and
-    /// re-appending the evicted in-memory block to the root, so the root
-    /// never ran out of covering entries: the scan cycled the same blocks
-    /// through root[ri] forever and `ri` never reached `root.len()`.
-    /// Fixed by probing a copy (`read_block_from_disk`) and installing
-    /// only on a hit, so `ri` strictly advances past every miss.
+    /// scan installed every probed block, swap-removing `root[root_idx]`
+    /// and re-appending the evicted in-memory block to the root, so the
+    /// root never ran out of covering entries: the scan cycled the same
+    /// blocks through `root[root_idx]` forever and `root_idx` never
+    /// reached `root.len()`. Fixed by probing a copy
+    /// (`read_block_from_disk`) and installing only on a hit, so
+    /// `root_idx` strictly advances past every miss.
     #[test]
     fn covered_but_absent_lookup_terminates() {
         // Segment 999_999 was never inserted; max_cut K is inside every
