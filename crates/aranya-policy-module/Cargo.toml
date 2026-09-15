@@ -8,6 +8,12 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
+[lib]
+bench = false
+
 [dependencies]
 aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast" }
 
@@ -28,10 +34,6 @@ std = [
 ]
 
 testing = []
-
-[lints]
-workspace = true
-
 
 [package.metadata.docs.rs]
 all-features = true
