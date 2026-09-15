@@ -1,6 +1,6 @@
 mod keygen;
 extern crate alloc;
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use core::cell::RefCell;
 use std::{fs, marker::PhantomData};
 
@@ -82,8 +82,8 @@ impl ClientFactory for BasicClientFactory {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
 
         // Configure testing FFIs
-        let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
-            vec![Box::from(TestFfiEnvelope {
+        let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
+            vec![Arc::from(TestFfiEnvelope {
                 device: DeviceId::random(Rng),
             })];
 
@@ -153,14 +153,14 @@ impl ClientFactory for FfiClientFactory {
             .expect("unable to generate public keys");
 
         // Configure FFIs
-        let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-            Box::from(DeviceFfi::new(bundle.device_id)),
-            Box::from(EnvelopeFfi),
-            Box::from(PerspectiveFfi),
-            Box::from(CryptoFfi::new(
+        let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
+            Arc::from(DeviceFfi::new(bundle.device_id)),
+            Arc::from(EnvelopeFfi),
+            Arc::from(PerspectiveFfi),
+            Arc::from(CryptoFfi::new(
                 store.try_clone().expect("should clone key store"),
             )),
-            Box::from(IdamFfi::new(store)),
+            Arc::from(IdamFfi::new(store)),
         ];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
@@ -1411,14 +1411,14 @@ fn should_create_clients_with_args() {
                 .expect("unable to generate public keys");
 
             // Configure FFIs
-            let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-                Box::from(DeviceFfi::new(bundle.device_id)),
-                Box::from(EnvelopeFfi),
-                Box::from(PerspectiveFfi),
-                Box::from(CryptoFfi::new(
+            let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
+                Arc::from(DeviceFfi::new(bundle.device_id)),
+                Arc::from(EnvelopeFfi),
+                Arc::from(PerspectiveFfi),
+                Arc::from(CryptoFfi::new(
                     store.try_clone().expect("should clone key store"),
                 )),
-                Box::from(IdamFfi::new(store)),
+                Arc::from(IdamFfi::new(store)),
             ];
 
             let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
@@ -1480,14 +1480,14 @@ fn should_create_clients_with_args() {
                 MinKeyBundle::generate(&eng, &mut store).expect("unable to generate `KeyBundle`");
 
             // Configure FFIs
-            let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-                Box::from(DeviceFfi::new(bundle.device_id)),
-                Box::from(EnvelopeFfi),
-                Box::from(PerspectiveFfi),
-                Box::from(CryptoFfi::new(
+            let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
+                Arc::from(DeviceFfi::new(bundle.device_id)),
+                Arc::from(EnvelopeFfi),
+                Arc::from(PerspectiveFfi),
+                Arc::from(CryptoFfi::new(
                     store.try_clone().expect("should clone key store"),
                 )),
-                Box::from(IdamFfi::new(store)),
+                Arc::from(IdamFfi::new(store)),
             ];
 
             let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");

@@ -50,10 +50,10 @@ where
     type Policy = VmPolicy<CE>;
     type Effect = ModelEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
         // TODO: (Scott) Implement once `add_policy` method is implemented in the policy_vm
         // For now return dummy PolicyId
-        Ok(PolicyId::new(policy[0].into()))
+        Ok(PolicyId::default())
     }
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {

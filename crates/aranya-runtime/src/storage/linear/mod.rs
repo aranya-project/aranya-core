@@ -1247,7 +1247,7 @@ mod test {
     #[test]
     fn test_query_prefix() {
         let mut provider = LinearStorageProvider::new(Manager::new());
-        let mut fp = provider.new_perspective(PolicyId::new(0));
+        let mut fp = provider.new_perspective(PolicyId::default());
 
         let name = "x";
 
@@ -1305,7 +1305,7 @@ mod test {
     #[test]
     fn test_revert_clears_writes_made_after_checkpoint() {
         let mut provider = LinearStorageProvider::new(Manager::new());
-        let mut p = provider.new_perspective(PolicyId::new(0));
+        let mut p = provider.new_perspective(PolicyId::default());
 
         let checkpoint = p.checkpoint();
         p.insert("x".into(), Keys::default(), Bytes::from(&b"1"[..]))
