@@ -1,3 +1,5 @@
+#[macro_use]
+mod ast_hash;
 mod error;
 mod lower;
 mod target;
@@ -28,10 +30,11 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
+use sha2::{Digest as _, Sha256};
 use tracing::warn;
 
-pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
+    ast_hash::AstHash as _,
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
         InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
@@ -41,6 +44,7 @@ use self::{
     topo::TopoSort,
     types::{IdentifierTypeStack, UserType},
 };
+pub use self::{error::CompileError, target::PolicyInterface};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -222,6 +226,8 @@ struct CompileState<'a> {
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
+    /// A signature built as we traverse and compile the AST
+    signature_hasher: Sha256,
 }
 
 impl<'a> CompileState<'a> {
@@ -1979,6 +1985,8 @@ impl<'a> CompileState<'a> {
 
         self.resolve_targets()?;
 
+        self.policy.ast_hash(&mut self.signature_hasher);
+
         Ok(())
     }
 
@@ -2304,7 +2312,8 @@ impl<'a> Compiler<'a> {
     pub fn compile(self) -> Result<Module, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
-        Ok(cs.m.into_module())
+        let signature = cs.signature_hasher.finalize().into();
+        Ok(cs.m.into_module(signature))
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
@@ -2330,6 +2339,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
+            signature_hasher: Sha256::new(),
         }
     }
 }
