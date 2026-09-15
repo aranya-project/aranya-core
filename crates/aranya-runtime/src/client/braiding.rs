@@ -332,7 +332,10 @@ pub(crate) mod strand_heap {
                 let cmd = segment
                     .get_command(location)
                     .ok_or(StorageError::CommandOutOfBounds(location))?;
-                (cmd.priority(), cmd.id())
+                let priority = segment
+                    .get_priority(location)
+                    .ok_or(StorageError::CommandOutOfBounds(location))?;
+                (priority, cmd.id())
             };
 
             Ok(Self {

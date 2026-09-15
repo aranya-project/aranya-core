@@ -21,7 +21,7 @@ pub use self::{
     head_set::HeadSet,
     spill::{MemSpill, mem_spill},
 };
-use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, util::mem_usage};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, Priority, util::mem_usage};
 
 /// Byte-addressable overflow storage for braid and convergence data.
 ///
@@ -908,6 +908,13 @@ pub trait Segment {
     /// Returns the command at the given location.
     fn get_command(&self, location: Location) -> Option<Self::Command<'_>>;
 
+    /// Returns the priority of the command at the given location.
+    ///
+    /// Priorities are assigned at ingest (structurally for merge and init
+    /// commands, by the policy for evaluated commands) and persisted with
+    /// the command.
+    fn get_priority(&self, location: Location) -> Option<Priority>;
+
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
 
@@ -994,9 +1001,18 @@ pub trait Perspective: FactPerspective {
     /// Returns the id for the policy used for this perspective.
     fn policy(&self) -> PolicyId;
 
-    /// Adds the given command to the head of the perspective. The command's
-    /// parent must be the head of the perspective.
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
+    /// Adds the given command to the head of the perspective, persisting
+    /// `priority` alongside it. The command's parent must be the head of the
+    /// perspective.
+    ///
+    /// The priority must match the command's structure: `Merge` for merge
+    /// commands, `Init` for init commands, and the policy's body-derived
+    /// value for evaluated commands.
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
     fn includes(&self, id: CmdId) -> bool;
