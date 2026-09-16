@@ -24,6 +24,9 @@ pub fn validate(module: &Module) -> bool {
             LabelType::Action => {
                 tracer = tracer.add_analyzer(ActionAnalyzer::new());
             }
+            LabelType::GetKey => {
+                // TODO
+            }
             LabelType::CommandPolicy | LabelType::CommandRecall => {
                 tracer = tracer.add_analyzer(FinishAnalyzer::new());
             }

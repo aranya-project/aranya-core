@@ -1369,6 +1369,8 @@ impl Spanned for CommandDefinition {
 pub struct BaseCommandDefinition {
     /// The name of the base command
     pub identifier: Ident,
+    /// The fields of the base command and their types
+    pub fields: Vec<StructItem<FieldDefinition>>,
     /// The get key block
     pub get_key: Vec<Statement>,
     /// The source location of this definition

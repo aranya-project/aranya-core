@@ -115,12 +115,11 @@ impl fmt::Debug for ModuleSnapshotWrapper {
 fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
     let ModuleData::V0(m) = &m.data;
 
-    let mut labels: HashMap<usize, &Label> = HashMap::new();
+    let mut labels: HashMap<usize, Vec<&Label>> = HashMap::new();
     let mut targets: HashSet<usize> = HashSet::new();
 
     for (label, &addr) in &m.labels {
-        let old = labels.insert(addr, label);
-        assert!(old.is_none(), "labels shouldn't point to same place");
+        labels.entry(addr).or_default().push(label);
     }
 
     for ins in &m.progmem {
@@ -131,8 +130,10 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
     }
 
     for (i, ins) in m.progmem.iter().enumerate() {
-        if let Some(label) = labels.get(&i) {
-            writeln!(f, "{label:?}:")?;
+        if let Some(label_vec) = labels.get(&i) {
+            for label in label_vec {
+                writeln!(f, "{label:?}:")?;
+            }
         }
         if targets.contains(&i) {
             writeln!(f, "<{i}>:")?;
@@ -147,13 +148,17 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
                     Instruction::Call(t) => {
                         let label = labels
                             .get(&t.resolved().expect("unresolved target"))
-                            .expect("missing target label");
+                            .expect("missing target label")
+                            .first()
+                            .unwrap();
                         write!(f, "call {label:?}")
                     }
                     Instruction::Recall(t) => {
                         let label = labels
                             .get(&t.resolved().expect("unresolved target"))
-                            .expect("missing target label");
+                            .expect("missing target label")
+                            .first()
+                            .unwrap();
                         write!(f, "recall {label:?}")
                     }
                     // Fall back to display impl.

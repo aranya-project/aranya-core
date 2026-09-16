@@ -129,6 +129,13 @@ mod param {
 
     use super::{Ident, Param, TypeKind, ident};
 
+    pub fn author_id() -> Param {
+        Param {
+            name: ident!("author_id").nowhere(),
+            ty: TypeKind::Id.nowhere(),
+        }
+    }
+
     pub fn envelope() -> Param {
         Param {
             name: ident!("envelope").nowhere(),
@@ -197,6 +204,8 @@ struct CompileState<'a> {
     wp: usize,
     /// A counter used to generate temporary labels
     c: usize,
+    /// Address of get key functions for base commands
+    base_get_keys: BTreeMap<Ident, usize>,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
     function_signatures: BTreeMap<Ident, FunctionSignature>,
@@ -301,10 +310,10 @@ impl<'a> CompileState<'a> {
     }
 
     /// Insert a struct definition while preventing duplicates of the struct fields.
-    pub fn define_struct(
+    pub fn define_struct<'s>(
         &mut self,
         identifier: Ident,
-        items: &[StructItem<FieldDefinition>],
+        items: impl IntoIterator<Item = &'s StructItem<FieldDefinition>>,
     ) -> Result<(), CompileError> {
         // Add explicitly-defined fields and those from struct insertions
         let mut field_definitions = Vec::new();
@@ -1354,6 +1363,42 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn compile_base_command(
+        &mut self,
+        base_command: &ast::BaseCommandDefinition,
+    ) -> Result<(), CompileError> {
+        let params = &[
+            param::this(base_command.identifier.clone()),
+            param::author_id(),
+        ];
+        let ret = TypeKind::Optional(Box::new(TypeKind::Bytes.nowhere())).nowhere();
+        let label = self.anonymous_label();
+
+        let fn_def = ast::FunctionDefinition {
+            identifier: ident!("get_key").nowhere(),
+            arguments: params.to_vec(),
+            return_type: ret.clone(),
+            statements: vec![],
+            span: base_command.span,
+        };
+
+        let addr = self.wp;
+        self.enter_statement_context(StatementContext::PureFunction(fn_def));
+        self.compile_function_like(
+            params,
+            Some(&ret),
+            base_command.span,
+            &base_command.get_key,
+            label,
+        )?;
+        self.exit_statement_context();
+
+        self.base_get_keys
+            .insert(base_command.identifier.clone(), addr);
+
+        Ok(())
+    }
+
     /// Compile a command policy block
     fn compile_command(
         &mut self,
@@ -1361,6 +1406,19 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let command = command_node;
         self.map_range(command.span)?;
+
+        if let Some(base) = &command.base {
+            let addr = self
+                .base_get_keys
+                .get(base)
+                .copied()
+                .ok_or_else(|| NotDefined(format!("unknown base class {base}"), base.span))
+                .map_err(|e| self.err(e))?;
+            self.define_label(
+                Label::new(command.identifier.inner.clone(), LabelType::GetKey),
+                addr,
+            )?;
+        }
 
         self.compile_command_policy(command)?;
         self.compile_command_recall(command)?;
@@ -1378,42 +1436,12 @@ impl<'a> CompileState<'a> {
         }
 
         // fields
-        let mut fields = NamedMap::new();
-
-        for si in &command.fields {
-            match si {
-                StructItem::Field(f) => {
-                    // TODO(eric): Use `Span::default()`?
-                    let field_type = f.field_type.clone();
-                    fields
-                        .insert(Param {
-                            name: f.identifier.clone(),
-                            ty: field_type,
-                        })
-                        .assume("duplicates are prevented by compile_struct")?;
-                }
-                StructItem::StructRef(ref_name) => {
-                    let struct_def = self
-                        .m
-                        .interface
-                        .struct_defs
-                        .get(&ref_name.inner)
-                        .ok_or_else(|| {
-                            let note = format!("struct `{}` not defined", ref_name);
-                            self.err(NotDefined(note, ref_name.span()))
-                        })?;
-                    for fd in struct_def {
-                        let field_type = fd.field_type.clone();
-                        fields
-                            .insert(Param {
-                                name: fd.identifier.clone(),
-                                ty: field_type,
-                            })
-                            .assume("duplicates are prevented by compile_struct")?;
-                    }
-                }
-            }
-        }
+        let fields = self
+            .m
+            .interface
+            .struct_defs
+            .get(&command.identifier)
+            .assume("command defined as struct")?;
 
         self.m
             .command_defs
@@ -1421,7 +1449,13 @@ impl<'a> CompileState<'a> {
                 name: command.identifier.clone(),
                 persistence: command.persistence.clone(),
                 attributes: attributes.iter().cloned().collect(),
-                fields: fields.iter().cloned().collect(),
+                fields: fields
+                    .iter()
+                    .map(|f| Param {
+                        name: f.identifier.clone(),
+                        ty: f.field_type.clone(),
+                    })
+                    .collect(),
             })
             .map_err(|e| self.err(AlreadyDefined::new(command.identifier.clone(), e.existing)))?;
 
@@ -1750,8 +1784,23 @@ impl<'a> CompileState<'a> {
             topo.insert(&ident.inner, deps);
         }
 
+        for base_command_def in &self.policy.base_commands {
+            let deps = base_command_def
+                .fields
+                .iter()
+                .filter_map(extract_struct_ident);
+            let ident = &base_command_def.identifier;
+
+            insert_type_def(ident.clone(), UserType::BaseCommand(base_command_def))?;
+            topo.insert(&ident.inner, deps);
+        }
+
         for command_def in &self.policy.commands {
-            let deps = command_def.fields.iter().filter_map(extract_struct_ident);
+            let deps = command_def
+                .fields
+                .iter()
+                .filter_map(extract_struct_ident)
+                .chain(command_def.base.as_deref());
             let ident = &command_def.identifier;
 
             insert_type_def(ident.clone(), UserType::Command(command_def))?;
@@ -1834,8 +1883,18 @@ impl<'a> CompileState<'a> {
                     self.define_struct(fact.identifier.clone(), &fields)?;
                     self.define_fact(fact)?;
                 }
+                UserType::BaseCommand(base_command) => {
+                    self.define_struct(base_command.identifier.clone(), &base_command.fields)?;
+                }
                 UserType::Command(command) => {
-                    self.define_struct(command.identifier.clone(), &command.fields)?;
+                    let base = command
+                        .base
+                        .as_ref()
+                        .map(|b| StructItem::StructRef(b.clone()));
+                    self.define_struct(
+                        command.identifier.clone(),
+                        command.fields.iter().chain(base.as_ref()),
+                    )?;
                 }
                 UserType::FFIStruct(s) => {
                     let fields: Vec<StructItem<FieldDefinition>> = s
@@ -1895,6 +1954,11 @@ impl<'a> CompileState<'a> {
 
         for function_def in &self.policy.finish_functions {
             self.compile_finish_function(function_def)?;
+        }
+
+        // Note: must be compiled before commands.
+        for base_command in &self.policy.base_commands {
+            self.compile_base_command(base_command)?;
         }
 
         // Commands have several sub-contexts, so `compile_command` handles those.
@@ -2251,6 +2315,7 @@ impl<'a> Compiler<'a> {
             m: machine,
             wp: 0,
             c: 0,
+            base_get_keys: BTreeMap::new(),
             function_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
