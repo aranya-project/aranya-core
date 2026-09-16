@@ -260,7 +260,6 @@ impl SyncRequester {
 
                     let command = SyncCommand {
                         id: meta.id,
-                        priority: meta.priority,
                         parent: meta.parent,
                         policy,
                         data: payload,
