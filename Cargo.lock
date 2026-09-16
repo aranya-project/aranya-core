@@ -398,7 +398,6 @@ dependencies = [
  "insta",
  "petgraph",
  "rstest",
- "sha2",
  "tracing",
 ]
 
