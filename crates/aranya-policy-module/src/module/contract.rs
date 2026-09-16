@@ -427,3 +427,24 @@ pub struct ModuleContract {
     pub ffis: Vec<FfiContract>,
     // TODO(chip): catalog other public-facing module items
 }
+
+impl ModuleContract {
+    /// Validate a `ModuleContract` against a list of [`ModuleSchema`s](ffi::ModuleSchema).
+    pub fn validate(
+        &self,
+        ffi_schemas: &[ffi::ModuleSchema<'static>],
+    ) -> Result<(), ContractValidationError> {
+        // validate FFI schema against machine
+        if self.ffis.len() != ffi_schemas.len() {
+            return Err(ContractValidationError::new(format_args!(
+                "Module has {} FFI modules but VM expects {}",
+                self.ffis.len(),
+                ffi_schemas.len(),
+            )));
+        }
+        for (mod_ffi, vm_ffi) in self.ffis.iter().zip(ffi_schemas) {
+            mod_ffi.validate(vm_ffi)?;
+        }
+        Ok(())
+    }
+}
