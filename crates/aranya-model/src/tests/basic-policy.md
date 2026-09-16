@@ -17,6 +17,35 @@ some other mechanism.
 ```policy
 use envelope
 
+fact Key[]=>{key bytes}
+
+base command BaseInit {
+    fields {
+        key bytes
+    }
+    get_key {
+        return Some(this.key)
+    }
+}
+
+base command Base {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base command BaseEphemeral {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
 // `Stuff` is the fact we will interact with in the on-graph commands. It writes
 // a simple fact to the factDB.
 fact Stuff[a int]=>{x int}
@@ -47,14 +76,15 @@ effect Success {
 }
 
 // The `init` action takes a nonce variable and passes it to the Init command.
-action init(nonce int) {
+action init(nonce int, key bytes) {
     publish Init {
+        key: key,
         nonce: nonce,
     }
 }
 
 // `Init` is a command that initializes a graph.
-command Init {
+command Init : BaseInit {
     attributes {
         init: true,
     }
@@ -68,7 +98,9 @@ command Init {
     policy {
         check this.nonce > 0 else test_fail("nonce must be positive")
         // The finish block contains statements which mutate facts.
-        finish {}
+        finish {
+            create Key[]=>{key: this.key}
+        }
     }
 }
 
@@ -83,7 +115,7 @@ action create_action(v int) {
 
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
 // the `StuffHappened` effect back to the user.
-command Create {
+command Create : Base {
     attributes {
         priority: 0,
     }
@@ -108,7 +140,7 @@ ephemeral action create_action_ephemeral(v int) {
     }
 }
 
-ephemeral command CreateEphemeral {
+ephemeral command CreateEphemeral : BaseEphemeral {
     fields {
         key_a int,
         value int,
@@ -133,7 +165,7 @@ action increment(v int) {
 
 // `Increment` is an on-graph command that will increase our test count by the
 // value passed in.
-command Increment {
+command Increment : Base {
     attributes {
         priority: 0,
     }
@@ -162,7 +194,7 @@ ephemeral action increment_ephemeral(v int) {
     }
 }
 
-ephemeral command IncrementEphemeral {
+ephemeral command IncrementEphemeral : BaseEphemeral {
     fields {
         key_a int,
         value int,
@@ -191,7 +223,7 @@ action decrement(v int) {
 
 // `Decrement` is an on-graph command that will decrease our test count by the
 // value passed in.
-command Decrement {
+command Decrement : BaseEphemeral {
     attributes {
         priority: 0,
     }
@@ -221,7 +253,7 @@ ephemeral action get_stuff() {
 
 // `GetStuff` is a command that queries the contents of the `Stuff` fact and
 // returns it in a `StuffHappened` effect.
-ephemeral command GetStuff {
+ephemeral command GetStuff : BaseEphemeral {
     fields {
         key_a int,
     }
@@ -240,7 +272,7 @@ action get_stuff_on_graph() {
     }
 }
 
-command GetStuffOnGraph {
+command GetStuffOnGraph : Base {
     attributes {
         priority: 0,
     }
@@ -268,7 +300,7 @@ ephemeral action create_greeting(v string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting {
+ephemeral command CreateGreeting : BaseEphemeral {
     fields {
         key string,
         value string,
@@ -297,7 +329,7 @@ ephemeral action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting {
+ephemeral command VerifyGreeting : BaseEphemeral {
     fields {
         key string,
         value string,
@@ -324,7 +356,7 @@ action verify_hello_on_graph() {
     }
 }
 
-command VerifyGreetingOnGraph {
+command VerifyGreetingOnGraph : Base {
     attributes {
         priority: 0,
     }
@@ -355,7 +387,7 @@ action store_session_data(key string, value bytes) {
 
 // `StoreSessionData` will take serialized byte information and add it to
 // the factDB in a `PersistedSessionData` fact.
-command StoreSessionData {
+command StoreSessionData : Base {
     attributes {
         priority: 0,
     }
@@ -381,7 +413,7 @@ effect Relationship {
 }
 
 // Emits `Relationship` effects
-command Link {
+command Link : Base {
     attributes {
         priority: 0,
     }

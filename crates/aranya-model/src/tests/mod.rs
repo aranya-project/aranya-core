@@ -64,6 +64,11 @@ impl BasicClientFactory {
 
         Ok(Self { machine, seal_ctx })
     }
+
+    fn key(&self) -> Vec<u8> {
+        let key = self.seal_ctx.key.public().expect("can get verifying key");
+        postcard::to_allocvec(&key).expect("can serialize verifying key")
+    }
 }
 
 // BasicClientFactory doesn't use signing keys, we add an empty struct to satisfy
@@ -234,6 +239,8 @@ fn should_create_basic_client_and_add_commands() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
+
     // Create a new model instance with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -245,7 +252,7 @@ fn should_create_basic_client_and_add_commands() {
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
@@ -384,6 +391,7 @@ fn should_fail_duplicate_graph_ids() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -395,13 +403,13 @@ fn should_fail_duplicate_graph_ids() {
     let nonce = 1;
     // Create the first graph with an id of one
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey.clone())))
         .expect("Should create a graph");
 
     let nonce = 2;
     // Creating a second graph with a proxy id of one will cause an error.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect_err("Should fail graph creation if proxy_id is reused");
 }
 
@@ -412,6 +420,7 @@ fn should_allow_multiple_graphs() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -421,12 +430,12 @@ fn should_allow_multiple_graphs() {
 
     let nonce = 1;
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey.clone())))
         .expect("Should create a graph");
 
     let nonce = 2;
     test_model
-        .new_graph(Graph::Y, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::Y, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should support the ability to add multiple graphs");
 }
 
@@ -573,6 +582,7 @@ fn should_sync_basic_clients() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -584,7 +594,7 @@ fn should_sync_basic_clients() {
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should create a graph");
 
     // Issue the create action, it will create a fact in the FactDB with the value
@@ -657,6 +667,7 @@ fn should_sync_clients_with_duplicate_payloads() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -668,7 +679,7 @@ fn should_sync_clients_with_duplicate_payloads() {
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
@@ -717,12 +728,14 @@ fn should_allow_multiple_instances_of_model() {
     // Create our first client factory, this will be responsible for creating all our clients.
     let basic_clients_1 =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey1 = basic_clients_1.key();
     // Create a new model with our client factory.
     let mut test_model_1 = RuntimeModel::new(basic_clients_1);
 
     // Create our second client factory.
     let basic_clients_2 =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey2 = basic_clients_2.key();
     // Create a new model with our client factory.
     let mut test_model_2 = RuntimeModel::new(basic_clients_2);
 
@@ -739,7 +752,7 @@ fn should_allow_multiple_instances_of_model() {
     let nonce = 1;
     // Create a graph on the first model client
     test_model_1
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey1)))
         .expect("Should create a graph");
 
     // Issue a create action on the first model client.
@@ -751,7 +764,7 @@ fn should_allow_multiple_instances_of_model() {
     // Create a graph on the second model client
     let nonce = 1;
     test_model_2
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey2)))
         .expect("Should create a graph");
 
     // Issue an action on the second model client
@@ -870,6 +883,7 @@ fn should_send_and_receive_session_data() {
     // all of our test clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -885,7 +899,7 @@ fn should_send_and_receive_session_data() {
     // Initialize the graph on client A
     let nonce = 1;
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should create a graph");
 
     // Sync the graph with client B. Currently, ephemeral commands must be run on
@@ -1187,6 +1201,7 @@ fn should_allow_access_to_fact_db_from_session() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -1202,7 +1217,7 @@ fn should_allow_access_to_fact_db_from_session() {
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should create a graph");
 
     // Create an on-graph fact to later be queried from the session command.
@@ -1244,6 +1259,7 @@ fn should_store_session_data_to_graph() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -1255,7 +1271,7 @@ fn should_store_session_data_to_graph() {
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should create a graph");
 
     // `sessions_actions` is the portion of the session api responsible for
@@ -1296,6 +1312,7 @@ fn should_store_session_data_to_graph() {
 #[test]
 fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY)?;
+    let vkey = basic_clients.key();
     let mut test_model = RuntimeModel::new(basic_clients);
 
     // Create clients
@@ -1303,7 +1320,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     test_model.add_client(Device::B)?;
 
     // Create graph and sync
-    test_model.new_graph(Graph::X, Device::A, vm_action!(init(42)))?;
+    test_model.new_graph(Graph::X, Device::A, vm_action!(init(42, vkey)))?;
     test_model.sync(Graph::X, Device::A, Device::B)?;
 
     // Perform actions on client A session.
@@ -1561,13 +1578,14 @@ fn should_create_clients_with_args() {
 #[test]
 fn test_storage_fact_creturns_correct_index() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
+    let vkey = basic_clients.key();
     let mut test_model = RuntimeModel::new(basic_clients);
 
     test_model.add_client(Device::A).unwrap();
     test_model.add_client(Device::B).unwrap();
 
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(1)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(1, vkey)))
         .unwrap();
 
     test_model
@@ -1596,6 +1614,7 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -1607,7 +1626,7 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
         .expect("Should create a graph");
 
     // Issue the 'publish_multiple_commands' action. It will publish 3 Link commands
