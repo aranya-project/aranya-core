@@ -63,8 +63,6 @@ policy-version: 2
             attributes {
                 init: true,
             }
-            seal { return envelope::do_seal(payload) }
-            open { return envelope::do_open(payload, envelope) }
             policy {
                 finish {}
             }
@@ -86,8 +84,6 @@ policy-version: 2
                 i int,
                 value string
             }
-            seal { return envelope::do_seal(payload) }
-            open { return envelope::do_open(payload, envelope) }
             policy {
                 finish {
                     create F[i: this.i]=>{value: this.value}
@@ -106,8 +102,6 @@ policy-version: 2
                 priority: 5,
             }
             fields { i int }
-            seal { return envelope::do_seal(payload) }
-            open { return envelope::do_open(payload, envelope) }
             policy {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }

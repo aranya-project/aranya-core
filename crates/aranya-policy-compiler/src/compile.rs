@@ -129,13 +129,6 @@ mod param {
 
     use super::{Ident, Param, TypeKind, ident};
 
-    pub fn payload() -> Param {
-        Param {
-            name: ident!("payload").nowhere(),
-            ty: TypeKind::Bytes.nowhere(),
-        }
-    }
-
     pub fn envelope() -> Param {
         Param {
             name: ident!("envelope").nowhere(),
@@ -1317,68 +1310,6 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn compile_command_seal(
-        &mut self,
-        command: &ast::CommandDefinition,
-        span: Span,
-    ) -> Result<(), CompileError> {
-        // fake a function def for the seal block
-        let args = &[param::this(command.identifier.clone()), param::payload()];
-        let ret = TypeKind::Struct(ident!("Envelope").nowhere()).nowhere();
-        let seal_function_definition = ast::FunctionDefinition {
-            identifier: ident!("seal").nowhere(),
-            arguments: args.to_vec(),
-            return_type: ret.clone(),
-            statements: vec![],
-            span,
-        };
-
-        self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
-        self.compile_function_like(
-            args,
-            Some(&ret),
-            span,
-            &command.seal,
-            Label::new(command.identifier.inner.clone(), LabelType::CommandSeal),
-        )?;
-        self.exit_statement_context();
-
-        Ok(())
-    }
-
-    fn compile_command_open(
-        &mut self,
-        command: &ast::CommandDefinition,
-        span: Span,
-    ) -> Result<(), CompileError> {
-        // fake a function def for the open block
-        let args = &[
-            param::this(command.identifier.clone()),
-            param::payload(),
-            param::envelope(),
-        ];
-        let ret = TypeKind::Unit.nowhere();
-        let open_function_definition = ast::FunctionDefinition {
-            identifier: ident!("open").nowhere(),
-            arguments: args.to_vec(),
-            return_type: ret.clone(),
-            statements: vec![],
-            span,
-        };
-
-        self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
-        self.compile_function_like(
-            args,
-            Some(&ret),
-            span,
-            &command.open,
-            Label::new(command.identifier.inner.clone(), LabelType::CommandOpen),
-        )?;
-        self.exit_statement_context();
-
-        Ok(())
-    }
-
     fn compile_function_like(
         &mut self,
         params: &[Param],
@@ -1433,8 +1364,6 @@ impl<'a> CompileState<'a> {
 
         self.compile_command_policy(command)?;
         self.compile_command_recall(command)?;
-        self.compile_command_seal(command, command.seal.span())?;
-        self.compile_command_open(command, command.open.span())?;
 
         // attributes
         let mut attributes = NamedMap::new();

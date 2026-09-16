@@ -10,8 +10,6 @@ command Bar {
     attributes {
         foo_attr: Foo { ...foo2 },
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

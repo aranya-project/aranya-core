@@ -1348,10 +1348,6 @@ pub struct CommandDefinition {
     pub identifier: Ident,
     /// The fields of the command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
-    /// Statements for sealing the command into an envelope
-    pub seal: Vec<Statement>,
-    /// Statements for opening the command envelope
-    pub open: Vec<Statement>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
     /// The named recall blocks for this command

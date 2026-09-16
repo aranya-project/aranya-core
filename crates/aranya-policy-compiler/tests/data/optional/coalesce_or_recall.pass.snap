@@ -6,8 +6,6 @@ Module {
     version: "0",
     labels: {
         <policy 'AddThing'>: 1,
-        <seal 'AddThing'>: 32,
-        <open 'AddThing'>: 39,
         <recall 'AddThing_reject'>: 29,
     },
     action_defs: [],
@@ -98,20 +96,3 @@ Module {
     def 'envelope'
     def 'this'
     exit check
-<seal 'AddThing'>:
-    def 'payload'
-    def 'this'
-    save SP
-    exit panic
-    restore SP
-    return
-    exit panic
-<open 'AddThing'>:
-    def 'envelope'
-    def 'payload'
-    def 'this'
-    save SP
-    exit panic
-    restore SP
-    return
-    exit panic

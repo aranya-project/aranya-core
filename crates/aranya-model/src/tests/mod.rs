@@ -5,12 +5,10 @@ use core::cell::RefCell;
 use std::{fs, marker::PhantomData};
 
 use aranya_crypto::{
-    DeviceId, Rng,
+    Rng,
     default::{DefaultCipherSuite, DefaultEngine},
-    id::IdExt as _,
     keystore::fs_keystore::Store,
 };
-use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
 use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
@@ -26,7 +24,7 @@ use aranya_runtime::{
     ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
     storage::{linear, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::{VmPolicy, testing::TestFfiEnvelope},
+    vm_policy::VmPolicy,
 };
 use tempfile::tempdir;
 use test_log::test;
@@ -51,12 +49,10 @@ struct BasicClientFactory {
 
 impl BasicClientFactory {
     fn new(policy_doc: &str) -> Result<Self, ModelError> {
-        let ffi_schema: &[ModuleSchema<'static>] = &[TestFfiEnvelope::SCHEMA];
-
         let policy_ast = parse_policy_document(policy_doc)?;
         // Create policy machine
         let module = Compiler::new(&policy_ast)
-            .ffi_modules(ffi_schema)
+            .ffi_modules(&[EnvelopeFfi::SCHEMA])
             .compile()?;
         let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
@@ -83,9 +79,7 @@ impl ClientFactory for BasicClientFactory {
 
         // Configure testing FFIs
         let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
-            vec![Box::from(TestFfiEnvelope {
-                device: DeviceId::random(Rng),
-            })];
+            vec![Box::new(EnvelopeFfi)];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
         let policy_store = ModelPolicyStore::new(policy);
@@ -108,7 +102,6 @@ impl FfiClientFactory {
             DeviceFfi::SCHEMA,
             EnvelopeFfi::SCHEMA,
             PerspectiveFfi::SCHEMA,
-            CryptoFfi::<Store>::SCHEMA,
             IdamFfi::<Store>::SCHEMA,
         ];
 
@@ -157,9 +150,6 @@ impl ClientFactory for FfiClientFactory {
             Box::from(DeviceFfi::new(bundle.device_id)),
             Box::from(EnvelopeFfi),
             Box::from(PerspectiveFfi),
-            Box::from(CryptoFfi::new(
-                store.try_clone().expect("should clone key store"),
-            )),
             Box::from(IdamFfi::new(store)),
         ];
 
@@ -1368,7 +1358,6 @@ fn should_create_clients_with_args() {
         DeviceFfi::SCHEMA,
         EnvelopeFfi::SCHEMA,
         PerspectiveFfi::SCHEMA,
-        CryptoFfi::<Store>::SCHEMA,
         IdamFfi::<Store>::SCHEMA,
     ];
 
@@ -1415,9 +1404,6 @@ fn should_create_clients_with_args() {
                 Box::from(DeviceFfi::new(bundle.device_id)),
                 Box::from(EnvelopeFfi),
                 Box::from(PerspectiveFfi),
-                Box::from(CryptoFfi::new(
-                    store.try_clone().expect("should clone key store"),
-                )),
                 Box::from(IdamFfi::new(store)),
             ];
 
@@ -1484,9 +1470,6 @@ fn should_create_clients_with_args() {
                 Box::from(DeviceFfi::new(bundle.device_id)),
                 Box::from(EnvelopeFfi),
                 Box::from(PerspectiveFfi),
-                Box::from(CryptoFfi::new(
-                    store.try_clone().expect("should clone key store"),
-                )),
                 Box::from(IdamFfi::new(store)),
             ];
 

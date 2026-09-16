@@ -4,8 +4,6 @@ command Foo {
         y bool,
         z string,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

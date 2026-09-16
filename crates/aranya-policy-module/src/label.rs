@@ -25,10 +25,6 @@ pub enum LabelType {
     CommandPolicy,
     /// This label represents the entry point of a command recall block
     CommandRecall,
-    /// A command seal block
-    CommandSeal,
-    /// A command open block
-    CommandOpen,
     /// This label is a temporary destination for implementing
     /// branching constructs.
     Temporary,
@@ -42,8 +38,6 @@ impl Display for LabelType {
             Self::Action => write!(f, "action"),
             Self::CommandPolicy => write!(f, "policy"),
             Self::CommandRecall => write!(f, "recall"),
-            Self::CommandSeal => write!(f, "seal"),
-            Self::CommandOpen => write!(f, "open"),
             Self::Temporary => write!(f, "temp"),
             Self::Function => write!(f, "fn"),
         }

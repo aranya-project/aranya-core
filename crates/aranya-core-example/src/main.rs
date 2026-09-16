@@ -20,7 +20,6 @@ use aranya_core::{
     storage::{FileManager, LibcSpill, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
-use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
 use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
@@ -147,7 +146,6 @@ fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPol
     let ast = parse_policy_document(POLICY_SOURCE).context("parse policy document")?;
     let module = Compiler::new(&ast)
         .ffi_modules(&[
-            CryptoFfi::<MemStore>::SCHEMA,
             DeviceFfi::SCHEMA,
             EnvelopeFfi::SCHEMA,
             IdamFfi::<MemStore>::SCHEMA,
@@ -159,7 +157,6 @@ fn compile_policy(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPol
     let machine = Machine::from_module(module).context("create machine")?;
 
     let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
-        Box::from(CryptoFfi::new(store.clone())),
         Box::from(DeviceFfi::new(device_id)),
         Box::from(EnvelopeFfi),
         Box::from(IdamFfi::new(store)),

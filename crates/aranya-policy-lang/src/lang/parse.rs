@@ -1596,7 +1596,7 @@ impl ChunkParser<'_> {
         };
         let identifier = pc.consume_ident(self)?;
 
-        // Consume blocks in order: attributes?, fields?, seal, open, policy, recall?
+        // Consume blocks in order: attributes?, fields?, policy, recall?
 
         // 1. Optional attributes block
         let attributes = if let Some(token) = pc.consume_optional(Rule::attributes_block) {
@@ -1640,14 +1640,6 @@ impl ChunkParser<'_> {
         } else {
             vec![]
         };
-
-        // 3. Required seal block
-        let token = pc.consume_of_type(Rule::seal_block)?;
-        let seal = self.parse_statement_list(token.into_inner())?;
-
-        // 4. Required open block
-        let token = pc.consume_of_type(Rule::open_block)?;
-        let open = self.parse_statement_list(token.into_inner())?;
 
         // 5. Required policy block
         let token = pc.consume_of_type(Rule::policy_block)?;
@@ -1696,8 +1688,6 @@ impl ChunkParser<'_> {
             attributes,
             identifier,
             fields,
-            seal,
-            open,
             policy,
             recalls,
             span,
