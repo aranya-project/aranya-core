@@ -206,8 +206,7 @@ impl<CE> VmPolicy<CE> {
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
         if let Some(module_ffis) = &machine.ffis {
-            let schemas: Vec<_> = ffis.iter().map(|m| m.schema()).collect();
-            ffi_contract_validate(module_ffis, &schemas)?;
+            ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;
         } else {
             tracing::warn!("Module does not have contract; cannot validate FFI");
         }

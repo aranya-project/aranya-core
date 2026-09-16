@@ -420,7 +420,7 @@ impl From<&ffi::ModuleSchema<'_>> for FfiContract {
 /// Validates a list of [`FfiContract`]s against a list of [`ModuleSchema`](ffi::ModuleSchema)s.
 pub fn ffi_contract_validate(
     contracts: &[FfiContract],
-    ffi_schemas: &[ffi::ModuleSchema<'static>],
+    ffi_schemas: impl ExactSizeIterator<Item = ffi::ModuleSchema<'static>>,
 ) -> Result<(), ContractValidationError> {
     // validate FFI schema against machine
     if contracts.len() != ffi_schemas.len() {
@@ -431,7 +431,7 @@ pub fn ffi_contract_validate(
         )));
     }
     for (mod_ffi, vm_ffi) in contracts.iter().zip(ffi_schemas) {
-        mod_ffi.validate(vm_ffi)?;
+        mod_ffi.validate(&vm_ffi)?;
     }
     Ok(())
 }
