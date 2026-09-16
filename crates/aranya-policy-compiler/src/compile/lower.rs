@@ -1923,11 +1923,8 @@ impl CompileState<'_> {
                     thir::StmtKind::FunctionCall(f)
                 }
                 (StmtKind::Expression(e), _) => {
-                    // The context check lives in the expression itself, so a
-                    // call outside an action reports the same error either way.
                     let te = self.lower_expression(e)?;
-                    // Only `never` leaves nothing behind. Any other value would
-                    // be thrown away here, so make the caller use it.
+                    // Only `Never` expressions can be used as statements
                     if !matches!(te.vtype.inner, TypeKind::Never) {
                         let note = "expression result must be used";
                         return Err(self.err(InvalidExpression(note, e.clone(), None)));
