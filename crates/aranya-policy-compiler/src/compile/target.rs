@@ -10,10 +10,6 @@ use aranya_policy_module::{
 };
 use ast::FactDefinition;
 use indexmap::IndexMap;
-use sha2::{
-    Sha256,
-    digest::{common::OutputSize, typenum::Unsigned as _},
-};
 
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
@@ -52,7 +48,7 @@ impl CompileTarget {
     }
 
     /// Converts the `CompileTarget` into a `Module`.
-    pub fn into_module(self, signature: [u8; OutputSize::<Sha256>::USIZE]) -> Module {
+    pub fn into_module(self) -> Module {
         Module {
             data: ModuleData::V1(ModuleV1 {
                 program: v1::Program {
@@ -67,7 +63,6 @@ impl CompileTarget {
                     codemap: self.codemap,
                 },
                 contract: v1::Contract {
-                    signature,
                     actions: self
                         .interface
                         .action_defs

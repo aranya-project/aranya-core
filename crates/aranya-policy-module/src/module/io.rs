@@ -198,7 +198,6 @@ mod tests {
                     codemap: None,
                 },
                 contract: v1::Contract {
-                    signature: [0u8; CHECKSUM_HASH_LEN],
                     actions: Vec::new(),
                     commands: Vec::new(),
                     facts: Vec::new(),
@@ -262,7 +261,7 @@ mod tests {
     #[test]
     fn test_not_enough_space_for_checksum() {
         let m = dummy_module();
-        let mut buf = [0u8; 40]; // magic 40 here calculated by hand and depends on serialization and compression
+        let mut buf = [0u8; 43]; // magic 43 here calculated by hand and depends on serialization and compression
         let e = m
             .write_to_slice(&mut buf)
             .expect_err("write_to_slice erroneously succeeded");
