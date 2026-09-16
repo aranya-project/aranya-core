@@ -11,6 +11,9 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
 [dependencies]
 aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast" }
 aranya-policy-compiler = { version = "0.25.0", path = "../aranya-policy-compiler" }

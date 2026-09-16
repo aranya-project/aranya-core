@@ -43,3 +43,6 @@ jobs:
 
       - name: Run aranya-core example
         run: cargo make run-aranya-core-example
+
+      - name: Test benchmarks (not valid measurements)
+        run: cargo make test-benchmarks

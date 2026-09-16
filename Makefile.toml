@@ -49,6 +49,17 @@ command = "cargo"
 args = ["run", "-p", "aranya-core-example"]
 
 
+[tasks.test-benchmarks]
+category = "test"
+description = "Run all benchmarks to ensure they work"
+command = "cargo"
+args = [
+    "test",
+    "--benches",
+    "--features=aranya-fast-channels/posix,aranya-runtime/bench",
+]
+
+
 [tasks.coverage-full]
 category = "test"
 description = "Whole-workspace branch coverage report (per-file table to terminal)"

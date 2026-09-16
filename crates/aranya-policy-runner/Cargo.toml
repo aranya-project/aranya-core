@@ -10,6 +10,11 @@ rust-version.workspace = true
 publish = false
 
 [lib]
+bench = false
+
+[[bin]]
+name = "policy-runner"
+bench = false
 
 [dependencies]
 aranya-afc-util = { version = "0.26.0", path = "../aranya-afc-util" }
