@@ -1,0 +1,5 @@
+// Multiple unused function arguments.
+// NOTE arg values are popped in reverse order
+function g(x int, y int, z int) int {
+    return y
+}

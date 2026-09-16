@@ -10,8 +10,8 @@ use super::braiding;
 use crate::{
     Address, BraidBuffer, ClientError, CmdId, Command, CommandExt as _, GraphId, Location,
     MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId,
-    PolicyStore, Prior, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError,
-    StorageProvider, TraversalBuffer,
+    PolicyStore, Prior, Priority, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage,
+    StorageError, StorageProvider, TraversalBuffer,
     policy::{CommandPlacement, NullSink},
     storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
     sync::{PeerCache, SessionHeads},
@@ -284,17 +284,20 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(
+        let priority = match policy.call_rule(
             command,
             perspective,
             sink,
             CommandPlacement::OnGraphAtOrigin,
         ) {
-            perspective.revert(checkpoint)?;
-            sink.rollback();
-            return Err(e.into());
-        }
-        perspective.add_command(command)?;
+            Ok(priority) => priority,
+            Err(e) => {
+                perspective.revert(checkpoint)?;
+                sink.rollback();
+                return Err(e.into());
+            }
+        };
+        perspective.add_command(command, priority)?;
         sink.commit();
 
         self.phead = Some(command.id());
@@ -332,6 +335,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
 
         let (policy, policy_id) = choose_policy(storage, policy_store, left_loc, right_loc)?;
 
+        policy.validate_merge(command)?;
+
         // Braid commands from left and right into an ordered sequence.
         let (braid, last_common_ancestor) = evaluate_braid::<_, PS, F, MS>(
             storage,
@@ -350,7 +355,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             policy_id,
             braid,
         )?;
-        perspective.add_command(command)?;
+        // A merge's priority is fully determined by its structure.
+        perspective.add_command(command, Priority::Merge)?;
 
         // These are no longer heads of the transaction, since they are both covered by the merge
         self.heads.remove(&left.id);
@@ -440,7 +446,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             // We don't need to revert perspective since we just drop it.
             return Err(e.into());
         }
-        perspective.add_command(command)?;
+        // An init's priority is fully determined by its structure.
+        perspective.add_command(command, Priority::Init)?;
 
         let (_, storage) = provider.new_storage(perspective)?;
 
@@ -588,7 +595,7 @@ where
             policy_id,
             braid,
         )?;
-        perspective.add_command(&command)?;
+        perspective.add_command(&command, Priority::Merge)?;
         let segment = storage.write(perspective)?;
         let loc = segment.head_location()?;
         Ok(LocatedAddress {
@@ -690,8 +697,8 @@ mod test {
 
     use super::*;
     use crate::{
-        Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy, Priority,
-        TraversalBuffer,
+        Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
+        Prioritized as _, Priority, TraversalBuffer, mem_spill,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -705,10 +712,15 @@ mod test {
     /// to that point.
     struct SeqPolicy;
 
+    /// Name prefix marking finalize commands, mirroring the "q" quiet
+    /// convention: [`SeqPolicy`] derives priorities from the command data
+    /// (its name), so finalize-ness must be spelled in the name. A plain
+    /// "f" stays a basic command.
+    const FINALIZE_PREFIX: &[u8] = b"fff";
+
     struct SeqCommand {
         id: CmdId,
         prior: Prior<Address>,
-        finalize: bool,
         data: Box<str>,
     }
 
@@ -740,7 +752,7 @@ mod test {
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: CommandPlacement,
-        ) -> Result<(), PolicyError> {
+        ) -> Result<Priority, PolicyError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges shouldn't be evaluated"
@@ -768,7 +780,16 @@ mod test {
                         .unwrap();
                 }
             }
-            Ok(())
+            Ok(match command.parent() {
+                Prior::None => Priority::Init,
+                Prior::Single(_) if data.starts_with(FINALIZE_PREFIX) => Priority::Finalize,
+                // Use the last byte of the ID as priority, just so we can
+                // properly see the effects of braiding.
+                Prior::Single(_) => {
+                    Priority::Basic(u32::from(*command.id().as_bytes().last().unwrap()))
+                }
+                Prior::Merge(..) => unreachable!(),
+            })
         }
 
         fn call_action(
@@ -792,48 +813,31 @@ mod test {
 
             Ok(SeqCommand::new(id, Prior::Merge(left, right)))
         }
+
+        fn validate_merge(&self, _command: &impl Command) -> Result<(), PolicyError> {
+            // No validation to allow `"a" "b" < "m"` in `graph!` dsl.
+            Ok(())
+        }
     }
 
     impl SeqCommand {
         fn new(id: CmdId, prior: Prior<Address>) -> Self {
             let data = short_b58(id).into_boxed_str();
-            Self {
-                id,
-                prior,
-                finalize: false,
-                data,
-            }
+            Self { id, prior, data }
         }
 
         fn finalize(id: CmdId, prev: Address) -> Self {
-            let data = short_b58(id).into_boxed_str();
-            Self {
-                id,
-                prior: Prior::Single(prev),
-                finalize: true,
-                data,
-            }
+            let cmd = Self::new(id, Prior::Single(prev));
+            // SeqPolicy derives Priority::Finalize from the "fff" name prefix.
+            assert!(
+                cmd.data.as_bytes().starts_with(FINALIZE_PREFIX),
+                "finalize commands must be named fff*"
+            );
+            cmd
         }
     }
 
     impl Command for SeqCommand {
-        fn priority(&self) -> Priority {
-            if self.finalize {
-                return Priority::Finalize;
-            }
-            match self.prior {
-                Prior::None => Priority::Init,
-                Prior::Single(_) => {
-                    // Use the last byte of the ID as priority, just so we can
-                    // properly see the effects of braiding
-                    let id = self.id.as_bytes();
-                    let priority = u32::from(*id.last().unwrap());
-                    Priority::Basic(priority)
-                }
-                Prior::Merge(_, _) => Priority::Merge,
-            }
-        }
-
         fn id(&self) -> CmdId {
             self.id
         }
@@ -891,7 +895,7 @@ mod test {
                     &mut client.policy_store,
                     &mut NullSink,
                     &mut buffers,
-                    &MemSpill::new,
+                    &mem_spill,
                 )?;
                 max_cuts.insert(id, max_cut);
                 prior = Prior::Single(Address { id, max_cut });
@@ -923,7 +927,7 @@ mod test {
                     &mut self.client.policy_store,
                     &mut NullSink,
                     &mut self.buffers,
-                    &MemSpill::new,
+                    &mem_spill,
                 )?;
                 self.max_cuts.insert(id, max_cut);
                 prev = Address { id, max_cut };
@@ -941,7 +945,7 @@ mod test {
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffers,
-                &MemSpill::new,
+                &mem_spill,
             )?;
             self.max_cuts.insert(id, max_cut);
             Ok(())
@@ -962,7 +966,7 @@ mod test {
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffers,
-                &MemSpill::new,
+                &mem_spill,
             )?;
             for &id in &ids[1..] {
                 let cmd = SeqCommand::new(id, Prior::Single(prev));
@@ -974,7 +978,7 @@ mod test {
                     &mut self.client.policy_store,
                     &mut NullSink,
                     &mut self.buffers,
-                    &MemSpill::new,
+                    &mem_spill,
                 )?;
             }
             Ok(())
@@ -1004,7 +1008,7 @@ mod test {
                 &mut self.client.policy_store,
                 &mut NullSink,
                 &mut self.buffers,
-                &MemSpill::new,
+                &mem_spill
             )?);
             Ok(())
         }
@@ -1260,6 +1264,76 @@ mod test {
         assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
     }
 
+    /// Priorities are derived at ingest — structurally for merge and init
+    /// commands, from the command body by the policy for evaluated commands —
+    /// and persisted. The plumbing is untyped (`add_command` accepts any
+    /// [`Priority`]), so walk every stored command and check its priority
+    /// against an independent derivation, including on the collapse merges
+    /// that `commit` creates.
+    #[test]
+    fn test_stored_priorities_are_derived_locally() {
+        let mut gb = graph! {
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            "a";
+            "a" < "b" "c";
+            "b" "c" < "ma";
+            "ma" < finalize "fff1";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
+
+        // Walk every segment reachable from the heads.
+        let mut queue: Vec<Location> = g
+            .get_heads()
+            .unwrap()
+            .iter()
+            .map(LocatedAddress::location)
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        // One count per kind: [init, merge, basic, finalize].
+        let mut counts = [0usize; 4];
+        while let Some(loc) = queue.pop() {
+            if !seen.insert(loc.segment) {
+                continue;
+            }
+            let segment = g.get_segment(loc).unwrap();
+            queue.extend(segment.prior());
+
+            let first = segment.first_location();
+            let last = segment.head_location().unwrap();
+            for mc in first.max_cut.get()..=last.max_cut.get() {
+                let at = Location::new(first.segment, MaxCut::new(mc));
+                let cmd = segment.get_command(at).unwrap();
+                let stored = cmd.priority();
+                let (expected, kind) = match cmd.parent() {
+                    Prior::None => (Priority::Init, 0),
+                    Prior::Merge(..) => (Priority::Merge, 1),
+                    // SeqPolicy's derivation rule: "fff" names finalize,
+                    // everything else is Basic(last byte of the id).
+                    Prior::Single(_) if cmd.bytes().starts_with(FINALIZE_PREFIX) => {
+                        (Priority::Finalize, 3)
+                    }
+                    Prior::Single(_) => (
+                        Priority::Basic(u32::from(*cmd.id().as_bytes().last().unwrap())),
+                        2,
+                    ),
+                };
+                assert_eq!(
+                    stored,
+                    expected,
+                    "command {} stored priority must be derived locally",
+                    cmd.id()
+                );
+                counts[kind] = counts[kind].checked_add(1).unwrap();
+            }
+        }
+        // Every priority kind must have been exercised by the walk.
+        assert!(
+            counts.iter().all(|&c| c > 0),
+            "priority kind not covered: {counts:?}"
+        );
+    }
+
     /// Build a [`CmdId`] deterministically from a counter value.
     fn id_from_u64(n: u64) -> CmdId {
         hash_for_testing_only(&n.to_le_bytes())
@@ -1287,7 +1361,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
 
@@ -1299,7 +1373,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("sibling ingest must succeed");
         }
@@ -1310,7 +1384,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("commit must succeed")
         );
@@ -1333,7 +1407,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("extend ingest must succeed");
         assert!(
@@ -1342,7 +1416,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("extend commit must succeed")
         );
@@ -1393,7 +1467,7 @@ mod test {
             &mut client.policy_store,
             heads,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .unwrap();
 
@@ -1445,7 +1519,7 @@ mod test {
                 &mut ahead.policy_store,
                 heads,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .unwrap();
             let segment = storage.get_segment(loc).unwrap();
@@ -1512,7 +1586,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
 
@@ -1527,7 +1601,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("sibling ingest must succeed");
         }
@@ -1538,7 +1612,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("commit must succeed")
         );
@@ -1582,7 +1656,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("add_commands must succeed");
 
@@ -1640,7 +1714,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
         trx.commit(
@@ -1648,7 +1722,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("commit must succeed");
 
@@ -1675,7 +1749,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("ingest must succeed");
         let storage = client.provider.get_storage(graph_id).unwrap();
@@ -1739,7 +1813,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init must succeed");
         trx.commit(
@@ -1747,7 +1821,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("commit must succeed");
 
@@ -1759,7 +1833,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("ingest must succeed");
         let storage = client.provider.get_storage(graph_id).unwrap();
@@ -1790,7 +1864,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("commit must succeed");
         let storage = client.provider.get_storage(graph_id).unwrap();
@@ -1827,7 +1901,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("init add_commands must succeed");
         assert!(
@@ -1836,7 +1910,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("init commit must succeed")
         );
@@ -1849,7 +1923,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("trx1 add_commands must succeed");
 
@@ -1861,7 +1935,7 @@ mod test {
             &mut client.policy_store,
             &mut NullSink,
             &mut buffers,
-            &MemSpill::new,
+            &mem_spill,
         )
         .expect("trx2 add_commands must succeed");
         assert!(
@@ -1870,7 +1944,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect("trx2 commit must succeed")
         );
@@ -1882,7 +1956,7 @@ mod test {
                 &mut client.policy_store,
                 &mut NullSink,
                 &mut buffers,
-                &MemSpill::new,
+                &mem_spill,
             )
             .expect_err("trx1 commit must fail after trx2 committed");
         assert!(

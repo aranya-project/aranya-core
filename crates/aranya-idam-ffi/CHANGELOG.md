@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.23.0...aranya-idam-ffi-v0.24.0) - 2026-08-25
+
+### Other
+
+- update crypto dependencies ([#762](https://github.com/aranya-project/aranya-core/pull/762))
+
 ## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.22.0...aranya-idam-ffi-v0.23.0) - 2026-07-09
 
 ### Other

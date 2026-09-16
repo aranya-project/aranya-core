@@ -75,7 +75,7 @@ pub enum TypeKind {
     /// Named enumeration
     Enum(Identifier),
     /// An optional type of some other type
-    Optional(#[rkyv(omit_bounds)] Box<TypeKind>),
+    Optional(#[rkyv(omit_bounds)] Box<Self>),
     /// A type which cannot be instantiated.
     Never,
     /// Result with value, or error

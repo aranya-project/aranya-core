@@ -1,0 +1,7 @@
+// Check that we're actually detecting ALL unused let variables
+function g() int {
+    let a = 1
+    let b = 2
+    let c = saturating_add(a, b)
+    return 0  // c is unused
+}

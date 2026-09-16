@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.22.0...aranya-policy-module-v0.23.0) - 2026-08-25
+
+### Other
+
+- Remove vm span dependency ([#726](https://github.com/aranya-project/aranya-core/pull/726))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+
 ## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.21.0...aranya-policy-module-v0.22.0) - 2026-07-09
 
 ### Other

@@ -7,8 +7,8 @@ use buggy::Bug;
 use rend::u64_le;
 
 use crate::{
-    Address,
-    command::{CmdId, Command},
+    Address, MAX_COMMAND_LENGTH,
+    command::{CmdId, Command, Priority},
     storage::{FactPerspective, Perspective},
 };
 
@@ -122,6 +122,15 @@ impl MergeIds {
             Ordering::Greater => Some(Self { left: b, right: a }),
         }
     }
+
+    /// Create [`MergeIds`] from two [`Address`]s which must already be ordered.
+    pub fn from_ordered(left: Address, right: Address) -> Option<Self> {
+        if left < right {
+            Some(Self { left, right })
+        } else {
+            None
+        }
+    }
 }
 
 impl From<MergeIds> for (CmdId, CmdId) {
@@ -152,13 +161,19 @@ pub trait Policy {
     /// Evaluate a command at the given perspective. If the command is accepted, effects may
     /// be emitted to the sink and facts may be written to the perspective. Returns an error
     /// for a rejected command.
+    ///
+    /// On success, returns the command's [`Priority`], derived from the
+    /// command's body. The runtime persists this value and uses it as the
+    /// braid strand-ordering key, so it must be a pure function of the
+    /// command data: every peer evaluating the same command must derive the
+    /// same priority.
     fn call_rule(
         &self,
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
-    ) -> Result<(), PolicyError>;
+    ) -> Result<Priority, PolicyError>;
 
     /// Process an action checking each published command against the policy and emitting
     /// effects to the sink. All published commands are handled transactionally where if any
@@ -178,6 +193,21 @@ pub trait Policy {
         target: &'a mut [u8],
         ids: MergeIds,
     ) -> Result<Self::Command<'a>, PolicyError>;
+
+    /// Validate a merge command.
+    fn validate_merge(&self, command: &impl Command) -> Result<(), PolicyError> {
+        let ids = match command.parent() {
+            crate::Prior::Merge(left, right) => MergeIds::from_ordered(left, right),
+            _ => None,
+        }
+        .ok_or(PolicyError::Panic)?;
+        let id = self.merge(&mut [0u8; MAX_COMMAND_LENGTH], ids)?.id();
+        if command.id() == id {
+            Ok(())
+        } else {
+            Err(PolicyError::Panic)
+        }
+    }
 }
 
 /// Describes the placement when calling an action.

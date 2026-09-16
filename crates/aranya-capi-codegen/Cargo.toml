@@ -27,3 +27,7 @@ quote = { workspace = true }
 strum = { version = "0.26.3", features = ["derive"] }
 syn = { workspace = true, features = ["extra-traits", "full", "visit-mut"] }
 tracing = { workspace = true, features = ["std"] }
+
+
+[package.metadata.docs.rs]
+all-features = true

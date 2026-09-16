@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.24.0...aranya-policy-compiler-v0.25.0) - 2026-08-25
+
+### Other
+
+- 707 remove unwrap ([#736](https://github.com/aranya-project/aranya-core/pull/736))
+- Remove vm span dependency ([#726](https://github.com/aranya-project/aranya-core/pull/726))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- Close #661: Implement `Some(ident)` pattern matching. ([#712](https://github.com/aranya-project/aranya-core/pull/712))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+
 ## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.23.0...aranya-policy-compiler-v0.24.0) - 2026-07-09
 
 ### Other

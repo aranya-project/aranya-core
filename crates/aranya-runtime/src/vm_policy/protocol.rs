@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{CmdId, Command, Priority},
+    command::{CmdId, Command},
 };
 
 /// The data inside a [`VmProtocol`]. It gets serialized and deserialized over the wire.
@@ -31,7 +31,6 @@ pub struct VmProtocolData<'a> {
 #[derive(Debug)]
 pub struct VmProtocol<'a> {
     pub id: CmdId,
-    pub priority: Priority,
     pub parent: Prior<Address>,
     pub policy: Option<[u8; 8]>,
     /// Serialized [`VmProtocolData`].
@@ -39,10 +38,6 @@ pub struct VmProtocol<'a> {
 }
 
 impl Command for VmProtocol<'_> {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.23.0...aranya-crypto-ffi-v0.24.0) - 2026-08-25
+
+### Other
+
+- update crypto dependencies ([#762](https://github.com/aranya-project/aranya-core/pull/762))
+- accept option key input ([#750](https://github.com/aranya-project/aranya-core/pull/750))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+
 ## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-ffi-v0.22.0...aranya-crypto-ffi-v0.23.0) - 2026-07-09
 
 ### Other

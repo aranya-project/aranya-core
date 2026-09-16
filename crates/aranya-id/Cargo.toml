@@ -2,7 +2,7 @@
 name = "aranya-id"
 description = "Aranya ID types"
 publish = true
-version = "0.2.2"
+version = "0.3.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -47,3 +47,7 @@ serde_json = { version = "1", features = ["alloc"] }
 ignored = [
 	"zerocopy", # for zerocopy-derive
 ]
+
+
+[package.metadata.docs.rs]
+all-features = true
