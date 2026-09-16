@@ -121,9 +121,9 @@ use core::fmt;
 
 use aranya_crypto::BaseId;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, CommandDef, ConstValue, ExitReason,
-    KVPair, Machine, MachineIO, MachineStack, OpenContext, Persistence, PolicyContext, RunState,
-    Stack as _, Struct, Value, ast::Identifier,
+    ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
+    MachineStack, OpenContext, Persistence, PolicyContext, RunState, Stack as _, Struct, Value,
+    ast::Identifier,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
