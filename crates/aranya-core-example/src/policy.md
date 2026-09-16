@@ -74,13 +74,21 @@ key fact and the Owner singleton. Because no DeviceSignPubKey exists
 yet, seal/open inline the crypto using keys from the command fields.
 
 ```policy
-command Init {
+base command BaseInit {
+    fields {
+        owner_keys struct PublicKeys,
+    }
+    get_key {
+        return Some(this.owner_keys.sign_key)
+    }
+}
+
+command Init : BaseInit {
     attributes {
         init: true
     }
 
     fields {
-        owner_keys struct PublicKeys,
         nonce int,
     }
 
@@ -102,13 +110,26 @@ command Init {
 }
 ```
 
+## Base Command
+
+```policy
+base command Base {
+    get_key {
+        return match query DeviceSignPubKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+```
+
 ## AddDevice Command
 
 Only the owner can add new devices. Uses seal_command/open_envelope
 since the owner's signing key is already in the fact DB.
 
 ```policy
-command AddDevice {
+command AddDevice : Base {
     attributes {
         priority: 100
     }
@@ -143,7 +164,7 @@ command AddDevice {
 ## Application Commands
 
 ```policy
-command SetCounter {
+command SetCounter : Base {
     attributes {
         priority: 50
     }
@@ -161,7 +182,7 @@ command SetCounter {
     }
 }
 
-command IncrementCounter {
+command IncrementCounter : Base {
     attributes {
         priority: 50
     }
@@ -188,7 +209,7 @@ command IncrementCounter {
 ## Ephemeral Query
 
 ```policy
-ephemeral command GetCounter {
+ephemeral command GetCounter : Base {
     fields {
         name int,
     }

@@ -125,8 +125,8 @@ use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
 
 use crate::{
-    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior,
-    Priority,
+    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, NullSink, Perspective,
+    Prior, Priority,
     command::{CmdId, Command},
     policy::{Policy, PolicyError, Sink},
 };
@@ -402,11 +402,21 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         envelope: &Envelope<'_>,
         facts: &mut impl FactPerspective,
     ) -> Result<(), PolicyError> {
-        let key =
-            seal_open::find_key::<CE::CS>(command_struct, envelope, facts).ok_or_else(|| {
-                tracing::warn!("open key not found");
+        let mut sink = NullSink;
+        let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
+
+        let (_, value) = self
+            .machine
+            .call_get_key(command_struct.clone(), envelope.author_id, &mut io)
+            .map_err(|_| PolicyError::Panic)?;
+
+        let key_bytes = value.ok_or(PolicyError::Panic)?;
+        let key: aranya_crypto::VerifyingKey<CE::CS> =
+            postcard::from_bytes(&key_bytes).map_err(|_| {
+                tracing::warn!("could not deserialize open key");
                 PolicyError::Panic
             })?;
+
         seal_open::open_with_key(key, command_struct, payload, envelope)
             .map_err(|_| PolicyError::Panic)
     }

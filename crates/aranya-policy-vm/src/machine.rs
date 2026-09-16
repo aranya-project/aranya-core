@@ -10,7 +10,7 @@ use core::{
     str::FromStr as _,
 };
 
-use aranya_crypto::policy::CmdId;
+use aranya_crypto::{DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
     ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, Instruction, Label,
@@ -263,6 +263,22 @@ impl Machine {
     {
         let mut rs = self.create_run_state(io, ctx);
         rs.call_action(name, args)
+    }
+
+    /// Call a `get_key` block.
+    pub fn call_get_key<M>(
+        &self,
+        this_data: Struct,
+        author_id: DeviceId,
+        io: &mut M,
+    ) -> Result<(ExitReason, Option<Vec<u8>>), MachineError>
+    where
+        M: MachineIO<MachineStack>,
+    {
+        let mut rs = self.create_run_state(io, CommandContext::Pure);
+        let status = rs.call_get_key(this_data, author_id)?;
+        let key = rs.stack.pop::<Option<Vec<u8>>>().ok().flatten();
+        Ok((status, key))
     }
 
     /// Call a command
@@ -877,7 +893,7 @@ where
                 let (command, recall) = match &self.ctx {
                     CommandContext::Policy(ctx) => (ctx.id, false),
                     CommandContext::Recall(ctx) => (ctx.id, true),
-                    CommandContext::Action(_) => {
+                    _ => {
                         return Err(
                             self.err(MachineErrorType::BadState("Emit: wrong command context"))
                         );
@@ -1150,6 +1166,21 @@ where
         self.stopwatch.stop();
 
         Ok(())
+    }
+
+    /// Call a `get_key` block.
+    pub fn call_get_key(
+        &mut self,
+        this_data: Struct,
+        author_id: DeviceId,
+    ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Pure) {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_function(&Label::new(this_data.name.clone(), LabelType::GetKey))?;
+        self.ipush(this_data)?;
+        self.ipush(author_id)?;
+        self.run()
     }
 
     /// Call a command policy loaded into the VM by name. Accepts a

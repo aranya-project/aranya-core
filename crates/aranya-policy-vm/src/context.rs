@@ -28,6 +28,8 @@ pub struct PolicyContext {
 /// Properties of policy execution available through FFI.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandContext {
+    /// Pure function with no additional context
+    Pure,
     /// Action
     Action(ActionContext),
     /// Policy operation

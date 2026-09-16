@@ -22,6 +22,42 @@ use device
 use crypto
 use envelope
 
+base command BaseInit {
+    fields {
+        sign_pk bytes,
+    }
+    get_key {
+        return Some(this.sign_pk)
+    }
+}
+
+base command BaseSelfSigned {
+    fields {
+        sign_pk bytes,
+    }
+    get_key {
+        return Some(this.sign_pk)
+    }
+}
+
+base command Base {
+    get_key {
+        return match query DeviceSignKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base command Ephemeral {
+    get_key {
+        return match query DeviceSignKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
 fact Stuff[a int]=>{x int}
 
 effect StuffHappened {
@@ -97,14 +133,13 @@ action init(nonce int, sign_pk bytes) {
     }
 }
 
-command Init {
+command Init : BaseInit {
     attributes {
         init: true,
     }
 
     fields {
         nonce int,
-        sign_pk bytes,
     }
 
     policy {
@@ -120,14 +155,13 @@ action add_device_keys(ident_pk bytes, sign_pk bytes) {
     }
 }
 
-command AddDeviceKeys {
+command AddDeviceKeys : BaseSelfSigned {
     attributes {
         priority: 0,
     }
 
     fields {
         ident_pk bytes,
-        sign_pk bytes,
     }
 
     policy {
@@ -161,7 +195,7 @@ action create_action(v int) {
     }
 }
 
-command Create {
+command Create : Base {
     attributes {
         priority: 0,
     }
@@ -187,7 +221,7 @@ action increment(v int) {
     }
 }
 
-command Increment {
+command Increment : Base {
     attributes {
         priority: 0,
     }
@@ -216,7 +250,7 @@ action decrement(v int) {
     }
 }
 
-command Decrement {
+command Decrement : Base {
     attributes {
         priority: 0,
     }
@@ -247,7 +281,7 @@ ephemeral action create_greeting(key string, value string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting {
+ephemeral command CreateGreeting : Ephemeral {
     fields {
         key string,
         value string,
@@ -280,7 +314,7 @@ ephemeral action verify_hellos() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting {
+ephemeral command VerifyGreeting : Ephemeral {
     fields {
         key string,
         value string,
@@ -306,7 +340,7 @@ action verify_no_hello() {
 
 // `VerifyNoHello` is a command that verifies that there are no greetings in
 // the factDB persisted to the graph.
-command VerifyNoHello {
+command VerifyNoHello : Base {
     attributes {
         priority: 0,
     }
