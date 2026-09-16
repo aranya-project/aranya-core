@@ -76,6 +76,7 @@ impl From<CastError<&[u8], Header>> for ModuleIoError {
     zerocopy::Immutable,
     zerocopy::KnownLayout,
 )]
+#[repr(C)]
 struct Header {
     magic: [u8; 8],
     version: little_endian::U32,

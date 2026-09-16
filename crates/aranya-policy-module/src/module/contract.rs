@@ -190,10 +190,10 @@ impl FunctionContract {
         }
         if self.args.len() != other.args.len() {
             return Err(ContractValidationError::new(format_args!(
-                "function `{}` has {} arguments but expected {}",
+                "function `{}` has {} arguments but VM expects {}",
                 self.name,
+                self.args.len(),
                 other.args.len(),
-                self.args.len()
             )));
         }
         for (a1, a2) in self.args.iter().zip(other.args.iter()) {
