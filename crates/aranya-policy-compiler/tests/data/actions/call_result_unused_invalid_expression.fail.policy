@@ -1,0 +1,8 @@
+// A fallible action's result can't be silently discarded.
+action can_fail() result[unit, string] {
+    return Err("nope")
+}
+
+action foo() {
+    action can_fail()
+}

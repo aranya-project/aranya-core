@@ -1177,8 +1177,7 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// An [Expression] evaluated for its effect. Its type must be
-    /// [`TypeKind::Never`], so there is no value to discard.
+    /// A wrapper for an expressions that can be used in statement form. The expression must evaluate to [`TypeKind::Never`].
     Expression(Expression),
     /// Publishes an expression describing a command.
     /// Valid only in actions.

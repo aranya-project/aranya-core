@@ -1,0 +1,8 @@
+// Using a fallible action's result satisfies the "must be used" rule.
+action can_fail() result[unit, string] {
+    return Err("nope")
+}
+
+action propagates() result[unit, string] {
+    return action can_fail()
+}
