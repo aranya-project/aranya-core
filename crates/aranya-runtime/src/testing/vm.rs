@@ -3,7 +3,7 @@
 extern crate alloc;
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use aranya_crypto::{Rng, default::DefaultEngine};
+use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value, ast::ident};
 use tracing::trace;
@@ -13,9 +13,9 @@ use crate::{
     ClientError, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
     RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError, mem_spill,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
-    ser_keys,
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
+    vm_policy::{SealCtx, ser_keys},
 };
 
 /// The policy used by these tests.
@@ -298,7 +298,8 @@ impl Sink<VmEffect> for VecSink {
 
 /// Used by the VM tests.
 pub struct TestPolicyStore {
-    policy: VmPolicy<DefaultEngine<Rng>>,
+    policy: VmPolicy<DefaultEngine>,
+    seal_ctx: SealCtx<DefaultEngine>,
 }
 
 impl TestPolicyStore {
@@ -314,7 +315,13 @@ impl TestPolicyStore {
             vec![],
         )
         .expect("Could not load policy");
-        Self { policy }
+
+        let seal_ctx = SealCtx {
+            author: DeviceId::random(Rng),
+            key: SigningKey::new(Rng),
+        };
+
+        Self { policy, seal_ctx }
     }
 }
 
@@ -328,6 +335,13 @@ impl PolicyStore for TestPolicyStore {
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
+    }
+
+    fn seal_ctx(
+        &self,
+        _id: PolicyId,
+    ) -> Result<&<Self::Policy as crate::Policy>::SealCtx, PolicyError> {
+        Ok(&self.seal_ctx)
     }
 }
 

@@ -117,7 +117,6 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 
-use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, Persistence, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
@@ -135,10 +134,12 @@ use crate::{
 mod error;
 mod io;
 mod protocol;
+mod seal_open;
 
 pub use error::*;
 pub use io::*;
 pub use protocol::*;
+pub use seal_open::SealCtx;
 
 /// Creates a [`VmAction`].
 ///
@@ -370,25 +371,44 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
     fn seal_command(
         &self,
         command_struct: &Struct,
-        _parent_id: CmdId,
+        parent_id: CmdId,
+        seal_ctx: &SealCtx<CE>,
     ) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
-        let _payload = self.machine.serialize_struct(command_struct).map_err(|e| {
+        let payload = self.machine.serialize_struct(command_struct).map_err(|e| {
             error!(error = %e, "cannot serialize command");
             PolicyError::Write
         })?;
 
-        todo!()
+        let envelope = seal_open::seal_with_key(
+            &seal_ctx.key,
+            command_struct,
+            &payload,
+            seal_ctx.author,
+            parent_id,
+        )
+        .map_err(|e| {
+            error!(error = %e, "could not seal command");
+            PolicyError::Panic
+        })?;
+
+        Ok((payload, envelope))
     }
 
     #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
     fn open_command(
         &self,
         command_struct: &Struct,
-        _payload: &[u8],
-        _envelope: &Envelope<'_>,
-        _facts: &mut impl FactPerspective,
+        payload: &[u8],
+        envelope: &Envelope<'_>,
+        facts: &mut impl FactPerspective,
     ) -> Result<(), PolicyError> {
-        todo!()
+        let key =
+            seal_open::find_key::<CE::CS>(command_struct, envelope, facts).ok_or_else(|| {
+                tracing::warn!("open key not found");
+                PolicyError::Panic
+            })?;
+        seal_open::open_with_key(key, command_struct, payload, envelope)
+            .map_err(|_| PolicyError::Panic)
     }
 }
 
@@ -469,6 +489,7 @@ impl<CE> VmPolicy<CE> {
 
 impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     type Action<'a> = VmAction<'a>;
+    type SealCtx = SealCtx<CE>;
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;
 
@@ -562,7 +583,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             name: kind.clone(),
             id: command.id(),
             author: author_id,
-            version: BaseId::default(),
+            version: aranya_crypto::BaseId::default(),
         });
         self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx)?;
 
@@ -576,6 +597,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         action_placement: ActionPlacement,
+        seal_ctx: &SealCtx<CE>,
     ) -> Result<(), PolicyError> {
         let VmAction { name, args } = action;
 
@@ -689,7 +711,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
                         }
 
-                        let (payload, envelope) = self.seal_command(&command_struct, parent_id)?;
+                        let (payload, envelope) =
+                            self.seal_command(&command_struct, parent_id, seal_ctx)?;
 
                         let data = VmProtocolData {
                             author_id: envelope.author_id,

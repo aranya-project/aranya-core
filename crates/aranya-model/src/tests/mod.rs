@@ -1,11 +1,11 @@
+#![expect(clippy::arc_with_non_send_sync, reason = "TODO: make keys thread safe")]
+
 mod keygen;
-extern crate alloc;
-use alloc::vec::Vec;
-use core::cell::RefCell;
-use std::{fs, marker::PhantomData};
+
+use std::{cell::RefCell, fs, marker::PhantomData, sync::Arc, vec::Vec};
 
 use aranya_crypto::{
-    Rng,
+    DeviceId, KeyStoreExt as _, Rng, SigningKey,
     default::{DefaultCipherSuite, DefaultEngine},
     keystore::fs_keystore::Store,
 };
@@ -22,9 +22,9 @@ use aranya_policy_vm::{
 };
 use aranya_runtime::{
     ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
-    storage::{linear, linear::testing::MemStorageProvider},
+    storage::linear::{self, testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::VmPolicy,
+    vm_policy::{SealCtx, VmPolicy},
 };
 use tempfile::tempdir;
 use test_log::test;
@@ -45,6 +45,7 @@ type Lsp = linear::LinearStorageProvider<linear::testing::Manager>;
 // implementation, I included two here for testing purposes.
 struct BasicClientFactory {
     machine: Machine,
+    seal_ctx: Arc<SealCtx<DefaultEngine>>,
 }
 
 impl BasicClientFactory {
@@ -56,7 +57,12 @@ impl BasicClientFactory {
             .compile()?;
         let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
-        Ok(Self { machine })
+        let seal_ctx = Arc::new(SealCtx {
+            author: DeviceId::default(),
+            key: SigningKey::new(Rng),
+        });
+
+        Ok(Self { machine, seal_ctx })
     }
 }
 
@@ -82,7 +88,7 @@ impl ClientFactory for BasicClientFactory {
             vec![Box::new(EnvelopeFfi)];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
-        let policy_store = ModelPolicyStore::new(policy);
+        let policy_store = ModelPolicyStore::new(policy, Some(Arc::clone(&self.seal_ctx)));
         let provider = Lsp::default();
 
         ModelClient {
@@ -145,6 +151,11 @@ impl ClientFactory for FfiClientFactory {
             .public_keys(&eng, &store)
             .expect("unable to generate public keys");
 
+        let key = store
+            .get_key(&eng, bundle.sign_id)
+            .expect("can get key")
+            .expect("key present");
+
         // Configure FFIs
         let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
             Box::from(DeviceFfi::new(bundle.device_id)),
@@ -154,7 +165,13 @@ impl ClientFactory for FfiClientFactory {
         ];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
-        let policy_store = ModelPolicyStore::new(policy);
+        let policy_store = ModelPolicyStore::new(
+            policy,
+            Some(Arc::new(SealCtx {
+                author: bundle.device_id,
+                key,
+            })),
+        );
         let provider = Lsp::default();
 
         ModelClient {
@@ -1394,6 +1411,11 @@ fn should_create_clients_with_args() {
             let bundle =
                 KeyBundle::generate(&eng, &mut store).expect("unable to generate `KeyBundle`");
 
+            let key = store
+                .get_key(&eng, bundle.sign_id)
+                .expect("can get key")
+                .expect("key present");
+
             // Assign public keys to our variable
             public_keys = bundle
                 .public_keys(&eng, &store)
@@ -1408,7 +1430,13 @@ fn should_create_clients_with_args() {
             ];
 
             let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
-            let policy_store = ModelPolicyStore::new(policy);
+            let policy_store = ModelPolicyStore::new(
+                policy,
+                Some(Arc::new(SealCtx {
+                    author: bundle.device_id,
+                    key,
+                })),
+            );
             let provider = MemStorageProvider::default();
 
             ModelClient {
@@ -1474,7 +1502,7 @@ fn should_create_clients_with_args() {
             ];
 
             let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");
-            let policy_store = ModelPolicyStore::new(policy);
+            let policy_store = ModelPolicyStore::new(policy, None);
             let provider = MemStorageProvider::default();
 
             ModelClient {
