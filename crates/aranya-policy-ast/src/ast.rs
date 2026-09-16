@@ -1342,6 +1342,8 @@ impl Spanned for RecallBlockDefinition {
 pub struct CommandDefinition {
     /// The persistence mode of the command
     pub persistence: Persistence,
+    /// The name of the base command for this command
+    pub base: Option<Ident>,
     /// Optional attributes
     pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
@@ -1357,6 +1359,23 @@ pub struct CommandDefinition {
 }
 
 impl Spanned for CommandDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// A base command definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BaseCommandDefinition {
+    /// The name of the base command
+    pub identifier: Ident,
+    /// The get key block
+    pub get_key: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for BaseCommandDefinition {
     fn span(&self) -> Span {
         self.span
     }
@@ -1442,6 +1461,8 @@ pub struct Policy {
     pub enums: Vec<EnumDefinition>,
     /// The policy's command definitions.
     pub commands: Vec<CommandDefinition>,
+    /// The policy's base command definitions.
+    pub base_commands: Vec<BaseCommandDefinition>,
     /// The policy's function definitions.
     pub functions: Vec<FunctionDefinition>,
     /// The policy's finish function definitions.

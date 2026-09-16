@@ -110,6 +110,7 @@ Policy {
     commands: [
         CommandDefinition {
             persistence: Persistent,
+            base: None,
             attributes: [],
             identifier: "Add" @ 294..297,
             fields: [
@@ -645,6 +646,7 @@ Policy {
             persistence: Ephemeral(
                 1849..1858,
             ),
+            base: None,
             attributes: [],
             identifier: "C" @ 1867..1868,
             fields: [
@@ -660,6 +662,7 @@ Policy {
             span: 1849..1919,
         },
     ],
+    base_commands: [],
     functions: [
         FunctionDefinition {
             identifier: "positive" @ 1644..1652,

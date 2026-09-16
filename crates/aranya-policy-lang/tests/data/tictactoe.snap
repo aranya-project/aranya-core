@@ -294,6 +294,7 @@ Policy {
     commands: [
         CommandDefinition {
             persistence: Persistent,
+            base: None,
             attributes: [],
             identifier: "Start" @ 834..839,
             fields: [
@@ -452,6 +453,7 @@ Policy {
         },
         CommandDefinition {
             persistence: Persistent,
+            base: None,
             attributes: [],
             identifier: "Move" @ 1977..1981,
             fields: [
@@ -831,6 +833,7 @@ Policy {
         },
         CommandDefinition {
             persistence: Persistent,
+            base: None,
             attributes: [],
             identifier: "Move2" @ 5783..5788,
             fields: [
@@ -1401,6 +1404,7 @@ Policy {
             span: 5775..7371,
         },
     ],
+    base_commands: [],
     functions: [
         FunctionDefinition {
             identifier: "bounds" @ 319..325,
