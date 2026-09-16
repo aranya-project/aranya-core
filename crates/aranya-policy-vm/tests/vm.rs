@@ -25,6 +25,7 @@ fn compile(text: &str) -> Machine {
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .debug(true)
+        .allow_baseless(true)
         .compile()
         .unwrap();
     Machine::from_module(module).unwrap()
@@ -1312,10 +1313,8 @@ fn test_check_errors() -> anyhow::Result<()> {
     ];
 
     for input in cases {
-        let policy = parse_policy_str(input, Version::V2)?;
         let mut io = TestIO::new();
-        let module = Compiler::new(&policy).compile()?;
-        let machine = Machine::from_module(module)?;
+        let machine = compile(input);
         let name = ident!("Foo");
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -1831,7 +1830,11 @@ policy {
     )
     .unwrap();
 
-    let want = Compiler::new(&policy).compile().unwrap();
+    let want = Compiler::new(&policy)
+        .debug(true)
+        .allow_baseless(true)
+        .compile()
+        .unwrap();
     let machine = Machine::from_module(want.clone());
 
     let data = {
@@ -2459,12 +2462,8 @@ fn test_result() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     // Test with succeed=true, should emit Ok(42)
     {
@@ -2535,12 +2534,8 @@ fn test_match_patterns() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     // n=5 should take the Ok(5) branch.
     {
@@ -2627,12 +2622,8 @@ fn test_unit() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     // n=42 should emit Yes
     {

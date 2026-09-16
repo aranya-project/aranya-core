@@ -10,7 +10,11 @@ use crate::{Compiler, validate::validate};
 #[track_caller]
 fn compile_pass(text: &str) -> Module {
     let policy = parse_policy_str(text, Version::V2).unwrap();
-    Compiler::new(&policy).debug(true).compile().unwrap()
+    Compiler::new(&policy)
+        .debug(true)
+        .allow_baseless(true)
+        .compile()
+        .unwrap()
 }
 
 #[test]

@@ -58,6 +58,7 @@ fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
         .debug(is_debug)
+        .allow_baseless(true)
         .compile()
 }
 

@@ -41,6 +41,7 @@ use self::{
     topo::TopoSort,
     types::{IdentifierTypeStack, UserType},
 };
+use crate::compile::error::MissingBaseCommand;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -220,10 +221,8 @@ struct CompileState<'a> {
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// Determines if one compiles with debug functionality,
-    is_debug: bool,
-    /// Auto-defines FFI modules for testing purposes
-    stub_ffi: bool,
+    /// Configuration
+    config: Config,
 }
 
 impl<'a> CompileState<'a> {
@@ -569,7 +568,7 @@ impl<'a> CompileState<'a> {
     /// Ensure debug mode is on, or return a [`DebugModeRequired`] error. In debug
     /// mode, warns that a debug-only construct (e.g. `todo()`/`test_fail`) is present.
     fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
-        if self.is_debug {
+        if self.config.is_debug {
             warn!("`{name}` found in policy");
             Ok(())
         } else {
@@ -673,7 +672,7 @@ impl<'a> CompileState<'a> {
                 for arg_e in f.arguments {
                     self.compile_typed_expression(arg_e)?;
                 }
-                if self.stub_ffi {
+                if self.config.stub_ffi {
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 } else {
                     let (module_id, procedure_id) =
@@ -1029,7 +1028,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Call(Target::Unresolved(label)));
             }
             thir::StmtKind::DebugAssert(s) => {
-                if self.is_debug {
+                if self.config.is_debug {
                     // Compile the expression within `debug_assert(e)`
                     self.compile_typed_expression(s)?;
                     // Now, branch to the next instruction if the top of the stack is true
@@ -1406,6 +1405,12 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let command = command_node;
         self.map_range(command.span)?;
+
+        if !self.config.allow_baseless && command.base.is_none() {
+            return Err(self.err(MissingBaseCommand {
+                command: command.identifier.clone(),
+            }));
+        }
 
         if let Some(base) = &command.base {
             let addr = self
@@ -2254,12 +2259,31 @@ enum Scope {
     Same,
 }
 
+#[derive(Copy, Clone)]
+struct Config {
+    /// Determines if one compiles with debug functionality,
+    is_debug: bool,
+    /// Auto-defines FFI modules for testing purposes
+    stub_ffi: bool,
+    /// Allows commands without a base command
+    allow_baseless: bool,
+}
+
+impl Config {
+    fn new() -> Self {
+        Self {
+            is_debug: cfg!(debug_assertions),
+            stub_ffi: false,
+            allow_baseless: false,
+        }
+    }
+}
+
 /// A builder for creating an instance of [`Module`]
 pub struct Compiler<'a> {
     policy: &'a AstPolicy,
     ffi_modules: &'a [ModuleSchema<'a>],
-    is_debug: bool,
-    stub_ffi: bool,
+    config: Config,
 }
 
 impl<'a> Compiler<'a> {
@@ -2268,8 +2292,7 @@ impl<'a> Compiler<'a> {
         Self {
             policy,
             ffi_modules: &[],
-            is_debug: cfg!(debug_assertions),
-            stub_ffi: false,
+            config: Config::new(),
         }
     }
 
@@ -2283,13 +2306,19 @@ impl<'a> Compiler<'a> {
     /// Enables or disables debug mode
     #[must_use]
     pub fn debug(mut self, is_debug: bool) -> Self {
-        self.is_debug = is_debug;
+        self.config.is_debug = is_debug;
         self
     }
 
     #[must_use]
     pub fn stub_ffi(mut self, flag: bool) -> Self {
-        self.stub_ffi = flag;
+        self.config.stub_ffi = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn allow_baseless(mut self, flag: bool) -> Self {
+        self.config.allow_baseless = flag;
         self
     }
 
@@ -2320,10 +2349,9 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(self.is_debug),
+            identifier_types: IdentifierTypeStack::new(self.config.is_debug),
             ffi_modules: self.ffi_modules,
-            is_debug: self.is_debug,
-            stub_ffi: self.stub_ffi,
+            config: self.config,
         }
     }
 }
