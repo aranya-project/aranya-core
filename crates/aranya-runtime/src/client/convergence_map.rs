@@ -459,11 +459,11 @@ mod livelock_tests {
     }
 
     impl BoundedSpill {
-        fn new() -> Result<Self, StorageError> {
-            Ok(Self {
-                inner: MemSpill::new()?,
+        const fn new() -> Self {
+            Self {
+                inner: MemSpill::new(),
                 writes: 0,
-            })
+            }
         }
     }
 
@@ -519,7 +519,7 @@ mod livelock_tests {
             zero,
             &mut queue,
             &mut conv_storage,
-            BoundedSpill::new()?,
+            BoundedSpill::new(),
         )?;
 
         // Fill block 0 (segments 1..=256).
