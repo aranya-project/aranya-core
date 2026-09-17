@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::once,
+};
 
 use aranya_policy_ast::{FieldDefinition, Identifier, Persistence, TypeKind, VType};
 use aranya_policy_compiler::PolicyInterface;
@@ -90,7 +93,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
     let persistent = syn::Ident::new("Persistent", Span::call_site());
     let ephemeral = syn::Ident::new("Ephemeral", Span::call_site());
 
-    let actions = {
+    let (persistent, ephemeral, actions) = {
         let mut persistent_actions = Vec::new();
         let mut ephemeral_actions = Vec::new();
         let structs = target
@@ -122,17 +125,42 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
                 }
             })
             .collect::<Vec<_>>();
-        quote! {
-            #[actions(interface = #persistent)]
-            pub enum PersistentAction {
-                #( #persistent_actions(#persistent_actions) ),*
-            }
-            #[actions(interface = #ephemeral)]
-            pub enum EphemeralAction {
-                #( #ephemeral_actions(#ephemeral_actions) ),*
-            }
-            #( #structs )*
-        }
+
+        let mut out = TokenStream::new();
+
+        let pdef = if persistent_actions.is_empty() {
+            None
+        } else {
+            out.extend(once(quote! {
+                #[actions(interface = #persistent)]
+                pub enum PersistentAction {
+                    #( #persistent_actions(#persistent_actions) ),*
+                }
+            }));
+            Some(quote! {
+                #[derive(Debug)]
+                pub enum #persistent {}
+            })
+        };
+
+        let edef = if ephemeral_actions.is_empty() {
+            None
+        } else {
+            out.extend(once(quote! {
+                #[actions(interface = #ephemeral)]
+                pub enum EphemeralAction {
+                    #( #ephemeral_actions(#ephemeral_actions) ),*
+                }
+            }));
+            Some(quote! {
+                #[derive(Debug)]
+                pub enum #ephemeral {}
+            })
+        };
+
+        out.extend(structs);
+
+        (pdef, edef, out)
     };
 
     let import_ifgen = ifgen.map(|path| {
@@ -162,10 +190,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
 
         #(#constants)*
 
-        #[derive(Debug)]
-        pub enum #persistent {}
-        #[derive(Debug)]
-        pub enum #ephemeral {}
+        #persistent
+        #ephemeral
 
         #(#structs)*
         #(#enums)*
@@ -288,11 +314,9 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         ty: &TypeKind,
     ) {
         match ty {
-            TypeKind::Struct(s) => {
-                if found.insert(s.inner.clone()) {
-                    for field in struct_defs[s.as_str()] {
-                        visit(struct_defs, found, &field.field_type.inner);
-                    }
+            TypeKind::Struct(s) if found.insert(s.inner.clone()) => {
+                for field in struct_defs[s.as_str()] {
+                    visit(struct_defs, found, &field.field_type.inner);
                 }
             }
             TypeKind::Enum(s) => {

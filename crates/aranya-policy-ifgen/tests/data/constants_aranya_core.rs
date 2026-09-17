@@ -36,10 +36,6 @@ pub const g_struct: Complex = Complex {
     m_string: text!("hello"),
     m_struct: Simple { m_int: 3i64 },
 };
-#[derive(Debug)]
-pub enum Persistent {}
-#[derive(Debug)]
-pub enum Ephemeral {}
 /// Complex policy struct.
 #[value]
 pub struct Complex {
@@ -67,7 +63,3 @@ pub enum Answer {
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
 pub enum Effect {}
-#[actions(interface = Persistent)]
-pub enum PersistentAction {}
-#[actions(interface = Ephemeral)]
-pub enum EphemeralAction {}

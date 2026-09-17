@@ -93,7 +93,6 @@ try_find = []
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
 
-cfg-if = { workspace = true }
 const_format = { version = "0.2.31", features = ["assertcp"] }
 derive-where = { workspace = true }
 errno = { workspace = true, default-features = false }

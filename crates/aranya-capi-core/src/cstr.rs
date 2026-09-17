@@ -71,10 +71,9 @@ impl<'a> CStrWriter<'a> {
             return;
         };
 
-        // SAFETY: `u8` and `MaybeUninit<u8>` have the same
-        // size in memory.
-        let src = unsafe { &*(ptr::from_ref::<[u8]>(src) as *const [MaybeUninit<c_char>]) };
-        dst.copy_from_slice(src);
+        // SAFETY: `u8` and `c_char` have the same repr.
+        let src = unsafe { (ptr::from_ref::<[u8]>(src) as *const [c_char]).as_ref_unchecked() };
+        dst.write_copy_of_slice(src);
         *self.nw = end;
     }
 
@@ -129,7 +128,10 @@ mod tests {
             let got = write_c_str(
                 // SAFETY: `u8` and `MaybeUninit<c_char>` have
                 // the same memory layout.
-                unsafe { &mut *(&raw mut dst[..want.len() - 1] as *mut [MaybeUninit<c_char>]) },
+                unsafe {
+                    (&raw mut dst[..want.len() - 1] as *mut [MaybeUninit<c_char>])
+                        .as_mut_unchecked()
+                },
                 &input,
                 &mut n,
             );
@@ -147,8 +149,8 @@ mod tests {
                 // SAFETY: `u8` and `MaybeUninit<c_char>` have
                 // the same memory layout.
                 unsafe {
-                    &mut *(ptr::from_mut::<[u8]>(dst.as_mut_slice())
-                        as *mut [MaybeUninit<c_char>])
+                    (ptr::from_mut::<[u8]>(dst.as_mut_slice()) as *mut [MaybeUninit<c_char>])
+                        .as_mut_unchecked()
                 },
                 &input,
                 &mut n,

@@ -11,6 +11,9 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
 [features]
 serde = [
 	"aranya-policy-ifgen-macro/serde",
@@ -33,3 +36,7 @@ aranya-policy-lang = { path = "../aranya-policy-lang" }
 
 goldenfile = "1.6.0"
 syn = { workspace = true }
+
+
+[package.metadata.docs.rs]
+all-features = true

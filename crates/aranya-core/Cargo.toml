@@ -11,6 +11,9 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
 [dependencies]
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false }
 aranya-id = { version = "0.3.0", path = "../aranya-id", default-features = false }
@@ -35,3 +38,7 @@ low-mem-usage = ["aranya-runtime/low-mem-usage"]
 custom-engine = []
 
 memstore = ["aranya-crypto/memstore"]
+
+
+[package.metadata.docs.rs]
+all-features = true

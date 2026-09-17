@@ -1,4 +1,5 @@
 #![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
 
 use std::{
     collections::{HashMap, HashSet},
@@ -53,10 +54,7 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
 
 #[track_caller]
 fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let policy = match parse_policy_str(text, Version::V2) {
-        Ok(p) => p,
-        Err(err) => panic!("{err}"),
-    };
+    let policy = parse_policy_str(text, Version::V2).unwrap();
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
         .debug(is_debug)
@@ -66,10 +64,7 @@ fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
 fn compile_pass(text: &str, allow_unused: bool) -> Module {
-    match compile(text, allow_unused) {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    }
+    compile(text, allow_unused).unwrap()
 }
 
 // Helper function which parses and compiles policy expecting compile failure.
@@ -146,7 +141,7 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
         writeln!(
             f,
             "    {}",
-            fmt_fn(|f| {
+            core::fmt::from_fn(|f| {
                 match ins {
                     // Show target label for calls.
                     Instruction::Call(t) => {
@@ -169,23 +164,6 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
     }
 
     Ok(())
-}
-
-/// Display based on supplied function.
-///
-/// Adapted from [`core::fmt::from_fn`] (1.93+).
-fn fmt_fn(f: impl Fn(&mut fmt::Formatter<'_>) -> fmt::Result) -> impl fmt::Display {
-    struct FmtFn<F>(F);
-    impl<F> fmt::Display for FmtFn<F>
-    where
-        F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
-    {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            (self.0)(f)
-        }
-    }
-
-    FmtFn(f)
 }
 
 /// Compiles every fixture except those under `data/unused`, which get their own

@@ -11,6 +11,13 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
+[[bin]]
+name = "parser-explorer"
+bench = false
+
 [features]
 default = []
 
@@ -33,3 +40,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 insta = { workspace = true }
 rstest = { workspace = true }
+
+
+[package.metadata.docs.rs]
+all-features = true

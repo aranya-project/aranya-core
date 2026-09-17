@@ -1,20 +1,15 @@
-use core::mem::size_of;
-
 use buggy::BugExt as _;
+use zerocopy::{FromZeros as _, IntoBytes as _};
 
 use crate::{
     ClientError, Location, MaxCut, Segment as _, Storage, StorageError,
     storage::{Spill, TraversalQueue},
 };
 
-/// Size of one entry on disk: three `u64`s (segment, max_cut, count).
-const ENTRY_BYTES: usize = size_of::<u64>() * 3;
 /// Maximum entries per block. Larger blocks mean a bigger in-memory
 /// working set before spilling, but coarser `max_cut` range granularity
 /// per root-index entry.
 const BLOCK_ENTRIES: usize = 256;
-/// Size of one block on disk.
-const BLOCK_BYTES: usize = BLOCK_ENTRIES * ENTRY_BYTES;
 /// Number of in-memory blocks retained via LRU before spilling to disk.
 const NUM_BLOCKS: usize = 3;
 /// Maximum entries in the root index. Each root entry points to one
@@ -23,31 +18,18 @@ const NUM_BLOCKS: usize = 3;
 const ROOT_CAPACITY: usize = 512;
 
 /// A convergence point: location and remaining arrival count.
-#[derive(Clone, Copy)]
+#[derive(
+    Copy,
+    Clone,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[repr(C)]
 struct Entry {
     location: Location,
-    count: usize,
-}
-
-impl Entry {
-    fn to_bytes(self) -> [u8; ENTRY_BYTES] {
-        let mut buf = [0u8; ENTRY_BYTES];
-        buf[0..8].copy_from_slice(&self.location.segment.get().to_ne_bytes());
-        buf[8..16].copy_from_slice(&self.location.max_cut.get().to_ne_bytes());
-        buf[16..24].copy_from_slice(&(self.count as u64).to_ne_bytes());
-        buf
-    }
-
-    #[allow(clippy::unwrap_used)] // infallible: slices are exactly 8 bytes
-    fn from_bytes(buf: &[u8; ENTRY_BYTES]) -> Self {
-        let segment = u64::from_ne_bytes(buf[0..8].try_into().unwrap());
-        let max_cut = u64::from_ne_bytes(buf[8..16].try_into().unwrap());
-        let count = u64::from_ne_bytes(buf[16..24].try_into().unwrap()) as usize;
-        Self {
-            location: Location::new(crate::SegmentIndex::new(segment), MaxCut::new(max_cut)),
-            count,
-        }
-    }
+    count: u64,
 }
 
 /// Index entry in the root node pointing to a block on disk.
@@ -105,38 +87,6 @@ impl Block {
         self.min_max_cut = MaxCut::new(u64::MAX);
         self.max_max_cut = MaxCut::new(0);
         self.last_accessed = 0;
-    }
-
-    fn to_bytes(&self) -> Result<[u8; BLOCK_BYTES], ClientError> {
-        let mut buf = [0u8; BLOCK_BYTES];
-        for (i, entry) in self.entries.iter().enumerate() {
-            let offset = i
-                .checked_mul(ENTRY_BYTES)
-                .assume("block offset must not overflow")?;
-            let end = offset
-                .checked_add(ENTRY_BYTES)
-                .assume("block end must not overflow")?;
-            buf[offset..end].copy_from_slice(&entry.to_bytes());
-        }
-        Ok(buf)
-    }
-
-    fn load_from_bytes(buf: &[u8; BLOCK_BYTES], num_entries: usize) -> Result<Self, ClientError> {
-        let mut block = Self::new();
-        for i in 0..num_entries {
-            let offset = i
-                .checked_mul(ENTRY_BYTES)
-                .assume("block offset must not overflow")?;
-            let end = offset
-                .checked_add(ENTRY_BYTES)
-                .assume("block end must not overflow")?;
-            let entry_bytes: &[u8; ENTRY_BYTES] = buf[offset..end]
-                .try_into()
-                .assume("slice is exactly ENTRY_BYTES")?;
-            let entry = Entry::from_bytes(entry_bytes);
-            block.insert(entry);
-        }
-        Ok(block)
     }
 }
 
@@ -242,14 +192,12 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             return Ok(());
         }
 
-        let data = block.to_bytes()?;
+        let data = block.entries.as_slice().as_bytes();
         let num_entries = block.entries.len();
         let offset = self.next_file_offset;
 
-        let byte_len = num_entries
-            .checked_mul(ENTRY_BYTES)
-            .assume("spill byte length must not overflow")?;
-        self.spill_file.write_at(offset, &data[..byte_len])?;
+        let byte_len = data.len();
+        self.spill_file.write_at(offset, data)?;
 
         // Add to root index.
         if self.storage.root.is_full() {
@@ -276,22 +224,28 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     fn read_block_from_disk(&mut self, root_idx: usize) -> Result<Block, ClientError> {
         let node = self.storage.root[root_idx];
 
-        let num_entries = node.num_entries;
-        let byte_len = num_entries
-            .checked_mul(ENTRY_BYTES)
-            .assume("disk byte length must not overflow")?;
+        let mut block = Block::new();
 
-        let mut buf = [0u8; BLOCK_BYTES];
-        self.spill_file
-            .read_at(node.file_offset, &mut buf[..byte_len])?;
+        // Use entries as buffer of appropriate length to read directly into.
+        block
+            .entries
+            .resize(node.num_entries, Entry::new_zeroed())
+            .ok()
+            .assume("block size is valid")?;
+        let buf = block.entries.as_mut_slice().as_mut_bytes();
 
-        Block::load_from_bytes(&buf, num_entries)
+        // Read entries directly into block.
+        self.spill_file.read_at(node.file_offset, buf)?;
+
+        block.min_max_cut = node.min_max_cut;
+        block.max_max_cut = node.max_max_cut;
+
+        Ok(block)
     }
 
-    /// Load a spilled block into memory, evicting the LRU block.
-    fn load_block_from_disk(&mut self, root_idx: usize) -> Result<usize, ClientError> {
-        let loaded = self.read_block_from_disk(root_idx)?;
-
+    /// Install a block read from `root[root_idx]` into memory,
+    /// removing its root entry and evicting the LRU block.
+    fn install_block(&mut self, root_idx: usize, loaded: Block) -> Result<usize, ClientError> {
         // Remove from root index — data is now in memory.
         self.storage.root.swap_remove(root_idx);
 
@@ -327,7 +281,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             if count >= 2 {
                 self.insert_entry(Entry {
                     location: loc,
-                    count,
+                    count: count.try_into().assume("count fits u64")?,
                 })?;
             }
 
@@ -348,9 +302,9 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     /// Look up a location in the in-memory blocks.
     /// Returns (block_index, entry_index) if found.
     fn find_in_memory(&self, location: Location) -> Option<(usize, usize)> {
-        for (bi, block) in self.storage.blocks.iter().enumerate() {
-            if let Some(ei) = block.find(location) {
-                return Some((bi, ei));
+        for (block_idx, block) in self.storage.blocks.iter().enumerate() {
+            if let Some(entry_idx) = block.find(location) {
+                return Some((block_idx, entry_idx));
             }
         }
         None
@@ -386,34 +340,49 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         storage: &mut S,
         location: Location,
     ) -> Result<bool, ClientError> {
+        // Advance BFS to cover the query location.
+        self.advance_to(storage, location.max_cut)?;
+        self.lookup(location)
+    }
+
+    /// Look up `location` in memory and on disk, consuming an entry on
+    /// a hit. The BFS must already cover `location.max_cut` (see
+    /// [`Self::should_continue`], which advances it first).
+    fn lookup(&mut self, location: Location) -> Result<bool, ClientError> {
         self.access_counter = self
             .access_counter
             .checked_add(1)
             .assume("access_counter must not overflow")?;
 
-        // Advance BFS to cover the query location.
-        self.advance_to(storage, location.max_cut)?;
-
         // Check in-memory blocks.
-        if let Some((bi, ei)) = self.find_in_memory(location) {
-            return self.consume_entry(bi, ei);
+        if let Some((block_idx, entry_idx)) = self.find_in_memory(location) {
+            return self.consume_entry(block_idx, entry_idx);
         }
 
         // Check spilled blocks on disk.
         {
-            let mut ri = 0;
-            while ri < self.storage.root.len() {
-                let node = self.storage.root[ri];
+            let mut root_idx = 0;
+            while root_idx < self.storage.root.len() {
+                let node = self.storage.root[root_idx];
                 if location.max_cut >= node.min_max_cut && location.max_cut <= node.max_max_cut {
-                    // Load block into memory (removes root[ri] via swap_remove).
-                    let bi = self.load_block_from_disk(ri)?;
-                    if let Some(ei) = self.storage.blocks[bi].find(location) {
-                        return self.consume_entry(bi, ei);
+                    // Probe a copy without touching the root index or
+                    // evicting an in-memory block, so `root_idx` advances
+                    // past every miss and the scan terminates even when
+                    // all block ranges cover `location.max_cut`.
+                    // Installing on a miss would re-append the evicted
+                    // block to the root and the scan would never run out
+                    // of entries.
+                    let probed = self.read_block_from_disk(root_idx)?;
+                    if let Some(entry_idx) = probed.find(location) {
+                        // Install only on a hit (removes root[root_idx]), so
+                        // the entry can be consumed in memory.
+                        let block_idx = self.install_block(root_idx, probed)?;
+                        return self.consume_entry(block_idx, entry_idx);
                     }
-                    // Don't increment ri — swap_remove moved a new entry here.
-                } else {
-                    ri = ri.checked_add(1).assume("ri must not overflow")?;
                 }
+                root_idx = root_idx
+                    .checked_add(1)
+                    .assume("root_idx must not overflow")?;
             }
         }
 
@@ -464,5 +433,212 @@ mod convergence_storage_tests {
             block.last_accessed, 0,
             "Block::clear must reset last_accessed"
         );
+    }
+}
+
+#[cfg(test)]
+mod livelock_tests {
+    use std::{sync::mpsc, thread, time::Duration};
+
+    use super::*;
+    use crate::{MemSpill, SegmentIndex};
+
+    /// Generous upper bound on spill writes for one setup + one lookup.
+    /// A terminating lookup writes at most a handful of blocks (one evict
+    /// per root entry it loads); the livelock writes one block per loop
+    /// iteration, forever, so it blows through this in well under a second.
+    const WRITE_BUDGET: usize = 10_000;
+
+    /// A `MemSpill` that panics once `WRITE_BUDGET` block writes have
+    /// occurred, so the livelocked scan dies promptly with a clear message
+    /// instead of spinning (and growing the spill buffer) until the test
+    /// process exits.
+    struct BoundedSpill {
+        inner: MemSpill,
+        writes: usize,
+    }
+
+    impl BoundedSpill {
+        const fn new() -> Self {
+            Self {
+                inner: MemSpill::new(),
+                writes: 0,
+            }
+        }
+    }
+
+    impl Spill for BoundedSpill {
+        fn write_at(&mut self, offset: usize, data: &[u8]) -> Result<(), StorageError> {
+            self.writes = self.writes.saturating_add(1);
+            assert!(
+                self.writes <= WRITE_BUDGET,
+                "livelock: spilled-block scan exceeded {WRITE_BUDGET} spill writes \
+                 (each loop iteration re-spills an evicted block; a terminating \
+                 lookup writes at most a few blocks)"
+            );
+            self.inner.write_at(offset, data)
+        }
+
+        fn read_at(&mut self, offset: usize, data: &mut [u8]) -> Result<(), StorageError> {
+            self.inner.read_at(offset, data)
+        }
+    }
+
+    /// The `max_cut` shared by every inserted convergence point.
+    const K: u64 = 1000;
+
+    fn loc(segment: u64) -> Location {
+        Location::new(SegmentIndex::new(segment), MaxCut::new(K))
+    }
+
+    /// Build the state the livelock needed, then run one `lookup(query)`
+    /// against it and return the result.
+    ///
+    /// That state is: all three in-memory blocks full (segments 257..=512,
+    /// 513..=768, 769..=1024) and one block spilled to disk (segments
+    /// 1..=256). Every entry sits at the same `max_cut = K`, so every
+    /// block's `[min, max]` range is exactly `[K, K]` — meaning any
+    /// depth-K query looks like it could be in *any* of the four blocks.
+    /// A depth-K query for a segment that was never inserted is therefore
+    /// "covered everywhere, present nowhere": the shape that used to loop
+    /// forever.
+    ///
+    /// The `lookup` hits between fills mark each just-filled block
+    /// recently-used, so the LRU picks a fresh empty block for the next
+    /// fill instead of evicting the one we just filled. Everything goes
+    /// through the map's real insert and query operations (no private
+    /// state is poked), so `braid()` can reach this state too. Calling
+    /// `lookup` instead of `should_continue` skips only the BFS advance,
+    /// which is a no-op here — the queue never has work.
+    fn build_and_query(query: Location) -> Result<bool, ClientError> {
+        let mut queue = TraversalQueue::new();
+        let mut conv_storage = ConvergenceStorage::new();
+        let zero = Location::new(SegmentIndex::new(0), MaxCut::new(0));
+        let mut map = ConvergenceMap::new(
+            &[zero, zero],
+            zero,
+            &mut queue,
+            &mut conv_storage,
+            BoundedSpill::new(),
+        )?;
+
+        // Fill block 0 (segments 1..=256).
+        for seg in 1..=256 {
+            map.insert_entry(Entry {
+                location: loc(seg),
+                count: 2,
+            })?;
+        }
+        // Hit block 0 so its last_accessed rises; the next spill_lru picks
+        // the (empty) block 1 as the new active block.
+        assert!(!map.lookup(loc(1))?);
+
+        // Fill block 1 (segments 257..=512).
+        for seg in 257..=512 {
+            map.insert_entry(Entry {
+                location: loc(seg),
+                count: 2,
+            })?;
+        }
+        assert!(!map.lookup(loc(257))?);
+
+        // Fill block 2 (segments 513..=768).
+        for seg in 513..=768 {
+            map.insert_entry(Entry {
+                location: loc(seg),
+                count: 2,
+            })?;
+        }
+        assert!(!map.lookup(loc(513))?);
+
+        // Block 0 is now the LRU; the first insert below spills it to disk
+        // (root gains one entry with range [K, K]) and refills it
+        // (segments 769..=1024).
+        for seg in 769..=1024 {
+            map.insert_entry(Entry {
+                location: loc(seg),
+                count: 2,
+            })?;
+        }
+
+        assert_eq!(
+            map.storage.root.len(),
+            1,
+            "setup must produce exactly one spilled block"
+        );
+        for block in &map.storage.blocks {
+            assert!(
+                !block.is_empty(),
+                "setup must leave all in-memory blocks non-empty"
+            );
+        }
+
+        map.lookup(query)
+    }
+
+    /// Run `build_and_query` under a watchdog so a livelock fails the test
+    /// instead of hanging the harness. The primary tripwire is
+    /// `BoundedSpill`'s write budget (the worker panics, dropping the
+    /// sender); the timeout is a backstop in case the loop ever spins
+    /// without writing.
+    fn query_with_watchdog(query: Location) -> Result<bool, ClientError> {
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            let _ = tx.send(build_and_query(query));
+        });
+        match rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(result) => result,
+            Err(mpsc::RecvTimeoutError::Disconnected) => panic!(
+                "livelock: spilled-block scan exceeded its spill write budget \
+                 (blocks are thrashing between memory and the root index)"
+            ),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                panic!("livelock: ConvergenceMap::should_continue did not return within 10s")
+            }
+        }
+    }
+
+    /// A location whose `max_cut` is covered by every block's range but
+    /// which is present in none of them must still terminate.
+    ///
+    /// Regression test: this used to livelock. `should_continue`'s disk
+    /// scan installed every probed block, swap-removing `root[root_idx]`
+    /// and re-appending the evicted in-memory block to the root, so the
+    /// root never ran out of covering entries: the scan cycled the same
+    /// blocks through `root[root_idx]` forever and `root_idx` never
+    /// reached `root.len()`. Fixed by probing a copy
+    /// (`read_block_from_disk`) and installing only on a hit, so
+    /// `root_idx` strictly advances past every miss.
+    #[test]
+    fn covered_but_absent_lookup_terminates() {
+        // Segment 999_999 was never inserted; max_cut K is inside every
+        // block's [K, K] range.
+        let result = query_with_watchdog(loc(999_999));
+        assert!(
+            result.expect("lookup must not error"),
+            "absent location is not a convergence point, strand continues"
+        );
+    }
+
+    /// Harness sanity check: a location that IS in the spilled block is
+    /// found and consumed.
+    #[test]
+    fn covered_and_present_lookup_returns() {
+        // Segment 100 lives in the spilled block (1..=256) with count 2,
+        // so consuming one arrival returns Ok(false).
+        let result = build_and_query(loc(100));
+        assert!(
+            !result.expect("lookup must not error"),
+            "present convergence point with count 2 must return false"
+        );
+    }
+
+    /// Harness sanity check: a max_cut outside every block's range takes
+    /// the non-covering path and returns immediately.
+    #[test]
+    fn uncovered_lookup_returns() {
+        // max_cut K + 1 is outside every block's [K, K] range.
+        let query = Location::new(SegmentIndex::new(999_999), MaxCut::new(K + 1));
+        assert!(build_and_query(query).expect("lookup must not error"));
     }
 }

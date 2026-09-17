@@ -13,6 +13,7 @@ workspace = true
 
 [lib]
 proc-macro = true
+bench = false
 
 [features]
 serde = []
@@ -21,3 +22,7 @@ serde = []
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true, features = ["full"] }
+
+
+[package.metadata.docs.rs]
+all-features = true

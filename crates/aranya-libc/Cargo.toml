@@ -12,6 +12,8 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
 
 [features]
 default = []
@@ -24,7 +26,6 @@ std = [
 
 
 [dependencies]
-cfg-if = { workspace = true, default-features = false }
 errno = { workspace = true, default-features = false }
 libc = { workspace = true, default-features = false }
 memchr = { version = "2.7.2", default-features = false }
@@ -35,3 +36,7 @@ thiserror = { workspace = true }
 always_include_features = [
 	"std",
 ]
+
+
+[package.metadata.docs.rs]
+all-features = true

@@ -10,6 +10,9 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
 [dependencies]
 aranya-crypto = { path = "../aranya-crypto", features = ["std"] }
 aranya-runtime = { path = "../aranya-runtime", features = ["std", "libc"] }
@@ -32,3 +35,6 @@ clap = { version = "4", features = ["derive"] }
 [[bench]]
 name = "bench"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
