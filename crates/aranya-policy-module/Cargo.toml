@@ -22,6 +22,7 @@ indexmap = { workspace = true, default-features = false, features = ["serde"] }
 rkyv = { workspace = true, features = ["alloc", "indexmap-2"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 thiserror = { workspace = true }
+zerocopy = { workspace = true, features = ["derive"] }
 
 [features]
 default = []
