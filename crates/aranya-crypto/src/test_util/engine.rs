@@ -110,6 +110,7 @@ macro_rules! for_each_engine_test {
             test_afc_derive_uni_key_different_device_ids,
             test_afc_derive_uni_key_different_cmd_ids,
             test_afc_derive_uni_key_different_keys,
+            test_afc_derive_uni_key_different_epochs,
             test_afc_derive_uni_seal_key_same_device_id,
             test_afc_derive_uni_open_key_same_device_id,
             test_afc_wrap_uni_author_secret,
@@ -1168,6 +1169,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id,
+        epoch: 0,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1178,6 +1180,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label_id,
+        epoch: 0,
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1209,6 +1212,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id: LabelId::random(eng),
+        epoch: 0,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1219,6 +1223,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label_id: LabelId::random(eng),
+        epoch: 0,
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1253,6 +1258,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id,
+        epoch: 0,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1263,6 +1269,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &E) {
         seal_id: ch1.seal_id,
         open_id: DeviceId::random(eng),
         label_id,
+        epoch: 0,
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1297,6 +1304,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id,
+        epoch: 0,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: CmdId::random(eng),
@@ -1307,6 +1315,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label_id,
+        epoch: 0,
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1341,6 +1350,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id,
+        epoch: 0,
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1351,7 +1361,54 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label_id,
+        epoch: 0,
     };
+
+    let afc::UniSecrets { author, peer } =
+        afc::UniSecrets::new(eng, &ch1).expect("unable to create `afc::UniSecrets`");
+    let ck1 = afc::UniSealKey::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `afc::UniSealKey`");
+    let ck2 = afc::UniOpenKey::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `afc::UniOpenKey`");
+
+    assert_different_afc_uni_key(eng, ck1, ck2);
+}
+
+/// Different epochs should create different
+/// [`afc::UniSealKey`] and [`afc::UniOpenKey`]s.
+///
+/// E.g., derive(label, u1, u2, c1, e1) != derive(label, u1, u2, c1, e2).
+pub fn test_afc_derive_uni_key_different_epochs<E: Engine>(eng: &E) {
+    let label_id = LabelId::random(eng);
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let ch1 = afc::UniChannel {
+        parent_cmd_id: CmdId::random(eng),
+        our_sk: &sk1,
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
+        label_id,
+        epoch: 1,
+    };
+    let ch2 = afc::UniChannel {
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: ch1.seal_id,
+        open_id: ch1.open_id,
+        label_id,
+        epoch: 2,
+    };
+    assert_ne!(ch1.info(), ch2.info());
 
     let afc::UniSecrets { author, peer } =
         afc::UniSecrets::new(eng, &ch1).expect("unable to create `afc::UniSecrets`");
@@ -1382,6 +1439,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id,
+        epoch: 0,
     };
     let mut ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1392,6 +1450,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label_id,
+        epoch: 0,
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1434,6 +1493,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id,
+        epoch: 0,
     };
     let mut ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1444,6 +1504,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label_id,
+        epoch: 0,
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1484,6 +1545,7 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &E) {
             .id()
             .expect("open id should be valid"),
         label_id: LabelId::random(eng),
+        epoch: 0,
     };
 
     let afc::UniSecrets { author: want, .. } =

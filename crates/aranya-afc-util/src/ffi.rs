@@ -67,6 +67,7 @@ function create_uni_channel(
     seal_id id,
     open_id id,
     label_id id,
+    epoch int,
 ) struct AfcUniChannel
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
@@ -79,7 +80,9 @@ function create_uni_channel(
         seal_id: DeviceId,
         open_id: DeviceId,
         label_id: LabelId,
+        epoch: i64,
     ) -> Result<AfcUniChannel, FfiError> {
+        let epoch = u64::try_from(epoch).map_err(|_| FfiError::InvalidEpoch)?;
         let our_sk = &self
             .store
             .lock()
@@ -94,6 +97,7 @@ function create_uni_channel(
             seal_id,
             open_id,
             label_id,
+            epoch,
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
@@ -133,6 +137,9 @@ pub(crate) enum FfiError {
     /// The keystore failed.
     #[error("keystore failure")]
     KeyStore,
+    /// The epoch is negative.
+    #[error("epoch must be non-negative")]
+    InvalidEpoch,
     /// Bug
     #[error("bug: {0}")]
     Bug(Bug),
