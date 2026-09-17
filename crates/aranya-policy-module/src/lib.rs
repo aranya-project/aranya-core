@@ -7,6 +7,7 @@
 #![warn(missing_docs)]
 
 pub mod automap;
+pub mod bytecode;
 mod codemap;
 mod data;
 pub mod ffi;

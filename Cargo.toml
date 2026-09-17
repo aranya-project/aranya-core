@@ -118,7 +118,7 @@ test-log = { version = "0.2", default-features = false, features = ["trace"] }
 thiserror = { version = "2", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.18", default-features = false }
-zerocopy = { version = "0.8", default-features = false }
+zerocopy = { version = "0.8.57", default-features = false }
 zerocopy-derive = { version = "0.8", default-features = false }
 
 prettyplease = "0.2"
