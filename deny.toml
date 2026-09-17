@@ -240,7 +240,6 @@ deny = [
 
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-    "generic-array@0.14.7",
     "hashbrown@0.15.2",
     "thiserror-impl@1.0.69",
     "thiserror@1.0.69",
@@ -248,6 +247,12 @@ skip = [
     "zerocopy-derive@0.8.25",
     "zerocopy@0.7.35",
     "zerocopy@0.8.25",
+
+    # proptest
+    "getrandom@0.2.15",
+    "rand@0.8.5",
+    "rand_chacha@0.3.1",
+    "rand_core@0.6.4",
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive

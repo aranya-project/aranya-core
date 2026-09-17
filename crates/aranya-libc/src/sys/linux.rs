@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "android"))]
 
 use core::ffi::c_int;
 
@@ -13,6 +13,13 @@ use crate::{
 pub fn fallocate(fd: BorrowedFd<'_>, mode: c_int, off: i64, len: i64) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::fallocate64(fd.fd, mode, off, len) };
+    if ret < 0 { Err(errno()) } else { Ok(()) }
+}
+
+/// See `fdatasync(2)`.
+pub fn fdatasync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe { libc::fdatasync(fd.fd) };
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 

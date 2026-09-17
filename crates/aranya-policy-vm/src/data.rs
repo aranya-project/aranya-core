@@ -5,8 +5,8 @@ use core::fmt::{self, Display};
 
 pub use aranya_id::BaseId;
 use aranya_id::{Id, IdTag};
-use aranya_policy_ast::{Identifier, Text, VType};
-use aranya_policy_module::{ConstStruct, ConstValue};
+use aranya_policy_ast::{Identifier, Text};
+use aranya_policy_module::{ConstStruct, ConstValue, TypeKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
@@ -51,6 +51,8 @@ impl ValueConversionError {
 /// All of the value types allowed in the VM
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Value {
+    /// Unit value
+    Unit,
     /// Integer (64-bit signed)
     Int(i64),
     /// Boolean
@@ -72,7 +74,7 @@ pub enum Value {
     /// Optional value
     Option(Option<Box<Self>>),
     /// Result value
-    Result(Result<Box<Value>, Box<Value>>),
+    Result(Result<Box<Self>, Box<Self>>),
 }
 
 impl Value {
@@ -138,6 +140,7 @@ impl Value {
     /// Returns a string representing the value's type.
     pub fn type_name(&self) -> String {
         match self {
+            Self::Unit => String::from("Unit"),
             Self::Int(_) => String::from("Int"),
             Self::Bool(_) => String::from("Bool"),
             Self::String(_) => String::from("String"),
@@ -154,29 +157,26 @@ impl Value {
         }
     }
 
-    /// Checks to see if a [`Value`] matches some [`VType`]
+    /// Checks to see if a [`Value`] matches some [`TypeKind`]
     /// ```
-    /// use aranya_policy_ast::{Span, TypeKind, VType};
+    /// use aranya_policy_module::TypeKind;
     /// use aranya_policy_vm::Value;
     ///
     /// let value = Value::Int(1);
-    /// let int_type = VType {
-    ///     inner: TypeKind::Int,
-    ///     span: Span::empty(),
-    /// };
+    /// let int_type = TypeKind::Int;
     ///
     /// assert!(value.fits_type(&int_type));
     /// ```
-    pub fn fits_type(&self, expected_type: &VType) -> bool {
-        use aranya_policy_ast::TypeKind;
-        match (self, &expected_type.inner) {
+    pub fn fits_type(&self, expected_type: &TypeKind) -> bool {
+        match (self, &expected_type) {
+            (Self::Unit, TypeKind::Unit) => true,
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
             (Self::Bytes(_), TypeKind::Bytes) => true,
-            (Self::Struct(s), TypeKind::Struct(ident)) => s.name == ident.inner,
+            (Self::Struct(s), TypeKind::Struct(ident)) => s.name == *ident,
             (Self::Id(_), TypeKind::Id) => true,
-            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.inner,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == *ident,
             (Self::Option(Some(value)), TypeKind::Optional(ty)) => value.fits_type(ty),
             (Self::Option(None), TypeKind::Optional(_)) => true,
             (Self::Result(Ok(inner)), TypeKind::Result(result_type)) => {
@@ -193,6 +193,7 @@ impl Value {
 impl From<ConstValue> for Value {
     fn from(value: ConstValue) -> Self {
         match value {
+            ConstValue::Unit => Self::Unit,
             ConstValue::Int(n) => Self::Int(n),
             ConstValue::Bool(b) => Self::Bool(b),
             ConstValue::String(text) => Self::String(text),
@@ -219,6 +220,12 @@ impl<T: Into<Self>, E: Into<Self>> From<Result<T, E>> for Value {
             Ok(v) => Self::Result(Ok(Box::new(v.into()))),
             Err(v) => Self::Result(Err(Box::new(v.into()))),
         }
+    }
+}
+
+impl From<()> for Value {
+    fn from((): ()) -> Self {
+        Self::Unit
     }
 }
 
@@ -273,6 +280,21 @@ impl From<Fact> for Value {
 impl<Tag: IdTag> From<Id<Tag>> for Value {
     fn from(id: Id<Tag>) -> Self {
         Self::Id(id.as_base())
+    }
+}
+
+impl TryFrom<Value> for () {
+    type Error = ValueConversionError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Unit = value {
+            return Ok(());
+        }
+        Err(ValueConversionError::invalid_type(
+            "Unit",
+            value.type_name(),
+            "Value -> ()",
+        ))
     }
 }
 
@@ -470,6 +492,7 @@ impl TryAsMut<Fact> for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unit => write!(f, "()"),
             Self::Int(i) => write!(f, "{}", i),
             Self::Bool(b) => write!(f, "{}", b),
             Self::String(s) => write!(f, "\"{}\"", s),
@@ -511,15 +534,14 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Checks to see if a [`HashableValue`] matches some [`VType`]
-    pub fn fits_type(&self, expected_type: &VType) -> bool {
-        use aranya_policy_ast::TypeKind;
-        match (self, &expected_type.inner) {
+    /// Checks to see if a [`HashableValue`] matches some [`TypeKind`]
+    pub fn fits_type(&self, expected_type: &TypeKind) -> bool {
+        match (self, &expected_type) {
             (Self::Int(_), TypeKind::Int) => true,
             (Self::Bool(_), TypeKind::Bool) => true,
             (Self::String(_), TypeKind::String) => true,
             (Self::Id(_), TypeKind::Id) => true,
-            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == ident.inner,
+            (Self::Enum(name, _), TypeKind::Enum(ident)) => *name == *ident,
             // Option and Result are not hashable, so they can never fit a type
             _ => false,
         }

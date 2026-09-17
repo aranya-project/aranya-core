@@ -89,16 +89,13 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 fn parse_expression() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(
         Rule::expression,
-        r#"unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
+        r#"call(add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
     )?;
 
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
 
     let mut pair = token.into_inner();
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::unwrap);
-
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::function_call);
 
@@ -109,7 +106,7 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "unwrap add(3, 7)");
+    assert_eq!(token.as_str(), "add(3, 7)");
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
@@ -163,21 +160,6 @@ fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
     // Outer right side is `Coalesce(b, c)`
     assert!(matches!(outer_rhs.inner, ExprKind::Coalesce(_, _)));
 
-    Ok(())
-}
-
-#[test]
-fn parse_expression_pratt() -> Result<(), ParseError> {
-    let source = r#"
-        unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
-    "#
-    .trim();
-    let mut pairs = PolicyParser::parse(Rule::expression, source)?;
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, source.len());
-    let expr_pair = pairs.next().unwrap();
-    let expr_parsed = p.parse_expression(expr_pair)?;
-    insta::assert_debug_snapshot!(expr_parsed);
     Ok(())
 }
 

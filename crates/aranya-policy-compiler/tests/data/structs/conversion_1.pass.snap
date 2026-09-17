@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -7,32 +8,38 @@ Module {
     labels: {
         <fn 'convert'>: 1,
     },
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [
-            FieldDefinition {
-                identifier: "b" @ 58..59,
-                field_type: String @ 60..66,
-            },
-            FieldDefinition {
-                identifier: "a" @ 72..73,
-                field_type: Int @ 74..77,
-            },
-        ],
-        "Foo": [
-            FieldDefinition {
-                identifier: "a" @ 17..18,
-                field_type: Int @ 19..22,
-            },
-            FieldDefinition {
-                identifier: "b" @ 28..29,
-                field_type: String @ 30..36,
-            },
-        ],
-    },
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [
+                Field {
+                    name: "b",
+                    ty: String,
+                },
+                Field {
+                    name: "a",
+                    ty: Int,
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "a",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: String,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

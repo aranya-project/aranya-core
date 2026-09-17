@@ -9,8 +9,8 @@ use spideroak_crypto::{
     aead::{Aead, OpenError},
     csprng::Random,
     default::Rng,
-    generic_array::ArrayLength,
     hpke::HpkeError,
+    hybrid_array::ArraySize,
     typenum::{Sum, U64},
 };
 
@@ -558,7 +558,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &E) {
 pub fn test_encrypted_group_key_encode<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
+    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArraySize,
 {
     let enc_key = EncryptionKey::<E::CS>::new(eng);
 
@@ -585,7 +585,7 @@ where
 pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
+    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArraySize,
 {
     const RECORD: &[u8] = b"some encoded record";
 
@@ -641,7 +641,7 @@ where
 pub fn test_simple_seal_topic_key<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
+    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArraySize,
 {
     let send_sk = SenderSecretKey::<E::CS>::new(eng);
     let send_pk = send_sk.public().expect("sender public key should be valid");
@@ -1520,17 +1520,17 @@ pub fn test_tls_psk_different_suites<E: Engine>(eng: &E) {
         .unwrap();
     for psk in &psks {
         let ident = psk.identity();
-        if !ids.insert(ident.as_bytes()) {
-            let cs = ident.cipher_suite();
-            panic!("duplicate PSK identity for {cs}: {ident}");
-        }
-        if !secrets.insert(psk.raw_secret_bytes().to_vec()) {
-            panic!(
-                "duplicate PSK secret for {}: {:?}",
-                psk.identity().cipher_suite(),
-                psk.raw_secret_bytes(),
-            );
-        }
+        assert!(
+            ids.insert(ident.as_bytes()),
+            "duplicate PSK identity for {}: {ident}",
+            ident.cipher_suite(),
+        );
+        assert!(
+            secrets.insert(psk.raw_secret_bytes().to_vec()),
+            "duplicate PSK secret for {}: {:?}",
+            psk.identity().cipher_suite(),
+            psk.raw_secret_bytes(),
+        );
     }
 }
 

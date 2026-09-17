@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::once,
+};
 
 use aranya_policy_ast::{FieldDefinition, Identifier, Persistence, TypeKind, VType};
 use aranya_policy_compiler::PolicyInterface;
@@ -90,7 +93,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
     let persistent = syn::Ident::new("Persistent", Span::call_site());
     let ephemeral = syn::Ident::new("Ephemeral", Span::call_site());
 
-    let actions = {
+    let (persistent, ephemeral, actions) = {
         let mut persistent_actions = Vec::new();
         let mut ephemeral_actions = Vec::new();
         let structs = target
@@ -122,17 +125,42 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
                 }
             })
             .collect::<Vec<_>>();
-        quote! {
-            #[actions(interface = #persistent)]
-            pub enum PersistentAction {
-                #( #persistent_actions(#persistent_actions) ),*
-            }
-            #[actions(interface = #ephemeral)]
-            pub enum EphemeralAction {
-                #( #ephemeral_actions(#ephemeral_actions) ),*
-            }
-            #( #structs )*
-        }
+
+        let mut out = TokenStream::new();
+
+        let pdef = if persistent_actions.is_empty() {
+            None
+        } else {
+            out.extend(once(quote! {
+                #[actions(interface = #persistent)]
+                pub enum PersistentAction {
+                    #( #persistent_actions(#persistent_actions) ),*
+                }
+            }));
+            Some(quote! {
+                #[derive(Debug)]
+                pub enum #persistent {}
+            })
+        };
+
+        let edef = if ephemeral_actions.is_empty() {
+            None
+        } else {
+            out.extend(once(quote! {
+                #[actions(interface = #ephemeral)]
+                pub enum EphemeralAction {
+                    #( #ephemeral_actions(#ephemeral_actions) ),*
+                }
+            }));
+            Some(quote! {
+                #[derive(Debug)]
+                pub enum #ephemeral {}
+            })
+        };
+
+        out.extend(structs);
+
+        (pdef, edef, out)
     };
 
     let import_ifgen = ifgen.map(|path| {
@@ -162,10 +190,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
 
         #(#constants)*
 
-        #[derive(Debug)]
-        pub enum #persistent {}
-        #[derive(Debug)]
-        pub enum #ephemeral {}
+        #persistent
+        #ephemeral
 
         #(#structs)*
         #(#enums)*
@@ -181,6 +207,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
 fn vtype_to_rtype(ty: &VType) -> TokenStream {
     use aranya_policy_ast::TypeKind;
     match &ty.inner {
+        TypeKind::Unit => quote! { () },
         TypeKind::String => quote! { Text },
         TypeKind::Bytes => quote! { Vec<u8> },
         TypeKind::Int => quote! { i64 },
@@ -213,6 +240,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 
 fn constant_value_to_type(value: &ConstValue) -> Option<TokenStream> {
     Some(match value {
+        ConstValue::Unit => quote!(()),
         ConstValue::Int(_) => quote!(i64),
         ConstValue::Bool(_) => quote!(bool),
         ConstValue::String(_) => quote!(Text),
@@ -239,6 +267,7 @@ fn constant_value_to_type(value: &ConstValue) -> Option<TokenStream> {
 
 fn constant_value_to_literal(value: &ConstValue) -> TokenStream {
     match value {
+        ConstValue::Unit => quote!(()),
         ConstValue::Int(n) => quote!(#n),
         ConstValue::Bool(b) => quote!(#b),
         ConstValue::String(text) => {
@@ -285,11 +314,9 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         ty: &TypeKind,
     ) {
         match ty {
-            TypeKind::Struct(s) => {
-                if found.insert(s.inner.clone()) {
-                    for field in struct_defs[s.as_str()] {
-                        visit(struct_defs, found, &field.field_type.inner);
-                    }
+            TypeKind::Struct(s) if found.insert(s.inner.clone()) => {
+                for field in struct_defs[s.as_str()] {
+                    visit(struct_defs, found, &field.field_type.inner);
                 }
             }
             TypeKind::Enum(s) => {
@@ -309,7 +336,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
     let mut found = HashSet::new();
 
     for def in target.action_defs.iter() {
-        for param in def.params.iter() {
+        for param in &def.params {
             visit(&struct_defs, &mut found, &param.ty.inner);
         }
     }
@@ -324,8 +351,8 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         }
     }
 
-    for value in target.globals.values() {
-        visit(&struct_defs, &mut found, &value.vtype());
+    for (ident, value) in &target.globals {
+        visit(&struct_defs, &mut found, &value.vtype(ident.span));
     }
 
     found

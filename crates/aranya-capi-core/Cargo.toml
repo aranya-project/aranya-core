@@ -1,7 +1,7 @@
 [package]
 name = "aranya-capi-core"
 description = "Aranya's C API tooling"
-version = "0.8.1"
+version = "0.8.2"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,6 +10,9 @@ rust-version.workspace = true
 
 [lints]
 workspace = true
+
+[lib]
+bench = false
 
 [features]
 default = []
@@ -32,10 +35,9 @@ std = [
 
 [dependencies]
 aranya-capi-macro = { version = "0.7.1", path = "../aranya-capi-macro", default-features = false }
-aranya-libc = { version = "0.4.0", path = "../aranya-libc", default-features = false }
+aranya-libc = { version = "0.4.1", path = "../aranya-libc", default-features = false }
 buggy = { version = "0.1.0", default-features = false }
 
-cfg-if = { workspace = true, default-features = false }
 const_format = { version = "0.2.31", default-features = false, features = ["assertcp"] }
 elain = "0.3"
 fnv = { workspace = true }
@@ -48,3 +50,7 @@ ciborium-io = { version = "0.2.2", default-features = false, optional = true }
 libc = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry", "std"] }
 tracing-test = { version = "0.2.5" }
+
+
+[package.metadata.docs.rs]
+all-features = true

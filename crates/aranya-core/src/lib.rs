@@ -28,8 +28,8 @@ pub mod id;
 pub use aranya_policy_ifgen as ifgen;
 #[doc(inline)]
 pub use aranya_runtime::{
-    Address, ClientError, ClientState, CmdId, Command, GraphId, RuntimeBuffers, Session, Sink,
-    Transaction, TraversalBuffer, TraversalBuffers,
+    Address, ClientError, ClientState, CmdId, Command, CommandExt, GraphId, RuntimeBuffers,
+    Session, Sink, Transaction, TraversalBuffer, TraversalBuffers,
 };
 
 pub mod storage {
@@ -144,8 +144,8 @@ pub mod sync {
     #[doc(inline)]
     pub use aranya_runtime::sync::{
         COMMAND_RESPONSE_MAX, HelloNotification, HelloSubscribe, HelloUnsubscribe,
-        MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PeerCache, PollIncoming, PushIncoming,
-        SubscribeIncoming, SubscribeResponse, SyncCommand, SyncError, SyncHeads, SyncHello,
-        SyncIncoming, SyncRequester, SyncResponder, UnsubscribeIncoming,
+        MAX_SYNC_MESSAGE_SIZE, PeerCache, PollIncoming, PushIncoming, SubscribeIncoming,
+        SubscribeResponse, SyncCommand, SyncError, SyncHeads, SyncHello, SyncIncoming,
+        SyncRequester, SyncResponder, UnsubscribeIncoming,
     };
 }

@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -7,33 +8,33 @@ Module {
     labels: {
         <policy 'Cmd'>: 1,
         <seal 'Cmd'>: 8,
-        <open 'Cmd'>: 14,
-        <action 'test'>: 20,
+        <open 'Cmd'>: 15,
+        <action 'test'>: 23,
     },
-    action_defs: {
+    action_defs: [
         ActionDef {
-            name: "test" @ 148..152,
-            persistence: Ephemeral(
-                131..140,
-            ),
-            params: {},
+            name: "test",
+            persistence: Ephemeral,
+            params: [],
+            result_type: Unit,
         },
-    },
-    command_defs: {
+    ],
+    command_defs: [
         CommandDef {
-            name: "Cmd" @ 18..21,
-            persistence: Ephemeral(
-                0..9,
-            ),
-            attributes: {},
-            fields: {},
+            name: "Cmd",
+            persistence: Ephemeral,
+            attributes: [],
+            fields: [],
         },
-    },
-    fact_defs: {},
-    struct_defs: {
-        "Cmd": [],
-    },
-    enum_defs: {},
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Cmd",
+            items: [],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }
@@ -48,6 +49,7 @@ Module {
     exit normal
     exit panic
 <seal 'Cmd'>:
+    def 'payload'
     def 'this'
     save SP
     exit panic
@@ -56,6 +58,8 @@ Module {
     exit panic
 <open 'Cmd'>:
     def 'envelope'
+    def 'payload'
+    def 'this'
     save SP
     exit panic
     restore SP

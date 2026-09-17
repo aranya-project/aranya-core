@@ -6,7 +6,7 @@ use spideroak_crypto::{
     aead::{Aead, Nonce, Tag},
     csprng::{Csprng, Random as _},
     ed25519,
-    generic_array::GenericArray,
+    hybrid_array::Array,
     import::Import,
     kdf::{Kdf, Prk},
     kem::Kem,
@@ -210,14 +210,14 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
 /// Encrypted [`RawSecret`] bytes.
 #[derive_where(Clone, Serialize, Deserialize)]
 enum Ciphertext<CS: CipherSuite> {
-    Aead(GenericArray<u8, <<CS::Aead as Aead>::Key as SecretKey>::Size>),
-    Decap(GenericArray<u8, <<CS::Kem as Kem>::DecapKey as SecretKey>::Size>),
-    Mac(GenericArray<u8, <<CS::Mac as Mac>::Key as SecretKey>::Size>),
-    Prk(GenericArray<u8, <CS::Kdf as Kdf>::PrkSize>),
+    Aead(Array<u8, <<CS::Aead as Aead>::Key as SecretKey>::Size>),
+    Decap(Array<u8, <<CS::Kem as Kem>::DecapKey as SecretKey>::Size>),
+    Mac(Array<u8, <<CS::Mac as Mac>::Key as SecretKey>::Size>),
+    Prk(Array<u8, <CS::Kdf as Kdf>::PrkSize>),
     // NB: not `[u8; 64]` because serde only supports arrays up
     // to 32 elements without additional gymnastics.
-    Seed(GenericArray<u8, U64>),
-    Signing(GenericArray<u8, <<CS::Signer as Signer>::SigningKey as SecretKey>::Size>),
+    Seed(Array<u8, U64>),
+    Signing(Array<u8, <<CS::Signer as Signer>::SigningKey as SecretKey>::Size>),
 }
 
 impl<CS: CipherSuite> Ciphertext<CS> {
@@ -254,7 +254,7 @@ impl<CS: CipherSuite> Ciphertext<CS> {
 #[derive_where(Clone, Serialize, Deserialize)]
 pub struct WrappedKey<CS: CipherSuite> {
     id: BaseId,
-    nonce: GenericArray<u8, <CS::Aead as Aead>::NonceSize>,
+    nonce: Array<u8, <CS::Aead as Aead>::NonceSize>,
     ciphertext: Ciphertext<CS>,
     tag: Tag<CS::Aead>,
 }

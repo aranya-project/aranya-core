@@ -142,3 +142,10 @@ pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
     let ret = unsafe { libc::fsync(fd.as_raw()) };
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
+
+/// See `fdatasync(2)`.
+///
+/// Fall back to `fsync` on VxWorks.
+pub fn fdatasync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
+    fsync(fd)
+}

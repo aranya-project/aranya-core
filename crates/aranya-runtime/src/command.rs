@@ -42,10 +42,6 @@ pub enum Priority {
 /// policy will also emit effects once a command is verified,
 /// which are sent to the client.
 pub trait Command {
-    /// Return this command's [`Priority`], determining how this event is
-    /// ordered amongst others it does not have a causal relationship with.
-    fn priority(&self) -> Priority;
-
     /// Uniquely identifies the serialized command.
     fn id(&self) -> CmdId;
 
@@ -58,34 +54,9 @@ pub trait Command {
 
     /// Return this command's serialized data.
     fn bytes(&self) -> &[u8];
-
-    /// Return this command's max cut. Max cut is the maximum distance to the init command.
-    fn max_cut(&self) -> Result<MaxCut, Bug> {
-        match self.parent() {
-            Prior::None => Ok(MaxCut::new(0)),
-            Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
-            Prior::Merge(l, r) => Ok(l
-                .max_cut
-                .max(r.max_cut)
-                .checked_add(1)
-                .assume("must not overflow")?),
-        }
-    }
-
-    /// Return this command's address.
-    fn address(&self) -> Result<Address, Bug> {
-        Ok(Address {
-            id: self.id(),
-            max_cut: self.max_cut()?,
-        })
-    }
 }
 
 impl<C: Command> Command for &C {
-    fn priority(&self) -> Priority {
-        (*self).priority()
-    }
-
     fn id(&self) -> CmdId {
         (*self).id()
     }
@@ -101,13 +72,36 @@ impl<C: Command> Command for &C {
     fn bytes(&self) -> &[u8] {
         (*self).bytes()
     }
+}
 
+pub trait CommandExt: Command {
+    /// Return this command's max cut.
+    ///
+    /// Max cut is the maximum distance to the init command.
+    fn max_cut(&self) -> Result<MaxCut, Bug>;
+
+    /// Return this command's address.
+    fn address(&self) -> Result<Address, Bug>;
+}
+
+impl<C: Command> CommandExt for C {
     fn max_cut(&self) -> Result<MaxCut, Bug> {
-        (*self).max_cut()
+        match self.parent() {
+            Prior::None => Ok(MaxCut::new(0)),
+            Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
+            Prior::Merge(l, r) => Ok(l
+                .max_cut
+                .max(r.max_cut)
+                .checked_add(1)
+                .assume("must not overflow")?),
+        }
     }
 
     fn address(&self) -> Result<Address, Bug> {
-        (*self).address()
+        Ok(Address {
+            id: self.id(),
+            max_cut: self.max_cut()?,
+        })
     }
 }
 
@@ -138,21 +132,6 @@ impl<C: Command> Command for &C {
 pub struct Address {
     pub id: CmdId,
     pub max_cut: MaxCut,
-}
-
-impl Prior<Address> {
-    /// Returns the max cut for the command that is after this prior.
-    pub fn next_max_cut(&self) -> Result<MaxCut, Bug> {
-        Ok(match self {
-            Self::None => MaxCut::new(1),
-            Self::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
-            Self::Merge(l, r) => l
-                .max_cut
-                .max(r.max_cut)
-                .checked_add(1)
-                .assume("must not overflow")?,
-        })
-    }
 }
 
 #[cfg(test)]

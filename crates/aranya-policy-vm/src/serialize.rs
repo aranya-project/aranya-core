@@ -9,7 +9,8 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_id::BaseId;
-use aranya_policy_ast::{FieldDefinition, Identifier, TypeKind};
+use aranya_policy_ast::Identifier;
+use aranya_policy_module::{EnumDef, StructDef, TypeKind, automap::AutoMap};
 use postcard_core::de::Flavor as _;
 
 use crate::{Struct, Value};
@@ -34,6 +35,9 @@ pub enum SerializeError {
 /// Deserialize error.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum DeserializeError {
+    /// Cannot find definition for this enum.
+    #[error("cannot find definition for `enum {0}`")]
+    UnknownEnum(Identifier),
     /// Cannot find definition for this struct.
     #[error("cannot find definition for `struct {0}`")]
     UnknownStruct(Identifier),
@@ -48,25 +52,34 @@ pub enum DeserializeError {
     BadInput,
 }
 
-type StructDefs = BTreeMap<Identifier, Vec<FieldDefinition>>;
+type StructDefs = AutoMap<StructDef>;
+type EnumDefs = AutoMap<EnumDef>;
 
 /// Serialize a [`Struct`] to be deserialized with [`deserialize_struct`].
-pub(crate) fn serialize_struct(defs: &StructDefs, s: &Struct) -> Result<Vec<u8>, SerializeError> {
+pub(crate) fn serialize_struct(
+    struct_defs: &StructDefs,
+    s: &Struct,
+) -> Result<Vec<u8>, SerializeError> {
     let mut ctx = SerializeCtx {
-        defs,
+        struct_defs,
         out: Vec::new(),
     };
     ctx.serialize_struct(s)?;
     Ok(ctx.out)
 }
 
-/// Deserialize a [`Struct`] which was serialized with [`deserialize_struct`].
+/// Deserialize a [`Struct`] which was serialized with [`serialize_struct`].
 pub(crate) fn deserialize_struct(
-    defs: &StructDefs,
+    struct_defs: &StructDefs,
+    enum_defs: &EnumDefs,
     name: Identifier,
     bytes: &[u8],
 ) -> Result<Struct, DeserializeError> {
-    let mut ctx = DeserializeCtx { defs, bytes };
+    let mut ctx = DeserializeCtx {
+        struct_defs,
+        enum_defs,
+        bytes,
+    };
     let s = ctx.deserialize_struct(name)?;
     if !ctx.bytes.is_empty() {
         return Err(DeserializeError::TrailingData);
@@ -77,24 +90,24 @@ pub(crate) fn deserialize_struct(
 const ID_SIZE: u8 = size_of::<BaseId>() as u8;
 
 struct SerializeCtx<'a> {
-    defs: &'a StructDefs,
+    struct_defs: &'a StructDefs,
     out: Vec<u8>,
 }
 
 impl SerializeCtx<'_> {
     fn serialize_struct(&mut self, s: &Struct) -> Result<(), SerializeError> {
         let def = self
-            .defs
+            .struct_defs
             .get(&s.name)
             .ok_or_else(|| SerializeError::UnknownStruct(s.name.clone()))?;
-        if def.len() != s.fields.len() {
+        if def.items.len() != s.fields.len() {
             return Err(SerializeError::FieldLengthMismatch);
         }
-        for d in def {
+        for d in &def.items {
             let v = s
                 .fields
-                .get(d.identifier.as_str())
-                .ok_or_else(|| SerializeError::MissingField(d.identifier.inner.clone()))?;
+                .get(d.name.as_str())
+                .ok_or_else(|| SerializeError::MissingField(d.name.clone()))?;
             self.serialize_value(v)?;
         }
         Ok(())
@@ -102,6 +115,7 @@ impl SerializeCtx<'_> {
 
     fn serialize_value(&mut self, v: &Value) -> Result<(), SerializeError> {
         match v {
+            Value::Unit => {}
             Value::Int(x) => postcard_core::ser::try_push_i64(self, *x)?,
             Value::Bool(x) => postcard_core::ser::try_push_bool(self, *x)?,
             Value::String(x) => postcard_core::ser::try_push_str(self, x)?,
@@ -158,20 +172,21 @@ impl postcard_core::ser::Flavor for SerializeCtx<'_> {
 }
 
 struct DeserializeCtx<'a> {
-    defs: &'a StructDefs,
+    struct_defs: &'a StructDefs,
+    enum_defs: &'a EnumDefs,
     bytes: &'a [u8],
 }
 
 impl DeserializeCtx<'_> {
     fn deserialize_struct(&mut self, name: Identifier) -> Result<Struct, DeserializeError> {
         let def = self
-            .defs
+            .struct_defs
             .get(&name)
             .ok_or_else(|| DeserializeError::UnknownStruct(name.clone()))?;
         let mut fields = BTreeMap::new();
-        for d in def {
-            let v = self.deserialize_value(&d.field_type.inner)?;
-            fields.insert(d.identifier.inner.clone(), v);
+        for d in &def.items {
+            let v = self.deserialize_value(&d.ty)?;
+            fields.insert(d.name.clone(), v);
         }
         Ok(Struct::new(name, fields))
     }
@@ -180,6 +195,7 @@ impl DeserializeCtx<'_> {
         use DeserializeError::BadInput as Bad;
 
         Ok(match kind {
+            TypeKind::Unit => Value::Unit,
             TypeKind::String => {
                 let x = postcard_core::de::try_take_str_temp(self)?.ok_or(Bad)?;
                 let x = x.parse().map_err(|_| Bad)?;
@@ -206,26 +222,33 @@ impl DeserializeCtx<'_> {
                 Value::Id(BaseId::from_bytes(*x))
             }
             TypeKind::Struct(ident) => {
-                let x = self.deserialize_struct(ident.inner.clone())?;
+                let x = self.deserialize_struct(ident.clone())?;
                 Value::Struct(x)
             }
             TypeKind::Enum(ident) => {
+                let def = self
+                    .enum_defs
+                    .get(ident)
+                    .ok_or_else(|| DeserializeError::UnknownEnum(ident.clone()))?;
                 let x = postcard_core::de::try_take_i64(self)?.ok_or(Bad)?;
-                Value::Enum(ident.inner.clone(), x)
+                if !def.variants.iter().any(|(_, v)| *v == x) {
+                    return Err(Bad);
+                }
+                Value::Enum(ident.clone(), x)
             }
             TypeKind::Optional(vtype) => {
                 let tag = self.pop()?;
                 match tag {
                     0 => Value::NONE,
-                    1 => Value::Option(Some(Box::new(self.deserialize_value(&vtype.inner)?))),
+                    1 => Value::Option(Some(Box::new(self.deserialize_value(vtype)?))),
                     _ => return Err(Bad),
                 }
             }
             TypeKind::Result(res) => {
                 let tag = self.pop()?;
                 Value::Result(match tag {
-                    0 => Ok(Box::new(self.deserialize_value(&res.ok.inner)?)),
-                    1 => Err(Box::new(self.deserialize_value(&res.err.inner)?)),
+                    0 => Ok(Box::new(self.deserialize_value(&res.ok)?)),
+                    1 => Err(Box::new(self.deserialize_value(&res.err)?)),
                     _ => return Err(Bad),
                 })
             }
@@ -284,9 +307,9 @@ mod test {
     use aranya_policy_ast::{Text, Version, ident, text};
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_str;
-    use aranya_policy_module::ModuleData;
 
     use super::*;
+    use crate::Machine;
 
     #[test]
     fn test_round_trip_with_rust_type() {
@@ -339,11 +362,9 @@ mod test {
             m_int: i64,
         }
 
-        let defs = {
-            let policy = parse_policy_str(src, Version::V2).unwrap();
-            let ModuleData::V0(m) = Compiler::new(&policy).compile().unwrap().data;
-            m.struct_defs
-        };
+        let policy = parse_policy_str(src, Version::V2).unwrap();
+        let module = Compiler::new(&policy).compile().unwrap();
+        let machine = Machine::from_module(module).unwrap();
 
         let id = BaseId::from_bytes(core::array::from_fn(|i| u8::MAX - i as u8));
 
@@ -361,8 +382,10 @@ mod test {
         };
 
         let rust_ser = postcard::to_allocvec(&rust_in).unwrap();
-        let value_de = deserialize_struct(&defs, ident!("Complex"), &rust_ser).unwrap();
-        let value_ser = serialize_struct(&defs, &value_de).unwrap();
+        let value_de = machine
+            .deserialize_struct(ident!("Complex"), &rust_ser)
+            .unwrap();
+        let value_ser = machine.serialize_struct(&value_de).unwrap();
         let rust_de: Complex = postcard::from_bytes(&value_ser).unwrap();
 
         assert_eq!(rust_in, rust_de);

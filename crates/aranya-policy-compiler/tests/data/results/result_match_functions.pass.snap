@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -9,11 +10,11 @@ Module {
         <fn 'match_statement'>: 22,
         <fn 'may_fail'>: 1,
     },
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
     globals: {},
     ..
 }

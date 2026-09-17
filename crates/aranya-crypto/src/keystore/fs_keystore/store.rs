@@ -3,7 +3,6 @@
 use core::{ffi::CStr, marker::PhantomData, ops::Deref};
 
 use buggy::BugExt as _;
-use cfg_if::cfg_if;
 use ciborium as cbor;
 use ciborium_io::{Read, Write};
 use rustix::{
@@ -280,13 +279,14 @@ impl Exclusive {
     }
 
     fn fsync(&self) -> io::Result<()> {
-        cfg_if! {
-            if #[cfg(any(target_os = "macos", target_os = "ios"))] {
+        cfg_select! {
+            any(target_os = "macos", target_os = "ios") => {
                 fs::fcntl_fullfsync(&self.0)?;
-            } else {
+            }
+            _ => {
                 fs::fdatasync(&self.0)?;
             }
-        }
+        };
         Ok(())
     }
 }

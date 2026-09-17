@@ -30,7 +30,7 @@ impl Csprng for SwitchableRng {
     fn fill_bytes(&self, dst: &mut [u8]) {
         match self {
             Self::Default => aranya_crypto::Rng.fill_bytes(dst),
-            Self::Deterministic(rng) => rng.borrow_mut().fill(dst),
+            Self::Deterministic(rng) => rng.borrow_mut().fill_bytes(dst),
         }
     }
 }

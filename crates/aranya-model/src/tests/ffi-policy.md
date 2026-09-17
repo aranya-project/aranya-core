@@ -75,28 +75,31 @@ function Role_Device() string {
 // Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the DeviceId.)
-function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
+function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[struct NewDevice, unit] {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    check got_device_id == device_keys.device_id
+    check got_device_id == device_keys.device_id else return Err(Unit)
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
-    return NewDevice {
+    return Ok(NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
         sign_pk_id: sign_pk_id,
         sign_pk: device_keys.sign_pk,
-    }
+    })
 }
 
 // Seals a serialized basic command into an envelope, using the stored signing key for this device.
 function seal_basic_command(payload bytes) struct Envelope {
     let parent_id = perspective::head_id()
     let author_id = device::current_device_id()
-    let author_sign_sk_id = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+    let author_sign_id = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
+        Some(pk) => Some(pk.key_id)
+        None => None
+    }
     let signed = crypto::sign(
-        author_sign_sk_id.key_id,
+        author_sign_id,
         payload,
     )
 
@@ -105,24 +108,25 @@ function seal_basic_command(payload bytes) struct Envelope {
         author_id,
         signed.command_id,
         signed.signature,
-        payload,
     )
 }
 
 // Opens a basic command from an envelope, using the author's stored signing key.
-function open_basic_command(envelope_input struct Envelope) bytes {
+function open_basic_command(payload bytes, envelope_input struct Envelope) unit {
     let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+    let author_sign_pk = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
+        Some(pk) => Some(pk.key)
+        None => None
+    }
     let parent_id = envelope::parent_id(envelope_input)
 
-    let crypto_command = crypto::verify(
-        author_sign_pk.key,
+    return crypto::verify(
+        author_sign_pk,
         parent_id,
-        envelope::payload(envelope_input),
+        payload,
         envelope::command_id(envelope_input),
         envelope::signature(envelope_input),
     )
-    return crypto_command
 }
 
 action init(nonce int, sign_pk bytes) {
@@ -144,11 +148,10 @@ command Init {
 
     seal {
         let parent_id = perspective::head_id()
-        let payload = serialize(this)
         let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
 
         let signed = crypto::sign(
-            author_sign_sk_id,
+            Some(author_sign_sk_id),
             payload,
         )
 
@@ -159,29 +162,25 @@ command Init {
             author_id,
             signed.command_id,
             signed.signature,
-            payload,
         )
     }
 
     open {
         let author_id = envelope::author_id(envelope)
         let parent_id = envelope::parent_id(envelope)
-        let payload = envelope::payload(envelope)
-        let cmd = deserialize(payload)
-        let author_sign_pk = cmd.sign_pk
+        let author_sign_pk = this.sign_pk
 
-        let crypto_command = crypto::verify(
-            author_sign_pk,
+        return crypto::verify(
+            Some(author_sign_pk),
             parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
         )
-        return deserialize(crypto_command)
     }
 
     policy {
-        check this.nonce > 0
+        check this.nonce > 0 else test_fail("nonce must be positive")
         finish {}
     }
 
@@ -205,11 +204,10 @@ command AddDeviceKeys {
 
     seal {
         let parent_id = perspective::head_id()
-        let payload = serialize(this)
         let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
 
         let signed = crypto::sign(
-            author_sign_sk_id,
+            Some(author_sign_sk_id),
             payload,
         )
 
@@ -220,31 +218,27 @@ command AddDeviceKeys {
             author_id,
             signed.command_id,
             signed.signature,
-            payload,
         )
     }
 
     open {
         let author_id = envelope::author_id(envelope)
         let parent_id = envelope::parent_id(envelope)
-        let payload = envelope::payload(envelope)
-        let cmd = deserialize(payload)
-        let author_sign_pk = cmd.sign_pk
+        let author_sign_pk = this.sign_pk
 
-        let crypto_command = crypto::verify(
-            author_sign_pk,
+        return crypto::verify(
+            Some(author_sign_pk),
             parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
         )
-        return deserialize(crypto_command)
     }
 
     policy {
         let author = envelope::author_id(envelope)
         let device_id = idam::derive_device_id(this.ident_pk)
-        check author == device_id
+        check author == device_id else test_fail("author must be device")
 
         let device_keys = DeviceKeyBundle {
             device_id: author,
@@ -252,13 +246,17 @@ command AddDeviceKeys {
             sign_pk: this.sign_pk,
         }
 
-        let device = authorized_device_key_ids(device_keys)
+        let device = match authorized_device_key_ids(device_keys) {
+            Ok(d) => d
+            Err(e) => recall reject()
+        }
 
         finish {
             create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
             create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
         }
     }
+    recall reject() {}
 }
 
 action create_action(v int) {
@@ -279,8 +277,8 @@ command Create {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -307,13 +305,13 @@ command Increment {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = add(stuff.x, this.value) or test_fail()
+        check new_x < 25 else test_fail("new_x out of range")
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -339,13 +337,13 @@ command Decrement {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap sub(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = sub(stuff.x, this.value) or test_fail()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -370,8 +368,8 @@ ephemeral command CreateGreeting {
         value string,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -406,17 +404,17 @@ ephemeral command VerifyGreeting {
         value string,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value
+        check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}
         }
@@ -436,11 +434,11 @@ command VerifyNoHello {
 
     fields {}
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
+    seal { return seal_basic_command(payload) }
+    open { return open_basic_command(payload, envelope) }
 
     policy {
-        check !exists Message[msg: ?]=>{value: ?}
+        check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")
         finish {
             emit Success{value: true}
         }

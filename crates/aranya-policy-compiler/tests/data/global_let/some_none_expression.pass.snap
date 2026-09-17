@@ -1,15 +1,16 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
     version: "0",
     labels: {},
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {},
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
     globals: {
         "global": Option(
             Some(

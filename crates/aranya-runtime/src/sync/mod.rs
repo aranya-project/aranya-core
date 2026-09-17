@@ -12,50 +12,77 @@ use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Address, MaxCut, Prior,
-    command::{CmdId, Command, Priority},
-    storage::{GraphId, MAX_COMMAND_LENGTH, StorageError},
+    Address, Prior,
+    command::{CmdId, Command},
+    storage::{GraphId, LocatedAddress, Location, MAX_COMMAND_LENGTH, StorageError},
+    util::mem_usage,
 };
 
 mod requester;
 mod responder;
-mod wire;
+pub(crate) mod wire;
 
-use requester::SyncRequestMessage;
+pub(crate) use requester::SyncRequestMessage;
 pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
 use wire::{SubscribeResult, SyncHelloType, SyncType};
 
+/// The frontier a requester advertises during a sync session: committed
+/// commands the peer is known to have ([`PeerCache`]) plus, when a
+/// transaction is open, its uncommitted heads. Construct with
+/// [`PeerCache::session_heads`] or `Transaction::session_heads`. Borrowing
+/// the transaction keeps uncommitted heads from outliving it: `commit`
+/// consumes the transaction, so they can never be held across a commit or
+/// persisted.
+pub struct SessionHeads<'a> {
+    pub(crate) cache: &'a PeerCache,
+    pub(crate) session: Option<&'a alloc::collections::BTreeMap<CmdId, Location>>,
+}
+
+impl SessionHeads<'_> {
+    /// The open transaction's uncommitted frontier, if any.
+    pub(crate) fn session_iter(&self) -> impl Iterator<Item = LocatedAddress> + '_ {
+        self.session
+            .into_iter()
+            .flatten()
+            .map(|(id, loc)| LocatedAddress {
+                id: *id,
+                segment: loc.segment,
+                max_cut: loc.max_cut,
+            })
+    }
+
+    /// Committed commands the peer is known to have.
+    pub(crate) fn cache_heads(&self) -> &[LocatedAddress] {
+        self.cache.heads()
+    }
+}
+
+impl PeerCache {
+    /// The frontier to advertise to a sync peer when no transaction is open.
+    pub fn session_heads(&self) -> SessionHeads<'_> {
+        SessionHeads {
+            cache: self,
+            session: None,
+        }
+    }
+}
+
 // TODO: These should all be compile time parameters
 
-/// The maximum number of heads that will be stored for a peer.
-pub const PEER_HEAD_MAX: usize = 10;
-
 /// The maximum number of samples in a request
-#[cfg(feature = "low-mem-usage")]
-const COMMAND_SAMPLE_MAX: usize = 20;
-#[cfg(not(feature = "low-mem-usage"))]
-const COMMAND_SAMPLE_MAX: usize = 100;
+const COMMAND_SAMPLE_MAX: usize = mem_usage(20, 100);
 
 /// The maximum number of missing segments that can be requested
 /// in a single message
-#[cfg(feature = "low-mem-usage")]
-const REQUEST_MISSING_MAX: usize = 1;
-#[cfg(not(feature = "low-mem-usage"))]
-const REQUEST_MISSING_MAX: usize = 100;
+const REQUEST_MISSING_MAX: usize = mem_usage(1, 100);
 
 /// The maximum number of commands in a response
-#[cfg(feature = "low-mem-usage")]
-pub const COMMAND_RESPONSE_MAX: usize = 5;
-#[cfg(not(feature = "low-mem-usage"))]
-pub const COMMAND_RESPONSE_MAX: usize = 100;
+pub const COMMAND_RESPONSE_MAX: usize = mem_usage(5, 100);
 
 /// The maximum number of segments which can be stored to send
-#[cfg(feature = "low-mem-usage")]
-const SEGMENT_BUFFER_MAX: usize = 10;
-#[cfg(not(feature = "low-mem-usage"))]
-const SEGMENT_BUFFER_MAX: usize = 100;
+const SEGMENT_BUFFER_MAX: usize = mem_usage(10, 100);
 
 /// The maximum size of a sync message
 // TODO: Use postcard to calculate max size (which accounts for overhead)
@@ -76,6 +103,12 @@ pub enum SyncError {
     NotReady,
     #[error("too many commands sent")]
     CommandOverflow,
+    #[error("target buffer too small for sync message")]
+    BufferTooSmall,
+    #[error("malformed sync response")]
+    MalformedResponse,
+    #[error("unsupported sync request")]
+    UnsupportedRequest,
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
     #[error("serialize error: {0}")]
@@ -87,19 +120,13 @@ pub enum SyncError {
 /// Sync command to be committed to graph.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
-    priority: Priority,
     id: CmdId,
     parent: Prior<Address>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
-    max_cut: MaxCut,
 }
 
 impl<'a> Command for SyncCommand<'a> {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -114,10 +141,6 @@ impl<'a> Command for SyncCommand<'a> {
 
     fn bytes(&self) -> &'a [u8] {
         self.data
-    }
-
-    fn max_cut(&self) -> Result<MaxCut, Bug> {
-        Ok(self.max_cut)
     }
 }
 
@@ -395,5 +418,102 @@ impl SubscribeResponse {
             SubscribeResult::Success => Self::Success,
             SubscribeResult::TooManySubscriptions => Self::TooManySubscriptions,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn meta(policy_length: u32, length: u32) -> wire::CommandMeta {
+        wire::CommandMeta {
+            id: CmdId::default(),
+            parent: Prior::None,
+            policy_length,
+            length,
+        }
+    }
+
+    /// A peer that claims longer commands than it actually sent must not
+    /// panic the requester.
+    #[test]
+    fn truncated_sync_response_is_rejected() {
+        let session_id = 42;
+        let mut commands: Vec<wire::CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        // Claims 4 KiB of payload, but no command bytes follow the message.
+        commands.push(meta(0, 4096)).expect("push meta");
+        let message = SyncResponseMessage::SyncResponse {
+            session_id,
+            response_index: 0,
+            commands,
+        };
+        let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = postcard::to_slice(&message, &mut buf)
+            .expect("serialize")
+            .len();
+
+        let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
+        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+    }
+
+    /// Same, but the policy length is the one that overruns.
+    #[test]
+    fn truncated_policy_is_rejected() {
+        let session_id = 43;
+        let mut commands: Vec<wire::CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        commands.push(meta(4096, 0)).expect("push meta");
+        let message = SyncResponseMessage::SyncResponse {
+            session_id,
+            response_index: 0,
+            commands,
+        };
+        let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = postcard::to_slice(&message, &mut buf)
+            .expect("serialize")
+            .len();
+
+        let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
+        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+    }
+
+    fn poll_bytes(request: SyncRequestMessage, buf: &mut [u8]) -> usize {
+        postcard::to_slice(&SyncType::Poll { request }, buf)
+            .expect("serialize")
+            .len()
+    }
+
+    /// Unimplemented request messages must be rejected, not panic the
+    /// responder.
+    #[test]
+    fn unimplemented_requests_are_rejected() {
+        let session_id = 44;
+        let unsupported = [
+            SyncRequestMessage::RequestMissing {
+                session_id,
+                indexes: Vec::new(),
+            },
+            SyncRequestMessage::SyncResume {
+                session_id,
+                response_index: 0,
+                max_bytes: 0,
+            },
+        ];
+
+        for request in unsupported {
+            let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let len = poll_bytes(request, &mut buf);
+            let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buf[..len]).expect("decode")
+            else {
+                panic!("expected a poll");
+            };
+
+            let mut responder = SyncResponder::new();
+            let err = responder.receive(poll).expect_err("must not panic");
+            assert!(matches!(err, SyncError::UnsupportedRequest), "got {err:?}");
+            // The session is torn down, so the next poll sends `EndSession`.
+            assert!(responder.ready());
+        }
     }
 }

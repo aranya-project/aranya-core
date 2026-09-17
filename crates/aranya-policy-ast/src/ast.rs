@@ -243,6 +243,8 @@ pub struct ResultTypeKind {
 ))]
 #[rkyv(attr(doc = "The archived kind of a [`VType`]."))]
 pub enum TypeKind {
+    /// The unit, like `()` or `void`.
+    Unit,
     /// A character (UTF-8) string
     String,
     /// A byte string
@@ -269,7 +271,8 @@ impl TypeKind {
     /// Reports whether the kinds are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::String, Self::String)
+            (Self::Unit, Self::Unit)
+            | (Self::String, Self::String)
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
@@ -289,7 +292,8 @@ impl TypeKind {
         match (self, other) {
             (Self::Never, _) => true,
             (_, Self::Never) => true,
-            (Self::String, Self::String)
+            (Self::Unit, Self::Unit)
+            | (Self::String, Self::String)
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
@@ -308,6 +312,7 @@ impl TypeKind {
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unit => write!(f, "unit"),
             Self::String => write!(f, "string"),
             Self::Bytes => write!(f, "bytes"),
             Self::Int => write!(f, "int"),
@@ -534,12 +539,10 @@ pub enum InternalFunction {
     FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
-    /// Serialize function
-    Serialize(Box<Expression>),
-    /// Deserialize function
-    Deserialize(Box<Expression>),
     /// Not yet implemented panic
     Todo(Span),
+    /// Panics with an optional message, for expressing test expectations
+    TestFail(Option<Text>, Span),
 }
 
 impl Spanned for InternalFunction {
@@ -549,8 +552,8 @@ impl Spanned for InternalFunction {
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
             Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
-            Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
             Self::Todo(span) => *span,
+            Self::TestFail(_, span) => *span,
         }
     }
 }
@@ -579,6 +582,8 @@ pub type Expression = WithSpan<ExprKind>;
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    /// A Unit literal
+    Unit,
     /// A 64-bit signed integer
     Int(IntLiteral),
     /// A text string
@@ -629,10 +634,6 @@ pub enum ExprKind {
     LessThanOrEqual(Box<Expression>, Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
-    /// `unwrap expr`
-    Unwrap(Box<Expression>),
-    /// Similar to Unwrap, but exits with a Check, instead of a Panic
-    CheckUnwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
@@ -649,6 +650,8 @@ impl ExprKind {
     /// Compare two expression kinds for equality, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Unit, Self::Unit) => true,
+
             // Simple types without spans - can use ==
             (Self::Int(a), Self::Int(b)) => a == b,
             (Self::String(a), Self::String(b)) => a == b,
@@ -754,9 +757,8 @@ impl ExprKind {
                             && t1.inner.matches(&t2.inner)
                             && e1.inner.matches(&e2.inner)
                     }
-                    (InternalFunction::Serialize(e1), InternalFunction::Serialize(e2))
-                    | (InternalFunction::Deserialize(e1), InternalFunction::Deserialize(e2)) => {
-                        e1.inner.matches(&e2.inner)
+                    (InternalFunction::TestFail(t1, _), InternalFunction::TestFail(t2, _)) => {
+                        t1 == t2
                     }
                     (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
                     _ => false,
@@ -764,10 +766,9 @@ impl ExprKind {
             }
 
             // Single expression variants
-            (Self::Return(a), Self::Return(b))
-            | (Self::Not(a), Self::Not(b))
-            | (Self::Unwrap(a), Self::Unwrap(b))
-            | (Self::CheckUnwrap(a), Self::CheckUnwrap(b)) => a.inner.matches(&b.inner),
+            (Self::Return(a), Self::Return(b)) | (Self::Not(a), Self::Not(b)) => {
+                a.inner.matches(&b.inner)
+            }
 
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))
@@ -983,9 +984,9 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// Optional expression to evaluate if the check fails. Must be a terminal expression
+    /// Expression to evaluate if the check fails. Must be a terminal expression
     /// (type `Never`), e.g. `return Err(..)` or `recall foo()`.
-    pub else_expression: Option<Expression>,
+    pub else_expression: Expression,
 }
 }
 
@@ -1240,6 +1241,9 @@ pub struct ActionDefinition {
     pub identifier: Ident,
     /// The arguments to the action
     pub arguments: Vec<Param>,
+    /// The action's return type: a `result[unit, E]` for a fallible action, or
+    /// [`TypeKind::Unit`] for an infallible one.
+    pub return_type: VType,
     /// The statements executed when the action is called
     pub statements: Vec<Statement>,
     /// The source location of this definition

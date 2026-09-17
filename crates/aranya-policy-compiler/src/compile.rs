@@ -19,9 +19,10 @@ use aranya_policy_ast::{
     Spanned, Statement, StructItem, TypeKind, VType, WithSpan, WithSpanExt as _, ident, thir,
 };
 use aranya_policy_module::{
-    ActionDef, Attribute, CodeMap, CommandDef, ConstStruct, ConstValue, ExitReason, Field,
-    Instruction, Label, LabelType, Meta, Module, Target, WrapType,
+    CodeMap, ConstStruct, ConstValue, ExitReason, Instruction, Label, LabelType, Meta, Module,
+    Target, WrapType,
     ffi::{self, ModuleSchema},
+    interface,
     named::NamedMap,
 };
 pub use ast::Policy as AstPolicy;
@@ -32,9 +33,9 @@ use tracing::warn;
 pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
     error::{
-        AlreadyDefined, BadArgument, BugError, DuplicateSourceFields, InvalidExpression,
-        InvalidType, NoOpStructComp, NoReturn, NotDefined, SourceStructNotSubsetOfBase,
-        StructCompositionTypeMismatch, TodoFound, UnknownError,
+        AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
+        SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -127,6 +128,13 @@ mod param {
     use aranya_policy_ast::WithSpanExt as _;
 
     use super::{Ident, Param, TypeKind, ident};
+
+    pub fn payload() -> Param {
+        Param {
+            name: ident!("payload").nowhere(),
+            ty: TypeKind::Bytes.nowhere(),
+        }
+    }
 
     pub fn envelope() -> Param {
         Param {
@@ -526,7 +534,10 @@ impl<'a> CompileState<'a> {
     pub fn resolve_targets(&mut self) -> Result<(), CompileError> {
         for ref mut instr in &mut self.m.progmem {
             match instr {
-                Instruction::Branch(t) | Instruction::Jump(t) | Instruction::Call(t) => {
+                Instruction::Branch(t)
+                | Instruction::Jump(t)
+                | Instruction::Call(t)
+                | Instruction::Recall(t) => {
                     Self::resolve_target(t, &mut self.m.labels)?;
                 }
                 _ => (),
@@ -553,6 +564,17 @@ impl<'a> CompileState<'a> {
         CompileError::new(err_type, Some(self.policy.text.clone()))
     }
 
+    /// Ensure debug mode is on, or return a [`DebugModeRequired`] error. In debug
+    /// mode, warns that a debug-only construct (e.g. `todo()`/`test_fail`) is present.
+    fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
+        if self.is_debug {
+            warn!("`{name}` found in policy");
+            Ok(())
+        } else {
+            Err(self.err(DebugModeRequired { name, span }))
+        }
+    }
+
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: thir::FactLiteral) -> Result<(), CompileError> {
         self.append_instruction(Instruction::FactNew(f.identifier.inner.clone()));
@@ -574,6 +596,9 @@ impl<'a> CompileState<'a> {
         expression: thir::Expression,
     ) -> Result<(), CompileError> {
         match expression.kind {
+            thir::ExprKind::Unit => {
+                self.append_instruction(Instruction::Const(ConstValue::Unit));
+            }
             thir::ExprKind::Int(n) => {
                 self.append_instruction(Instruction::Const(ConstValue::Int(*n)));
             }
@@ -625,22 +650,13 @@ impl<'a> CompileState<'a> {
                     self.compile_typed_expression(*t)?;
                     self.define_label(end_name, self.wp)?;
                 }
-                thir::InternalFunction::Serialize(e) => {
-                    self.compile_typed_expression(*e)?;
-                    self.append_instruction(Instruction::Serialize);
-                }
-                thir::InternalFunction::Deserialize(e) => {
-                    self.compile_typed_expression(*e)?;
-                    self.append_instruction(Instruction::Deserialize);
-                }
                 thir::InternalFunction::Todo(span) => {
-                    let err = self.err(TodoFound(span));
-                    if self.is_debug {
-                        warn!("{err}");
-                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                    } else {
-                        return Err(err);
-                    }
+                    self.require_debug_mode("todo()", span)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                }
+                thir::InternalFunction::TestFail(_msg, span) => {
+                    self.require_debug_mode("test_fail()", span)?;
+                    self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
             },
             thir::ExprKind::FunctionCall(f) => {
@@ -811,10 +827,6 @@ impl<'a> CompileState<'a> {
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
-            thir::ExprKind::Unwrap(e) => self.compile_unwrap_option(*e, ExitReason::Panic)?,
-            thir::ExprKind::CheckUnwrap(e) => {
-                self.compile_unwrap_option(*e, ExitReason::Check(None))?;
-            }
             thir::ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_typed_expression(*e)?;
@@ -911,10 +923,7 @@ impl<'a> CompileState<'a> {
                     check_succeeded_label.clone(),
                 )));
 
-                match s.else_expression {
-                    Some(else_expression) => self.compile_typed_expression(else_expression)?,
-                    None => self.append_instruction(Instruction::Exit(ExitReason::Check(None))),
-                }
+                self.compile_typed_expression(s.else_expression)?;
                 self.define_label(check_succeeded_label, self.wp)?;
             }
             thir::StmtKind::Match(s) => {
@@ -956,7 +965,12 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_statements(s, Scope::Layered)?;
                 self.exit_statement_context();
                 // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
-                self.append_instruction(Instruction::Exit(ExitReason::Normal));
+                // finish in recall block exits with Check, otherwise Normal
+                let exit_reason = match self.get_statement_context() {
+                    Ok(StatementContext::CommandRecall(_)) => ExitReason::Check,
+                    _ => ExitReason::Normal,
+                };
+                self.append_instruction(Instruction::Exit(exit_reason));
             }
             thir::StmtKind::Map(map_stmt) => {
                 // Execute query and store results
@@ -1046,6 +1060,7 @@ impl<'a> CompileState<'a> {
             | TypeKind::Bytes
             | TypeKind::Int
             | TypeKind::Never
+            | TypeKind::Unit
             | TypeKind::String => {}
             TypeKind::Struct(name) => {
                 if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.inner) {
@@ -1132,11 +1147,7 @@ impl<'a> CompileState<'a> {
         self.m
             .interface
             .action_defs
-            .insert(ActionDef {
-                name: action_node.identifier.clone(),
-                persistence: action_node.persistence.clone(),
-                params,
-            })
+            .insert(action_node.clone().into())
             .map_err(|e| {
                 self.err(AlreadyDefined::new(
                     action_node.identifier.clone(),
@@ -1150,15 +1161,34 @@ impl<'a> CompileState<'a> {
     /// Compile an action function
     fn compile_action(&mut self, action_node: &ast::ActionDefinition) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::Action(action_node.clone()));
+        let label = Label::new(action_node.identifier.inner.clone(), LabelType::Action);
+
+        // The return type is `unit` (infallible) or `result[unit, E]` (fallible).
+        let ret = match &action_node.return_type.inner {
+            TypeKind::Unit => None,
+            TypeKind::Result(r) => {
+                if !matches!(r.ok.inner, TypeKind::Unit) {
+                    return Err(self.err(InvalidReturn {
+                        message: "an action's success type must be `unit`".to_owned(),
+                        span: r.ok.span,
+                    }));
+                }
+                Some(action_node.return_type.clone())
+            }
+            _ => unreachable!("invalid action return type should have been caught during parsing"),
+        };
         self.compile_function_like(
             &action_node.arguments,
-            None,
+            ret.as_ref(),
             action_node.span,
             &action_node.statements,
-            Label::new(action_node.identifier.inner.clone(), LabelType::Action),
+            label,
         )?;
-        // Actions cannot have return statements, so we add a return instruction manually.
-        self.append_instruction(Instruction::Return);
+        // An infallible action has no return statement, so add one.
+        if ret.is_none() {
+            self.append_instruction(Instruction::Return);
+        }
+
         self.exit_statement_context();
         Ok(())
     }
@@ -1172,7 +1202,7 @@ impl<'a> CompileState<'a> {
         let expression = &global_let.expression;
 
         let value = self.expression_value(expression)?;
-        let vt = value.vtype();
+        let vt = value.vtype(global_let.expression.span);
 
         match self.m.interface.globals.entry(identifier.clone()) {
             Entry::Vacant(e) => {
@@ -1186,35 +1216,8 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier.clone(), vt.nowhere())
+            .add_global(identifier.clone(), vt)
             .map_err(|e| self.err(e))?;
-
-        Ok(())
-    }
-
-    /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
-    fn compile_unwrap_option(
-        &mut self,
-        e: thir::Expression,
-        exit_reason: ExitReason,
-    ) -> Result<(), CompileError> {
-        let not_none = self.anonymous_label();
-        // evaluate the expression
-        self.compile_typed_expression(e)?;
-        // Duplicate value for testing
-        self.append_instruction(Instruction::Dup);
-        // Push a None to compare against
-        self.append_instruction(Instruction::Const(ConstValue::NONE));
-        // Is the value not equal to None?
-        self.append_instruction(Instruction::Eq);
-        self.append_instruction(Instruction::Not);
-        // Then branch over the Panic
-        self.append_instruction(Instruction::Branch(Target::Unresolved(not_none.clone())));
-        // If the value is equal to None, panic
-        self.append_instruction(Instruction::Exit(exit_reason));
-        // Define the target of the branch as the instruction after the Panic
-        self.define_label(not_none, self.wp)?;
-        self.append_instruction(Instruction::Unwrap(WrapType::Some));
 
         Ok(())
     }
@@ -1224,9 +1227,16 @@ impl<'a> CompileState<'a> {
         for arg_e in recall.arguments {
             self.compile_typed_expression(arg_e)?;
         }
-        let recall_name =
-            Some(self.command_recall_name(&recall.command_name, &recall.recall_name)?);
-        self.append_instruction(Instruction::Exit(ExitReason::Check(recall_name)));
+        // Recall blocks take `this` and `envelope` as trailing parameters.
+        self.append_instruction(Instruction::Get(ident!("this")));
+        self.append_instruction(Instruction::Get(ident!("envelope")));
+
+        let recall_label = Label::new(
+            self.command_recall_name(&recall.command_name, &recall.recall_name)?,
+            LabelType::CommandRecall,
+        );
+        // `recall` switches to recall context, then calls the named recall block.
+        self.append_instruction(Instruction::Recall(Target::Unresolved(recall_label)));
         Ok(())
     }
 
@@ -1301,7 +1311,7 @@ impl<'a> CompileState<'a> {
                 &recall_block.statements,
                 Label::new(full_name, LabelType::CommandRecall),
             )?;
-            self.append_instruction(Instruction::Exit(ExitReason::Normal));
+            self.append_instruction(Instruction::Exit(ExitReason::Check));
             self.exit_statement_context();
         }
         Ok(())
@@ -1313,7 +1323,7 @@ impl<'a> CompileState<'a> {
         span: Span,
     ) -> Result<(), CompileError> {
         // fake a function def for the seal block
-        let args = &[param::this(command.identifier.clone())];
+        let args = &[param::this(command.identifier.clone()), param::payload()];
         let ret = TypeKind::Struct(ident!("Envelope").nowhere()).nowhere();
         let seal_function_definition = ast::FunctionDefinition {
             identifier: ident!("seal").nowhere(),
@@ -1342,8 +1352,12 @@ impl<'a> CompileState<'a> {
         span: Span,
     ) -> Result<(), CompileError> {
         // fake a function def for the open block
-        let args = &[param::envelope()];
-        let ret = TypeKind::Struct(command.identifier.clone()).nowhere();
+        let args = &[
+            param::this(command.identifier.clone()),
+            param::payload(),
+            param::envelope(),
+        ];
+        let ret = TypeKind::Unit.nowhere();
         let open_function_definition = ast::FunctionDefinition {
             identifier: ident!("open").nowhere(),
             arguments: args.to_vec(),
@@ -1403,7 +1417,9 @@ impl<'a> CompileState<'a> {
             self.append_instruction(Instruction::Exit(ExitReason::Panic));
         }
 
-        self.identifier_types.exit_function();
+        self.identifier_types
+            .exit_function()
+            .map_err(|e| self.err(e))?;
         Ok(())
     }
 
@@ -1425,7 +1441,7 @@ impl<'a> CompileState<'a> {
         for (name, value_expr) in &command.attributes {
             let value = self.expression_value(value_expr)?;
             attributes
-                .insert(Attribute {
+                .insert(interface::Attribute {
                     name: name.clone(),
                     value,
                 })
@@ -1441,7 +1457,7 @@ impl<'a> CompileState<'a> {
                     // TODO(eric): Use `Span::default()`?
                     let field_type = f.field_type.clone();
                     fields
-                        .insert(Field {
+                        .insert(Param {
                             name: f.identifier.clone(),
                             ty: field_type,
                         })
@@ -1460,7 +1476,7 @@ impl<'a> CompileState<'a> {
                     for fd in struct_def {
                         let field_type = fd.field_type.clone();
                         fields
-                            .insert(Field {
+                            .insert(Param {
                                 name: fd.identifier.clone(),
                                 ty: field_type,
                             })
@@ -1472,11 +1488,11 @@ impl<'a> CompileState<'a> {
 
         self.m
             .command_defs
-            .insert(CommandDef {
+            .insert(interface::CommandDefinition {
                 name: command.identifier.clone(),
                 persistence: command.persistence.clone(),
-                attributes,
-                fields,
+                attributes: attributes.iter().cloned().collect(),
+                fields: fields.iter().cloned().collect(),
             })
             .map_err(|e| self.err(AlreadyDefined::new(command.identifier.clone(), e.existing)))?;
 
@@ -1525,7 +1541,9 @@ impl<'a> CompileState<'a> {
 
     /// Exit match arm (exit scope, jump to end)
     fn compile_match_arm_epilogue(&mut self, end_label: &Label) -> Result<(), CompileError> {
-        self.identifier_types.exit_block();
+        self.identifier_types
+            .exit_block()
+            .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::End);
         self.append_instruction(Instruction::Jump(Target::Unresolved(end_label.clone())));
 
@@ -1592,6 +1610,16 @@ impl<'a> CompileState<'a> {
                                     arm_label.clone(),
                                 )));
                             }
+                            thir::ExprKind::Optional(Some(inner))
+                                if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                            {
+                                // Binding pattern Some(x): branch if scrutinee is Some variant
+                                self.append_instruction(Instruction::Dup);
+                                self.append_instruction(Instruction::Is(WrapType::Some));
+                                self.append_instruction(Instruction::Branch(Target::Unresolved(
+                                    arm_label.clone(),
+                                )));
+                            }
                             _ => {
                                 // Literal pattern (including Ok(5), Ok(true), int, bool, etc.)
                                 self.append_instruction(Instruction::Dup);
@@ -1626,8 +1654,9 @@ impl<'a> CompileState<'a> {
 
                     match pattern {
                         thir::MatchPattern::Values(values) => {
-                            // Look for a Result binding pattern (Ok(x) or Err(e) with identifier inner)
-                            let result_binding = values.iter().find_map(|v| match &v.kind {
+                            // Look for a binding pattern (Ok(x), Err(e), or Some(x) with
+                            // identifier inner)
+                            let binding = values.iter().find_map(|v| match &v.kind {
                                 thir::ExprKind::Ok(inner)
                                     if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
                                 {
@@ -1638,9 +1667,14 @@ impl<'a> CompileState<'a> {
                                 {
                                     Some((WrapType::Err, inner))
                                 }
+                                thir::ExprKind::Optional(Some(inner))
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Some, inner))
+                                }
                                 _ => None,
                             });
-                            if let Some((wrap_type, inner)) = result_binding {
+                            if let Some((wrap_type, inner)) = binding {
                                 let thir::ExprKind::Identifier(ident) = &inner.kind else {
                                     bug!("checked above");
                                 };
@@ -1673,8 +1707,9 @@ impl<'a> CompileState<'a> {
 
                     match pattern {
                         thir::MatchPattern::Values(values) => {
-                            // Look for a Result binding pattern (Ok(x) or Err(e) with identifier inner)
-                            let result_binding = values.iter().find_map(|v| match &v.kind {
+                            // Look for a binding pattern (Ok(x), Err(e), or Some(x) with
+                            // identifier inner)
+                            let binding = values.iter().find_map(|v| match &v.kind {
                                 thir::ExprKind::Ok(inner)
                                     if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
                                 {
@@ -1685,9 +1720,14 @@ impl<'a> CompileState<'a> {
                                 {
                                     Some((WrapType::Err, inner))
                                 }
+                                thir::ExprKind::Optional(Some(inner))
+                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                {
+                                    Some((WrapType::Some, inner))
+                                }
                                 _ => None,
                             });
-                            if let Some((wrap_type, inner)) = result_binding {
+                            if let Some((wrap_type, inner)) = binding {
                                 let thir::ExprKind::Identifier(ident) = &inner.kind else {
                                     bug!("checked above");
                                 };
@@ -1945,6 +1985,7 @@ impl<'a> CompileState<'a> {
     /// Get expression value, e.g. ExprKind::Int => ConstValue::Int
     fn expression_value(&self, e: &Expression) -> Result<ConstValue, CompileError> {
         match &e.inner {
+            ExprKind::Unit => Ok(ConstValue::Unit),
             ExprKind::Int(v) => Ok(ConstValue::Int(**v)),
             ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
             ExprKind::String(v) => Ok(ConstValue::String(v.clone())),
@@ -2285,7 +2326,7 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(),
+            identifier_types: IdentifierTypeStack::new(self.is_debug),
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,

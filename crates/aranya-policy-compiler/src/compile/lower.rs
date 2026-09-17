@@ -1,19 +1,18 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
-    FunctionDefinition, Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern,
-    MatchStatement, NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind,
-    VType, ident, thir,
+    Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern, MatchStatement,
+    NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
+    WithSpanExt as _, thir,
 };
 use buggy::{BugExt as _, bug};
-use tracing::warn;
 
 use super::{
     CompileError, CompileState, FunctionColor, Scope, StatementContext,
     error::{
         AlreadyDefined, BadArgument, DuplicateMatchPatterns, InvalidCallColor,
-        InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidStatement,
-        InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm,
-        TodoFound, UnknownError, UnreachableMatchArm,
+        InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidReturn,
+        InvalidStatement, InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined,
+        RedundantMatchArm, UnknownError, UnreachableMatchArm,
     },
     find_duplicate,
     types::{self, DisplayType},
@@ -189,7 +188,7 @@ impl CompileState<'_> {
                     if !e.vtype.fits_type(def_field_type) {
                         let err = InvalidType::new(
                             def_field_type.to_string(),
-                            Some(def_field_type.span),
+                            Some(schema_key.span()),
                             e.vtype.to_string(),
                             e.span,
                         );
@@ -253,7 +252,7 @@ impl CompileState<'_> {
                 if !e.vtype.fits_type(def_field_type) {
                     let err = InvalidType::new(
                         def_field_type.to_string(),
-                        Some(schema_value.identifier.span),
+                        Some(schema_value.span()),
                         e.vtype.to_string(),
                         e.span,
                     );
@@ -268,7 +267,8 @@ impl CompileState<'_> {
     /// Check if finish blocks only use appropriate expressions
     fn check_finish_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
         match &expression.inner {
-            ExprKind::Int(_)
+            ExprKind::Unit
+            | ExprKind::Int(_)
             | ExprKind::String(_)
             | ExprKind::Bool(_)
             | ExprKind::Identifier(_)
@@ -292,6 +292,14 @@ impl CompileState<'_> {
         }
 
         Ok(match &expression.inner {
+            ExprKind::Unit => thir::Expression {
+                kind: thir::ExprKind::Unit,
+                vtype: VType {
+                    inner: TypeKind::Unit,
+                    span: expression.span,
+                },
+                span: expression.span,
+            },
             ExprKind::Int(n) => thir::Expression {
                 kind: thir::ExprKind::Int(*n),
                 vtype: VType {
@@ -416,15 +424,8 @@ impl CompileState<'_> {
 
                     // The type of `if` is whatever the subexpressions
                     // are, as long as they are the same type
-                    let ty = types::unify_pair(t.vtype.clone(), f.vtype.clone()).map_err(|e| {
-                        let err = InvalidType::new(
-                            e.left.to_string(),
-                            Some(e.left.span()),
-                            e.right.to_string(),
-                            e.right.span(),
-                        );
-                        self.err(err)
-                    })?;
+                    let ty = types::unify_pair(t.vtype.clone(), f.vtype.clone())
+                        .map_err(|err| self.err(err))?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::If(
                             Box::new(cond),
@@ -435,111 +436,25 @@ impl CompileState<'_> {
                         span: expression.span,
                     }
                 }
-                InternalFunction::Serialize(e) => {
-                    match self.get_statement_context()? {
-                        StatementContext::PureFunction(FunctionDefinition {
-                            identifier, ..
-                        }) if identifier == "seal" => {}
-                        ctx => {
-                            let note =
-                                "'serialize' can only be used in the 'seal' block of a command";
-                            return Err(self.err(InvalidExpression(
-                                note,
-                                expression.clone(),
-                                Some(ctx.span()),
-                            )));
-                        }
-                    }
 
-                    let struct_type @ VType {
-                        inner: TypeKind::Struct(_),
-                        ..
-                    } = self
-                        .identifier_types
-                        .get(&ident!("this"))
-                        .assume("seal must have `this`")?
-                    else {
-                        bug!("seal::this must be a struct type");
-                    };
-
-                    let e = self.lower_expression(e)?;
-                    let ty = &e.vtype;
-                    if !ty.fits_type(&struct_type) {
-                        let err = InvalidType::new(
-                            struct_type.to_string(),
-                            Some(struct_type.span),
-                            ty.to_string(),
-                            e.span,
-                        );
-                        return Err(self.err(err));
-                    }
-
-                    let ty = VType {
-                        inner: TypeKind::Bytes,
-                        span: expression.span,
-                    };
-                    thir::Expression {
-                        kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Serialize(
-                            Box::new(e),
-                        )),
-                        vtype: ty,
-                        span: expression.span,
-                    }
-                }
-                InternalFunction::Deserialize(e) => {
-                    // A bit hacky, but you can't manually define a function named "open".
-                    let struct_name = match self.get_statement_context()? {
-                        StatementContext::PureFunction(FunctionDefinition {
-                            identifier,
-                            return_type:
-                                VType {
-                                    inner: TypeKind::Struct(name),
-                                    ..
-                                },
-                            ..
-                        }) if identifier == "open" => name.clone(),
-                        ctx => {
-                            let note =
-                                "'deserialize' can only be used in the 'open' block of a command";
-                            return Err(self.err(InvalidExpression(
-                                note,
-                                expression.clone(),
-                                Some(ctx.span()),
-                            )));
-                        }
-                    };
-
-                    let e = self.lower_expression(e)?;
-                    let ty = &e.vtype;
-                    if !ty.fits_type(&VType {
-                        inner: TypeKind::Bytes,
-                        span: e.span,
-                    }) {
-                        let err =
-                            InvalidType::new("bytes".to_owned(), None, ty.to_string(), e.span);
-                        return Err(self.err(err));
-                    }
-
-                    let ty = VType {
-                        inner: TypeKind::Struct(struct_name),
-                        span: expression.span,
-                    };
-                    thir::Expression {
-                        kind: thir::ExprKind::InternalFunction(
-                            thir::InternalFunction::Deserialize(Box::new(e)),
-                        ),
-                        vtype: ty,
-                        span: expression.span,
-                    }
-                }
                 InternalFunction::Todo(span) => {
-                    let err: CompileError = self.err(TodoFound(*span));
-                    if !self.is_debug {
-                        return Err(err);
-                    }
-                    warn!("{err}");
+                    self.require_debug_mode("todo()", *span)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Todo(*span)),
+                        vtype: VType {
+                            inner: TypeKind::Never,
+                            span: Span::empty(),
+                        },
+                        span: expression.span,
+                    }
+                }
+                InternalFunction::TestFail(msg, span) => {
+                    self.require_debug_mode("test_fail()", *span)?;
+                    thir::Expression {
+                        kind: thir::ExprKind::InternalFunction(thir::InternalFunction::TestFail(
+                            msg.clone(),
+                            *span,
+                        )),
                         vtype: VType {
                             inner: TypeKind::Never,
                             span: Span::empty(),
@@ -681,10 +596,21 @@ impl CompileState<'_> {
             ExprKind::Return(ret_expr) => {
                 let return_type = match self.get_statement_context()? {
                     StatementContext::PureFunction(fd) => fd.return_type.clone(),
+                    // Only fallible actions (`result[unit, E]`) may return.
+                    StatementContext::Action(action) => {
+                        let TypeKind::Result(_) = &action.return_type.inner else {
+                            return Err(self.err(InvalidReturn {
+                                message: "cannot return from an infallible action; declare a `result[unit, E]` return type".to_owned(),
+                                span: expression.span,
+                            }));
+                        };
+                        action.return_type.clone()
+                    }
                     _ => {
-                        // TODO(Steve): Add 'InvalidReturn' error.
-                        let note = "return expressions can't be used in this context";
-                        return Err(self.err(InvalidExpression(note, expression.clone(), None)));
+                        return Err(self.err(InvalidReturn {
+                            message: "return expressions can't be used in this context".to_owned(),
+                            span: expression.span,
+                        }));
                     }
                 };
                 // ensure return expression type matches function signature
@@ -730,10 +656,13 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Identifier(i) => {
-                let ty = self.identifier_types.get(i).map_err(|_| {
+                let mut ty = self.identifier_types.get(i).map_err(|_| {
                     let note = format!("'{}' not in scope", i);
                     self.err(NotDefined(note, i.span))
                 })?;
+                // This makes type errors point to where the identifier is used, rather than where its type is determined.
+                // TODO: Add the type determination as a a third span to those errors?
+                ty.span = expression.span;
                 thir::Expression {
                     kind: thir::ExprKind::Identifier(i.clone()),
                     vtype: ty,
@@ -959,25 +888,12 @@ impl CompileState<'_> {
                 let b = self.lower_expression(b)?;
 
                 let _operand_type = match expected_type {
-                    Some(kind) => types::unify_pair_as(
-                        a.vtype.clone(),
-                        b.vtype.clone(),
-                        VType {
-                            inner: kind,
-                            span: expression.span,
-                        },
-                        expression.span,
-                    )
-                    .map_err(|e| self.err(e))?,
-                    None => types::unify_pair(a.vtype.clone(), b.vtype.clone()).map_err(|e| {
-                        let err = InvalidType::new(
-                            e.left.to_string(),
-                            Some(e.left.span()),
-                            e.right.to_string(),
-                            e.right.span(),
-                        );
-                        self.err(err)
-                    })?,
+                    Some(kind) => {
+                        types::unify_pair_as(a.vtype.clone(), b.vtype.clone(), kind.nowhere())
+                            .map_err(|e| self.err(e))?
+                    }
+                    None => types::unify_pair(a.vtype.clone(), b.vtype.clone())
+                        .map_err(|err| self.err(err))?,
                 };
 
                 thir::Expression {
@@ -993,28 +909,14 @@ impl CompileState<'_> {
                 // Evaluate the expression
                 let e = self.lower_expression(e)?;
 
-                let ty = types::check_type(
-                    e.vtype.clone(),
-                    VType {
-                        inner: TypeKind::Bool,
-                        span: expression.span,
-                    },
-                    "",
-                )
-                .map_err(|err| {
-                    InvalidType::new(err.right.to_string(), None, err.left.to_string(), e.span)
-                })
-                .map_err(|e| self.err(e))?;
+                let ty = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
+                    .map_err(|e| self.err(e))?;
 
                 thir::Expression {
                     kind: thir::ExprKind::Not(Box::new(e)),
                     vtype: ty,
                     span: expression.span,
                 }
-            }
-            ExprKind::Unwrap(e) => self.lower_unwrap(e, thir::ExprKind::Unwrap, expression.span)?,
-            ExprKind::CheckUnwrap(e) => {
-                self.lower_unwrap(e, thir::ExprKind::CheckUnwrap, expression.span)?
             }
             ExprKind::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -1046,7 +948,9 @@ impl CompileState<'_> {
                 let statements = self.lower_statements(statements, Scope::Same)?;
                 let subexpr = self.lower_expression(e)?;
                 let vtype = subexpr.vtype.clone();
-                self.identifier_types.exit_block();
+                self.identifier_types
+                    .exit_block()
+                    .map_err(|e| self.err(e))?;
 
                 thir::Expression {
                     kind: thir::ExprKind::Block(statements, Box::new(subexpr)),
@@ -1119,7 +1023,7 @@ impl CompileState<'_> {
             if !arg_te.vtype.fits_type(&param.ty) {
                 let err = InvalidType::new(
                     param.ty.to_string(),
-                    Some(param.ty.span),
+                    Some(param.span()),
                     arg_te.vtype.to_string(),
                     arg_e.span,
                 );
@@ -1176,35 +1080,6 @@ impl CompileState<'_> {
         })
     }
 
-    /// Lowers a (check) unwrap expression.
-    ///
-    /// The `constructor` param is used to wrap the inner expression in either
-    /// [`thir::ExprKind::Unwrap`] or [`thir::ExprKind::CheckUnwrap`].
-    fn lower_unwrap(
-        &mut self,
-        e: &Expression,
-        constructor: impl FnOnce(Box<thir::Expression>) -> thir::ExprKind,
-        span: Span,
-    ) -> Result<thir::Expression, CompileError> {
-        let e = self.lower_expression(e)?;
-        let vtype = match &e.vtype {
-            VType {
-                inner: TypeKind::Optional(t),
-                ..
-            } => (**t).clone(),
-            _ => {
-                let err =
-                    InvalidType::new("option[T]".to_owned(), None, e.vtype.to_string(), e.span);
-                return Err(self.err(err));
-            }
-        };
-        Ok(thir::Expression {
-            kind: constructor(Box::new(e)),
-            vtype,
-            span,
-        })
-    }
-
     fn lower_match_statement_or_expression(
         &mut self,
         s: LanguageContext<&MatchStatement, &MatchExpression>,
@@ -1228,12 +1103,14 @@ impl CompileState<'_> {
         let mut all_values: Vec<(ExprKind, Span)> = Vec::new();
         let mut seen_ok_binding = false;
         let mut seen_err_binding = false;
+        let mut seen_some_binding = false;
         for pattern in &patterns {
             let MatchPattern::Values(values) = pattern else {
                 continue;
             };
             let mut seen_ok_literal = false;
             let mut seen_err_literal = false;
+            let mut seen_some_literal = false;
             for v in values {
                 let value = &v.inner;
                 let v_span = v.span();
@@ -1276,6 +1153,20 @@ impl CompileState<'_> {
                     }
                     ExprKind::Err(_) => {
                         seen_err_literal = true;
+                    }
+                    ExprKind::Optional(Some(inner))
+                        if matches!(inner.inner, ExprKind::Identifier(_)) =>
+                    {
+                        if seen_some_literal {
+                            return Err(self.redundant_match_arm_error(v_span));
+                        }
+                        seen_some_binding = true;
+                    }
+                    ExprKind::Optional(Some(_)) if seen_some_binding => {
+                        return Err(self.unreachable_match_arm_error(v_span));
+                    }
+                    ExprKind::Optional(Some(_)) => {
+                        seen_some_literal = true;
                     }
                     _ => {}
                 }
@@ -1321,14 +1212,6 @@ impl CompileState<'_> {
                             // Literal pattern (including Result patterns with literal inner values)
                             let arm_t = self.lower_expression(value)?;
                             scrutinee_type = types::unify_pair(scrutinee_type, arm_t.vtype.clone())
-                                .map_err(|err| {
-                                    InvalidType::new(
-                                        err.left.to_string(),
-                                        None,
-                                        err.right.to_string(),
-                                        value.span,
-                                    )
-                                })
                                 .map_err(|err| self.err(err))?;
                             values_out.push(arm_t);
                         } else {
@@ -1369,6 +1252,38 @@ impl CompileState<'_> {
                                         } else {
                                             thir::ExprKind::Err(Box::new(inner))
                                         },
+                                        vtype: scrutinee_type.clone(),
+                                        span: value.span(),
+                                    };
+                                    values_out.push(outer);
+                                }
+                                ExprKind::Optional(Some(inner)) => {
+                                    // Binding pattern: Some(x) where x is an identifier
+                                    let TypeKind::Optional(inner_type) = &scrutinee_type.inner
+                                    else {
+                                        return Err(self.err(InvalidType::new(
+                                            "option[T]".to_owned(),
+                                            None,
+                                            scrutinee_type.to_string(),
+                                            value.span(),
+                                        )));
+                                    };
+                                    let inner_type = inner_type.as_ref().clone();
+                                    let ExprKind::Identifier(ident) = &inner.inner else {
+                                        return Err(self.err(InvalidType::new(
+                                            "identifier".to_owned(),
+                                            None,
+                                            "non-identifier expression".to_owned(),
+                                            inner.span(),
+                                        )));
+                                    };
+                                    let inner = thir::Expression {
+                                        kind: thir::ExprKind::Identifier(ident.clone()),
+                                        vtype: inner_type,
+                                        span: inner.span(),
+                                    };
+                                    let outer = thir::Expression {
+                                        kind: thir::ExprKind::Optional(Some(Box::new(inner))),
                                         vtype: scrutinee_type.clone(),
                                         span: value.span(),
                                     };
@@ -1444,8 +1359,44 @@ impl CompileState<'_> {
             false
         };
 
+        // Optional-pattern exhaustiveness mirrors the Result case:
+        // - a `Some(x)` binding pattern covers all Some values
+        // - a literal `None` covers the None case
+        // - literal `Some(..)` patterns cover only specific values, so we compare
+        //   against inner-type cardinality when finite.
+        let optional_exhaustive = if let TypeKind::Optional(inner_type) = &scrutinee_type.inner {
+            let mut has_some_binding = false;
+            let mut has_none = false;
+            // Can't use sets because ExprKind doesn't impl Hash/Eq
+            let mut some_literals: Vec<ExprKind> = Vec::new();
+
+            for (v, _) in &all_values {
+                match v {
+                    ExprKind::Optional(Some(inner))
+                        if matches!(inner.inner, ExprKind::Identifier(_)) =>
+                    {
+                        has_some_binding = true;
+                    }
+                    ExprKind::Optional(Some(inner)) => some_literals.push(inner.inner.clone()),
+                    ExprKind::Optional(None) => has_none = true,
+                    _ => {}
+                }
+            }
+
+            let some_exhaustive = has_some_binding
+                || self
+                    .m
+                    .cardinality(&inner_type.inner)
+                    .is_some_and(|c| c == some_literals.len() as u64);
+
+            has_none && some_exhaustive
+        } else {
+            false
+        };
+
         let missing_default = default_count == 0
             && !result_exhaustive
+            && !optional_exhaustive
             && self
                 .m
                 .cardinality(&scrutinee_type.inner)
@@ -1468,11 +1419,14 @@ impl CompileState<'_> {
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
 
-                    // For Result patterns (Ok(x)/Err(e) in Values), add the binding to scope
+                    // For binding patterns (Ok(x)/Err(e)/Some(x) in Values), add the
+                    // binding to scope
                     if let thir::MatchPattern::Values(values) = &pattern {
                         for value in values {
                             match &value.kind {
-                                thir::ExprKind::Ok(inner) | thir::ExprKind::Err(inner) => {
+                                thir::ExprKind::Ok(inner)
+                                | thir::ExprKind::Err(inner)
+                                | thir::ExprKind::Optional(Some(inner)) => {
                                     if let thir::ExprKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
                                             .add(ident.clone(), inner.vtype.clone())
@@ -1487,7 +1441,9 @@ impl CompileState<'_> {
                     let stmts = self.lower_statements(&arm.statements, Scope::Same)?;
 
                     // Exit the scope for this arm
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
 
                     arms.push(thir::MatchArm {
                         pattern,
@@ -1513,11 +1469,14 @@ impl CompileState<'_> {
                     // Enter a scope for each match arm (for variable isolation)
                     self.identifier_types.enter_block();
 
-                    // For Result patterns (Ok(x)/Err(e) in Values), add the binding to scope
+                    // For binding patterns (Ok(x)/Err(e)/Some(x) in Values), add the
+                    // binding to scope
                     if let thir::MatchPattern::Values(values) = &pattern {
                         for value in values {
                             match &value.kind {
-                                thir::ExprKind::Ok(inner) | thir::ExprKind::Err(inner) => {
+                                thir::ExprKind::Ok(inner)
+                                | thir::ExprKind::Err(inner)
+                                | thir::ExprKind::Optional(Some(inner)) => {
                                     if let thir::ExprKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
                                             .add(ident.clone(), inner.vtype.clone())
@@ -1533,23 +1492,15 @@ impl CompileState<'_> {
                     let etype = e.vtype.clone();
 
                     // Exit the scope for this arm
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
 
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(t) => {
-                            expr_type = Some(
-                                types::unify_pair(t, etype)
-                                    .map_err(|err| {
-                                        InvalidType::new(
-                                            err.left.to_string(),
-                                            Some(err.left.span),
-                                            err.right.to_string(),
-                                            e.span,
-                                        )
-                                    })
-                                    .map_err(|err| self.err(err))?,
-                            );
+                            expr_type =
+                                Some(types::unify_pair(t, etype).map_err(|err| self.err(err))?);
                         }
                     }
                     arms.push(thir::MatchExpressionArm {
@@ -1630,24 +1581,16 @@ impl CompileState<'_> {
                         return Err(self.err(err));
                     }
 
-                    // The optional else expression must be a terminal
-                    // (Never type) — e.g. `return Err(..)` or `recall foo()`.
-                    let else_expression = match s.else_expression.as_ref() {
-                        Some(e) => {
-                            let lowered = self.lower_expression(e)?;
-                            if !matches!(lowered.vtype.inner, TypeKind::Never) {
-                                return Err(self.err(InvalidType::new(
-                                    "check else must be terminal (e.g. `return`, `recall`)"
-                                        .to_owned(),
-                                    None,
-                                    lowered.vtype.to_string(),
-                                    e.span,
-                                )));
-                            }
-                            Some(lowered)
-                        }
-                        None => None,
-                    };
+                    // Ensure else expression is terminal
+                    let else_expression = self.lower_expression(&s.else_expression)?;
+                    if !matches!(else_expression.vtype.inner, TypeKind::Never) {
+                        return Err(self.err(InvalidType::new(
+                            "check else must be terminal (e.g. `return`, `recall`)".to_owned(),
+                            None,
+                            else_expression.vtype.to_string(),
+                            s.else_expression.span,
+                        )));
+                    }
                     thir::StmtKind::Check(thir::CheckStatement {
                         expression: et,
                         else_expression,
@@ -1751,6 +1694,28 @@ impl CompileState<'_> {
                     }
                     thir::StmtKind::Return(thir::ReturnStatement { expression: e })
                 }
+                (StmtKind::Return(s), StatementContext::Action(action)) => {
+                    // Only fallible actions (`result[unit, E]`) may return.
+                    let TypeKind::Result(_) = &action.return_type.inner else {
+                        return Err(self.err(InvalidReturn {
+                            message: "cannot return from an infallible action; declare a `result[unit, E]` return type".to_owned(),
+                            span: s.expression.span,
+                        }));
+                    };
+                    // Ensure the return expression fits the action's `result[unit, E]` type.
+                    let return_type = action.return_type.clone();
+                    let e = self.lower_expression(&s.expression)?;
+                    if !e.vtype.fits_type(&return_type) {
+                        let err = InvalidType::new(
+                            return_type.to_string(),
+                            Some(return_type.span),
+                            e.vtype.to_string(),
+                            e.span,
+                        );
+                        return Err(self.err(err));
+                    }
+                    thir::StmtKind::Return(thir::ReturnStatement { expression: e })
+                }
                 (
                     StmtKind::Finish(s),
                     StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
@@ -1787,7 +1752,9 @@ impl CompileState<'_> {
                         .map_err(|e| self.err(e))?;
                     // body
                     let s = self.lower_statements(&map_stmt.statements, Scope::Same)?;
-                    self.identifier_types.exit_block();
+                    self.identifier_types
+                        .exit_block()
+                        .map_err(|e| self.err(e))?;
                     thir::StmtKind::Map(thir::MapStatement {
                         fact,
                         identifier: map_stmt.identifier.clone(),
@@ -1952,18 +1919,8 @@ impl CompileState<'_> {
                 }
                 (StmtKind::DebugAssert(e), _) => {
                     let e = self.lower_expression(e)?;
-                    let _: VType = types::check_type(
-                        e.vtype.clone(),
-                        VType {
-                            inner: TypeKind::Bool,
-                            span: e.span,
-                        },
-                        "",
-                    )
-                    .map_err(|err| {
-                        InvalidType::new(err.right.to_string(), None, err.left.to_string(), e.span)
-                    })
-                    .map_err(|e| self.err(e))?;
+                    let _: VType = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
+                        .map_err(|e| self.err(e))?;
                     thir::StmtKind::DebugAssert(e)
                 }
                 (_, _) => {
@@ -1976,7 +1933,9 @@ impl CompileState<'_> {
             });
         }
         if scope == Scope::Layered {
-            self.identifier_types.exit_block();
+            self.identifier_types
+                .exit_block()
+                .map_err(|e| self.err(e))?;
         }
         Ok(output)
     }

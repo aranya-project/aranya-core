@@ -1,7 +1,7 @@
 [package]
 name = "aranya-crypto"
 description = "The Aranya Cryptography Engine"
-version = "0.14.1"
+version = "0.15.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -69,7 +69,6 @@ ed25519_batch = [
 fs-keystore = [
 	"alloc", # ciborium already requires alloc
 
-	"dep:cfg-if",
 	"dep:ciborium",
 	"dep:ciborium-io",
 	"dep:rustix",
@@ -136,14 +135,13 @@ tls = []
 trng = ["spideroak-crypto/trng"]
 
 [dependencies]
-aranya-id = { version = "0.2.2", path = "../aranya-id", default-features = false }
+aranya-id = { version = "0.3.0", path = "../aranya-id", default-features = false }
 
 buggy = { version = "0.1.0", default-features = false }
 spideroak-base58 = { workspace = true, default-features = false }
-spideroak-crypto = { version = "0.7.0", default-features = false, features = ["serde"] }
+spideroak-crypto = { version = "0.8.0", default-features = false, features = ["serde"] }
 
 byteorder = { workspace = true, default-features = false, optional = true }
-cfg-if = { workspace = true, default-features = false, optional = true }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
 derive-where = { workspace = true, default-features = false, features = ["serde"] }
@@ -174,17 +172,7 @@ name = "hsm"
 crate-type = ["lib"]
 
 [package.metadata.docs.rs]
-features = [
-	"clone-aead",
-	"committing-aead",
-	"ed25519_batch",
-	"fs-keystore",
-	"memstore",
-	"rand_compat",
-	"std",
-	"test_util",
-	"trng",
-]
+all-features = true
 
 [package.metadata.cargo-all-features]
 always_include_features = [

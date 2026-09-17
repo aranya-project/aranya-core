@@ -1,0 +1,5 @@
+// Must return the action's `result[unit, E]` type.
+action f() result[unit, string] {
+    check false else return 5
+    return Ok(Unit)
+}

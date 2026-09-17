@@ -5,4 +5,4 @@ expression: error
 error: invalid type: string
   |
 2 |     return x < "test"
-  |            ^^^^^^^^^^ expected `int` but found `string`
+  |            ^ expected `int` but found `string`

@@ -5,7 +5,7 @@ expression: error
 error: invalid type: int
   |
 1 | fact Foo[x int]=>{y bool}
-  |                   - expected because of this
+  |                   ------ expected because of this
 ...
 7 |             update Foo[x: 0]=>{y: ?} to {y: 3}
   |                                             ^ expected `bool` but found `int`

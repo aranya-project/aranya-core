@@ -79,7 +79,7 @@ pub trait Buf: AsRef<[u8]> + Deref<Target = [u8]> + AsMut<[u8]> + DerefMut<Targe
 #[cfg(all(any(test, feature = "alloc"), feature = "allocator_api"))]
 impl<A: Allocator> Buf for Vec<u8, A> {
     fn len(&self) -> usize {
-        Vec::len(self)
+        Self::len(self)
     }
 
     fn split_at_mut(&mut self, mid: usize) -> (&mut [u8], &mut [u8]) {
@@ -87,15 +87,15 @@ impl<A: Allocator> Buf for Vec<u8, A> {
     }
 
     fn truncate(&mut self, len: usize) {
-        Vec::truncate(self, len);
+        Self::truncate(self, len);
     }
 
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
-        Ok(Vec::try_reserve_exact(self, additional)?)
+        Ok(Self::try_reserve_exact(self, additional)?)
     }
 
     fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError> {
-        Vec::resize(self, new_len, value);
+        Self::resize(self, new_len, value);
         Ok(())
     }
 }

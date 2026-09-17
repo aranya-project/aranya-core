@@ -81,12 +81,10 @@ pub enum InternalFunction {
     FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
-    /// Serialize function
-    Serialize(Box<Expression>),
-    /// Deserialize function
-    Deserialize(Box<Expression>),
     /// Not yet implemented panic
     Todo(Span),
+    /// Panics with an optional message, for expressing test expectations
+    TestFail(Option<Text>, Span),
 }
 
 impl Spanned for InternalFunction {
@@ -96,8 +94,8 @@ impl Spanned for InternalFunction {
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
             Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
-            Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
             Self::Todo(span) => *span,
+            Self::TestFail(_, span) => *span,
         }
     }
 }
@@ -139,6 +137,8 @@ impl Spanned for Expression {
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    /// A unit literal
+    Unit,
     /// A 64-bit signed integer
     Int(IntLiteral),
     /// A text string
@@ -185,10 +185,6 @@ pub enum ExprKind {
     LessThanOrEqual(Box<Expression>, Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
-    /// `unwrap expr`
-    Unwrap(Box<Expression>),
-    /// Similar to Unwrap, but exits with a Check, instead of a Panic
-    CheckUnwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
@@ -222,8 +218,8 @@ spanned! {
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub expression: Expression,
-    /// Optional expression to evaluate if the check fails.
-    pub else_expression: Option<Expression>,
+    /// Expression to evaluate if the check fails.
+    pub else_expression: Expression,
 }
 }
 

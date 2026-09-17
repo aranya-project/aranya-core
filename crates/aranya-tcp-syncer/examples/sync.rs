@@ -22,7 +22,7 @@ use std::{
 use anyhow::{Context as _, Result, bail};
 use aranya_crypto::Rng;
 use aranya_runtime::{
-    ClientState, GraphId, PolicyStore, StorageProvider, SyncRequester,
+    ClientState, GraphId, LibcSpill, PolicyStore, RuntimeBuffers, StorageProvider, SyncRequester,
     policy::Sink,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
@@ -87,6 +87,9 @@ fn run(options: Opt) -> Result<()> {
     let storage = MemStorageProvider::default();
 
     let client = Arc::new(Mutex::new(ClientState::new(engine, storage)));
+    let mut buffers = RuntimeBuffers::new();
+    let spill_dir = std::env::temp_dir();
+    let make_spill = || LibcSpill::new(&spill_dir);
     let sink = Arc::new(Mutex::new(PrintSink {}));
     let server = get_server(options.listen)?;
     let (tx1, _) = mpsc::channel();
@@ -140,7 +143,13 @@ fn run(options: Opt) -> Result<()> {
             client
                 .lock()
                 .unwrap()
-                .action(graph_id, sink.lock().unwrap().deref_mut(), action)
+                .action(
+                    graph_id,
+                    sink.lock().unwrap().deref_mut(),
+                    action,
+                    &mut buffers,
+                    make_spill,
+                )
                 .context("sync error")?;
         } else {
             sync_peer(

@@ -7,6 +7,12 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
+[lib]
+bench = false
+
 [dependencies]
 aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "fs-keystore"] }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
@@ -31,5 +37,5 @@ serde = { workspace = true, features = ["derive"] }
 tempfile = { version = "3.8.1" }
 test-log = { workspace = true }
 
-[lints]
-workspace = true
+[package.metadata.docs.rs]
+all-features = true

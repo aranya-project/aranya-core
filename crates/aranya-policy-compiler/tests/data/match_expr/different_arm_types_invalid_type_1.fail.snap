@@ -7,4 +7,4 @@ error: invalid type: bool
 3 |         1 => { :"one" }
   |                 ----- expected because of this
 4 |         _ => { :false }
-  |              ^^^^^^^^^^ expected `string` but found `bool`
+  |                 ^^^^^ expected `string` but found `bool`

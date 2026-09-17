@@ -1,0 +1,9 @@
+// The inner `x` goes out of scope before the outer one is bound, so this is not
+// a redefinition — but the inner binding is still never read.
+function f() int {
+    let x = {
+        let x = 42 // unused
+        : 0
+    }
+    return x
+}

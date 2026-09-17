@@ -15,10 +15,11 @@ use crate::util::const_assert;
 
 // A mutex that can NOT be used in shared memory.
 #[cfg(any(test, feature = "memory"))]
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
+cfg_select! {
+    feature = "std" => {
         pub(crate) type StdMutex<T> = std::sync::Mutex<T>;
-    } else {
+    }
+    _ => {
         pub(crate) type StdMutex<T> = Mutex<T>;
     }
 }
@@ -49,7 +50,7 @@ impl<T: ?Sized> Deref for MutexGuard<'_, T> {
     fn deref(&self) -> &T {
         // SAFETY: the mutex prevents data races and the value is
         // being dropped
-        unsafe { &*self.lock.data.get() }
+        unsafe { self.lock.data.get().as_ref_unchecked() }
     }
 }
 
@@ -57,7 +58,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         // SAFETY: the mutex prevents data races and the value is
         // being dropped
-        unsafe { &mut *self.lock.data.get() }
+        unsafe { self.lock.data.get().as_mut_unchecked() }
     }
 }
 
@@ -111,21 +112,6 @@ impl<T: ?Sized> Mutex<T> {
         any(target_os = "linux", target_os = "macos")
     ))]
     const MUTEX_SLEEPING: u32 = 2;
-
-    /// Returns the data protected by the mutex without any
-    /// synchronization.
-    ///
-    /// # Safety
-    ///
-    /// You must provide your own synchronization. Otherwise,
-    /// doing anything with `T` is UB.
-    #[cfg(any(feature = "posix", feature = "sdlib"))]
-    pub unsafe fn inner_unsynchronized(&self) -> &T {
-        // SAFETY: the caller is providing their own
-        // synchronization, the pointer is non-null and aligned,
-        // etc.
-        unsafe { &*self.data.get() }
-    }
 
     /// Lock the mutex.
     ///

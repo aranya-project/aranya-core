@@ -2,10 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: pure function has no return statement
+error: missing return statement
   |
 1 | / function f(x int) int {
 2 | |     let y = saturating_add(x, 1)
 3 | |     // no return value
 4 | | }
-  | |_^ No return found in this function body
+  | |_^ no return found in this body

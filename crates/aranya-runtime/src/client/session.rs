@@ -48,21 +48,26 @@ struct SessionPerspective<'a, SP: StorageProvider, PS, MS> {
 impl<SP: StorageProvider, PS> Session<SP, PS> {
     pub(super) fn new(provider: &mut SP, graph_id: GraphId) -> Result<Self, ClientError> {
         let storage = provider.get_storage(graph_id)?;
-        let head_loc = storage.get_head()?;
-        let seg = storage.get_segment(head_loc)?;
 
-        let base_facts = seg.facts()?;
+        // Seed base_facts from the persisted fact cache, which holds the braided
+        // merged perspective across ALL heads.  On a multi-head graph the old
+        // get_head() adapter returned an arbitrary single head (wrong); the fact
+        // cache is always correct regardless of head count.
+        let base_facts = storage.fact_cache()?;
 
-        let result = Self {
+        // All heads share the same policy today; read it from any head segment.
+        let heads = storage.get_heads()?;
+        let any = heads.iter().next().ok_or(StorageError::NoSuchStorage)?;
+        let policy_id = storage.get_segment(any.location())?.policy();
+
+        Ok(Self {
             graph_id,
-            policy_id: seg.policy(),
+            policy_id,
             base_facts,
             fact_log: Vec::new(),
             current_facts: Arc::default(),
             _policy_store: PhantomData,
-        };
-
-        Ok(result)
+        })
     }
 }
 
@@ -171,10 +176,6 @@ struct SessionCommand<'a> {
 }
 
 impl Command for SessionCommand<'_> {
-    fn priority(&self) -> Priority {
-        Priority::Basic(0)
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -197,9 +198,6 @@ impl<'sc> SessionCommand<'sc> {
     fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
             bug!("session command should have no policy");
-        }
-        if !matches!(command.priority(), Priority::Basic(_)) {
-            bug!("session command has bad priority");
         }
         if command.parent() != session_parent(graph_id) {
             bug!("session command has bad parent");
@@ -421,7 +419,16 @@ where
         self.session.policy_id
     }
 
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError> {
+        // Session commands are ephemeral and never braided, so the priority
+        // is not persisted.
+        if !matches!(priority, Priority::Basic(_)) {
+            bug!("session command has bad priority");
+        }
         let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
         self.message_sink.consume(&command.serialize());
 
@@ -476,12 +483,281 @@ where
 
 #[cfg(test)]
 mod test {
+    use aranya_crypto::id::{Id, IdTag};
+    use buggy::BugExt as _;
+    use test_log::test;
+
     use super::*;
+    use crate::{
+        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MergeIds, Perspective, Policy,
+        PolicyStore, Priority, RuntimeBuffers, mem_spill,
+        policy::{ActionPlacement, CommandPlacement, NullSink, PolicyError, Sink},
+        storage::linear::testing::MemStorageProvider,
+        testing::{hash_for_testing_only, short_b58},
+    };
+
+    // -----------------------------------------------------------------------
+    // Minimal SeqPolicy infrastructure (mirrors transaction::test).
+    // SeqPolicy appends each command's short ID to a fact named "seq",
+    // giving a deterministic, braid-ordered sequence we can assert on.
+    // -----------------------------------------------------------------------
+
+    struct SeqPolicyStore;
+
+    struct SeqPolicy;
+
+    struct SeqCommand {
+        id: CmdId,
+        prior: Prior<Address>,
+        data: Box<str>,
+    }
+
+    impl PolicyStore for SeqPolicyStore {
+        type Policy = SeqPolicy;
+        type Effect = ();
+
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+            Ok(PolicyId::new(0))
+        }
+
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+            Ok(&SeqPolicy)
+        }
+    }
+
+    impl Policy for SeqPolicy {
+        type Action<'a> = &'a str;
+        type Effect = ();
+        type Command<'a> = SeqCommand;
+
+        fn serial(&self) -> u32 {
+            0
+        }
+
+        fn call_rule(
+            &self,
+            command: &impl Command,
+            facts: &mut impl FactPerspective,
+            _sink: &mut impl Sink<Self::Effect>,
+            _placement: CommandPlacement,
+        ) -> Result<Priority, PolicyError> {
+            assert!(
+                !matches!(command.parent(), Prior::Merge { .. }),
+                "merges should not be evaluated"
+            );
+            let data = command.bytes();
+            if let Some(seq) = facts
+                .query("seq", &Keys::default())
+                .assume("can query")?
+                .as_deref()
+            {
+                facts
+                    .insert(
+                        "seq".into(),
+                        Keys::default(),
+                        [seq, b":", data].concat().into(),
+                    )
+                    .unwrap();
+            } else {
+                facts
+                    .insert("seq".into(), Keys::default(), data.into())
+                    .unwrap();
+            }
+            Ok(match command.parent() {
+                Prior::None => Priority::Init,
+                // Use the last byte of the ID as priority, just so we can
+                // properly see the effects of braiding.
+                Prior::Single(_) => {
+                    Priority::Basic(u32::from(*command.id().as_bytes().last().unwrap()))
+                }
+                Prior::Merge(..) => unreachable!(),
+            })
+        }
+
+        fn call_action(
+            &self,
+            _action: Self::Action<'_>,
+            _facts: &mut impl Perspective,
+            _sink: &mut impl Sink<Self::Effect>,
+            _placement: ActionPlacement,
+        ) -> Result<(), PolicyError> {
+            unimplemented!()
+        }
+
+        fn merge<'a>(
+            &self,
+            _target: &'a mut [u8],
+            ids: MergeIds,
+        ) -> Result<Self::Command<'a>, PolicyError> {
+            let (left, right): (Address, Address) = ids.into();
+            let parents = [*left.id.as_array(), *right.id.as_array()];
+            let id = hash_for_testing_only(parents.as_flattened());
+            Ok(SeqCommand::new(id, Prior::Merge(left, right)))
+        }
+    }
+
+    impl SeqCommand {
+        fn new(id: CmdId, prior: Prior<Address>) -> Self {
+            let data = short_b58(id).into_boxed_str();
+            Self { id, prior, data }
+        }
+    }
+
+    impl Command for SeqCommand {
+        fn id(&self) -> CmdId {
+            self.id
+        }
+
+        fn parent(&self) -> Prior<Address> {
+            self.prior
+        }
+
+        fn policy(&self) -> Option<&[u8]> {
+            match self.prior {
+                Prior::None => Some(b""),
+                _ => None,
+            }
+        }
+
+        fn bytes(&self) -> &[u8] {
+            self.data.as_bytes()
+        }
+    }
+
+    fn mkid<Tag: IdTag>(x: &str) -> Id<Tag> {
+        x.parse().unwrap()
+    }
+
+    /// Build a multi-head graph using a simple linear init + two divergent branches.
+    ///
+    /// Graph shape:
+    ///   "a" (init)
+    ///   "a" <- "b"   (branch 1)
+    ///   "a" <- "c"   (branch 2)
+    ///
+    /// After commit this yields two heads: "b" and "c".
+    fn build_two_head_graph() -> (ClientState<SeqPolicyStore, MemStorageProvider>, GraphId) {
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        // The graph_id must equal the init command's id (by protocol).
+        let id_a: CmdId = mkid("a");
+        let graph_id = GraphId::transmute(id_a);
+
+        let id_b: CmdId = mkid("b");
+        let id_c: CmdId = mkid("c");
+
+        let mc0 = MaxCut::new(0);
+
+        let cmd_a = SeqCommand::new(id_a, Prior::None);
+        let cmd_b = SeqCommand::new(
+            id_b,
+            Prior::Single(Address {
+                id: id_a,
+                max_cut: mc0,
+            }),
+        );
+        let cmd_c = SeqCommand::new(
+            id_c,
+            Prior::Single(Address {
+                id: id_a,
+                max_cut: mc0,
+            }),
+        );
+
+        // Use the public Transaction type re-exported from crate root.
+        let mut trx = crate::Transaction::new(graph_id);
+        trx.add_commands(
+            &[cmd_a],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("add init");
+        trx.add_commands(
+            &[cmd_b],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("add b");
+        trx.add_commands(
+            &[cmd_c],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("add c");
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("commit");
+
+        (client, graph_id)
+    }
+
+    /// Confirm that a `Session` opened on a multi-head graph:
+    /// 1. does NOT panic / does not rely on `get_head()`,
+    /// 2. has `base_facts` reflecting the fully braided merged perspective.
+    ///
+    /// Under the old code, `get_head()` triggers `debug_assert!(it.next().is_none(), ...)`
+    /// in debug builds on a multi-head graph and returns an arbitrary single head in release
+    /// builds, giving an incomplete `base_facts`.  The new code reads `storage.fact_cache()`
+    /// directly, which always reflects the braided state across all heads.
+    #[test]
+    fn session_base_facts_come_from_fact_cache_on_multi_head_graph() {
+        let (mut client, graph_id) = build_two_head_graph();
+
+        // Verify we really have a multi-head graph.
+        {
+            use crate::storage::{Storage as _, StorageProvider as _};
+            let storage = client.provider.get_storage(graph_id).unwrap();
+            assert!(
+                storage.get_heads().unwrap().len() > 1,
+                "expected multi-head graph, got single head"
+            );
+        }
+
+        // Opening a Session must succeed on a multi-head graph.
+        let session = client
+            .session(graph_id)
+            .expect("Session::new should succeed on a multi-head graph");
+
+        // SeqPolicy accumulates command ids into the "seq" fact.
+        // After braiding both branches the merged cache must contain
+        // short ids for both "b" and "c".
+        let seq_value = session
+            .base_facts
+            .query("seq", &[])
+            .expect("query seq fact")
+            .expect("seq fact must be present in merged base_facts");
+        let seq_str = std::str::from_utf8(&seq_value).expect("seq must be valid utf8");
+
+        let id_b: CmdId = mkid("b");
+        let id_c: CmdId = mkid("c");
+        assert!(
+            seq_str.contains(short_b58(id_b).as_str()),
+            "merged base_facts must include branch b; got: {seq_str}"
+        );
+        assert!(
+            seq_str.contains(short_b58(id_c).as_str()),
+            "merged base_facts must include branch c; got: {seq_str}"
+        );
+    }
 
     #[test]
+    #[allow(clippy::type_complexity)]
     fn test_query_iterator() {
-        #![allow(clippy::type_complexity)]
-
         let prior: Vec<Result<(&[&[u8]], &[u8]), _>> = vec![
             Ok((&[b"a"], b"a0")),
             Ok((&[b"c"], b"c0")),

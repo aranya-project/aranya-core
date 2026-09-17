@@ -3,16 +3,12 @@
 #![allow(unused_macros, dead_code, unused_qualifications, clippy::ptr_as_ptr)]
 
 #[cfg(not(feature = "core_intrinsics"))]
-#[cold]
-pub(crate) fn cold() {}
-
-#[cfg(not(feature = "core_intrinsics"))]
 macro_rules! likely {
     ($expr:expr) => {
         if $expr {
             true
         } else {
-            $crate::features::cold();
+            ::core::hint::cold_path();
             false
         }
     };
@@ -29,7 +25,7 @@ macro_rules! likely {
 macro_rules! unlikely {
     ($expr:expr) => {
         if $expr {
-            $crate::features::cold();
+            ::core::hint::cold_path();
             true
         } else {
             false

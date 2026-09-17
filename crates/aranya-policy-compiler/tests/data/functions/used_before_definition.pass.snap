@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
 expression: module
 ---
 Module {
@@ -12,26 +13,29 @@ Module {
         <fn 'multiply'>: 75,
         <fn 'pow'>: 1,
     },
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Division": [
-            FieldDefinition {
-                identifier: "d" @ 886..887,
-                field_type: Int @ 888..891,
-            },
-            FieldDefinition {
-                identifier: "q" @ 913..914,
-                field_type: Int @ 915..918,
-            },
-            FieldDefinition {
-                identifier: "r" @ 961..962,
-                field_type: Int @ 963..966,
-            },
-        ],
-    },
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Division",
+            items: [
+                Field {
+                    name: "d",
+                    ty: Int,
+                },
+                Field {
+                    name: "q",
+                    ty: Int,
+                },
+                Field {
+                    name: "r",
+                    ty: Int,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }
@@ -173,13 +177,14 @@ Module {
     get 'y'
     add
     dup
-    const None
-    eq
-    not
+    is some
     branch 131
+    pop
     exit panic
+    jump 132
 <131>:
     unwrap some
+<132>:
     get 'x'
     get 'y'
     const 1
@@ -197,7 +202,7 @@ Module {
     const 0
     gt
     branch 149
-    exit check
+    exit panic
 <149>:
     get 'x'
     get 'y'
@@ -241,7 +246,7 @@ Module {
     const 0
     gt
     branch 190
-    exit check
+    exit panic
 <190>:
     get 'r'
     get 'd'

@@ -30,8 +30,8 @@ pub enum ExitReason {
     Normal,
     /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
     Yield,
-    /// Execution was aborted gracefully, due an error. The argument, if present, is the recall block to execute.
-    Check(Option<Identifier>),
+    /// Execution was aborted gracefully, due to an error. If the command had a recall block, it was already executed inline before this exit.
+    Check,
     /// Execution was aborted due to an unhandled error.
     Panic,
 }
@@ -49,8 +49,7 @@ impl Display for ExitReason {
         match self {
             Self::Normal => f.write_str("normal"),
             Self::Yield => f.write_str("yield"),
-            Self::Check(Some(recall)) => write!(f, "check: {recall}"),
-            Self::Check(None) => f.write_str("check"),
+            Self::Check => f.write_str("check"),
             Self::Panic => f.write_str("panic"),
         }
     }
@@ -161,12 +160,10 @@ pub enum Instruction {
     Jump(Target),
     /// Jump if top of stack is true
     Branch(Target),
-    /// Jump to the beginning of the block
-    Next,
-    /// Jump to the end of the block
-    Last,
     /// Call regular function at target
     Call(Target),
+    /// Invoke the named recall block
+    Recall(Target),
     /// Call external function (FFI), specified by module, procedure indices. The FFI modules should be added to the MachineIO.
     ExtCall(usize, usize),
     /// Return to the last address on the control flow stack
@@ -235,10 +232,6 @@ pub enum Instruction {
     QueryStart,
     /// Fetches the next result, and pushes it onto the stack
     QueryNext(Identifier),
-    /// Serialize a command struct
-    Serialize,
-    /// Deserialize a command struct
-    Deserialize,
     /// Save the stack depth for later restoration.
     SaveSP,
     /// Restore the stack depth.
@@ -260,9 +253,8 @@ impl Display for Instruction {
             Self::End => write!(f, "end"),
             Self::Jump(t) => write!(f, "jump {t}"),
             Self::Branch(t) => write!(f, "branch {t}"),
-            Self::Next => write!(f, "next"),
-            Self::Last => write!(f, "last"),
             Self::Call(t) => write!(f, "call {t}"),
+            Self::Recall(t) => write!(f, "recall {t}"),
             Self::ExtCall(module, proc) => write!(f, "extcall {module} {proc}"),
             Self::Return => write!(f, "return"),
             Self::Exit(reason) => write!(f, "exit {reason}"),
@@ -295,8 +287,6 @@ impl Display for Instruction {
             Self::FactCount(limit) => write!(f, "fact.count {limit}"),
             Self::QueryStart => write!(f, "query.start"),
             Self::QueryNext(ident) => write!(f, "query.next '{ident}'"),
-            Self::Serialize => write!(f, "serialize"),
-            Self::Deserialize => write!(f, "deserialize"),
             Self::SaveSP => write!(f, "save SP"),
             Self::RestoreSP => write!(f, "restore SP"),
             Self::Meta(m) => write!(f, "meta: {m}"),

@@ -66,12 +66,12 @@ command Init {
 
     // Seal and open blocks are required by the policy_vm to transform an envelope
     // into command fields and vice versa.
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     // The policy block contains statements which query data and check its validity.
     policy {
-        check this.nonce > 0
+        check this.nonce > 0 else test_fail("nonce must be positive")
         // The finish block contains statements which mutate facts.
         finish {}
     }
@@ -98,8 +98,8 @@ command Create {
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {
@@ -122,8 +122,8 @@ ephemeral command CreateEphemeral {
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {
@@ -154,13 +154,13 @@ command Increment {
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = add(stuff.x, this.value) or test_fail()
+        check new_x < 25 else test_fail("new_x out of range")
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -182,13 +182,13 @@ ephemeral command IncrementEphemeral {
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = add(stuff.x, this.value) or test_fail()
+        check new_x < 25 else test_fail("new_x out of range")
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -218,12 +218,12 @@ command Decrement {
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap sub(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = sub(stuff.x, this.value) or test_fail()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -246,11 +246,11 @@ ephemeral command GetStuff {
         key_a int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
-        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
         }
@@ -272,11 +272,11 @@ command GetStuffOnGraph {
         key_a int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
-        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
         }
@@ -300,8 +300,8 @@ ephemeral command CreateGreeting {
         value string,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {
@@ -332,17 +332,17 @@ ephemeral command VerifyGreeting {
         value string,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value
+        check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}
         }
@@ -366,12 +366,12 @@ command VerifyGreetingOnGraph {
         value string,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
-        check greeting.value == this.value
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
+        check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}
         }
@@ -400,8 +400,8 @@ command StoreSessionData {
         cmd bytes,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {
@@ -427,8 +427,8 @@ command Link {
     // Local variables for command
     fields {}
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
+    seal { return envelope::do_seal(payload) }
+    open { return envelope::do_open(payload, envelope) }
 
     policy {
         finish {

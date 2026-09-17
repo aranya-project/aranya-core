@@ -1,0 +1,6 @@
+function f(o option[bool]) int {
+    return match o {
+        Some(true) | Some(b) => 1
+        None => 0
+    }
+}

@@ -12,6 +12,10 @@ publish = false
 [lints]
 workspace = true
 
+[[bin]]
+name = "aranya-core-example"
+bench = false
+
 [dependencies]
 aranya-core = { path = "../aranya-core", features = ["std", "libc", "memstore"] }
 
@@ -31,3 +35,7 @@ postcard = { workspace = true, features = ["alloc"] }
 aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
 
 anyhow = { workspace = true, features = ["std"] }
+
+
+[package.metadata.docs.rs]
+all-features = true

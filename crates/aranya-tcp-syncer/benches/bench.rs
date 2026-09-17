@@ -16,7 +16,7 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_runtime::{
-    ClientState, GraphId, Sink, SyncRequester,
+    ClientState, GraphId, LibcSpill, RuntimeBuffers, Sink, SyncRequester,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
@@ -80,9 +80,18 @@ fn add_commands(
     sink: &mut CountSink,
     n: u64,
 ) {
+    let mut buffers = RuntimeBuffers::new();
+    let spill_dir = std::env::temp_dir();
+    let make_spill = || LibcSpill::new(&spill_dir);
     for x in 0..n {
         client
-            .action(graph_id, sink, TestActions::SetValue(0, x))
+            .action(
+                graph_id,
+                sink,
+                TestActions::SetValue(0, x),
+                &mut buffers,
+                make_spill,
+            )
             .expect("unable to add command");
     }
 }

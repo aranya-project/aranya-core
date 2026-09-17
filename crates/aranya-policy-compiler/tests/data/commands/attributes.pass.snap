@@ -1,5 +1,6 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
@@ -7,47 +8,59 @@ Module {
     labels: {
         <policy 'A'>: 1,
         <seal 'A'>: 8,
-        <open 'A'>: 14,
+        <open 'A'>: 15,
     },
-    action_defs: {},
-    command_defs: {
+    action_defs: [],
+    command_defs: [
         CommandDef {
-            name: "A" @ 36..37,
+            name: "A",
             persistence: Persistent,
-            attributes: {
+            attributes: [
                 Attribute {
-                    name: "i" @ 65..66,
+                    name: "i",
                     value: Int(
                         5,
                     ),
                 },
                 Attribute {
-                    name: "s" @ 79..80,
+                    name: "s",
                     value: String(
                         "abc",
                     ),
                 },
                 Attribute {
-                    name: "priority" @ 97..105,
+                    name: "priority",
                     value: Enum(
                         "Priority",
                         1,
                     ),
                 },
-            },
-            fields: {},
+            ],
+            fields: [],
         },
-    },
-    fact_defs: {},
-    struct_defs: {
-        "A": [],
-    },
-    enum_defs: {
-        "Priority": {
-            "High": 1,
-            "Low": 0,
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "A",
+            items: [],
         },
-    },
+    ],
+    enum_defs: [
+        EnumDef {
+            name: "Priority",
+            variants: [
+                (
+                    "Low",
+                    0,
+                ),
+                (
+                    "High",
+                    1,
+                ),
+            ],
+        },
+    ],
     globals: {},
     ..
 }
@@ -62,6 +75,7 @@ Module {
     exit normal
     exit panic
 <seal 'A'>:
+    def 'payload'
     def 'this'
     save SP
     exit panic
@@ -70,6 +84,8 @@ Module {
     exit panic
 <open 'A'>:
     def 'envelope'
+    def 'payload'
+    def 'this'
     save SP
     exit panic
     restore SP

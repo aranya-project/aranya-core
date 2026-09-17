@@ -1,64 +1,73 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
     version: "0",
     labels: {},
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {
-        "Foo": FactDefinition {
-            immutable: false,
-            identifier: "Foo" @ 53..56,
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [
+        FactDef {
+            name: "Foo",
             key: [
-                FieldDefinition {
-                    identifier: "x" @ 57..58,
-                    field_type: Int @ 59..62,
+                Field {
+                    name: "x",
+                    ty: Int,
                 },
             ],
             value: [
-                FieldDefinition {
-                    identifier: "b" @ 67..68,
-                    field_type: Bool @ 69..73,
+                Field {
+                    name: "b",
+                    ty: Bool,
                 },
             ],
-            span: 48..75,
+            immutable: false,
         },
-    },
-    struct_defs: {
-        "Fi": [
-            FieldDefinition {
-                identifier: "s" @ 37..38,
-                field_type: String @ 39..45,
-            },
-        ],
-        "Foo": [
-            FieldDefinition {
-                identifier: "x" @ 57..58,
-                field_type: Int @ 59..62,
-            },
-            FieldDefinition {
-                identifier: "b" @ 67..68,
-                field_type: Bool @ 69..73,
-            },
-        ],
-        "Fum": [
-            FieldDefinition {
-                identifier: "s" @ 37..38,
-                field_type: String @ 39..45,
-            },
-            FieldDefinition {
-                identifier: "x" @ 57..58,
-                field_type: Int @ 59..62,
-            },
-            FieldDefinition {
-                identifier: "b" @ 67..68,
-                field_type: Bool @ 69..73,
-            },
-        ],
-    },
-    enum_defs: {},
+    ],
+    struct_defs: [
+        StructDef {
+            name: "Fi",
+            items: [
+                Field {
+                    name: "s",
+                    ty: String,
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "x",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: Bool,
+                },
+            ],
+        },
+        StructDef {
+            name: "Fum",
+            items: [
+                Field {
+                    name: "s",
+                    ty: String,
+                },
+                Field {
+                    name: "x",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: Bool,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

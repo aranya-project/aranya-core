@@ -172,3 +172,32 @@ fn test_vacant_entry_no_insert() {
         .expect("should be able to find key");
     assert_eq!(got, want);
 }
+
+/// Tests that reading a truncated key file surfaces an error
+/// rather than panicking. This drives `read_exact`'s
+/// `UnexpectedEof` path and, in turn, `Repr::new`'s
+/// `UnexpectedEof` arm.
+#[test]
+fn test_get_truncated_file() {
+    let dir = tempdir().expect("should be able to create tempdir");
+    let mut store = Store::open(dir.path()).expect("should be able to create `Store`");
+
+    store
+        .try_insert(id!(1), TestKey64(1))
+        .expect("should be able to store key");
+
+    // Overwrite the stored key file with a CBOR header that
+    // promises four more bytes (a `uint32`) than are present,
+    // forcing `read_exact` to hit EOF mid-value.
+    for entry in std::fs::read_dir(dir.path()).expect("should read dir") {
+        let entry = entry.expect("should read dir entry");
+        if entry.file_name().to_string_lossy() == "__canary" {
+            continue;
+        }
+        std::fs::write(entry.path(), [0x1a]).expect("should overwrite key file");
+    }
+
+    store
+        .get::<TestKey64>(id!(1))
+        .expect_err("`get` should fail on a truncated key file");
+}

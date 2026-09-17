@@ -5,22 +5,23 @@
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
 
+pub mod head_set;
+pub mod linear;
+mod spill;
+
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{borrow::Borrow, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _};
-use rkyv::rend::u64_le;
+use rend::u64_le;
 
-use crate::{Address, CmdId, Command, PolicyId, Prior};
-
-pub mod linear;
-
-#[cfg(any(feature = "libc", feature = "testing"))]
-mod spill;
 #[cfg(feature = "libc")]
-pub use spill::LibcSpill;
-#[cfg(feature = "testing")]
-pub use spill::MemSpill;
+pub use self::spill::LibcSpill;
+pub use self::{
+    head_set::HeadSet,
+    spill::{MemSpill, mem_spill},
+};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, Priority, util::mem_usage};
 
 /// Byte-addressable overflow storage for braid and convergence data.
 ///
@@ -52,7 +53,7 @@ pub const QUEUE_CAPACITY: usize = 512;
 /// for the rules governing partition transitions.
 #[derive(Debug, Default)]
 pub struct TraversalQueue {
-    entries: heapless::Vec<Location, QUEUE_CAPACITY>,
+    entries: Vec<Location>,
     /// Index separating uncovered (below) from covered (at and above).
     partition: usize,
 }
@@ -61,7 +62,7 @@ impl TraversalQueue {
     /// Create an empty traversal queue.
     pub const fn new() -> Self {
         Self {
-            entries: heapless::Vec::new(),
+            entries: Vec::new(),
             partition: 0,
         }
     }
@@ -117,9 +118,7 @@ impl TraversalQueue {
             }
             return Ok(());
         }
-        self.entries
-            .push(loc)
-            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
+        self.entries.push(loc);
         if !covered {
             let last = self
                 .entries
@@ -141,9 +140,7 @@ impl TraversalQueue {
     /// is already present. Used by the convergence pre-pass where
     /// duplicate tracking is needed.
     pub fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
-        self.entries
-            .push(loc)
-            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))?;
+        self.entries.push(loc);
         // All duplicate entries are uncovered.
         let last = self
             .entries
@@ -212,7 +209,7 @@ impl TraversalQueue {
             if self.entries[j] == location {
                 count = count
                     .checked_add(1)
-                    .assume("count bounded by QUEUE_CAPACITY")?;
+                    .assume("count bounded by `entries.len()`")?;
                 if j < self.partition {
                     self.partition = self
                         .partition
@@ -304,10 +301,8 @@ impl TraversalQueue {
 
     /// Drain all entries. Uncovered entries are passed to `f`.
     /// Covered entries are discarded. O(n) single pass.
-    pub fn drain_all(&mut self, mut f: impl FnMut(Location)) {
-        for i in 0..self.partition {
-            f(self.entries[i]);
-        }
+    pub fn drain_all(&mut self, f: impl FnMut(Location)) {
+        self.entries[..self.partition].iter().copied().for_each(f);
         self.entries.clear();
         self.partition = 0;
     }
@@ -365,10 +360,7 @@ impl Default for TraversalBuffers {
     }
 }
 
-#[cfg(feature = "low-mem-usage")]
-pub const MAX_COMMAND_LENGTH: usize = 400;
-#[cfg(not(feature = "low-mem-usage"))]
-pub const MAX_COMMAND_LENGTH: usize = 2048;
+pub const MAX_COMMAND_LENGTH: usize = mem_usage(400, 2048);
 
 aranya_crypto::custom_id! {
     /// The ID of the graph, taken from initialization.
@@ -537,7 +529,9 @@ impl fmt::Display for Location {
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct LocatedAddress {
     pub id: CmdId,
     pub segment: SegmentIndex,
@@ -560,6 +554,20 @@ impl LocatedAddress {
     }
 }
 
+/// Backend-assigned stamp for the committed head set, changed by every
+/// [`Storage::commit_heads`]. A captured value compared against the current
+/// one detects intervening commits without cloning or comparing head sets.
+/// Linear storage uses the file offset of the appended head-set record.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeadSetOffset(u64);
+
+impl HeadSetOffset {
+    /// Wraps a backend-provided raw value.
+    pub fn new(offset: u64) -> Self {
+        Self(offset)
+    }
+}
+
 /// An error returned by [`Storage`] or [`StorageProvider`].
 #[derive(Debug, thiserror::Error)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -569,6 +577,8 @@ pub enum StorageError {
     StorageExists,
     #[error("no such storage")]
     NoSuchStorage,
+    #[error("storage created but not initialized by a first commit")]
+    NotInitialized,
     #[error("segment index {} is out of bounds", .0.segment)]
     SegmentOutOfBounds(Location),
     #[error("max cut {} is out of bounds in segment {}", .0.max_cut, .0.segment)]
@@ -587,6 +597,8 @@ pub enum StorageError {
     ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
+    #[error("graph has multiple heads ({0}); no single head to report")]
+    MultipleHeads(usize),
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -640,6 +652,52 @@ pub trait StorageProvider {
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
+/// Backward-traversal search for `address`, starting from the locations
+/// already seeded into `queue`. Seeds must have `max_cut >= address.max_cut`.
+///
+/// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm
+/// specification.
+fn search_queued<S: Storage + ?Sized>(
+    storage: &S,
+    address: Address,
+    queue: &mut TraversalQueue,
+) -> Result<Option<Location>, StorageError> {
+    while let Some(loc) = queue.pop()? {
+        debug_assert!(
+            loc.max_cut >= address.max_cut,
+            "Invariant: we only enqueue locations with at least the target max cut"
+        );
+
+        // Must load segment
+        let segment = storage.get_segment(loc)?;
+
+        // Search commands in this segment.
+        if let Some(found) = segment.get_by_address(address) {
+            return Ok(Some(found));
+        }
+
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so the first entry
+        // with max_cut >= target has the lowest valid max_cut, jumping
+        // furthest back in the graph.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= address.max_cut)
+        {
+            queue.push(skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= address.max_cut {
+                    queue.push(prior)?;
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
 /// by an associated policy and committed to state.
 pub trait Storage {
@@ -655,7 +713,16 @@ pub trait Storage {
         address: Address,
         buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address, buffer)
+        // The graph may be multi-head (lazy merges). Run one search seeded
+        // with every head that could reach the target, so ancestry shared
+        // between heads is traversed once rather than once per head.
+        let queue = buffer.get();
+        for head in self.get_heads()?.iter() {
+            if head.max_cut >= address.max_cut {
+                queue.push(head.location())?;
+            }
+        }
+        search_queued(self, address, queue)
     }
 
     /// Returns the location of Command with id by searching from the given location.
@@ -673,41 +740,7 @@ pub trait Storage {
 
         let queue = buffer.get();
         queue.push(start)?;
-
-        while let Some(loc) = queue.pop()? {
-            debug_assert!(
-                loc.max_cut >= address.max_cut,
-                "Invariant: we only enqueue locations with at least the target max cut"
-            );
-
-            // Must load segment
-            let segment = self.get_segment(loc)?;
-
-            // Search commands in this segment.
-            if let Some(found) = segment.get_by_address(address) {
-                return Ok(Some(found));
-            }
-
-            // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so the first entry
-            // with max_cut >= target has the lowest valid max_cut, jumping
-            // furthest back in the graph.
-            if let Some(&skip) = segment
-                .skip_list()
-                .iter()
-                .find(|skip| skip.max_cut >= address.max_cut)
-            {
-                queue.push(skip)?;
-            } else {
-                // No valid skip - add prior locations to queue
-                for prior in segment.prior() {
-                    if prior.max_cut >= address.max_cut {
-                        queue.push(prior)?;
-                    }
-                }
-            }
-        }
-        Ok(None)
+        search_queued(self, address, queue)
     }
 
     /// Returns the address of the command at the given location.
@@ -742,19 +775,48 @@ pub trait Storage {
     /// Returns the segment at the given location.
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError>;
 
-    /// Returns the location of head of the graph.
-    fn get_head(&self) -> Result<Location, StorageError>;
-
-    /// Returns the address of the head of the graph.
-    fn get_head_address(&self) -> Result<Address, StorageError> {
-        self.get_command_address(self.get_head()?)
-    }
-
-    /// Sets the given segment as the head of the graph.
+    /// Returns the committed head set.
     ///
-    /// The given segment must be a descendant of the current graph head.
-    /// Implementations may rely on this for correctness, but not for safety.
-    fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError>;
+    /// Borrows an in-memory cache, so this is cheap to call repeatedly on hot
+    /// paths (no per-call deserialize or copy). Callers that need an owned set
+    /// should clone the returned reference.
+    fn get_heads(&self) -> Result<&HeadSet, StorageError>;
+
+    /// Returns the stamp of the committed head set.
+    ///
+    /// Changes on every [`commit_heads`](Self::commit_heads), so a value
+    /// captured at transaction start detects intervening commits.
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError>;
+
+    /// Returns the cached merged fact index for the current head set.
+    fn fact_cache(&self) -> Result<Self::FactIndex, StorageError>;
+
+    /// Commit the given head set with its rebuilt fact cache.
+    fn commit_heads(
+        &mut self,
+        heads: HeadSet,
+        fact_cache: Self::FactIndex,
+    ) -> Result<(), StorageError>;
+
+    /// Returns the address of the sole graph head.
+    ///
+    /// Errors with [`StorageError::MultipleHeads`] on a multi-head (lazy-merge)
+    /// graph, where there is no single head to report. Callers that may face a
+    /// multi-head graph should use [`get_heads`](Self::get_heads) instead, or
+    /// [`ClientState::hello_head`](crate::ClientState::hello_head) when
+    /// advertising graph state to peers.
+    ///
+    /// An initialized graph always has at least one head, so an empty head set
+    /// is treated as an invariant violation (a [`Bug`]).
+    fn get_head_address(&self) -> Result<Address, StorageError> {
+        let heads = self.get_heads()?;
+        let mut it = heads.iter();
+        let first = it.next().assume("initialized graph always has >= 1 head")?;
+        if it.next().is_some() {
+            return Err(StorageError::MultipleHeads(heads.len()));
+        }
+        Ok(first.address())
+    }
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;
@@ -827,7 +889,7 @@ pub trait Storage {
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
     type FactIndex: FactIndex;
-    type Command<'a>: Command
+    type Command<'a>: Command + Prioritized
     where
         Self: 'a;
 
@@ -932,9 +994,18 @@ pub trait Perspective: FactPerspective {
     /// Returns the id for the policy used for this perspective.
     fn policy(&self) -> PolicyId;
 
-    /// Adds the given command to the head of the perspective. The command's
-    /// parent must be the head of the perspective.
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
+    /// Adds the given command to the head of the perspective, persisting
+    /// `priority` alongside it. The command's parent must be the head of the
+    /// perspective.
+    ///
+    /// The priority must match the command's structure: `Merge` for merge
+    /// commands, `Init` for init commands, and the policy's body-derived
+    /// value for evaluated commands.
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
     fn includes(&self, id: CmdId) -> bool;
@@ -1006,6 +1077,12 @@ pub trait QueryMut: Query {
 
     /// Delete any fact associated to the compound key, under the given name.
     fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
+}
+
+/// Stored commands hold their validated priority.
+pub trait Prioritized {
+    /// Get this command's priority.
+    fn priority(&self) -> Priority;
 }
 
 // TODO(jdygert): Expose this?
@@ -1162,6 +1239,7 @@ mod queue_tests {
     }
 
     #[test]
+    #[ignore = "queue is currently unbounded"]
     fn test_queue_overflow_returns_error() {
         let mut queue = TraversalQueue::new();
         // Fill to capacity
@@ -1334,6 +1412,7 @@ mod queue_tests {
     }
 
     #[test]
+    #[ignore = "queue is currently unbounded"]
     fn test_push_duplicate_overflow() {
         let mut queue = TraversalQueue::new();
         for i in 0..QUEUE_CAPACITY {

@@ -1,23 +1,25 @@
-fn benchmark_1() {
-    use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{bench_measurements, ffi::FfiModule as _};
-    use aranya_runtime::{
-        ClientState,
-        storage::linear::testing::MemStorageProvider,
-        testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
-        vm_action, vm_effect,
-        vm_policy::testing::TestFfiEnvelope,
-    };
+use aranya_policy_compiler::Compiler;
+use aranya_policy_lang::lang::parse_policy_document;
+use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
+use aranya_runtime::{
+    ClientState, RuntimeBuffers, mem_spill,
+    storage::linear::testing::MemStorageProvider,
+    testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
+    vm_action, vm_effect,
+    vm_policy::testing::TestFfiEnvelope,
+};
 
+fn benchmark_1() {
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
     let module = Compiler::new(&policy)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
+        .debug(true)
         .compile()
         .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
     let graph_id = cs
@@ -26,28 +28,43 @@ fn benchmark_1() {
 
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    cs.action(graph_id, &mut sink, vm_action!(create_action(3)))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(create_action(3)),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
 
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
-    cs.action(graph_id, &mut sink, vm_action!(increment()))
-        .expect("should call increment");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(increment()),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("should call increment");
 
     bench_measurements().print_stats();
 }
 
 fn benchmark_map() {
     let test = r#"---
-policy-version: 1
+policy-version: 2
 ---
 ```policy
         use envelope
         fact F[i int]=>{ value string }
 
         command Init {
-            seal { return envelope::do_seal(serialize(this)) }
-            open { return deserialize(envelope::do_open(envelope)) }
+            attributes {
+                init: true,
+            }
+            seal { return envelope::do_seal(payload) }
+            open { return envelope::do_open(payload, envelope) }
             policy {
                 finish {}
             }
@@ -62,12 +79,15 @@ policy-version: 1
         }
 
         command Insert {
+            attributes {
+                priority: 10,
+            }
             fields {
                 i int,
                 value string
             }
-            seal { return envelope::do_seal(serialize(this)) }
-            open { return deserialize(envelope::do_open(envelope)) }
+            seal { return envelope::do_seal(payload) }
+            open { return envelope::do_open(payload, envelope) }
             policy {
                 finish {
                     create F[i: this.i]=>{value: this.value}
@@ -82,9 +102,12 @@ policy-version: 1
         }
 
         command DoSomething {
+            attributes {
+                priority: 5,
+            }
             fields { i int }
-            seal { return envelope::do_seal(serialize(this)) }
-            open { return deserialize(envelope::do_open(envelope)) }
+            seal { return envelope::do_seal(payload) }
+            open { return envelope::do_open(payload, envelope) }
             policy {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }
@@ -94,17 +117,6 @@ policy-version: 1
 ```
     "#;
 
-    use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule as _};
-    use aranya_runtime::{
-        ClientState,
-        storage::linear::testing::MemStorageProvider,
-        testing::vm::{TestPolicyStore, TestSink},
-        vm_action,
-        vm_policy::testing::TestFfiEnvelope,
-    };
-
     let policy = parse_policy_document(test).expect("should parse");
     let module = Compiler::new(&policy)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
@@ -113,6 +125,7 @@ policy-version: 1
     let policy_store = TestPolicyStore::from_module(module);
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
     let graph_id = cs
@@ -121,11 +134,23 @@ policy-version: 1
 
     for i in 1..10 {
         let text: Text = i.to_string().parse().expect("valid text");
-        cs.action(graph_id, &mut sink, vm_action!(insert(i, text)))
-            .expect("action `insert` failed");
+        cs.action(
+            graph_id,
+            &mut sink,
+            vm_action!(insert(i, text)),
+            &mut buffers,
+            mem_spill,
+        )
+        .expect("action `insert` failed");
     }
-    cs.action(graph_id, &mut sink, vm_action!(run()))
-        .expect("action `run` failed");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(run()),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("action `run` failed");
 
     bench_measurements().print_stats();
 }

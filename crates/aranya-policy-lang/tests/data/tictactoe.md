@@ -45,7 +45,7 @@ command Start {
         return todo()
     }
     policy {
-        check ProfileX != ProfileO
+        check ProfileX != ProfileO else test_fail("Profiles must be different")
         // `envelope::command_id` is an FFI-provided helper function that returns
         // the ID from the passed in `envelope`.
         let gameID = envelope::command_id(envelope)
@@ -111,12 +111,13 @@ command Move {
         let player = envelope::author_id(envelope)
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
-        // values marked with ?, or None. The unwrap expression returns the
-        // value inside an Optional or terminates rule execution.
-        let result = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
-        let playerX = result.x
-        let playerO = result.o
-        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
+        // values marked with ?, or None. The `or` operator unwraps the result
+        // of the query, if it is `Some`, or invokes the test_fail() expression,
+        // which terminates the policy with an error.
+        let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
+        let playerX = res.x
+        let playerO = res.o
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
         // the if expression works like a ternary expression, where both
         // branches must be specified.
         let nextp = if p == "X" { :"O" } else { :"X" }
@@ -125,10 +126,10 @@ command Move {
         // statements.
         // Defined variables, command fields, and common event fields can
         // be checked for validity with boolean expressions.
-        check (p == "X" && player == playerX) || (p == "O" && player == playerO)
+        check (p == "X" && player == playerX) || (p == "O" && player == playerO) else test_fail("bad state: wrong player")
         // functions can be used in any expression
-        check bounds(X)
-        check bounds(Y)
+        check bounds(X) else test_fail("X out of bounds")
+        check bounds(Y) else test_fail("Y out of bounds")
 
         // phase 2: fact updates and effects
         // Facts can be created, updated, and destroyed.
@@ -183,14 +184,14 @@ command Move2 {
     }
     policy {
         let player = envelope::author_id(envelope)
-        let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
-        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
+        let players = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
+        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
         let nextp = if p == "X" { :"O" } else { :"X" }
 
-        check !exists GameOver[gameID: gameID]=>{}
-        check bounds(X)
-        check bounds(Y)
-        check (p == "X" && player == players.x) || (p == "O" && player == players.o)
+        check !exists GameOver[gameID: gameID]=>{} else test_fail("game is over")
+        check bounds(X) else test_fail("X invalid")
+        check bounds(Y) else test_fail("Y invalid")
+        check (p == "X" && player == players.x) || (p == "O" && player == players.o) else test_fail("bad state: wrong player")
 
         match game_over(gameID, X, Y, p) {
             true => {

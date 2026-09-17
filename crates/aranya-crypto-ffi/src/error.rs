@@ -102,6 +102,12 @@ impl From<WrongContext> for Error {
     }
 }
 
+impl From<MissingKeyInput> for Error {
+    fn from(err: MissingKeyInput) -> Self {
+        Self::new(ErrorKind::MissingKeyInput, err)
+    }
+}
+
 /// Describes [`Error`].
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ErrorKind {
@@ -142,6 +148,8 @@ pub enum ErrorKind {
     PkError,
     /// The id passed in is invalid.
     IdError,
+    /// The key ID or public key was not provided.
+    MissingKeyInput,
 }
 
 impl fmt::Display for ErrorKind {
@@ -157,6 +165,7 @@ impl fmt::Display for ErrorKind {
             Self::WrongContext => write!(f, "method called in wrong context"),
             Self::PkError => write!(f, "invalid signing key"),
             Self::IdError => write!(f, "invalid id"),
+            Self::MissingKeyInput => write!(f, "missing key input"),
         }
     }
 }
@@ -175,3 +184,8 @@ pub struct KeyNotFound(pub(crate) BaseId);
 #[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0}")]
 pub struct WrongContext(pub(crate) &'static str);
+
+/// The key input was not provided.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0}")]
+pub struct MissingKeyInput(pub(crate) &'static str);

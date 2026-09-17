@@ -42,21 +42,17 @@ impl Analyzer for ValueAnalyzer {
         _m: &ModuleV0,
     ) -> Result<AnalyzerStatus, TraceError> {
         match i {
-            Instruction::Call(_) => {
+            Instruction::Call(_) | Instruction::Recall(_) => {
                 self.value_sets.push(BTreeSet::new());
             }
             Instruction::Return => {
                 self.value_sets.pop();
             }
-            Instruction::Def(s) => {
-                if !self.insert(s.clone()) {
-                    return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
-                }
+            Instruction::Def(s) if !self.insert(s.clone()) => {
+                return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
             }
-            Instruction::Get(s) => {
-                if !self.contains(s) {
-                    return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
-                }
+            Instruction::Get(s) if !self.contains(s) => {
+                return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
             }
             _ => (),
         }

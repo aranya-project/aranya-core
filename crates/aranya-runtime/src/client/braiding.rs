@@ -13,7 +13,7 @@ use crate::{
 /// ensures that you can jump to the last common ancestor from
 /// the merge command created using left and right and know that you
 /// won't be jumping into a branch.
-pub(super) fn last_common_ancestor<S: Storage>(
+fn lca_pair<S: Storage>(
     storage: &mut S,
     mut left: Location,
     mut right: Location,
@@ -46,6 +46,20 @@ pub(super) fn last_common_ancestor<S: Storage>(
         }
     }
     Ok(left)
+}
+
+/// N-way last common ancestor: a common ancestor of all `heads`, used as the
+/// braid's `max_cut` cutoff boundary. Computed by folding the pairwise LCA.
+/// For a single head this is the head itself. Termination of the braid does
+/// not rely on this being the deepest common ancestor (`strands.lone()`
+/// guarantees termination), so a conservative result is still correct.
+pub(super) fn last_common_ancestor<S: Storage>(
+    storage: &mut S,
+    heads: &[Location],
+) -> Result<Location, ClientError> {
+    let (first, rest) = heads.split_first().assume("braid heads non-empty")?;
+    rest.iter()
+        .try_fold(*first, |lca, &h| lca_pair(storage, lca, h))
 }
 
 /// Number of Location entries per braid buffer block. Sized to batch
@@ -193,16 +207,15 @@ impl<'a, F: Spill> Iterator for BraidIter<'a, F> {
 
 /// Produces a deterministic ordering for a set of [`Command`]s in a graph.
 ///
-/// The `lca` parameter is the last common ancestor of `left` and `right`.
-/// A BFS pre-pass (`compute_convergence`) walks backwards from both merge
-/// parents to identify convergence points — locations reachable from
+/// The `lca` parameter is the last common ancestor of all `heads`.
+/// A BFS pre-pass (`compute_convergence`) walks backwards from every head
+/// to identify convergence points — locations reachable from
 /// multiple paths. During braiding, each prior location is checked against
 /// the convergence map for O(1) ancestor detection, replacing the previous
 /// O(k) `is_ancestor` BFS per strand.
 pub(super) fn braid<S, F, MS>(
     storage: &mut S,
-    left: Location,
-    right: Location,
+    heads: &[Location],
     lca: Location,
     traversal: &mut TraversalBuffer,
     braid_buf: &mut crate::BraidBuffer<S::Segment>,
@@ -218,18 +231,17 @@ where
     let mut braid = BraidResult::new(make_spill()?);
     let strands = braid_buf.strands.get();
 
-    trace!(%left, %right, %lca, "braiding");
+    trace!(%lca, "braiding {} heads", heads.len());
 
     let mut convergence = convergence_map::ConvergenceMap::new(
-        left,
-        right,
+        heads,
         lca,
         traversal.get(),
         braid_buf.convergence.get(),
         make_spill()?,
     )?;
 
-    for head in [left, right] {
+    for &head in heads {
         strands.push(Strand::new(storage, head, None)?)?;
     }
 
@@ -260,6 +272,11 @@ where
                 );
                 continue 'location;
             }
+            // Convergence check (incremental BFS, O(1) amortized).
+            if !convergence.should_continue(storage, location)? {
+                trace!("prior {location} convergence drop");
+                continue 'location;
+            }
 
             // Same-segment check (O(1) per strand).
             for other in strands.iter() {
@@ -267,12 +284,6 @@ where
                     trace!("prior {location} same segment as {}", other.next);
                     continue 'location;
                 }
-            }
-
-            // Convergence check (incremental BFS, O(1) amortized).
-            if !convergence.should_continue(storage, location)? {
-                trace!("prior {location} convergence drop");
-                continue 'location;
             }
 
             trace!("strand at {location}");
@@ -299,17 +310,10 @@ where
 use super::convergence_map;
 
 pub(crate) mod strand_heap {
-    use heapless::binary_heap::Max;
-
     use crate::{
-        ClientError, CmdId, Command as _, Location, Priority, Segment, Storage, StorageError,
-        storage::QUEUE_CAPACITY,
+        ClientError, CmdId, Command as _, Location, Prioritized as _, Priority, Segment, Storage,
+        StorageError,
     };
-
-    /// Maximum number of active strands. Equal to `QUEUE_CAPACITY` since
-    /// strand count is bounded by graph width, the same bound as the
-    /// traversal queue.
-    pub const STRAND_CAPACITY: usize = QUEUE_CAPACITY;
 
     pub struct Strand<S> {
         key: (Priority, CmdId),
@@ -359,7 +363,7 @@ pub(crate) mod strand_heap {
 
     /// A wrapper around a binary heap which is limited to one finalize command.
     pub struct StrandHeap<S> {
-        heap: heapless::BinaryHeap<Strand<S>, Max, STRAND_CAPACITY>,
+        heap: alloc::collections::BinaryHeap<Strand<S>>,
         /// Tracks whether there is a finalize command in `self.heap`.
         has_finalize: bool,
     }
@@ -373,7 +377,7 @@ pub(crate) mod strand_heap {
     impl<S> StrandHeap<S> {
         pub const fn new() -> Self {
             Self {
-                heap: heapless::BinaryHeap::new(),
+                heap: alloc::collections::BinaryHeap::new(),
                 has_finalize: false,
             }
         }
@@ -400,9 +404,7 @@ pub(crate) mod strand_heap {
                 }
                 self.has_finalize = true;
             }
-            self.heap
-                .push(strand)
-                .map_err(|_| StorageError::StrandHeapOverflow(STRAND_CAPACITY))?;
+            self.heap.push(strand);
             Ok(())
         }
 
@@ -507,14 +509,14 @@ mod braid_result_tests {
 
     #[test]
     fn empty_result_yields_nothing() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         let mut iter = result.iter().unwrap();
         assert!(iter.next().is_none());
     }
 
     #[test]
     fn single_entry() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         result.push(loc(0, 1)).unwrap();
         let mut iter = result.iter().unwrap();
         assert_eq!(iter.next().unwrap().unwrap(), loc(0, 1));
@@ -523,7 +525,7 @@ mod braid_result_tests {
 
     #[test]
     fn yields_in_reverse_push_order() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         result.push(loc(0, 3)).unwrap();
         result.push(loc(1, 2)).unwrap();
         result.push(loc(2, 1)).unwrap();
@@ -537,7 +539,7 @@ mod braid_result_tests {
 
     #[test]
     fn spill_to_disk_and_iterate() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         // Push more than BRAID_BLOCK_ENTRIES (256) to force a disk spill.
         let total = BRAID_BLOCK_ENTRIES + 10;
         for i in 0..total {
@@ -556,7 +558,7 @@ mod braid_result_tests {
 
     #[test]
     fn multiple_spills() {
-        let mut result = TestBraidResult::new(MemSpill::new().unwrap());
+        let mut result = TestBraidResult::new(MemSpill::new());
         // Push 3 full blocks worth to force multiple spills.
         let total = BRAID_BLOCK_ENTRIES * 3 + 5;
         for i in 0..total {

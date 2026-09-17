@@ -1,46 +1,56 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 199
 expression: module
 ---
 Module {
     version: "0",
     labels: {},
-    action_defs: {},
-    command_defs: {},
-    fact_defs: {},
-    struct_defs: {
-        "Bar": [
-            FieldDefinition {
-                identifier: "b" @ 13..14,
-                field_type: Bool @ 15..19,
-            },
-        ],
-        "Baz": [
-            FieldDefinition {
-                identifier: "i" @ 65..66,
-                field_type: Int @ 67..70,
-            },
-            FieldDefinition {
-                identifier: "b" @ 13..14,
-                field_type: Bool @ 15..19,
-            },
-            FieldDefinition {
-                identifier: "s" @ 41..42,
-                field_type: String @ 43..49,
-            },
-        ],
-        "Foo": [
-            FieldDefinition {
-                identifier: "b" @ 13..14,
-                field_type: Bool @ 15..19,
-            },
-            FieldDefinition {
-                identifier: "s" @ 41..42,
-                field_type: String @ 43..49,
-            },
-        ],
-    },
-    enum_defs: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [
+                Field {
+                    name: "b",
+                    ty: Bool,
+                },
+            ],
+        },
+        StructDef {
+            name: "Baz",
+            items: [
+                Field {
+                    name: "i",
+                    ty: Int,
+                },
+                Field {
+                    name: "b",
+                    ty: Bool,
+                },
+                Field {
+                    name: "s",
+                    ty: String,
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "b",
+                    ty: Bool,
+                },
+                Field {
+                    name: "s",
+                    ty: String,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
     globals: {},
     ..
 }

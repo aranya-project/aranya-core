@@ -1,0 +1,14 @@
+[
+  {
+    "GenerateGraph": {
+      "clients": 6,
+      "graph": 0,
+      "commands": 50,
+      "sync_method": {
+        "None": {
+          "add_commands_to_client_zero": false
+        }
+      }
+    }
+  }
+]

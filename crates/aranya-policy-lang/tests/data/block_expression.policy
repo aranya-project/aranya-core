@@ -2,6 +2,6 @@ action foo() {
     let x = {
         let a = 3
         let b = 4
-        : unwrap saturating_add(a, b)
+        : saturating_add(a, b) or test_fail()
     }
 }

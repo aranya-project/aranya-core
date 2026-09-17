@@ -12,8 +12,8 @@ use aranya_crypto::Rng;
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
-    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, MemSpill, PeerCache, RuntimeBuffers,
-    StorageProvider, SyncError, SyncRequester, TraversalBuffers,
+    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
+    StorageProvider, SyncError, SyncRequester, TraversalBuffers, mem_spill,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
@@ -454,7 +454,13 @@ where
 
         let mut sink = VecSink::new();
 
-        state.action(*graph_id, &mut sink, action)?;
+        state.action(
+            *graph_id,
+            &mut sink,
+            action,
+            &mut self.rt_buffers,
+            mem_spill,
+        )?;
 
         Ok(sink.effects)
     }
@@ -484,7 +490,7 @@ where
             .entry((graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
             .or_default();
 
-        let mut request_cache = self
+        let request_cache = self
             .client_graph_peer_cache
             .get(&(graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
             .ok_or(ModelError::ClientNotFound)?
@@ -518,10 +524,11 @@ where
         while request_syncer.ready() {
             if request_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+                let session = request_trx.session_heads(&request_cache);
                 let (len, _) = request_syncer.poll(
                     &mut buffer,
                     request_state.provider(),
-                    &mut request_cache,
+                    &session,
                     &mut self.buffers.primary,
                 )?;
 
@@ -543,13 +550,13 @@ where
                         &mut sink,
                         &cmds,
                         &mut self.rt_buffers,
-                        MemSpill::new,
+                        mem_spill,
                     )?;
                 }
             }
         }
 
-        request_state.commit(request_trx, &mut sink, &mut self.rt_buffers, MemSpill::new)?;
+        request_state.commit(request_trx, &mut sink, &mut self.rt_buffers, mem_spill)?;
 
         Ok(())
     }

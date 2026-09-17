@@ -45,7 +45,7 @@ impl<'i> PairContext<'i, '_> {
         match (self.to_ast_span)(self.span) {
             Ok(span) => ParseError::new(
                 ParseErrorKind::Unknown,
-                format!("{:?}", &self.span),
+                format!("{:?}", self.span),
                 Some(span),
             ),
             Err(err) => err,
@@ -217,6 +217,7 @@ impl ChunkParser<'_> {
         let pest_span = token.as_span();
         let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
+            Rule::unit_t => TypeKind::Unit,
             Rule::string_t => TypeKind::String,
             Rule::bytes_t => TypeKind::Bytes,
             Rule::int_t => TypeKind::Int,
@@ -612,6 +613,7 @@ impl ChunkParser<'_> {
             .map_primary(|primary| {
                 let span = self.to_ast_span(primary.as_span())?;
                 match primary.as_rule() {
+                Rule::unit_literal => Ok(Expression { inner: ExprKind::Unit, span }),
                 Rule::int_literal => {
                     let n = primary.as_str().parse::<i64>().map_err(|e| {
                         let message = e.to_string().replace("target type", "`int`");
@@ -798,36 +800,6 @@ impl ChunkParser<'_> {
                 },
                 Rule::match_expression => self.parse_match_expression(primary),
                 Rule::if_expr => self.parse_if_expression(primary),
-                Rule::serialize => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("empty serialize function"),
-                            Some(span),
-                        )
-                    })?;
-                    let inner = self.parse_expression(token)?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{inner:ExprKind::InternalFunction(
-                        InternalFunction::Serialize(Box::new(inner)),
-                    ), span})
-                }
-                Rule::deserialize => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("empty deserialize function"),
-                            Some(span),
-                        )
-                    })?;
-                    let inner = self.parse_expression(token)?;
-                    Ok(Expression {
-                        inner: ExprKind::InternalFunction(InternalFunction::Deserialize(Box::new(inner))),
-                        span,
-                    })
-                }
                 Rule::this => {
                     let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
@@ -842,6 +814,15 @@ impl ChunkParser<'_> {
                     let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
                         inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
+                        span,
+                    })
+                }
+                Rule::test_fail => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let mut pairs = primary.into_inner();
+                    let msg = pairs.next().map(|t| self.parse_string_literal(t)).transpose()?;
+                    Ok(Expression {
+                        inner: ExprKind::InternalFunction(InternalFunction::TestFail(msg, span)),
                         span,
                     })
                 }
@@ -869,8 +850,6 @@ impl ChunkParser<'_> {
 
                 let kind = match op.as_rule() {
                     Rule::not => ExprKind::Not(Box::new(rhs)),
-                    Rule::unwrap => ExprKind::Unwrap(Box::new(rhs)),
-                    Rule::check_unwrap => ExprKind::CheckUnwrap(Box::new(rhs)),
                     _ => {
                         return Err(ParseError::new(
                             ParseErrorKind::Expression,
@@ -1213,10 +1192,7 @@ impl ChunkParser<'_> {
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
-        let else_expression = pc
-            .consume_optional(Rule::expression)
-            .map(|token| self.parse_expression(token))
-            .transpose()?;
+        let else_expression = pc.consume_expression(self)?;
         Ok(CheckStatement {
             expression,
             else_expression,
@@ -1465,6 +1441,24 @@ impl ChunkParser<'_> {
             arguments.push(self.parse_parameter(field)?);
         }
 
+        // Parse return type
+        let return_type = match pc.consume_optional(Rule::result_t) {
+            Some(pair) => {
+                let span = self.to_ast_span(pair.as_span())?;
+                let rt = self.descend(pair);
+                let ok = rt.consume_type(self)?;
+                let err = rt.consume_type(self)?;
+                VType {
+                    inner: TypeKind::Result(Box::new(ResultTypeKind { ok, err })),
+                    span,
+                }
+            }
+            None => VType {
+                inner: TypeKind::Unit,
+                span: ast::Span::empty(),
+            },
+        };
+
         // All remaining tokens are statements
         let list = pc.into_inner();
         let statements = self.parse_statement_list(list)?;
@@ -1473,6 +1467,7 @@ impl ChunkParser<'_> {
             persistence,
             identifier,
             arguments,
+            return_type,
             statements,
             span,
         })
@@ -2020,7 +2015,7 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// |----------|----|
 /// | 1        | `.` |
 /// | 2        | `substruct`, `as` (infix) |
-/// | 3        | `!`, `unwrap`, `check_unwrap` |
+/// | 3        | `!` |
 /// | 4        | `%` |
 /// | 5        | `>`, `<`, `>=`, `<=`, `is` |
 /// | 6        | `==`, `!=` |
@@ -2037,7 +2032,7 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
         .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
-        .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
+        .op(Op::prefix(Rule::not))
         .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
         .op(Op::postfix(Rule::dot))
 }

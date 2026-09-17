@@ -3,19 +3,22 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, PollIncoming,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PollIncoming,
     SEGMENT_BUFFER_MAX, SyncError,
     requester::SyncRequestMessage,
     wire::{CommandMeta, SyncType},
 };
 use crate::{
-    LocatedAddress, StorageError,
+    LocatedAddress, Prior, StorageError,
     command::{Address, CmdId, Command as _},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
         TraversalBuffers,
     },
 };
+
+/// The maximum number of heads that will be stored for a peer.
+const PEER_HEAD_MAX: usize = 10;
 
 #[derive(Default, Debug)]
 pub struct PeerCache {
@@ -31,15 +34,28 @@ impl PeerCache {
         &self.heads
     }
 
+    /// Record that the peer holds `addr`. The location is derived here from
+    /// committed storage (`get_location` traverses from committed heads
+    /// only), so a command that is not committed on this node is silently
+    /// ignored and can never enter the cache.
     pub fn add_command<S>(
         &mut self,
         storage: &S,
-        new: LocatedAddress,
+        addr: Address,
         buffer: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
         S: Storage,
     {
+        let Some(loc) = storage.get_location(addr, buffer)? else {
+            return Ok(());
+        };
+        let new = LocatedAddress {
+            id: addr.id,
+            segment: loc.segment,
+            max_cut: addr.max_cut,
+        };
+
         let mut add_command = true;
 
         let mut retain_head = |old: &LocatedAddress| -> Result<bool, StorageError> {
@@ -173,6 +189,51 @@ fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
     }
 }
 
+/// Walk backwards from `head` along the skip list, taking any skip entry
+/// that stays at or above `target`, until the next step would drop below
+/// `target`. Returns the segment we stopped at — the entry point for the
+/// per-round traversal in `find_needed_segments`.
+fn skip_jump<S: Storage>(
+    storage: &S,
+    head: Location,
+    target: MaxCut,
+) -> Result<Location, StorageError> {
+    if head.max_cut <= target {
+        return Ok(head);
+    }
+    let mut current = head;
+    loop {
+        let seg = storage.get_segment(current)?;
+
+        // Smallest skip entry at or above target (and below current).
+        let best = seg
+            .skip_list()
+            .iter()
+            .copied()
+            .filter(|s| s.max_cut >= target && s.max_cut < current.max_cut)
+            .min_by_key(|s| s.max_cut);
+        if let Some(skip) = best {
+            current = skip;
+            continue;
+        }
+
+        // No useful skip. If any prior would drop below target, stop here.
+        let prior_below = match seg.prior() {
+            Prior::Single(p) => p.max_cut < target,
+            Prior::Merge(a, b) => a.max_cut < target || b.max_cut < target,
+            Prior::None => true,
+        };
+        if prior_below {
+            return Ok(current);
+        }
+
+        match seg.prior() {
+            Prior::Single(p) => current = p,
+            _ => return Ok(current),
+        }
+    }
+}
+
 impl SyncResponder {
     /// Create a new [`SyncResponder`].
     pub const fn new() -> Self {
@@ -228,18 +289,8 @@ impl SyncResponder {
 
                 self.state = S::Send;
                 for command in &self.has {
-                    // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) = storage.get_location(*command, &mut buffers.primary)? {
-                        response_cache.add_command(
-                            storage,
-                            LocatedAddress {
-                                id: command.id,
-                                segment: cmd_loc.segment,
-                                max_cut: command.max_cut,
-                            },
-                            &mut buffers.primary,
-                        )?;
-                    }
+                    // Commands not in our graph are ignored by the cache.
+                    response_cache.add_command(storage, *command, &mut buffers.primary)?;
                 }
                 self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
 
@@ -312,11 +363,12 @@ impl SyncResponder {
                 self.next_send = 0;
                 return Ok(());
             }
-            SyncRequestMessage::RequestMissing { .. } => {
-                todo!()
-            }
-            SyncRequestMessage::SyncResume { .. } => {
-                todo!()
+            // Neither of these is implemented yet, and a peer can send either
+            // at any point in a session. Reset the session and report the
+            // error.
+            SyncRequestMessage::RequestMissing { .. } | SyncRequestMessage::SyncResume { .. } => {
+                self.state = SyncResponderState::Reset;
+                return Err(SyncError::UnsupportedRequest);
             }
             SyncRequestMessage::EndSession { .. } => {
                 self.state = SyncResponderState::Stopped;
@@ -369,7 +421,22 @@ impl SyncResponder {
 
         // heads queue: segments to process, popped by highest max_cut.
         let heads = buffers.primary.get();
-        heads.push(storage.get_head()?)?;
+
+        // Jump from each head toward highest_have + SEGMENT_BUFFER_MAX before
+        // starting the main traversal, so per-round cost is O(log n) instead
+        // of O(n). The graph may be multi-head (lazy merges), so seed the
+        // traversal from every head.
+        let highest_have = have_locations
+            .first()
+            .map(|l| l.max_cut)
+            .unwrap_or(MaxCut::new(0));
+        let skip_target = highest_have
+            .checked_add(SEGMENT_BUFFER_MAX as u64)
+            .assume("skip target overflow")?;
+        for head in storage.get_heads()?.iter() {
+            let start = skip_jump(storage, head.location(), skip_target)?;
+            heads.push(start)?;
+        }
 
         // pending queue: segments tentatively needed by the peer.
         let pending = buffers.secondary.get();
@@ -509,20 +576,23 @@ impl SyncResponder {
             response_index: self.message_index as u64,
             commands,
         };
-        self.message_index = self
-            .message_index
-            .checked_add(1)
-            .assume("message_index overflow")?;
-        self.next_send = next_send;
 
         let length = Self::write(target, message)?;
         let total_length = length
             .checked_add(command_data.len())
             .assume("length + command_data_length mustn't overflow")?;
-        target
+        // Don't advance the session until the whole message fits, so the
+        // caller can retry with a larger buffer without losing commands.
+        let data_target = target
             .get_mut(length..total_length)
-            .assume("sync message fits in target")?
-            .copy_from_slice(&command_data);
+            .ok_or(SyncError::BufferTooSmall)?;
+        data_target.copy_from_slice(&command_data);
+
+        self.message_index = self
+            .message_index
+            .checked_add(1)
+            .assume("message_index overflow")?;
+        self.next_send = next_send;
         Ok(total_length)
     }
 
@@ -536,8 +606,10 @@ impl SyncResponder {
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let Some(graph_id) = self.graph_id else {
+            // `push` is public; calling it before a sync request set the
+            // graph id is a usage error, not a bug.
             self.state = S::Reset;
-            bug!("poll called before graph_id was set");
+            return Err(SyncError::NotReady);
         };
 
         let storage = match provider.get_storage(graph_id) {
@@ -557,22 +629,25 @@ impl SyncResponder {
                     response_index: self.message_index as u64,
                     commands,
                 },
-                graph_id: self.graph_id.assume("graph id must exist")?,
+                graph_id,
             };
-            self.message_index = self
-                .message_index
-                .checked_add(1)
-                .assume("message_index increment overflow")?;
-            self.next_send = next_send;
 
             length = Self::write_sync_type(target, message)?;
             let total_length = length
                 .checked_add(command_data.len())
                 .assume("length + command_data_length mustn't overflow")?;
-            target
+            // Don't advance the session until the whole message fits, so the
+            // caller can retry with a larger buffer without losing commands.
+            let data_target = target
                 .get_mut(length..total_length)
-                .assume("sync message fits in target")?
-                .copy_from_slice(&command_data);
+                .ok_or(SyncError::BufferTooSmall)?;
+            data_target.copy_from_slice(&command_data);
+
+            self.message_index = self
+                .message_index
+                .checked_add(1)
+                .assume("message_index increment overflow")?;
+            self.next_send = next_send;
             length = total_length;
         }
         Ok(length)
@@ -607,7 +682,6 @@ impl SyncResponder {
             if commands.is_full() {
                 break;
             }
-            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
             let Some(&location) = self.to_send.get(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
@@ -619,47 +693,245 @@ impl SyncResponder {
 
             let found = segment.get_from(location);
 
+            let mut sent: usize = 0;
             for command in &found {
-                let mut policy_length = 0;
-
-                if let Some(policy) = command.policy() {
-                    policy_length = policy.len();
-                    command_data
-                        .extend_from_slice(policy)
-                        .ok()
-                        .assume("command_data is too large")?;
-                }
-
-                let bytes = command.bytes();
-                command_data
-                    .extend_from_slice(bytes)
-                    .ok()
-                    .assume("command_data is too large")?;
-
-                let max_cut = command.max_cut()?;
-                let meta = CommandMeta {
-                    id: command.id(),
-                    priority: command.priority(),
-                    parent: command.parent(),
-                    policy_length: policy_length as u32,
-                    length: bytes.len() as u32,
-                    max_cut,
-                };
-
-                // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
-                commands
-                    .push(meta)
-                    .ok()
-                    .assume("too many commands in segment")?;
                 if commands.is_full() {
                     break;
                 }
+
+                let mut policy_length = 0;
+
+                // Stored command sizes are not bounded by
+                // `MAX_COMMAND_LENGTH` on the ingest path, so a batch can
+                // exceed the buffer; that's an oversized sync, not a bug.
+                if let Some(policy) = command.policy() {
+                    policy_length = policy.len();
+                    command_data.extend_from_slice(policy).map_err(|()| {
+                        self.state = SyncResponderState::Reset;
+                        SyncError::CommandOverflow
+                    })?;
+                }
+
+                let bytes = command.bytes();
+                command_data.extend_from_slice(bytes).map_err(|()| {
+                    self.state = SyncResponderState::Reset;
+                    SyncError::CommandOverflow
+                })?;
+
+                let meta = CommandMeta {
+                    id: command.id(),
+                    parent: command.parent(),
+                    policy_length: policy_length as u32,
+                    length: bytes.len() as u32,
+                };
+
+                commands.push(meta).ok().assume("commands is not full")?;
+                sent = sent.checked_add(1).assume("sent + 1 mustn't overflow")?;
             }
+
+            if sent < found.len() {
+                // The response filled up partway through this segment.
+                // Point this entry at the first unsent command so the next
+                // response resumes inside the segment; a command's location
+                // within a segment advances one max_cut per command.
+                let resume_max_cut = location
+                    .max_cut
+                    .checked_add(sent as u64)
+                    .assume("max_cut + sent mustn't overflow")?;
+                *self.to_send.get_mut(i).assume("send index in bounds")? =
+                    Location::new(location.segment, resume_max_cut);
+                index = i;
+                break;
+            }
+
+            index = i.checked_add(1).assume("index + 1 mustn't overflow")?;
         }
         Ok((commands, command_data, index))
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {
         Ok(self.session_id.assume("session id is set")?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::arithmetic_side_effects)]
+
+    use aranya_crypto::Rng;
+
+    use super::*;
+    use crate::{
+        ClientState, RuntimeBuffers, mem_spill,
+        storage::linear::testing::MemStorageProvider,
+        sync::{MAX_SYNC_MESSAGE_SIZE, SyncIncoming, SyncRequester},
+        testing::protocol::{TestActions, TestPolicyStore, TestSink},
+    };
+
+    type TestClient = ClientState<TestPolicyStore, MemStorageProvider>;
+
+    fn new_client() -> TestClient {
+        ClientState::new(TestPolicyStore::new(), MemStorageProvider::default())
+    }
+
+    fn new_sink() -> TestSink {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        sink
+    }
+
+    /// Runs one complete sync session from `source` (responder side) to
+    /// `dest` (requester side), reusing a single `SyncResponder` and polling
+    /// it repeatedly until it reports `SyncEnd`, exactly like a production
+    /// transport's poll loop. Returns the number of new commands `dest`
+    /// accepted.
+    fn run_full_session(
+        source: &mut TestClient,
+        dest: &mut TestClient,
+        graph_id: GraphId,
+    ) -> usize {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        let req_cache = PeerCache::new();
+        let mut resp_cache = PeerCache::new();
+
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut responder = SyncResponder::new();
+
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _sent) = requester
+            .poll(
+                &mut buffer,
+                dest.provider(),
+                &req_cache.session_heads(),
+                &mut rt_buffers.traversal.primary,
+            )
+            .expect("requester poll");
+
+        match SyncIncoming::decode(&buffer[..len]).expect("decode") {
+            SyncIncoming::Poll(poll) => responder.receive(poll).expect("responder receive"),
+            _ => panic!("expected a poll message"),
+        }
+
+        let mut trx = dest.transaction(graph_id);
+        let mut received = 0;
+        let mut rounds = 0;
+        while responder.ready() {
+            rounds += 1;
+            assert!(rounds <= 64, "sync session did not terminate");
+            let len = responder
+                .poll(
+                    &mut buffer,
+                    source.provider(),
+                    &mut resp_cache,
+                    &mut rt_buffers.traversal,
+                )
+                .expect("responder poll");
+            if len == 0 {
+                break;
+            }
+            let Some(cmds) = requester
+                .receive(&buffer[..len])
+                .expect("requester receive")
+            else {
+                // SyncEnd: the responder claims the session is complete.
+                break;
+            };
+            received += dest
+                .add_commands(&mut trx, &mut sink, &cmds, &mut rt_buffers, mem_spill)
+                .expect("add_commands");
+        }
+        dest.commit(trx, &mut sink, &mut rt_buffers, mem_spill)
+            .expect("commit");
+        received
+    }
+
+    /// Builds a client whose graph is `2 * stage` commands arranged so a
+    /// *second* client that syncs from it holds exactly two `stage`-command
+    /// segments (the receiver batches each session's contiguous commands
+    /// into one segment). Returns the second client.
+    fn client_with_two_segments(stage: u64) -> (TestClient, GraphId) {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        let mut a = new_client();
+        let graph_id = a
+            .new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)
+            .expect("new_graph");
+        // Stage 1: init + (stage - 1) actions = `stage` commands.
+        for i in 1..stage {
+            a.action(
+                graph_id,
+                &mut sink,
+                TestActions::SetValue(i, i),
+                &mut rt_buffers,
+                mem_spill,
+            )
+            .expect("action");
+        }
+        let mut b = new_client();
+        run_full_session(&mut a, &mut b, graph_id);
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            a.head_address(graph_id).expect("a head"),
+            "stage 1 sync must fully transfer (below response limit)"
+        );
+
+        // Stage 2: `stage` more commands, transferred in a second session so
+        // they land in a second segment on `b`.
+        for i in stage..(2 * stage) {
+            a.action(
+                graph_id,
+                &mut sink,
+                TestActions::SetValue(i, i),
+                &mut rt_buffers,
+                mem_spill,
+            )
+            .expect("action");
+        }
+        run_full_session(&mut a, &mut b, graph_id);
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            a.head_address(graph_id).expect("a head"),
+            "stage 2 sync must fully transfer (below response limit)"
+        );
+
+        (b, graph_id)
+    }
+
+    /// Harness soundness check: with two 40-command segments (80 total,
+    /// under `COMMAND_RESPONSE_MAX`), a full session transfers everything.
+    #[test]
+    fn multi_round_session_below_response_max_converges() {
+        let (mut b, graph_id) = client_with_two_segments(40);
+        let mut c = new_client();
+        let received = run_full_session(&mut b, &mut c, graph_id);
+        assert_eq!(received, 80);
+        assert_eq!(
+            c.head_address(graph_id).expect("c head"),
+            b.head_address(graph_id).expect("b head"),
+        );
+    }
+
+    /// Reproduces S1: `get_commands` advances `next_send` past a segment
+    /// *before* copying its commands, so when `COMMAND_RESPONSE_MAX` fills
+    /// mid-segment the rest of that segment is never sent for the remainder
+    /// of the session, which nonetheless ends with a clean
+    /// `SyncEnd { remaining: false }`.
+    ///
+    /// Layout: two 60-command segments (120 commands). Round 1 sends 100
+    /// commands (all of segment 1 + 40 of segment 2) but records both
+    /// segments as fully sent; round 2 emits `SyncEnd`, silently dropping
+    /// the last 20 commands.
+    #[test]
+    fn multi_round_session_drops_tail_of_straddling_segment() {
+        let (mut b, graph_id) = client_with_two_segments(60);
+        let mut c = new_client();
+        let received = run_full_session(&mut b, &mut c, graph_id);
+        assert_eq!(
+            c.head_address(graph_id).expect("c head"),
+            b.head_address(graph_id).expect("b head"),
+            "session ended with SyncEnd but receiver is missing commands \
+             (received {received} of 120)",
+        );
     }
 }

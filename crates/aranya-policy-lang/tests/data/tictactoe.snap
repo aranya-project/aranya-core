@@ -96,6 +96,7 @@ Policy {
                     ty: Id @ 641..643,
                 },
             ],
+            return_type: Unit @ 0..0,
             statements: [
                 Let(
                     LetStatement {
@@ -133,61 +134,62 @@ Policy {
         },
         ActionDefinition {
             persistence: Persistent,
-            identifier: "MakeMove" @ 1521..1529,
+            identifier: "MakeMove" @ 1566..1574,
             arguments: [
                 Param {
-                    name: "gameID" @ 1530..1536,
-                    ty: Id @ 1537..1539,
+                    name: "gameID" @ 1575..1581,
+                    ty: Id @ 1582..1584,
                 },
                 Param {
-                    name: "x" @ 1541..1542,
-                    ty: Int @ 1543..1546,
+                    name: "x" @ 1586..1587,
+                    ty: Int @ 1588..1591,
                 },
                 Param {
-                    name: "y" @ 1548..1549,
-                    ty: Int @ 1550..1553,
+                    name: "y" @ 1593..1594,
+                    ty: Int @ 1595..1598,
                 },
             ],
+            return_type: Unit @ 0..0,
             statements: [
                 Let(
                     LetStatement {
-                        identifier: "move_command" @ 1565..1577,
+                        identifier: "move_command" @ 1610..1622,
                         expression: NamedStruct(
                             NamedStruct {
-                                identifier: "Move" @ 1580..1584,
+                                identifier: "Move" @ 1625..1629,
                                 fields: [
                                     (
-                                        "gameID" @ 1595..1601,
+                                        "gameID" @ 1640..1646,
                                         Identifier(
-                                            "gameID" @ 1603..1609,
-                                        ) @ 1603..1609,
+                                            "gameID" @ 1648..1654,
+                                        ) @ 1648..1654,
                                     ),
                                     (
-                                        "X" @ 1619..1620,
+                                        "X" @ 1664..1665,
                                         Identifier(
-                                            "x" @ 1622..1623,
-                                        ) @ 1622..1623,
+                                            "x" @ 1667..1668,
+                                        ) @ 1667..1668,
                                     ),
                                     (
-                                        "Y" @ 1633..1634,
+                                        "Y" @ 1678..1679,
                                         Identifier(
-                                            "y" @ 1636..1637,
-                                        ) @ 1636..1637,
+                                            "y" @ 1681..1682,
+                                        ) @ 1681..1682,
                                     ),
                                 ],
                                 sources: [],
-                                span: 1580..1644,
+                                span: 1625..1689,
                             },
-                        ) @ 1580..1644,
+                        ) @ 1625..1689,
                     },
-                ) @ 1561..1649,
+                ) @ 1606..1694,
                 Publish(
                     Identifier(
-                        "move_command" @ 1657..1669,
-                    ) @ 1657..1669,
-                ) @ 1649..1670,
+                        "move_command" @ 1702..1714,
+                    ) @ 1702..1714,
+                ) @ 1694..1715,
             ],
-            span: 1514..1671,
+            span: 1559..1716,
         },
     ],
     effects: [
@@ -219,72 +221,72 @@ Policy {
             span: 769..824,
         },
         EffectDefinition {
-            identifier: "GameUpdate" @ 1680..1690,
+            identifier: "GameUpdate" @ 1725..1735,
             items: [
                 Field(
                     EffectFieldDefinition {
-                        identifier: "gameID" @ 1697..1703,
-                        field_type: Id @ 1704..1706,
+                        identifier: "gameID" @ 1742..1748,
+                        field_type: Id @ 1749..1751,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "player" @ 1712..1718,
-                        field_type: Id @ 1719..1721,
+                        identifier: "player" @ 1757..1763,
+                        field_type: Id @ 1764..1766,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "p" @ 1879..1880,
-                        field_type: String @ 1886..1892,
+                        identifier: "p" @ 1924..1925,
+                        field_type: String @ 1931..1937,
                         dynamic: true,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "X" @ 1906..1907,
-                        field_type: Int @ 1913..1916,
+                        identifier: "X" @ 1951..1952,
+                        field_type: Int @ 1958..1961,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "Y" @ 1922..1923,
-                        field_type: Int @ 1929..1932,
+                        identifier: "Y" @ 1967..1968,
+                        field_type: Int @ 1974..1977,
                         dynamic: false,
                     },
                 ),
             ],
-            span: 1673..1935,
+            span: 1718..1980,
         },
         EffectDefinition {
-            identifier: "GameOver" @ 1944..1952,
+            identifier: "GameOver" @ 1989..1997,
             items: [
                 Field(
                     EffectFieldDefinition {
-                        identifier: "gameID" @ 1959..1965,
-                        field_type: Id @ 1966..1968,
+                        identifier: "gameID" @ 2004..2010,
+                        field_type: Id @ 2011..2013,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "winner" @ 1974..1980,
-                        field_type: Id @ 1981..1983,
+                        identifier: "winner" @ 2019..2025,
+                        field_type: Id @ 2026..2028,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "p" @ 1989..1990,
-                        field_type: String @ 1991..1997,
+                        identifier: "p" @ 2034..2035,
+                        field_type: String @ 2036..2042,
                         dynamic: false,
                     },
                 ),
             ],
-            span: 1937..2000,
+            span: 1982..2045,
         },
     ],
     structs: [],
@@ -341,149 +343,156 @@ Policy {
                                 "ProfileO" @ 1020..1028,
                             ) @ 1020..1028,
                         ) @ 1008..1028,
-                        else_expression: None,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "Profiles must be different",
+                                ),
+                                1034..1073,
+                            ),
+                        ) @ 1034..1073,
                     },
-                ) @ 1002..1168,
+                ) @ 1002..1213,
                 Let(
                     LetStatement {
-                        identifier: "gameID" @ 1172..1178,
+                        identifier: "gameID" @ 1217..1223,
                         expression: ForeignFunctionCall(
                             ForeignFunctionCall {
-                                module: "envelope" @ 1181..1189,
-                                identifier: "command_id" @ 1191..1201,
+                                module: "envelope" @ 1226..1234,
+                                identifier: "command_id" @ 1236..1246,
                                 arguments: [
                                     Identifier(
-                                        "envelope" @ 1202..1210,
-                                    ) @ 1202..1210,
+                                        "envelope" @ 1247..1255,
+                                    ) @ 1247..1255,
                                 ],
                             },
-                        ) @ 1181..1211,
+                        ) @ 1226..1256,
                     },
-                ) @ 1168..1220,
+                ) @ 1213..1265,
                 Finish(
                     [
                         Create(
                             CreateStatement {
                                 fact: FactLiteral {
-                                    identifier: "PlayerProfile" @ 1248..1261,
+                                    identifier: "PlayerProfile" @ 1293..1306,
                                     key_fields: [
                                         (
-                                            "gameID" @ 1262..1268,
+                                            "gameID" @ 1307..1313,
                                             Expression(
                                                 Identifier(
-                                                    "gameID" @ 1270..1276,
-                                                ) @ 1270..1276,
+                                                    "gameID" @ 1315..1321,
+                                                ) @ 1315..1321,
                                             ),
                                         ),
                                     ],
                                     value_fields: Some(
                                         [
                                             (
-                                                "x" @ 1280..1281,
+                                                "x" @ 1325..1326,
                                                 Expression(
                                                     Identifier(
-                                                        "ProfileX" @ 1283..1291,
-                                                    ) @ 1283..1291,
+                                                        "ProfileX" @ 1328..1336,
+                                                    ) @ 1328..1336,
                                                 ),
                                             ),
                                             (
-                                                "o" @ 1293..1294,
+                                                "o" @ 1338..1339,
                                                 Expression(
                                                     Identifier(
-                                                        "ProfileO" @ 1296..1304,
-                                                    ) @ 1296..1304,
+                                                        "ProfileO" @ 1341..1349,
+                                                    ) @ 1341..1349,
                                                 ),
                                             ),
                                         ],
                                     ),
                                 },
                             },
-                        ) @ 1241..1305,
+                        ) @ 1286..1350,
                         Create(
                             CreateStatement {
                                 fact: FactLiteral {
-                                    identifier: "NextPlayer" @ 1325..1335,
+                                    identifier: "NextPlayer" @ 1370..1380,
                                     key_fields: [
                                         (
-                                            "gameID" @ 1336..1342,
+                                            "gameID" @ 1381..1387,
                                             Expression(
                                                 Identifier(
-                                                    "gameID" @ 1344..1350,
-                                                ) @ 1344..1350,
+                                                    "gameID" @ 1389..1395,
+                                                ) @ 1389..1395,
                                             ),
                                         ),
                                     ],
                                     value_fields: Some(
                                         [
                                             (
-                                                "p" @ 1354..1355,
+                                                "p" @ 1399..1400,
                                                 Expression(
                                                     String(
                                                         "X",
-                                                    ) @ 1357..1360,
+                                                    ) @ 1402..1405,
                                                 ),
                                             ),
                                         ],
                                     ),
                                 },
                             },
-                        ) @ 1318..1361,
+                        ) @ 1363..1406,
                         Emit(
                             NamedStruct(
                                 NamedStruct {
-                                    identifier: "GameStart" @ 1380..1389,
+                                    identifier: "GameStart" @ 1425..1434,
                                     fields: [
                                         (
-                                            "gameID" @ 1407..1413,
+                                            "gameID" @ 1452..1458,
                                             Identifier(
-                                                "gameID" @ 1415..1421,
-                                            ) @ 1415..1421,
+                                                "gameID" @ 1460..1466,
+                                            ) @ 1460..1466,
                                         ),
                                         (
-                                            "x" @ 1439..1440,
+                                            "x" @ 1484..1485,
                                             Identifier(
-                                                "ProfileX" @ 1442..1450,
-                                            ) @ 1442..1450,
+                                                "ProfileX" @ 1487..1495,
+                                            ) @ 1487..1495,
                                         ),
                                         (
-                                            "o" @ 1468..1469,
+                                            "o" @ 1513..1514,
                                             Identifier(
-                                                "ProfileO" @ 1471..1479,
-                                            ) @ 1471..1479,
+                                                "ProfileO" @ 1516..1524,
+                                            ) @ 1516..1524,
                                         ),
                                     ],
                                     sources: [],
-                                    span: 1380..1494,
+                                    span: 1425..1539,
                                 },
-                            ) @ 1380..1494,
-                        ) @ 1375..1503,
+                            ) @ 1425..1539,
+                        ) @ 1420..1548,
                     ],
-                ) @ 1220..1504,
+                ) @ 1265..1549,
             ],
             recalls: [],
-            span: 826..1512,
+            span: 826..1557,
         },
         CommandDefinition {
             persistence: Persistent,
             attributes: [],
-            identifier: "Move" @ 2010..2014,
+            identifier: "Move" @ 2055..2059,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "gameID" @ 2079..2085,
-                        field_type: Id @ 2086..2088,
+                        identifier: "gameID" @ 2124..2130,
+                        field_type: Id @ 2131..2133,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "X" @ 2098..2099,
-                        field_type: Int @ 2100..2103,
+                        identifier: "X" @ 2143..2144,
+                        field_type: Int @ 2145..2148,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "Y" @ 2113..2114,
-                        field_type: Int @ 2115..2118,
+                        identifier: "Y" @ 2158..2159,
+                        field_type: Int @ 2160..2163,
                     },
                 ),
             ],
@@ -492,366 +501,399 @@ Policy {
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                2152..2158,
+                                2197..2203,
                             ),
-                        ) @ 2152..2158,
+                        ) @ 2197..2203,
                     },
-                ) @ 2145..2163,
+                ) @ 2190..2208,
             ],
             open: [
                 Return(
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                2191..2197,
+                                2236..2242,
                             ),
-                        ) @ 2191..2197,
+                        ) @ 2236..2242,
                     },
-                ) @ 2184..2202,
+                ) @ 2229..2247,
             ],
             policy: [
                 Let(
                     LetStatement {
-                        identifier: "player" @ 2609..2615,
+                        identifier: "player" @ 2654..2660,
                         expression: ForeignFunctionCall(
                             ForeignFunctionCall {
-                                module: "envelope" @ 2618..2626,
-                                identifier: "author_id" @ 2628..2637,
+                                module: "envelope" @ 2663..2671,
+                                identifier: "author_id" @ 2673..2682,
                                 arguments: [
                                     Identifier(
-                                        "envelope" @ 2638..2646,
-                                    ) @ 2638..2646,
+                                        "envelope" @ 2683..2691,
+                                    ) @ 2683..2691,
                                 ],
                             },
-                        ) @ 2618..2647,
+                        ) @ 2663..2692,
                     },
-                ) @ 2605..2949,
+                ) @ 2650..3066,
                 Let(
                     LetStatement {
-                        identifier: "result" @ 2953..2959,
-                        expression: Unwrap(
+                        identifier: "res" @ 3070..3073,
+                        expression: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "PlayerProfile" @ 2975..2988,
+                                        identifier: "PlayerProfile" @ 3082..3095,
                                         key_fields: [
                                             (
-                                                "gameID" @ 2989..2995,
+                                                "gameID" @ 3096..3102,
                                                 Expression(
                                                     Identifier(
-                                                        "gameID" @ 2997..3003,
-                                                    ) @ 2997..3003,
+                                                        "gameID" @ 3104..3110,
+                                                    ) @ 3104..3110,
                                                 ),
                                             ),
                                         ],
                                         value_fields: Some(
                                             [
                                                 (
-                                                    "x" @ 3007..3008,
+                                                    "x" @ 3114..3115,
                                                     Bind(
-                                                        3010..3011,
+                                                        3117..3118,
                                                     ),
                                                 ),
                                                 (
-                                                    "o" @ 3013..3014,
+                                                    "o" @ 3120..3121,
                                                     Bind(
-                                                        3016..3017,
+                                                        3123..3124,
                                                     ),
                                                 ),
                                             ],
                                         ),
                                     },
                                 ),
-                            ) @ 2969..3018,
-                        ) @ 2962..3018,
+                            ) @ 3076..3125,
+                            InternalFunction(
+                                TestFail(
+                                    None,
+                                    3129..3140,
+                                ),
+                            ) @ 3129..3140,
+                        ) @ 3076..3140,
                     },
-                ) @ 2949..3027,
+                ) @ 3066..3149,
                 Let(
                     LetStatement {
-                        identifier: "playerX" @ 3031..3038,
+                        identifier: "playerX" @ 3153..3160,
                         expression: Dot(
                             Identifier(
-                                "result" @ 3041..3047,
-                            ) @ 3041..3047,
-                            "x" @ 3048..3049,
-                        ) @ 3041..3049,
+                                "res" @ 3163..3166,
+                            ) @ 3163..3166,
+                            "x" @ 3167..3168,
+                        ) @ 3163..3168,
                     },
-                ) @ 3027..3058,
+                ) @ 3149..3177,
                 Let(
                     LetStatement {
-                        identifier: "playerO" @ 3062..3069,
+                        identifier: "playerO" @ 3181..3188,
                         expression: Dot(
                             Identifier(
-                                "result" @ 3072..3078,
-                            ) @ 3072..3078,
-                            "o" @ 3079..3080,
-                        ) @ 3072..3080,
+                                "res" @ 3191..3194,
+                            ) @ 3191..3194,
+                            "o" @ 3195..3196,
+                        ) @ 3191..3196,
                     },
-                ) @ 3058..3089,
+                ) @ 3177..3205,
                 Let(
                     LetStatement {
-                        identifier: "p" @ 3093..3094,
-                        expression: Unwrap(
+                        identifier: "p" @ 3209..3210,
+                        expression: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "NextPlayer" @ 3110..3120,
+                                        identifier: "NextPlayer" @ 3219..3229,
                                         key_fields: [
                                             (
-                                                "gameID" @ 3121..3127,
+                                                "gameID" @ 3230..3236,
                                                 Expression(
                                                     Identifier(
-                                                        "gameID" @ 3129..3135,
-                                                    ) @ 3129..3135,
+                                                        "gameID" @ 3238..3244,
+                                                    ) @ 3238..3244,
                                                 ),
                                             ),
                                         ],
                                         value_fields: Some(
                                             [
                                                 (
-                                                    "p" @ 3139..3140,
+                                                    "p" @ 3248..3249,
                                                     Bind(
-                                                        3142..3143,
+                                                        3251..3252,
                                                     ),
                                                 ),
                                             ],
                                         ),
                                     },
                                 ),
-                            ) @ 3104..3144,
-                        ) @ 3097..3144,
+                            ) @ 3213..3253,
+                            InternalFunction(
+                                TestFail(
+                                    None,
+                                    3257..3268,
+                                ),
+                            ) @ 3257..3268,
+                        ) @ 3213..3268,
                     },
-                ) @ 3089..3265,
+                ) @ 3205..3389,
                 Let(
                     LetStatement {
-                        identifier: "nextp" @ 3269..3274,
+                        identifier: "nextp" @ 3393..3398,
                         expression: InternalFunction(
                             If(
                                 Equal(
                                     Identifier(
-                                        "p" @ 3280..3281,
-                                    ) @ 3280..3281,
+                                        "p" @ 3404..3405,
+                                    ) @ 3404..3405,
                                     String(
                                         "X",
-                                    ) @ 3285..3288,
-                                ) @ 3280..3288,
+                                    ) @ 3409..3412,
+                                ) @ 3404..3412,
                                 Block(
                                     [],
                                     String(
                                         "O",
-                                    ) @ 3292..3295,
-                                ) @ 3289..3297,
+                                    ) @ 3416..3419,
+                                ) @ 3413..3421,
                                 Block(
                                     [],
                                     String(
                                         "X",
-                                    ) @ 3306..3309,
-                                ) @ 3303..3311,
+                                    ) @ 3430..3433,
+                                ) @ 3427..3435,
                             ),
-                        ) @ 3277..3311,
+                        ) @ 3401..3435,
                     },
-                ) @ 3265..3554,
+                ) @ 3389..3678,
                 Check(
                     CheckStatement {
                         expression: Or(
                             And(
                                 Equal(
                                     Identifier(
-                                        "p" @ 3561..3562,
-                                    ) @ 3561..3562,
+                                        "p" @ 3685..3686,
+                                    ) @ 3685..3686,
                                     String(
                                         "X",
-                                    ) @ 3566..3569,
-                                ) @ 3561..3569,
+                                    ) @ 3690..3693,
+                                ) @ 3685..3693,
                                 Equal(
                                     Identifier(
-                                        "player" @ 3573..3579,
-                                    ) @ 3573..3579,
+                                        "player" @ 3697..3703,
+                                    ) @ 3697..3703,
                                     Identifier(
-                                        "playerX" @ 3583..3590,
-                                    ) @ 3583..3590,
-                                ) @ 3573..3590,
-                            ) @ 3561..3590,
+                                        "playerX" @ 3707..3714,
+                                    ) @ 3707..3714,
+                                ) @ 3697..3714,
+                            ) @ 3685..3714,
                             And(
                                 Equal(
                                     Identifier(
-                                        "p" @ 3596..3597,
-                                    ) @ 3596..3597,
+                                        "p" @ 3720..3721,
+                                    ) @ 3720..3721,
                                     String(
                                         "O",
-                                    ) @ 3601..3604,
-                                ) @ 3596..3604,
+                                    ) @ 3725..3728,
+                                ) @ 3720..3728,
                                 Equal(
                                     Identifier(
-                                        "player" @ 3608..3614,
-                                    ) @ 3608..3614,
+                                        "player" @ 3732..3738,
+                                    ) @ 3732..3738,
                                     Identifier(
-                                        "playerO" @ 3618..3625,
-                                    ) @ 3618..3625,
-                                ) @ 3608..3625,
-                            ) @ 3596..3625,
-                        ) @ 3561..3625,
-                        else_expression: None,
+                                        "playerO" @ 3742..3749,
+                                    ) @ 3742..3749,
+                                ) @ 3732..3749,
+                            ) @ 3720..3749,
+                        ) @ 3685..3749,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "bad state: wrong player",
+                                ),
+                                3756..3792,
+                            ),
+                        ) @ 3756..3792,
                     },
-                ) @ 3554..3686,
+                ) @ 3678..3852,
                 Check(
                     CheckStatement {
                         expression: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 3692..3698,
+                                identifier: "bounds" @ 3858..3864,
                                 arguments: [
                                     Identifier(
-                                        "X" @ 3699..3700,
-                                    ) @ 3699..3700,
+                                        "X" @ 3865..3866,
+                                    ) @ 3865..3866,
                                 ],
                             },
-                        ) @ 3692..3701,
-                        else_expression: None,
+                        ) @ 3858..3867,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "X out of bounds",
+                                ),
+                                3873..3901,
+                            ),
+                        ) @ 3873..3901,
                     },
-                ) @ 3686..3710,
+                ) @ 3852..3910,
                 Check(
                     CheckStatement {
                         expression: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 3716..3722,
+                                identifier: "bounds" @ 3916..3922,
                                 arguments: [
                                     Identifier(
-                                        "Y" @ 3723..3724,
-                                    ) @ 3723..3724,
+                                        "Y" @ 3923..3924,
+                                    ) @ 3923..3924,
                                 ],
                             },
-                        ) @ 3716..3725,
-                        else_expression: None,
+                        ) @ 3916..3925,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "Y out of bounds",
+                                ),
+                                3931..3959,
+                            ),
+                        ) @ 3931..3959,
                     },
-                ) @ 3710..3937,
+                ) @ 3910..4171,
                 Finish(
                     [
                         Create(
                             CreateStatement {
                                 fact: FactLiteral {
-                                    identifier: "Field" @ 3965..3970,
+                                    identifier: "Field" @ 4199..4204,
                                     key_fields: [
                                         (
-                                            "gameID" @ 3971..3977,
+                                            "gameID" @ 4205..4211,
                                             Expression(
                                                 Identifier(
-                                                    "gameID" @ 3979..3985,
-                                                ) @ 3979..3985,
+                                                    "gameID" @ 4213..4219,
+                                                ) @ 4213..4219,
                                             ),
                                         ),
                                         (
-                                            "x" @ 3987..3988,
+                                            "x" @ 4221..4222,
                                             Expression(
                                                 Identifier(
-                                                    "X" @ 3990..3991,
-                                                ) @ 3990..3991,
+                                                    "X" @ 4224..4225,
+                                                ) @ 4224..4225,
                                             ),
                                         ),
                                         (
-                                            "y" @ 3993..3994,
+                                            "y" @ 4227..4228,
                                             Expression(
                                                 Identifier(
-                                                    "Y" @ 3996..3997,
-                                                ) @ 3996..3997,
+                                                    "Y" @ 4230..4231,
+                                                ) @ 4230..4231,
                                             ),
                                         ),
                                     ],
                                     value_fields: Some(
                                         [
                                             (
-                                                "p" @ 4001..4002,
+                                                "p" @ 4235..4236,
                                                 Expression(
                                                     Identifier(
-                                                        "p" @ 4004..4005,
-                                                    ) @ 4004..4005,
+                                                        "p" @ 4238..4239,
+                                                    ) @ 4238..4239,
                                                 ),
                                             ),
                                         ],
                                     ),
                                 },
                             },
-                        ) @ 3958..4006,
+                        ) @ 4192..4240,
                         FunctionCall(
                             FunctionCall {
-                                identifier: "set_next_player" @ 4019..4034,
+                                identifier: "set_next_player" @ 4253..4268,
                                 arguments: [
                                     Identifier(
-                                        "gameID" @ 4035..4041,
-                                    ) @ 4035..4041,
+                                        "gameID" @ 4269..4275,
+                                    ) @ 4269..4275,
                                     Identifier(
-                                        "nextp" @ 4043..4048,
-                                    ) @ 4043..4048,
+                                        "nextp" @ 4277..4282,
+                                    ) @ 4277..4282,
                                 ],
                             },
-                        ) @ 4019..4049,
+                        ) @ 4253..4283,
                         Emit(
                             NamedStruct(
                                 NamedStruct {
-                                    identifier: "GameUpdate" @ 4068..4078,
+                                    identifier: "GameUpdate" @ 4302..4312,
                                     fields: [
                                         (
-                                            "gameID" @ 4096..4102,
+                                            "gameID" @ 4330..4336,
                                             Identifier(
-                                                "gameID" @ 4104..4110,
-                                            ) @ 4104..4110,
+                                                "gameID" @ 4338..4344,
+                                            ) @ 4338..4344,
                                         ),
                                         (
-                                            "player" @ 4128..4134,
+                                            "player" @ 4362..4368,
                                             Identifier(
-                                                "player" @ 4136..4142,
-                                            ) @ 4136..4142,
+                                                "player" @ 4370..4376,
+                                            ) @ 4370..4376,
                                         ),
                                         (
-                                            "p" @ 4160..4161,
+                                            "p" @ 4394..4395,
                                             Identifier(
-                                                "p" @ 4163..4164,
-                                            ) @ 4163..4164,
+                                                "p" @ 4397..4398,
+                                            ) @ 4397..4398,
                                         ),
                                         (
-                                            "X" @ 4182..4183,
+                                            "X" @ 4416..4417,
                                             Identifier(
-                                                "X" @ 4185..4186,
-                                            ) @ 4185..4186,
+                                                "X" @ 4419..4420,
+                                            ) @ 4419..4420,
                                         ),
                                         (
-                                            "Y" @ 4204..4205,
+                                            "Y" @ 4438..4439,
                                             Identifier(
-                                                "Y" @ 4207..4208,
-                                            ) @ 4207..4208,
+                                                "Y" @ 4441..4442,
+                                            ) @ 4441..4442,
                                         ),
                                     ],
                                     sources: [],
-                                    span: 4068..4223,
+                                    span: 4302..4457,
                                 },
-                            ) @ 4068..4223,
-                        ) @ 4063..4232,
+                            ) @ 4302..4457,
+                        ) @ 4297..4466,
                     ],
-                ) @ 3937..4233,
+                ) @ 4171..4467,
             ],
             recalls: [],
-            span: 2002..4241,
+            span: 2047..4475,
         },
         CommandDefinition {
             persistence: Persistent,
             attributes: [],
-            identifier: "Move2" @ 5705..5710,
+            identifier: "Move2" @ 5939..5944,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "gameID" @ 5734..5740,
-                        field_type: Id @ 5741..5743,
+                        identifier: "gameID" @ 5968..5974,
+                        field_type: Id @ 5975..5977,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "X" @ 5753..5754,
-                        field_type: Int @ 5755..5758,
+                        identifier: "X" @ 5987..5988,
+                        field_type: Int @ 5989..5992,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "Y" @ 5768..5769,
-                        field_type: Int @ 5770..5773,
+                        identifier: "Y" @ 6002..6003,
+                        field_type: Int @ 6004..6007,
                     },
                 ),
             ],
@@ -860,157 +902,169 @@ Policy {
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                5807..5813,
+                                6041..6047,
                             ),
-                        ) @ 5807..5813,
+                        ) @ 6041..6047,
                     },
-                ) @ 5800..5818,
+                ) @ 6034..6052,
             ],
             open: [
                 Return(
                     ReturnStatement {
                         expression: InternalFunction(
                             Todo(
-                                5846..5852,
+                                6080..6086,
                             ),
-                        ) @ 5846..5852,
+                        ) @ 6080..6086,
                     },
-                ) @ 5839..5857,
+                ) @ 6073..6091,
             ],
             policy: [
                 Let(
                     LetStatement {
-                        identifier: "player" @ 5884..5890,
+                        identifier: "player" @ 6118..6124,
                         expression: ForeignFunctionCall(
                             ForeignFunctionCall {
-                                module: "envelope" @ 5893..5901,
-                                identifier: "author_id" @ 5903..5912,
+                                module: "envelope" @ 6127..6135,
+                                identifier: "author_id" @ 6137..6146,
                                 arguments: [
                                     Identifier(
-                                        "envelope" @ 5913..5921,
-                                    ) @ 5913..5921,
+                                        "envelope" @ 6147..6155,
+                                    ) @ 6147..6155,
                                 ],
                             },
-                        ) @ 5893..5922,
+                        ) @ 6127..6156,
                     },
-                ) @ 5880..5931,
+                ) @ 6114..6165,
                 Let(
                     LetStatement {
-                        identifier: "players" @ 5935..5942,
-                        expression: Unwrap(
+                        identifier: "players" @ 6169..6176,
+                        expression: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "PlayerProfile" @ 5958..5971,
+                                        identifier: "PlayerProfile" @ 6185..6198,
                                         key_fields: [
                                             (
-                                                "gameID" @ 5972..5978,
+                                                "gameID" @ 6199..6205,
                                                 Expression(
                                                     Identifier(
-                                                        "gameID" @ 5980..5986,
-                                                    ) @ 5980..5986,
+                                                        "gameID" @ 6207..6213,
+                                                    ) @ 6207..6213,
                                                 ),
                                             ),
                                         ],
                                         value_fields: Some(
                                             [
                                                 (
-                                                    "x" @ 5990..5991,
+                                                    "x" @ 6217..6218,
                                                     Bind(
-                                                        5993..5994,
+                                                        6220..6221,
                                                     ),
                                                 ),
                                                 (
-                                                    "o" @ 5996..5997,
+                                                    "o" @ 6223..6224,
                                                     Bind(
-                                                        5999..6000,
+                                                        6226..6227,
                                                     ),
                                                 ),
                                             ],
                                         ),
                                     },
                                 ),
-                            ) @ 5952..6001,
-                        ) @ 5945..6001,
+                            ) @ 6179..6228,
+                            InternalFunction(
+                                TestFail(
+                                    None,
+                                    6232..6243,
+                                ),
+                            ) @ 6232..6243,
+                        ) @ 6179..6243,
                     },
-                ) @ 5931..6010,
+                ) @ 6165..6252,
                 Let(
                     LetStatement {
-                        identifier: "p" @ 6014..6015,
-                        expression: Unwrap(
+                        identifier: "p" @ 6256..6257,
+                        expression: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "NextPlayer" @ 6031..6041,
+                                        identifier: "NextPlayer" @ 6266..6276,
                                         key_fields: [
                                             (
-                                                "gameID" @ 6042..6048,
+                                                "gameID" @ 6277..6283,
                                                 Expression(
                                                     Identifier(
-                                                        "gameID" @ 6050..6056,
-                                                    ) @ 6050..6056,
+                                                        "gameID" @ 6285..6291,
+                                                    ) @ 6285..6291,
                                                 ),
                                             ),
                                         ],
                                         value_fields: Some(
                                             [
                                                 (
-                                                    "p" @ 6060..6061,
+                                                    "p" @ 6295..6296,
                                                     Bind(
-                                                        6063..6064,
+                                                        6298..6299,
                                                     ),
                                                 ),
                                             ],
                                         ),
                                     },
                                 ),
-                            ) @ 6025..6065,
-                        ) @ 6018..6065,
+                            ) @ 6260..6300,
+                            InternalFunction(
+                                TestFail(
+                                    None,
+                                    6304..6315,
+                                ),
+                            ) @ 6304..6315,
+                        ) @ 6260..6315,
                     },
-                ) @ 6010..6074,
+                ) @ 6252..6324,
                 Let(
                     LetStatement {
-                        identifier: "nextp" @ 6078..6083,
+                        identifier: "nextp" @ 6328..6333,
                         expression: InternalFunction(
                             If(
                                 Equal(
                                     Identifier(
-                                        "p" @ 6089..6090,
-                                    ) @ 6089..6090,
+                                        "p" @ 6339..6340,
+                                    ) @ 6339..6340,
                                     String(
                                         "X",
-                                    ) @ 6094..6097,
-                                ) @ 6089..6097,
+                                    ) @ 6344..6347,
+                                ) @ 6339..6347,
                                 Block(
                                     [],
                                     String(
                                         "O",
-                                    ) @ 6101..6104,
-                                ) @ 6098..6106,
+                                    ) @ 6351..6354,
+                                ) @ 6348..6356,
                                 Block(
                                     [],
                                     String(
                                         "X",
-                                    ) @ 6115..6118,
-                                ) @ 6112..6120,
+                                    ) @ 6365..6368,
+                                ) @ 6362..6370,
                             ),
-                        ) @ 6086..6120,
+                        ) @ 6336..6370,
                     },
-                ) @ 6074..6130,
+                ) @ 6324..6380,
                 Check(
                     CheckStatement {
                         expression: Not(
                             InternalFunction(
                                 Exists(
                                     FactLiteral {
-                                        identifier: "GameOver" @ 6144..6152,
+                                        identifier: "GameOver" @ 6394..6402,
                                         key_fields: [
                                             (
-                                                "gameID" @ 6153..6159,
+                                                "gameID" @ 6403..6409,
                                                 Expression(
                                                     Identifier(
-                                                        "gameID" @ 6161..6167,
-                                                    ) @ 6161..6167,
+                                                        "gameID" @ 6411..6417,
+                                                    ) @ 6411..6417,
                                                 ),
                                             ),
                                         ],
@@ -1019,118 +1073,146 @@ Policy {
                                         ),
                                     },
                                 ),
-                            ) @ 6137..6172,
-                        ) @ 6136..6172,
-                        else_expression: None,
+                            ) @ 6387..6422,
+                        ) @ 6386..6422,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "game is over",
+                                ),
+                                6428..6453,
+                            ),
+                        ) @ 6428..6453,
                     },
-                ) @ 6130..6181,
+                ) @ 6380..6462,
                 Check(
                     CheckStatement {
                         expression: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 6187..6193,
+                                identifier: "bounds" @ 6468..6474,
                                 arguments: [
                                     Identifier(
-                                        "X" @ 6194..6195,
-                                    ) @ 6194..6195,
+                                        "X" @ 6475..6476,
+                                    ) @ 6475..6476,
                                 ],
                             },
-                        ) @ 6187..6196,
-                        else_expression: None,
+                        ) @ 6468..6477,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "X invalid",
+                                ),
+                                6483..6505,
+                            ),
+                        ) @ 6483..6505,
                     },
-                ) @ 6181..6205,
+                ) @ 6462..6514,
                 Check(
                     CheckStatement {
                         expression: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 6211..6217,
+                                identifier: "bounds" @ 6520..6526,
                                 arguments: [
                                     Identifier(
-                                        "Y" @ 6218..6219,
-                                    ) @ 6218..6219,
+                                        "Y" @ 6527..6528,
+                                    ) @ 6527..6528,
                                 ],
                             },
-                        ) @ 6211..6220,
-                        else_expression: None,
+                        ) @ 6520..6529,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "Y invalid",
+                                ),
+                                6535..6557,
+                            ),
+                        ) @ 6535..6557,
                     },
-                ) @ 6205..6229,
+                ) @ 6514..6566,
                 Check(
                     CheckStatement {
                         expression: Or(
                             And(
                                 Equal(
                                     Identifier(
-                                        "p" @ 6236..6237,
-                                    ) @ 6236..6237,
+                                        "p" @ 6573..6574,
+                                    ) @ 6573..6574,
                                     String(
                                         "X",
-                                    ) @ 6241..6244,
-                                ) @ 6236..6244,
+                                    ) @ 6578..6581,
+                                ) @ 6573..6581,
                                 Equal(
                                     Identifier(
-                                        "player" @ 6248..6254,
-                                    ) @ 6248..6254,
+                                        "player" @ 6585..6591,
+                                    ) @ 6585..6591,
                                     Dot(
                                         Identifier(
-                                            "players" @ 6258..6265,
-                                        ) @ 6258..6265,
-                                        "x" @ 6266..6267,
-                                    ) @ 6258..6267,
-                                ) @ 6248..6267,
-                            ) @ 6236..6267,
+                                            "players" @ 6595..6602,
+                                        ) @ 6595..6602,
+                                        "x" @ 6603..6604,
+                                    ) @ 6595..6604,
+                                ) @ 6585..6604,
+                            ) @ 6573..6604,
                             And(
                                 Equal(
                                     Identifier(
-                                        "p" @ 6273..6274,
-                                    ) @ 6273..6274,
+                                        "p" @ 6610..6611,
+                                    ) @ 6610..6611,
                                     String(
                                         "O",
-                                    ) @ 6278..6281,
-                                ) @ 6273..6281,
+                                    ) @ 6615..6618,
+                                ) @ 6610..6618,
                                 Equal(
                                     Identifier(
-                                        "player" @ 6285..6291,
-                                    ) @ 6285..6291,
+                                        "player" @ 6622..6628,
+                                    ) @ 6622..6628,
                                     Dot(
                                         Identifier(
-                                            "players" @ 6295..6302,
-                                        ) @ 6295..6302,
-                                        "o" @ 6303..6304,
-                                    ) @ 6295..6304,
-                                ) @ 6285..6304,
-                            ) @ 6273..6304,
-                        ) @ 6236..6304,
-                        else_expression: None,
+                                            "players" @ 6632..6639,
+                                        ) @ 6632..6639,
+                                        "o" @ 6640..6641,
+                                    ) @ 6632..6641,
+                                ) @ 6622..6641,
+                            ) @ 6610..6641,
+                        ) @ 6573..6641,
+                        else_expression: InternalFunction(
+                            TestFail(
+                                Some(
+                                    "bad state: wrong player",
+                                ),
+                                6648..6684,
+                            ),
+                        ) @ 6648..6684,
                     },
-                ) @ 6229..6315,
+                ) @ 6566..6694,
                 Match(
                     MatchStatement {
                         expression: FunctionCall(
                             FunctionCall {
-                                identifier: "game_over" @ 6321..6330,
+                                identifier: "game_over" @ 6700..6709,
                                 arguments: [
                                     Identifier(
-                                        "gameID" @ 6331..6337,
-                                    ) @ 6331..6337,
+                                        "gameID" @ 6710..6716,
+                                    ) @ 6710..6716,
                                     Identifier(
-                                        "X" @ 6339..6340,
-                                    ) @ 6339..6340,
+                                        "X" @ 6718..6719,
+                                    ) @ 6718..6719,
                                     Identifier(
-                                        "Y" @ 6342..6343,
-                                    ) @ 6342..6343,
+                                        "Y" @ 6721..6722,
+                                    ) @ 6721..6722,
                                     Identifier(
-                                        "p" @ 6345..6346,
-                                    ) @ 6345..6346,
+                                        "p" @ 6724..6725,
+                                    ) @ 6724..6725,
                                 ],
                             },
-                        ) @ 6321..6347,
+                        ) @ 6700..6726,
                         arms: [
                             MatchArm {
                                 pattern: Values(
                                     [
                                         Bool(
                                             true,
-                                        ) @ 6362..6366,
+                                        ) @ 6741..6745,
                                     ],
                                 ),
                                 statements: [
@@ -1139,88 +1221,88 @@ Policy {
                                             Create(
                                                 CreateStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "Field" @ 6424..6429,
+                                                        identifier: "Field" @ 6803..6808,
                                                         key_fields: [
                                                             (
-                                                                "gameID" @ 6430..6436,
+                                                                "gameID" @ 6809..6815,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "gameID" @ 6438..6444,
-                                                                    ) @ 6438..6444,
+                                                                        "gameID" @ 6817..6823,
+                                                                    ) @ 6817..6823,
                                                                 ),
                                                             ),
                                                             (
-                                                                "x" @ 6446..6447,
+                                                                "x" @ 6825..6826,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "X" @ 6449..6450,
-                                                                    ) @ 6449..6450,
+                                                                        "X" @ 6828..6829,
+                                                                    ) @ 6828..6829,
                                                                 ),
                                                             ),
                                                             (
-                                                                "y" @ 6452..6453,
+                                                                "y" @ 6831..6832,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "Y" @ 6455..6456,
-                                                                    ) @ 6455..6456,
+                                                                        "Y" @ 6834..6835,
+                                                                    ) @ 6834..6835,
                                                                 ),
                                                             ),
                                                         ],
                                                         value_fields: Some(
                                                             [
                                                                 (
-                                                                    "p" @ 6460..6461,
+                                                                    "p" @ 6839..6840,
                                                                     Expression(
                                                                         Identifier(
-                                                                            "p" @ 6463..6464,
-                                                                        ) @ 6463..6464,
+                                                                            "p" @ 6842..6843,
+                                                                        ) @ 6842..6843,
                                                                     ),
                                                                 ),
                                                             ],
                                                         ),
                                                     },
                                                 },
-                                            ) @ 6417..6465,
+                                            ) @ 6796..6844,
                                             Delete(
                                                 DeleteStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "NextPlayer" @ 6493..6503,
+                                                        identifier: "NextPlayer" @ 6872..6882,
                                                         key_fields: [
                                                             (
-                                                                "gameID" @ 6504..6510,
+                                                                "gameID" @ 6883..6889,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "gameID" @ 6512..6518,
-                                                                    ) @ 6512..6518,
+                                                                        "gameID" @ 6891..6897,
+                                                                    ) @ 6891..6897,
                                                                 ),
                                                             ),
                                                         ],
                                                         value_fields: Some(
                                                             [
                                                                 (
-                                                                    "p" @ 6522..6523,
+                                                                    "p" @ 6901..6902,
                                                                     Expression(
                                                                         Identifier(
-                                                                            "p" @ 6525..6526,
-                                                                        ) @ 6525..6526,
+                                                                            "p" @ 6904..6905,
+                                                                        ) @ 6904..6905,
                                                                     ),
                                                                 ),
                                                             ],
                                                         ),
                                                     },
                                                 },
-                                            ) @ 6486..6527,
+                                            ) @ 6865..6906,
                                             Create(
                                                 CreateStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "GameOver" @ 6555..6563,
+                                                        identifier: "GameOver" @ 6934..6942,
                                                         key_fields: [
                                                             (
-                                                                "gameID" @ 6564..6570,
+                                                                "gameID" @ 6943..6949,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "gameID" @ 6572..6578,
-                                                                    ) @ 6572..6578,
+                                                                        "gameID" @ 6951..6957,
+                                                                    ) @ 6951..6957,
                                                                 ),
                                                             ),
                                                         ],
@@ -1229,38 +1311,38 @@ Policy {
                                                         ),
                                                     },
                                                 },
-                                            ) @ 6548..6583,
+                                            ) @ 6927..6962,
                                             Emit(
                                                 NamedStruct(
                                                     NamedStruct {
-                                                        identifier: "GameOver" @ 6609..6617,
+                                                        identifier: "GameOver" @ 6988..6996,
                                                         fields: [
                                                             (
-                                                                "gameID" @ 6643..6649,
+                                                                "gameID" @ 7022..7028,
                                                                 Identifier(
-                                                                    "gameID" @ 6651..6657,
-                                                                ) @ 6651..6657,
+                                                                    "gameID" @ 7030..7036,
+                                                                ) @ 7030..7036,
                                                             ),
                                                             (
-                                                                "winner" @ 6683..6689,
+                                                                "winner" @ 7062..7068,
                                                                 Identifier(
-                                                                    "player" @ 6691..6697,
-                                                                ) @ 6691..6697,
+                                                                    "player" @ 7070..7076,
+                                                                ) @ 7070..7076,
                                                             ),
                                                             (
-                                                                "p" @ 6723..6724,
+                                                                "p" @ 7102..7103,
                                                                 Identifier(
-                                                                    "p" @ 6726..6727,
-                                                                ) @ 6726..6727,
+                                                                    "p" @ 7105..7106,
+                                                                ) @ 7105..7106,
                                                             ),
                                                         ],
                                                         sources: [],
-                                                        span: 6609..6750,
+                                                        span: 6988..7129,
                                                     },
-                                                ) @ 6609..6750,
-                                            ) @ 6604..6767,
+                                                ) @ 6988..7129,
+                                            ) @ 6983..7146,
                                         ],
-                                    ) @ 6388..6768,
+                                    ) @ 6767..7147,
                                 ],
                             },
                             MatchArm {
@@ -1268,7 +1350,7 @@ Policy {
                                     [
                                         Bool(
                                             false,
-                                        ) @ 6795..6800,
+                                        ) @ 7174..7179,
                                     ],
                                 ),
                                 statements: [
@@ -1277,112 +1359,112 @@ Policy {
                                             Create(
                                                 CreateStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "Field" @ 6858..6863,
+                                                        identifier: "Field" @ 7237..7242,
                                                         key_fields: [
                                                             (
-                                                                "gameID" @ 6864..6870,
+                                                                "gameID" @ 7243..7249,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "gameID" @ 6872..6878,
-                                                                    ) @ 6872..6878,
+                                                                        "gameID" @ 7251..7257,
+                                                                    ) @ 7251..7257,
                                                                 ),
                                                             ),
                                                             (
-                                                                "x" @ 6880..6881,
+                                                                "x" @ 7259..7260,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "X" @ 6883..6884,
-                                                                    ) @ 6883..6884,
+                                                                        "X" @ 7262..7263,
+                                                                    ) @ 7262..7263,
                                                                 ),
                                                             ),
                                                             (
-                                                                "y" @ 6886..6887,
+                                                                "y" @ 7265..7266,
                                                                 Expression(
                                                                     Identifier(
-                                                                        "Y" @ 6889..6890,
-                                                                    ) @ 6889..6890,
+                                                                        "Y" @ 7268..7269,
+                                                                    ) @ 7268..7269,
                                                                 ),
                                                             ),
                                                         ],
                                                         value_fields: Some(
                                                             [
                                                                 (
-                                                                    "p" @ 6894..6895,
+                                                                    "p" @ 7273..7274,
                                                                     Expression(
                                                                         Identifier(
-                                                                            "p" @ 6897..6898,
-                                                                        ) @ 6897..6898,
+                                                                            "p" @ 7276..7277,
+                                                                        ) @ 7276..7277,
                                                                     ),
                                                                 ),
                                                             ],
                                                         ),
                                                     },
                                                 },
-                                            ) @ 6851..6899,
+                                            ) @ 7230..7278,
                                             FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "set_next_player" @ 6920..6935,
+                                                    identifier: "set_next_player" @ 7299..7314,
                                                     arguments: [
                                                         Identifier(
-                                                            "gameID" @ 6936..6942,
-                                                        ) @ 6936..6942,
+                                                            "gameID" @ 7315..7321,
+                                                        ) @ 7315..7321,
                                                         Identifier(
-                                                            "op" @ 6944..6946,
-                                                        ) @ 6944..6946,
+                                                            "op" @ 7323..7325,
+                                                        ) @ 7323..7325,
                                                     ],
                                                 },
-                                            ) @ 6920..6947,
+                                            ) @ 7299..7326,
                                             Emit(
                                                 NamedStruct(
                                                     NamedStruct {
-                                                        identifier: "GameUpdate" @ 6973..6983,
+                                                        identifier: "GameUpdate" @ 7352..7362,
                                                         fields: [
                                                             (
-                                                                "gameID" @ 7009..7015,
+                                                                "gameID" @ 7388..7394,
                                                                 Identifier(
-                                                                    "gameID" @ 7017..7023,
-                                                                ) @ 7017..7023,
+                                                                    "gameID" @ 7396..7402,
+                                                                ) @ 7396..7402,
                                                             ),
                                                             (
-                                                                "player" @ 7049..7055,
+                                                                "player" @ 7428..7434,
                                                                 Identifier(
-                                                                    "player" @ 7057..7063,
-                                                                ) @ 7057..7063,
+                                                                    "player" @ 7436..7442,
+                                                                ) @ 7436..7442,
                                                             ),
                                                             (
-                                                                "p" @ 7089..7090,
+                                                                "p" @ 7468..7469,
                                                                 Identifier(
-                                                                    "p" @ 7092..7093,
-                                                                ) @ 7092..7093,
+                                                                    "p" @ 7471..7472,
+                                                                ) @ 7471..7472,
                                                             ),
                                                             (
-                                                                "x" @ 7119..7120,
+                                                                "x" @ 7498..7499,
                                                                 Identifier(
-                                                                    "X" @ 7122..7123,
-                                                                ) @ 7122..7123,
+                                                                    "X" @ 7501..7502,
+                                                                ) @ 7501..7502,
                                                             ),
                                                             (
-                                                                "y" @ 7149..7150,
+                                                                "y" @ 7528..7529,
                                                                 Identifier(
-                                                                    "Y" @ 7152..7153,
-                                                                ) @ 7152..7153,
+                                                                    "Y" @ 7531..7532,
+                                                                ) @ 7531..7532,
                                                             ),
                                                         ],
                                                         sources: [],
-                                                        span: 6973..7176,
+                                                        span: 7352..7555,
                                                     },
-                                                ) @ 6973..7176,
-                                            ) @ 6968..7193,
+                                                ) @ 7352..7555,
+                                            ) @ 7347..7572,
                                         ],
-                                    ) @ 6822..7194,
+                                    ) @ 7201..7573,
                                 ],
                             },
                         ],
                     },
-                ) @ 6315..7218,
+                ) @ 6694..7597,
             ],
             recalls: [],
-            span: 5697..7226,
+            span: 5931..7605,
         },
     ],
     functions: [
@@ -1422,774 +1504,774 @@ Policy {
             span: 310..369,
         },
         FunctionDefinition {
-            identifier: "game_over" @ 4252..4261,
+            identifier: "game_over" @ 4486..4495,
             arguments: [
                 Param {
-                    name: "gameID" @ 4262..4268,
-                    ty: Id @ 4269..4271,
+                    name: "gameID" @ 4496..4502,
+                    ty: Id @ 4503..4505,
                 },
                 Param {
-                    name: "x" @ 4273..4274,
-                    ty: Int @ 4275..4278,
+                    name: "x" @ 4507..4508,
+                    ty: Int @ 4509..4512,
                 },
                 Param {
-                    name: "y" @ 4280..4281,
-                    ty: Int @ 4282..4285,
+                    name: "y" @ 4514..4515,
+                    ty: Int @ 4516..4519,
                 },
                 Param {
-                    name: "p" @ 4287..4288,
-                    ty: String @ 4289..4295,
+                    name: "p" @ 4521..4522,
+                    ty: String @ 4523..4529,
                 },
             ],
-            return_type: Bool @ 4297..4301,
+            return_type: Bool @ 4531..4535,
             statements: [
                 Let(
                     LetStatement {
-                        identifier: "f00" @ 4312..4315,
+                        identifier: "f00" @ 4546..4549,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 4321..4322,
-                                        ) @ 4321..4322,
+                                            "x" @ 4555..4556,
+                                        ) @ 4555..4556,
                                         Int(
-                                            0 @ 4326..4327,
-                                        ) @ 4326..4327,
-                                    ) @ 4321..4327,
+                                            0 @ 4560..4561,
+                                        ) @ 4560..4561,
+                                    ) @ 4555..4561,
                                     Equal(
                                         Identifier(
-                                            "y" @ 4331..4332,
-                                        ) @ 4331..4332,
+                                            "y" @ 4565..4566,
+                                        ) @ 4565..4566,
                                         Int(
-                                            0 @ 4336..4337,
-                                        ) @ 4336..4337,
-                                    ) @ 4331..4337,
-                                ) @ 4321..4337,
+                                            0 @ 4570..4571,
+                                        ) @ 4570..4571,
+                                    ) @ 4565..4571,
+                                ) @ 4555..4571,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 4346..4347,
-                                            ) @ 4346..4347,
+                                                "p" @ 4580..4581,
+                                            ) @ 4580..4581,
                                         ),
-                                    ) @ 4341..4348,
-                                ) @ 4338..4350,
+                                    ) @ 4575..4582,
+                                ) @ 4572..4584,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4365..4370,
+                                                identifier: "Field" @ 4599..4604,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 4371..4377,
+                                                        "gameID" @ 4605..4611,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 4379..4385,
-                                                            ) @ 4379..4385,
+                                                                "gameID" @ 4613..4619,
+                                                            ) @ 4613..4619,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 4387..4388,
+                                                        "x" @ 4621..4622,
                                                         Expression(
                                                             Int(
-                                                                0 @ 4390..4391,
-                                                            ) @ 4390..4391,
+                                                                0 @ 4624..4625,
+                                                            ) @ 4624..4625,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 4393..4394,
+                                                        "y" @ 4627..4628,
                                                         Expression(
                                                             Int(
-                                                                0 @ 4396..4397,
-                                                            ) @ 4396..4397,
+                                                                0 @ 4630..4631,
+                                                            ) @ 4630..4631,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 4401..4402,
+                                                            "p" @ 4635..4636,
                                                             Bind(
-                                                                4404..4405,
+                                                                4638..4639,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 4359..4406,
-                                ) @ 4356..4408,
+                                    ) @ 4593..4640,
+                                ) @ 4590..4642,
                             ),
-                        ) @ 4318..4408,
+                        ) @ 4552..4642,
                     },
-                ) @ 4308..4413,
+                ) @ 4542..4647,
                 Let(
                     LetStatement {
-                        identifier: "f10" @ 4417..4420,
+                        identifier: "f10" @ 4651..4654,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 4426..4427,
-                                        ) @ 4426..4427,
+                                            "x" @ 4660..4661,
+                                        ) @ 4660..4661,
                                         Int(
-                                            1 @ 4431..4432,
-                                        ) @ 4431..4432,
-                                    ) @ 4426..4432,
+                                            1 @ 4665..4666,
+                                        ) @ 4665..4666,
+                                    ) @ 4660..4666,
                                     Equal(
                                         Identifier(
-                                            "y" @ 4436..4437,
-                                        ) @ 4436..4437,
+                                            "y" @ 4670..4671,
+                                        ) @ 4670..4671,
                                         Int(
-                                            0 @ 4441..4442,
-                                        ) @ 4441..4442,
-                                    ) @ 4436..4442,
-                                ) @ 4426..4442,
+                                            0 @ 4675..4676,
+                                        ) @ 4675..4676,
+                                    ) @ 4670..4676,
+                                ) @ 4660..4676,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 4451..4452,
-                                            ) @ 4451..4452,
+                                                "p" @ 4685..4686,
+                                            ) @ 4685..4686,
                                         ),
-                                    ) @ 4446..4453,
-                                ) @ 4443..4455,
+                                    ) @ 4680..4687,
+                                ) @ 4677..4689,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4470..4475,
+                                                identifier: "Field" @ 4704..4709,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 4476..4482,
+                                                        "gameID" @ 4710..4716,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 4484..4490,
-                                                            ) @ 4484..4490,
+                                                                "gameID" @ 4718..4724,
+                                                            ) @ 4718..4724,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 4492..4493,
+                                                        "x" @ 4726..4727,
                                                         Expression(
                                                             Int(
-                                                                1 @ 4495..4496,
-                                                            ) @ 4495..4496,
+                                                                1 @ 4729..4730,
+                                                            ) @ 4729..4730,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 4498..4499,
+                                                        "y" @ 4732..4733,
                                                         Expression(
                                                             Int(
-                                                                0 @ 4501..4502,
-                                                            ) @ 4501..4502,
+                                                                0 @ 4735..4736,
+                                                            ) @ 4735..4736,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 4506..4507,
+                                                            "p" @ 4740..4741,
                                                             Bind(
-                                                                4509..4510,
+                                                                4743..4744,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 4464..4511,
-                                ) @ 4461..4513,
+                                    ) @ 4698..4745,
+                                ) @ 4695..4747,
                             ),
-                        ) @ 4423..4513,
+                        ) @ 4657..4747,
                     },
-                ) @ 4413..4518,
+                ) @ 4647..4752,
                 Let(
                     LetStatement {
-                        identifier: "f20" @ 4522..4525,
+                        identifier: "f20" @ 4756..4759,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 4531..4532,
-                                        ) @ 4531..4532,
+                                            "x" @ 4765..4766,
+                                        ) @ 4765..4766,
                                         Int(
-                                            2 @ 4536..4537,
-                                        ) @ 4536..4537,
-                                    ) @ 4531..4537,
+                                            2 @ 4770..4771,
+                                        ) @ 4770..4771,
+                                    ) @ 4765..4771,
                                     Equal(
                                         Identifier(
-                                            "y" @ 4541..4542,
-                                        ) @ 4541..4542,
+                                            "y" @ 4775..4776,
+                                        ) @ 4775..4776,
                                         Int(
-                                            0 @ 4546..4547,
-                                        ) @ 4546..4547,
-                                    ) @ 4541..4547,
-                                ) @ 4531..4547,
+                                            0 @ 4780..4781,
+                                        ) @ 4780..4781,
+                                    ) @ 4775..4781,
+                                ) @ 4765..4781,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 4556..4557,
-                                            ) @ 4556..4557,
+                                                "p" @ 4790..4791,
+                                            ) @ 4790..4791,
                                         ),
-                                    ) @ 4551..4558,
-                                ) @ 4548..4560,
+                                    ) @ 4785..4792,
+                                ) @ 4782..4794,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4575..4580,
+                                                identifier: "Field" @ 4809..4814,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 4581..4587,
+                                                        "gameID" @ 4815..4821,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 4589..4595,
-                                                            ) @ 4589..4595,
+                                                                "gameID" @ 4823..4829,
+                                                            ) @ 4823..4829,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 4597..4598,
+                                                        "x" @ 4831..4832,
                                                         Expression(
                                                             Int(
-                                                                2 @ 4600..4601,
-                                                            ) @ 4600..4601,
+                                                                2 @ 4834..4835,
+                                                            ) @ 4834..4835,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 4603..4604,
+                                                        "y" @ 4837..4838,
                                                         Expression(
                                                             Int(
-                                                                0 @ 4606..4607,
-                                                            ) @ 4606..4607,
+                                                                0 @ 4840..4841,
+                                                            ) @ 4840..4841,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 4611..4612,
+                                                            "p" @ 4845..4846,
                                                             Bind(
-                                                                4614..4615,
+                                                                4848..4849,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 4569..4616,
-                                ) @ 4566..4618,
+                                    ) @ 4803..4850,
+                                ) @ 4800..4852,
                             ),
-                        ) @ 4528..4618,
+                        ) @ 4762..4852,
                     },
-                ) @ 4518..4623,
+                ) @ 4752..4857,
                 Let(
                     LetStatement {
-                        identifier: "f01" @ 4627..4630,
+                        identifier: "f01" @ 4861..4864,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 4636..4637,
-                                        ) @ 4636..4637,
+                                            "x" @ 4870..4871,
+                                        ) @ 4870..4871,
                                         Int(
-                                            0 @ 4641..4642,
-                                        ) @ 4641..4642,
-                                    ) @ 4636..4642,
+                                            0 @ 4875..4876,
+                                        ) @ 4875..4876,
+                                    ) @ 4870..4876,
                                     Equal(
                                         Identifier(
-                                            "y" @ 4646..4647,
-                                        ) @ 4646..4647,
+                                            "y" @ 4880..4881,
+                                        ) @ 4880..4881,
                                         Int(
-                                            1 @ 4651..4652,
-                                        ) @ 4651..4652,
-                                    ) @ 4646..4652,
-                                ) @ 4636..4652,
+                                            1 @ 4885..4886,
+                                        ) @ 4885..4886,
+                                    ) @ 4880..4886,
+                                ) @ 4870..4886,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 4661..4662,
-                                            ) @ 4661..4662,
+                                                "p" @ 4895..4896,
+                                            ) @ 4895..4896,
                                         ),
-                                    ) @ 4656..4663,
-                                ) @ 4653..4665,
+                                    ) @ 4890..4897,
+                                ) @ 4887..4899,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4680..4685,
+                                                identifier: "Field" @ 4914..4919,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 4686..4692,
+                                                        "gameID" @ 4920..4926,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 4694..4700,
-                                                            ) @ 4694..4700,
+                                                                "gameID" @ 4928..4934,
+                                                            ) @ 4928..4934,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 4702..4703,
+                                                        "x" @ 4936..4937,
                                                         Expression(
                                                             Int(
-                                                                0 @ 4705..4706,
-                                                            ) @ 4705..4706,
+                                                                0 @ 4939..4940,
+                                                            ) @ 4939..4940,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 4708..4709,
+                                                        "y" @ 4942..4943,
                                                         Expression(
                                                             Int(
-                                                                1 @ 4711..4712,
-                                                            ) @ 4711..4712,
+                                                                1 @ 4945..4946,
+                                                            ) @ 4945..4946,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 4716..4717,
+                                                            "p" @ 4950..4951,
                                                             Bind(
-                                                                4719..4720,
+                                                                4953..4954,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 4674..4721,
-                                ) @ 4671..4723,
+                                    ) @ 4908..4955,
+                                ) @ 4905..4957,
                             ),
-                        ) @ 4633..4723,
+                        ) @ 4867..4957,
                     },
-                ) @ 4623..4728,
+                ) @ 4857..4962,
                 Let(
                     LetStatement {
-                        identifier: "f11" @ 4732..4735,
+                        identifier: "f11" @ 4966..4969,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 4741..4742,
-                                        ) @ 4741..4742,
+                                            "x" @ 4975..4976,
+                                        ) @ 4975..4976,
                                         Int(
-                                            1 @ 4746..4747,
-                                        ) @ 4746..4747,
-                                    ) @ 4741..4747,
+                                            1 @ 4980..4981,
+                                        ) @ 4980..4981,
+                                    ) @ 4975..4981,
                                     Equal(
                                         Identifier(
-                                            "y" @ 4751..4752,
-                                        ) @ 4751..4752,
+                                            "y" @ 4985..4986,
+                                        ) @ 4985..4986,
                                         Int(
-                                            1 @ 4756..4757,
-                                        ) @ 4756..4757,
-                                    ) @ 4751..4757,
-                                ) @ 4741..4757,
+                                            1 @ 4990..4991,
+                                        ) @ 4990..4991,
+                                    ) @ 4985..4991,
+                                ) @ 4975..4991,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 4766..4767,
-                                            ) @ 4766..4767,
+                                                "p" @ 5000..5001,
+                                            ) @ 5000..5001,
                                         ),
-                                    ) @ 4761..4768,
-                                ) @ 4758..4770,
+                                    ) @ 4995..5002,
+                                ) @ 4992..5004,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4785..4790,
+                                                identifier: "Field" @ 5019..5024,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 4791..4797,
+                                                        "gameID" @ 5025..5031,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 4799..4805,
-                                                            ) @ 4799..4805,
+                                                                "gameID" @ 5033..5039,
+                                                            ) @ 5033..5039,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 4807..4808,
+                                                        "x" @ 5041..5042,
                                                         Expression(
                                                             Int(
-                                                                1 @ 4810..4811,
-                                                            ) @ 4810..4811,
+                                                                1 @ 5044..5045,
+                                                            ) @ 5044..5045,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 4813..4814,
+                                                        "y" @ 5047..5048,
                                                         Expression(
                                                             Int(
-                                                                1 @ 4816..4817,
-                                                            ) @ 4816..4817,
+                                                                1 @ 5050..5051,
+                                                            ) @ 5050..5051,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 4821..4822,
+                                                            "p" @ 5055..5056,
                                                             Bind(
-                                                                4824..4825,
+                                                                5058..5059,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 4779..4826,
-                                ) @ 4776..4828,
+                                    ) @ 5013..5060,
+                                ) @ 5010..5062,
                             ),
-                        ) @ 4738..4828,
+                        ) @ 4972..5062,
                     },
-                ) @ 4728..4833,
+                ) @ 4962..5067,
                 Let(
                     LetStatement {
-                        identifier: "f21" @ 4837..4840,
+                        identifier: "f21" @ 5071..5074,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 4846..4847,
-                                        ) @ 4846..4847,
+                                            "x" @ 5080..5081,
+                                        ) @ 5080..5081,
                                         Int(
-                                            2 @ 4851..4852,
-                                        ) @ 4851..4852,
-                                    ) @ 4846..4852,
+                                            2 @ 5085..5086,
+                                        ) @ 5085..5086,
+                                    ) @ 5080..5086,
                                     Equal(
                                         Identifier(
-                                            "y" @ 4856..4857,
-                                        ) @ 4856..4857,
+                                            "y" @ 5090..5091,
+                                        ) @ 5090..5091,
                                         Int(
-                                            1 @ 4861..4862,
-                                        ) @ 4861..4862,
-                                    ) @ 4856..4862,
-                                ) @ 4846..4862,
+                                            1 @ 5095..5096,
+                                        ) @ 5095..5096,
+                                    ) @ 5090..5096,
+                                ) @ 5080..5096,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 4871..4872,
-                                            ) @ 4871..4872,
+                                                "p" @ 5105..5106,
+                                            ) @ 5105..5106,
                                         ),
-                                    ) @ 4866..4873,
-                                ) @ 4863..4875,
+                                    ) @ 5100..5107,
+                                ) @ 5097..5109,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4890..4895,
+                                                identifier: "Field" @ 5124..5129,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 4896..4902,
+                                                        "gameID" @ 5130..5136,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 4904..4910,
-                                                            ) @ 4904..4910,
+                                                                "gameID" @ 5138..5144,
+                                                            ) @ 5138..5144,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 4912..4913,
+                                                        "x" @ 5146..5147,
                                                         Expression(
                                                             Int(
-                                                                2 @ 4915..4916,
-                                                            ) @ 4915..4916,
+                                                                2 @ 5149..5150,
+                                                            ) @ 5149..5150,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 4918..4919,
+                                                        "y" @ 5152..5153,
                                                         Expression(
                                                             Int(
-                                                                1 @ 4921..4922,
-                                                            ) @ 4921..4922,
+                                                                1 @ 5155..5156,
+                                                            ) @ 5155..5156,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 4926..4927,
+                                                            "p" @ 5160..5161,
                                                             Bind(
-                                                                4929..4930,
+                                                                5163..5164,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 4884..4931,
-                                ) @ 4881..4933,
+                                    ) @ 5118..5165,
+                                ) @ 5115..5167,
                             ),
-                        ) @ 4843..4933,
+                        ) @ 5077..5167,
                     },
-                ) @ 4833..4938,
+                ) @ 5067..5172,
                 Let(
                     LetStatement {
-                        identifier: "f02" @ 4942..4945,
+                        identifier: "f02" @ 5176..5179,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 4951..4952,
-                                        ) @ 4951..4952,
+                                            "x" @ 5185..5186,
+                                        ) @ 5185..5186,
                                         Int(
-                                            0 @ 4956..4957,
-                                        ) @ 4956..4957,
-                                    ) @ 4951..4957,
+                                            0 @ 5190..5191,
+                                        ) @ 5190..5191,
+                                    ) @ 5185..5191,
                                     Equal(
                                         Identifier(
-                                            "y" @ 4961..4962,
-                                        ) @ 4961..4962,
+                                            "y" @ 5195..5196,
+                                        ) @ 5195..5196,
                                         Int(
-                                            2 @ 4966..4967,
-                                        ) @ 4966..4967,
-                                    ) @ 4961..4967,
-                                ) @ 4951..4967,
+                                            2 @ 5200..5201,
+                                        ) @ 5200..5201,
+                                    ) @ 5195..5201,
+                                ) @ 5185..5201,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 4976..4977,
-                                            ) @ 4976..4977,
+                                                "p" @ 5210..5211,
+                                            ) @ 5210..5211,
                                         ),
-                                    ) @ 4971..4978,
-                                ) @ 4968..4980,
+                                    ) @ 5205..5212,
+                                ) @ 5202..5214,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4995..5000,
+                                                identifier: "Field" @ 5229..5234,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 5001..5007,
+                                                        "gameID" @ 5235..5241,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 5009..5015,
-                                                            ) @ 5009..5015,
+                                                                "gameID" @ 5243..5249,
+                                                            ) @ 5243..5249,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 5017..5018,
+                                                        "x" @ 5251..5252,
                                                         Expression(
                                                             Int(
-                                                                0 @ 5020..5021,
-                                                            ) @ 5020..5021,
+                                                                0 @ 5254..5255,
+                                                            ) @ 5254..5255,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 5023..5024,
+                                                        "y" @ 5257..5258,
                                                         Expression(
                                                             Int(
-                                                                2 @ 5026..5027,
-                                                            ) @ 5026..5027,
+                                                                2 @ 5260..5261,
+                                                            ) @ 5260..5261,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 5031..5032,
+                                                            "p" @ 5265..5266,
                                                             Bind(
-                                                                5034..5035,
+                                                                5268..5269,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 4989..5036,
-                                ) @ 4986..5038,
+                                    ) @ 5223..5270,
+                                ) @ 5220..5272,
                             ),
-                        ) @ 4948..5038,
+                        ) @ 5182..5272,
                     },
-                ) @ 4938..5043,
+                ) @ 5172..5277,
                 Let(
                     LetStatement {
-                        identifier: "f12" @ 5047..5050,
+                        identifier: "f12" @ 5281..5284,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 5056..5057,
-                                        ) @ 5056..5057,
+                                            "x" @ 5290..5291,
+                                        ) @ 5290..5291,
                                         Int(
-                                            1 @ 5061..5062,
-                                        ) @ 5061..5062,
-                                    ) @ 5056..5062,
+                                            1 @ 5295..5296,
+                                        ) @ 5295..5296,
+                                    ) @ 5290..5296,
                                     Equal(
                                         Identifier(
-                                            "y" @ 5066..5067,
-                                        ) @ 5066..5067,
+                                            "y" @ 5300..5301,
+                                        ) @ 5300..5301,
                                         Int(
-                                            2 @ 5071..5072,
-                                        ) @ 5071..5072,
-                                    ) @ 5066..5072,
-                                ) @ 5056..5072,
+                                            2 @ 5305..5306,
+                                        ) @ 5305..5306,
+                                    ) @ 5300..5306,
+                                ) @ 5290..5306,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 5081..5082,
-                                            ) @ 5081..5082,
+                                                "p" @ 5315..5316,
+                                            ) @ 5315..5316,
                                         ),
-                                    ) @ 5076..5083,
-                                ) @ 5073..5085,
+                                    ) @ 5310..5317,
+                                ) @ 5307..5319,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 5100..5105,
+                                                identifier: "Field" @ 5334..5339,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 5106..5112,
+                                                        "gameID" @ 5340..5346,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 5114..5120,
-                                                            ) @ 5114..5120,
+                                                                "gameID" @ 5348..5354,
+                                                            ) @ 5348..5354,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 5122..5123,
+                                                        "x" @ 5356..5357,
                                                         Expression(
                                                             Int(
-                                                                1 @ 5125..5126,
-                                                            ) @ 5125..5126,
+                                                                1 @ 5359..5360,
+                                                            ) @ 5359..5360,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 5128..5129,
+                                                        "y" @ 5362..5363,
                                                         Expression(
                                                             Int(
-                                                                2 @ 5131..5132,
-                                                            ) @ 5131..5132,
+                                                                2 @ 5365..5366,
+                                                            ) @ 5365..5366,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 5136..5137,
+                                                            "p" @ 5370..5371,
                                                             Bind(
-                                                                5139..5140,
+                                                                5373..5374,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 5094..5141,
-                                ) @ 5091..5143,
+                                    ) @ 5328..5375,
+                                ) @ 5325..5377,
                             ),
-                        ) @ 5053..5143,
+                        ) @ 5287..5377,
                     },
-                ) @ 5043..5148,
+                ) @ 5277..5382,
                 Let(
                     LetStatement {
-                        identifier: "f22" @ 5152..5155,
+                        identifier: "f22" @ 5386..5389,
                         expression: InternalFunction(
                             If(
                                 And(
                                     Equal(
                                         Identifier(
-                                            "x" @ 5161..5162,
-                                        ) @ 5161..5162,
+                                            "x" @ 5395..5396,
+                                        ) @ 5395..5396,
                                         Int(
-                                            2 @ 5166..5167,
-                                        ) @ 5166..5167,
-                                    ) @ 5161..5167,
+                                            2 @ 5400..5401,
+                                        ) @ 5400..5401,
+                                    ) @ 5395..5401,
                                     Equal(
                                         Identifier(
-                                            "y" @ 5171..5172,
-                                        ) @ 5171..5172,
+                                            "y" @ 5405..5406,
+                                        ) @ 5405..5406,
                                         Int(
-                                            2 @ 5176..5177,
-                                        ) @ 5176..5177,
-                                    ) @ 5171..5177,
-                                ) @ 5161..5177,
+                                            2 @ 5410..5411,
+                                        ) @ 5410..5411,
+                                    ) @ 5405..5411,
+                                ) @ 5395..5411,
                                 Block(
                                     [],
                                     Optional(
                                         Some(
                                             Identifier(
-                                                "p" @ 5186..5187,
-                                            ) @ 5186..5187,
+                                                "p" @ 5420..5421,
+                                            ) @ 5420..5421,
                                         ),
-                                    ) @ 5181..5188,
-                                ) @ 5178..5190,
+                                    ) @ 5415..5422,
+                                ) @ 5412..5424,
                                 Block(
                                     [],
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 5205..5210,
+                                                identifier: "Field" @ 5439..5444,
                                                 key_fields: [
                                                     (
-                                                        "gameID" @ 5211..5217,
+                                                        "gameID" @ 5445..5451,
                                                         Expression(
                                                             Identifier(
-                                                                "gameID" @ 5219..5225,
-                                                            ) @ 5219..5225,
+                                                                "gameID" @ 5453..5459,
+                                                            ) @ 5453..5459,
                                                         ),
                                                     ),
                                                     (
-                                                        "x" @ 5227..5228,
+                                                        "x" @ 5461..5462,
                                                         Expression(
                                                             Int(
-                                                                2 @ 5230..5231,
-                                                            ) @ 5230..5231,
+                                                                2 @ 5464..5465,
+                                                            ) @ 5464..5465,
                                                         ),
                                                     ),
                                                     (
-                                                        "y" @ 5233..5234,
+                                                        "y" @ 5467..5468,
                                                         Expression(
                                                             Int(
-                                                                2 @ 5236..5237,
-                                                            ) @ 5236..5237,
+                                                                2 @ 5470..5471,
+                                                            ) @ 5470..5471,
                                                         ),
                                                     ),
                                                 ],
                                                 value_fields: Some(
                                                     [
                                                         (
-                                                            "p" @ 5241..5242,
+                                                            "p" @ 5475..5476,
                                                             Bind(
-                                                                5244..5245,
+                                                                5478..5479,
                                                             ),
                                                         ),
                                                     ],
                                                 ),
                                             },
                                         ),
-                                    ) @ 5199..5246,
-                                ) @ 5196..5248,
+                                    ) @ 5433..5480,
+                                ) @ 5430..5482,
                             ),
-                        ) @ 5158..5248,
+                        ) @ 5392..5482,
                     },
-                ) @ 5148..5253,
+                ) @ 5382..5487,
                 Return(
                     ReturnStatement {
                         expression: Or(
@@ -2203,221 +2285,221 @@ Policy {
                                                         And(
                                                             Is(
                                                                 Identifier(
-                                                                    "f00" @ 5261..5264,
-                                                                ) @ 5261..5264,
+                                                                    "f00" @ 5495..5498,
+                                                                ) @ 5495..5498,
                                                                 true,
-                                                            ) @ 5261..5272,
+                                                            ) @ 5495..5506,
                                                             Equal(
                                                                 Identifier(
-                                                                    "f00" @ 5276..5279,
-                                                                ) @ 5276..5279,
+                                                                    "f00" @ 5510..5513,
+                                                                ) @ 5510..5513,
                                                                 Identifier(
-                                                                    "f10" @ 5283..5286,
-                                                                ) @ 5283..5286,
-                                                            ) @ 5276..5286,
-                                                        ) @ 5261..5286,
+                                                                    "f10" @ 5517..5520,
+                                                                ) @ 5517..5520,
+                                                            ) @ 5510..5520,
+                                                        ) @ 5495..5520,
                                                         Equal(
                                                             Identifier(
-                                                                "f10" @ 5290..5293,
-                                                            ) @ 5290..5293,
+                                                                "f10" @ 5524..5527,
+                                                            ) @ 5524..5527,
                                                             Identifier(
-                                                                "f20" @ 5297..5300,
-                                                            ) @ 5297..5300,
-                                                        ) @ 5290..5300,
-                                                    ) @ 5261..5300,
+                                                                "f20" @ 5531..5534,
+                                                            ) @ 5531..5534,
+                                                        ) @ 5524..5534,
+                                                    ) @ 5495..5534,
                                                     And(
                                                         And(
                                                             Is(
                                                                 Identifier(
-                                                                    "f01" @ 5317..5320,
-                                                                ) @ 5317..5320,
+                                                                    "f01" @ 5551..5554,
+                                                                ) @ 5551..5554,
                                                                 true,
-                                                            ) @ 5317..5328,
+                                                            ) @ 5551..5562,
                                                             Equal(
                                                                 Identifier(
-                                                                    "f01" @ 5332..5335,
-                                                                ) @ 5332..5335,
+                                                                    "f01" @ 5566..5569,
+                                                                ) @ 5566..5569,
                                                                 Identifier(
-                                                                    "f11" @ 5339..5342,
-                                                                ) @ 5339..5342,
-                                                            ) @ 5332..5342,
-                                                        ) @ 5317..5342,
+                                                                    "f11" @ 5573..5576,
+                                                                ) @ 5573..5576,
+                                                            ) @ 5566..5576,
+                                                        ) @ 5551..5576,
                                                         Equal(
                                                             Identifier(
-                                                                "f11" @ 5346..5349,
-                                                            ) @ 5346..5349,
+                                                                "f11" @ 5580..5583,
+                                                            ) @ 5580..5583,
                                                             Identifier(
-                                                                "f21" @ 5353..5356,
-                                                            ) @ 5353..5356,
-                                                        ) @ 5346..5356,
-                                                    ) @ 5317..5356,
-                                                ) @ 5261..5356,
+                                                                "f21" @ 5587..5590,
+                                                            ) @ 5587..5590,
+                                                        ) @ 5580..5590,
+                                                    ) @ 5551..5590,
+                                                ) @ 5495..5590,
                                                 And(
                                                     And(
                                                         Is(
                                                             Identifier(
-                                                                "f01" @ 5373..5376,
-                                                            ) @ 5373..5376,
+                                                                "f01" @ 5607..5610,
+                                                            ) @ 5607..5610,
                                                             true,
-                                                        ) @ 5373..5384,
+                                                        ) @ 5607..5618,
                                                         Equal(
                                                             Identifier(
-                                                                "f02" @ 5388..5391,
-                                                            ) @ 5388..5391,
+                                                                "f02" @ 5622..5625,
+                                                            ) @ 5622..5625,
                                                             Identifier(
-                                                                "f12" @ 5395..5398,
-                                                            ) @ 5395..5398,
-                                                        ) @ 5388..5398,
-                                                    ) @ 5373..5398,
+                                                                "f12" @ 5629..5632,
+                                                            ) @ 5629..5632,
+                                                        ) @ 5622..5632,
+                                                    ) @ 5607..5632,
                                                     Equal(
                                                         Identifier(
-                                                            "f12" @ 5402..5405,
-                                                        ) @ 5402..5405,
+                                                            "f12" @ 5636..5639,
+                                                        ) @ 5636..5639,
                                                         Identifier(
-                                                            "f22" @ 5409..5412,
-                                                        ) @ 5409..5412,
-                                                    ) @ 5402..5412,
-                                                ) @ 5373..5412,
-                                            ) @ 5261..5412,
+                                                            "f22" @ 5643..5646,
+                                                        ) @ 5643..5646,
+                                                    ) @ 5636..5646,
+                                                ) @ 5607..5646,
+                                            ) @ 5495..5646,
                                             And(
                                                 And(
                                                     Is(
                                                         Identifier(
-                                                            "f00" @ 5429..5432,
-                                                        ) @ 5429..5432,
+                                                            "f00" @ 5663..5666,
+                                                        ) @ 5663..5666,
                                                         true,
-                                                    ) @ 5429..5440,
+                                                    ) @ 5663..5674,
                                                     Equal(
                                                         Identifier(
-                                                            "f00" @ 5444..5447,
-                                                        ) @ 5444..5447,
+                                                            "f00" @ 5678..5681,
+                                                        ) @ 5678..5681,
                                                         Identifier(
-                                                            "f01" @ 5451..5454,
-                                                        ) @ 5451..5454,
-                                                    ) @ 5444..5454,
-                                                ) @ 5429..5454,
+                                                            "f01" @ 5685..5688,
+                                                        ) @ 5685..5688,
+                                                    ) @ 5678..5688,
+                                                ) @ 5663..5688,
                                                 Equal(
                                                     Identifier(
-                                                        "f01" @ 5458..5461,
-                                                    ) @ 5458..5461,
+                                                        "f01" @ 5692..5695,
+                                                    ) @ 5692..5695,
                                                     Identifier(
-                                                        "f02" @ 5465..5468,
-                                                    ) @ 5465..5468,
-                                                ) @ 5458..5468,
-                                            ) @ 5429..5468,
-                                        ) @ 5261..5468,
+                                                        "f02" @ 5699..5702,
+                                                    ) @ 5699..5702,
+                                                ) @ 5692..5702,
+                                            ) @ 5663..5702,
+                                        ) @ 5495..5702,
                                         And(
                                             And(
                                                 Is(
                                                     Identifier(
-                                                        "f10" @ 5485..5488,
-                                                    ) @ 5485..5488,
+                                                        "f10" @ 5719..5722,
+                                                    ) @ 5719..5722,
                                                     true,
-                                                ) @ 5485..5496,
+                                                ) @ 5719..5730,
                                                 Equal(
                                                     Identifier(
-                                                        "f10" @ 5500..5503,
-                                                    ) @ 5500..5503,
+                                                        "f10" @ 5734..5737,
+                                                    ) @ 5734..5737,
                                                     Identifier(
-                                                        "f11" @ 5507..5510,
-                                                    ) @ 5507..5510,
-                                                ) @ 5500..5510,
-                                            ) @ 5485..5510,
+                                                        "f11" @ 5741..5744,
+                                                    ) @ 5741..5744,
+                                                ) @ 5734..5744,
+                                            ) @ 5719..5744,
                                             Equal(
                                                 Identifier(
-                                                    "f11" @ 5514..5517,
-                                                ) @ 5514..5517,
+                                                    "f11" @ 5748..5751,
+                                                ) @ 5748..5751,
                                                 Identifier(
-                                                    "f12" @ 5521..5524,
-                                                ) @ 5521..5524,
-                                            ) @ 5514..5524,
-                                        ) @ 5485..5524,
-                                    ) @ 5261..5524,
+                                                    "f12" @ 5755..5758,
+                                                ) @ 5755..5758,
+                                            ) @ 5748..5758,
+                                        ) @ 5719..5758,
+                                    ) @ 5495..5758,
                                     And(
                                         And(
                                             Is(
                                                 Identifier(
-                                                    "f20" @ 5541..5544,
-                                                ) @ 5541..5544,
+                                                    "f20" @ 5775..5778,
+                                                ) @ 5775..5778,
                                                 true,
-                                            ) @ 5541..5552,
+                                            ) @ 5775..5786,
                                             Equal(
                                                 Identifier(
-                                                    "f20" @ 5556..5559,
-                                                ) @ 5556..5559,
+                                                    "f20" @ 5790..5793,
+                                                ) @ 5790..5793,
                                                 Identifier(
-                                                    "f21" @ 5563..5566,
-                                                ) @ 5563..5566,
-                                            ) @ 5556..5566,
-                                        ) @ 5541..5566,
+                                                    "f21" @ 5797..5800,
+                                                ) @ 5797..5800,
+                                            ) @ 5790..5800,
+                                        ) @ 5775..5800,
                                         Equal(
                                             Identifier(
-                                                "f21" @ 5570..5573,
-                                            ) @ 5570..5573,
+                                                "f21" @ 5804..5807,
+                                            ) @ 5804..5807,
                                             Identifier(
-                                                "f22" @ 5577..5580,
-                                            ) @ 5577..5580,
-                                        ) @ 5570..5580,
-                                    ) @ 5541..5580,
-                                ) @ 5261..5580,
+                                                "f22" @ 5811..5814,
+                                            ) @ 5811..5814,
+                                        ) @ 5804..5814,
+                                    ) @ 5775..5814,
+                                ) @ 5495..5814,
                                 And(
                                     And(
                                         Is(
                                             Identifier(
-                                                "f00" @ 5597..5600,
-                                            ) @ 5597..5600,
+                                                "f00" @ 5831..5834,
+                                            ) @ 5831..5834,
                                             true,
-                                        ) @ 5597..5608,
+                                        ) @ 5831..5842,
                                         Equal(
                                             Identifier(
-                                                "f00" @ 5612..5615,
-                                            ) @ 5612..5615,
+                                                "f00" @ 5846..5849,
+                                            ) @ 5846..5849,
                                             Identifier(
-                                                "f11" @ 5619..5622,
-                                            ) @ 5619..5622,
-                                        ) @ 5612..5622,
-                                    ) @ 5597..5622,
+                                                "f11" @ 5853..5856,
+                                            ) @ 5853..5856,
+                                        ) @ 5846..5856,
+                                    ) @ 5831..5856,
                                     Equal(
                                         Identifier(
-                                            "f11" @ 5626..5629,
-                                        ) @ 5626..5629,
+                                            "f11" @ 5860..5863,
+                                        ) @ 5860..5863,
                                         Identifier(
-                                            "f22" @ 5633..5636,
-                                        ) @ 5633..5636,
-                                    ) @ 5626..5636,
-                                ) @ 5597..5636,
-                            ) @ 5261..5636,
+                                            "f22" @ 5867..5870,
+                                        ) @ 5867..5870,
+                                    ) @ 5860..5870,
+                                ) @ 5831..5870,
+                            ) @ 5495..5870,
                             And(
                                 And(
                                     Is(
                                         Identifier(
-                                            "f20" @ 5653..5656,
-                                        ) @ 5653..5656,
+                                            "f20" @ 5887..5890,
+                                        ) @ 5887..5890,
                                         true,
-                                    ) @ 5653..5664,
+                                    ) @ 5887..5898,
                                     Equal(
                                         Identifier(
-                                            "f20" @ 5668..5671,
-                                        ) @ 5668..5671,
+                                            "f20" @ 5902..5905,
+                                        ) @ 5902..5905,
                                         Identifier(
-                                            "f11" @ 5675..5678,
-                                        ) @ 5675..5678,
-                                    ) @ 5668..5678,
-                                ) @ 5653..5678,
+                                            "f11" @ 5909..5912,
+                                        ) @ 5909..5912,
+                                    ) @ 5902..5912,
+                                ) @ 5887..5912,
                                 Equal(
                                     Identifier(
-                                        "f11" @ 5682..5685,
-                                    ) @ 5682..5685,
+                                        "f11" @ 5916..5919,
+                                    ) @ 5916..5919,
                                     Identifier(
-                                        "f02" @ 5689..5692,
-                                    ) @ 5689..5692,
-                                ) @ 5682..5692,
-                            ) @ 5653..5692,
-                        ) @ 5261..5692,
+                                        "f02" @ 5923..5926,
+                                    ) @ 5923..5926,
+                                ) @ 5916..5926,
+                            ) @ 5887..5926,
+                        ) @ 5495..5926,
                     },
-                ) @ 5253..5694,
+                ) @ 5487..5928,
             ],
-            span: 4243..5695,
+            span: 4477..5929,
         },
     ],
     finish_functions: [
@@ -2467,5 +2549,5 @@ Policy {
         },
     ],
     global_lets: [],
-    text: "---\npolicy-version: 2\n---\n\n```policy\nfact Players[gameID id]=>{x id, o id}\nfact NextPlayer[gameID id]=>{p string}\nfact Field[gameID id, x int, y int]=>{p string}\nfact GameOver[gameID id]=>{}\n\n// Regular functions can only contain data processing statements, must\n// have a return type, and must return a value\nfunction bounds(v int) bool {\n    return v >= 0 && v <= 2\n}\n// finish functions can only be used in finish blocks and can only contain\n// statements valid in finish blocks\nfinish function set_next_player(gameID id, to_input string) {\n    update NextPlayer[gameID: gameID] to {p: to_input}\n}\n\naction StartGame(profileX id, profileO id) {\n    let start_command = Start{\n        ProfileX: profileX,\n        ProfileO: profileO,\n    }\n    publish start_command\n}\n\neffect GameStart {\n    gameID id,\n    x id,\n    o id,\n}\n\ncommand Start {\n    fields {\n        ProfileX id,\n        ProfileO id,\n    }\n    seal {\n        return todo()\n    }\n    open {\n        return todo()\n    }\n    policy {\n        check ProfileX != ProfileO\n        // `envelope::command_id` is an FFI-provided helper function that returns\n        // the ID from the passed in `envelope`.\n        let gameID = envelope::command_id(envelope)\n        finish {\n            create PlayerProfile[gameID: gameID]=>{x: ProfileX, o: ProfileO}\n            create NextPlayer[gameID: gameID]=>{p: \"X\"}\n\n            emit GameStart{\n                gameID: gameID,\n                x: ProfileX,\n                o: ProfileO,\n            }\n        }\n    }\n}\n\naction MakeMove(gameID id, x int, y int) {\n    let move_command = Move {\n        gameID: gameID,\n        X: x,\n        Y: y,\n    }\n    publish move_command\n}\n\neffect GameUpdate {\n    gameID id,\n    player id,\n    // the \"dynamic\" keyword is an annotation used to indicate to the consumer\n    // that this value is not based on static event data and may change.\n    p      string dynamic,\n    X      int,\n    Y      int,\n}\n\neffect GameOver {\n    gameID id,\n    winner id,\n    p string,\n}\n\ncommand Move {\n    // phase 0: command field definition\n    fields {\n        gameID id,\n        X int,\n        Y int,\n    }\n    seal {\n        return todo()\n    }\n    open {\n        return todo()\n    }\n    policy {\n        // phase 1: variable definition/checks\n        // These aren't \"variables\" in the procedural sense, they are\n        // set-once constant definitions that can be used in later\n        // expressions.\n        // `envelope::author_id` is an FFI-provided helper function which\n        // returns the ID for the author of the command from the passed in\n        // `envelope`.\n        let player = envelope::author_id(envelope)\n        // the query expression searches the fact database for facts which\n        // match the signature, returning an Optional containing either all\n        // values marked with ?, or None. The unwrap expression returns the\n        // value inside an Optional or terminates rule execution.\n        let result = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}\n        let playerX = result.x\n        let playerO = result.o\n        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}\n        // the if expression works like a ternary expression, where both\n        // branches must be specified.\n        let nextp = if p == \"X\" { :\"O\" } else { :\"X\" }\n\n        // Checks are separated here, but they can be interleaved with let\n        // statements.\n        // Defined variables, command fields, and common event fields can\n        // be checked for validity with boolean expressions.\n        check (p == \"X\" && player == playerX) || (p == \"O\" && player == playerO)\n        // functions can be used in any expression\n        check bounds(X)\n        check bounds(Y)\n\n        // phase 2: fact updates and effects\n        // Facts can be created, updated, and destroyed.\n        // Zero or more effects can be generated.\n        // The finish block ends rule evaluation.\n        finish {\n            create Field[gameID: gameID, x: X, y: Y]=>{p: p}\n            set_next_player(gameID, nextp)\n\n            emit GameUpdate{\n                gameID: gameID,\n                player: player,\n                p: p,\n                X: X,\n                Y: Y,\n            }\n        }\n    }\n}\n\nfunction game_over(gameID id, x int, y int, p string) bool {\n    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 0]=>{p: ?} }\n    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 0]=>{p: ?} }\n    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 0]=>{p: ?} }\n    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 1]=>{p: ?} }\n    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 1]=>{p: ?} }\n    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 1]=>{p: ?} }\n    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 2]=>{p: ?} }\n    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 2]=>{p: ?} }\n    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 2]=>{p: ?} }\n    return (f00 is Some && f00 == f10 && f10 == f20) ||\n           (f01 is Some && f01 == f11 && f11 == f21) ||\n           (f01 is Some && f02 == f12 && f12 == f22) ||\n           (f00 is Some && f00 == f01 && f01 == f02) ||\n           (f10 is Some && f10 == f11 && f11 == f12) ||\n           (f20 is Some && f20 == f21 && f21 == f22) ||\n           (f00 is Some && f00 == f11 && f11 == f22) ||\n           (f20 is Some && f20 == f11 && f11 == f02)\n}\n\ncommand Move2 {\n    fields {\n        gameID id,\n        X int,\n        Y int,\n    }\n    seal {\n        return todo()\n    }\n    open {\n        return todo()\n    }\n    policy {\n        let player = envelope::author_id(envelope)\n        let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}\n        let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}\n        let nextp = if p == \"X\" { :\"O\" } else { :\"X\" }\n\n        check !exists GameOver[gameID: gameID]=>{}\n        check bounds(X)\n        check bounds(Y)\n        check (p == \"X\" && player == players.x) || (p == \"O\" && player == players.o)\n\n        match game_over(gameID, X, Y, p) {\n            true => {\n                finish {\n                    create Field[gameID: gameID, x: X, y: Y]=>{p: p}\n                    delete NextPlayer[gameID: gameID]=>{p: p}\n                    create GameOver[gameID: gameID]=>{}\n                    emit GameOver{\n                        gameID: gameID,\n                        winner: player,\n                        p: p,\n                    }\n                }\n            }\n            false => {\n                finish {\n                    create Field[gameID: gameID, x: X, y: Y]=>{p: p}\n                    set_next_player(gameID, op)\n                    emit GameUpdate{\n                        gameID: gameID,\n                        player: player,\n                        p: p,\n                        x: X,\n                        y: Y,\n                    }\n                }\n            }\n        }\n    }\n}\n```\n",
+    text: "---\npolicy-version: 2\n---\n\n```policy\nfact Players[gameID id]=>{x id, o id}\nfact NextPlayer[gameID id]=>{p string}\nfact Field[gameID id, x int, y int]=>{p string}\nfact GameOver[gameID id]=>{}\n\n// Regular functions can only contain data processing statements, must\n// have a return type, and must return a value\nfunction bounds(v int) bool {\n    return v >= 0 && v <= 2\n}\n// finish functions can only be used in finish blocks and can only contain\n// statements valid in finish blocks\nfinish function set_next_player(gameID id, to_input string) {\n    update NextPlayer[gameID: gameID] to {p: to_input}\n}\n\naction StartGame(profileX id, profileO id) {\n    let start_command = Start{\n        ProfileX: profileX,\n        ProfileO: profileO,\n    }\n    publish start_command\n}\n\neffect GameStart {\n    gameID id,\n    x id,\n    o id,\n}\n\ncommand Start {\n    fields {\n        ProfileX id,\n        ProfileO id,\n    }\n    seal {\n        return todo()\n    }\n    open {\n        return todo()\n    }\n    policy {\n        check ProfileX != ProfileO else test_fail(\"Profiles must be different\")\n        // `envelope::command_id` is an FFI-provided helper function that returns\n        // the ID from the passed in `envelope`.\n        let gameID = envelope::command_id(envelope)\n        finish {\n            create PlayerProfile[gameID: gameID]=>{x: ProfileX, o: ProfileO}\n            create NextPlayer[gameID: gameID]=>{p: \"X\"}\n\n            emit GameStart{\n                gameID: gameID,\n                x: ProfileX,\n                o: ProfileO,\n            }\n        }\n    }\n}\n\naction MakeMove(gameID id, x int, y int) {\n    let move_command = Move {\n        gameID: gameID,\n        X: x,\n        Y: y,\n    }\n    publish move_command\n}\n\neffect GameUpdate {\n    gameID id,\n    player id,\n    // the \"dynamic\" keyword is an annotation used to indicate to the consumer\n    // that this value is not based on static event data and may change.\n    p      string dynamic,\n    X      int,\n    Y      int,\n}\n\neffect GameOver {\n    gameID id,\n    winner id,\n    p string,\n}\n\ncommand Move {\n    // phase 0: command field definition\n    fields {\n        gameID id,\n        X int,\n        Y int,\n    }\n    seal {\n        return todo()\n    }\n    open {\n        return todo()\n    }\n    policy {\n        // phase 1: variable definition/checks\n        // These aren't \"variables\" in the procedural sense, they are\n        // set-once constant definitions that can be used in later\n        // expressions.\n        // `envelope::author_id` is an FFI-provided helper function which\n        // returns the ID for the author of the command from the passed in\n        // `envelope`.\n        let player = envelope::author_id(envelope)\n        // the query expression searches the fact database for facts which\n        // match the signature, returning an Optional containing either all\n        // values marked with ?, or None. The `or` operator unwraps the result\n        // of the query, if it is `Some`, or invokes the test_fail() expression,\n        // which terminates the policy with an error.\n        let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()\n        let playerX = res.x\n        let playerO = res.o\n        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()\n        // the if expression works like a ternary expression, where both\n        // branches must be specified.\n        let nextp = if p == \"X\" { :\"O\" } else { :\"X\" }\n\n        // Checks are separated here, but they can be interleaved with let\n        // statements.\n        // Defined variables, command fields, and common event fields can\n        // be checked for validity with boolean expressions.\n        check (p == \"X\" && player == playerX) || (p == \"O\" && player == playerO) else test_fail(\"bad state: wrong player\")\n        // functions can be used in any expression\n        check bounds(X) else test_fail(\"X out of bounds\")\n        check bounds(Y) else test_fail(\"Y out of bounds\")\n\n        // phase 2: fact updates and effects\n        // Facts can be created, updated, and destroyed.\n        // Zero or more effects can be generated.\n        // The finish block ends rule evaluation.\n        finish {\n            create Field[gameID: gameID, x: X, y: Y]=>{p: p}\n            set_next_player(gameID, nextp)\n\n            emit GameUpdate{\n                gameID: gameID,\n                player: player,\n                p: p,\n                X: X,\n                Y: Y,\n            }\n        }\n    }\n}\n\nfunction game_over(gameID id, x int, y int, p string) bool {\n    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 0]=>{p: ?} }\n    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 0]=>{p: ?} }\n    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 0]=>{p: ?} }\n    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 1]=>{p: ?} }\n    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 1]=>{p: ?} }\n    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 1]=>{p: ?} }\n    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 2]=>{p: ?} }\n    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 2]=>{p: ?} }\n    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 2]=>{p: ?} }\n    return (f00 is Some && f00 == f10 && f10 == f20) ||\n           (f01 is Some && f01 == f11 && f11 == f21) ||\n           (f01 is Some && f02 == f12 && f12 == f22) ||\n           (f00 is Some && f00 == f01 && f01 == f02) ||\n           (f10 is Some && f10 == f11 && f11 == f12) ||\n           (f20 is Some && f20 == f21 && f21 == f22) ||\n           (f00 is Some && f00 == f11 && f11 == f22) ||\n           (f20 is Some && f20 == f11 && f11 == f02)\n}\n\ncommand Move2 {\n    fields {\n        gameID id,\n        X int,\n        Y int,\n    }\n    seal {\n        return todo()\n    }\n    open {\n        return todo()\n    }\n    policy {\n        let player = envelope::author_id(envelope)\n        let players = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()\n        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()\n        let nextp = if p == \"X\" { :\"O\" } else { :\"X\" }\n\n        check !exists GameOver[gameID: gameID]=>{} else test_fail(\"game is over\")\n        check bounds(X) else test_fail(\"X invalid\")\n        check bounds(Y) else test_fail(\"Y invalid\")\n        check (p == \"X\" && player == players.x) || (p == \"O\" && player == players.o) else test_fail(\"bad state: wrong player\")\n\n        match game_over(gameID, X, Y, p) {\n            true => {\n                finish {\n                    create Field[gameID: gameID, x: X, y: Y]=>{p: p}\n                    delete NextPlayer[gameID: gameID]=>{p: p}\n                    create GameOver[gameID: gameID]=>{}\n                    emit GameOver{\n                        gameID: gameID,\n                        winner: player,\n                        p: p,\n                    }\n                }\n            }\n            false => {\n                finish {\n                    create Field[gameID: gameID, x: X, y: Y]=>{p: p}\n                    set_next_player(gameID, op)\n                    emit GameUpdate{\n                        gameID: gameID,\n                        player: player,\n                        p: p,\n                        x: X,\n                        y: Y,\n                    }\n                }\n            }\n        }\n    }\n}\n```\n",
 }

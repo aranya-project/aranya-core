@@ -1,0 +1,67 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 205
+expression: module
+---
+Module {
+    version: "0",
+    labels: {
+        <action 'can_fail'>: 2,
+        <action 'infallible'>: 1,
+    },
+    action_defs: [
+        ActionDef {
+            name: "infallible",
+            persistence: Persistent,
+            params: [],
+            result_type: Unit,
+        },
+        ActionDef {
+            name: "can_fail",
+            persistence: Persistent,
+            params: [
+                Field {
+                    name: "x",
+                    ty: Int,
+                },
+            ],
+            result_type: Result(
+                ResultTypeKind {
+                    ok: Unit,
+                    err: String,
+                },
+            ),
+        },
+    ],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<action 'infallible'>:
+    return
+<action 'can_fail'>:
+    def 'x'
+    save SP
+    get 'x'
+    const 0
+    gt
+    not
+    branch 16
+    block
+    const ()
+    wrap ok
+    restore SP
+    return
+    end
+    jump 16
+<16>:
+    const "negative input"
+    wrap err
+    restore SP
+    return
+    exit panic

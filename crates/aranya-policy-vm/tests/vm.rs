@@ -6,13 +6,13 @@ mod bits;
 use std::{collections::BTreeMap, iter};
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
-use aranya_policy_ast::{self as ast, Version, WithSpanExt as _};
+use aranya_policy_ast::Version;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Identifier,
-    KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext,
-    PolicyContext, RunState, SealContext, Stack as _, Struct, Value, ident, text,
+    ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Field,
+    Identifier, KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module,
+    PolicyContext, RunState, Stack as _, Struct, StructDef, Value, ident, text,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
@@ -21,22 +21,13 @@ use ciborium as cbor;
 #[track_caller]
 fn compile(text: &str) -> Machine {
     let text = text.trim_start_matches('\n');
-    let policy = match parse_policy_str(text, Version::V2) {
-        Ok(p) => p,
-        Err(err) => panic!("{err}"),
-    };
-    let module = match Compiler::new(&policy)
+    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .debug(true)
         .compile()
-    {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    };
-    match Machine::from_module(module) {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    }
+        .unwrap();
+    Machine::from_module(module).unwrap()
 }
 
 fn dummy_ctx_action(name: Identifier) -> CommandContext {
@@ -46,28 +37,8 @@ fn dummy_ctx_action(name: Identifier) -> CommandContext {
     })
 }
 
-fn dummy_ctx_seal(name: Identifier) -> CommandContext {
-    CommandContext::Seal(SealContext {
-        name,
-        head_id: CmdId::default(),
-    })
-}
-
-fn dummy_ctx_open(name: Identifier) -> CommandContext {
-    CommandContext::Open(OpenContext { name })
-}
-
 fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     CommandContext::Policy(PolicyContext {
-        name,
-        id: CmdId::default(),
-        author: DeviceId::default(),
-        version: BaseId::default(),
-    })
-}
-
-fn dummy_ctx_recall(name: Identifier) -> CommandContext {
-    CommandContext::Recall(PolicyContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
@@ -173,11 +144,14 @@ fn test_structs() -> anyhow::Result<()> {
     let machine = compile(text);
 
     assert_eq!(
-        machine.struct_defs.get("Bar"),
-        Some(&vec![ast::FieldDefinition {
-            identifier: ident!("x").at(33..34),
-            field_type: ast::TypeKind::Int.at(35..38),
-        }])
+        machine.struct_defs.get(&ident!("Bar")),
+        Some(&StructDef {
+            name: ident!("Bar"),
+            items: vec![Field {
+                name: ident!("x"),
+                ty: aranya_policy_module::TypeKind::Int,
+            }]
+        })
     );
 
     {
@@ -501,19 +475,19 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
 
     action testExists() {
-        check exists Foo[] => {x: 3}
-        check exists Foo[]
-        check exists Bar[i: 1] => {s: "abc", b: Bool::True}
+        check exists Foo[] => {x: 3} else test_fail()
+        check exists Foo[] else test_fail()
+        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail()
 
-        check exists Foo[] => {x: ?}
-        check exists Bar[i: ?] => {s: ?, b: Bool::True}
+        check exists Foo[] => {x: ?} else test_fail()
+        check exists Bar[i: ?] => {s: ?, b: Bool::True} else test_fail()
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:Bool::True}
-        check !exists Bar[i:1] => {s:"", b:Bool::True}
-        check !exists Bar[i: ?]=>{s: "ab", b: ?}
+        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else test_fail()
+        check !exists Bar[i:1] => {s:"", b:Bool::True} else test_fail()
+        check !exists Bar[i: ?]=>{s: "ab", b: ?} else test_fail()
     }
     "#;
 
@@ -561,13 +535,13 @@ fn test_counting() -> anyhow::Result<()> {
             open { return todo() }
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
-                check count_one == 1
+                check count_one == 1 else test_fail()
                 let count_two = count_up_to 2 Foo[i:?]
-                check count_two == 2
+                check count_two == 2 else test_fail()
                 let count_all = count_up_to 10 Foo[i:?]
-                check count_all == 3
+                check count_all == 3 else test_fail()
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
-                check count_max == 3
+                check count_max == 3 else test_fail()
                 finish {}
             }
         }
@@ -576,9 +550,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_least 1 Foo[i:?]
-                check at_least 3 Foo[i:?]
-                check at_least 4 Foo[i:?] == false
+                check at_least 1 Foo[i:?] else test_fail()
+                check at_least 3 Foo[i:?] else test_fail()
+                check at_least 4 Foo[i:?] == false else test_fail()
                 finish {}
             }
         }
@@ -587,9 +561,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check at_most 1 Foo[i:?] == false
-                check at_most 3 Foo[i:?]
-                check at_most 4 Foo[i:?]
+                check at_most 1 Foo[i:?] == false else test_fail()
+                check at_most 3 Foo[i:?] else test_fail()
+                check at_most 4 Foo[i:?] else test_fail()
                 finish {}
             }
         }
@@ -598,9 +572,9 @@ fn test_counting() -> anyhow::Result<()> {
             seal { return todo() }
             open { return todo() }
             policy {
-                check exactly 1 Foo[i:?] == false
-                check exactly 3 Foo[i:?]
-                check exactly 4 Foo[i:?] == false
+                check exactly 1 Foo[i:?] == false else test_fail()
+                check exactly 3 Foo[i:?] else test_fail()
+                check exactly 4 Foo[i:?] == false else test_fail()
                 finish {}
             }
         }
@@ -672,7 +646,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
         // This tests the implicitly defined struct as a return type
         function get_foo(a int) struct Foo {
-            let foo = unwrap query Foo[a: a]=>{b: ?}
+            let foo = query Foo[a: a]=>{b: ?} or test_fail()
 
             return foo
         }
@@ -783,29 +757,29 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Foo[i: 1, j: ?]
-            check f.x == 1
-            let f2 = unwrap query Foo[i: ?, j: ?]
-            check f2.x == 1
-            let f3 = unwrap query Foo[i:2, j:?]
-            check f3.x == 3
+            let f = query Foo[i: 1, j: ?] or test_fail()
+            check f.x == 1 else test_fail()
+            let f2 = query Foo[i: ?, j: ?] or test_fail()
+            check f2.x == 1 else test_fail()
+            let f3 = query Foo[i:2, j:?] or test_fail()
+            check f3.x == 3 else test_fail()
 
             // bind value
-            let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
-            check f4.x == 3
+            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or test_fail()
+            check f4.x == 3 else test_fail()
             // bind key and value
-            let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
-            check f5.x == 3
+            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or test_fail()
+            check f5.x == 3 else test_fail()
         }
 
         action test_nonexistent() {
-            let f = unwrap query Foo[i:?, j:?]
+            let f = query Foo[i:?, j:?] or test_fail()
         }
 
         action test_exists() {
-            check exists Foo[i:1, j:?]
-            check exists Foo[i:-1, j:?] == false
-            check !exists Foo[i:1, j:?] => {x:-1, s:?}
+            check exists Foo[i:1, j:?] else test_fail()
+            check exists Foo[i:-1, j:?] == false else test_fail()
+            check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail()
         }
     "#;
 
@@ -863,8 +837,8 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Bar[i:Foo::A] => {x: ?}
-            check f.x == Foo::A
+            let f = query Bar[i:Foo::A] => {x: ?} or test_fail()
+            check f.x == Foo::A else test_fail()
         }
     "#;
 
@@ -901,7 +875,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 fn test_not_operator() -> anyhow::Result<()> {
     let text = r#"
         action test() {
-            check !false
+            check !false else test_fail()
         }
     "#;
 
@@ -920,7 +894,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
             if x == true {
-                check true == false
+                check false else test_fail()
             }
         }
     "#;
@@ -931,29 +905,13 @@ fn test_if_true() -> anyhow::Result<()> {
     let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
-    let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check(None));
+    let result = rs.call_action(name.clone(), [true])?;
+    assert_eq!(result, ExitReason::Panic);
+    assert!(rs.stack.is_empty());
 
-    Ok(())
-}
-
-#[test]
-fn test_if_false() -> anyhow::Result<()> {
-    let text = r#"
-        action foo(x bool) {
-            if x == true {
-                check true == false
-            }
-        }
-    "#;
-
-    let name = ident!("foo");
-    let mut io = TestIO::new();
-    let ctx = dummy_ctx_action(name.clone());
-    let machine = compile(text);
-    let mut rs = machine.create_run_state(&mut io, ctx);
-
-    rs.call_action(name, [false])?.success();
+    let result = rs.call_action(name, [false])?;
+    assert_eq!(result, ExitReason::Normal);
+    assert!(rs.stack.is_empty());
 
     Ok(())
 }
@@ -972,17 +930,17 @@ fn test_if_branches() -> anyhow::Result<()> {
 
         action foo(x int) {
             if x == 0 {
-                check true
+                check true else test_fail()
                 publish Result { s: "0" }
-                check true
+                check true else test_fail()
             } else if x == 1 {
                 publish Result { s: "1" }
             } else if x == 2 {
-                check true
+                check true else test_fail()
                 publish Result { s: "2" }
             } else {
                 publish Result { s: "3" }
-                check true
+                check true else test_fail()
             }
         }
     "#;
@@ -1071,7 +1029,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 0 | 1 => {
-                    check false
+                    check false else test_fail()
                 }
                 5 | 6 | 7 => {
                     publish Result { x: x }
@@ -1134,7 +1092,7 @@ fn test_match_default() -> anyhow::Result<()> {
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
         action foo(val int) {
-            check val == bar()
+            check val == bar() else test_fail()
         }
 
         function bar() int {
@@ -1188,6 +1146,43 @@ fn test_match_expression() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_match_optional_binding() -> anyhow::Result<()> {
+    let text = r#"
+        command F {
+            fields { x int }
+            seal { return todo() }
+            open { return todo() }
+            policy {}
+        }
+        action foo(o option[int]) {
+            let y = match o {
+                Some(n) => n
+                None => 0
+            }
+            publish F { x: y }
+        }
+    "#;
+    let machine = compile(text);
+    let mut io = TestIO::new();
+    let mut published = Vec::new();
+    let name = ident!("foo");
+
+    // None arm
+    let mut rs = machine.create_run_state(&mut io, dummy_ctx_action(name.clone()));
+    call_action(&mut rs, &mut published, name.clone(), [Value::NONE])?.success();
+    assert_eq!(published, [vm_struct!(F { x: 0 })],);
+    published.clear();
+    drop(rs);
+
+    // Some(n) binding arm
+    let mut rs = machine.create_run_state(&mut io, dummy_ctx_action(name.clone()));
+    call_action(&mut rs, &mut published, name, [Some(42)])?.success();
+    assert_eq!(published, [vm_struct!(F { x: 42 })],);
+
+    Ok(())
+}
+
+#[test]
 fn test_is_some_statement() -> anyhow::Result<()> {
     let name = ident!("check_none");
     let machine = compile(POLICY_IS);
@@ -1228,10 +1223,10 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
         if x {
-            check x
+            check x else test_fail()
         }
         if !y {
-            check !y
+            check !y else test_fail()
         }
     }
     "#;
@@ -1259,7 +1254,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         function f(x int) int {
-            return unwrap add(x, 1)
+            return add(x, 1) or test_fail()
         }
 
         action foo(x int) {
@@ -1334,83 +1329,9 @@ fn test_finish_function() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_serialize_deserialize() -> anyhow::Result<()> {
-    let text = r#"
-        struct Envelope {
-            payload bytes
-        }
-
-        command Foo {
-            fields {
-                a int,
-                b string,
-            }
-
-            seal {
-                return Envelope {
-                    payload: serialize(this)
-                }
-            }
-            open {
-                // Don't access payload this way. See below.
-                return deserialize(envelope.payload)
-            }
-
-            policy {
-                finish {}
-            }
-        }
-    "#;
-
-    let this_struct = Struct::new(
-        ident!("Foo"),
-        [
-            KVPair::new(ident!("a"), Value::Int(1)),
-            KVPair::new(ident!("b"), Value::String(text!("foo"))),
-        ],
-    );
-
-    let mut io = TestIO::new();
-    let machine = compile(text);
-
-    let name = ident!("Foo");
-    let this_bytes: Vec<u8> = {
-        let ctx = dummy_ctx_seal(name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_seal(this_struct.clone())?.success();
-        let result = rs.consume_return()?;
-        let mut envelope: Struct = result.try_into()?;
-        let payload = envelope
-            .fields
-            .remove("payload")
-            .expect("envelope has no payload");
-        payload.try_into()?
-    };
-
-    {
-        let ctx = dummy_ctx_open(name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        // call_open expects an envelope struct, so we smuggle the bytes
-        // in through a field. The payload would normally be accessed
-        // through an FFI module.
-        let envelope = Struct::new(
-            ident!("Env"),
-            [KVPair::new(ident!("payload"), Value::Bytes(this_bytes))],
-        );
-        rs.call_open(name, envelope)?.success();
-        let result = rs.consume_return()?;
-        let got_this: Struct = result.try_into()?;
-        assert_eq!(got_this, this_struct);
-    }
-
-    Ok(())
-}
-
-#[test]
 fn test_check_errors() -> anyhow::Result<()> {
     let cases = [
-        (
-            r#"command Foo {
+        r#"command Foo {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
@@ -1420,10 +1341,7 @@ fn test_check_errors() -> anyhow::Result<()> {
                 recall default() {
                 }
             }"#,
-            ident!("Foo_default"),
-        ),
-        (
-            r#"command Foo {
+        r#"command Foo {
                 fields {}
                 seal { return todo() }
                 open { return todo() }
@@ -1433,11 +1351,9 @@ fn test_check_errors() -> anyhow::Result<()> {
                 recall bar() {
                 }
             }"#,
-            ident!("Foo_bar"),
-        ),
     ];
 
-    for (input, expected) in cases {
+    for input in cases {
         let policy = parse_policy_str(input, Version::V2)?;
         let mut io = TestIO::new();
         let module = Compiler::new(&policy).compile()?;
@@ -1451,76 +1367,8 @@ fn test_check_errors() -> anyhow::Result<()> {
         };
         let result = rs.call_command_policy(self_struct, dummy_envelope())?;
 
-        assert_eq!(result, ExitReason::Check(Some(expected)));
+        assert_eq!(result, ExitReason::Check);
     }
-    Ok(())
-}
-
-#[test]
-fn test_check_unwrap() -> anyhow::Result<()> {
-    let text = r#"
-        fact Foo[i int]=>{x int}
-
-        command Setup {
-            fields {}
-
-            seal {
-                return todo()
-            }
-            open {
-                return todo()
-            }
-
-            policy {
-                finish {
-                    create Foo[i: 1]=>{x: 1}
-                }
-            }
-        }
-
-        action test_existing() {
-            let f = check_unwrap query Foo[i: 1]
-            check f.x == 1
-        }
-
-        action test_nonexistent() {
-            let f = check_unwrap query Foo[i: 0]
-            check false // would exit check, but check_unwrap should exit check first
-        }
-    "#;
-
-    let mut io = TestIO::new();
-    let machine = compile(text);
-
-    {
-        let cmd_name = ident!("Setup");
-        let this_data = Struct {
-            name: cmd_name.clone(),
-            fields: [].into(),
-        };
-
-        let ctx = dummy_ctx_policy(cmd_name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
-            .success();
-    }
-
-    {
-        let action_name = ident!("test_existing");
-        let ctx = dummy_ctx_action(action_name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_action(action_name, iter::empty::<Value>())?
-            .success();
-    }
-
-    {
-        let action_name = ident!("test_nonexistent");
-        let ctx = dummy_ctx_action(action_name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check(None));
-    }
-
     Ok(())
 }
 
@@ -1542,22 +1390,22 @@ fn test_coalesce_or() -> anyhow::Result<()> {
 
         action test_some_or() {
             let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
-            check f.x == 42
+            check f.x == 42 else test_fail()
         }
 
         action test_none_or() {
             let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
-            check f.x == 99
+            check f.x == 99 else test_fail()
         }
 
         action test_chain() {
             let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
-            check f.x == 77
+            check f.x == 77 else test_fail()
         }
 
         action test_chain_first_some() {
             let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
-            check f.x == 42
+            check f.x == 42 else test_fail()
         }
     "#;
 
@@ -1626,15 +1474,12 @@ fn test_nested_optionals() -> anyhow::Result<()> {
         "Some(Some(5)) is Some",
         "Some(Some(5)) == Some(Some(5))",
         "Some(Some(5)) != Some(Some(1))",
-        "(unwrap Some(None)) is None",
-        "(unwrap Some(Some(5))) == Some(5)",
-        "(unwrap unwrap Some(Some(5))) == 5",
     ];
 
     let actions = checks
         .iter()
         .enumerate()
-        .map(|(i, c)| format!("action c{i}() {{ check {c} }}"))
+        .map(|(i, c)| format!("action c{i}() {{ check {c} else test_fail(\"check failed\") }}"))
         .collect::<Vec<_>>()
         .join("\n");
     let machine = compile(&actions);
@@ -1659,6 +1504,8 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             payload bytes
         }
 
+        effect Recalled {}
+
         command Foo {
             fields {
                 test bytes
@@ -1667,13 +1514,14 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             open { return todo() }
 
             policy {
-                check envelope.payload == this.test
-                finish {}
+                check false else recall default()
             }
 
             recall default() {
-                check envelope.payload == this.test
-                finish {}
+                check envelope.payload == this.test else test_fail("invalid envelope")
+                finish {
+                    emit Recalled {}
+                }
             }
         }
     "#;
@@ -1682,40 +1530,22 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let machine = compile(text);
     let test_data = "thing".as_bytes().to_vec();
 
-    {
-        let name = ident!("Foo");
-        let ctx = dummy_ctx_policy(name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(
-            Struct::new(
-                ident!("Foo"),
-                [KVPair::new(ident!("test"), test_data.clone().into())],
-            ),
-            Struct::new(
-                ident!("Envelope"),
-                [KVPair::new(ident!("payload"), test_data.clone().into())],
-            ),
-        )?
-        .success();
-    }
-
-    {
-        let name = ident!("Foo");
-        let ctx = dummy_ctx_recall(name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_recall(
-            Struct::new(
-                ident!("Foo"),
-                [KVPair::new(ident!("test"), test_data.clone().into())],
-            ),
-            Struct::new(
-                ident!("Envelope"),
-                [KVPair::new(ident!("payload"), test_data.into())],
-            ),
-            ident!("Foo_default"),
-        )?
-        .success();
-    }
+    let name = ident!("Foo");
+    let ctx = dummy_ctx_policy(name);
+    let mut rs = machine.create_run_state(&mut io, ctx);
+    let result = rs.call_command_policy(
+        Struct::new(
+            ident!("Foo"),
+            [KVPair::new(ident!("test"), test_data.clone().into())],
+        ),
+        Struct::new(
+            ident!("Envelope"),
+            [KVPair::new(ident!("payload"), test_data.into())],
+        ),
+    )?;
+    assert_eq!(result, ExitReason::Check);
+    // Recall body ran with `envelope` and `this` in scope, reached `finish`.
+    assert_eq!(io.effect_stack[0].0, ident!("Recalled"));
 
     Ok(())
 }
@@ -1828,7 +1658,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
 
         action foo() {
-            let a = unwrap add(x, 1)
+            let a = add(x, 1) or test_fail()
             let b = y
             let c = !z
             publish Result {
@@ -1978,7 +1808,7 @@ fn test_enum_parse() -> anyhow::Result<()> {
     );
     assert_eq!(
         machine.parse_enum("Drink::").unwrap_err().err_type,
-        MachineErrorType::NotDefined("no value `` in enum `Drink`".to_owned())
+        MachineErrorType::NotDefined("Bad enum variant: identifier must not be empty".to_owned())
     );
     assert_eq!(
         machine.parse_enum("Coffee").unwrap_err().err_type,
@@ -2044,8 +1874,8 @@ fields {}
 seal { return todo() }
 open { return todo() }
 policy {
-    let r = unwrap query Foo[]=>{x: ?}
-    let new_x = unwrap add(r.x, 1)
+    let r = query Foo[]=>{x: ?} or test_fail()
+    let new_x = add(r.x, 1) or test_fail()
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
         emit Update{value: new_x}
@@ -2401,7 +2231,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 #[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!("action f() {{ check {expr} }}"));
+        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2426,31 +2256,48 @@ fn test_boolean_operators() {
 #[test]
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
-        let machine = compile(&format!("action f() {{ check {expr} }}"));
+        let machine = compile(&format!(
+            "action f() result[unit, int] {{ check {expr} else return Err(0) return Ok(Unit) }}"
+        ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
 
-        let exit = rs
-            .call_action(ident!("f"), iter::empty::<Value>())
-            .expect("action runs");
-        assert!(rs.stack.is_empty());
-        exit
+        rs.call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs")
     }
 
-    // `todo()` panics if it runs; a failing bare `check` exits with `Check(None)`.
-    // So `Panic` means `todo()` evaluated; `Check(None)` means the check failed
-    // without `todo()` running; `Normal` means the check passed.
+    // `todo()` panics if it runs. A failing `check` runs its `else return Err(..)`,
+    // exiting `Normal`. So `Panic` means `todo()` evaluated; `Normal` means it did
+    // not (the check either passed, or failed and returned Err).
     assert_eq!(run("true && todo()"), ExitReason::Panic); // todo runs in &&
-    assert_eq!(run("false && todo()"), ExitReason::Check(None)); // && short-circuits → check fails
+    assert_eq!(run("false && todo()"), ExitReason::Normal); // && short-circuits → check fails → return Err
     assert_eq!(run("true || todo()"), ExitReason::Normal); // || short-circuits, check passes
     assert_eq!(run("false || todo()"), ExitReason::Panic); // todo runs in ||
 }
 
 #[test]
+fn test_test_fail() {
+    fn run(cond: &str) -> ExitReason {
+        let machine = compile(&format!("action f() {{ check {cond} else test_fail() }}"));
+        let mut io = TestIO::new();
+        let ctx = dummy_ctx_action(ident!("f"));
+        let mut rs = machine.create_run_state(&mut io, ctx);
+
+        rs.call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs")
+    }
+
+    // Passing check should continue
+    assert_eq!(run("true"), ExitReason::Normal);
+    // Failing check should panic
+    assert_eq!(run("false"), ExitReason::Panic);
+}
+
+#[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!("action f() {{ check {expr} }}"));
+        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2543,11 +2390,11 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check true
+            check true else test_fail()
             // before
-            check false
+            check false else test_fail()
             // after
-            check true
+            check true else test_fail()
         }
     "#;
 
@@ -2558,14 +2405,15 @@ fn test_source_lookup() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check(None));
+    assert_eq!(result, ExitReason::Panic);
+    assert!(rs.stack.is_empty());
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
         source,
         concat!(
             "at row 4 col 13:\n",
-            "\tcheck false\n",
+            "\tcheck false else test_fail()\n",
             "            // after\n",
             "            "
         )
@@ -2578,7 +2426,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
 fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar()
+            check 42 == bar() else test_fail()
         }
 
         function bar() int {
@@ -2610,7 +2458,7 @@ fn test_return_expression() -> anyhow::Result<()> {
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar()
+            check 42 == bar() else test_fail()
         }
 
         function bar() int {
@@ -2641,12 +2489,12 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
 #[test]
 fn test_result() -> anyhow::Result<()> {
     let text = r#"
-        enum Err {
+        enum Error {
             Fail
         }
 
         effect Result {
-            r result[int, enum Err]
+            r result[int, enum Error]
         }
 
         command DoWork {
@@ -2666,18 +2514,18 @@ fn test_result() -> anyhow::Result<()> {
             }
         }
 
-        function try(succeed bool) result[int, enum Err] {
+        function try(succeed bool) result[int, enum Error] {
             // error propagation is done explicilty, until we have `?` operator
             return match try_return(succeed) {
                 Ok(n) => Ok(n)
-                _ => Err(Err::Fail)
+                _ => Err(Error::Fail)
             }
         }
 
-        function try_return(succeed bool) result[int, enum Err] {
+        function try_return(succeed bool) result[int, enum Error] {
             let r = match succeed {
                 true => Ok(42)
-                false => return Err(Err::Fail) // early return from match
+                false => return Err(Error::Fail) // early return from match
             }
             return r
         }
@@ -2724,7 +2572,7 @@ fn test_result() -> anyhow::Result<()> {
                 ident!("Result"),
                 vec![KVPair::new(
                     ident!("r"),
-                    Value::Result(Err(Box::new(Value::Enum(ident!("Err"), 0))))
+                    Value::Result(Err(Box::new(Value::Enum(ident!("Error"), 0))))
                 ),]
             )
         );
@@ -2735,11 +2583,7 @@ fn test_result() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_patterns() -> anyhow::Result<()> {
-    let text = r#"
-        enum Err {
-            Fail
-        }
-
+    let text: &str = r#"
         effect Result {
             n int
         }
@@ -2810,6 +2654,100 @@ fn test_match_patterns() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_unit() -> anyhow::Result<()> {
+    let text = r#"
+        enum Error {
+            Fail,
+        }
+
+        effect Yes {
+            n int,
+        }
+
+        effect No {
+            err enum Error,
+        }
+
+        function verify(n int) result[unit, enum Error] {
+            return if n == 42 {
+                : Ok(Unit)
+            } else {
+                : Err(Error::Fail)
+            }
+        }
+
+        command DoMatch {
+            fields {
+                n int
+            }
+            seal { return todo() }
+            open { return todo() }
+            policy {
+                match verify(this.n) {
+                    Ok(Unit) => {
+                        finish {
+                            emit Yes {
+                                n: this.n,
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        finish {
+                            emit No {
+                                err: e,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let mut io = TestIO::new();
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+
+    // n=42 should emit Yes
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(42))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[0],
+            (
+                ident!("Yes"),
+                vec![KVPair::new(ident!("n"), Value::Int(42))]
+            )
+        );
+    }
+
+    // n=99 should emit No
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(99))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[1],
+            (
+                ident!("No"),
+                vec![KVPair::new(ident!("err"), Value::Enum(ident!("Error"), 0))]
+            )
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_recall_with_args() -> anyhow::Result<()> {
     let text = r#"
         effect MyError {
@@ -2849,25 +2787,12 @@ fn test_recall_with_args() -> anyhow::Result<()> {
     let envelope = dummy_envelope();
 
     // Exec command
-    let ctx = dummy_ctx_policy(name.clone());
+    let ctx = dummy_ctx_policy(name);
     let mut rs = machine.create_run_state(&mut io, ctx);
-    let result = rs.call_command_policy(this_data.clone(), envelope.clone())?;
+    let result = rs.call_command_policy(this_data, envelope)?;
+    assert_eq!(result, ExitReason::Check);
 
-    // Should exit with Check, and args should be on stack
-    let recall_name = ident!("Foo_test");
-    assert_eq!(result, ExitReason::Check(Some(recall_name.clone())));
-    let stack_values = rs.stack.as_slice();
-    assert_eq!(stack_values.first(), Some(&Value::Int(1)));
-    assert_eq!(stack_values.get(1), Some(&Value::String(text!("oops"))));
-
-    // Exec recall
-    let recall_ctx = dummy_ctx_recall(name);
-    rs.set_context(recall_ctx);
-
-    let result = rs.call_command_recall(this_data, envelope, recall_name)?;
-    assert_eq!(result, ExitReason::Normal);
-
-    // Check that the effect was emitted with correct args
+    // Effect should be emitted from the inline recall body with the supplied args.
     assert_eq!(
         io.effect_stack[0],
         (

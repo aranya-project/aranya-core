@@ -5,7 +5,6 @@ use aranya_crypto::{
     afc::{OpenKey, SealKey, Seq},
     policy::LabelId,
 };
-use buggy::BugExt as _;
 use derive_where::derive_where;
 
 use super::{
@@ -84,8 +83,7 @@ where
     type OpenCtx = OpenCtx<CS>;
 
     fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, crate::Error> {
-        let mutex = self.inner.load_read_list()?;
-        let mut list = mutex.lock().assume("poisoned")?;
+        let mut list = self.inner.load_read_list()?.lock();
 
         let generation = list.generation.load(Ordering::Relaxed);
 
@@ -107,8 +105,7 @@ where
     }
 
     fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, crate::Error> {
-        let mutex = self.inner.load_read_list()?;
-        let mut list = mutex.lock().assume("poisoned")?;
+        let mut list = self.inner.load_read_list()?.lock();
 
         let generation = list.generation.load(Ordering::Relaxed);
 
@@ -141,16 +138,10 @@ where
 
         let id = cache.id;
 
-        let mutex = self.inner.load_read_list()?;
+        let list = self.inner.load_read_list()?;
 
         let hint = {
-            // SAFETY: we only access an atomic field.
-            let generation = unsafe {
-                mutex
-                    .inner_unsynchronized()
-                    .generation
-                    .load(Ordering::Acquire)
-            };
+            let generation = list.generation.load(Ordering::Acquire);
             if cache.generation == generation {
                 // Same generation, so we can use the key.
                 debug!(
@@ -168,7 +159,7 @@ where
 
         // We don't have a cached key, so we need to traverse the
         // list.
-        let mut list = mutex.lock().assume("poisoned")?;
+        let mut list = list.lock();
 
         // The list is currently locked (precluding writes to
         // `list.generation`), so we don't *need* atomics here. But we
@@ -215,16 +206,10 @@ where
 
         let id = cache.id;
 
-        let mutex = self.inner.load_read_list()?;
+        let list = self.inner.load_read_list()?;
 
         let hint = {
-            // SAFETY: we only access an atomic field.
-            let generation = unsafe {
-                mutex
-                    .inner_unsynchronized()
-                    .generation
-                    .load(Ordering::Acquire)
-            };
+            let generation = list.generation.load(Ordering::Acquire);
             if cache.generation == generation {
                 // Same generation, so we can use the key.
                 debug!("cache hit: id={id} generation={generation}");
@@ -239,7 +224,7 @@ where
 
         // We don't have a cached key, so we need to traverse the
         // list.
-        let list = mutex.lock().assume("poisoned")?;
+        let list = list.lock();
 
         let (chan, idx) = match list.find(id, hint, Op::Open)? {
             None => return Err(crate::Error::NotFound(id)),
@@ -260,8 +245,7 @@ where
     }
 
     fn exists(&self, id: LocalChannelId) -> Result<bool, crate::Error> {
-        let mutex = self.inner.load_read_list()?;
-        let list = mutex.lock().assume("poisoned")?;
+        let list = self.inner.load_read_list()?.lock();
         Ok(list.exists(id, None, Op::Any)?)
     }
 }

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{CmdId, Command, Priority},
+    command::{CmdId, Command},
 };
 
 /// The data inside a [`VmProtocol`]. It gets serialized and deserialized over the wire.
@@ -31,7 +31,6 @@ pub struct VmProtocolData<'a> {
 #[derive(Debug)]
 pub struct VmProtocol<'a> {
     pub id: CmdId,
-    pub priority: Priority,
     pub parent: Prior<Address>,
     pub policy: Option<[u8; 8]>,
     /// Serialized [`VmProtocolData`].
@@ -39,10 +38,6 @@ pub struct VmProtocol<'a> {
 }
 
 impl Command for VmProtocol<'_> {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -65,7 +60,6 @@ pub struct Envelope<'a> {
     pub parent_id: CmdId,
     pub author_id: DeviceId,
     pub command_id: CmdId,
-    pub payload: Cow<'a, [u8]>,
     pub signature: Cow<'a, [u8]>,
 }
 
@@ -77,7 +71,6 @@ impl From<Envelope<'_>> for Struct {
                 (ident!("parent_id"), e.parent_id.into()),
                 (ident!("author_id"), e.author_id.into()),
                 (ident!("command_id"), e.command_id.into()),
-                (ident!("payload"), e.payload.into_owned().into()),
                 (ident!("signature"), e.signature.into_owned().into()),
             ],
         )
@@ -101,7 +94,6 @@ impl TryFrom<Struct> for Envelope<'_> {
             parent_id: get(fields, "parent_id")?,
             author_id: get(fields, "author_id")?,
             command_id: get(fields, "command_id")?,
-            payload: Cow::Owned(get(fields, "payload")?),
             signature: Cow::Owned(get(fields, "signature")?),
         })
     }

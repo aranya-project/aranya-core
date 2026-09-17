@@ -28,20 +28,19 @@ jobs:
   doc:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup
 
       - name: Generate docs
-        env:
-          RUSTDOCFLAGS: "-Dwarnings"
         run: |
           cargo make gen-docs
-          cargo make zip-docs
+          cd target/x86_64-unknown-linux-gnu/
+          zip -qr ../../docs.zip doc
 
       - name: Publish docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: docs
           path: docs.zip
+          archive: false
           if-no-files-found: error

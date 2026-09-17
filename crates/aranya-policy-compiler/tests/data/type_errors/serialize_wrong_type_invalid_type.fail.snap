@@ -1,8 +1,0 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
-error: invalid type: int
-  |
-2 |     seal { return serialize(3) }
-  |                             ^ expected `struct Foo` but found `int`
