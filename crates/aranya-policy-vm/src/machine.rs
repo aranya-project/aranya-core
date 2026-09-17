@@ -13,9 +13,9 @@ use core::{
 use aranya_crypto::policy::CmdId;
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, Instruction, Label,
-    LabelType, Module, ModuleContract, ModuleData, StructDef, Target, UnsupportedVersion, WrapType,
-    automap::AutoMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, FfiContract,
+    Instruction, Label, LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion,
+    WrapType, automap::AutoMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -133,12 +133,12 @@ pub struct Machine {
     pub struct_defs: AutoMap<StructDef>,
     /// Enum definitions
     pub enum_defs: AutoMap<EnumDef>,
+    /// FFI definitions (used only for validation)
+    pub ffis: Option<Vec<FfiContract>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
     pub globals: BTreeMap<Identifier, ConstValue>,
-    /// Module contract
-    pub contract: Option<ModuleContract>,
 }
 
 impl Machine {
@@ -155,9 +155,9 @@ impl Machine {
             fact_defs: AutoMap::new(),
             struct_defs: AutoMap::new(),
             enum_defs: AutoMap::new(),
+            ffis: None,
             codemap: None,
             globals: BTreeMap::new(),
-            contract: None,
         }
     }
 
@@ -171,9 +171,9 @@ impl Machine {
             fact_defs: AutoMap::new(),
             struct_defs: AutoMap::new(),
             enum_defs: AutoMap::new(),
+            ffis: None,
             codemap: Some(codemap),
             globals: BTreeMap::new(),
-            contract: None,
         }
     }
 
@@ -190,19 +190,19 @@ impl Machine {
                 enum_defs: m.enum_defs.into_iter().collect(),
                 codemap: m.codemap,
                 globals: m.globals,
-                contract: None,
+                ffis: None,
             }),
             ModuleData::V1(m) => Ok(Self {
-                progmem: m.progmem.into(),
-                labels: m.labels,
-                action_defs: m.action_defs.into_iter().collect(),
-                command_defs: m.command_defs.into_iter().collect(),
-                fact_defs: m.fact_defs.into_iter().collect(),
-                struct_defs: m.struct_defs.into_iter().collect(),
-                enum_defs: m.enum_defs.into_iter().collect(),
-                codemap: m.codemap,
-                globals: m.globals,
-                contract: Some(m.contract),
+                progmem: m.program.progmem.into(),
+                labels: m.program.labels,
+                action_defs: m.contract.actions.into_iter().collect(),
+                command_defs: m.contract.commands.into_iter().collect(),
+                fact_defs: m.contract.facts.into_iter().collect(),
+                struct_defs: m.contract.structs.into_iter().collect(),
+                enum_defs: m.contract.enums.into_iter().collect(),
+                codemap: m.program.codemap,
+                globals: m.program.globals,
+                ffis: Some(m.contract.ffis),
             }),
         }
     }
