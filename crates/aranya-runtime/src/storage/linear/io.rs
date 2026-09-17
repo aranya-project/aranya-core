@@ -89,10 +89,12 @@ pub trait Read: Clone {
     fn fetch<T: Readable>(&self, offset: u64) -> Result<Self::Handle<T>, StorageError>;
 }
 
-mod private {
+// pub(super) for tests
+pub(super) mod private {
     pub trait Sealed {}
 }
 
+impl private::Sealed for HeadSet {}
 impl private::Sealed for super::SegmentRepr {}
 impl private::Sealed for super::FactIndexRepr {}
 
@@ -108,6 +110,16 @@ pub trait Writable: private::Sealed {
     fn to_slice(&self, buf: &mut [u8]) -> Result<usize, StorageError> {
         self.to_writer(rkyv::ser::writer::Buffer::from(buf))
             .map(|b| b.len())
+    }
+}
+
+impl Writable for HeadSet {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+    where
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+    {
+        rkyv::api::high::to_bytes_in(self, writer)
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
     }
 }
 

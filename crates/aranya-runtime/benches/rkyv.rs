@@ -11,17 +11,12 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 struct Cmd {
     id: CmdId,
-    priority: Priority,
     parent: Prior<Address>,
     policy: Option<Box<[u8]>>,
     bytes: Box<[u8]>,
 }
 
 impl Command for Cmd {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -43,27 +38,31 @@ fn init<SP: StorageProvider>(sp: &mut SP) -> &mut SP::Storage {
     let mut p = sp.new_perspective(PolicyId::new(0));
 
     let mut parent = CmdId::random(Rng);
-    p.add_command(&Cmd {
-        id: parent,
-        priority: Priority::Init,
-        parent: Prior::None,
-        policy: Some(vec![0; 512].into_boxed_slice()),
-        bytes: vec![0; 512].into_boxed_slice(),
-    })
+    p.add_command(
+        &Cmd {
+            id: parent,
+            parent: Prior::None,
+            policy: Some(vec![0; 512].into_boxed_slice()),
+            bytes: vec![0; 512].into_boxed_slice(),
+        },
+        Priority::Init,
+    )
     .unwrap();
 
     for i in 0..100 {
         let id = CmdId::random(Rng);
-        p.add_command(&Cmd {
-            id,
-            priority: Priority::Basic(42),
-            parent: Prior::Single(Address {
-                id: parent,
-                max_cut: MaxCut::new(i),
-            }),
-            policy: None,
-            bytes: vec![0; 512].into_boxed_slice(),
-        })
+        p.add_command(
+            &Cmd {
+                id,
+                parent: Prior::Single(Address {
+                    id: parent,
+                    max_cut: MaxCut::new(i),
+                }),
+                policy: None,
+                bytes: vec![0; 512].into_boxed_slice(),
+            },
+            Priority::Basic(42),
+        )
         .unwrap();
         p.insert(
             "fact".into(),
@@ -92,7 +91,16 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
         let mut sp = linear::testing::MemStorageProvider::default();
         let store = init(&mut sp);
-        let loc = Location::new(store.get_head().unwrap().segment, MaxCut::new(42));
+        let loc = Location::new(
+            store
+                .get_heads()
+                .unwrap()
+                .as_slice()
+                .last()
+                .unwrap()
+                .segment,
+            MaxCut::new(42),
+        );
 
         group.bench_function("get_command_id", |b| {
             b.iter(|| {
@@ -123,7 +131,16 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let mut sp =
             linear::LinearStorageProvider::new(linear::libc::FileManager::new(tmp.path()).unwrap());
         let store = init(&mut sp);
-        let loc = Location::new(store.get_head().unwrap().segment, MaxCut::new(42));
+        let loc = Location::new(
+            store
+                .get_heads()
+                .unwrap()
+                .as_slice()
+                .last()
+                .unwrap()
+                .segment,
+            MaxCut::new(42),
+        );
 
         group.bench_function("get_command_id", |b| {
             b.iter(|| {

@@ -299,12 +299,6 @@ impl Writer {
         Ok((item, off))
     }
 
-    /// Load an owned value from the given file offset.
-    fn fetch_owned<T: DeserializeOwned>(&self, offset: u64) -> Result<T, StorageError> {
-        let off = i64::try_from(offset).assume("`offset` can be converted to `i64`")?;
-        self.file.load(off)
-    }
-
     fn write_root(&mut self) -> Result<(), StorageError> {
         self.root.generation = self
             .root
@@ -336,7 +330,10 @@ impl Write for Writer {
 
     fn heads(&self) -> Result<HeadSet, StorageError> {
         let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
-        self.fetch_owned(offset)
+        let off = i64::try_from(offset).assume("`offset` can be converted to `i64`")?;
+        let handle = self.file.load::<HeadSet>(off)?;
+        rkyv::api::high::deserialize(handle.deref())
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
     }
 
     fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
@@ -533,17 +530,6 @@ impl File {
         })
     }
 
-    fn dump<T>(&self, offset: i64, value: &T) -> Result<i64, StorageError>
-    where
-        T: Writable,
-    {
-        let bytes = value.to_bytes().map_err(|err| {
-            error!(?err, "dump");
-            StorageError::IoError
-        })?;
-        self.dump_bytes(offset, &bytes)
-    }
-
     /// Writes an already-serialized value (length prefix + bytes)
     /// at `offset`, returning the offset just past it.
     fn dump_bytes(&self, offset: i64, bytes: &[u8]) -> Result<i64, StorageError> {
@@ -617,6 +603,17 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let manager = FileManager::new(dir.path()).unwrap();
         (dir, manager)
+    }
+
+    impl crate::storage::linear::io::private::Sealed for u64 {}
+    impl Writable for u64 {
+        fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+        where
+            W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+        {
+            rkyv::api::high::to_bytes_in(self, writer)
+                .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+        }
     }
 
     /// Uncommitted appends must not survive a crash: reopening ignores
