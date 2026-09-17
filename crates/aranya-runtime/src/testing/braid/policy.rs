@@ -12,7 +12,7 @@
 
 use alloc::boxed::Box;
 
-use buggy::BugExt as _;
+use buggy::{BugExt as _, bug};
 
 use crate::{
     Address, CmdId, Command, Prior, Priority,
@@ -54,14 +54,6 @@ impl ProbeCommand {
 }
 
 impl Command for ProbeCommand {
-    fn priority(&self) -> Priority {
-        match self.prior {
-            Prior::None => Priority::Init,
-            Prior::Single(_) => Priority::Basic(0),
-            Prior::Merge(_, _) => Priority::Merge,
-        }
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -114,11 +106,14 @@ impl Policy for ProbePolicy {
         facts: &mut impl FactPerspective,
         _sink: &mut impl Sink<Self::Effect>,
         _placement: CommandPlacement,
-    ) -> Result<(), PolicyError> {
-        assert!(
-            !matches!(command.parent(), Prior::Merge { .. }),
-            "merges must never be evaluated"
-        );
+    ) -> Result<Priority, PolicyError> {
+        // Uniform priority: init is `Init`, everything else is `Basic(0)`, so
+        // the braid order is decided purely by graph shape and ID ties.
+        let priority = match command.parent() {
+            Prior::None => Priority::Init,
+            Prior::Single(_) => Priority::Basic(0),
+            Prior::Merge(..) => bug!("merges must never be evaluated"),
+        };
         let data = command.bytes();
         if let Some(seq) = facts
             .query("seq", &Keys::default())
@@ -137,7 +132,7 @@ impl Policy for ProbePolicy {
                 .insert("seq".into(), Keys::default(), data.into())
                 .expect("can insert");
         }
-        Ok(())
+        Ok(priority)
     }
 
     fn call_action(
