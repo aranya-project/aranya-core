@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid expression
+  |
+5 |     if action infallible() {
+  |        ^^^^^^^^^^^^^^^^^^^ this action does not return a value

@@ -1,0 +1,8 @@
+// Same rule in any other value position, e.g. a condition.
+action infallible() {}
+
+action foo() {
+    if action infallible() {
+        action infallible()
+    }
+}
