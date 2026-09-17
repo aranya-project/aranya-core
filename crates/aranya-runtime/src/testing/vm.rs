@@ -1,7 +1,7 @@
 //! VM tests.
 
 extern crate alloc;
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
@@ -24,6 +24,35 @@ policy-version: 2
 ---
 
 ```policy
+base command BaseInit {
+    fields {
+        key bytes
+    }
+    get_key {
+        return Some(this.key)
+    }
+}
+
+fact Key[]=>{key bytes}
+
+base command Base {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base command BaseEphemeral {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
 fact Stuff[x int]=>{y int}
 
 effect StuffHappened {
@@ -36,7 +65,7 @@ effect OutOfRange {
     increment int,
 }
 
-command Init {
+command Init : BaseInit {
     attributes {
         init: true,
     }
@@ -44,17 +73,20 @@ command Init {
         nonce int,
     }
     policy {
-        finish {}
+        finish {
+            create Key[]=>{key: this.key}
+        }
     }
 }
 
-action init(nonce int) {
+action init(nonce int, key bytes) {
     publish Init {
+        key: key,
         nonce: nonce,
     }
 }
 
-command Create {
+command Create : Base {
     attributes {
         priority: 0,
     }
@@ -77,7 +109,7 @@ action create_action(v int) {
     }
 }
 
-command Increment {
+command Increment : Base {
     attributes {
         priority: 0,
     }
@@ -120,7 +152,7 @@ ephemeral action try_result(fail bool) result[unit, string] {
     return Ok(Unit)
 }
 
-ephemeral command IncrementEphemeral {
+ephemeral command IncrementEphemeral : BaseEphemeral {
     fields {
         key int,
         amount int,
@@ -172,7 +204,7 @@ ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
     return Ok(Unit)
 }
 
-command Invalidate {
+command Invalidate : Base {
     attributes {
         priority: 1
     }
@@ -299,7 +331,7 @@ impl Sink<VmEffect> for VecSink {
 /// Used by the VM tests.
 pub struct TestPolicyStore {
     policy: VmPolicy<DefaultEngine>,
-    seal_ctx: SealCtx<DefaultEngine>,
+    seal_ctx: Arc<SealCtx<DefaultEngine>>,
 }
 
 impl TestPolicyStore {
@@ -316,12 +348,34 @@ impl TestPolicyStore {
         )
         .expect("Could not load policy");
 
-        let seal_ctx = SealCtx {
+        #[expect(clippy::arc_with_non_send_sync, reason = "TODO: make keys thread safe")]
+        let seal_ctx = Arc::new(SealCtx {
             author: DeviceId::random(Rng),
             key: SigningKey::new(Rng),
-        };
+        });
 
         Self { policy, seal_ctx }
+    }
+
+    pub fn seal_ctx(&self) -> Arc<SealCtx<DefaultEngine>> {
+        Arc::clone(&self.seal_ctx)
+    }
+
+    #[must_use]
+    pub fn with_seal_ctx(mut self, seal_ctx: Arc<SealCtx<DefaultEngine>>) -> Self {
+        self.seal_ctx = seal_ctx;
+        self
+    }
+
+    fn verifying_key(&self) -> Vec<u8> {
+        postcard::to_allocvec(
+            &self
+                .seal_ctx
+                .key
+                .public()
+                .expect("can compute verifying key"),
+        )
+        .expect("can serialize verifying key")
     }
 }
 
@@ -359,6 +413,8 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
     // expected that the VM will consume compiled policy code to eliminate the need for the
     // parser/compiler to work in constrained environments.
 
+    let key = policy_store.verifying_key();
+
     // We're using MemStorageProvider as our storage interface.
     let provider = MemStorageProvider::default();
     // ClientState contains the policy store and the storage provider. It is the main interface
@@ -371,7 +427,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
 
     // Create a new graph. This builds an Init event and returns an ID referencing the graph.
     let graph_id = cs
-        .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
@@ -439,11 +495,12 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError>
 ///
 /// The [`TestPolicyStore`] must be instantiated with [`TEST_POLICY_1`].
 pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let key = policy_store.verifying_key();
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
 
     let graph = cs
-        .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut NullSink)
         .expect("could not create graph");
 
     // `try_result` is ephemeral, so run it in a session.
@@ -480,12 +537,13 @@ pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyE
 /// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
 pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let key = policy_store.verifying_key();
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
     let mut buffers = RuntimeBuffers::new();
 
     let graph = cs
-        .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut NullSink)
         .expect("could not create graph");
 
     cs.action(
@@ -526,6 +584,7 @@ pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPoli
 /// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
 pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let key = policy_store.verifying_key();
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
     let mut buffers = RuntimeBuffers::new();
@@ -534,7 +593,7 @@ pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicy
 
     // Create a new graph. This builds an Init event and returns an ID referencing the graph.
     let graph_id = cs
-        .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
@@ -715,6 +774,8 @@ pub fn test_effect_metadata(
     policy_store_1: TestPolicyStore,
     policy_store_2: TestPolicyStore,
 ) -> Result<(), VmPolicyError> {
+    let key = policy_store_1.verifying_key();
+
     let mut rt_buffers = RuntimeBuffers::<_>::new();
 
     // create client 1 and initialize it with a nonce of 1
@@ -722,7 +783,7 @@ pub fn test_effect_metadata(
     let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
     let graph_id = cs1
-        .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
+        .new_graph(&[0u8], vm_action!(init(1, key)), &mut sink)
         .expect("could not create graph");
 
     // Create a new counter with a value of 1
