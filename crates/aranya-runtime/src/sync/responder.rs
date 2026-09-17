@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     LocatedAddress, Prior, StorageError,
-    command::{Address, CmdId, Command as _},
+    command::{Address, CmdId, Command},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
         TraversalBuffers,
@@ -659,7 +659,7 @@ impl SyncResponder {
     ) -> Result<
         (
             Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
-            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
+            Vec<u8, COMMAND_DATA_BUF_SIZE>,
             usize,
         ),
         SyncError,
@@ -676,22 +676,22 @@ impl SyncResponder {
             }
         };
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
-        let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
+        let mut command_data: Vec<u8, COMMAND_DATA_BUF_SIZE> = Vec::new();
         let mut index = self.next_send;
         for i in self.next_send..self.to_send.len() {
             if commands.is_full() {
                 break;
             }
-            let Some(&location) = self.to_send.get(i) else {
+            let Some(location) = self.to_send.get_mut(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
             };
 
             let segment = storage
-                .get_segment(location)
+                .get_segment(*location)
                 .inspect_err(|_| self.state = SyncResponderState::Reset)?;
 
-            let found = segment.get_from(location);
+            let found = segment.get_from(*location);
 
             let mut sent: usize = 0;
             for command in &found {
@@ -699,30 +699,8 @@ impl SyncResponder {
                     break;
                 }
 
-                let mut policy_length = 0;
-
-                // Stored command sizes are not bounded by
-                // `MAX_COMMAND_LENGTH` on the ingest path, so a batch can
-                // exceed the buffer; that's an oversized sync, not a bug.
-                if let Some(policy) = command.policy() {
-                    policy_length = policy.len();
-                    command_data.extend_from_slice(policy).map_err(|()| {
-                        self.state = SyncResponderState::Reset;
-                        SyncError::CommandOverflow
-                    })?;
-                }
-
-                let bytes = command.bytes();
-                command_data.extend_from_slice(bytes).map_err(|()| {
-                    self.state = SyncResponderState::Reset;
-                    SyncError::CommandOverflow
-                })?;
-
-                let meta = CommandMeta {
-                    id: command.id(),
-                    parent: command.parent(),
-                    policy_length: policy_length as u32,
-                    length: bytes.len() as u32,
+                let Ok(meta) = add_command_data(&mut command_data, command) else {
+                    break;
                 };
 
                 commands.push(meta).ok().assume("commands is not full")?;
@@ -738,8 +716,7 @@ impl SyncResponder {
                     .max_cut
                     .checked_add(sent as u64)
                     .assume("max_cut + sent mustn't overflow")?;
-                *self.to_send.get_mut(i).assume("send index in bounds")? =
-                    Location::new(location.segment, resume_max_cut);
+                location.max_cut = resume_max_cut;
                 index = i;
                 break;
             }
@@ -753,6 +730,39 @@ impl SyncResponder {
         Ok(self.session_id.assume("session id is set")?)
     }
 }
+
+/// Atomically add both the command policy and bytes.
+fn add_command_data(
+    buf: &mut Vec<u8, COMMAND_DATA_BUF_SIZE>,
+    cmd: &impl Command,
+) -> Result<CommandMeta, ()> {
+    let before = buf.len();
+
+    if let Some(policy) = cmd.policy() {
+        buf.extend_from_slice(policy)?;
+    }
+
+    buf.extend_from_slice(cmd.bytes()).inspect_err(|()| {
+        buf.truncate(before);
+    })?;
+
+    Ok(CommandMeta {
+        id: cmd.id(),
+        parent: cmd.parent(),
+        policy_length: cmd.policy().unwrap_or_default().len() as u32,
+        length: cmd.bytes().len() as u32,
+    })
+}
+
+/// Size of the buffer for storing the command data.
+///
+/// This is smaller than the max sync message size to account for the serialized
+/// `SyncResponseMessage::SyncResponse` to ensure the response will always fit
+/// within a supplied buffer of size `MAX_SYNC_MESSAGE_SIZE`.
+///
+/// The difference is a generous estimate of the size of serialized
+/// `SyncResponseMessage::SyncResponse`.
+const COMMAND_DATA_BUF_SIZE: usize = MAX_SYNC_MESSAGE_SIZE - (50 + COMMAND_RESPONSE_MAX * 150);
 
 #[cfg(test)]
 mod tests {
