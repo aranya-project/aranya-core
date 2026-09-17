@@ -367,7 +367,7 @@ impl TestPolicyStore {
         self
     }
 
-    fn verifying_key(&self) -> Vec<u8> {
+    pub fn verifying_key(&self) -> Vec<u8> {
         postcard::to_allocvec(
             &self
                 .seal_ctx
