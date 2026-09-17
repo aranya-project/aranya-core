@@ -63,12 +63,12 @@ impl<T: Clone> CacheCell<T> {
         if let Some(val) = self.get() {
             return val.clone();
         }
-        self.init_cold(init)
-    }
 
-    #[cold]
-    fn init_cold(&self, init: impl FnOnce() -> T) -> T {
+        core::hint::cold_path();
+
+        // Compute value before trying to lock.
         let val = init();
+
         if self
             .state
             .compare_exchange(
@@ -87,6 +87,10 @@ impl<T: Clone> CacheCell<T> {
             // SAFETY: We just initialized the value.
             unsafe { self.get_unchecked() }.clone()
         } else {
+            // Someone else is initializing the cache so just return our computed value.
+            // We don't want to wait if it is currently locked. We could clone the cached
+            // value if it has already been released but there's no point since we already
+            // have a value that we computed.
             val
         }
     }
