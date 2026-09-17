@@ -205,6 +205,12 @@ impl<CE> VmPolicy<CE> {
         engine: CE,
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
+        if let Some(contract) = &machine.contract {
+            let schemas: Vec<_> = ffis.iter().map(|m| m.schema()).collect();
+            contract.validate(&schemas)?;
+        } else {
+            tracing::warn!("Module does not have contract; cannot validate FFI");
+        }
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
