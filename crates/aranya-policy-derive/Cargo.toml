@@ -13,6 +13,7 @@ workspace = true
 
 [lib]
 proc-macro = true
+bench = false
 
 [features]
 default = []
