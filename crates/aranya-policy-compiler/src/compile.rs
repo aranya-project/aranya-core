@@ -679,6 +679,9 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
                 }
             }
+            thir::ExprKind::ActionCall(fc) => {
+                self.compile_action_call(fc)?;
+            }
             thir::ExprKind::Return(ret_expr) => {
                 self.compile_typed_expression(*ret_expr)?;
                 self.append_instruction(Instruction::RestoreSP);
@@ -1019,12 +1022,8 @@ impl<'a> CompileState<'a> {
             thir::StmtKind::FunctionCall(f) => {
                 self.compile_function_call(f)?;
             }
-            thir::StmtKind::ActionCall(fc) => {
-                for arg in fc.arguments {
-                    self.compile_typed_expression(arg)?;
-                }
-                let label = Label::new(fc.identifier.inner, LabelType::Action);
-                self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+            thir::StmtKind::Expression(e) => {
+                self.compile_typed_expression(e)?;
             }
             thir::StmtKind::DebugAssert(s) => {
                 if self.is_debug {
@@ -1116,6 +1115,15 @@ impl<'a> CompileState<'a> {
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
         self.exit_statement_context();
+        Ok(())
+    }
+
+    fn compile_action_call(&mut self, fc: thir::FunctionCall) -> Result<(), CompileError> {
+        for arg in fc.arguments {
+            self.compile_typed_expression(arg)?;
+        }
+        let label = Label::new(fc.identifier.inner, LabelType::Action);
+        self.append_instruction(Instruction::Call(Target::Unresolved(label)));
         Ok(())
     }
 
