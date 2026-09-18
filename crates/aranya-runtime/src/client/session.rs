@@ -484,7 +484,6 @@ where
 #[cfg(test)]
 mod test {
     use aranya_crypto::id::{Id, IdTag};
-    use buggy::BugExt as _;
     use test_log::test;
 
     use super::*;
@@ -514,7 +513,7 @@ mod test {
 
     impl PolicyStore for SeqPolicyStore {
         type Policy = SeqPolicy;
-        type Effect = ();
+        type Effect = Never;
 
         fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
             Ok(PolicyId::new(0))
@@ -525,9 +524,11 @@ mod test {
         }
     }
 
+    enum Never {}
+
     impl Policy for SeqPolicy {
-        type Action<'a> = &'a str;
-        type Effect = ();
+        type Action<'a> = Never;
+        type Effect = Never;
         type Command<'a> = SeqCommand;
 
         fn serial(&self) -> u32 {
@@ -545,24 +546,22 @@ mod test {
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges should not be evaluated"
             );
+
             let data = command.bytes();
-            if let Some(seq) = facts
+
+            // For init and basic commands, append the id to the seq fact.
+            let value = match facts
                 .query("seq", &Keys::default())
-                .assume("can query")?
+                .expect("can query")
                 .as_deref()
             {
-                facts
-                    .insert(
-                        "seq".into(),
-                        Keys::default(),
-                        [seq, b":", data].concat().into(),
-                    )
-                    .unwrap();
-            } else {
-                facts
-                    .insert("seq".into(), Keys::default(), data.into())
-                    .unwrap();
-            }
+                Some(seq) => [seq, b":", data].concat().into(),
+                None => data.into(),
+            };
+            facts
+                .insert("seq".into(), Keys::default(), value)
+                .expect("can insert");
+
             Ok(match command.parent() {
                 Prior::None => Priority::Init,
                 // Use the last byte of the ID as priority, just so we can
@@ -576,12 +575,12 @@ mod test {
 
         fn call_action(
             &self,
-            _action: Self::Action<'_>,
+            action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
         ) -> Result<(), PolicyError> {
-            unimplemented!()
+            match action {}
         }
 
         fn merge<'a>(
