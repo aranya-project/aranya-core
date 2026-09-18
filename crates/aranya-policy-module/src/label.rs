@@ -21,14 +21,12 @@ use serde::{Deserialize, Serialize};
 pub enum LabelType {
     /// This label represents the entry point of an action
     Action,
+    /// This label represents the key getter for a command
+    GetKey,
     /// This label represents the entry point of a command policy block
     CommandPolicy,
     /// This label represents the entry point of a command recall block
     CommandRecall,
-    /// A command seal block
-    CommandSeal,
-    /// A command open block
-    CommandOpen,
     /// This label is a temporary destination for implementing
     /// branching constructs.
     Temporary,
@@ -40,10 +38,9 @@ impl Display for LabelType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Action => write!(f, "action"),
+            Self::GetKey => write!(f, "get_key"),
             Self::CommandPolicy => write!(f, "policy"),
             Self::CommandRecall => write!(f, "recall"),
-            Self::CommandSeal => write!(f, "seal"),
-            Self::CommandOpen => write!(f, "open"),
             Self::Temporary => write!(f, "temp"),
             Self::Function => write!(f, "fn"),
         }

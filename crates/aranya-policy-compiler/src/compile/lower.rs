@@ -517,7 +517,7 @@ impl CompileState<'_> {
 
                 let mut args = Vec::new();
                 let mut ids = None;
-                let vtype = if self.stub_ffi {
+                let vtype = if self.config.stub_ffi {
                     for arg_e in &f.arguments {
                         let arg_e = self.lower_expression(arg_e)?;
                         args.push(arg_e);

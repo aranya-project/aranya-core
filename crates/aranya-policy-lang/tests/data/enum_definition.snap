@@ -21,6 +21,7 @@ Policy {
         },
     ],
     commands: [],
+    base_commands: [],
     functions: [],
     finish_functions: [],
     global_lets: [],

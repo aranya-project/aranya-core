@@ -10,8 +10,6 @@ command Foo {
         a int,
         b int,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         let sum = saturating_add(this.a, this.b)
         finish {
@@ -46,8 +44,6 @@ command Set {
     fields {
         a int,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         let x = this.a
         finish {
@@ -59,8 +55,6 @@ command Set {
 
 command Clear {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {
             delete Foo[]
@@ -70,8 +64,6 @@ command Clear {
 
 command Increment {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
         let r = query Foo[]=>{x: ?} or test_fail()
         let new_x = add(r.x, 1) or test_fail()
@@ -90,8 +82,6 @@ command Set {
     fields {
         a int,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         let x = this.a
         finish {
@@ -102,8 +92,6 @@ command Set {
 
 command Increment {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
         let r = query Foo[]=>{x: ?} or test_fail()
         let new_x = add(r.x, 1) or test_fail()
@@ -119,8 +107,6 @@ pub const POLICY_MATCH: &str = r#"
         fields {
             x int
         }
-        seal { return todo() }
-        open { return todo() }
         policy {}
     }
 
@@ -144,14 +130,10 @@ pub const POLICY_IS: &str = r#"
         fields {
             x int
         }
-        seal { return todo() }
-        open { return todo() }
         policy {}
     }
     command Empty {
         fields { }
-        seal { return todo() }
-        open { return todo() }
         policy {}
     }
     action check_none(x option[int]) {
