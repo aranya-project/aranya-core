@@ -85,7 +85,7 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
     return Ok(NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
-        sign_pk_id: sign_pk_id,
+        sign_pk_id,
         sign_pk: device_keys.sign_pk,
     })
 }
@@ -130,10 +130,7 @@ function open_basic_command(payload bytes, envelope_input struct Envelope) unit 
 }
 
 action init(nonce int, sign_pk bytes) {
-    publish Init {
-        nonce: nonce,
-        sign_pk: sign_pk,
-    }
+    publish Init { nonce, sign_pk }
 }
 
 command Init {
@@ -186,10 +183,7 @@ command Init {
 
 }
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
-    publish AddDeviceKeys {
-        ident_pk: ident_pk,
-        sign_pk: sign_pk,
-    }
+    publish AddDeviceKeys { ident_pk, sign_pk }
 }
 
 command AddDeviceKeys {
@@ -354,10 +348,7 @@ command Decrement {
 
 // The `create_greeting` action calls the command `CreateGreeting`.
 ephemeral action create_greeting(key string, value string) {
-    publish CreateGreeting {
-        key: key,
-        value: value,
-    }
+    publish CreateGreeting { key, value }
 }
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for

@@ -16,7 +16,7 @@ function bounds(v int) bool {
 // finish functions can only be used in finish blocks and can only contain
 // statements valid in finish blocks
 finish function set_next_player(gameID id, to_input string) {
-    update NextPlayer[gameID: gameID] to {p: to_input}
+    update NextPlayer[gameID] to {p: to_input}
 }
 
 action StartGame(profileX id, profileO id) {
@@ -50,11 +50,11 @@ command Start {
         // the ID from the passed in `envelope`.
         let gameID = envelope::command_id(envelope)
         finish {
-            create PlayerProfile[gameID: gameID]=>{x: ProfileX, o: ProfileO}
-            create NextPlayer[gameID: gameID]=>{p: "X"}
+            create PlayerProfile[gameID]=>{x: ProfileX, o: ProfileO}
+            create NextPlayer[gameID]=>{p: "X"}
 
             emit GameStart{
-                gameID: gameID,
+                gameID,
                 x: ProfileX,
                 o: ProfileO,
             }
@@ -64,7 +64,7 @@ command Start {
 
 action MakeMove(gameID id, x int, y int) {
     let move_command = Move {
-        gameID: gameID,
+        gameID,
         X: x,
         Y: y,
     }
@@ -114,10 +114,10 @@ command Move {
         // values marked with ?, or None. The `or` operator unwraps the result
         // of the query, if it is `Some`, or invokes the test_fail() expression,
         // which terminates the policy with an error.
-        let res = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
+        let res = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail()
         let playerX = res.x
         let playerO = res.o
-        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
+        let p = query NextPlayer[gameID]=>{p: ?} or test_fail()
         // the if expression works like a ternary expression, where both
         // branches must be specified.
         let nextp = if p == "X" { :"O" } else { :"X" }
@@ -136,30 +136,30 @@ command Move {
         // Zero or more effects can be generated.
         // The finish block ends rule evaluation.
         finish {
-            create Field[gameID: gameID, x: X, y: Y]=>{p: p}
+            create Field[gameID, x: X, y: Y]=>{p}
             set_next_player(gameID, nextp)
 
             emit GameUpdate{
-                gameID: gameID,
-                player: player,
-                p: p,
-                X: X,
-                Y: Y,
+                gameID,
+                player,
+                p,
+                X,
+                Y,
             }
         }
     }
 }
 
 function game_over(gameID id, x int, y int, p string) bool {
-    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 0]=>{p: ?} }
-    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 0]=>{p: ?} }
-    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 0]=>{p: ?} }
-    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 1]=>{p: ?} }
-    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 1]=>{p: ?} }
-    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 1]=>{p: ?} }
-    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 2]=>{p: ?} }
-    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 2]=>{p: ?} }
-    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 2]=>{p: ?} }
+    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID, x: 0, y: 0]=>{p: ?} }
+    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID, x: 1, y: 0]=>{p: ?} }
+    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID, x: 2, y: 0]=>{p: ?} }
+    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID, x: 0, y: 1]=>{p: ?} }
+    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID, x: 1, y: 1]=>{p: ?} }
+    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID, x: 2, y: 1]=>{p: ?} }
+    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID, x: 0, y: 2]=>{p: ?} }
+    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID, x: 1, y: 2]=>{p: ?} }
+    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID, x: 2, y: 2]=>{p: ?} }
     return (f00 is Some && f00 == f10 && f10 == f20) ||
            (f01 is Some && f01 == f11 && f11 == f21) ||
            (f01 is Some && f02 == f12 && f12 == f22) ||
@@ -184,11 +184,11 @@ command Move2 {
     }
     policy {
         let player = envelope::author_id(envelope)
-        let players = query PlayerProfile[gameID: gameID]=>{x: ?, o: ?} or test_fail()
-        let p = query NextPlayer[gameID: gameID]=>{p: ?} or test_fail()
+        let players = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail()
+        let p = query NextPlayer[gameID]=>{p: ?} or test_fail()
         let nextp = if p == "X" { :"O" } else { :"X" }
 
-        check !exists GameOver[gameID: gameID]=>{} else test_fail("game is over")
+        check !exists GameOver[gameID]=>{} else test_fail("game is over")
         check bounds(X) else test_fail("X invalid")
         check bounds(Y) else test_fail("Y invalid")
         check (p == "X" && player == players.x) || (p == "O" && player == players.o) else test_fail("bad state: wrong player")
@@ -196,24 +196,24 @@ command Move2 {
         match game_over(gameID, X, Y, p) {
             true => {
                 finish {
-                    create Field[gameID: gameID, x: X, y: Y]=>{p: p}
-                    delete NextPlayer[gameID: gameID]=>{p: p}
-                    create GameOver[gameID: gameID]=>{}
+                    create Field[gameID, x: X, y: Y]=>{p}
+                    delete NextPlayer[gameID]=>{p}
+                    create GameOver[gameID]=>{}
                     emit GameOver{
-                        gameID: gameID,
+                        gameID,
                         winner: player,
-                        p: p,
+                        p,
                     }
                 }
             }
             false => {
                 finish {
-                    create Field[gameID: gameID, x: X, y: Y]=>{p: p}
+                    create Field[gameID, x: X, y: Y]=>{p}
                     set_next_player(gameID, op)
                     emit GameUpdate{
-                        gameID: gameID,
-                        player: player,
-                        p: p,
+                        gameID,
+                        player,
+                        p,
                         x: X,
                         y: Y,
                     }

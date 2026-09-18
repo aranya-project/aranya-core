@@ -80,7 +80,7 @@ fn test_bytes() -> anyhow::Result<()> {
         }
 
         action foo(id_input id, x bytes) {
-            publish Foo{id_field: id_input, x: x}
+            publish Foo{id_field: id_input, x}
         }
     "#;
 
@@ -132,9 +132,7 @@ fn test_structs() -> anyhow::Result<()> {
         action foo(id_input id, x int) {
             publish Foo{
                 id_field: id_input,
-                bar: Bar {
-                    x: x
-                },
+                bar: Bar { x },
             }
         }
     "#;
@@ -646,7 +644,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
         // This tests the implicitly defined struct as a return type
         function get_foo(a int) struct Foo {
-            let foo = query Foo[a: a]=>{b: ?} or test_fail()
+            let foo = query Foo[a]=>{b: ?} or test_fail()
 
             return foo
         }
@@ -680,7 +678,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
             policy {
                 let x = get_foo(this.a)
                 finish {
-                    emit Result { x: x }
+                    emit Result { x }
                 }
             }
         }
@@ -1032,7 +1030,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
                     check false else test_fail()
                 }
                 5 | 6 | 7 => {
-                    publish Result { x: x }
+                    publish Result { x }
                 }
                 _ => {}
             }
@@ -1066,7 +1064,7 @@ fn test_match_default() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 5 => {
-                    publish Result { x: x }
+                    publish Result { x }
                 }
                 _ => {
                     publish Result { x: 0 }
@@ -1286,7 +1284,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
 
         finish function f(x int) {
-            emit Result { x: x }
+            emit Result { x }
         }
 
         command Foo {
@@ -1661,12 +1659,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
             let a = add(x, 1) or test_fail()
             let b = y
             let c = !z
-            publish Result {
-                a: a,
-                b: b,
-                c: c,
-                d: d,
-            }
+            publish Result { a, b, c, d }
         }
     "#;
 
@@ -1852,7 +1845,7 @@ open { return todo() }
 policy {
     let x = this.a
     finish {
-        create Foo[]=>{x: x}
+        create Foo[]=>{x}
         emit Update{value: x}
     }
 }
@@ -2101,7 +2094,7 @@ fn test_block_expression() -> anyhow::Result<()> {
             }
 
             publish TestCommand {
-                x: x
+                x
             }
         }
     "#;
@@ -2187,7 +2180,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
             z string,
         }
         action baz(source struct Bar, x int) {
-            publish Foo { x: x, ...source }
+            publish Foo { x, ...source }
         }
     "#;
     let machine = compile(policy_str);
@@ -2332,7 +2325,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
         }
 
         function new_foo(x int, y string) struct Foo {
-            return Foo { y:y, x: x }
+            return Foo { y, x }
         }
 
         action test() {
