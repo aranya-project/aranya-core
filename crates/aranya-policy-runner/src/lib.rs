@@ -336,6 +336,7 @@ impl PolicyRunner {
                 let action = VmAction {
                     name: action_ident,
                     args: Cow::Borrowed(&schedule.preamble_values),
+                    policy: None,
                 };
                 sink.begin();
                 tracing::debug!("Calling run schedule item {i}");
