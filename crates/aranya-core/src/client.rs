@@ -14,7 +14,7 @@ impl<CE> VmPolicyStore<CE> {
     pub fn new(policy: VmPolicy<CE>) -> Self {
         Self {
             policy,
-            policy_id: PolicyId::new(0),
+            policy_id: PolicyId::default(),
         }
     }
 }

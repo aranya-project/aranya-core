@@ -116,7 +116,7 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec::Vec};
+use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::fmt;
 
 use aranya_crypto::BaseId;
@@ -194,7 +194,7 @@ macro_rules! vm_effect {
 pub struct VmPolicy<CE> {
     machine: Machine,
     engine: CE,
-    ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
+    ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
 }
 
@@ -203,7 +203,7 @@ impl<CE> VmPolicy<CE> {
     pub fn new(
         machine: Machine,
         engine: CE,
-        ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
+        ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
         if let Some(module_ffis) = &machine.ffis {
             ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;
@@ -724,7 +724,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         match parent {
                             Prior::None => {
                                 // TODO(chip): where does the policy value come from?
-                                policy = Some(0u64.to_le_bytes());
+                                policy = Some(&[0u8; 8][..]);
                                 if !matches!(priority, Priority::Init) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
