@@ -5,11 +5,11 @@ use aranya_policy_ast::{Span, Spanned as _};
 
 use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
-    DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
-    InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
-    InvalidType, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm,
-    SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError, UnreachableMatchArm,
-    UnusedVariable,
+    DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
+    InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidStructLiteral,
+    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoReturn,
+    NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
+    UnknownError, UnknownField, UnreachableMatchArm, UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -145,6 +145,87 @@ impl SimpleError for NotDefined {
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         once((self.1, self.0.as_str().into()))
+    }
+}
+
+impl Error for InvalidStructLiteral {
+    fn description(&self) -> Cow<'_, str> {
+        "invalid struct literal".into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        if let Some(e) = &self.missing {
+            e.add_group(input, report);
+        }
+        for e in &self.unknown {
+            e.add_group(input, report);
+        }
+        for e in &self.duplicate {
+            e.add_group(input, report);
+        }
+        for e in &self.mismatch {
+            e.add_group(input, report);
+        }
+    }
+}
+
+impl MissingFields {
+    fn fields(&self) -> impl core::fmt::Display {
+        core::fmt::from_fn(|f| match self.fields.as_slice() {
+            [] => unreachable!(),
+            [x] => write!(f, "`{x}`"),
+            [x, y] => write!(f, "`{x}` and `{y}`"),
+            [many @ .., last] => {
+                for x in many {
+                    write!(f, "`{x}`, ")?;
+                }
+                write!(f, "and `{last}`")
+            }
+        })
+    }
+}
+
+impl SimpleError for MissingFields {
+    fn description(&self) -> Cow<'_, str> {
+        let pluralized = if self.fields.len() == 1 {
+            "field"
+        } else {
+            "fields"
+        };
+        let fields = self.fields();
+        let name = self.literal.as_str();
+        format!("missing {pluralized} {fields} in struct literal for `{name}`").into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.literal.span,
+            format!("missing {}", self.fields()).into(),
+        ))
+    }
+}
+
+impl SimpleError for UnknownField {
+    fn description(&self) -> Cow<'_, str> {
+        format!(
+            "struct `{}` has no field named `{}`",
+            self.literal, self.field
+        )
+        .into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.field.span, "unknown field".into()))
+    }
+}
+
+impl SimpleError for DuplicateField {
+    fn description(&self) -> Cow<'_, str> {
+        format!("field `{}` specified more than once", self.first).into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.first.span,
+            format!("first use of `{}`", self.first).into(),
+        ))
+        .chain(self.rest.iter().map(|x| (x.span, "used again".into())))
     }
 }
 
