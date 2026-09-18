@@ -1,0 +1,12 @@
+struct S {
+    x int,
+    y int,
+    z int,
+}
+
+function make_s() struct S {
+    return S {
+        x: 0,
+        z: 1,
+    }
+}
