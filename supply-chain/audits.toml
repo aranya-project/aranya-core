@@ -288,6 +288,45 @@ who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.7.35 -> 0.8.25"
 
+[[audits.zrip]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.8.7"
+notes = "Merely a container crate for zrip-core, zrip-encode, and zrip-decode"
+
+[[audits.zrip-core]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.10.0"
+notes = """
+Uses unsafe for unaligned data reads, but they are sufficiently checked. Unsafe
+can be turned off by using the 'paranoid' feature. No IO.
+"""
+
+[[audits.zrip-decode]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.8.6"
+notes = """
+Contains lots of unsafe array accesses that are manually bounds-checked.
+Properties of fast copy routines are verified by Kani proofs. All unsafe code
+can be swapped for conventional implementations by using the 'paranoid'
+feature. Implements a decoder using std::io::Read but does not itself access
+files.
+"""
+
+[[audits.zrip-encode]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.8.6"
+notes = """
+Contains lots of unsafe array accesses that are manually bounds-checked.
+Properties of fast copy routines are verified by Kani proofs. All unsafe code
+can be swapped for conventional implementations by using the 'paranoid'
+feature. Implements an encoder using std::io::Write but does not itself access
+files.
+"""
+
 [[trusted.anstream]]
 criteria = "safe-to-deploy"
 user-id = 6743 # Ed Page (epage)
