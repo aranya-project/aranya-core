@@ -138,6 +138,86 @@ fn test_validate_return() {
 }
 
 #[test]
+fn test_validate_get_key() {
+    let valid = [
+        r#"
+            base command Base {
+                fields { key bytes }
+                get_key { return Some(this.key) }
+            }
+        "#,
+        r#"
+            fact Key[author_id id]=>{key bytes}
+            base command Base {
+                get_key {
+                    return Some((query Key[author_id: author_id] or return None).key)
+                }
+            }
+        "#,
+        r#"
+            fact Key[author_id id]=>{key bytes}
+            base command Base {
+                get_key {
+                    return match query Key[author_id: author_id] {
+                        Some(f) => Some(f.key)
+                        None => None
+                    }
+                }
+            }
+        "#,
+        r#"
+            fact Key[author_id id]=>{key bytes}
+            base command Base {
+                get_key {
+                    match query Key[author_id: author_id] {
+                        Some(f) => { return Some(f.key) }
+                        None => { return None }
+                    }
+                }
+            }
+        "#,
+    ];
+
+    let invalid = [
+        r#"
+            base command Base {
+                get_key { if false { return None } }
+            }
+        "#,
+        r#"
+            fact Key[author_id id]=>{key bytes}
+            base command Base {
+                get_key {
+                    match query Key[author_id: author_id] {
+                        Some(f) => { return Some(f.key) }
+                        None => {}
+                    }
+                }
+            }
+        "#,
+    ];
+
+    // Need to use base command so label is produced.
+    let common = r#"
+        command C : Base {
+            policy {}
+        }
+    "#;
+
+    for p in valid {
+        let p = p.to_string() + common;
+        let m = compile_pass(&p);
+        assert!(!validate(&m), "{p}");
+    }
+
+    for p in invalid {
+        let p = p.to_string() + common;
+        let m = compile_pass(&p);
+        assert!(validate(&m), "{p}");
+    }
+}
+
+#[test]
 fn test_validate_publish() {
     let concat = |text| {
         let base = r#"

@@ -340,13 +340,7 @@ impl TestPolicyStore {
         let machine = Machine::from_module(module).expect("could not load compiled module");
 
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        let policy = VmPolicy::new(
-            machine,
-            eng,
-            // TODO(jdygert): Do we need to test an ffi here?
-            vec![],
-        )
-        .expect("Could not load policy");
+        let policy = VmPolicy::new(machine, eng, vec![]).expect("Could not load policy");
 
         #[expect(clippy::arc_with_non_send_sync, reason = "TODO: make keys thread safe")]
         let seal_ctx = Arc::new(SealCtx {

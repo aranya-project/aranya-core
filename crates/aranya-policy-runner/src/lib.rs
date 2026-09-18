@@ -345,7 +345,7 @@ impl PolicyRunner {
                         &mut perspective,
                         &mut sink,
                         ActionPlacement::OnGraph,
-                        // TODO
+                        // TODO(jdygert): How should the policy runner manage keys?
                         &SealCtx {
                             author: DeviceId::default(),
                             key: SigningKey::new(aranya_crypto::Rng),
