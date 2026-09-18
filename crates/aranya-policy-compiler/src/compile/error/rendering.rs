@@ -1,5 +1,7 @@
+use std::{borrow::Cow, iter::once};
+
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
-use aranya_policy_ast::Spanned as _;
+use aranya_policy_ast::{Span, Spanned as _};
 
 use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
@@ -14,13 +16,13 @@ use super::{
 ///
 /// Each error type implements this to produce rich diagnostic output via `annotate-snippets`.
 pub(crate) trait Error: Send + Sync + 'static {
+    /// Short single-line description of the error.
+    fn description(&self) -> Cow<'_, str>;
+
     /// Append annotated snippet groups for this error to `report`.
     ///
     /// `input` is the full policy source text.
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>);
-
-    /// Short single-line description of the error.
-    fn description(&self) -> String;
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>);
 
     /// Render the full diagnostic using `annotate-snippets`.
     ///
@@ -32,444 +34,295 @@ pub(crate) trait Error: Send + Sync + 'static {
     }
 }
 
-impl Error for InvalidStatement {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title("invalid statement");
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotations([
-                    AnnotationKind::Primary
-                        .span(self.1.into())
-                        .label(self.description())
-                        .highlight_source(true),
-                    AnnotationKind::Visible.span(self.0.span().into()),
-                ]),
-            ),
-        );
+impl<E: SimpleError> Error for E {
+    fn description(&self) -> Cow<'_, str> {
+        <E as SimpleError>::description(self)
     }
-    fn description(&self) -> String {
-        format!("statement not allowed in {} context", self.0)
-    }
-}
 
-impl Error for InvalidExpression {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title("invalid expression");
-
-        let mut annotations = vec![
-            AnnotationKind::Primary
-                .span(self.1.span.into())
-                .label(self.0)
-                .highlight_source(true),
-        ];
-
-        if let Some(ctx_span) = self.2 {
-            annotations.push(AnnotationKind::Visible.span(ctx_span.into()));
-        }
-
-        report.push(title.element(Snippet::source(input).annotations(annotations)));
-    }
-    fn description(&self) -> String {
-        format!("invalid expression: {:?}", self.1)
-    }
-}
-
-impl Error for InvalidType {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        let mut annotations =
-            vec![
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.title());
+        let mut first = true;
+        let annotations = self.annotations().into_iter().map(|(span, text)| {
+            let kind = if first {
+                first = false;
                 AnnotationKind::Primary
-                    .span(self.found_expr.into())
-                    .label(format!(
-                        "expected `{}` but found `{}`",
-                        self.expected, self.found_type
-                    )),
-            ];
-
-        if let Some(expected_span) = self.expected_span {
-            annotations.push(
+            } else if text.is_empty() {
+                AnnotationKind::Visible
+            } else {
                 AnnotationKind::Context
-                    .span(expected_span.into())
-                    .label("expected because of this"),
-            );
-        }
-
+            };
+            let mut annotation = kind.span(span.into());
+            if !text.is_empty() {
+                annotation = annotation.label(text).highlight_source(true);
+            }
+            annotation
+        });
         report.push(title.element(Snippet::source(input).annotations(annotations)));
     }
-    fn description(&self) -> String {
-        format!("invalid type: {}", self.found_type)
+}
+
+trait SimpleError: Send + Sync + 'static {
+    fn description(&self) -> Cow<'_, str>;
+    fn title(&self) -> Cow<'_, str> {
+        self.description()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)>;
+}
+
+fn just(span: Span) -> core::iter::Once<(Span, Cow<'static, str>)> {
+    once((span, "".into()))
+}
+
+impl SimpleError for InvalidStatement {
+    fn description(&self) -> Cow<'_, str> {
+        format!("statement not allowed in {} context", self.0).into()
+    }
+    fn title(&self) -> Cow<'_, str> {
+        "invalid statement".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        [
+            (self.1, SimpleError::description(self)),
+            (self.0.span(), "".into()),
+        ]
     }
 }
 
-impl Error for InvalidCallColor {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        let mut annotations = vec![
-            AnnotationKind::Primary
-                .span(self.1.into())
-                .label("function call not valid in this context"),
-        ];
-
-        if let Some(ctx_span) = self.2 {
-            annotations.push(AnnotationKind::Visible.span(ctx_span.into()));
-        }
-
-        report.push(title.element(Snippet::source(input).annotations(annotations)));
+impl SimpleError for InvalidExpression {
+    fn description(&self) -> Cow<'_, str> {
+        format!("invalid expression: {:?}", self.1).into()
     }
-    fn description(&self) -> String {
-        self.0.to_string()
+    fn title(&self) -> Cow<'_, str> {
+        "invalid expression".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.1.span, self.0.into())).chain(self.2.map(|span| (span, "".into())))
     }
 }
 
-impl Error for BadArgument {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.elements([Snippet::source(input).annotation(
-                AnnotationKind::Primary
-                    .span(self.1.into())
-                    .label(self.0.clone())
-                    .highlight_source(true),
-            )]),
-        );
+impl SimpleError for InvalidType {
+    fn description(&self) -> Cow<'_, str> {
+        format!("invalid type: {}", self.found_type).into()
     }
-    fn description(&self) -> String {
-        "bad argument".to_owned()
-    }
-}
-
-impl Error for NotDefined {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.elements([Snippet::source(input).annotation(
-                AnnotationKind::Primary
-                    .span(self.1.into())
-                    .label(self.0.clone()),
-            )]),
-        );
-    }
-    fn description(&self) -> String {
-        "a thing being referenced is not in scope".to_owned()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.found_expr,
+            format!(
+                "expected `{}` but found `{}`",
+                self.expected, self.found_type
+            )
+            .into(),
+        ))
+        .chain(
+            self.expected_span
+                .map(|span| (span, "expected because of this".into())),
+        )
     }
 }
 
-impl Error for AlreadyDefined {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.elements([Snippet::source(input).annotations([
-                AnnotationKind::Context
-                    .span(self.prev.span.into())
-                    .label("previous defintion here"),
-                AnnotationKind::Primary
-                    .span(self.primary.span.into())
-                    .label("re-defined here"),
-            ])]),
-        );
+impl SimpleError for InvalidCallColor {
+    fn description(&self) -> Cow<'_, str> {
+        self.0.to_string().into()
     }
-    fn description(&self) -> String {
-        format!("the name `{}` is defined multiple times", self.prev)
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.1, "function call not valid in this context".into()))
+            .chain(self.2.map(|x| (x, "".into())))
     }
 }
 
-impl Error for DuplicateMatchPatterns {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotations([
-                    AnnotationKind::Context
-                        .span(self.patt1.into())
-                        .label("first defined here"),
-                    AnnotationKind::Primary
-                        .span(self.patt2.into())
-                        .label("duplicate pattern"),
-                ]),
-            ),
-        );
+impl SimpleError for BadArgument {
+    fn description(&self) -> Cow<'_, str> {
+        "bad argument".into()
     }
-    fn description(&self) -> String {
-        "duplicate match patterns found".to_owned()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.1, self.0.as_str().into()))
     }
 }
 
-impl Error for InvalidFactLiteral {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        let mut annotations = vec![
-            AnnotationKind::Primary
-                .span(self.span.into())
-                .label(self.note.clone()),
-        ];
-
-        if let Some((label, span)) = &self.context {
-            annotations.push(
-                AnnotationKind::Context
-                    .span((*span).into())
-                    .label(label.clone()),
-            );
-        }
-
-        report.push(title.element(Snippet::source(input).annotations(annotations)));
+impl SimpleError for NotDefined {
+    fn description(&self) -> Cow<'_, str> {
+        "a thing being referenced is not in scope".into()
     }
-    fn description(&self) -> String {
-        format!("fact literal does not match definition: {}", self.note)
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.1, self.0.as_str().into()))
     }
 }
 
-impl Error for NoReturn {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotation(
-                    AnnotationKind::Primary
-                        .span(self.0.into())
-                        .label("no return found in this body"),
-                ),
-            ),
-        );
+impl SimpleError for AlreadyDefined {
+    fn description(&self) -> Cow<'_, str> {
+        format!("the name `{}` is defined multiple times", self.prev).into()
     }
-    fn description(&self) -> String {
-        "missing return statement".to_owned()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        [
+            (self.primary.span, "re-defined here".into()),
+            (self.prev.span, "previous defintion here".into()),
+        ]
     }
 }
 
-impl Error for DuplicateSourceFields {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotations([
-                    AnnotationKind::Primary
-                        .span(self.struct_1.1.into())
-                        .label(format!("type `{}`", self.struct_1.0))
-                        .highlight_source(true),
-                    AnnotationKind::Primary
-                        .span(self.struct_2.1.into())
-                        .label(format!("type `{}`", self.struct_2.0))
-                        .highlight_source(true),
-                    AnnotationKind::Visible.span(self.literal_expr.into()),
-                ]),
-            ),
-        );
+impl SimpleError for DuplicateMatchPatterns {
+    fn description(&self) -> Cow<'_, str> {
+        "duplicate match patterns found".into()
     }
-    fn description(&self) -> String {
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        [
+            (self.patt2, "duplicate pattern".into()),
+            (self.patt1, "first defined here".into()),
+        ]
+    }
+}
+
+impl SimpleError for InvalidFactLiteral {
+    fn description(&self) -> Cow<'_, str> {
+        format!("fact literal does not match definition: {}", self.note).into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.span, self.note.as_str().into()))
+            .chain(self.context.as_ref().map(|(txt, span)| (*span, txt.into())))
+    }
+}
+
+impl SimpleError for NoReturn {
+    fn description(&self) -> Cow<'_, str> {
+        "missing return statement".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.0, "no return found in this body".into()))
+    }
+}
+
+impl SimpleError for DuplicateSourceFields {
+    fn description(&self) -> Cow<'_, str> {
         format!(
             "struct `{}` and struct `{}` have at least 1 field with the same name",
             self.struct_1.0, self.struct_2.0
         )
+        .into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        let (ref type1, span1) = self.struct_1;
+        let (ref type2, span2) = self.struct_2;
+        [
+            (span1, format!("type `{type1}`").into()),
+            (span2, format!("type `{type2}`").into()),
+            (self.literal_expr, "".into()),
+        ]
     }
 }
 
-impl Error for SourceStructNotSubsetOfBase {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotations([
-                    AnnotationKind::Primary
-                        .span(self.source.1.into())
-                        .label(format!("type `{}`", self.source.0))
-                        .highlight_source(true),
-                    AnnotationKind::Visible.span(self.literal_expr.into()),
-                ]),
-            ),
-        );
-    }
-    fn description(&self) -> String {
+impl SimpleError for SourceStructNotSubsetOfBase {
+    fn description(&self) -> Cow<'_, str> {
         format!(
             "struct `{}` must be a subset of struct `{}`",
             self.source.0, self.base
         )
+        .into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        [
+            (self.source.1, format!("type `{}`", self.source.0).into()),
+            (self.literal_expr, "".into()),
+        ]
     }
 }
 
-impl Error for NoOpStructComp {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotation(
-                    AnnotationKind::Primary
-                        .span(self.0.into())
-                        .highlight_source(true),
-                ),
-            ),
-        );
+impl SimpleError for NoOpStructComp {
+    fn description(&self) -> Cow<'_, str> {
+        "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions".into()
     }
-    fn description(&self) -> String {
-        "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions".to_owned()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        just(self.0)
     }
 }
 
-impl Error for InvalidSubstruct {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotations([
-                    AnnotationKind::Primary
-                        .span(self.sub.span.into())
-                        .label(format!(
-                            "`{}` is not a subset of `{}`",
-                            self.sub, self.lhs.0
-                        )),
-                    AnnotationKind::Context
-                        .span(self.lhs.1.into())
-                        .label(format!("type `{}`", self.lhs.0)),
-                ]),
-            ),
-        );
-    }
-    fn description(&self) -> String {
+impl SimpleError for InvalidSubstruct {
+    fn description(&self) -> Cow<'_, str> {
         format!(
             "invalid substruct operation: struct `{}` must be a subset of struct `{}`",
             self.sub, self.lhs.0
         )
+        .into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        [
+            (
+                self.sub.span,
+                format!("`{}` is not a subset of `{}`", self.sub, self.lhs.0).into(),
+            ),
+            (self.lhs.1, format!("type `{}`", self.lhs.0).into()),
+        ]
     }
 }
 
-impl Error for MissingDefaultPattern {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotation(
-                    AnnotationKind::Primary
-                        .span(self.0.into())
-                        .highlight_source(true),
-                ),
-            ),
-        );
+impl SimpleError for MissingDefaultPattern {
+    fn description(&self) -> Cow<'_, str> {
+        "Missing default pattern in `match` statement/expression".into()
     }
-    fn description(&self) -> String {
-        "Missing default pattern in `match` statement/expression".to_owned()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        just(self.0)
     }
 }
 
-impl Error for UnreachableMatchArm {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotation(
-                    AnnotationKind::Primary
-                        .span(self.0.into())
-                        .highlight_source(true),
-                ),
-            ),
-        );
+impl SimpleError for UnreachableMatchArm {
+    fn description(&self) -> Cow<'_, str> {
+        "unreachable match arm".into()
     }
-    fn description(&self) -> String {
-        "unreachable match arm".to_owned()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        just(self.0)
     }
 }
 
-impl Error for RedundantMatchArm {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotation(
-                    AnnotationKind::Primary
-                        .span(self.0.into())
-                        .highlight_source(true),
-                ),
-            ),
-        );
+impl SimpleError for RedundantMatchArm {
+    fn description(&self) -> Cow<'_, str> {
+        "redundant literal pattern in same arm — binding already matches all values".into()
     }
-    fn description(&self) -> String {
-        "redundant literal pattern in same arm — binding already matches all values".to_owned()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        just(self.0)
     }
 }
 
-impl Error for InvalidReturn {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotation(
-                    AnnotationKind::Primary
-                        .span(self.span.into())
-                        .highlight_source(true),
-                ),
-            ),
-        );
+impl SimpleError for InvalidReturn {
+    fn description(&self) -> Cow<'_, str> {
+        self.message.as_str().into()
     }
-    fn description(&self) -> String {
-        self.message.clone()
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        just(self.span)
     }
 }
 
-impl Error for DebugModeRequired {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotation(
-                    AnnotationKind::Primary
-                        .span(self.span.into())
-                        .highlight_source(true),
-                ),
-            ),
-        );
+impl SimpleError for DebugModeRequired {
+    fn description(&self) -> Cow<'_, str> {
+        format!("`{}` found with debug mode disabled", self.name).into()
     }
-    fn description(&self) -> String {
-        format!("`{}` found with debug mode disabled", self.name)
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        just(self.span)
     }
 }
 
-impl Error for InvalidCast {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotations([
-                    AnnotationKind::Primary
-                        .span(self.rhs.span.into())
-                        .label(format!(
-                            "`{}` cannot be converted to `{}`",
-                            self.lhs.0, self.rhs
-                        )),
-                    AnnotationKind::Context
-                        .span(self.lhs.1.into())
-                        .label(format!("type `{}`", self.lhs.0)),
-                ]),
-            ),
-        );
-    }
-    fn description(&self) -> String {
+impl SimpleError for InvalidCast {
+    fn description(&self) -> Cow<'_, str> {
         format!(
             "invalid cast: `{}` cannot be converted to `{}`",
             self.lhs.0, self.rhs
         )
+        .into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        [
+            (
+                self.rhs.span,
+                format!("`{}` cannot be converted to `{}`", self.lhs.0, self.rhs).into(),
+            ),
+            (self.lhs.1, format!("type `{}`", self.lhs.0).into()),
+        ]
     }
 }
 
 impl Error for CyclicTypeDefinitions {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+    fn description(&self) -> Cow<'_, str> {
+        self.0.as_str().into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
         for cycle in &self.1 {
             let cycle_names: Vec<_> = cycle.iter().map(ToString::to_string).collect();
             let label = format!("cycle found: [{}]", cycle_names.join(", "));
@@ -483,62 +336,53 @@ impl Error for CyclicTypeDefinitions {
             report.push(title.element(Snippet::source(input).annotations(annotations)));
         }
     }
-    fn description(&self) -> String {
-        self.0.clone()
-    }
 }
 
-impl Error for StructCompositionTypeMismatch {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(self.description());
-
-        report.push(
-            title.element(
-                Snippet::source(input).annotations([
-                    AnnotationKind::Context
-                        .span(self.expected_span.into())
-                        .label(format!(
-                            "field `{}` expects `{}`",
-                            self.field_name, self.expected_type
-                        )),
-                    AnnotationKind::Primary
-                        .span(self.found_span.into())
-                        .label(format!(
-                            "but field `{}` is `{}`",
-                            self.field_name, self.found_type
-                        )),
-                    AnnotationKind::Visible.span(self.literal_span.into()),
-                    AnnotationKind::Context
-                        .span(self.composition_span.into())
-                        .label("composed here"),
-                ]),
-            ),
-        );
-    }
-
-    fn description(&self) -> String {
+impl SimpleError for StructCompositionTypeMismatch {
+    fn description(&self) -> Cow<'_, str> {
         format!(
             "struct composition type mismatch: field `{}` expects `{}` but found `{}`",
             self.field_name, self.expected_type, self.found_type
         )
+        .into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        [
+            (
+                self.found_span,
+                format!("but field `{}` is `{}`", self.field_name, self.found_type).into(),
+            ),
+            (
+                self.expected_span,
+                format!(
+                    "field `{}` expects `{}`",
+                    self.field_name, self.expected_type
+                )
+                .into(),
+            ),
+            (self.literal_span, "".into()),
+            (self.composition_span, "composed here".into()),
+        ]
     }
 }
 
 impl Error for BugError {
-    fn add_group<'a>(&self, _input: &'a str, _report: &mut Vec<Group<'a>>) {
+    fn description(&self) -> Cow<'_, str> {
+        self.0.to_string().into()
+    }
+    fn add_group<'a>(&self, _input: &'a str, report: &mut Vec<Group<'a>>) {
         // Bug errors are internal — minimal rendering
         let title = Level::ERROR.primary_title(self.0.to_string());
-        _report.push(Group::with_title(title));
-    }
-    fn description(&self) -> String {
-        format!("bug: {}", self.0)
+        report.push(Group::with_title(title));
     }
 }
 
 impl Error for UnknownError {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+    fn description(&self) -> Cow<'_, str> {
+        format!("unknown error: {}", self.0).into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
         let title = Level::ERROR.primary_title("unknown error");
-
         match self.1 {
             None => report.push(Group::with_title(title)),
             Some(span) => {
@@ -554,15 +398,26 @@ impl Error for UnknownError {
             }
         }
     }
-    fn description(&self) -> String {
-        format!("unknown error: {}", self.0)
-    }
 }
 
 impl Error for UnusedVariable {
-    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+    fn description(&self) -> Cow<'_, str> {
+        format!(
+            "unused variable(s): {}",
+            std::fmt::from_fn(|f| {
+                if let Some((x, xs)) = self.names.split_first() {
+                    write!(f, "`{x}`")?;
+                    for x in xs {
+                        write!(f, ", `{x}`")?;
+                    }
+                }
+                Ok(())
+            })
+        )
+        .into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
         let title = Level::ERROR.primary_title(self.description());
-
         report.push(
             title.element(
                 Snippet::source(input).annotations(self.names.iter().map(|name| {
@@ -572,10 +427,5 @@ impl Error for UnusedVariable {
                 })),
             ),
         );
-    }
-
-    fn description(&self) -> String {
-        let names: Vec<String> = self.names.iter().map(|n| format!("`{n}`")).collect();
-        format!("unused variable(s): {}", names.join(", "))
     }
 }
