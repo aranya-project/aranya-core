@@ -18,15 +18,15 @@ base command MyBasicBase {
     }
 }
 
-command MyInit : MyInitBase {
+command MyInit with MyInitBase {
     policy {}
 }
 
-command MyBasic1 : MyBasicBase {
+command MyBasic1 with MyBasicBase {
     policy {}
 }
 
-command MyBasic2 : MyBasicBase {
+command MyBasic2 with MyBasicBase {
     policy {}
 }
 

@@ -73,7 +73,7 @@ policy-version: 2
 
         fact F[i int]=>{ value string }
 
-        command Init : BaseInit {
+        command Init with BaseInit {
             attributes {
                 init: true,
             }
@@ -92,7 +92,7 @@ policy-version: 2
             publish Insert { i:i, value: value }
         }
 
-        command Insert : Base {
+        command Insert with Base {
             attributes {
                 priority: 10,
             }
@@ -113,7 +113,7 @@ policy-version: 2
             }
         }
 
-        command DoSomething : Base {
+        command DoSomething with Base {
             attributes {
                 priority: 5,
             }

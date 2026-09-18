@@ -133,7 +133,7 @@ action init(nonce int, sign_pk bytes) {
     }
 }
 
-command Init : BaseInit {
+command Init with BaseInit {
     attributes {
         init: true,
     }
@@ -155,7 +155,7 @@ action add_device_keys(ident_pk bytes, sign_pk bytes) {
     }
 }
 
-command AddDeviceKeys : BaseSelfSigned {
+command AddDeviceKeys with BaseSelfSigned {
     attributes {
         priority: 0,
     }
@@ -195,7 +195,7 @@ action create_action(v int) {
     }
 }
 
-command Create : Base {
+command Create with Base {
     attributes {
         priority: 0,
     }
@@ -221,7 +221,7 @@ action increment(v int) {
     }
 }
 
-command Increment : Base {
+command Increment with Base {
     attributes {
         priority: 0,
     }
@@ -250,7 +250,7 @@ action decrement(v int) {
     }
 }
 
-command Decrement : Base {
+command Decrement with Base {
     attributes {
         priority: 0,
     }
@@ -281,7 +281,7 @@ ephemeral action create_greeting(key string, value string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting : Ephemeral {
+ephemeral command CreateGreeting with Ephemeral {
     fields {
         key string,
         value string,
@@ -314,7 +314,7 @@ ephemeral action verify_hellos() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting : Ephemeral {
+ephemeral command VerifyGreeting with Ephemeral {
     fields {
         key string,
         value string,
@@ -340,7 +340,7 @@ action verify_no_hello() {
 
 // `VerifyNoHello` is a command that verifies that there are no greetings in
 // the factDB persisted to the graph.
-command VerifyNoHello : Base {
+command VerifyNoHello with Base {
     attributes {
         priority: 0,
     }

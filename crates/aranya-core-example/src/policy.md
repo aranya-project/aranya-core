@@ -83,7 +83,7 @@ base command BaseInit {
     }
 }
 
-command Init : BaseInit {
+command Init with BaseInit {
     attributes {
         init: true
     }
@@ -129,7 +129,7 @@ Only the owner can add new devices. Uses seal_command/open_envelope
 since the owner's signing key is already in the fact DB.
 
 ```policy
-command AddDevice : Base {
+command AddDevice with Base {
     attributes {
         priority: 100
     }
@@ -164,7 +164,7 @@ command AddDevice : Base {
 ## Application Commands
 
 ```policy
-command SetCounter : Base {
+command SetCounter with Base {
     attributes {
         priority: 50
     }
@@ -182,7 +182,7 @@ command SetCounter : Base {
     }
 }
 
-command IncrementCounter : Base {
+command IncrementCounter with Base {
     attributes {
         priority: 50
     }
@@ -209,7 +209,7 @@ command IncrementCounter : Base {
 ## Ephemeral Query
 
 ```policy
-ephemeral command GetCounter : Base {
+ephemeral command GetCounter with Base {
     fields {
         name int,
     }

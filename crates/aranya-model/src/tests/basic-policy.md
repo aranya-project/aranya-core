@@ -84,7 +84,7 @@ action init(nonce int, key bytes) {
 }
 
 // `Init` is a command that initializes a graph.
-command Init : BaseInit {
+command Init with BaseInit {
     attributes {
         init: true,
     }
@@ -115,7 +115,7 @@ action create_action(v int) {
 
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
 // the `StuffHappened` effect back to the user.
-command Create : Base {
+command Create with Base {
     attributes {
         priority: 0,
     }
@@ -140,7 +140,7 @@ ephemeral action create_action_ephemeral(v int) {
     }
 }
 
-ephemeral command CreateEphemeral : BaseEphemeral {
+ephemeral command CreateEphemeral with BaseEphemeral {
     fields {
         key_a int,
         value int,
@@ -165,7 +165,7 @@ action increment(v int) {
 
 // `Increment` is an on-graph command that will increase our test count by the
 // value passed in.
-command Increment : Base {
+command Increment with Base {
     attributes {
         priority: 0,
     }
@@ -194,7 +194,7 @@ ephemeral action increment_ephemeral(v int) {
     }
 }
 
-ephemeral command IncrementEphemeral : BaseEphemeral {
+ephemeral command IncrementEphemeral with BaseEphemeral {
     fields {
         key_a int,
         value int,
@@ -223,7 +223,7 @@ action decrement(v int) {
 
 // `Decrement` is an on-graph command that will decrease our test count by the
 // value passed in.
-command Decrement : BaseEphemeral {
+command Decrement with BaseEphemeral {
     attributes {
         priority: 0,
     }
@@ -253,7 +253,7 @@ ephemeral action get_stuff() {
 
 // `GetStuff` is a command that queries the contents of the `Stuff` fact and
 // returns it in a `StuffHappened` effect.
-ephemeral command GetStuff : BaseEphemeral {
+ephemeral command GetStuff with BaseEphemeral {
     fields {
         key_a int,
     }
@@ -272,7 +272,7 @@ action get_stuff_on_graph() {
     }
 }
 
-command GetStuffOnGraph : Base {
+command GetStuffOnGraph with Base {
     attributes {
         priority: 0,
     }
@@ -300,7 +300,7 @@ ephemeral action create_greeting(v string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting : BaseEphemeral {
+ephemeral command CreateGreeting with BaseEphemeral {
     fields {
         key string,
         value string,
@@ -329,7 +329,7 @@ ephemeral action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting : BaseEphemeral {
+ephemeral command VerifyGreeting with BaseEphemeral {
     fields {
         key string,
         value string,
@@ -356,7 +356,7 @@ action verify_hello_on_graph() {
     }
 }
 
-command VerifyGreetingOnGraph : Base {
+command VerifyGreetingOnGraph with Base {
     attributes {
         priority: 0,
     }
@@ -387,7 +387,7 @@ action store_session_data(key string, value bytes) {
 
 // `StoreSessionData` will take serialized byte information and add it to
 // the factDB in a `PersistedSessionData` fact.
-command StoreSessionData : Base {
+command StoreSessionData with Base {
     attributes {
         priority: 0,
     }
@@ -413,7 +413,7 @@ effect Relationship {
 }
 
 // Emits `Relationship` effects
-command Link : Base {
+command Link with Base {
     attributes {
         priority: 0,
     }

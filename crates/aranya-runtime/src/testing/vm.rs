@@ -65,7 +65,7 @@ effect OutOfRange {
     increment int,
 }
 
-command Init : BaseInit {
+command Init with BaseInit {
     attributes {
         init: true,
     }
@@ -86,7 +86,7 @@ action init(nonce int, key bytes) {
     }
 }
 
-command Create : Base {
+command Create with Base {
     attributes {
         priority: 0,
     }
@@ -109,7 +109,7 @@ action create_action(v int) {
     }
 }
 
-command Increment : Base {
+command Increment with Base {
     attributes {
         priority: 0,
     }
@@ -152,7 +152,7 @@ ephemeral action try_result(fail bool) result[unit, string] {
     return Ok(Unit)
 }
 
-ephemeral command IncrementEphemeral : BaseEphemeral {
+ephemeral command IncrementEphemeral with BaseEphemeral {
     fields {
         key int,
         amount int,
@@ -204,7 +204,7 @@ ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
     return Ok(Unit)
 }
 
-command Invalidate : Base {
+command Invalidate with Base {
     attributes {
         priority: 1
     }

@@ -383,7 +383,7 @@ base_command_blocks = _{
     ~ get_key_block
 }
 
-base_usage = { ":" ~ identifier }
+base_usage = { "with" ~ identifier }
 
 // # Top-level Statements
 ephemeral_modifier = { "ephemeral" }

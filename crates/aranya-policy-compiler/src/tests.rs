@@ -199,7 +199,7 @@ fn test_validate_get_key() {
 
     // Need to use base command so label is produced.
     let common = r#"
-        command C : Base {
+        command C with Base {
             policy {}
         }
     "#;
