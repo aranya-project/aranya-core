@@ -51,7 +51,7 @@ command Set {
     policy {
         let x = this.a
         finish {
-            create Foo[]=>{x: x}
+            create Foo[]=>{x}
             emit Update{value: x}
         }
     }
@@ -95,7 +95,7 @@ command Set {
     policy {
         let x = this.a
         finish {
-            create Foo[]=>{x: x}
+            create Foo[]=>{x}
         }
     }
 }
@@ -127,10 +127,10 @@ pub const POLICY_MATCH: &str = r#"
     action foo(x int) {
         match x {
             5 => {
-                publish Result { x: x }
+                publish Result { x }
             }
             6 => {
-                publish Result { x: x }
+                publish Result { x }
             }
             _ => {
                 publish Result { x: saturating_add(1, x) }

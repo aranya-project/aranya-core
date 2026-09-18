@@ -84,7 +84,7 @@ struct_composition_list =  _{ struct_composition ~ ("," ~ struct_composition)* }
 // A struct literal field is an identifier and an expression separated
 // by a colon. The colon marks this as defining the value of the field
 // instead of its type.
-struct_literal_field = { identifier ~ ":" ~ expression }
+struct_literal_field = { identifier ~ (":" ~ expression)? }
 // A struct literal field list is a list of struct literal fields.
 struct_literal_field_list = _{ struct_literal_field ~ ("," ~ struct_literal_field)* }
 // A struct data list is a list of struct literal fields followed by struct compositions.
@@ -111,7 +111,7 @@ fact_signature = { identifier ~ fact_signature_key ~ "=>" ~ fact_signature_value
 // expression. It is used to mark values that the query returns.
 bind = { "?" }
 // key/value pair defining a fact field
-fact_literal_field = { identifier ~ ":" ~ (expression | bind) }
+fact_literal_field = { identifier ~ (":" ~ (expression | bind))? }
 // sequence of fact fields
 fact_literal_field_list = _{ fact_literal_field ~ ("," ~ fact_literal_field)* ~ ","? }
 // A fact literal key is just like a fact signature key except it
