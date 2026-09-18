@@ -6,7 +6,7 @@ use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PollIncoming,
     SEGMENT_BUFFER_MAX, SyncError,
     requester::SyncRequestMessage,
-    wire::{CommandMeta, SyncType},
+    wire::{COMMAND_META_SERIALIZED_UPPER_BOUND, CommandMeta, SyncType},
 };
 use crate::{
     LocatedAddress, Prior, StorageError,
@@ -80,6 +80,16 @@ impl PeerCache {
         Ok(())
     }
 }
+
+/// An upper bound on the size of serialized [`SyncResponseMessage::SyncResponse`].
+const SYNC_RESPONSE_SERIALIZED_UPPER_BOUND: usize = {
+    let tag = 1;
+    let session_id = size_of::<u128>() + 1; // varint
+    let response_index = size_of::<u64>() + 1; // varint
+    let command_length = COMMAND_RESPONSE_MAX.ilog2().div_ceil(8) as usize + 1; // varint
+    let commands = command_length + COMMAND_RESPONSE_MAX * COMMAND_META_SERIALIZED_UPPER_BOUND; // sizeof(n) + n * sizeof(meta)
+    tag + session_id + response_index + commands
+};
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
@@ -759,10 +769,7 @@ fn add_command_data(
 /// This is smaller than the max sync message size to account for the serialized
 /// `SyncResponseMessage::SyncResponse` to ensure the response will always fit
 /// within a supplied buffer of size `MAX_SYNC_MESSAGE_SIZE`.
-///
-/// The difference is a generous estimate of the size of serialized
-/// `SyncResponseMessage::SyncResponse`.
-const COMMAND_DATA_BUF_SIZE: usize = MAX_SYNC_MESSAGE_SIZE - (50 + COMMAND_RESPONSE_MAX * 150);
+const COMMAND_DATA_BUF_SIZE: usize = MAX_SYNC_MESSAGE_SIZE - SYNC_RESPONSE_SERIALIZED_UPPER_BOUND;
 
 #[cfg(test)]
 mod tests {
