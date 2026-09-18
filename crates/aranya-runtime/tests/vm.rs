@@ -2,9 +2,8 @@
 #![allow(clippy::panic)]
 
 use aranya_crypto::{
-    DeviceId, Rng,
+    Rng,
     default::{DefaultCipherSuite, DefaultEngine},
-    id::IdExt as _,
 };
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
@@ -58,13 +57,7 @@ fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect
     let mut machine = Machine::from_module(module).expect("module conversion failed");
     contract_mutator(machine.ffis.as_mut().unwrap());
     let (eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
-    let r = VmPolicy::new(
-        machine,
-        eng,
-        vec![Box::from(TestFfiEnvelope {
-            device: DeviceId::random(Rng),
-        })],
-    );
+    let r = VmPolicy::new(machine, eng, vec![Box::from(TestFfiEnvelope)]);
     let Err(VmPolicyError::ContractValidation(got_error)) = r else {
         panic!("Did not get Contract Validation error")
     };
@@ -190,3 +183,58 @@ fn test_ffi_enum_wrong_variant_name() {
         "FFI module `envelope`, `enum TestEnum` has variant `Blonk` but VM expected `True`",
     );
 }
+
+mod ffi {
+    use core::convert::Infallible;
+
+    use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
+
+    pub struct TestFfiEnvelope;
+
+    #[ffi(
+        module = "envelope",
+        def = r#"
+struct Envelope {
+    // The parent command ID.
+    parent_id id,
+    // The author's device ID.
+    author_id id,
+    // Uniquely identifies the command.
+    command_id id,
+    // The signature over the command and its contextual
+    // bindings.
+    signature bytes,
+}
+
+// This exists only for FFI contract testing purposes
+enum TestEnum {
+    True,
+    False,
+    FileNotFound,
+}
+"#
+    )]
+    impl TestFfiEnvelope {
+        #[ffi_export(def = "function do_seal(payload bytes) struct Envelope")]
+        fn seal<CE>(
+            &self,
+            _ctx: &CommandContext,
+            _eng: &CE,
+            _payload: Vec<u8>,
+        ) -> Result<Envelope, MachineError> {
+            unimplemented!()
+        }
+
+        #[ffi_export(def = "function do_open(payload bytes, envelope_input struct Envelope) unit")]
+        fn open<CE>(
+            &self,
+            _ctx: &CommandContext,
+            _eng: &CE,
+            _payload: Vec<u8>,
+            _envelope_input: Envelope,
+        ) -> Result<(), Infallible> {
+            unimplemented!()
+        }
+    }
+}
+use ffi::TestFfiEnvelope;
