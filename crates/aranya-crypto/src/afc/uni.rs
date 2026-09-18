@@ -1,4 +1,4 @@
-use core::{cell::OnceCell, iter};
+use core::iter;
 
 use buggy::BugExt as _;
 use derive_where::derive_where;
@@ -19,6 +19,7 @@ use crate::{
     id::{IdError, IdExt as _, custom_id},
     misc::sk_misc,
     policy::LabelId,
+    util::CacheCell,
 };
 
 /// Contextual information for a unidirectional AFC channel.
@@ -183,7 +184,7 @@ pub(crate) struct Info {
 /// A unirectional channel author's secret.
 pub struct UniAuthorSecret<CS: CipherSuite> {
     sk: RootChannelKey<CS>,
-    id: OnceCell<Result<UniAuthorSecretId, IdError>>,
+    id: CacheCell<Result<UniAuthorSecretId, IdError>>,
 }
 
 sk_misc!(UniAuthorSecret, UniAuthorSecretId, "AFC Uni Author Secret");
@@ -192,7 +193,7 @@ unwrapped! {
     name: UniAuthorSecret;
     type: Decap;
     into: |key: Self| { key.sk.into_inner() };
-    from: |key| { Self { sk: RootChannelKey::new(key), id: OnceCell::new() } };
+    from: |key| { Self { sk: RootChannelKey::new(key), id: CacheCell::new() } };
 }
 
 /// A unirectional channel peer's encapsulated secret.
@@ -203,14 +204,14 @@ unwrapped! {
 pub struct UniPeerEncap<CS: CipherSuite> {
     encap: Encap<CS>,
     #[serde(skip)]
-    id: OnceCell<UniChannelId>,
+    id: CacheCell<UniChannelId>,
 }
 
 impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        *self.id.get_or_init(|| {
+        self.id.get_or_init(|| {
             UniChannelId::new::<CS>(b"UniChannelId-v1", iter::once(self.as_bytes()))
         })
     }
@@ -226,7 +227,7 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
         Ok(Self {
             encap: Encap::from_bytes(data)?,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
         })
     }
 
@@ -271,12 +272,12 @@ impl<CS: CipherSuite> UniSecrets<CS> {
             )?;
             UniPeerEncap {
                 encap: Encap(enc),
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             }
         };
         let author = UniAuthorSecret {
             sk: root_sk,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
         };
 
         Ok(Self { author, peer })
@@ -434,7 +435,7 @@ mod tests {
             let root_key = RootChannelKey::<CS>::new(sk);
             let uni_author_secret = UniAuthorSecret {
                 sk: root_key,
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             };
 
             let got_id = uni_author_secret.id().expect("should compute ID");
