@@ -26,11 +26,10 @@ mod tests;
 mod time;
 
 pub use config::{HelloConfig, Limits, LimitsBuilder, PeerConfig, PushConfig};
-pub use slots::{FixedSlots, HeapSlots, OutOfSlots, SyncSlot, SyncSlots};
-pub use time::SyncInstant;
-
 use schedule::{Due, Gate, Schedule, SubscriberLimitReached};
 use slots::DueKind;
+pub use slots::{FixedSlots, HeapSlots, OutOfSlots, SyncSlot, SyncSlots};
+pub use time::SyncInstant;
 
 /// What an [`Outbound`] message is.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
