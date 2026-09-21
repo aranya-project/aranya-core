@@ -15,8 +15,6 @@ use aranya_policy_ifgen::{
 };
 #[derive(Debug)]
 pub enum Persistent {}
-#[derive(Debug)]
-pub enum Ephemeral {}
 /// Admin policy struct.
 #[value]
 pub struct Admin {
@@ -40,8 +38,6 @@ pub enum PersistentAction {
     add_user(add_user),
     delete_user(delete_user),
 }
-#[actions(interface = Ephemeral)]
-pub enum EphemeralAction {}
 /// add_user policy action.
 #[action(interface = Persistent)]
 pub struct add_user {
