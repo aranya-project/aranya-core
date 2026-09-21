@@ -1,0 +1,41 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: missing field `forget_me_not` in struct literal for `S`
+   |
+ 8 |     return S {
+   |            ^ missing `forget_me_not`
+   |
+error: struct `S` has no field named `not_here`
+   |
+11 |         not_here: 2,
+   |         ^^^^^^^^ unknown field
+error: struct `S` has no field named `me_neither`
+   |
+13 |         me_neither: 3,
+   |         ^^^^^^^^^^ unknown field
+error: field `multitudes` specified more than once
+   |
+ 9 |         multitudes: 0,
+   |         ^^^^^^^^^^ first use of `multitudes`
+...
+12 |         multitudes: 11,
+   |         ---------- used again
+13 |         me_neither: 3,
+14 |         multitudes: 12,
+   |         ---------- used again
+error: field `not_a_bool` specified more than once
+   |
+10 |         not_a_bool: 1,
+   |         ^^^^^^^^^^ first use of `not_a_bool`
+...
+15 |         not_a_bool: false,
+   |         ---------- used again
+error: invalid type: bool
+   |
+ 4 |     not_a_bool int,
+   |     -------------- expected because of this
+...
+15 |         not_a_bool: false,
+   |                     ^^^^^ expected `int` but found `bool`
