@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     LocatedAddress, Prior, StorageError,
-    command::{Address, CmdId, Command as _},
+    command::{Address, CmdId, Command as _, CommandExt as _},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
         TraversalBuffers,
@@ -167,6 +167,19 @@ pub struct SyncResponder {
     /// Addresses of the commands in the last message written by
     /// [`push`](Self::push).
     pushed: Vec<Address, COMMAND_RESPONSE_MAX>,
+}
+
+/// One message's worth of commands, produced by
+/// [`SyncResponder::get_commands`].
+struct CommandBatch {
+    /// Wire metadata for each command.
+    commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
+    /// Address of each command, in the same order as `commands`.
+    addresses: Vec<Address, COMMAND_RESPONSE_MAX>,
+    /// The serialized policy and command bytes, in order.
+    command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
+    /// The `to_send` index to resume from.
+    next_send: usize,
 }
 
 impl Default for SyncResponder {
@@ -590,7 +603,12 @@ impl SyncResponder {
             return Ok(length);
         }
 
-        let (commands, command_data, next_send) = self.get_commands(provider)?;
+        let CommandBatch {
+            commands,
+            command_data,
+            next_send,
+            ..
+        } = self.get_commands(provider)?;
 
         let message = SyncResponseMessage::SyncResponse {
             session_id: self.session_id()?,
@@ -650,28 +668,14 @@ impl SyncResponder {
             self.next_send = 0;
             self.state = S::Send;
         }
-        let (commands, command_data, next_send) = self.get_commands(provider)?;
+        let CommandBatch {
+            commands,
+            addresses: pushed,
+            command_data,
+            next_send,
+        } = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {
-            let mut pushed: Vec<Address, COMMAND_RESPONSE_MAX> = Vec::new();
-            for meta in &commands {
-                let max_cut = match meta.parent {
-                    Prior::None => MaxCut::new(0),
-                    Prior::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
-                    Prior::Merge(l, r) => l
-                        .max_cut
-                        .max(r.max_cut)
-                        .checked_add(1)
-                        .assume("must not overflow")?,
-                };
-                pushed
-                    .push(Address {
-                        id: meta.id,
-                        max_cut,
-                    })
-                    .ok()
-                    .assume("pushed is not full")?;
-            }
             let message = SyncType::Push {
                 message: SyncResponseMessage::SyncResponse {
                     session_id: self.session_id()?,
@@ -703,17 +707,11 @@ impl SyncResponder {
         Ok(length)
     }
 
+    /// Collects the next batch of commands to send.
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-    ) -> Result<
-        (
-            Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
-            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
-            usize,
-        ),
-        SyncError,
-    > {
+    ) -> Result<CommandBatch, SyncError> {
         let Some(graph_id) = self.graph_id.as_ref() else {
             self.state = SyncResponderState::Reset;
             bug!("get_next called before graph_id was set");
@@ -726,6 +724,7 @@ impl SyncResponder {
             }
         };
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        let mut addresses: Vec<Address, COMMAND_RESPONSE_MAX> = Vec::new();
         let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         let mut index = self.next_send;
         for i in self.next_send..self.to_send.len() {
@@ -776,6 +775,10 @@ impl SyncResponder {
                 };
 
                 commands.push(meta).ok().assume("commands is not full")?;
+                addresses
+                    .push(command.address()?)
+                    .ok()
+                    .assume("addresses is not full")?;
                 sent = sent.checked_add(1).assume("sent + 1 mustn't overflow")?;
             }
 
@@ -796,7 +799,12 @@ impl SyncResponder {
 
             index = i.checked_add(1).assume("index + 1 mustn't overflow")?;
         }
-        Ok((commands, command_data, index))
+        Ok(CommandBatch {
+            commands,
+            addresses,
+            command_data,
+            next_send: index,
+        })
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {
