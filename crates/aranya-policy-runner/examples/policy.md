@@ -23,57 +23,6 @@ use idam
 fact Device[dev id]=>{key bytes}
 ```
 
-## Envelope management
-
-```policy
-// General signing function. It creates an envelope with the given payload (a serialized command)
-// and signing key.
-function sign_command(payload bytes, key option[bytes]) struct Envelope {
-    let parent_id = perspective::head_id()
-    let author_id = device::current_device_id()
-    let author_sign_key_id = match key {
-        Some(k) => Some(idam::derive_sign_key_id(k))
-        None => None
-    }
-    let signed = crypto::sign(
-        author_sign_key_id,
-        payload,
-    )
-    return envelope::new(
-    	parent_id,
-        author_id,
-        signed.command_id,
-        signed.signature,
-    )
-}
-
-// General open function. Opens an envelope using the given signing key and returns the verified
-// payload.
-function open_command(payload bytes, e struct Envelope, key option[bytes]) unit {
-    return crypto::verify(
-        key,
-        envelope::parent_id(e),
-        payload,
-        envelope::command_id(e),
-        envelope::signature(e),
-    )
-}
-
-// Retrieves a device key by taking the current device ID and looking it up in the Device fact.
-function current_device_key() option[bytes] {
-    let author_id = device::current_device_id()
-    let author_dev = query Device[dev: author_id] or return None
-    return Some(author_dev.key)
-}
-
-/// Retrieves a device key by taking the envelope author ID and looking it up in the Device fact.
-function envelope_author_key(envelope struct Envelope) option[bytes] {
-    let author_id = envelope::author_id(envelope)
-    let author_dev = query Device[dev: author_id] or return None
-    return Some(author_dev.key)
-}
-```
-
 ## Team Creation
 
 This initializes a device with a given "owner key". This owner doesn't actually have any more
@@ -98,11 +47,6 @@ command Init {
     fields {
         owner_key bytes,
     }
-
-    // Note the special case for both seal and open here. The owner key is used explicitly rather
-    // than a device key pulled from a fact, because that fact doesn't yet exist.
-    seal { return sign_command(payload, Some(this.owner_key)) }
-    open { return open_command(payload, envelope, Some(this.owner_key)) }
 
     policy {
         let device_id = device::current_device_id()
@@ -140,13 +84,6 @@ command AddUser {
         new_user_key bytes,
     }
 
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
-    }
-
     policy {
         let dev_id = envelope::command_id(envelope)
         // Check that this device has not already been added
@@ -181,13 +118,6 @@ command AddDevice {
     fields {
         device_id id,
         device_key bytes,
-    }
-
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
@@ -231,13 +161,6 @@ command GetDevice {
         device_id id,
     }
 
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
-    }
-
     policy {
         match query Device[dev: this.device_id] {
             Some(device_info) => {
@@ -277,13 +200,6 @@ command Hello {
 
     fields {
         msg string,
-    }
-
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {

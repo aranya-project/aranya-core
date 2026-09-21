@@ -2,8 +2,6 @@ command Result {
     fields {
         x int
     }
-    seal { return todo() }
-    open { return todo() }
     policy { }
 }
 

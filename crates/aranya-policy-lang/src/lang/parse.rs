@@ -1607,7 +1607,12 @@ impl ChunkParser<'_> {
         };
         let identifier = pc.consume_ident(self)?;
 
-        // Consume blocks in order: attributes?, fields?, seal, open, policy, recall?
+        let base = pc
+            .consume_optional(Rule::base_usage)
+            .map(|token| self.descend(token).consume_ident(self))
+            .transpose()?;
+
+        // Consume blocks in order: attributes?, fields?, policy, recall?
 
         // 1. Optional attributes block
         let attributes = if let Some(token) = pc.consume_optional(Rule::attributes_block) {
@@ -1651,14 +1656,6 @@ impl ChunkParser<'_> {
         } else {
             vec![]
         };
-
-        // 3. Required seal block
-        let token = pc.consume_of_type(Rule::seal_block)?;
-        let seal = self.parse_statement_list(token.into_inner())?;
-
-        // 4. Required open block
-        let token = pc.consume_of_type(Rule::open_block)?;
-        let open = self.parse_statement_list(token.into_inner())?;
 
         // 5. Required policy block
         let token = pc.consume_of_type(Rule::policy_block)?;
@@ -1704,13 +1701,64 @@ impl ChunkParser<'_> {
 
         Ok(ast::CommandDefinition {
             persistence,
+            base,
             attributes,
             identifier,
             fields,
-            seal,
-            open,
             policy,
             recalls,
+            span,
+        })
+    }
+
+    /// Parse a [`Rule::base_command_definition`] into an [`ast::BaseCommandDefinition``].
+    fn parse_base_command_definition(
+        &self,
+        item: Pair<'_, Rule>,
+    ) -> Result<ast::BaseCommandDefinition, ParseError> {
+        assert_eq!(item.as_rule(), Rule::base_command_definition);
+
+        let span = self.to_ast_span(item.as_span())?;
+
+        let pc = self.descend(item);
+        let identifier = pc.consume_ident(self)?;
+
+        let fields = pc
+            .consume_optional(Rule::fields_block)
+            .map(|token| {
+                let pairs = token.into_inner();
+                let mut field_list = vec![];
+                for field in pairs {
+                    match field.as_rule() {
+                        Rule::field_definition => {
+                            field_list
+                                .push(ast::StructItem::Field(self.parse_field_definition(field)?));
+                        }
+                        Rule::field_insertion => {
+                            let ident = self.descend(field).consume_ident(self)?;
+                            field_list.push(ast::StructItem::StructRef(ident));
+                        }
+                        _ => {
+                            return Err(ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("invalid token in command definition"),
+                                Some(self.to_ast_span(field.as_span())?),
+                            ));
+                        }
+                    }
+                }
+                Ok(field_list)
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        let token = pc.consume_of_type(Rule::get_key_block)?;
+        let get_key = self.parse_statement_list(token.into_inner())?;
+
+        Ok(ast::BaseCommandDefinition {
+            identifier,
+            fields,
+            get_key,
             span,
         })
     }
@@ -1897,6 +1945,9 @@ fn parse_policy_chunk_inner(
             Rule::struct_definition => policy.structs.push(p.parse_struct_definition(item)?),
             Rule::enum_definition => policy.enums.push(p.parse_enum_definition(item)?),
             Rule::command_definition => policy.commands.push(p.parse_command_definition(item)?),
+            Rule::base_command_definition => policy
+                .base_commands
+                .push(p.parse_base_command_definition(item)?),
             Rule::function_definition => policy.functions.push(p.parse_function_definition(item)?),
             Rule::finish_function_definition => policy
                 .finish_functions

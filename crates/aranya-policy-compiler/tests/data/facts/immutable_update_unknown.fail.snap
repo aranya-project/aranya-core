@@ -4,5 +4,5 @@ expression: error
 ---
 error: unknown error
   |
-8 |             update Foo[i: 1]=>{a: 1} to {a: 0}
+6 |             update Foo[i: 1]=>{a: 1} to {a: 0}
   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^ fact `Foo` is immutable so it cannot be updated.

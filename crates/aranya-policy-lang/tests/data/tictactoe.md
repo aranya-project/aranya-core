@@ -38,12 +38,6 @@ command Start {
         ProfileX id,
         ProfileO id,
     }
-    seal {
-        return todo()
-    }
-    open {
-        return todo()
-    }
     policy {
         check ProfileX != ProfileO else test_fail("Profiles must be different")
         // `envelope::command_id` is an FFI-provided helper function that returns
@@ -93,12 +87,6 @@ command Move {
         gameID id,
         X int,
         Y int,
-    }
-    seal {
-        return todo()
-    }
-    open {
-        return todo()
     }
     policy {
         // phase 1: variable definition/checks
@@ -175,12 +163,6 @@ command Move2 {
         gameID id,
         X int,
         Y int,
-    }
-    seal {
-        return todo()
-    }
-    open {
-        return todo()
     }
     policy {
         let player = envelope::author_id(envelope)

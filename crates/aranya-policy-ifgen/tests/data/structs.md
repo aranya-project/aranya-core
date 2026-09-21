@@ -21,8 +21,6 @@ command AddUser {
     fields {
         +User
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {
             emit UserAdded { uid: this.uid }

@@ -20,7 +20,6 @@ aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false,
 	"proptest",
 	"rand_compat",
 ] }
-aranya-crypto-ffi = { path = "../../crates/aranya-crypto-ffi", features = ["alloc"] }
 aranya-device-ffi = { path = "../../crates/aranya-device-ffi", features = ["alloc"] }
 aranya-envelope-ffi = { path = "../../crates/aranya-envelope-ffi", features = ["alloc"] }
 aranya-idam-ffi = { path = "../../crates/aranya-idam-ffi", features = ["alloc"] }

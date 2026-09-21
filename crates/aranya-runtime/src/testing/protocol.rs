@@ -143,6 +143,10 @@ impl PolicyStore for TestPolicyStore {
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
     }
+
+    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        Ok(&())
+    }
 }
 
 pub struct TestPolicy {
@@ -396,6 +400,7 @@ pub enum TestActions {
 impl Policy for TestPolicy {
     type Effect = TestEffect;
     type Action<'a> = TestActions;
+    type SealCtx = ();
     type Command<'a> = TestProtocol<'a>;
 
     fn serial(&self) -> u32 {
@@ -435,6 +440,7 @@ impl Policy for TestPolicy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         _placement: crate::policy::ActionPlacement,
+        _seal_ctx: &(),
     ) -> Result<(), PolicyError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {
