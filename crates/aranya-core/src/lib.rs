@@ -140,12 +140,26 @@ pub mod sync {
     //! and dispatch on the returned variant; messages up to
     //! [`MAX_SYNC_MESSAGE_SIZE`] bytes are exchanged over any transport the
     //! caller provides.
+    //!
+    //! [`Syncer`] is the sans-I/O state machine layered above those
+    //! primitives. It decides when to sync with which peer, tracks push and
+    //! hello subscriptions in both directions, runs poll sessions to
+    //! convergence and commits what arrives. The caller supplies a
+    //! transport, storage (via [`SyncContext`]) and the current time (any
+    //! [`SyncInstant`]): feed inbound bytes to `handle_incoming`, drain
+    //! [`Outbound`] messages from `next_outbound`, hand replies back through
+    //! `handle_reply`, and sleep until `next_deadline`. Per-peer state lives
+    //! in caller-supplied [`SyncSlots`]: [`HeapSlots`] grows on demand,
+    //! [`FixedSlots`] is inline and allocation-free. [`Limits`] clamps every
+    //! remotely supplied duration.
 
     #[doc(inline)]
     pub use aranya_runtime::sync::{
-        COMMAND_RESPONSE_MAX, HelloNotification, HelloSubscribe, HelloUnsubscribe,
-        MAX_SYNC_MESSAGE_SIZE, PeerCache, PollIncoming, PushIncoming, SubscribeIncoming,
-        SubscribeResponse, SyncCommand, SyncError, SyncHeads, SyncHello, SyncIncoming,
-        SyncRequester, SyncResponder, UnsubscribeIncoming,
+        COMMAND_RESPONSE_MAX, FixedSlots, HeapSlots, HelloConfig, HelloMessage, HelloNotification,
+        HelloSubscribe, HelloUnsubscribe, IgnoreReason, Inbound, Limits, LimitsBuilder,
+        MAX_SYNC_MESSAGE_SIZE, OutOfSlots, Outbound, OutboundKind, Outcome, PeerCache, PeerConfig,
+        PollIncoming, PushConfig, PushIncoming, SubscribeIncoming, SubscribeResponse, SyncCommand,
+        SyncContext, SyncError, SyncHeads, SyncHello, SyncIncoming, SyncInstant, SyncRequester,
+        SyncResponder, SyncSlot, SyncSlots, Syncer, SyncerError, Token, UnsubscribeIncoming,
     };
 }

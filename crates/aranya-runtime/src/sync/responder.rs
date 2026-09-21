@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     LocatedAddress, Prior, StorageError,
-    command::{Address, CmdId, Command as _},
+    command::{Address, CmdId, Command as _, CommandExt as _},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
         TraversalBuffers,
@@ -20,7 +20,7 @@ use crate::{
 /// The maximum number of heads that will be stored for a peer.
 const PEER_HEAD_MAX: usize = 10;
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct PeerCache {
     heads: Vec<LocatedAddress, { PEER_HEAD_MAX }>,
 }
@@ -164,6 +164,22 @@ pub struct SyncResponder {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
+    /// Addresses of the commands in the last message written by
+    /// [`push`](Self::push).
+    pushed: Vec<Address, COMMAND_RESPONSE_MAX>,
+}
+
+/// One message's worth of commands, produced by
+/// [`SyncResponder::get_commands`].
+struct CommandBatch {
+    /// Wire metadata for each command.
+    commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
+    /// Address of each command, in the same order as `commands`.
+    addresses: Vec<Address, COMMAND_RESPONSE_MAX>,
+    /// The serialized policy and command bytes, in order.
+    command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
+    /// The `to_send` index to resume from.
+    next_send: usize,
 }
 
 impl Default for SyncResponder {
@@ -246,7 +262,25 @@ impl SyncResponder {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
+            pushed: Vec::new(),
         }
+    }
+
+    /// Returns whether a push in progress has segments left to send.
+    pub(crate) fn has_more(&self) -> bool {
+        self.next_send < self.to_send.len()
+    }
+
+    /// Returns whether the session's segment list hit its capacity, so the
+    /// peer may need segments this session could not include. A new
+    /// session started from the heads pushed so far finds them.
+    pub(crate) fn segments_at_capacity(&self) -> bool {
+        self.to_send.is_full()
+    }
+
+    /// The commands carried by the last message [`push`](Self::push) wrote.
+    pub(crate) fn pushed(&self) -> &[Address] {
+        &self.pushed
     }
 
     /// Returns true if [`Self::poll`] would produce a message.
@@ -569,7 +603,12 @@ impl SyncResponder {
             return Ok(length);
         }
 
-        let (commands, command_data, next_send) = self.get_commands(provider)?;
+        let CommandBatch {
+            commands,
+            command_data,
+            next_send,
+            ..
+        } = self.get_commands(provider)?;
 
         let message = SyncResponseMessage::SyncResponse {
             session_id: self.session_id()?,
@@ -598,6 +637,11 @@ impl SyncResponder {
 
     /// Writes a sync push message to target for the peer. The message will
     /// contain any commands that are after the commands in response_cache.
+    ///
+    /// The set of segments to send is computed on the first call of a
+    /// session (started with [`start_session`](Self::start_session)); later
+    /// calls continue where the previous message stopped, so a push larger
+    /// than one message is sent by calling this until it returns `0`.
     pub fn push(
         &mut self,
         target: &mut [u8],
@@ -612,15 +656,24 @@ impl SyncResponder {
             return Err(SyncError::NotReady);
         };
 
-        let storage = match provider.get_storage(graph_id) {
-            Ok(s) => s,
-            Err(e) => {
-                self.state = S::Reset;
-                return Err(e.into());
-            }
-        };
-        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
-        let (commands, command_data, next_send) = self.get_commands(provider)?;
+        if !matches!(self.state, S::Send) {
+            let storage = match provider.get_storage(graph_id) {
+                Ok(s) => s,
+                Err(e) => {
+                    self.state = S::Reset;
+                    return Err(e.into());
+                }
+            };
+            self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+            self.next_send = 0;
+            self.state = S::Send;
+        }
+        let CommandBatch {
+            commands,
+            addresses: pushed,
+            command_data,
+            next_send,
+        } = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {
             let message = SyncType::Push {
@@ -648,22 +701,17 @@ impl SyncResponder {
                 .checked_add(1)
                 .assume("message_index increment overflow")?;
             self.next_send = next_send;
+            self.pushed = pushed;
             length = total_length;
         }
         Ok(length)
     }
 
+    /// Collects the next batch of commands to send.
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-    ) -> Result<
-        (
-            Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
-            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
-            usize,
-        ),
-        SyncError,
-    > {
+    ) -> Result<CommandBatch, SyncError> {
         let Some(graph_id) = self.graph_id.as_ref() else {
             self.state = SyncResponderState::Reset;
             bug!("get_next called before graph_id was set");
@@ -676,6 +724,7 @@ impl SyncResponder {
             }
         };
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        let mut addresses: Vec<Address, COMMAND_RESPONSE_MAX> = Vec::new();
         let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         let mut index = self.next_send;
         for i in self.next_send..self.to_send.len() {
@@ -726,6 +775,10 @@ impl SyncResponder {
                 };
 
                 commands.push(meta).ok().assume("commands is not full")?;
+                addresses
+                    .push(command.address()?)
+                    .ok()
+                    .assume("addresses is not full")?;
                 sent = sent.checked_add(1).assume("sent + 1 mustn't overflow")?;
             }
 
@@ -746,7 +799,12 @@ impl SyncResponder {
 
             index = i.checked_add(1).assume("index + 1 mustn't overflow")?;
         }
-        Ok((commands, command_data, index))
+        Ok(CommandBatch {
+            commands,
+            addresses,
+            command_data,
+            next_send: index,
+        })
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {
