@@ -91,10 +91,15 @@ impl PolicyStore for ProbePolicyStore {
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&ProbePolicy)
     }
+
+    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        Err(PolicyError::Panic)
+    }
 }
 
 impl Policy for ProbePolicy {
     type Action<'a> = Never;
+    type SealCtx = Never;
     type Effect = Never;
     type Command<'a> = ProbeCommand;
 
@@ -137,6 +142,7 @@ impl Policy for ProbePolicy {
         _facts: &mut impl Perspective,
         _sink: &mut impl Sink<Self::Effect>,
         _placement: ActionPlacement,
+        _seal_ctx: &Self::SealCtx,
     ) -> Result<(), PolicyError> {
         match action {}
     }

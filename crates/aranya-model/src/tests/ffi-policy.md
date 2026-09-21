@@ -22,6 +22,42 @@ use device
 use crypto
 use envelope
 
+base command BaseInit {
+    fields {
+        sign_pk bytes,
+    }
+    get_key {
+        return Some(this.sign_pk)
+    }
+}
+
+base command BaseSelfSigned {
+    fields {
+        sign_pk bytes,
+    }
+    get_key {
+        return Some(this.sign_pk)
+    }
+}
+
+base command Base {
+    get_key {
+        return match query DeviceSignKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base command Ephemeral {
+    get_key {
+        return match query DeviceSignKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
 fact Stuff[a int]=>{x int}
 
 effect StuffHappened {
@@ -90,45 +126,6 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
     })
 }
 
-// Seals a serialized basic command into an envelope, using the stored signing key for this device.
-function seal_basic_command(payload bytes) struct Envelope {
-    let parent_id = perspective::head_id()
-    let author_id = device::current_device_id()
-    let author_sign_id = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
-        Some(pk) => Some(pk.key_id)
-        None => None
-    }
-    let signed = crypto::sign(
-        author_sign_id,
-        payload,
-    )
-
-    return envelope::new(
-        parent_id,
-        author_id,
-        signed.command_id,
-        signed.signature,
-    )
-}
-
-// Opens a basic command from an envelope, using the author's stored signing key.
-function open_basic_command(payload bytes, envelope_input struct Envelope) unit {
-    let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = match query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?} {
-        Some(pk) => Some(pk.key)
-        None => None
-    }
-    let parent_id = envelope::parent_id(envelope_input)
-
-    return crypto::verify(
-        author_sign_pk,
-        parent_id,
-        payload,
-        envelope::command_id(envelope_input),
-        envelope::signature(envelope_input),
-    )
-}
-
 action init(nonce int, sign_pk bytes) {
     publish Init {
         nonce: nonce,
@@ -136,55 +133,21 @@ action init(nonce int, sign_pk bytes) {
     }
 }
 
-command Init {
+command Init with BaseInit {
     attributes {
         init: true,
     }
 
     fields {
         nonce int,
-        sign_pk bytes,
-    }
-
-    seal {
-        let parent_id = perspective::head_id()
-        let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
-
-        let signed = crypto::sign(
-            Some(author_sign_sk_id),
-            payload,
-        )
-
-        let author_id = device::current_device_id()
-
-        return envelope::new(
-            parent_id,
-            author_id,
-            signed.command_id,
-            signed.signature,
-        )
-    }
-
-    open {
-        let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
-        let author_sign_pk = this.sign_pk
-
-        return crypto::verify(
-            Some(author_sign_pk),
-            parent_id,
-            payload,
-            envelope::command_id(envelope),
-            envelope::signature(envelope),
-        )
     }
 
     policy {
         check this.nonce > 0 else test_fail("nonce must be positive")
         finish {}
     }
-
 }
+
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
     publish AddDeviceKeys {
         ident_pk: ident_pk,
@@ -192,47 +155,13 @@ action add_device_keys(ident_pk bytes, sign_pk bytes) {
     }
 }
 
-command AddDeviceKeys {
+command AddDeviceKeys with BaseSelfSigned {
     attributes {
         priority: 0,
     }
 
     fields {
         ident_pk bytes,
-        sign_pk bytes,
-    }
-
-    seal {
-        let parent_id = perspective::head_id()
-        let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
-
-        let signed = crypto::sign(
-            Some(author_sign_sk_id),
-            payload,
-        )
-
-        let author_id = device::current_device_id()
-
-        return envelope::new(
-            parent_id,
-            author_id,
-            signed.command_id,
-            signed.signature,
-        )
-    }
-
-    open {
-        let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
-        let author_sign_pk = this.sign_pk
-
-        return crypto::verify(
-            Some(author_sign_pk),
-            parent_id,
-            payload,
-            envelope::command_id(envelope),
-            envelope::signature(envelope),
-        )
     }
 
     policy {
@@ -266,7 +195,7 @@ action create_action(v int) {
     }
 }
 
-command Create {
+command Create with Base {
     attributes {
         priority: 0,
     }
@@ -276,9 +205,6 @@ command Create {
         key_a int,
         value int,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -295,7 +221,7 @@ action increment(v int) {
     }
 }
 
-command Increment {
+command Increment with Base {
     attributes {
         priority: 0,
     }
@@ -304,9 +230,6 @@ command Increment {
         key_a int,
         value int,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
@@ -327,7 +250,7 @@ action decrement(v int) {
     }
 }
 
-command Decrement {
+command Decrement with Base {
     attributes {
         priority: 0,
     }
@@ -336,10 +259,6 @@ command Decrement {
         key_a int,
         value int,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
-
 
     policy {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
@@ -362,14 +281,11 @@ ephemeral action create_greeting(key string, value string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting {
+ephemeral command CreateGreeting with Ephemeral {
     fields {
         key string,
         value string,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         finish {
@@ -398,14 +314,11 @@ ephemeral action verify_hellos() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting {
+ephemeral command VerifyGreeting with Ephemeral {
     fields {
         key string,
         value string,
     }
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
@@ -427,15 +340,12 @@ action verify_no_hello() {
 
 // `VerifyNoHello` is a command that verifies that there are no greetings in
 // the factDB persisted to the graph.
-command VerifyNoHello {
+command VerifyNoHello with Base {
     attributes {
         priority: 0,
     }
 
     fields {}
-
-    seal { return seal_basic_command(payload) }
-    open { return open_basic_command(payload, envelope) }
 
     policy {
         check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")

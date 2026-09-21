@@ -6,16 +6,14 @@ error: invalid statement
    |
  1 | command Cmd {
  2 |     fields {}
- 3 |     seal { return todo() }
- 4 |     open { return todo() }
- 5 |     policy {
- 6 |         finish {}
- 7 |     }
- 8 |     recall handle() {
- 9 |         recall other()
+ 3 |     policy {
+ 4 |         finish {}
+ 5 |     }
+ 6 |     recall handle() {
+ 7 |         recall other()
    |         ^^^^^^^^^^^^^^ statement not allowed in command recall block context
+ 8 |     }
+ 9 |     recall other() {
 10 |     }
-11 |     recall other() {
-12 |     }
-13 | }
+11 | }
    |

@@ -368,21 +368,22 @@ policy_block = { "policy" ~ statement_block }
 // The recall statement defines a block of statements that will be
 // executed when a command of this type is recalled.
 recall_block = { "recall" ~ identifier ~ function_arguments ~ statement_block }
-// The seal block is a pure function with an implicit `this` parameter
-// like the policy/recall blocks. It returns an envelope object.
-seal_block = { "seal" ~ statement_block }
-// The open block is a pure function with an implicit `envelope`
-// parameter. It returns a command struct for the command it is part of.
-open_block = { "open" ~ statement_block }
-// Union of all command blocks
+// Sequence of command blocks
 command_blocks = _{
     attributes_block?
     ~ fields_block?
-    ~ seal_block
-    ~ open_block
     ~ policy_block
     ~ recall_block*
 }
+
+get_key_block = { "get_key" ~ statement_block }
+// Sequence of base command blocks
+base_command_blocks = _{
+    fields_block?
+    ~ get_key_block
+}
+
+base_usage = { "with" ~ identifier }
 
 // # Top-level Statements
 ephemeral_modifier = { "ephemeral" }
@@ -399,7 +400,9 @@ struct_definition = { "struct" ~ identifier ~ struct_def }
 // enum Result { OK, Err }
 enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
 // command Foo { ... }
-command_definition = { ephemeral_modifier? ~ "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
+command_definition = { ephemeral_modifier? ~ "command" ~ identifier ~ base_usage? ~ "{" ~ command_blocks ~ "}" }
+// base command Foo { ... }
+base_command_definition = { "base" ~ "command" ~ identifier ~ "{" ~ base_command_blocks ~ "}" }
 // function foo(a int) int { return a }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
 function_definition = { function_decl ~ statement_block }
@@ -418,6 +421,7 @@ top_level_statement = _{
     | struct_definition
     | enum_definition
     | command_definition
+    | base_command_definition
     | function_definition
     | finish_function_definition
     | global_let_statement
