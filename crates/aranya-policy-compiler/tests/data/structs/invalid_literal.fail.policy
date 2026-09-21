@@ -1,0 +1,17 @@
+struct S {
+    multitudes int,
+    forget_me_not int,
+    not_a_bool int,
+}
+
+function make_s() struct S {
+    return S {
+        multitudes: 0,
+        not_a_bool: 1,
+        not_here: 2,
+        multitudes: 11,
+        me_neither: 3,
+        multitudes: 12,
+        not_a_bool: false,
+    }
+}
