@@ -4,8 +4,6 @@ command Co {
         fi struct Bar, // cycle
         i int
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

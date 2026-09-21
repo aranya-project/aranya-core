@@ -3,6 +3,6 @@ source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
 error: invalid type: ephemeral command
-   |
-10 |     publish Cmd {}
-   |             ^^^^^^ expected `persistent command` but found `ephemeral command`
+  |
+8 |     publish Cmd {}
+  |             ^^^^^^ expected `persistent command` but found `ephemeral command`
