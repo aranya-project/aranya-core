@@ -20,7 +20,7 @@ use crate::{
 /// The maximum number of heads that will be stored for a peer.
 const PEER_HEAD_MAX: usize = 10;
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct PeerCache {
     heads: Vec<LocatedAddress, { PEER_HEAD_MAX }>,
 }
@@ -164,6 +164,9 @@ pub struct SyncResponder {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
+    /// Addresses of the commands in the last message written by
+    /// [`push`](Self::push).
+    pushed: Vec<Address, COMMAND_RESPONSE_MAX>,
 }
 
 impl Default for SyncResponder {
@@ -246,7 +249,25 @@ impl SyncResponder {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
+            pushed: Vec::new(),
         }
+    }
+
+    /// Returns whether a push in progress has segments left to send.
+    pub(crate) fn has_more(&self) -> bool {
+        self.next_send < self.to_send.len()
+    }
+
+    /// Returns whether the session's segment list hit its capacity, so the
+    /// peer may need segments this session could not include. A new
+    /// session started from the heads pushed so far finds them.
+    pub(crate) fn segments_at_capacity(&self) -> bool {
+        self.to_send.is_full()
+    }
+
+    /// The commands carried by the last message [`push`](Self::push) wrote.
+    pub(crate) fn pushed(&self) -> &[Address] {
+        &self.pushed
     }
 
     /// Returns true if [`Self::poll`] would produce a message.
@@ -598,6 +619,11 @@ impl SyncResponder {
 
     /// Writes a sync push message to target for the peer. The message will
     /// contain any commands that are after the commands in response_cache.
+    ///
+    /// The set of segments to send is computed on the first call of a
+    /// session (started with [`start_session`](Self::start_session)); later
+    /// calls continue where the previous message stopped, so a push larger
+    /// than one message is sent by calling this until it returns `0`.
     pub fn push(
         &mut self,
         target: &mut [u8],
@@ -612,17 +638,40 @@ impl SyncResponder {
             return Err(SyncError::NotReady);
         };
 
-        let storage = match provider.get_storage(graph_id) {
-            Ok(s) => s,
-            Err(e) => {
-                self.state = S::Reset;
-                return Err(e.into());
-            }
-        };
-        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+        if !matches!(self.state, S::Send) {
+            let storage = match provider.get_storage(graph_id) {
+                Ok(s) => s,
+                Err(e) => {
+                    self.state = S::Reset;
+                    return Err(e.into());
+                }
+            };
+            self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+            self.next_send = 0;
+            self.state = S::Send;
+        }
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {
+            let mut pushed: Vec<Address, COMMAND_RESPONSE_MAX> = Vec::new();
+            for meta in &commands {
+                let max_cut = match meta.parent {
+                    Prior::None => MaxCut::new(0),
+                    Prior::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
+                    Prior::Merge(l, r) => l
+                        .max_cut
+                        .max(r.max_cut)
+                        .checked_add(1)
+                        .assume("must not overflow")?,
+                };
+                pushed
+                    .push(Address {
+                        id: meta.id,
+                        max_cut,
+                    })
+                    .ok()
+                    .assume("pushed is not full")?;
+            }
             let message = SyncType::Push {
                 message: SyncResponseMessage::SyncResponse {
                     session_id: self.session_id()?,
@@ -648,6 +697,7 @@ impl SyncResponder {
                 .checked_add(1)
                 .assume("message_index increment overflow")?;
             self.next_send = next_send;
+            self.pushed = pushed;
             length = total_length;
         }
         Ok(length)

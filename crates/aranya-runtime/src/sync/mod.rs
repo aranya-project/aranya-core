@@ -20,12 +20,18 @@ use crate::{
 
 mod requester;
 mod responder;
+mod syncer;
 pub(crate) mod wire;
 
 pub(crate) use requester::SyncRequestMessage;
 pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
+pub use syncer::{
+    FixedSlots, HeapSlots, HelloConfig, IgnoreReason, Inbound, Limits, LimitsBuilder, OutOfSlots,
+    Outbound, OutboundKind, Outcome, PeerConfig, PushConfig, SyncContext, SyncInstant, SyncSlot,
+    SyncSlots, Syncer, SyncerError, Token,
+};
 use wire::{SubscribeResult, SyncHelloType, SyncType};
 
 /// The frontier a requester advertises during a sync session: committed
@@ -331,6 +337,12 @@ impl PollIncoming {
     pub fn session_id(&self) -> u128 {
         self.session_id
     }
+
+    /// Returns the graph being polled, when the message names one (only a
+    /// session-opening request does).
+    pub fn graph_id(&self) -> Option<GraphId> {
+        self.message.graph_id()
+    }
 }
 
 /// An opaque container for a received subscribe message.
@@ -426,10 +438,117 @@ impl SubscribeResponse {
     }
 }
 
+/// Encoder for hello subscription-control messages, mirroring
+/// [`SubscribeResponse::encode_to`].
+///
+/// The peer decodes each message with [`SyncIncoming::decode`], yielding the
+/// corresponding [`SyncHello`] variant. Push subscription control already has
+/// encoders on [`SyncRequester`] ([`subscribe`](SyncRequester::subscribe) /
+/// [`unsubscribe`](SyncRequester::unsubscribe)); this covers the hello side.
+pub struct HelloMessage;
+
+impl HelloMessage {
+    /// Encodes into `target` a request to receive hello notifications for
+    /// `graph_id`: on graph change (at most every `graph_change_delay`) and
+    /// every `schedule_delay` regardless, for `duration`. Returns the number
+    /// of bytes written.
+    pub fn subscribe(
+        target: &mut [u8],
+        graph_id: GraphId,
+        graph_change_delay: Duration,
+        duration: Duration,
+        schedule_delay: Duration,
+    ) -> Result<usize, SyncError> {
+        let msg = SyncType::Hello(SyncHelloType::Subscribe {
+            graph_id,
+            graph_change_delay,
+            duration,
+            schedule_delay,
+        });
+        Ok(postcard::to_slice(&msg, target)?.len())
+    }
+
+    /// Encodes into `target` an unsubscribe from `graph_id` hello
+    /// notifications. Returns the number of bytes written.
+    pub fn unsubscribe(target: &mut [u8], graph_id: GraphId) -> Result<usize, SyncError> {
+        let msg = SyncType::Hello(SyncHelloType::Unsubscribe { graph_id });
+        Ok(postcard::to_slice(&msg, target)?.len())
+    }
+
+    /// Encodes into `target` a hello notification carrying our current
+    /// `head` of `graph_id` (see [`ClientState::hello_head`]). Returns the
+    /// number of bytes written.
+    ///
+    /// [`ClientState::hello_head`]: crate::ClientState::hello_head
+    pub fn notification(
+        target: &mut [u8],
+        graph_id: GraphId,
+        head: Address,
+    ) -> Result<usize, SyncError> {
+        let msg = SyncType::Hello(SyncHelloType::Hello { graph_id, head });
+        Ok(postcard::to_slice(&msg, target)?.len())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::Priority;
+    use crate::{MaxCut, command::Priority};
+
+    fn graph_id() -> GraphId {
+        GraphId::from_bytes([7; 32])
+    }
+
+    #[test]
+    fn hello_subscribe_round_trips() {
+        let mut buf = [0u8; 128];
+        let n = HelloMessage::subscribe(
+            &mut buf,
+            graph_id(),
+            Duration::from_secs(3),
+            Duration::from_secs(600),
+            Duration::from_millis(4500),
+        )
+        .expect("encode");
+        let SyncIncoming::Hello(SyncHello::Subscribe(sub)) =
+            SyncIncoming::decode(&buf[..n]).expect("decode")
+        else {
+            panic!("expected a hello subscribe");
+        };
+        assert_eq!(sub.graph_id(), graph_id());
+        assert_eq!(sub.graph_change_delay(), Duration::from_secs(3));
+        assert_eq!(sub.duration(), Duration::from_secs(600));
+        assert_eq!(sub.schedule_delay(), Duration::from_millis(4500));
+    }
+
+    #[test]
+    fn hello_unsubscribe_round_trips() {
+        let mut buf = [0u8; 128];
+        let n = HelloMessage::unsubscribe(&mut buf, graph_id()).expect("encode");
+        let SyncIncoming::Hello(SyncHello::Unsubscribe(unsub)) =
+            SyncIncoming::decode(&buf[..n]).expect("decode")
+        else {
+            panic!("expected a hello unsubscribe");
+        };
+        assert_eq!(unsub.graph_id(), graph_id());
+    }
+
+    #[test]
+    fn hello_notification_round_trips() {
+        let head = Address {
+            id: CmdId::from_bytes([9; 32]),
+            max_cut: MaxCut::new(42),
+        };
+        let mut buf = [0u8; 128];
+        let n = HelloMessage::notification(&mut buf, graph_id(), head).expect("encode");
+        let SyncIncoming::Hello(SyncHello::Hello(hello)) =
+            SyncIncoming::decode(&buf[..n]).expect("decode")
+        else {
+            panic!("expected a hello notification");
+        };
+        assert_eq!(hello.graph_id(), graph_id());
+        assert_eq!(hello.head(), head);
+    }
 
     fn meta(policy_length: u32, length: u32) -> wire::CommandMeta {
         wire::CommandMeta {
