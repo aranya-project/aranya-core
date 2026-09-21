@@ -11,10 +11,7 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{COMMAND_SAMPLE_MAX, requester::SyncRequestMessage};
-use crate::{
-    Address, GraphId, Prior,
-    command::{CmdId, Priority},
-};
+use crate::{Address, GraphId, Prior, command::CmdId};
 
 /// The sync hello message types for subscription-based notifications.
 #[derive(Serialize, Deserialize, Debug)]
@@ -98,7 +95,6 @@ pub(crate) enum SubscribeResult {
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct CommandMeta {
     pub(crate) id: CmdId,
-    pub(crate) priority: Priority,
     pub(crate) parent: Prior<Address>,
     pub(crate) policy_length: u32,
     pub(crate) length: u32,

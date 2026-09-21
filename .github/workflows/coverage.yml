@@ -21,7 +21,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Environment
         uses: ./.github/actions/setup
@@ -41,28 +41,28 @@ jobs:
           done
 
       - name: Upload C API coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-capi
           path: target/llvm-cov/capi
           if-no-files-found: error
 
       - name: Upload tools coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-tools
           path: target/llvm-cov/tools
           if-no-files-found: error
 
       - name: Upload policy compiler coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-compiler
           path: target/llvm-cov/compiler
           if-no-files-found: error
 
       - name: Upload core production coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-core-prod
           path: target/llvm-cov/core-prod

@@ -12,6 +12,10 @@ publish = false
 [lints]
 workspace = true
 
+[[bin]]
+name = "aranya-core-example"
+bench = false
+
 [dependencies]
 aranya-core = { path = "../aranya-core", features = ["std", "libc", "memstore"] }
 

@@ -21,7 +21,7 @@ pub use self::{
     head_set::HeadSet,
     spill::{MemSpill, mem_spill},
 };
-use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, util::mem_usage};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, Priority, util::mem_usage};
 
 /// Byte-addressable overflow storage for braid and convergence data.
 ///
@@ -889,7 +889,7 @@ pub trait Storage {
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
     type FactIndex: FactIndex;
-    type Command<'a>: Command
+    type Command<'a>: Command + Prioritized
     where
         Self: 'a;
 
@@ -994,9 +994,18 @@ pub trait Perspective: FactPerspective {
     /// Returns the id for the policy used for this perspective.
     fn policy(&self) -> PolicyId;
 
-    /// Adds the given command to the head of the perspective. The command's
-    /// parent must be the head of the perspective.
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
+    /// Adds the given command to the head of the perspective, persisting
+    /// `priority` alongside it. The command's parent must be the head of the
+    /// perspective.
+    ///
+    /// The priority must match the command's structure: `Merge` for merge
+    /// commands, `Init` for init commands, and the policy's body-derived
+    /// value for evaluated commands.
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
     fn includes(&self, id: CmdId) -> bool;
@@ -1068,6 +1077,12 @@ pub trait QueryMut: Query {
 
     /// Delete any fact associated to the compound key, under the given name.
     fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
+}
+
+/// Stored commands hold their validated priority.
+pub trait Prioritized {
+    /// Get this command's priority.
+    fn priority(&self) -> Priority;
 }
 
 // TODO(jdygert): Expose this?

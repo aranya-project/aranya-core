@@ -123,7 +123,7 @@ use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, OpenContext, Persistence, PolicyContext, RunState, Stack as _, Struct, Value,
-    ast::Identifier,
+    ast::Identifier, ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
@@ -205,6 +205,11 @@ impl<CE> VmPolicy<CE> {
         engine: CE,
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
+        if let Some(module_ffis) = &machine.ffis {
+            ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;
+        } else {
+            tracing::warn!("Module does not have contract; cannot validate FFI");
+        }
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
@@ -501,7 +506,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
-    ) -> Result<(), PolicyError> {
+    ) -> Result<Priority, PolicyError> {
         let parent_id = match command.parent() {
             Prior::None => CmdId::default(),
             Prior::Single(parent) => parent.id,
@@ -518,17 +523,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::Read
         })?;
 
-        let expected_priority = self.get_command_priority(&kind).into();
-        if command.priority() != expected_priority {
-            // The command's declared priority comes from the peer, so a
-            // mismatch is invalid input, not an internal bug.
-            error!(
-                "Expected priority {:?}, got {:?}",
-                expected_priority,
-                command.priority()
-            );
-            return Err(PolicyError::InternalError);
-        }
+        let priority = self.get_command_priority(&kind).into();
 
         let def = self.machine.command_defs.get(&kind).ok_or_else(|| {
             error!("unknown command {kind}");
@@ -598,7 +593,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         });
         self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx)?;
 
-        Ok(())
+        Ok(priority)
     }
 
     #[instrument(skip_all, fields(name = action.name.as_str()))]
@@ -761,17 +756,19 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
                         let new_command = VmProtocol {
                             id: envelope.command_id,
-                            priority,
                             parent,
                             policy,
                             data: &wrapped,
                         };
 
                         self.call_rule(&new_command, rs.io.facts, rs.io.sink, command_placement)?;
-                        rs.io.facts.add_command(&new_command).map_err(|e| {
-                            error!("{e}");
-                            PolicyError::Write
-                        })?;
+                        rs.io
+                            .facts
+                            .add_command(&new_command, priority)
+                            .map_err(|e| {
+                                error!("{e}");
+                                PolicyError::Write
+                            })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
                         let new_head = match rs.io.facts.head_address()? {
@@ -811,7 +808,6 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         let id = aranya_crypto::merge_cmd_id::<CE::CS>(left.id, right.id);
         Ok(VmProtocol {
             id,
-            priority: Priority::Merge,
             parent: Prior::Merge(left, right),
             policy: None,
             data: &[],
@@ -887,10 +883,8 @@ mod test {
         ];
 
         for case in cases {
-            let ast = parse_policy_str(case, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-            let module = Compiler::new(&ast)
-                .compile()
-                .unwrap_or_else(|e| panic!("{e}"));
+            let ast = parse_policy_str(case, Version::V2).unwrap();
+            let module = Compiler::new(&ast).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let err = get_command_priorities(&machine).expect_err("should fail");
             assert_eq!(
@@ -916,10 +910,8 @@ mod test {
                 }}
                 "#
             );
-            let ast = parse_policy_str(&policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-            let module = Compiler::new(&ast)
-                .compile()
-                .unwrap_or_else(|e| panic!("{e}"));
+            let ast = parse_policy_str(&policy, Version::V2).unwrap();
+            let module = Compiler::new(&ast).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let priorities = get_command_priorities(&machine)?;
             Ok(*priorities.get("Test").expect("priorities are mandatory"))

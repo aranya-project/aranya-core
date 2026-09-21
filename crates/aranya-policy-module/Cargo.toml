@@ -8,14 +8,24 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
+[lib]
+bench = false
+
 [dependencies]
 aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast" }
 
 fnv = { workspace = true, default-features = false }
 indexmap = { workspace = true, default-features = false, features = ["serde"] }
+postcard = { workspace = true, features = ["alloc"] }
 rkyv = { workspace = true, features = ["alloc", "indexmap-2"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
+zerocopy = { workspace = true, features = ["derive"] }
+zrip = { version = "0.8.5", default-features = false, features = ["alloc", "paranoid"] }
 
 [features]
 default = []
@@ -28,10 +38,6 @@ std = [
 ]
 
 testing = []
-
-[lints]
-workspace = true
-
 
 [package.metadata.docs.rs]
 all-features = true

@@ -1,4 +1,5 @@
 #![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
 
 use std::{
     collections::{HashMap, HashSet},
@@ -10,7 +11,7 @@ use aranya_policy_ast::{Version, ident};
 use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Instruction, Label, Module, ModuleData, ModuleV0,
+    Instruction, Label, Module, ModuleData,
     ffi::{self, ModuleSchema},
 };
 
@@ -53,10 +54,7 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
 
 #[track_caller]
 fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let policy = match parse_policy_str(text, Version::V2) {
-        Ok(p) => p,
-        Err(err) => panic!("{err}"),
-    };
+    let policy = parse_policy_str(text, Version::V2).unwrap();
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
         .debug(is_debug)
@@ -66,10 +64,7 @@ fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
 fn compile_pass(text: &str, allow_unused: bool) -> Module {
-    match compile(text, allow_unused) {
-        Ok(m) => m,
-        Err(err) => panic!("{err}"),
-    }
+    compile(text, allow_unused).unwrap()
 }
 
 // Helper function which parses and compiles policy expecting compile failure.
@@ -87,7 +82,8 @@ struct ModuleSnapshotWrapper(Module);
 
 impl fmt::Debug for ModuleSnapshotWrapper {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ModuleData::V0(ModuleV0 {
+        let (
+            version,
             labels,
             action_defs,
             command_defs,
@@ -95,12 +91,32 @@ impl fmt::Debug for ModuleSnapshotWrapper {
             struct_defs,
             enum_defs,
             globals,
-            ..
-        }) = &self.0.data;
+        ) = match &self.0.data {
+            ModuleData::V0(m) => (
+                "0",
+                &m.labels,
+                &m.action_defs,
+                &m.command_defs,
+                &m.fact_defs,
+                &m.struct_defs,
+                &m.enum_defs,
+                &m.globals,
+            ),
+            ModuleData::V1(m) => (
+                "1",
+                &m.program.labels,
+                &m.contract.actions,
+                &m.contract.commands,
+                &m.contract.facts,
+                &m.contract.structs,
+                &m.contract.enums,
+                &m.program.globals,
+            ),
+        };
 
         f.debug_struct("Module")
-            .field("version", &"0")
-            .field("labels", &labels)
+            .field("version", &version)
+            .field("labels", labels)
             .field("action_defs", action_defs)
             .field("command_defs", command_defs)
             .field("fact_defs", fact_defs)
@@ -118,24 +134,27 @@ impl fmt::Debug for ModuleSnapshotWrapper {
 }
 
 fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-    let ModuleData::V0(m) = &m.data;
+    let (progmem, m_labels) = match &m.data {
+        ModuleData::V0(m) => (&m.progmem, &m.labels),
+        ModuleData::V1(m) => (&m.program.progmem, &m.program.labels),
+    };
 
     let mut labels: HashMap<usize, &Label> = HashMap::new();
     let mut targets: HashSet<usize> = HashSet::new();
 
-    for (label, &addr) in &m.labels {
+    for (label, &addr) in m_labels {
         let old = labels.insert(addr, label);
         assert!(old.is_none(), "labels shouldn't point to same place");
     }
 
-    for ins in &m.progmem {
+    for ins in progmem {
         if let Instruction::Branch(t) | Instruction::Jump(t) = ins {
             let addr = t.resolved().expect("unresolved target");
             targets.insert(addr);
         }
     }
 
-    for (i, ins) in m.progmem.iter().enumerate() {
+    for (i, ins) in progmem.iter().enumerate() {
         if let Some(label) = labels.get(&i) {
             writeln!(f, "{label:?}:")?;
         }

@@ -2,10 +2,16 @@
 
 extern crate alloc;
 
+mod contract;
+mod io;
+pub mod v1;
+
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{self as ast, Identifier};
+pub use contract::*;
+pub use io::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -18,6 +24,8 @@ use crate::{
 pub enum Version {
     /// Version 0.
     V0,
+    /// Version 1.
+    V1,
 }
 
 impl Version {
@@ -25,6 +33,24 @@ impl Version {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::V0 => "V0",
+            Self::V1 => "V1",
+        }
+    }
+
+    /// Convert this version into a u32
+    pub const fn to_u32(&self) -> u32 {
+        match self {
+            Self::V0 => 0,
+            Self::V1 => 1,
+        }
+    }
+
+    /// Convert a u32 into a version, if the u32 describes a valid version
+    pub const fn try_from_u32(v: u32) -> Option<Self> {
+        match v {
+            0 => Some(Self::V0),
+            1 => Some(Self::V1),
+            _ => None,
         }
     }
 }
@@ -64,6 +90,7 @@ impl Module {
     pub const fn version(&self) -> Version {
         match self.data {
             ModuleData::V0(_) => Version::V0,
+            ModuleData::V1(_) => Version::V1,
         }
     }
 }
@@ -84,6 +111,8 @@ impl Module {
 pub enum ModuleData {
     /// Version 0
     V0(ModuleV0),
+    /// Version 1
+    V1(ModuleV1),
 }
 
 /// The Version 0 module format
@@ -118,6 +147,42 @@ pub struct ModuleV0 {
     pub codemap: Option<CodeMap>,
     /// Global static data
     pub globals: BTreeMap<Identifier, ConstValue>,
+}
+
+/// The Version 1 module format
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleV1 {
+    /// Program code and execution information
+    pub program: v1::Program,
+    /// Metadata defininit the capabilities and expectations of the module
+    pub contract: v1::Contract,
+}
+
+impl From<ModuleV1> for ModuleV0 {
+    fn from(value: ModuleV1) -> Self {
+        Self {
+            progmem: value.program.progmem,
+            labels: value.program.labels,
+            action_defs: value.contract.actions,
+            command_defs: value.contract.commands,
+            fact_defs: value.contract.facts,
+            struct_defs: value.contract.structs,
+            enum_defs: value.contract.enums,
+            codemap: value.program.codemap,
+            globals: value.program.globals,
+        }
+    }
 }
 
 /// An action definition.

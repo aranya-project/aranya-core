@@ -176,10 +176,6 @@ struct SessionCommand<'a> {
 }
 
 impl Command for SessionCommand<'_> {
-    fn priority(&self) -> Priority {
-        Priority::Basic(0)
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -202,9 +198,6 @@ impl<'sc> SessionCommand<'sc> {
     fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
             bug!("session command should have no policy");
-        }
-        if !matches!(command.priority(), Priority::Basic(_)) {
-            bug!("session command has bad priority");
         }
         if command.parent() != session_parent(graph_id) {
             bug!("session command has bad parent");
@@ -426,7 +419,16 @@ where
         self.session.policy_id
     }
 
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError> {
+        // Session commands are ephemeral and never braided, so the priority
+        // is not persisted.
+        if !matches!(priority, Priority::Basic(_)) {
+            bug!("session command has bad priority");
+        }
         let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
         self.message_sink.consume(&command.serialize());
 
@@ -507,7 +509,6 @@ mod test {
     struct SeqCommand {
         id: CmdId,
         prior: Prior<Address>,
-        finalize: bool,
         data: Box<str>,
     }
 
@@ -539,7 +540,7 @@ mod test {
             facts: &mut impl FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: CommandPlacement,
-        ) -> Result<(), PolicyError> {
+        ) -> Result<Priority, PolicyError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges should not be evaluated"
@@ -562,7 +563,15 @@ mod test {
                     .insert("seq".into(), Keys::default(), data.into())
                     .unwrap();
             }
-            Ok(())
+            Ok(match command.parent() {
+                Prior::None => Priority::Init,
+                // Use the last byte of the ID as priority, just so we can
+                // properly see the effects of braiding.
+                Prior::Single(_) => {
+                    Priority::Basic(u32::from(*command.id().as_bytes().last().unwrap()))
+                }
+                Prior::Merge(..) => unreachable!(),
+            })
         }
 
         fn call_action(
@@ -590,33 +599,11 @@ mod test {
     impl SeqCommand {
         fn new(id: CmdId, prior: Prior<Address>) -> Self {
             let data = short_b58(id).into_boxed_str();
-            Self {
-                id,
-                prior,
-                finalize: false,
-                data,
-            }
+            Self { id, prior, data }
         }
     }
 
     impl Command for SeqCommand {
-        fn priority(&self) -> Priority {
-            if self.finalize {
-                return Priority::Finalize;
-            }
-            match self.prior {
-                Prior::None => Priority::Init,
-                Prior::Single(_) => {
-                    // Use the last byte of the ID as priority, just so we can
-                    // properly see the effects of braiding
-                    let id = self.id.as_bytes();
-                    let priority = u32::from(*id.last().unwrap());
-                    Priority::Basic(priority)
-                }
-                Prior::Merge(_, _) => Priority::Merge,
-            }
-        }
-
         fn id(&self) -> CmdId {
             self.id
         }
