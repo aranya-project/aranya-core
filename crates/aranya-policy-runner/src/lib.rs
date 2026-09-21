@@ -19,13 +19,13 @@ use std::{
 };
 
 use anyhow::Context as _;
-use aranya_crypto::{Csprng, Engine, KeyStore, default::DefaultEngine};
+use aranya_crypto::{Csprng, DeviceId, Engine, KeyStore, SigningKey, default::DefaultEngine};
 use aranya_policy_compiler::{Compiler, validate::validate};
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Identifier, Machine, Value};
 use aranya_runtime::{
     ActionPlacement, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _, Sink as _,
-    Storage as _, StorageProvider as _, VmAction,
+    Storage as _, StorageProvider as _, VmAction, vm_policy::SealCtx,
 };
 pub use io::testing_ffi;
 use policy::create_vmpolicy;
@@ -345,6 +345,11 @@ impl PolicyRunner {
                         &mut perspective,
                         &mut sink,
                         ActionPlacement::OnGraph,
+                        // TODO(jdygert): How should the policy runner manage keys?
+                        &SealCtx {
+                            author: DeviceId::default(),
+                            key: SigningKey::new(aranya_crypto::Rng),
+                        },
                     )
                     .inspect_err(|e| {
                         tracing::error!("VM Policy Error: {e}");

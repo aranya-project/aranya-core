@@ -300,7 +300,7 @@ fn ser_values(value: impl IntoIterator<Item = FactValue>) -> Result<Box<[u8]>, M
     Ok(bytes.into())
 }
 
-fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
+pub(super) fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
     postcard::from_bytes(&value).map_err(|e| {
         error!("could not deserialize values: {e}");
         MachineIOError::Internal

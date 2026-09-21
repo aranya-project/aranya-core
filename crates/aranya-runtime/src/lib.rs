@@ -55,5 +55,14 @@ pub(crate) mod util;
 pub mod vm_policy;
 
 pub use crate::{
-    client::*, command::*, policy::*, prior::Prior, storage::*, sync::*, vm_policy::*,
+    client::*,
+    command::*,
+    policy::*,
+    prior::Prior,
+    storage::*,
+    sync::*,
+    vm_policy::{
+        AttributeError, Envelope, FfiCallable, VmAction, VmEffect, VmEffectData, VmFactCursor,
+        VmPolicy, VmPolicyError, VmPolicyIO, VmProtocol, VmProtocolData,
+    },
 };

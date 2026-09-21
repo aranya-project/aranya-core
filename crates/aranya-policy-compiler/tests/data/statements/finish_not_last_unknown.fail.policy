@@ -1,8 +1,6 @@
 fact Blah[] => {}
 command Foo {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
         check true else test_fail("should pass")
         finish {

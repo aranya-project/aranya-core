@@ -735,10 +735,18 @@ mod test {
         fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
             Ok(&SeqPolicy)
         }
+
+        fn seal_ctx(
+            &self,
+            _id: PolicyId,
+        ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+            Ok(&())
+        }
     }
 
     impl Policy for SeqPolicy {
         type Action<'a> = &'a str;
+        type SealCtx = ();
         type Effect = ();
         type Command<'a> = SeqCommand;
 
@@ -798,6 +806,7 @@ mod test {
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
+            _seal_ctx: &(),
         ) -> Result<(), PolicyError> {
             unimplemented!()
         }

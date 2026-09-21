@@ -78,6 +78,8 @@ impl Command for ProbeCommand {
     }
 }
 
+pub enum Never {}
+
 impl PolicyStore for ProbePolicyStore {
     type Policy = ProbePolicy;
     type Effect = ();
@@ -89,10 +91,15 @@ impl PolicyStore for ProbePolicyStore {
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&ProbePolicy)
     }
+
+    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        Err(PolicyError::Panic)
+    }
 }
 
 impl Policy for ProbePolicy {
-    type Action<'a> = &'a str;
+    type Action<'a> = Never;
+    type SealCtx = Never;
     type Effect = ();
     type Command<'a> = ProbeCommand;
 
@@ -137,12 +144,13 @@ impl Policy for ProbePolicy {
 
     fn call_action(
         &self,
-        _action: Self::Action<'_>,
+        action: Self::Action<'_>,
         _facts: &mut impl Perspective,
         _sink: &mut impl Sink<Self::Effect>,
         _placement: ActionPlacement,
+        _seal_ctx: &Self::SealCtx,
     ) -> Result<(), PolicyError> {
-        unimplemented!("the harness never calls actions")
+        match action {}
     }
 
     fn merge<'a>(

@@ -12,22 +12,6 @@ pub struct ActionContext {
     pub head_id: CmdId,
 }
 
-/// Context for seal blocks
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SealContext {
-    /// The name of the command
-    pub name: Identifier,
-    /// The ID of the command at the head of the perspective
-    pub head_id: CmdId,
-}
-
-/// Context for open blocks
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OpenContext {
-    /// The name of the command
-    pub name: Identifier,
-}
-
 /// Context for Policy and Recall blocks
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PolicyContext {
@@ -44,12 +28,10 @@ pub struct PolicyContext {
 /// Properties of policy execution available through FFI.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandContext {
+    /// Pure function with no additional context
+    Pure,
     /// Action
     Action(ActionContext),
-    /// Seal operation
-    Seal(SealContext),
-    /// Open operation
-    Open(OpenContext),
     /// Policy operation
     Policy(PolicyContext),
     /// Recall operation
@@ -66,21 +48,6 @@ impl CommandContext {
                 head_id: new_head_id,
             })),
             _ => bug!("Unable to call CommandContext::with_new_head in a non-action context"),
-        }
-    }
-
-    /// Try to create a new [`CommandContext::Seal`] with the same `head_id` as the current context.
-    /// This method will fail if it's not called on an [`CommandContext::Action`]
-    pub fn seal_from_action(&self, command_name: Identifier) -> Result<Self, Bug> {
-        if let Self::Action(ActionContext { name: _, head_id }) = self {
-            Ok(Self::Seal(SealContext {
-                name: command_name,
-                head_id: *head_id,
-            }))
-        } else {
-            bug!(
-                "Trying to call CommandContext::seal_from_action on a variant that isn't CommandContext::Action"
-            )
         }
     }
 }
