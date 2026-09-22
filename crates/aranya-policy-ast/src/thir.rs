@@ -396,8 +396,8 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Evaluate an expression and discard its value. Used for statement-form expressions, e.g. calling actions that don't return.
-    Expression(Expression),
+    /// Calls an non-returning action. For returning actions, see [`ExprKind::ActionCall`].
+    ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
     Publish(Expression),

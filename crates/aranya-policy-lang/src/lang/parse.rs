@@ -1327,10 +1327,7 @@ impl ChunkParser<'_> {
                 Rule::let_statement => StmtKind::Let(self.parse_let_statement(statement)?),
                 Rule::action_call => {
                     let fc = self.parse_action_call(statement)?;
-                    StmtKind::Expression(Expression {
-                        inner: ExprKind::ActionCall(fc),
-                        span,
-                    })
+                    StmtKind::ActionCall(fc)
                 }
                 Rule::publish_statement => {
                     StmtKind::Publish(self.parse_publish_statement(statement)?)
