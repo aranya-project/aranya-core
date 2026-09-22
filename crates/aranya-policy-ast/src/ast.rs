@@ -884,7 +884,7 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
                     .all(|(s1, s2)| matches_statement(s1, s2))
         }
         (Return(r1), Return(r2)) => r1.expression.inner.matches(&r2.expression.inner),
-        (FunctionCall(c1), FunctionCall(c2)) => {
+        (ActionCall(c1), ActionCall(c2)) | (FunctionCall(c1), FunctionCall(c2)) => {
             c1.identifier.matches(&c2.identifier)
                 && c1.arguments.len() == c2.arguments.len()
                 && c1
@@ -893,10 +893,9 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
                     .zip(&c2.arguments)
                     .all(|(e1, e2)| e1.inner.matches(&e2.inner))
         }
-        (Publish(e1), Publish(e2))
-        | (Emit(e1), Emit(e2))
-        | (DebugAssert(e1), DebugAssert(e2))
-        | (Expression(e1), Expression(e2)) => e1.inner.matches(&e2.inner),
+        (Publish(e1), Publish(e2)) | (Emit(e1), Emit(e2)) | (DebugAssert(e1), DebugAssert(e2)) => {
+            e1.inner.matches(&e2.inner)
+        }
         (Create(c1), Create(c2)) => matches_fact_literal(&c1.fact, &c2.fact),
         (Delete(d1), Delete(d2)) => matches_fact_literal(&d1.fact, &d2.fact),
         (Update(u1), Update(u2)) => {
@@ -1177,8 +1176,8 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// A wrapper for an expressions that can be used in statement form. The expression must evaluate to [`TypeKind::Never`].
-    Expression(Expression),
+    /// Calls an non-returning action. For returning actions, see [`ExprKind::ActionCall`].
+    ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
     Publish(Expression),

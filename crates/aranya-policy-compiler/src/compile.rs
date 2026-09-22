@@ -1023,8 +1023,8 @@ impl<'a> CompileState<'a> {
             thir::StmtKind::FunctionCall(f) => {
                 self.compile_function_call(f)?;
             }
-            thir::StmtKind::Expression(e) => {
-                self.compile_typed_expression(e)?;
+            thir::StmtKind::ActionCall(fc) => {
+                self.compile_action_call(fc)?;
             }
             thir::StmtKind::DebugAssert(s) => {
                 if self.config.is_debug {

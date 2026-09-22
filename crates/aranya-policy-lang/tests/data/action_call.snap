@@ -21,13 +21,11 @@ Policy {
             arguments: [],
             return_type: Unit @ 0..0,
             statements: [
-                Expression(
-                    ActionCall(
-                        FunctionCall {
-                            identifier: "ping" @ 44..48,
-                            arguments: [],
-                        },
-                    ) @ 37..50,
+                ActionCall(
+                    FunctionCall {
+                        identifier: "ping" @ 44..48,
+                        arguments: [],
+                    },
                 ) @ 37..50,
             ],
             span: 17..52,

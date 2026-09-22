@@ -621,17 +621,15 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::ActionCall(fc) => {
-                let te = self.lower_action_call(fc, expression)?;
-                // An action with no return is only valid as a statement.
-                if matches!(te.vtype.inner, TypeKind::Never) {
-                    let note = "this action does not return a value";
+                if !matches!(self.get_statement_context()?, StatementContext::Action(_)) {
+                    let note = "`action` calls are only valid in actions";
                     return Err(self.err(InvalidExpression(
                         note,
                         expression.clone(),
                         Some(expression.span),
                     )));
                 }
-                te
+                self.lower_action_call_expression(fc, expression)?
             }
             ExprKind::Recall(fc) => {
                 let cmd = match self.get_statement_context()? {
@@ -1062,27 +1060,12 @@ impl CompileState<'_> {
         })
     }
 
-    /// Lowers an action invocation (`action foo(args)`), validating that the
-    /// action exists and that the argument types match its parameters.
-    ///
-    /// The resulting expression's type is the action's return type: `never` for
-    /// an action that doesn't return, or `result[unit, E]` for a fallible one.
-    /// `expression` is the whole call, including the `action` keyword.
-    fn lower_action_call(
+    /// Lowers a statement-form action
+    fn lower_action_call_statement(
         &mut self,
         fc: &FunctionCall,
-        expression: &Expression,
-    ) -> Result<thir::Expression, CompileError> {
-        if !matches!(self.get_statement_context()?, StatementContext::Action(_)) {
-            let note = "`action` calls are only valid in actions";
-            return Err(self.err(InvalidExpression(
-                note,
-                expression.clone(),
-                Some(expression.span),
-            )));
-        }
-
-        let span = expression.span;
+        span: Span,
+    ) -> Result<thir::FunctionCall, CompileError> {
         let Some(action_def) = self
             .policy
             .actions
@@ -1093,17 +1076,51 @@ impl CompileState<'_> {
             return Err(self.err(NotDefined(note, fc.identifier.span)));
         };
 
-        // A non-returning action leaves nothing behind, so its call has type
-        // `never`. A fallible one evaluates to its declared `result`.
-        let return_type = match &action_def.return_type.inner {
-            TypeKind::Unit => VType {
-                inner: TypeKind::Never,
-                span,
-            },
-            _ => action_def.return_type.clone(),
-        };
+        // A returning action is an expression, not a statement. Its result
+        // can't be discarded.
+        if matches!(action_def.return_type.inner, TypeKind::Result(_)) {
+            let context = self.get_statement_context()?.clone();
+            return Err(self.err(InvalidStatement(context, span)));
+        }
+
         let params = action_def.arguments.clone();
         let arguments = self.lower_call_args(fc, &params, span)?;
+
+        Ok(thir::FunctionCall {
+            identifier: fc.identifier.clone(),
+            arguments,
+        })
+    }
+
+    /// Lowers an expression-form action invocation.
+    fn lower_action_call_expression(
+        &mut self,
+        fc: &FunctionCall,
+        expression: &Expression,
+    ) -> Result<thir::Expression, CompileError> {
+        let Some(action_def) = self
+            .policy
+            .actions
+            .iter()
+            .find(|a| a.identifier == fc.identifier.inner)
+        else {
+            let note = format!("action `{}` not defined", fc.identifier);
+            return Err(self.err(NotDefined(note, fc.identifier.span)));
+        };
+
+        // Only a returning action can be used in an expression.
+        if !matches!(action_def.return_type.inner, TypeKind::Result(_)) {
+            let note = "this action does not return a value";
+            return Err(self.err(InvalidExpression(
+                note,
+                expression.clone(),
+                Some(expression.span),
+            )));
+        }
+
+        let return_type = action_def.return_type.clone();
+        let params = action_def.arguments.clone();
+        let arguments = self.lower_call_args(fc, &params, expression.span)?;
 
         Ok(thir::Expression {
             kind: thir::ExprKind::ActionCall(thir::FunctionCall {
@@ -1111,7 +1128,7 @@ impl CompileState<'_> {
                 arguments,
             }),
             vtype: return_type,
-            span,
+            span: expression.span,
         })
     }
 
@@ -1934,18 +1951,9 @@ impl CompileState<'_> {
                     let f = self.lower_function_call(f, statement.span)?;
                     thir::StmtKind::FunctionCall(f)
                 }
-                (StmtKind::Expression(e), _) => {
-                    // `action` in statement form don't return a value
-                    let te = match &e.inner {
-                        ExprKind::ActionCall(fc) => self.lower_action_call(fc, e)?,
-                        _ => self.lower_expression(e)?,
-                    };
-                    // Only `Never` expressions can be used as statements
-                    if !matches!(te.vtype.inner, TypeKind::Never) {
-                        let note = "expression result must be used";
-                        return Err(self.err(InvalidExpression(note, e.clone(), None)));
-                    }
-                    thir::StmtKind::Expression(te)
+                (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
+                    let call = self.lower_action_call_statement(fc, statement.span)?;
+                    thir::StmtKind::ActionCall(call)
                 }
                 (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
                     let fc_thir = self.lower_recall_call(fc, cmd)?;
