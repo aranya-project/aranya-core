@@ -55,7 +55,7 @@ command Set with StubBase {
 
 command Clear with StubBase {
     fields {}
-    policy(this) {
+    policy() {
         finish {
             delete Foo[]
         }
@@ -64,7 +64,7 @@ command Clear with StubBase {
 
 command Increment with StubBase {
     fields {}
-    policy(this) {
+    policy() {
         let r = query Foo[]=>{x: ?} or test_fail()
         let new_x = add(r.x, 1) or test_fail()
         finish {
@@ -92,7 +92,7 @@ command Set with StubBase {
 
 command Increment with StubBase {
     fields {}
-    policy(this) {
+    policy() {
         let r = query Foo[]=>{x: ?} or test_fail()
         let new_x = add(r.x, 1) or test_fail()
         finish {
@@ -107,7 +107,7 @@ pub const POLICY_MATCH: &str = r#"
         fields {
             x: int
         }
-        policy(this) {}
+        policy() {}
     }
 
     action[null] foo(x: int) {
@@ -130,11 +130,11 @@ pub const POLICY_IS: &str = r#"
         fields {
             x: int
         }
-        policy(this) {}
+        policy() {}
     }
     command Empty with StubBase {
         fields { }
-        policy(this) {}
+        policy() {}
     }
     action[null] check_none(x: option[int]) {
         match x {

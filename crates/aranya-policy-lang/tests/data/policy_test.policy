@@ -90,7 +90,7 @@ command C with Ephemeral {
     fields {
         x: int
     }
-    policy(this) {}
+    policy() {}
 }
 
 action[ephemeral] a() {}

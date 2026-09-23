@@ -69,12 +69,12 @@ Policy {
             span: 150..247,
         },
         ActionDefinition {
-            flavor: "ephemeral" @ 2071..2080,
-            name: "a" @ 2082..2083,
+            flavor: "ephemeral" @ 2067..2076,
+            name: "a" @ 2078..2079,
             parameters: [],
             return_type: Unit @ 0..0,
             body: [],
-            span: 2064..2088,
+            span: 2060..2084,
         },
     ],
     effects: [
@@ -675,17 +675,15 @@ Policy {
             ],
             policy: PolicyBlockDefinition {
                 parameters: MethodParams {
-                    this: Some(
-                        2052..2056,
-                    ),
+                    this: None,
                     envelope: None,
-                    other_params: [] @ 2056..2056,
+                    other_params: [] @ 2052..2052,
                 },
                 body: [],
-                span: 1980..2062,
+                span: 1980..2058,
             },
             recalls: [],
-            span: 1980..2062,
+            span: 1980..2058,
         },
     ],
     base_commands: [
@@ -815,5 +813,5 @@ Policy {
         },
     ],
     global_lets: [],
-    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v: string]=>{x: int, y: bool}\n\naction[null] add2(x: int, y: int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x: int,\n    y: int,\n}\n\ncommand Add with Base {\n    fields {\n        count: int\n    }\n    policy(this, envelope) {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{} else recall default(this, envelope)\n        match x {\n            0 => {\n                check positive(Some(new_x)) else recall default(this, envelope)\n            }\n            1 => {\n                check positive(None) else recall default(this, envelope)\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10 else recall default(this, envelope)\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default(this, envelope) {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v: option[int]) bool {\n    return match v {\n        Some(x) => x > 0\n        None => test_fail()\n    }\n}\n\nfinish function next(x: int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nbase[ephemeral] Ephemeral {\n    get_key(_dev: id) option[bytes] { return None }\n}\n\ncommand C with Ephemeral {\n    fields {\n        x: int\n    }\n    policy(this) {}\n}\n\naction[ephemeral] a() {}\n",
+    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v: string]=>{x: int, y: bool}\n\naction[null] add2(x: int, y: int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x: int,\n    y: int,\n}\n\ncommand Add with Base {\n    fields {\n        count: int\n    }\n    policy(this, envelope) {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{} else recall default(this, envelope)\n        match x {\n            0 => {\n                check positive(Some(new_x)) else recall default(this, envelope)\n            }\n            1 => {\n                check positive(None) else recall default(this, envelope)\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10 else recall default(this, envelope)\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default(this, envelope) {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v: option[int]) bool {\n    return match v {\n        Some(x) => x > 0\n        None => test_fail()\n    }\n}\n\nfinish function next(x: int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nbase[ephemeral] Ephemeral {\n    get_key(_dev: id) option[bytes] { return None }\n}\n\ncommand C with Ephemeral {\n    fields {\n        x: int\n    }\n    policy() {}\n}\n\naction[ephemeral] a() {}\n",
 }

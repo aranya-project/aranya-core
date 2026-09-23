@@ -242,7 +242,7 @@ fn test_validate_get_key() {
     // Need to use base command so label is produced.
     let common = r#"
         command C with Base {
-            policy(this) {}
+            policy() {}
         }
     "#;
 
@@ -268,7 +268,7 @@ fn test_validate_publish() {
                 fields {
                     a: int
                 }
-                policy(this) {
+                policy() {
                     finish {}
                 }
                 recall default() {
