@@ -7,12 +7,12 @@ use aranya_policy_ast::{
 use buggy::{BugExt as _, bug};
 
 use super::{
-    CompileError, CompileState, FunctionColor, Scope, StatementContext,
+    CompileError, CompileState, FunctionColor, FunctionSignature, Scope, StatementContext,
     error::{
         AlreadyDefined, BadArgument, DuplicateMatchPatterns, InvalidCallColor,
         InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidReturn,
         InvalidStatement, InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined,
-        RedundantMatchArm, UnknownError, UnreachableMatchArm,
+        RedundantMatchArm, UnknownError, UnreachableMatchArm, UnusedValue,
     },
     find_duplicate,
     types::{self, DisplayType},
@@ -22,6 +22,14 @@ impl CompileState<'_> {
     fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
         self.m.fact_defs.get(&name.inner).ok_or_else(|| {
             let note = format!("fact `{}` not defined", name);
+            self.err(NotDefined(note, name.span))
+        })
+    }
+
+    /// Looks up the signature of the function named `name`.
+    fn get_function_signature(&self, name: &Ident) -> Result<&FunctionSignature, CompileError> {
+        self.function_signatures.get(&name.inner).ok_or_else(|| {
+            let note = format!("function `{}` not defined", name);
             self.err(NotDefined(note, name.span))
         })
     }
@@ -464,13 +472,7 @@ impl CompileState<'_> {
                 }
             },
             ExprKind::FunctionCall(f) => {
-                let signature = self
-                    .function_signatures
-                    .get(&f.identifier.inner)
-                    .ok_or_else(|| {
-                        let note = format!("function `{}` not defined", f.identifier);
-                        self.err(NotDefined(note, f.identifier.span))
-                    })?;
+                let signature = self.get_function_signature(&f.identifier)?;
                 // Check that this function is the right color - only
                 // pure functions are allowed in expressions.
                 let FunctionColor::Pure(return_type) = signature.color.clone() else {
@@ -1042,15 +1044,7 @@ impl CompileState<'_> {
         fc: &FunctionCall,
         span: Span,
     ) -> Result<thir::FunctionCall, CompileError> {
-        let arg_defs = self
-            .function_signatures
-            .get(&fc.identifier.inner)
-            .ok_or_else(|| {
-                let note = format!("function `{}` not defined", fc.identifier);
-                self.err(NotDefined(note, fc.identifier.span))
-            })?
-            .args
-            .clone();
+        let arg_defs = self.get_function_signature(&fc.identifier)?.args.clone();
 
         let arguments = self.lower_call_args(fc, &arg_defs, span)?;
 
@@ -1079,8 +1073,7 @@ impl CompileState<'_> {
         // A returning action is an expression, not a statement. Its result
         // can't be discarded.
         if matches!(action_def.return_type.inner, TypeKind::Result(_)) {
-            let context = self.get_statement_context()?.clone();
-            return Err(self.err(InvalidStatement(context, span)));
+            return Err(self.err(UnusedValue(span)));
         }
 
         let params = action_def.arguments.clone();
@@ -1928,25 +1921,27 @@ impl CompileState<'_> {
                     }
                     thir::StmtKind::Emit(e)
                 }
-                (StmtKind::FunctionCall(f), StatementContext::Finish(finish_ctx_span)) => {
-                    let signature = self
-                        .function_signatures
-                        .get(&f.identifier.inner)
-                        .ok_or_else(|| {
-                            let note = format!("function `{}` not defined", f.identifier);
-                            self.err(NotDefined(note, f.identifier.span))
-                        })?;
-                    // Check that this function is the right color -
-                    // only finish functions are allowed in finish
-                    // blocks.
-                    if let FunctionColor::Pure(_) = signature.color {
-                        // Note: `statement.span` is used here instead of `f.span()`
-                        // so the parentheses enclosing the params are included.
-                        return Err(self.err(InvalidCallColor(
-                            InvalidCallColorKind::Pure,
-                            statement.span,
-                            Some(*finish_ctx_span),
-                        )));
+                (StmtKind::FunctionCall(f), _) => {
+                    match &self.get_function_signature(&f.identifier)?.color {
+                        FunctionColor::Pure(_) => {
+                            // Pure functions are not allowed inside finish blocks.
+                            if let StatementContext::Finish(finish_ctx_span) = &context {
+                                return Err(self.err(InvalidCallColor(
+                                    InvalidCallColorKind::Pure,
+                                    statement.span,
+                                    Some(*finish_ctx_span),
+                                )));
+                            }
+                            // A pure function returns a value, which must be used.
+                            return Err(self.err(UnusedValue(statement.span)));
+                        }
+                        // A finish function returns nothing, but is only
+                        // callable inside a finish block.
+                        FunctionColor::Finish => {
+                            if !matches!(context, StatementContext::Finish(_)) {
+                                return Err(self.err(InvalidStatement(context, statement.span)));
+                            }
+                        }
                     }
                     let f = self.lower_function_call(f, statement.span)?;
                     thir::StmtKind::FunctionCall(f)
