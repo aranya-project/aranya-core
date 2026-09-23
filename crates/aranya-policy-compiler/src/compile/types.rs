@@ -230,33 +230,28 @@ impl Display for DisplayType<'_> {
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {
-        if self
-            .m
-            .interface
-            .struct_defs
-            .contains_key(&s.identifier.inner)
-        {
+        if self.m.interface.struct_defs.contains_key(&s.name.inner) {
             Ok(VType {
-                inner: TypeKind::Struct(s.identifier.clone()),
-                span: s.identifier.span,
+                inner: TypeKind::Struct(s.name.clone()),
+                span: s.name.span,
             })
         } else {
-            let note = format!("struct `{}` not defined", s.identifier);
-            Err(self.err(NotDefined(note, s.identifier.span)))
+            let note = format!("struct `{}` not defined", s.name);
+            Err(self.err(NotDefined(note, s.name.span)))
         }
     }
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
     pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, CompileError> {
-        if self.m.fact_defs.contains_key(&f.identifier.inner) {
+        if self.m.fact_defs.contains_key(&f.name.inner) {
             Ok(VType {
-                inner: TypeKind::Struct(f.identifier.clone()),
-                span: f.identifier.span,
+                inner: TypeKind::Struct(f.name.clone()),
+                span: f.name.span,
             })
         } else {
-            let note = format!("fact `{}` not defined", f.identifier);
-            Err(self.err(NotDefined(note, f.identifier.span)))
+            let note = format!("fact `{}` not defined", f.name);
+            Err(self.err(NotDefined(note, f.name.span)))
         }
     }
 }

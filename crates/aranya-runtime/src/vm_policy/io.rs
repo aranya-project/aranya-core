@@ -201,9 +201,9 @@ impl KeyType {
 ///
 /// This preserves the ordering for two facts with the same identifier and value type.
 /// This is important for the ordering of fact iteration in prefix queries.
-fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
-    let identifier = identifier.as_str();
-    let identifier_len = (identifier.len() as u64).to_be_bytes();
+fn ser_key(FactKey { name, value }: &FactKey) -> Box<[u8]> {
+    let name = name.as_str();
+    let name_len = (name.len() as u64).to_be_bytes();
 
     let int_bytes;
     let bytes;
@@ -227,8 +227,8 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
     };
 
     [
-        identifier_len.as_slice(),
-        identifier.as_bytes(),
+        name_len.as_slice(),
+        name.as_bytes(),
         &[tag as u8],
         value_bytes,
     ]
@@ -238,17 +238,17 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
 
 /// Deserializes a key serialized by [`ser_key`].
 fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
-    let (&identifier_len, bytes) = bytes
+    let (&name_len, bytes) = bytes
         .split_first_chunk()
         .ok_or("missing identifier length")?;
-    let identifier_len =
-        usize::try_from(u64::from_be_bytes(identifier_len)).map_err(|_| "identifier too long")?;
+    let name_len =
+        usize::try_from(u64::from_be_bytes(name_len)).map_err(|_| "identifier too long")?;
 
-    if identifier_len > bytes.len() {
+    if name_len > bytes.len() {
         return Err("identifier too short");
     }
-    let (identifier, bytes) = bytes.split_at(identifier_len);
-    let identifier: Identifier = core::str::from_utf8(identifier)
+    let (name, bytes) = bytes.split_at(name_len);
+    let name: Identifier = core::str::from_utf8(name)
         .map_err(|_| "identifier not utf8")?
         .parse()
         .map_err(|_| "invalid identifier")?;
@@ -289,7 +289,7 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         }
     };
 
-    Ok(FactKey { identifier, value })
+    Ok(FactKey { name, value })
 }
 
 fn ser_values(value: impl IntoIterator<Item = FactValue>) -> Result<Box<[u8]>, MachineIOError> {
@@ -349,66 +349,66 @@ mod test {
         // These ord tests ensure the encoded values compare the same as the original values.
 
         #[test]
-        fn test_int_ord(identifier: Identifier, v1: i64, v2: i64) {
+        fn test_int_ord(name: Identifier, v1: i64, v2: i64) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Int(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Int(v2),
             });
             assert_eq!(v1.cmp(&v2), b1.cmp(&b2),  "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_bool_ord(identifier: Identifier, v1: bool, v2: bool) {
+        fn test_bool_ord(name: Identifier, v1: bool, v2: bool) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Bool(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Bool(v2),
             });
             assert_eq!(v1.cmp(&v2), b1.cmp(&b2),  "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_string_ord(identifier: Identifier, v1: Text, v2: Text) {
+        fn test_string_ord(name: Identifier, v1: Text, v2: Text) {
             let cmp = v1.cmp(&v2);
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::String(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::String(v2),
             });
             assert_eq!(cmp, b1.cmp(&b2), "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_id_ord(identifier: Identifier, v1: BaseId, v2: BaseId) {
+        fn test_id_ord(name: Identifier, v1: BaseId, v2: BaseId) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Id(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Id(v2),
             });
             assert_eq!(v1.cmp(&v2), b1.cmp(&b2),  "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_enum_ord(identifier: Identifier, id1: Identifier, id2: Identifier, v1: i64, v2: i64) {
+        fn test_enum_ord(name: Identifier, id1: Identifier, id2: Identifier, v1: i64, v2: i64) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Enum(id1.clone(), v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Enum(id2.clone(), v2),
             });
 

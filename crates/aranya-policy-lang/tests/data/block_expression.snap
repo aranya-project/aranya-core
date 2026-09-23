@@ -9,27 +9,27 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "foo" @ 7..10,
-            arguments: [],
+            name: "foo" @ 7..10,
+            parameters: [],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "x" @ 23..24,
-                        expression: Block(
+                        name: "x" @ 23..24,
+                        value: Block(
                             [
                                 Let(
                                     LetStatement {
-                                        identifier: "a" @ 41..42,
-                                        expression: Int(
+                                        name: "a" @ 41..42,
+                                        value: Int(
                                             3 @ 45..46,
                                         ) @ 45..46,
                                     },
                                 ) @ 37..55,
                                 Let(
                                     LetStatement {
-                                        identifier: "b" @ 59..60,
-                                        expression: Int(
+                                        name: "b" @ 59..60,
+                                        value: Int(
                                             4 @ 63..64,
                                         ) @ 63..64,
                                     },
@@ -38,7 +38,7 @@ Policy {
                             Coalesce(
                                 FunctionCall(
                                     FunctionCall {
-                                        identifier: "saturating_add" @ 75..89,
+                                        name: "saturating_add" @ 75..89,
                                         arguments: [
                                             Identifier(
                                                 "a" @ 90..91,

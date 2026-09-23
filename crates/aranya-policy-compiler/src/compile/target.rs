@@ -111,7 +111,7 @@ impl CompileTarget {
             TypeKind::Struct(ident) => {
                 let defs = self.interface.struct_defs.get(&ident.inner)?;
                 defs.iter()
-                    .map(|def| self.cardinality(&def.field_type.inner))
+                    .map(|def| self.cardinality(&def.ty.inner))
                     .reduce(|acc, e| match e {
                         None => None,
                         Some(v) => acc.and_then(|w| v.checked_mul(w)),

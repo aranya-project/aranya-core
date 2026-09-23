@@ -32,8 +32,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
         .map(|(id, fields)| {
             let doc = format!(" {} policy struct.", id);
             let name = mk_ident(id);
-            let names = fields.iter().map(|f| mk_ident(&f.identifier.inner));
-            let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+            let names = fields.iter().map(|f| mk_ident(&f.name.inner));
+            let types = fields.iter().map(|f| vtype_to_rtype(&f.ty));
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -67,8 +67,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
         let doc = format!(" {} policy effect.", s);
         let ident = mk_ident(s);
-        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier.inner));
-        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+        let field_idents = fields.iter().map(|f| mk_ident(&f.name.inner));
+        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.ty));
         quote! {
             #[doc = #doc]
             #[effect]
@@ -316,7 +316,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         match ty {
             TypeKind::Struct(s) if found.insert(s.inner.clone()) => {
                 for field in struct_defs[s.as_str()] {
-                    visit(struct_defs, found, &field.field_type.inner);
+                    visit(struct_defs, found, &field.ty.inner);
                 }
             }
             TypeKind::Enum(s) => {
@@ -347,7 +347,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
         for field in fields {
-            visit(&struct_defs, &mut found, &field.field_type.inner);
+            visit(&struct_defs, &mut found, &field.ty.inner);
         }
     }
 

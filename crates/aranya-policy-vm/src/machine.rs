@@ -41,7 +41,7 @@ fn validate_fact_schema(fact: &Fact, schema: &FactDef) -> bool {
     }
 
     for key in &fact.keys {
-        let Some(key_value) = schema.key.iter().find(|k| k.name == key.identifier) else {
+        let Some(key_value) = schema.keys.iter().find(|k| k.name == key.name) else {
             return false;
         };
 
@@ -52,7 +52,7 @@ fn validate_fact_schema(fact: &Fact, schema: &FactDef) -> bool {
 
     for value in &fact.values {
         // Ensure named value exists in schema
-        let Some(schema_value) = schema.value.iter().find(|v| v.name == value.identifier) else {
+        let Some(schema_value) = schema.values.iter().find(|v| v.name == value.name) else {
             return false;
         };
 
@@ -76,7 +76,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
     }
 
     for qv in &query.values {
-        if let Some(v) = values.iter().find(|v| v.identifier == qv.identifier) {
+        if let Some(v) = values.iter().find(|v| v.name == qv.name) {
             // value found, but types don't match
             if v.value != qv.value {
                 return false;
@@ -324,14 +324,14 @@ impl Display for Machine {
         writeln!(f, "Fact definitions:")?;
         for FactDef {
             name,
-            key,
-            value,
+            keys,
+            values,
             immutable,
         } in self.fact_defs.iter()
         {
             writeln!(
                 f,
-                "  {name}: {key:?} => {value:?}{}",
+                "  {name}: {keys:?} => {values:?}{}",
                 if *immutable { " (immutable)" } else { "" }
             )?;
         }
@@ -868,11 +868,10 @@ where
                 if !fact_from.values.is_empty() {
                     let replaced_fact_values = &mut replaced_fact.1;
 
-                    replaced_fact_values
-                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                    replaced_fact_values.sort_unstable_by(|v1, v2| v1.name.cmp(&v2.name));
                     fact_from
                         .values
-                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                        .sort_unstable_by(|v1, v2| v1.name.cmp(&v2.name));
 
                     if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
                         return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));

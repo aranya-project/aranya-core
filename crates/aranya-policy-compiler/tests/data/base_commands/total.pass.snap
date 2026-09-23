@@ -68,13 +68,13 @@ Module {
     fact_defs: [
         FactDef {
             name: "Key",
-            key: [
+            keys: [
                 Field {
                     name: "dev",
                     ty: Id,
                 },
             ],
-            value: [
+            values: [
                 Field {
                     name: "key",
                     ty: Bytes,

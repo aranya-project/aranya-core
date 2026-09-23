@@ -3,8 +3,8 @@ source: crates/aranya-policy-lang/tests/tests.rs
 expression: decl
 ---
 FunctionDecl {
-    identifier: "foo" @ 9..12,
-    arguments: [
+    name: "foo" @ 9..12,
+    parameters: [
         Param {
             name: "x" @ 13..14,
             ty: Int @ 15..18,

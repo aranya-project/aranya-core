@@ -377,8 +377,8 @@ impl From<ast::Param> for Field {
 impl From<ast::FieldDefinition> for Field {
     fn from(value: ast::FieldDefinition) -> Self {
         Self {
-            name: value.identifier.inner,
-            ty: value.field_type.inner.into(),
+            name: value.name.inner,
+            ty: value.ty.inner.into(),
         }
     }
 }
