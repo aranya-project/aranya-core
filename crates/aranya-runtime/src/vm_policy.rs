@@ -67,9 +67,7 @@
 //! }
 //!
 //! action init(nonce int) {
-//!     publish Init {
-//!         nonce: nonce,
-//!     }
+//!     publish Init { nonce }
 //! }
 //! ```
 //!
