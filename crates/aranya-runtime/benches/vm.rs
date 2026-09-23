@@ -24,6 +24,8 @@ fn compile_policy(src: &str) -> Vec<u8> {
     let ast = parse_policy_document(src).expect("can parse");
     let module = Compiler::new(&ast)
         .flavors(&FLAVORS)
+        .allow_test_fail(true)
+        .require_publish(false)
         .compile()
         .expect("can compile");
     module.write_to_vec().expect("can serialize test module")

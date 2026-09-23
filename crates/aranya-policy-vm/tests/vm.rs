@@ -31,7 +31,8 @@ fn compile(text: &str) -> Machine {
     let policy = parse(text);
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
-        .debug(true)
+        .allow_test_fail(true)
+        .require_publish(false)
         .compile()
         .unwrap();
     Machine::from_module(module).unwrap()
@@ -1524,10 +1525,14 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     };
 
     let policy = parse(text);
-    let module = Compiler::new(&policy).flavors(&flavors).compile().unwrap();
+    let module = Compiler::new(&policy)
+        .flavors(&flavors)
+        .allow_test_fail(true)
+        .compile()
+        .unwrap();
     let machine = Machine::from_module(module).unwrap();
 
-    let test_data = "thing".as_bytes().to_vec();
+    let test_data = b"thing".to_vec();
 
     let name = ident!("Foo");
     let ctx = dummy_ctx_policy(name);
@@ -1589,7 +1594,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
 
     let policy = parse(text);
 
-    let module = Compiler::new(&policy).debug(true).compile()?;
+    let module = Compiler::new(&policy).debug_assertions(true).compile()?;
     let machine = Machine::from_module(module)?;
 
     fn run_action(machine: &Machine, action_name: Identifier) -> Result<ExitReason, MachineError> {
@@ -1614,7 +1619,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
         ExitReason::Normal
     );
 
-    let module_no_debug = Compiler::new(&policy).debug(false).compile()?;
+    let module_no_debug = Compiler::new(&policy).debug_assertions(false).compile()?;
     let machine_no_debug = Machine::from_module(module_no_debug)?;
 
     let test_names = vec![
@@ -1883,7 +1888,10 @@ policy() {
 "#,
     );
 
-    let want = Compiler::new(&policy).debug(true).compile().unwrap();
+    let want = Compiler::new(&policy)
+        .allow_test_fail(true)
+        .compile()
+        .unwrap();
     let machine = Machine::from_module(want.clone());
 
     let data = {

@@ -176,6 +176,8 @@ fn compile_policy() -> Result<Vec<u8>> {
             PerspectiveFfi::SCHEMA,
         ])
         .flavors(&aranya_core::policy::FLAVORS)
+        // TODO: remove test fail from example policy
+        .allow_test_fail(true)
         .compile()
         .context("compile policy")?;
 

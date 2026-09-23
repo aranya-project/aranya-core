@@ -258,6 +258,8 @@ impl RunFile {
             // It is important that only `TestingFfi` is specified here, as `PreambleIO` uses it
             // alone.
             .ffi_modules(&[TestingFfi::<KS>::SCHEMA])
+            .allow_unused(true)
+            .allow_todo(true)
             .compile()?;
 
         let machine = Machine::from_module(module).expect("cannot get unsupported version");
