@@ -205,8 +205,8 @@ struct CompileState<'a> {
     wp: usize,
     /// A counter used to generate temporary labels
     c: usize,
-    /// Address of get key functions for base commands
-    base_get_keys: BTreeMap<Ident, usize>,
+    /// Base command information
+    base_commands: NamedMap<BaseCommand>,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
     function_signatures: BTreeMap<Ident, FunctionSignature>,
@@ -223,6 +223,17 @@ struct CompileState<'a> {
     ffi_modules: &'a [ModuleSchema<'a>],
     /// Configuration
     config: Config,
+}
+
+struct BaseCommand {
+    name: Ident,
+    get_key_address: usize,
+    flavor: Option<Ident>,
+}
+impl aranya_policy_module::named::Named for BaseCommand {
+    fn name(&self) -> &Ident {
+        &self.name
+    }
 }
 
 impl<'a> CompileState<'a> {
@@ -1381,7 +1392,7 @@ impl<'a> CompileState<'a> {
             span: base_command.span,
         };
 
-        let addr = self.wp;
+        let get_key_address = self.wp;
         self.enter_statement_context(StatementContext::PureFunction(fn_def));
         self.compile_function_like(
             params,
@@ -1392,8 +1403,18 @@ impl<'a> CompileState<'a> {
         )?;
         self.exit_statement_context();
 
-        self.base_get_keys
-            .insert(base_command.identifier.clone(), addr);
+        self.base_commands
+            .insert(BaseCommand {
+                name: base_command.identifier.clone(),
+                get_key_address,
+                flavor: base_command.flavor.clone(),
+            })
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    base_command.identifier.clone(),
+                    e.existing,
+                ))
+            })?;
 
         Ok(())
     }
@@ -1412,16 +1433,17 @@ impl<'a> CompileState<'a> {
             }));
         }
 
+        let mut flavor = None;
         if let Some(base) = &command.base {
-            let addr = self
-                .base_get_keys
+            let base = self
+                .base_commands
                 .get(base)
-                .copied()
                 .ok_or_else(|| NotDefined(format!("unknown base class {base}"), base.span))
                 .map_err(|e| self.err(e))?;
+            flavor.clone_from(&base.flavor);
             self.define_label(
                 Label::new(command.identifier.inner.clone(), LabelType::GetKey),
-                addr,
+                base.get_key_address,
             )?;
         }
 
@@ -1452,7 +1474,7 @@ impl<'a> CompileState<'a> {
             .command_defs
             .insert(interface::CommandDefinition {
                 name: command.identifier.clone(),
-                persistence: command.persistence.clone(),
+                flavor,
                 attributes: attributes.iter().cloned().collect(),
                 fields: fields
                     .iter()
@@ -2344,7 +2366,7 @@ impl<'a> Compiler<'a> {
             m: machine,
             wp: 0,
             c: 0,
-            base_get_keys: BTreeMap::new(),
+            base_commands: NamedMap::new(),
             function_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),

@@ -82,11 +82,15 @@ finish function next(x int) {
 
 // ephemeral commands and actions
 
-ephemeral command C {
+base command(ephemeral) Ephemeral {
+    get_key { return None }
+}
+
+command C with Ephemeral {
     fields {
         x int
     }
     policy {}
 }
 
-ephemeral action a() {}
+action(ephemeral) a() {}

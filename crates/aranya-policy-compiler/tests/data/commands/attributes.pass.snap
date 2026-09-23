@@ -11,7 +11,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "A",
-            persistence: Persistent,
+            flavor: None,
             attributes: [
                 Attribute {
                     name: "i",

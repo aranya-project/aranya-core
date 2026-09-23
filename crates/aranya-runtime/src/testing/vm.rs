@@ -44,7 +44,7 @@ base command Base {
     }
 }
 
-base command BaseEphemeral {
+base command(ephemeral) BaseEphemeral {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -145,14 +145,14 @@ action increment() {
     }
 }
 
-ephemeral action try_result(fail bool) result[unit, string] {
+action(ephemeral) try_result(fail bool) result[unit, string] {
     if fail {
         return Err("boom")
     }
     return Ok(Unit)
 }
 
-ephemeral command IncrementEphemeral with BaseEphemeral {
+command IncrementEphemeral with BaseEphemeral {
     fields {
         key int,
         amount int,
@@ -178,7 +178,7 @@ ephemeral command IncrementEphemeral with BaseEphemeral {
     }
 }
 
-ephemeral action increment_ephemeral() {
+action(ephemeral) increment_ephemeral() {
     publish IncrementEphemeral {
         key: 1,
         amount: 1
@@ -186,7 +186,7 @@ ephemeral action increment_ephemeral() {
 }
 
 
-ephemeral action incrementFour(n int) result[unit, string] {
+action(ephemeral) incrementFour(n int) result[unit, string] {
     check n == 4 else return Err("n must be 4")
     publish IncrementEphemeral {
         key: 1,
@@ -195,7 +195,7 @@ ephemeral action incrementFour(n int) result[unit, string] {
     return Ok(Unit)
 }
 
-ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
+action(ephemeral) lookup(k int, v int, expected bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
         true => { check f is Some else return Err("expected Some") }

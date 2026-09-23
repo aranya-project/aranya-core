@@ -15,9 +15,9 @@ use aranya_policy_ifgen::{
     text, BaseId, ClientError, Value, Text,
 };
 #[derive(Debug)]
-pub enum Persistent {}
-#[derive(Debug)]
 pub enum Ephemeral {}
+#[derive(Debug)]
+pub enum Persistent {}
 /// PublicKeys policy struct.
 #[value]
 pub struct PublicKeys {
@@ -62,16 +62,16 @@ pub struct DeviceAdded {
 pub struct Initialized {
     pub device_id: BaseId,
 }
+#[actions(interface = Ephemeral)]
+pub enum EphemeralAction {
+    get_counter(get_counter),
+}
 #[actions(interface = Persistent)]
 pub enum PersistentAction {
     init(init),
     add_device(add_device),
     set_counter(set_counter),
     increment_counter(increment_counter),
-}
-#[actions(interface = Ephemeral)]
-pub enum EphemeralAction {
-    get_counter(get_counter),
 }
 /// init policy action.
 #[action(interface = Persistent)]

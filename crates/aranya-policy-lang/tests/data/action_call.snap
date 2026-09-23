@@ -8,7 +8,7 @@ Policy {
     facts: [],
     actions: [
         ActionDefinition {
-            persistence: Persistent,
+            flavor: None,
             identifier: "ping" @ 7..11,
             arguments: [],
             return_type: Unit @ 0..0,
@@ -16,7 +16,7 @@ Policy {
             span: 0..16,
         },
         ActionDefinition {
-            persistence: Persistent,
+            flavor: None,
             identifier: "pong" @ 24..28,
             arguments: [],
             return_type: Unit @ 0..0,

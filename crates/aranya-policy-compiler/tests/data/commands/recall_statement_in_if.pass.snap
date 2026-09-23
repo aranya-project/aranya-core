@@ -12,7 +12,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "Cmd",
-            persistence: Persistent,
+            flavor: None,
             attributes: [],
             fields: [
                 Field {
