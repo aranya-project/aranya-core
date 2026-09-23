@@ -73,10 +73,10 @@ use tracing::{debug, error};
 
 use crate::{
     Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _,
-    CommandExt as _, GraphId, Keys, Location, MAX_COMMAND_LENGTH, MAX_SYNC_MESSAGE_SIZE, MaxCut,
-    PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _, Storage, StorageError,
-    StorageProvider, SyncError, SyncHello, SyncIncoming, SyncRequester, SyncResponder, Transaction,
-    TraversalBuffer, TraversalBuffers, mem_spill,
+    CommandExt as _, GraphId, Keys, LocatedAddress, Location, MAX_COMMAND_LENGTH,
+    MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers,
+    Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncHello, SyncIncoming,
+    SyncRequester, SyncResponder, Transaction, TraversalBuffer, TraversalBuffers, mem_spill,
     sync::wire::{SyncHelloType, SyncType},
     testing::{
         protocol::{TestActions, TestEffect, TestPolicy, TestPolicyStore, TestSink},
@@ -120,11 +120,15 @@ fn default_sync_interval() -> u64 {
 }
 
 /// Tracks per-subscriber state for hello sync debouncing.
+///
+/// A graph change is one command added to the publisher's graph, whether
+/// written locally or received by sync, so a sync that lands ten commands
+/// counts ten times toward the interval.
 #[derive(Clone, Debug)]
 struct HelloSub {
-    /// Notify after this many graph changes.
+    /// Notify after this many commands are added to the publisher's graph.
     notify_interval: u64,
-    /// Graph changes since last notification.
+    /// Commands added since the last notification.
     changes_since_notify: u64,
 }
 
@@ -220,6 +224,11 @@ pub fn dispatch(
 
 /// Processes hello sync notifications cascading from a graph change.
 ///
+/// `initial_changed` added `new_commands` commands to its graph. Every
+/// command counts toward each subscriber's debounce, and a subscriber that
+/// receives commands from the publisher becomes a changed client with that
+/// many new commands of its own.
+///
 /// Models the daemon's hello protocol: when a client's graph changes, each
 /// subscriber is sent a wire-encoded `Hello` notification carrying the
 /// publisher's advertised head ([`ClientState::hello_head`]: the head itself,
@@ -233,6 +242,7 @@ pub fn dispatch(
 fn process_hello_notifications<SP: StorageProvider>(
     graph: u64,
     initial_changed: u64,
+    new_commands: u64,
     subscriptions: &mut BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>>,
     graph_id: GraphId,
     clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
@@ -241,18 +251,19 @@ fn process_hello_notifications<SP: StorageProvider>(
     rt_buffers: &mut RuntimeBuffers<SP::Segment>,
     max_depth: u64,
 ) -> Result<(), TestError> {
-    let mut changed: BTreeSet<u64> = BTreeSet::new();
-    changed.insert(initial_changed);
+    // Changed clients this level, with how many commands each gained.
+    let mut changed: BTreeMap<u64, u64> = BTreeMap::new();
+    changed.insert(initial_changed, new_commands);
     for depth in 0..max_depth {
-        let mut next_changed: BTreeSet<u64> = BTreeSet::new();
+        let mut next_changed: BTreeMap<u64, u64> = BTreeMap::new();
 
-        for &publisher in &changed {
+        for (&publisher, &added) in &changed {
             // Collect subscribers that are ready to be notified.
             let ready: Vec<u64> = match subscriptions.get_mut(&(graph, publisher)) {
                 Some(subs) => subs
                     .iter_mut()
                     .filter_map(|(&subscriber, sub)| {
-                        sub.changes_since_notify += 1;
+                        sub.changes_since_notify += added;
                         if sub.changes_since_notify >= sub.notify_interval {
                             sub.changes_since_notify = 0;
                             Some(subscriber)
@@ -382,7 +393,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                         depth,
                         subscriber, received, "hello sync: subscriber received new data"
                     );
-                    next_changed.insert(subscriber);
+                    *next_changed.entry(subscriber).or_default() += received as u64;
                 }
             }
         }
@@ -848,7 +859,10 @@ fn gen_command_rule<R: rand::Rng>(
             client,
             graph,
             key,
-            value: rng.random_range(0..10),
+            // Full-range values keep concurrently written commands distinct:
+            // two clients writing the same value on the same parent would
+            // otherwise produce one identical command.
+            value: rng.random(),
             repeat: 1,
             priority,
         }
@@ -1411,6 +1425,7 @@ where
                     process_hello_notifications(
                         graph,
                         client,
+                        total_received as u64,
                         &mut subscriptions,
                         graph_id,
                         &clients,
@@ -1464,6 +1479,7 @@ where
                     process_hello_notifications(
                         graph,
                         client,
+                        repeat,
                         &mut subscriptions,
                         graph_id,
                         &clients,
@@ -1504,6 +1520,7 @@ where
                     process_hello_notifications(
                         graph,
                         client,
+                        1,
                         &mut subscriptions,
                         graph_id,
                         &clients,
@@ -1544,6 +1561,7 @@ where
                     process_hello_notifications(
                         graph,
                         client,
+                        1,
                         &mut subscriptions,
                         graph_id,
                         &clients,
@@ -1716,118 +1734,41 @@ where
                 clients: client_count,
                 max_syncs,
             } => {
-                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                // One transaction per client, held open across an entire outer
-                // pass (the full mesh of i<->j exchanges) so a client's whole
-                // catch-up from every peer in a pass is one fact-cache braid
-                // instead of one per exchange. We commit at the END OF EACH
-                // PASS, not at the very end: the responder serves from COMMITTED
-                // storage (`get_heads`), so an intermediate node can only relay
-                // data it received in a prior pass once that data is committed.
-                // Committing per pass preserves the iterative-convergence
-                // semantics while still collapsing the heavy initial fetch
-                // (which happens within a single pass) to one braid.
-                let mut trxs: Vec<
-                    Option<Transaction<<SB as StorageBackend>::StorageProvider, TestPolicyStore>>,
-                > = (0..client_count).map(|_| None).collect();
-
+                // Star rounds. Client 0 gathers from every other client and
+                // commits, then every other client pulls from client 0. One
+                // round gives every client the union of all graphs; a further
+                // round propagates any merge commands clients created while
+                // catching up. The loop ends when a whole round moves nothing.
+                // Each pull is skipped when the requester already holds the
+                // responder's heads, so a converged graph costs no exchanges.
                 loop {
-                    let mut any_received = false;
-                    // Received addresses per (requester, responder) pair, used
-                    // to advance the persistent caches after this pass commits.
-                    let mut pass_received: BTreeMap<_, Vec<Address>> = BTreeMap::new();
-                    for i in 0..client_count {
-                        for j in 0..client_count {
-                            if i == j {
-                                continue;
-                            }
-
-                            let mut request_client = clients
-                                .get(&i)
-                                .ok_or(TestError::MissingClient)?
-                                .borrow_mut();
-                            let mut response_client = clients
-                                .get(&j)
-                                .ok_or(TestError::MissingClient)?
-                                .borrow_mut();
-
-                            let slot = trxs.get_mut(i as usize).assume("trx slot exists")?;
-                            if slot.is_none() {
-                                *slot = Some(request_client.transaction(*graph_id));
-                            }
-                            let request_trx = slot.as_mut().assume("trx just created")?;
-
-                            let received_addrs = pass_received.entry((i, j)).or_default();
-                            for _ in 0..max_syncs {
-                                client_heads.entry((graph, i, j)).or_default();
-                                client_heads.entry((graph, j, i)).or_default();
-                                let request_cache = client_heads
-                                    .get(&(graph, i, j))
-                                    .assume("cache must exist")?
-                                    .borrow();
-                                let mut response_cache = client_heads
-                                    .get(&(graph, j, i))
-                                    .assume("cache must exist")?
-                                    .borrow_mut();
-
-                                let (_, received) = sync::<<SB as StorageBackend>::StorageProvider>(
-                                    request_trx,
-                                    (&request_cache, &mut request_client),
-                                    (&mut response_cache, &mut response_client),
-                                    received_addrs,
-                                    &mut sink,
-                                    *graph_id,
-                                    &mut rt_buffers,
-                                )?;
-
-                                if received > 0 {
-                                    any_received = true;
-                                }
-                                if received == 0 {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // Commit each client's accumulated transaction for this pass
-                    // so the data becomes visible to serve onward next pass.
-                    for i in 0..client_count {
-                        if let Some(trx) =
-                            trxs.get_mut(i as usize).assume("trx slot exists")?.take()
-                        {
-                            let mut client = clients
-                                .get(&i)
-                                .ok_or(TestError::MissingClient)?
-                                .borrow_mut();
-                            client.commit(trx, &mut sink, &mut rt_buffers, mem_spill)?;
-                        }
-                    }
-
-                    // Now that the pass is committed, advance each pair's
-                    // persistent cache with what was received.
-                    for ((i, j), addrs) in pass_received {
-                        if addrs.is_empty() {
-                            continue;
-                        }
-                        let mut client = clients
-                            .get(&i)
-                            .ok_or(TestError::MissingClient)?
-                            .borrow_mut();
-                        let mut request_cache = client_heads
-                            .get(&(graph, i, j))
-                            .assume("cache must exist")?
-                            .borrow_mut();
-                        client.update_heads(
-                            *graph_id,
-                            addrs,
-                            &mut request_cache,
-                            &mut rt_buffers.traversal.primary,
+                    let mut moved = converge_pull_pass::<SB::StorageProvider>(
+                        graph,
+                        graph_id,
+                        0,
+                        1..client_count,
+                        max_syncs,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                    )?;
+                    for i in 1..client_count {
+                        moved |= converge_pull_pass::<SB::StorageProvider>(
+                            graph,
+                            graph_id,
+                            i,
+                            iter::once(0),
+                            max_syncs,
+                            &clients,
+                            &mut client_heads,
+                            &mut sink,
+                            &mut rt_buffers,
                         )?;
                     }
-
-                    if !any_received {
+                    if !moved {
                         break;
                     }
                 }
@@ -2061,6 +2002,172 @@ where
     result
 }
 
+/// Addresses of the heads of `client`'s committed graph.
+fn committed_heads<SP: StorageProvider>(
+    client: &mut ClientState<TestPolicyStore, SP>,
+    graph_id: GraphId,
+) -> Result<BTreeSet<Address>, TestError> {
+    Ok(client
+        .provider()
+        .get_storage(graph_id)?
+        .get_heads()?
+        .iter()
+        .map(LocatedAddress::address)
+        .collect())
+}
+
+/// Whether `client` holds every address in `heads`, either committed or in
+/// `received` (fetched this pass into an open transaction). Command IDs hash
+/// their parents, so holding a peer's heads means holding its whole graph.
+fn holds_all<SP: StorageProvider>(
+    client: &mut ClientState<TestPolicyStore, SP>,
+    graph_id: GraphId,
+    heads: &BTreeSet<Address>,
+    received: &BTreeSet<Address>,
+    buffer: &mut TraversalBuffer,
+) -> Result<bool, TestError> {
+    let storage = client.provider().get_storage(graph_id)?;
+    for &addr in heads {
+        if received.contains(&addr) {
+            continue;
+        }
+        if storage.get_location(addr, buffer)?.is_none() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// One `ConvergeAll` pass: `requester` pulls from each of `responders` into a
+/// single open transaction, commits, and advances its peer caches.
+///
+/// Holding one transaction across the pass makes the whole catch-up one
+/// fact-cache braid instead of one per exchange. Committing at the end of the
+/// pass is what lets the requester serve the data onward, since responders
+/// serve from committed storage. A responder whose heads the requester already
+/// holds is skipped, and a pull stops as soon as the responder's heads have
+/// been received, so no exchange is spent confirming there is nothing left.
+///
+/// Returns whether any command was received.
+#[allow(clippy::too_many_arguments)]
+fn converge_pull_pass<SP: StorageProvider>(
+    graph: u64,
+    graph_id: GraphId,
+    requester: u64,
+    responders: impl IntoIterator<Item = u64>,
+    max_syncs: u64,
+    clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
+    client_heads: &mut BTreeMap<(u64, u64, u64), RefCell<PeerCache>>,
+    sink: &mut TestSink,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
+) -> Result<bool, TestError> {
+    let mut request_client = clients
+        .get(&requester)
+        .ok_or(TestError::MissingClient)?
+        .borrow_mut();
+    let mut trx: Option<Transaction<SP, TestPolicyStore>> = None;
+    // Received addresses per responder, used to advance the persistent
+    // caches after the pass commits.
+    let mut pass_received: BTreeMap<u64, Vec<Address>> = BTreeMap::new();
+    // Everything received this pass, pending commit.
+    let mut held: BTreeSet<Address> = BTreeSet::new();
+    let mut moved = false;
+
+    for responder in responders {
+        if responder == requester {
+            continue;
+        }
+        let mut response_client = clients
+            .get(&responder)
+            .ok_or(TestError::MissingClient)?
+            .borrow_mut();
+
+        let responder_heads = committed_heads(&mut response_client, graph_id)?;
+        if holds_all(
+            &mut request_client,
+            graph_id,
+            &responder_heads,
+            &held,
+            &mut rt_buffers.traversal.primary,
+        )? {
+            continue;
+        }
+
+        let request_trx = trx.get_or_insert_with(|| request_client.transaction(graph_id));
+        let received_addrs = pass_received.entry(responder).or_default();
+        for _ in 0..max_syncs {
+            client_heads
+                .entry((graph, requester, responder))
+                .or_default();
+            client_heads
+                .entry((graph, responder, requester))
+                .or_default();
+            let request_cache = client_heads
+                .get(&(graph, requester, responder))
+                .assume("cache must exist")?
+                .borrow();
+            let mut response_cache = client_heads
+                .get(&(graph, responder, requester))
+                .assume("cache must exist")?
+                .borrow_mut();
+
+            let before = received_addrs.len();
+            let (_, received) = sync::<SP>(
+                request_trx,
+                (&request_cache, &mut request_client),
+                (&mut response_cache, &mut response_client),
+                received_addrs,
+                sink,
+                graph_id,
+                rt_buffers,
+            )?;
+            held.extend(
+                received_addrs
+                    .get(before..)
+                    .unwrap_or_default()
+                    .iter()
+                    .copied(),
+            );
+
+            if received == 0 {
+                break;
+            }
+            moved = true;
+            if holds_all(
+                &mut request_client,
+                graph_id,
+                &responder_heads,
+                &held,
+                &mut rt_buffers.traversal.primary,
+            )? {
+                break;
+            }
+        }
+    }
+
+    if let Some(trx) = trx {
+        request_client.commit(trx, sink, rt_buffers, mem_spill)?;
+    }
+
+    for (responder, addrs) in pass_received {
+        if addrs.is_empty() {
+            continue;
+        }
+        let mut request_cache = client_heads
+            .get(&(graph, requester, responder))
+            .assume("cache must exist")?
+            .borrow_mut();
+        request_client.update_heads(
+            graph_id,
+            addrs,
+            &mut request_cache,
+            &mut rt_buffers.traversal.primary,
+        )?;
+    }
+
+    Ok(moved)
+}
+
 /// Perform a single sync exchange, ingesting received commands into the
 /// caller-owned `request_trx` (held open across many exchanges so a whole
 /// graph is committed once instead of per exchange).
@@ -2188,7 +2295,7 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
         .get_heads()
         .unwrap()
         .iter()
-        .map(crate::LocatedAddress::location)
+        .map(LocatedAddress::location)
         .collect();
     // Sort so the multi-head walk order is deterministic across peers.
     stack.sort();
