@@ -1,0 +1,7 @@
+action can_fail() result[unit, string] {
+    return Err("nope")
+}
+
+action foo() {
+    action can_fail() // return value not used
+}

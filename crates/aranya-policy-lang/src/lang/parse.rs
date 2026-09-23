@@ -743,6 +743,10 @@ impl ChunkParser<'_> {
                     let ffc = self.parse_foreign_function_call(primary)?;
                     Ok(Expression { inner: ExprKind::ForeignFunctionCall(ffc), span })
                 }
+                Rule::action_call => {
+                    let fc = self.parse_action_call(primary)?;
+                    Ok(Expression { inner: ExprKind::ActionCall(fc), span })
+                }
                 Rule::return_expression => {
                     let pc = self.descend(primary);
                     let expression = pc.consume_expression(self)?;
@@ -1332,7 +1336,10 @@ impl ChunkParser<'_> {
             let span = self.to_ast_span(statement.as_span())?;
             let kind = match statement.as_rule() {
                 Rule::let_statement => StmtKind::Let(self.parse_let_statement(statement)?),
-                Rule::action_call => StmtKind::ActionCall(self.parse_action_call(statement)?),
+                Rule::action_call => {
+                    let fc = self.parse_action_call(statement)?;
+                    StmtKind::ActionCall(fc)
+                }
                 Rule::publish_statement => {
                     StmtKind::Publish(self.parse_publish_statement(statement)?)
                 }
