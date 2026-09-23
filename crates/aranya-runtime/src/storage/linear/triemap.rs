@@ -150,8 +150,28 @@ impl TrieMap {
         })
     }
 
-    pub fn remove(&mut self, _keys: impl IntoIterator<Item: AsRef<[u8]>>) {
-        todo!()
+    /// Removes the value at `keys`, pruning any branches left empty.
+    ///
+    /// Does nothing if `keys` doesn't lead exactly to a leaf.
+    pub fn remove(&mut self, keys: impl IntoIterator<Item: AsRef<[u8]>>) {
+        fn go<I: Iterator<Item: AsRef<[u8]>>>(slot: &mut Slot, mut keys: I) {
+            let Slot::Branch(b) = slot else { return };
+            let Some(key) = keys.next() else { return };
+            let Some(child) = b.get_mut(key.as_ref()) else {
+                return;
+            };
+            let now_empty = match child {
+                Slot::Leaf(_) => keys.next().is_none(),
+                Slot::Branch(_) => {
+                    go(child, keys);
+                    matches!(child, Slot::Branch(c) if c.is_empty())
+                }
+            };
+            if now_empty {
+                b.remove(key.as_ref());
+            }
+        }
+        go(&mut self.0, keys.into_iter());
     }
 
     /// Removes tombstones.
@@ -318,5 +338,38 @@ impl<'a> IntoIterator for &'a ArchivedTrieMap {
         ArchivedTrieMapIter {
             stack: vec![(Vec::new(), &self.0)],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_remove() {
+        let mut map = TrieMap::new();
+        map.insert([b"a", b"b"], Some(b"1".as_slice().into()))
+            .unwrap();
+        map.insert([b"a", b"c"], Some(b"2".as_slice().into()))
+            .unwrap();
+        map.insert([b"d", b"e"], None).unwrap();
+
+        // Wrong depth or missing keys are ignored.
+        map.remove([b"a"]);
+        map.remove([b"a", b"b", b"x"]);
+        map.remove([b"a", b"x"]);
+        assert_eq!(map.get([b"a", b"b"]).unwrap(), Some(Some(b"1".as_slice())));
+
+        map.remove([b"a", b"b"]);
+        assert_eq!(map.get([b"a", b"b"]).unwrap(), None);
+        assert_eq!(map.get([b"a", b"c"]).unwrap(), Some(Some(b"2".as_slice())));
+
+        // Tombstones are removed too.
+        map.remove([b"d", b"e"]);
+        assert_eq!(map.get([b"d", b"e"]).unwrap(), None);
+
+        // Emptied branches are pruned.
+        map.remove([b"a", b"c"]);
+        assert!(map.is_empty());
     }
 }
