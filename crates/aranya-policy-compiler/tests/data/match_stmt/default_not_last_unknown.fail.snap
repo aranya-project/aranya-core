@@ -4,5 +4,5 @@ expression: error
 ---
 error: unknown error
    |
-15 |         _ => {
+13 |         _ => {
    |         ^ Default match case must be last.

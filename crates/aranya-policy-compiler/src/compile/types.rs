@@ -24,6 +24,7 @@ pub(crate) enum UserType<'a> {
     Struct(&'a ast::StructDefinition),
     Fact(&'a ast::FactDefinition),
     Effect(&'a ast::EffectDefinition),
+    BaseCommand(&'a ast::BaseCommandDefinition),
     Command(&'a ast::CommandDefinition),
     FFIStruct(&'a ffi::Struct<'a>),
 }

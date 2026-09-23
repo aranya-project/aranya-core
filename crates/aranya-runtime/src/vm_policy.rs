@@ -61,8 +61,6 @@
 //!     fields {
 //!         nonce int,
 //!     }
-//!     seal { ... }
-//!     open { ... }
 //!     policy {
 //!         finish {}
 //!     }
@@ -119,30 +117,30 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 
-use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, OpenContext, Persistence, PolicyContext, RunState, Stack as _, Struct, Value,
-    ast::Identifier,
+    MachineStack, Persistence, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
+    ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
 
 use crate::{
-    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior,
-    Priority,
+    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, NullSink, Perspective,
+    Prior, Priority,
     command::{CmdId, Command},
-    policy::{NullSink, Policy, PolicyError, Sink},
+    policy::{Policy, PolicyError, Sink},
 };
 
 mod error;
 mod io;
 mod protocol;
-pub mod testing;
+mod seal_open;
 
 pub use error::*;
 pub use io::*;
 pub use protocol::*;
+pub use seal_open::SealCtx;
 
 /// Creates a [`VmAction`].
 ///
@@ -205,6 +203,11 @@ impl<CE> VmPolicy<CE> {
         engine: CE,
         ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
+        if let Some(module_ffis) = &machine.ffis {
+            ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;
+        } else {
+            tracing::warn!("Module does not have contract; cannot validate FFI");
+        }
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
@@ -370,42 +373,58 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         }
     }
 
-    #[instrument(skip_all, fields(name = this_data.name.as_str()))]
-    fn open_command<P>(
+    #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
+    fn seal_command(
         &self,
-        this_data: Struct,
-        payload: Vec<u8>,
-        envelope: Envelope<'_>,
-        facts: &mut P,
-    ) -> Result<(), PolicyError>
-    where
-        P: FactPerspective,
-    {
+        command_struct: &Struct,
+        parent_id: CmdId,
+        seal_ctx: &SealCtx<CE>,
+    ) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
+        let payload = self.machine.serialize_struct(command_struct).map_err(|e| {
+            error!(error = %e, "cannot serialize command");
+            PolicyError::Write
+        })?;
+
+        let envelope = seal_open::seal_with_key(
+            &seal_ctx.key,
+            command_struct,
+            &payload,
+            seal_ctx.author,
+            parent_id,
+        )
+        .map_err(|e| {
+            error!(error = %e, "could not seal command");
+            PolicyError::Panic
+        })?;
+
+        Ok((payload, envelope))
+    }
+
+    #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
+    fn open_command(
+        &self,
+        command_struct: &Struct,
+        payload: &[u8],
+        envelope: &Envelope<'_>,
+        facts: &mut impl FactPerspective,
+    ) -> Result<(), PolicyError> {
         let mut sink = NullSink;
         let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
-        let ctx = CommandContext::Open(OpenContext {
-            name: this_data.name.clone(),
-        });
-        let mut rs = self.machine.create_run_state(&mut io, ctx);
-        let status = rs.call_open(this_data, payload, envelope.into());
-        match status {
-            Ok(reason) => match reason {
-                ExitReason::Normal => Ok(()),
-                ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check => {
-                    info!("Check: {}", self.source_location(&rs));
-                    Err(PolicyError::Rejected)
-                }
-                ExitReason::Panic => {
-                    info!("Panicked {}", self.source_location(&rs));
-                    Err(PolicyError::Rejected)
-                }
-            },
-            Err(e) => {
-                error!("\n{e}");
-                Err(PolicyError::InternalError)
-            }
-        }
+
+        let (_, value) = self
+            .machine
+            .call_get_key(command_struct.clone(), envelope.author_id, &mut io)
+            .map_err(|_| PolicyError::Panic)?;
+
+        let key_bytes = value.ok_or(PolicyError::Panic)?;
+        let key: aranya_crypto::VerifyingKey<CE::CS> =
+            postcard::from_bytes(&key_bytes).map_err(|_| {
+                tracing::warn!("could not deserialize open key");
+                PolicyError::Panic
+            })?;
+
+        seal_open::open_with_key(key, command_struct, payload, envelope)
+            .map_err(|_| PolicyError::Panic)
     }
 }
 
@@ -486,6 +505,7 @@ impl<CE> VmPolicy<CE> {
 
 impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     type Action<'a> = VmAction<'a>;
+    type SealCtx = SealCtx<CE>;
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;
 
@@ -563,12 +583,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
         match placement {
             CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
-                self.open_command(
-                    command_struct.clone(),
-                    payload.to_vec(),
-                    envelope.clone(),
-                    facts,
-                )?;
+                self.open_command(&command_struct, payload, &envelope, facts)?;
             }
             CommandPlacement::OnGraphInBraid => {
                 // Bypass real open and just deserialize.
@@ -584,7 +599,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             name: kind.clone(),
             id: command.id(),
             author: author_id,
-            version: BaseId::default(),
+            version: aranya_crypto::BaseId::default(),
         });
         self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx)?;
 
@@ -598,6 +613,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         action_placement: ActionPlacement,
+        seal_ctx: &SealCtx<CE>,
     ) -> Result<(), PolicyError> {
         let VmAction { name, args } = action;
 
@@ -675,49 +691,20 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             error!("should have command struct: {e}");
                             PolicyError::InternalError
                         })?;
+
                         let command_name = command_struct.name.clone();
-
-                        let payload =
-                            self.machine
-                                .serialize_struct(&command_struct)
-                                .map_err(|e| {
-                                    error!(error = %e, "cannot serialize command");
-                                    PolicyError::Write
-                                })?;
-
-                        let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
-                        let mut rs_seal = self.machine.create_run_state(rs.io, seal_ctx);
-                        match rs_seal
-                            .call_seal(command_struct, payload.clone())
-                            .map_err(|e| {
-                                error!("Cannot seal command: {}", e);
-                                PolicyError::Panic
-                            })? {
-                            ExitReason::Normal => (),
-                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
-                                error!("Could not seal command: {}", r);
-                                return Err(PolicyError::Panic);
-                            }
-                        }
-
-                        // Grab sealed envelope from stack
-                        let envelope_struct: Struct = rs_seal.stack.pop().map_err(|e| {
-                            error!("Expected a sealed envelope {e}");
-                            PolicyError::InternalError
-                        })?;
-                        let envelope = Envelope::try_from(envelope_struct).map_err(|e| {
-                            error!("Malformed envelope: {e}");
-                            PolicyError::InternalError
-                        })?;
 
                         // The parent of a basic command should be the command that was added to the perspective on the previous
                         // iteration of the loop
                         let parent = rs.io.facts.head_address()?;
+
                         let priority = self.get_command_priority(&command_name).into();
 
+                        let parent_id;
                         let policy;
                         match parent {
                             Prior::None => {
+                                parent_id = CmdId::default();
                                 // TODO(chip): where does the policy value come from?
                                 policy = Some(0u64.to_le_bytes());
                                 if !matches!(priority, Priority::Init) {
@@ -727,7 +714,8 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                                     return Err(PolicyError::InternalError);
                                 }
                             }
-                            Prior::Single(_) => {
+                            Prior::Single(p) => {
+                                parent_id = p.id;
                                 policy = None;
                                 if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
                                     error!(
@@ -738,6 +726,9 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
                         }
+
+                        let (payload, envelope) =
+                            self.seal_command(&command_struct, parent_id, seal_ctx)?;
 
                         let data = VmProtocolData {
                             author_id: envelope.author_id,
@@ -854,15 +845,11 @@ mod test {
         let cases = [
             r#"command Test {
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
             r#"command Test {
                 attributes {}
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
             r#"command Test {
@@ -871,15 +858,13 @@ mod test {
                     finalize: false,
                 }
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
         ];
 
         for case in cases {
             let ast = parse_policy_str(case, Version::V2).unwrap();
-            let module = Compiler::new(&ast).compile().unwrap();
+            let module = Compiler::new(&ast).allow_baseless(true).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let err = get_command_priorities(&machine).expect_err("should fail");
             assert_eq!(
@@ -899,14 +884,12 @@ mod test {
                         {attrs}
                     }}
                     fields {{ }}
-                    seal {{ return todo() }}
-                    open {{ return todo() }}
                     policy {{ }}
                 }}
                 "#
             );
             let ast = parse_policy_str(&policy, Version::V2).unwrap();
-            let module = Compiler::new(&ast).compile().unwrap();
+            let module = Compiler::new(&ast).allow_baseless(true).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let priorities = get_command_priorities(&machine)?;
             Ok(*priorities.get("Test").expect("priorities are mandatory"))

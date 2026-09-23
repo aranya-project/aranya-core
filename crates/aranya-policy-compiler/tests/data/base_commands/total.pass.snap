@@ -1,0 +1,208 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <get_key 'MyBasic1'>: 10,
+        <policy 'MyBasic1'>: 43,
+        <get_key 'MyBasic2'>: 10,
+        <policy 'MyBasic2'>: 46,
+        <get_key 'MyInit'>: 1,
+        <policy 'MyInit'>: 40,
+        <action 'my_basic_1'>: 55,
+        <action 'my_basic_2'>: 58,
+        <action 'my_init'>: 49,
+    },
+    action_defs: [
+        ActionDef {
+            name: "my_init",
+            persistence: Persistent,
+            params: [
+                Field {
+                    name: "key",
+                    ty: Bytes,
+                },
+            ],
+            result_type: Unit,
+        },
+        ActionDef {
+            name: "my_basic_1",
+            persistence: Persistent,
+            params: [],
+            result_type: Unit,
+        },
+        ActionDef {
+            name: "my_basic_2",
+            persistence: Persistent,
+            params: [],
+            result_type: Unit,
+        },
+    ],
+    command_defs: [
+        CommandDef {
+            name: "MyInit",
+            persistence: Persistent,
+            attributes: [],
+            fields: [
+                Field {
+                    name: "key",
+                    ty: Bytes,
+                },
+            ],
+        },
+        CommandDef {
+            name: "MyBasic1",
+            persistence: Persistent,
+            attributes: [],
+            fields: [],
+        },
+        CommandDef {
+            name: "MyBasic2",
+            persistence: Persistent,
+            attributes: [],
+            fields: [],
+        },
+    ],
+    fact_defs: [
+        FactDef {
+            name: "Key",
+            key: [
+                Field {
+                    name: "dev",
+                    ty: Id,
+                },
+            ],
+            value: [
+                Field {
+                    name: "key",
+                    ty: Bytes,
+                },
+            ],
+            immutable: false,
+        },
+    ],
+    struct_defs: [
+        StructDef {
+            name: "Key",
+            items: [
+                Field {
+                    name: "dev",
+                    ty: Id,
+                },
+                Field {
+                    name: "key",
+                    ty: Bytes,
+                },
+            ],
+        },
+        StructDef {
+            name: "MyBasic1",
+            items: [],
+        },
+        StructDef {
+            name: "MyBasic2",
+            items: [],
+        },
+        StructDef {
+            name: "MyBasicBase",
+            items: [],
+        },
+        StructDef {
+            name: "MyInit",
+            items: [
+                Field {
+                    name: "key",
+                    ty: Bytes,
+                },
+            ],
+        },
+        StructDef {
+            name: "MyInitBase",
+            items: [
+                Field {
+                    name: "key",
+                    ty: Bytes,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<get_key 'MyInit'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    get 'this'
+    struct.get 'key'
+    wrap some
+    restore SP
+    return
+    exit panic
+<get_key 'MyBasic1'>:
+<get_key 'MyBasic2'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    fact.new 'Key'
+    get 'author_id'
+    fact.kset 'dev'
+    query
+    dup
+    is some
+    branch 24
+    dup
+    const None
+    eq
+    branch 32
+<24>:
+    block
+    unwrap some
+    def 'f'
+    get 'f'
+    struct.get 'key'
+    wrap some
+    end
+    jump 37
+<32>:
+    block
+    pop
+    const None
+    end
+    jump 37
+<37>:
+    restore SP
+    return
+    exit panic
+<policy 'MyInit'>:
+    def 'envelope'
+    def 'this'
+    exit panic
+<policy 'MyBasic1'>:
+    def 'envelope'
+    def 'this'
+    exit panic
+<policy 'MyBasic2'>:
+    def 'envelope'
+    def 'this'
+    exit panic
+<action 'my_init'>:
+    def 'key'
+    struct.new 'MyInit'
+    get 'key'
+    struct.set 'key'
+    publish
+    return
+<action 'my_basic_1'>:
+    struct.new 'MyBasic1'
+    publish
+    return
+<action 'my_basic_2'>:
+    struct.new 'MyBasic2'
+    publish
+    return

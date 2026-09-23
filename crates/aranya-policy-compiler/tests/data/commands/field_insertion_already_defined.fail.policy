@@ -5,8 +5,6 @@ command Foo {
         +Bar,
         a bool // Duplicate field `a`
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

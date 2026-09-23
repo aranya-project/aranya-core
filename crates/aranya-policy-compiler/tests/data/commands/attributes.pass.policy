@@ -5,8 +5,6 @@ command A {
         s: "abc",
         priority: Priority::High
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

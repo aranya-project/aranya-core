@@ -8,7 +8,7 @@ use aranya_policy_vm::{
     CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, MachineStack,
     ast::{Identifier, Text},
-    ffi::FfiModule,
+    ffi::{FfiModule, ModuleSchema},
 };
 use tracing::error;
 
@@ -16,6 +16,9 @@ use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
 /// Object safe wrapper for [`FfiModule`].
 pub trait FfiCallable<CE> {
+    /// Access the module's schema
+    fn schema(&self) -> ModuleSchema<'static>;
+
     /// Invokes a function in the module.
     fn call(
         &self,
@@ -31,6 +34,10 @@ where
     FM: FfiModule,
     CE: aranya_crypto::Engine,
 {
+    fn schema(&self) -> ModuleSchema<'static> {
+        Self::SCHEMA
+    }
+
     fn call(
         &self,
         procedure: usize,
@@ -294,7 +301,7 @@ fn ser_values(value: impl IntoIterator<Item = FactValue>) -> Result<Box<[u8]>, M
     Ok(bytes.into())
 }
 
-fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
+pub(super) fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
     postcard::from_bytes(&value).map_err(|e| {
         error!("could not deserialize values: {e}");
         MachineIOError::Internal

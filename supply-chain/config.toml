@@ -52,9 +52,6 @@ audit-as-crates-io = false
 [policy.aranya-crypto]
 audit-as-crates-io = false
 
-[policy.aranya-crypto-ffi]
-audit-as-crates-io = false
-
 [policy.aranya-device-ffi]
 audit-as-crates-io = false
 

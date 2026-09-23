@@ -10,12 +10,12 @@ use core::{
     str::FromStr as _,
 };
 
-use aranya_crypto::policy::CmdId;
+use aranya_crypto::{DeviceId, policy::CmdId};
 use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, Instruction, Label,
-    LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion, WrapType,
-    automap::AutoMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, FfiContract,
+    Instruction, Label, LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion,
+    WrapType, automap::AutoMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -23,8 +23,8 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, OpenContext,
-    PolicyContext, SealContext, Struct, TryAsMut, Value, ValueConversionError,
+    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, PolicyContext,
+    Struct, TryAsMut, Value, ValueConversionError,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -133,6 +133,8 @@ pub struct Machine {
     pub struct_defs: AutoMap<StructDef>,
     /// Enum definitions
     pub enum_defs: AutoMap<EnumDef>,
+    /// FFI definitions (used only for validation)
+    pub ffis: Option<Vec<FfiContract>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -153,6 +155,7 @@ impl Machine {
             fact_defs: AutoMap::new(),
             struct_defs: AutoMap::new(),
             enum_defs: AutoMap::new(),
+            ffis: None,
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -168,6 +171,7 @@ impl Machine {
             fact_defs: AutoMap::new(),
             struct_defs: AutoMap::new(),
             enum_defs: AutoMap::new(),
+            ffis: None,
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -179,33 +183,26 @@ impl Machine {
             ModuleData::V0(m) => Ok(Self {
                 progmem: m.progmem.into(),
                 labels: m.labels,
-                action_defs: m
-                    .action_defs
-                    .into_iter()
-                    .map(|a| (a.name.clone(), a))
-                    .collect(),
-                command_defs: m
-                    .command_defs
-                    .into_iter()
-                    .map(|c| (c.name.clone(), c))
-                    .collect(),
-                fact_defs: m
-                    .fact_defs
-                    .into_iter()
-                    .map(|i| (i.name.clone(), i))
-                    .collect(),
-                struct_defs: m
-                    .struct_defs
-                    .into_iter()
-                    .map(|i| (i.name.clone(), i))
-                    .collect(),
-                enum_defs: m
-                    .enum_defs
-                    .into_iter()
-                    .map(|i| (i.name.clone(), i))
-                    .collect(),
+                action_defs: m.action_defs.into_iter().collect(),
+                command_defs: m.command_defs.into_iter().collect(),
+                fact_defs: m.fact_defs.into_iter().collect(),
+                struct_defs: m.struct_defs.into_iter().collect(),
+                enum_defs: m.enum_defs.into_iter().collect(),
                 codemap: m.codemap,
                 globals: m.globals,
+                ffis: None,
+            }),
+            ModuleData::V1(m) => Ok(Self {
+                progmem: m.program.progmem.into(),
+                labels: m.program.labels,
+                action_defs: m.contract.actions.into_iter().collect(),
+                command_defs: m.contract.commands.into_iter().collect(),
+                fact_defs: m.contract.facts.into_iter().collect(),
+                struct_defs: m.contract.structs.into_iter().collect(),
+                enum_defs: m.contract.enums.into_iter().collect(),
+                codemap: m.program.codemap,
+                globals: m.program.globals,
+                ffis: Some(m.contract.ffis),
             }),
         }
     }
@@ -263,6 +260,22 @@ impl Machine {
     {
         let mut rs = self.create_run_state(io, ctx);
         rs.call_action(name, args)
+    }
+
+    /// Call a `get_key` block.
+    pub fn call_get_key<M>(
+        &self,
+        this_data: Struct,
+        author_id: DeviceId,
+        io: &mut M,
+    ) -> Result<(ExitReason, Option<Vec<u8>>), MachineError>
+    where
+        M: MachineIO<MachineStack>,
+    {
+        let mut rs = self.create_run_state(io, CommandContext::Pure);
+        let status = rs.call_get_key(this_data, author_id)?;
+        let key = rs.stack.pop::<Option<Vec<u8>>>().ok().flatten();
+        Ok((status, key))
     }
 
     /// Call a command
@@ -1152,6 +1165,21 @@ where
         Ok(())
     }
 
+    /// Call a `get_key` block.
+    pub fn call_get_key(
+        &mut self,
+        this_data: Struct,
+        author_id: DeviceId,
+    ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Pure) {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_function(&Label::new(this_data.name.clone(), LabelType::GetKey))?;
+        self.ipush(this_data)?;
+        self.ipush(author_id)?;
+        self.run()
+    }
+
     /// Call a command policy loaded into the VM by name. Accepts a
     /// `Struct` containing the Command's data. Returns a Vec of effect
     /// structs or a MachineError.
@@ -1249,48 +1277,6 @@ where
             return Err(MachineErrorType::ContextMismatch.into());
         }
         self.setup_action(name, args)?;
-        self.run()
-    }
-
-    /// Call the seal block on this command to produce an envelope. The
-    /// seal block is given an implicit parameter `this` and should
-    /// return an opaque envelope struct on the stack.
-    pub fn call_seal(
-        &mut self,
-        this_data: Struct,
-        payload: Vec<u8>,
-    ) -> Result<ExitReason, MachineError> {
-        let name = this_data.name.clone();
-        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
-
-        // Seal/Open pushes the argument and defines it itself, because
-        // it calls through a function stub. So we just push `this_data`
-        // onto the stack.
-        self.ipush(this_data)?;
-        self.ipush(payload)?;
-        self.run()
-    }
-
-    /// Call the open block on an envelope struct to produce a command struct.
-    pub fn call_open(
-        &mut self,
-        this_data: Struct,
-        payload: Vec<u8>,
-        envelope: Struct,
-    ) -> Result<ExitReason, MachineError> {
-        let name = this_data.name.clone();
-        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
-        self.ipush(this_data)?;
-        self.ipush(payload)?;
-        self.ipush(envelope)?;
         self.run()
     }
 

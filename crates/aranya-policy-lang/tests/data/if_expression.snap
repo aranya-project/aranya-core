@@ -45,6 +45,7 @@ Policy {
     structs: [],
     enums: [],
     commands: [],
+    base_commands: [],
     functions: [],
     finish_functions: [],
     global_lets: [],
