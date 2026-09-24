@@ -204,11 +204,14 @@ impl<'a> Iterator for TrieMapIter<'a> {
             let (path, slot) = self.stack.pop()?;
             match slot {
                 Slot::Branch(b) => {
+                    let start = self.stack.len();
                     for (k, v) in b {
                         let mut path = path.clone();
                         path.push(k);
                         self.stack.push((path, v));
                     }
+                    // Reverse so the smallest key is popped first.
+                    self.stack[start..].reverse();
                 }
                 Slot::Leaf(l) => break Some((path, l.as_deref())),
             }
@@ -229,11 +232,14 @@ impl Iterator for TrieMapIntoIter {
             let (path, slot) = self.stack.pop()?;
             match slot {
                 Slot::Branch(b) => {
+                    let start = self.stack.len();
                     for (k, v) in b {
                         let mut path = path.clone();
                         path.push(k);
                         self.stack.push((path, v));
                     }
+                    // Reverse so the smallest key is popped first.
+                    self.stack[start..].reverse();
                 }
                 Slot::Leaf(l) => break Some((path, l)),
             }
@@ -318,11 +324,14 @@ impl<'a> Iterator for ArchivedTrieMapIter<'a> {
             let (path, slot) = self.stack.pop()?;
             match slot {
                 ArchivedSlot::Branch(b) => {
+                    let start = self.stack.len();
                     for (k, v) in b.iter() {
                         let mut path = path.clone();
                         path.push(k);
                         self.stack.push((path, v));
                     }
+                    // Reverse so the smallest key is popped first.
+                    self.stack[start..].reverse();
                 }
                 ArchivedSlot::Leaf(l) => break Some((path, l.as_deref())),
             }
@@ -344,6 +353,41 @@ impl<'a> IntoIterator for &'a ArchivedTrieMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Iteration must yield keys in ascending order, as
+    /// `Query::query_prefix` promises sorted results.
+    #[test]
+    fn test_iter_sorted() {
+        let keys: &[[&[u8]; 2]] = &[
+            [b"b", b"1"],
+            [b"a", b"2"],
+            [b"c", b""],
+            [b"a", b"1"],
+            [b"b", b"0"],
+        ];
+        let mut map = TrieMap::new();
+        for k in keys {
+            map.insert(k, Some(b"v".as_slice().into())).unwrap();
+        }
+        let mut expected: Vec<Vec<&[u8]>> = keys.iter().map(|k| k.to_vec()).collect();
+        expected.sort();
+
+        let empty: [&[u8]; 0] = [];
+        let by_ref: Vec<Vec<&[u8]>> = map.get_by_prefix(empty).unwrap().map(|(k, _)| k).collect();
+        assert_eq!(by_ref, expected);
+
+        let bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&map).unwrap();
+        let archived = rkyv::access::<ArchivedTrieMap, rkyv::rancor::Error>(&bytes).unwrap();
+        let archived: Vec<Vec<&[u8]>> = archived.into_iter().map(|(k, _)| k).collect();
+        assert_eq!(archived, expected);
+
+        let owned: Vec<Vec<Bytes>> = map.into_iter().map(|(k, _)| k).collect();
+        let owned: Vec<Vec<&[u8]>> = owned
+            .iter()
+            .map(|k| k.iter().map(AsRef::as_ref).collect())
+            .collect();
+        assert_eq!(owned, expected);
+    }
 
     #[test]
     fn test_remove() {

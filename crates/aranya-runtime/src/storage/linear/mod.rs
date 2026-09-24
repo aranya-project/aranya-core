@@ -1332,6 +1332,9 @@ mod test {
         }
 
         let prefixes: &[&[&str]] = &[
+            &[],
+            &["aa"],
+            &["b"],
             &["aa", "xy", "12"],
             &["aa", "xy"],
             &["aa", "xz"],
