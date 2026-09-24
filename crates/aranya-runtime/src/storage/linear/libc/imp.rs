@@ -519,7 +519,6 @@ impl File {
         self.write_all(offset, &writer)
     }
 
-    // TODO(jdygert): tests don't cover this.
     fn load_root(&self, offset: i64) -> Result<Root, StorageError> {
         const SIZE: usize = size_of::<ArchivedRoot>();
         let mut bytes = [0u8; SIZE];
@@ -693,6 +692,34 @@ mod tests {
         assert_eq!(writer.heads().unwrap(), heads(3));
         assert_eq!(writer.root.generation, 3);
         assert_eq!(writer.next_root, ROOT_B);
+    }
+
+    /// A root that decodes but fails its checksum is rejected, and
+    /// opening fails if neither slot holds a valid root.
+    #[test]
+    fn test_reopen_rejects_bad_checksum() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap(); // generation 1 -> ROOT_A
+        writer.commit(&heads(2), FactCacheOffset::new(2)).unwrap(); // generation 2 -> ROOT_B
+
+        // Flip a byte of ROOT_B's `generation` (first field): still
+        // decodes, but the checksum no longer matches.
+        let mut byte = [0u8; 1];
+        writer.file.read_exact(ROOT_B, &mut byte).unwrap();
+        writer.file.write_all(ROOT_B, &[byte[0] ^ 1]).unwrap();
+        assert!(writer.file.load_root(ROOT_B).is_ok());
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads(1));
+        // Corrupt ROOT_A too; now neither slot is valid.
+        writer.file.write_all(ROOT_A, &[0xFF; 64]).unwrap();
+        drop(writer);
+
+        assert!(matches!(manager.open(id), Err(StorageError::IoError)));
     }
 
     #[test]
