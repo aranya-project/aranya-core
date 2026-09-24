@@ -6,7 +6,7 @@
 #![cfg(feature = "apq")]
 #![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
-use core::{cell::OnceCell, fmt, iter, ops::Add, result::Result};
+use core::{fmt, iter, ops::Add, result::Result};
 
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
@@ -34,6 +34,7 @@ use crate::{
     hpke::{self, Mode},
     id::{IdError, custom_id},
     misc::{ciphertext, kem_key, signing_key},
+    util::CacheCell,
 };
 
 /// A sender's identity.
@@ -135,7 +136,7 @@ pub struct TopicKey<CS: CipherSuite> {
     // large and we have to handle two pieces of key material.
     key: <CS::Aead as Aead>::Key,
     seed: [u8; 64],
-    id: OnceCell<Result<TopicKeyId, IdError>>,
+    id: CacheCell<Result<TopicKeyId, IdError>>,
 }
 
 impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
@@ -150,7 +151,7 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
         Self {
             key: self.key.clone(),
             seed: self.seed,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
         }
     }
 }
@@ -166,27 +167,25 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> Result<TopicKeyId, IdError> {
-        self.id
-            .get_or_init(|| {
-                // prk = LabeledExtract(
-                //     "TopicKeyId-v1",
-                //     {0}^n,
-                //     "prk",
-                //     seed,
-                // )
-                // TopicKey = LabeledExpand(
-                //     "TopicKeyId-v1",
-                //     prk,
-                //     "id",
-                //     {0}^0,
-                // )
-                const DOMAIN: &[u8] = b"TopicKeyId-v1";
-                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
-                CS::labeled_expand(DOMAIN, &prk, b"id", [])
-                    .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(TopicKeyId::from_bytes)
-            })
-            .clone()
+        self.id.get_or_init(|| {
+            // prk = LabeledExtract(
+            //     "TopicKeyId-v1",
+            //     {0}^n,
+            //     "prk",
+            //     seed,
+            // )
+            // TopicKey = LabeledExpand(
+            //     "TopicKeyId-v1",
+            //     prk,
+            //     "id",
+            //     {0}^0,
+            // )
+            const DOMAIN: &[u8] = b"TopicKeyId-v1";
+            let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
+            CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                .map_err(|_| IdError::new("unable to expand PRK"))
+                .map(TopicKeyId::from_bytes)
+        })
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -330,7 +329,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         Ok(Self {
             key,
             seed,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
         })
     }
 

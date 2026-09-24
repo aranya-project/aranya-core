@@ -480,12 +480,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::cell::OnceCell;
-
     use spideroak_crypto::{ed25519::Ed25519, kem::Kem, rust, signer::Signer};
 
     use super::*;
-    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs, util::CacheCell};
 
     type CS = TestCs<
         rust::Aes256Gcm,
@@ -514,7 +512,7 @@ mod tests {
                 .expect("should import signing key");
             let identity_key: IdentityKey<CS> = IdentityKey {
                 sk,
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             };
 
             let got_id = identity_key.id().expect("should compute ID");
@@ -542,7 +540,7 @@ mod tests {
                 .expect("should import signing key");
             let signing_key: SigningKey<CS> = SigningKey {
                 sk,
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             };
 
             let got_id = signing_key.id().expect("should compute ID");
@@ -570,7 +568,7 @@ mod tests {
                 .expect("should import decap key");
             let encryption_key: EncryptionKey<CS> = EncryptionKey {
                 sk,
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             };
 
             let got_id = encryption_key.id().expect("should compute ID");
