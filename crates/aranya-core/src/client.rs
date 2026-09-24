@@ -18,7 +18,7 @@ impl<CE: Engine> VmPolicyStore<CE> {
     pub fn new(policy: VmPolicy<CE>, seal_ctx: SealCtx<CE>) -> Self {
         Self {
             policy,
-            policy_id: PolicyId::new(0),
+            policy_id: PolicyId::default(),
             seal_ctx,
         }
     }
