@@ -29,10 +29,7 @@ command AddUser {
 }
 
 action add_user(uid id, name string) {
-    publish AddUser {
-        uid: uid,
-        name: name
-    }
+    publish AddUser { uid, name }
 }
 
 action delete_user(admin struct Admin, uid id) {}

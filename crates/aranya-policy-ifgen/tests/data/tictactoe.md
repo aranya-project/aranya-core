@@ -35,9 +35,7 @@ command Move {
 
 
 action StartGame(players struct Players) {
-    publish Start {
-        players: players,
-    }
+    publish Start { players }
 }
 
 effect GameStart {
@@ -47,7 +45,7 @@ effect GameStart {
 
 action MakeMove(gameID id, x int, y int) {
     let move_command = Move {
-        gameID: gameID,
+        gameID,
         X: x,
         Y: y,
     }

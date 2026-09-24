@@ -58,14 +58,10 @@ function divide0(args struct Division) struct Division {
     check d > 0 else test_fail("divisor must be positive")
 
     if r < d {
-        return Division {
-            d: d,
-            q: q,
-            r: r,
-        }
+        return Division { d, q, r }
     }
     return divide0(Division {
-        d: d,
+        d,
         q: saturating_add(q, 1),
         r: saturating_sub(r, d),
     })

@@ -77,10 +77,7 @@ effect Success {
 
 // The `init` action takes a nonce variable and passes it to the Init command.
 action init(nonce int, key bytes) {
-    publish Init {
-        key: key,
-        nonce: nonce,
-    }
+    publish Init { key, nonce }
 }
 
 // `Init` is a command that initializes a graph.
@@ -380,7 +377,7 @@ command VerifyGreetingOnGraph with Base {
 // and byte value.
 action store_session_data(key string, value bytes) {
     publish StoreSessionData {
-        key: key,
+        key,
         cmd: value,
     }
 }
