@@ -1,15 +1,39 @@
 # Segment and Fact Index Scaling Issues
 
-This document covers two scaling problems in `aranya-runtime`'s linear
-storage:
+## Bottom line
 
-1. **Per-command segment access during braid is O(n²).**
-2. **Fact queries are slow because they re-decode whole fact index blobs.**
+**The runtime reads storage in pieces much larger than what it needs,
+and those pieces grow as the graph grows.**
 
-Both have the same underlying cause. A linear storage `fetch` always
-reads and deserializes an entire stored item, and nothing is cached. Code
-that needs one command from a segment, or one key from the fact database,
-pays for the whole segment or the whole database every time.
+Linear storage can only read a stored item as a whole. Two of those
+items have no size limit:
+
+- A **segment** holds an entire linear run of commands.
+- The **fact index** holds, after compaction, the entire fact database.
+
+Yet the code that reads them treats a read as a cheap, fine-grained
+lookup:
+
+- it reads a segment once per command,
+- it reads the fact index once per query,
+- it reads a full fact index just to learn its offset or depth.
+
+Nothing caches the decoded result, so every one of these reads pays for
+the whole item again.
+
+As a result, an operation meant to cost O(1), such as getting one
+command or looking up one fact, actually costs O(size of the graph). Any
+loop over commands or facts becomes O(n²):
+
+1. **Braid is O(n²)** in the length of the branches being merged,
+   because every command in a branch re-reads that branch's whole
+   segment.
+2. **Each fact query is O(total facts)**, because it re-reads the whole
+   fact database. So n commands that each query facts cost O(n²).
+
+Fixing this means either not repeating the reads (cache decoded items,
+and stop reading whole items just to get one field) or making stored
+items readable in smaller pieces (bounded segments, a paged fact index).
 
 Both issues are reproduced by deterministic tests in
 `crates/aranya-runtime/src/client/scaling_tests.rs` (see
@@ -143,6 +167,12 @@ and an allocation of the full segment size.
   (`linear/mod.rs:58`).
 - The `query_prefix_inner` paths (`linear/mod.rs:971`, `:1048`/`:1055`)
   do the same and also build a new `BTreeMap` of all matches.
+- `LinearStorage::fact_cache` (`linear/mod.rs:746`) decodes the full
+  committed index for `Session::new` (`client/session.rs:56`). The session
+  keeps it as `base_facts` and queries it (`session.rs:311`, `:323`), so
+  the decode isn't wasted, but it is the same problem: the whole top layer
+  is decoded up front, and queries that miss it still fetch and decode
+  each prior layer.
 
 After compaction, the bottom of the chain holds **every fact in the
 graph**. A lookup for a key that doesn't exist (the common case for policy
@@ -152,23 +182,41 @@ policy rule decodes it again.
 
 **B. Full blobs are decoded just to read one small field.**
 
-- `write_facts_with_prior` (`linear/mod.rs:534`, fetch at `:549`) decodes
-  the full prior `FactIndexRepr` to read its `depth` (to decide on
-  compaction) and its `offset`. This happens on every segment write and
-  every `write_facts`.
-- The single-head `Transaction::commit` (`transaction.rs:153`) calls
-  `get_segment(head).facts()`, which decodes the head's full fact index,
-  only to pass it to `commit_heads`, which uses just `repr.offset`.
-- `ClientState::action` (`client.rs:315`) does the same after writing the
-  action's segment: `segment.facts()` decodes the new segment's full fact
-  index only to pass it to `commit_heads`. This is the path used when a
-  device performs an action, so every local action pays one full
-  fact-index decode on top of its policy queries. The demonstration tests
-  use the `Transaction` (sync) path and don't exercise this call, but the
-  cause and the fix are the same.
-- `LinearStorage::fact_cache` (`linear/mod.rs:746`) decodes the full
-  committed index. It is called from `Session::new`
-  (`client/session.rs:56`).
+This has two separate causes, each with its own fix.
+
+*B1. `commit_heads` takes a decoded index but only needs its offset.*
+`Storage::commit_heads` takes a full `FactIndex`, but it only uses the
+offset:
+
+```rust
+self.writer.commit(&heads, FactCacheOffset::new(fact_cache.repr.offset))?;
+```
+
+The only way to get a `FactIndex` from a segment is `Segment::facts()`,
+which fetches and decodes the whole blob. So both places that commit a
+single head decode the entire fact database just to read one number:
+
+- `Transaction::commit` (`transaction.rs:153`), the sync path:
+  `storage.get_segment(head).facts()?`
+- `ClientState::action` (`client.rs:315`), the action path:
+  `segment.facts()?`. Every local action pays one full fact-index decode
+  on top of its policy queries. The demonstration tests use the sync path
+  and don't exercise this call.
+
+These two sites are one issue with one fix: change `commit_heads` to take
+an offset, and give `Segment` a way to return its fact index offset
+without fetching it (`SegmentRepr` already stores it in its `facts`
+field). Both call sites change together.
+
+The multi-head branch of `commit` isn't affected: `evaluate_braid` gets
+its `FactIndex` from `write_facts`, which returns the index it just built
+without reading it back.
+
+*B2. The prior index is decoded just to read its depth.*
+`write_facts_with_prior` (`linear/mod.rs:534`, fetch at `:549`) decodes
+the full prior `FactIndexRepr` to read its `depth`, which decides whether
+to compact, and its `offset`. This happens on every segment write and
+every `write_facts`. The fix is to carry `depth` alongside the offset.
 
 **C. Compaction rewrites the whole database.**
 
@@ -187,15 +235,17 @@ decoded, at about 12 fact-index fetches per command.
 ### Proposed fixes (cheapest first)
 
 1. **Stop decoding just to read a field (root cause B).**
-   - Carry `depth` next to `offset` in `FactPerspectivePrior::FactIndex`
+   - B1: let `commit_heads` take a `FactCacheOffset` (or a lightweight
+     handle) instead of a decoded `FactIndex`, and give `Segment` a way to
+     return its fact index offset without fetching it. Update both
+     single-head commit sites (`transaction.rs:153`, `client.rs:315`). No
+     file format change.
+   - B2: carry `depth` next to `offset` in `FactPerspectivePrior::FactIndex`
      (and in `SegmentRepr` next to `facts`/`prior_facts`) so
-     `write_facts_with_prior` doesn't need to fetch.
-   - Let `commit_heads` take a `FactCacheOffset` (or a lightweight handle)
-     instead of a decoded `FactIndex`, and give `Segment` a way to return
-     its fact index offset without fetching it.
-   - This is small and self-contained, and doesn't change the file format
-     if `depth` is derived when the perspective is built. It does **not**
-     fix query cost.
+     `write_facts_with_prior` doesn't need to fetch. No file format change
+     if `depth` is worked out when the perspective is built; persisting it
+     in `SegmentRepr` would be one.
+   - Both are small and self-contained. Neither fixes query cost.
 2. **Cache decoded fact indexes by offset (root cause A).**
    - A blob never changes after it is written, so its file offset is a
      perfect cache key and the cache never needs invalidating.
@@ -334,7 +384,7 @@ What to expect once the fixes are in:
 |---|---|---|
 | `braid_segment_decoding_is_linear` | about x4 per doubling; bytes/command doubles each row | about x2 per doubling; bytes/command roughly flat. Fetches should drop too, since cache hits skip `get_segment`. |
 | `fact_query_cost_is_independent_of_fact_count` | x2.0 per doubling; about 41 bytes decoded per fact in the database | With a decoded fact-index cache (work item 4), close to 0 bytes. With a paged index (work item 6), a small number of pages; growth about x1, or slightly above for O(log n). |
-| `per_command_fact_cost_is_independent_of_fact_count` | about x1.9 per doubling | About x1 once work items 3 and 4 are in. The segment reads that remain are small and don't depend on `n`. |
+| `per_command_fact_cost_is_independent_of_fact_count` | about x1.9 per doubling | About x1 once work items 3a, 3b and 4 are in. The segment reads that remain are small and don't depend on `n`. |
 
 **Caveat: fixes that decode nothing.** The growth column divides one row's
 bytes by the previous row's. If a fix makes a measurement decode **0
@@ -366,14 +416,19 @@ Also note:
 |---|---|---|---|
 | 1 | Braid | Segment metadata cache (`SegmentIndex` → `(shortest_max_cut, prior)`) in `ConvergenceMap::advance_to` | Small |
 | 2 | Braid | Small segment LRU in `evaluate_braid` | Small |
-| 3 | Facts | Remove decode-to-read-metadata: `depth` next to the offset; `commit_heads` takes an offset at both single-head commit sites (`transaction.rs:153`, `client.rs:315`) | Small to medium |
+| 3a | Facts | `commit_heads` takes an offset instead of a decoded `FactIndex`; update both single-head commit sites (`transaction.rs:153`, `client.rs:315`) (root cause B1) | Small |
+| 3b | Facts | Carry `depth` alongside the prior fact index offset so `write_facts_with_prior` doesn't fetch (root cause B2) | Small to medium |
 | 4 | Facts | Decoded `FactIndexRepr` cache keyed by offset (or at minimum once per perspective) | Medium |
 | 5 | Both, optional | Storage-level `Arc<SegmentRepr>` LRU in `LinearStorage::get_segment` | Medium |
 | 6 | Facts, long term | Paged on-disk fact index with incremental compaction | Large (format change) |
 
-Items 1 and 2 should make `braid_segment_decoding_is_linear` pass. Items 3
-and 4 should make both fact tests pass. Item 6 is what keeps memory
-bounded when the fact database is larger than we want to hold in memory.
+Items 1 and 2 should make `braid_segment_decoding_is_linear` pass. Item 4
+should make `fact_query_cost_is_independent_of_fact_count` pass. Items 3a,
+3b and 4 together should make `per_command_fact_cost_is_independent_of_fact_count`
+pass. Item 3a on its own is the quickest win for local actions.
+
+Item 6 is what keeps memory bounded when the fact database is larger
+than we want to hold in memory.
 
 ### Acceptance criteria
 
@@ -395,8 +450,8 @@ bounded when the fact database is larger than we want to hold in memory.
   `ConvergenceMap`, one perspective), which is simple and needs no
   invalidation, or at storage level, which is broader but needs interior
   mutability behind `&self`.
-- **Whether a file format change is acceptable** for items 3 (if `depth`
-  is persisted) and 6, and the migration or versioning story.
+- **Whether a file format change is acceptable** for item 3b (if `depth`
+  is persisted in `SegmentRepr`) and 6, and the migration or versioning story.
 - **Segment length cap.** Whether to also limit commands per segment, which
   bounds issue 1 regardless of caching but changes how sync batches are
   stored.
