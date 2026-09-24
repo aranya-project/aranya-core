@@ -305,7 +305,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, fields);
-        match rs.call_command_policy(this_data, envelope.into()) {
+        match rs.call_command_policy(this_data, Some(envelope.into())) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),

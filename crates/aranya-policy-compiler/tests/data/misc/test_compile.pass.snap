@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <policy 'Foo'>: 1,
-        <action 'foo'>: 8,
+        <action 'foo'>: 7,
     },
     action_defs: [
         ActionDef {
@@ -61,7 +61,6 @@ Module {
 ---
     exit panic
 <policy 'Foo'>:
-    def 'envelope'
     def 'this'
     meta: finish enabled
     block
@@ -75,18 +74,18 @@ Module {
     get 'b'
     const 0
     eq
-    branch 19
+    branch 18
     block
     const 3
     end
-    jump 24
-<19>:
+    jump 23
+<18>:
     block
     const 4
     get 'i'
     saturating_add
     end
-<24>:
+<23>:
     def 'x'
     struct.new 'Foo'
     get 'x'

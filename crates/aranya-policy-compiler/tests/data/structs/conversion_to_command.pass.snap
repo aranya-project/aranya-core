@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <policy 'Bar'>: 1,
-        <action 'convert'>: 8,
+        <action 'convert'>: 7,
     },
     action_defs: [
         ActionDef {
@@ -69,7 +69,6 @@ Module {
 ---
     exit panic
 <policy 'Bar'>:
-    def 'envelope'
     def 'this'
     meta: finish enabled
     block

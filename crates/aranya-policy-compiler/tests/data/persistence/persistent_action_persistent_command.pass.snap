@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <policy 'Cmd'>: 1,
-        <action 'test'>: 8,
+        <action 'test'>: 7,
     },
     action_defs: [
         ActionDef {
@@ -38,7 +38,6 @@ Module {
 ---
     exit panic
 <policy 'Cmd'>:
-    def 'envelope'
     def 'this'
     meta: finish enabled
     block

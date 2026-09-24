@@ -60,7 +60,6 @@ Module {
 ---
     exit panic
 <policy 'test'>:
-    def 'envelope'
     def 'this'
     meta: finish enabled
     block

@@ -30,7 +30,6 @@ Module {
 ---
     exit panic
 <policy 'Cmd'>:
-    def 'envelope'
     def 'this'
     meta: finish enabled
     block
