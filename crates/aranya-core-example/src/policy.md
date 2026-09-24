@@ -74,7 +74,7 @@ key fact and the Owner singleton. Because no DeviceSignPubKey exists
 yet, seal/open inline the crypto using keys from the command fields.
 
 ```policy
-base command BaseInit {
+base command(init) BaseInit {
     fields {
         owner_keys struct PublicKeys,
     }
@@ -84,10 +84,6 @@ base command BaseInit {
 }
 
 command Init with BaseInit {
-    attributes {
-        init: true
-    }
-
     fields {
         nonce int,
     }
@@ -235,7 +231,7 @@ command GetCounter with BaseEphemeral {
 ## Actions
 
 ```policy
-action init(owner_keys struct PublicKeys, nonce int) {
+action(init) init(owner_keys struct PublicKeys, nonce int) {
     publish Init { owner_keys, nonce }
 }
 

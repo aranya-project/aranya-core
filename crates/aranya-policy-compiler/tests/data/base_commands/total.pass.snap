@@ -18,7 +18,9 @@ Module {
     action_defs: [
         ActionDef {
             name: "my_init",
-            flavor: None,
+            flavor: Some(
+                "init",
+            ),
             params: [
                 Field {
                     name: "key",
@@ -43,7 +45,9 @@ Module {
     command_defs: [
         CommandDef {
             name: "MyInit",
-            flavor: None,
+            flavor: Some(
+                "init",
+            ),
             attributes: [],
             fields: [
                 Field {

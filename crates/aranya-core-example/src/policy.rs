@@ -17,6 +17,8 @@ use aranya_policy_ifgen::{
 #[derive(Debug)]
 pub enum Ephemeral {}
 #[derive(Debug)]
+pub enum Init {}
+#[derive(Debug)]
 pub enum Persistent {}
 /// PublicKeys policy struct.
 #[value]
@@ -66,15 +68,18 @@ pub struct Initialized {
 pub enum EphemeralAction {
     get_counter(get_counter),
 }
+#[actions(interface = Init)]
+pub enum InitAction {
+    init(init),
+}
 #[actions(interface = Persistent)]
 pub enum PersistentAction {
-    init(init),
     add_device(add_device),
     set_counter(set_counter),
     increment_counter(increment_counter),
 }
 /// init policy action.
-#[action(interface = Persistent)]
+#[action(interface = Init)]
 pub struct init {
     pub owner_keys: PublicKeys,
     pub nonce: i64,

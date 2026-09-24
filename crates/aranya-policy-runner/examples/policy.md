@@ -30,7 +30,7 @@ power than any other user, as there are no privilege levels in this policy, but 
 the first device in the team. See `init.run`.
 
 ```policy
-action init(owner_key bytes) {
+action(init) init(owner_key bytes) {
     publish Init { owner_key }
 }
 
@@ -38,12 +38,7 @@ effect TeamCreated {
     owner_dev id,
 }
 
-command Init {
-    attributes {
-        // The init command must have init priority
-        init: true
-    }
-
+command Init with BaseInit {
     fields {
         owner_key bytes,
     }
