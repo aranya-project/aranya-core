@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use core::sync::atomic::{AtomicU64, Ordering};
 
 use buggy::BugExt as _;
 use spin::mutex::Mutex;
@@ -54,6 +55,41 @@ impl io::IoManager for Manager {
 #[derive(Default)]
 struct Shared {
     items: Mutex<Vec<Box<[u8]>>>,
+    fetches: AtomicU64,
+    fetched_bytes: AtomicU64,
+}
+
+/// Cumulative counts of [`io::Read::fetch`] calls against one graph's
+/// storage. Take a snapshot before and after an operation and subtract to
+/// measure how much serialized data that operation had to decode.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct FetchStats {
+    /// Number of items fetched (and deserialized).
+    pub fetches: u64,
+    /// Total serialized bytes of the fetched items.
+    pub bytes: u64,
+}
+
+impl core::ops::Sub for FetchStats {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            fetches: self.fetches.wrapping_sub(rhs.fetches),
+            bytes: self.bytes.wrapping_sub(rhs.bytes),
+        }
+    }
+}
+
+impl super::LinearStorage<Writer> {
+    /// Returns cumulative fetch statistics for this storage.
+    pub fn fetch_stats(&self) -> FetchStats {
+        let shared = &self.writer.shared;
+        FetchStats {
+            fetches: shared.fetches.load(Ordering::Relaxed),
+            bytes: shared.fetched_bytes.load(Ordering::Relaxed),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -156,6 +192,10 @@ impl io::Read for Reader {
                 SegmentIndex::new(offset),
                 MaxCut::new(u64::MAX), // Not right but this is just for testing...
             )))?;
+        self.shared.fetches.fetch_add(1, Ordering::Relaxed);
+        self.shared
+            .fetched_bytes
+            .fetch_add(bytes.len() as u64, Ordering::Relaxed);
         postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
     }
 }

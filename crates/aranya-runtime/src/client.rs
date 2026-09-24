@@ -13,6 +13,8 @@ use crate::{
 pub(crate) mod braiding; // exposed for `buffers.rs` (StrandHeap)
 mod buffers;
 pub(crate) mod convergence_map; // exposed for `buffers.rs` (ConvergenceStorage)
+#[cfg(test)]
+mod scaling_tests;
 mod session;
 mod transaction;
 
