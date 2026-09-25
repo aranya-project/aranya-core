@@ -19,10 +19,8 @@ delivered through syncs and should be transmitted via some other mechanism.
 use idam
 use perspective
 use device
-use crypto
-use envelope
 
-base command BaseInit {
+base command(init) BaseInit {
     fields {
         sign_pk bytes,
     }
@@ -49,7 +47,7 @@ base command Base {
     }
 }
 
-base command Ephemeral {
+base command(ephemeral) Ephemeral {
     get_key {
         return match query DeviceSignKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -126,15 +124,11 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
     })
 }
 
-action init(nonce int, sign_pk bytes) {
+action(init) init(nonce int, sign_pk bytes) {
     publish Init { nonce, sign_pk }
 }
 
 command Init with BaseInit {
-    attributes {
-        init: true,
-    }
-
     fields {
         nonce int,
     }
@@ -159,7 +153,7 @@ command AddDeviceKeys with BaseSelfSigned {
     }
 
     policy {
-        let author = envelope::author_id(envelope)
+        let author = envelope.author_id
         let device_id = idam::derive_device_id(this.ident_pk)
         check author == device_id else test_fail("author must be device")
 
@@ -266,13 +260,13 @@ command Decrement with Base {
 }
 
 // The `create_greeting` action calls the command `CreateGreeting`.
-ephemeral action create_greeting(key string, value string) {
+action(ephemeral) create_greeting(key string, value string) {
     publish CreateGreeting { key, value }
 }
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting with Ephemeral {
+command CreateGreeting with Ephemeral {
     fields {
         key string,
         value string,
@@ -290,7 +284,7 @@ ephemeral command CreateGreeting with Ephemeral {
 
 // The `verify_hellos` action calls the command `VerifyGreeting` twice to verify
 // the messages.
-ephemeral action verify_hellos() {
+action(ephemeral) verify_hellos() {
     publish VerifyGreeting {
         key: "greeting1",
         value: "hello1",
@@ -305,7 +299,7 @@ ephemeral action verify_hellos() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting with Ephemeral {
+command VerifyGreeting with Ephemeral {
     fields {
         key string,
         value string,

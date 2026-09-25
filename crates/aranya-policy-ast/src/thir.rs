@@ -34,17 +34,15 @@ pub struct FunctionCall {
 }
 }
 
-spanned! {
-    /// Call to a command's recall block.
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    pub struct RecallCall {
-        /// the command being recalled
-        pub command_name: Ident,
-        /// the name of the recall block
-        pub recall_name: Ident,
-        /// recall arguments
-        pub arguments: Vec<Expression>,
-    }
+/// Call to a command's recall block.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecallCall {
+    /// the command being recalled
+    pub command_name: Ident,
+    /// the name of the recall block
+    pub recall_name: Ident,
+    /// recall arguments
+    pub arguments: Vec<Expression>,
 }
 
 spanned! {

@@ -15,11 +15,9 @@ Hence, they are also not delivered through syncs and should be transmitted via
 some other mechanism.
 
 ```policy
-use envelope
-
 fact Key[]=>{key bytes}
 
-base command BaseInit {
+base command(init) BaseInit {
     fields {
         key bytes
     }
@@ -37,7 +35,7 @@ base command Base {
     }
 }
 
-base command BaseEphemeral {
+base command(ephemeral) BaseEphemeral {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -76,16 +74,12 @@ effect Success {
 }
 
 // The `init` action takes a nonce variable and passes it to the Init command.
-action init(nonce int, key bytes) {
+action(init) init(nonce int, key bytes) {
     publish Init { key, nonce }
 }
 
 // `Init` is a command that initializes a graph.
 command Init with BaseInit {
-    attributes {
-        init: true,
-    }
-
     // Local variables for command
     fields {
         nonce int
@@ -130,14 +124,14 @@ command Create with Base {
     }
 }
 
-ephemeral action create_action_ephemeral(v int) {
+action(ephemeral) create_action_ephemeral(v int) {
     publish CreateEphemeral {
         key_a: 1,
         value: v,
     }
 }
 
-ephemeral command CreateEphemeral with BaseEphemeral {
+command CreateEphemeral with BaseEphemeral {
     fields {
         key_a int,
         value int,
@@ -184,14 +178,14 @@ command Increment with Base {
     }
 }
 
-ephemeral action increment_ephemeral(v int) {
+action(ephemeral) increment_ephemeral(v int) {
     publish IncrementEphemeral {
         key_a: 1,
         value: v,
     }
 }
 
-ephemeral command IncrementEphemeral with BaseEphemeral {
+command IncrementEphemeral with BaseEphemeral {
     fields {
         key_a int,
         value int,
@@ -220,7 +214,7 @@ action decrement(v int) {
 
 // `Decrement` is an on-graph command that will decrease our test count by the
 // value passed in.
-command Decrement with BaseEphemeral {
+command Decrement with Base {
     attributes {
         priority: 0,
     }
@@ -242,7 +236,7 @@ command Decrement with BaseEphemeral {
 }
 
 // `get_stuff` calls the `GetStuff` command with the hardcoded test key.
-ephemeral action get_stuff() {
+action(ephemeral) get_stuff() {
     publish GetStuff {
         key_a: 1,
     }
@@ -250,7 +244,7 @@ ephemeral action get_stuff() {
 
 // `GetStuff` is a command that queries the contents of the `Stuff` fact and
 // returns it in a `StuffHappened` effect.
-ephemeral command GetStuff with BaseEphemeral {
+command GetStuff with BaseEphemeral {
     fields {
         key_a int,
     }
@@ -288,7 +282,7 @@ command GetStuffOnGraph with Base {
 
 // The `create_greeting` action calls the command `CreateGreeting`. Passing in
 // the hardcoded greeting key and the message value.
-ephemeral action create_greeting(v string) {
+action(ephemeral) create_greeting(v string) {
     publish CreateGreeting {
         key: "greeting",
         value: v,
@@ -297,7 +291,7 @@ ephemeral action create_greeting(v string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting with BaseEphemeral {
+command CreateGreeting with BaseEphemeral {
     fields {
         key string,
         value string,
@@ -315,7 +309,7 @@ ephemeral command CreateGreeting with BaseEphemeral {
 
 // The `verify_hello` action calls the command `VerifyGreeting` that will verify
 // the Message fact contains "hello".
-ephemeral action verify_hello() {
+action(ephemeral) verify_hello() {
     publish VerifyGreeting {
         key: "greeting",
         value: "hello",
@@ -326,7 +320,7 @@ ephemeral action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting with BaseEphemeral {
+command VerifyGreeting with BaseEphemeral {
     fields {
         key string,
         value string,

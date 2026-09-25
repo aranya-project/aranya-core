@@ -10,6 +10,7 @@ pub mod automap;
 mod codemap;
 mod data;
 pub mod ffi;
+pub mod flavor;
 mod instructions;
 pub mod interface;
 mod label;

@@ -212,7 +212,6 @@ dependencies = [
  "anyhow",
  "aranya-core",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
@@ -253,16 +252,6 @@ version = "0.24.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
-]
-
-[[package]]
-name = "aranya-envelope-ffi"
-version = "0.24.0"
-dependencies = [
- "aranya-crypto",
- "aranya-policy-vm",
- "thiserror 2.0.7",
- "tracing",
 ]
 
 [[package]]
@@ -333,7 +322,6 @@ dependencies = [
  "anyhow",
  "aranya-crypto",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
@@ -481,7 +469,6 @@ dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
@@ -726,7 +713,6 @@ dependencies = [
  "aranya-core",
  "aranya-crypto",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-ast",

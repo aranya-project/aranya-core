@@ -115,53 +115,6 @@ impl fmt::Display for Version {
     }
 }
 
-/// Persistence mode for commands and actions
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub enum Persistence {
-    /// Persisted on-graph (default behavior)
-    Persistent,
-    /// Not persisted on-graph (ephemeral)
-    Ephemeral(Span),
-}
-
-impl Persistence {
-    /// Reports whether both persistence modes are the same,
-    /// ignoring spans.
-    pub fn matches(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::Persistent, Self::Persistent) | (Self::Ephemeral(_), Self::Ephemeral(_))
-        )
-    }
-
-    /// Returns the span of the persistence mode, if available.
-    pub fn span(&self) -> Option<Span> {
-        match self {
-            Self::Persistent => None,
-            Self::Ephemeral(span) => Some(*span),
-        }
-    }
-}
-
-impl fmt::Display for Persistence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Persistent => write!(f, "persistent"),
-            Self::Ephemeral(_) => write!(f, "ephemeral"),
-        }
-    }
-}
-
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
@@ -1235,8 +1188,8 @@ impl Spanned for FactDefinition {
 /// An action definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionDefinition {
-    /// The persistence mode of the action
-    pub persistence: Persistence,
+    /// The flavor of the action
+    pub flavor: Option<Ident>,
     /// The name of the action
     pub identifier: Ident,
     /// The arguments to the action
@@ -1340,8 +1293,6 @@ impl Spanned for RecallBlockDefinition {
 /// A command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
-    /// The persistence mode of the command
-    pub persistence: Persistence,
     /// The name of the base command for this command
     pub base: Option<Ident>,
     /// Optional attributes
@@ -1367,6 +1318,8 @@ impl Spanned for CommandDefinition {
 /// A base command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseCommandDefinition {
+    /// The flavor of the command
+    pub flavor: Option<Ident>,
     /// The name of the base command
     pub identifier: Ident,
     /// The fields of the base command and their types

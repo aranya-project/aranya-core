@@ -4,18 +4,16 @@ expression: module
 ---
 Module {
     version: "1",
-    labels: {
-        <fn 'f'>: 1,
-    },
+    labels: {},
     action_defs: [],
     command_defs: [],
     fact_defs: [],
     struct_defs: [
         StructDef {
-            name: "Foo",
+            name: "Known",
             items: [
                 Field {
-                    name: "x",
+                    name: "field",
                     ty: Int,
                 },
             ],
@@ -26,38 +24,22 @@ Module {
         },
     ],
     enum_defs: [],
-    globals: {},
+    globals: {
+        "known": Struct(
+            ConstStruct {
+                name: "Known",
+                fields: {
+                    "field": Int(
+                        42,
+                    ),
+                },
+            },
+        ),
+        "x": Int(
+            42,
+        ),
+    },
     ..
 }
 ---
-    exit panic
-<fn 'f'>:
-    def 'o'
-    save SP
-    get 'o'
-    dup
-    is some
-    branch 11
-    dup
-    const None
-    eq
-    branch 17
-<11>:
-    block
-    unwrap some
-    def 'f'
-    get 'f'
-    end
-    jump 24
-<17>:
-    block
-    pop
-    struct.new 'Foo'
-    const 0
-    struct.set 'x'
-    end
-    jump 24
-<24>:
-    restore SP
-    return
     exit panic

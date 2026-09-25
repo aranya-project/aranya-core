@@ -10,9 +10,7 @@ command signing/verification, and application-level facts.
 ## Imports
 
 ```policy
-use crypto
 use device
-use envelope
 use idam
 use perspective
 ```
@@ -74,7 +72,7 @@ key fact and the Owner singleton. Because no DeviceSignPubKey exists
 yet, seal/open inline the crypto using keys from the command fields.
 
 ```policy
-base command BaseInit {
+base command(init) BaseInit {
     fields {
         owner_keys struct PublicKeys,
     }
@@ -84,16 +82,12 @@ base command BaseInit {
 }
 
 command Init with BaseInit {
-    attributes {
-        init: true
-    }
-
     fields {
         nonce int,
     }
 
     policy {
-        let author_id = envelope::author_id(envelope)
+        let author_id = envelope.author_id
         check author_id == idam::derive_device_id(this.owner_keys.ident_key) else test_fail("not authorized")
 
         let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
@@ -121,6 +115,15 @@ base command Base {
         }
     }
 }
+
+base command(ephemeral) BaseEphemeral {
+    get_key {
+        return match query DeviceSignPubKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
 ```
 
 ## AddDevice Command
@@ -139,7 +142,7 @@ command AddDevice with Base {
     }
 
     policy {
-        let author_id = envelope::author_id(envelope)
+        let author_id = envelope.author_id
         let owner = query Owner[] or recall reject()
         check author_id == owner.device_id else test_fail("not authorized")
 
@@ -209,7 +212,7 @@ command IncrementCounter with Base {
 ## Ephemeral Query
 
 ```policy
-ephemeral command GetCounter with Base {
+command GetCounter with BaseEphemeral {
     fields {
         name int,
     }
@@ -226,7 +229,7 @@ ephemeral command GetCounter with Base {
 ## Actions
 
 ```policy
-action init(owner_keys struct PublicKeys, nonce int) {
+action(init) init(owner_keys struct PublicKeys, nonce int) {
     publish Init { owner_keys, nonce }
 }
 
@@ -242,7 +245,7 @@ action increment_counter(name int, amount int) {
     publish IncrementCounter { name, amount }
 }
 
-ephemeral action get_counter(name int) {
+action(ephemeral) get_counter(name int) {
     publish GetCounter { name }
 }
 ```

@@ -11,7 +11,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "Bar",
-            persistence: Persistent,
+            flavor: None,
             attributes: [
                 Attribute {
                     name: "foo_attr",
@@ -51,6 +51,10 @@ Module {
                     ty: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
         },
     ],
     enum_defs: [],
