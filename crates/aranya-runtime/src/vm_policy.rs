@@ -113,8 +113,9 @@
 extern crate alloc;
 
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec::Vec};
-use core::fmt;
+use core::{borrow::Borrow as _, fmt};
 
+use aranya_crypto::CipherSuite;
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
@@ -342,7 +343,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         &self,
         name: Identifier,
         fields: &[KVPair],
-        envelope: Envelope<'_>,
+        envelope: Envelope,
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: CommandContext,
@@ -379,25 +380,57 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         command_struct: &Struct,
         parent_id: CmdId,
         seal_ctx: &SealCtx<CE>,
-    ) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
+    ) -> Result<Sealed<CE::CS>, PolicyError> {
         let payload = self.machine.serialize_struct(command_struct).map_err(|e| {
             error!(error = %e, "cannot serialize command");
             PolicyError::Write
         })?;
 
-        let envelope = seal_open::seal_with_key(
-            &seal_ctx.key,
-            command_struct,
-            &payload,
-            seal_ctx.author,
-            parent_id,
-        )
-        .map_err(|e| {
-            error!(error = %e, "could not seal command");
-            PolicyError::Panic
-        })?;
+        let flavor = self
+            .machine
+            .command_defs
+            .get(&command_struct.name)
+            .expect("TODO: handle missing command")
+            .flavor
+            .as_ref();
 
-        Ok((payload, envelope))
+        let author_id = seal_ctx.author;
+
+        let (signature, command_id) = seal_ctx
+            .key
+            .sign_cmd(aranya_crypto::Cmd {
+                data: &payload,
+                name: command_struct.name.as_str(),
+                parent_id: &parent_id,
+            })
+            .map_err(|e| {
+                error!(error = %e, "could not seal command");
+                PolicyError::Panic
+            })?;
+
+        let envelope = match flavor.map(AsRef::as_ref) {
+            None => Envelope::Basic(BasicEnvelope {
+                command_id,
+                parent_id,
+                author_id,
+            }),
+            Some("init") => Envelope::Init(InitEnvelope {
+                command_id,
+                author_id,
+            }),
+            Some("ephemeral") => Envelope::Ephemeral(EphemeralEnvelope {
+                command_id,
+                graph_id: parent_id,
+                author_id,
+            }),
+            _ => todo!("error unknown flavor"),
+        };
+
+        Ok(Sealed {
+            payload,
+            envelope,
+            signature,
+        })
     }
 
     #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
@@ -405,7 +438,8 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         &self,
         command_struct: &Struct,
         payload: &[u8],
-        envelope: &Envelope<'_>,
+        signature: &[u8],
+        envelope: &Envelope,
         facts: &mut impl FactPerspective,
     ) -> Result<(), PolicyError> {
         let mut sink = NullSink;
@@ -413,7 +447,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
 
         let (_, value) = self
             .machine
-            .call_get_key(command_struct.clone(), envelope.author_id, &mut io)
+            .call_get_key(command_struct.clone(), envelope.author_id(), &mut io)
             .map_err(|_| PolicyError::Panic)?;
 
         let key_bytes = value.ok_or(PolicyError::Panic)?;
@@ -423,8 +457,15 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 PolicyError::Panic
             })?;
 
-        seal_open::open_with_key(key, command_struct, payload, envelope)
-            .map_err(|_| PolicyError::Panic)
+        seal_open::open_with_key(
+            key,
+            command_struct,
+            payload,
+            signature,
+            envelope.parent_id(),
+            envelope.command_id(),
+        )
+        .map_err(|_| PolicyError::Panic)
     }
 }
 
@@ -549,11 +590,23 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::InternalError
         })?;
 
-        let envelope = Envelope {
-            parent_id,
-            author_id,
-            command_id: command.id(),
-            signature: Cow::Borrowed(signature),
+        let command_id = command.id();
+        let envelope = match def.flavor.as_ref().map(AsRef::as_ref) {
+            None => Envelope::Basic(BasicEnvelope {
+                command_id,
+                parent_id,
+                author_id,
+            }),
+            Some("init") => Envelope::Init(InitEnvelope {
+                command_id,
+                author_id,
+            }),
+            Some("ephemeral") => Envelope::Ephemeral(EphemeralEnvelope {
+                command_id,
+                graph_id: parent_id,
+                author_id,
+            }),
+            _ => todo!("error unknown flavor"),
         };
 
         let def_is_ephemeral = def.flavor.as_ref().is_some_and(|x| x == "ephemeral");
@@ -589,7 +642,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
         match placement {
             CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
-                self.open_command(&command_struct, payload, &envelope, facts)?;
+                self.open_command(&command_struct, payload, signature, &envelope, facts)?;
             }
             CommandPlacement::OnGraphInBraid => {
                 // Bypass real open and just deserialize.
@@ -735,21 +788,21 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
                         }
 
-                        let (payload, envelope) =
-                            self.seal_command(&command_struct, parent_id, seal_ctx)?;
+                        let sealed = self.seal_command(&command_struct, parent_id, seal_ctx)?;
 
+                        let signature = sealed.signature.to_bytes();
                         let data = VmProtocolData {
-                            author_id: envelope.author_id,
+                            author_id: sealed.envelope.author_id(),
                             kind: command_name.clone(),
-                            serialized_fields: &payload,
-                            signature: &envelope.signature,
+                            serialized_fields: &sealed.payload,
+                            signature: signature.borrow(),
                         };
 
                         let wrapped = postcard::to_allocvec(&data)
                             .assume("can serialize vm protocol data")?;
 
                         let new_command = VmProtocol {
-                            id: envelope.command_id,
+                            id: sealed.envelope.command_id(),
                             parent,
                             policy,
                             data: &wrapped,
@@ -807,6 +860,12 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             data: &[],
         })
     }
+}
+
+struct Sealed<CS: CipherSuite> {
+    payload: Vec<u8>,
+    envelope: Envelope,
+    signature: aranya_crypto::Signature<CS>,
 }
 
 impl fmt::Display for VmAction<'_> {
