@@ -347,13 +347,7 @@ impl<W: Write> LinearStorage<W> {
 
         let max_cut = segment
             .max_cut
-            .checked_add(
-                segment
-                    .commands
-                    .len()
-                    .checked_sub(1)
-                    .assume("vec1 length >= 1")? as u64,
-            )
+            .checked_add(u64::try_from(segment.commands.last_index()).assume("usize fits in u64")?)
             .assume("valid max cut")?;
         let head = LocatedAddress {
             id: segment.commands.last().id,
@@ -849,7 +843,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         let cmd_idx = self.repr.cmd_index(location.max_cut).ok()?;
         let data = self.repr.commands.get(cmd_idx)?;
         let parent = if let Some(prev) = usize::checked_sub(cmd_idx, 1) {
-            let max_cut = self.repr.max_cut.checked_add(prev as u64)?;
+            let max_cut = self.repr.max_cut.checked_add(u64::try_from(prev).ok()?)?;
             Prior::Single(Address {
                 id: self.repr.commands[prev].id,
                 max_cut,
@@ -885,7 +879,9 @@ impl<R: Read> Segment for LinearSegment<R> {
         Ok(self
             .repr
             .max_cut
-            .checked_add(self.repr.commands.last_index() as u64)
+            .checked_add(
+                u64::try_from(self.repr.commands.last_index()).assume("usize fits in u64")?,
+            )
             .assume("must not overflow")?)
     }
 }
@@ -1250,10 +1246,13 @@ impl<R: Read> Perspective for LinearPerspective<R> {
                 max_cut: self
                     .max_cut
                     .checked_add(
-                        self.commands
-                            .len()
-                            .checked_sub(1)
-                            .assume("must not overflow")? as u64,
+                        u64::try_from(
+                            self.commands
+                                .len()
+                                .checked_sub(1)
+                                .assume("must not overflow")?,
+                        )
+                        .assume("usize fits in u64")?,
                     )
                     .assume("must not overflow")?,
             })
