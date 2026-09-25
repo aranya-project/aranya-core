@@ -31,6 +31,7 @@ use indexmap::IndexMap;
 use tracing::warn;
 
 pub use self::{error::CompileError, target::PolicyInterface};
+use crate::obligation::{self, ObligationWarning};
 use self::{
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
@@ -222,6 +223,10 @@ struct CompileState<'a> {
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
+    /// Run the obligation analysis on command policy/recall blocks
+    analyze_obligations: bool,
+    /// Warnings produced by the obligation analysis
+    obligation_warnings: Vec<ObligationWarning>,
 }
 
 impl<'a> CompileState<'a> {
@@ -887,6 +892,15 @@ impl<'a> CompileState<'a> {
         scope: Scope,
     ) -> Result<(), CompileError> {
         let stmts = self.lower_statements(statements, scope)?;
+        if self.analyze_obligations
+            && matches!(
+                self.get_statement_context()?,
+                StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_)
+            )
+        {
+            self.obligation_warnings
+                .extend(obligation::analyze_block(&stmts));
+        }
         self.compile_typed_statements(stmts, scope)
     }
 
@@ -2267,6 +2281,7 @@ pub struct Compiler<'a> {
     ffi_modules: &'a [ModuleSchema<'a>],
     is_debug: bool,
     stub_ffi: bool,
+    analyze_obligations: bool,
 }
 
 impl<'a> Compiler<'a> {
@@ -2277,6 +2292,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
+            analyze_obligations: false,
         }
     }
 
@@ -2300,11 +2316,32 @@ impl<'a> Compiler<'a> {
         self
     }
 
+    /// Enables or disables the obligation analysis (see
+    /// `docs/policy-obligation-analysis.md`). Warnings are reported by
+    /// [`Compiler::compile_with_diagnostics`].
+    #[must_use]
+    pub fn analyze_obligations(mut self, flag: bool) -> Self {
+        self.analyze_obligations = flag;
+        self
+    }
+
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
         Ok(cs.m.into_module())
+    }
+
+    /// Like [`Compiler::compile`], but also returns the warnings produced
+    /// by the obligation analysis (empty unless
+    /// [`Compiler::analyze_obligations`] is enabled).
+    pub fn compile_with_diagnostics(
+        self,
+    ) -> Result<(Module, Vec<ObligationWarning>), CompileError> {
+        let mut cs = self.set_up_compile_state();
+        cs.compile()?;
+        let warnings = core::mem::take(&mut cs.obligation_warnings);
+        Ok((cs.m.into_module(), warnings))
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
@@ -2330,6 +2367,8 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
+            analyze_obligations: self.analyze_obligations,
+            obligation_warnings: Vec::new(),
         }
     }
 }

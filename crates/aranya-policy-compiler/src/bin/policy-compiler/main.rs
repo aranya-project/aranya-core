@@ -23,6 +23,10 @@ struct Args {
     /// Do not compile FFI calls
     #[arg(long)]
     stub_ffi: bool,
+    /// Run the obligation analysis and print warnings (e.g. a `create`
+    /// without a prior proof that the fact does not exist)
+    #[arg(long)]
+    check_obligations: bool,
 }
 
 pub fn main() -> ExitCode {
@@ -46,14 +50,19 @@ pub fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let compiler = Compiler::new(&ast).stub_ffi(args.stub_ffi);
-    let module = match compiler.compile() {
+    let compiler = Compiler::new(&ast)
+        .stub_ffi(args.stub_ffi)
+        .analyze_obligations(args.check_obligations);
+    let (module, warnings) = match compiler.compile_with_diagnostics() {
         Ok(m) => m,
         Err(e) => {
             println!("{e}");
             return ExitCode::FAILURE;
         }
     };
+    for warning in &warnings {
+        eprintln!("{}", warning.render(&ast.text));
+    }
 
     if !args.no_validate && !validate(&module) {
         return ExitCode::FAILURE;
