@@ -1,5 +1,11 @@
 use alloc::{
-    borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
+    borrow::ToOwned as _,
+    boxed::Box,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
 };
 use core::fmt::{self, Display};
 
@@ -37,12 +43,12 @@ impl ValueConversionError {
     /// Constructs an `InvalidType` error
     pub fn invalid_type(
         want: impl Into<String>,
-        got: impl Into<String>,
+        got: impl ToString,
         msg: impl Into<String>,
     ) -> Self {
         Self::InvalidType {
             want: want.into(),
-            got: got.into(),
+            got: got.to_string(),
             msg: msg.into(),
         }
     }
@@ -90,11 +96,11 @@ pub trait TryFromValue: Sized {
 impl<T: TryFromValue> TryFromValue for Option<T> {
     fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
         let Value::Option(opt) = value else {
-            return Err(ValueConversionError::InvalidType {
-                want: "option[_]".into(),
-                got: value.type_name(),
-                msg: format!("Value -> {}", core::any::type_name::<Self>()),
-            });
+            return Err(ValueConversionError::invalid_type(
+                "option[_]",
+                value.type_name(),
+                format!("Value -> {}", core::any::type_name::<Self>()),
+            ));
         };
         opt.map(|v| T::try_from_value(*v)).transpose()
     }
@@ -103,11 +109,11 @@ impl<T: TryFromValue> TryFromValue for Option<T> {
 impl<T: TryFromValue, E: TryFromValue> TryFromValue for Result<T, E> {
     fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
         let Value::Result(res) = value else {
-            return Err(ValueConversionError::InvalidType {
-                want: "result[]".into(),
-                got: value.type_name(),
-                msg: format!("Value -> {}", core::any::type_name::<Self>()),
-            });
+            return Err(ValueConversionError::invalid_type(
+                "result[_, _]",
+                value.type_name(),
+                format!("Value -> {}", core::any::type_name::<Self>()),
+            ));
         };
         match res {
             Ok(v) => T::try_from_value(*v).map(Ok),
@@ -133,8 +139,8 @@ pub trait TryAsMut<T: ?Sized> {
 }
 
 impl Value {
-    /// Returns a string representing the value's type.
-    pub fn type_name(&self) -> String {
+    /// Returns a printable representation of the value's type.
+    pub fn type_name(&self) -> impl Display {
         match self {
             Self::Unit => String::from("unit"),
             Self::Int(_) => String::from("int"),

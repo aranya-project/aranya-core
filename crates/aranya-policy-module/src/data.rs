@@ -196,8 +196,8 @@ impl ConstValue {
         }
     }
 
-    /// Returns a string representing the value's type.
-    pub fn type_name(&self) -> String {
+    /// Returns a printable representation of the value's type.
+    pub fn type_name(&self) -> impl Display {
         match self {
             Self::Unit => String::from("unit"),
             Self::Int(_) => String::from("int"),

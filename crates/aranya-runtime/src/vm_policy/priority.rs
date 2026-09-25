@@ -73,7 +73,7 @@ fn load_priority(def: &CommandDef) -> Result<u32, AttributeError> {
             cmd_name,
             attr_name,
             "int",
-            &attr.value.type_name(),
+            attr.value.type_name(),
         ));
     };
     u32::try_from(int).map_err(|_| {
