@@ -16,8 +16,8 @@ Policy {
     finish_functions: [],
     global_lets: [
         GlobalLetStatement {
-            identifier: "x" @ 4..5,
-            expression: String(
+            name: "x" @ 4..5,
+            value: String(
                 "foo\n    bar",
             ) @ 8..21,
             span: 0..22,

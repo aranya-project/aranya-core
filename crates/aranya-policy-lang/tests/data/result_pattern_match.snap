@@ -14,11 +14,11 @@ Policy {
     base_commands: [],
     functions: [
         FunctionDefinition {
-            identifier: "foo" @ 9..12,
-            arguments: [
+            name: "foo" @ 9..12,
+            parameters: [
                 Param {
                     name: "r" @ 13..14,
-                    ty: Result(
+                    vtype: Result(
                         ResultTypeKind {
                             ok: Int @ 22..25,
                             err: String @ 27..33,
@@ -27,11 +27,11 @@ Policy {
                 },
             ],
             return_type: Int @ 36..39,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "x" @ 50..51,
-                        expression: Match(
+                        name: "x" @ 50..51,
+                        value: Match(
                             MatchExpression {
                                 scrutinee: Identifier(
                                     "r" @ 60..61,
@@ -47,7 +47,7 @@ Policy {
                                                 ) @ 72..79,
                                             ],
                                         ),
-                                        expression: Identifier(
+                                        body: Identifier(
                                             "val" @ 83..86,
                                         ) @ 83..86,
                                         span: 72..95,
@@ -62,7 +62,7 @@ Policy {
                                                 ) @ 95..103,
                                             ],
                                         ),
-                                        expression: Int(
+                                        body: Int(
                                             -1 @ 107..109,
                                         ) @ 107..109,
                                         span: 95..114,
@@ -74,7 +74,7 @@ Policy {
                 ) @ 46..120,
                 Return(
                     ReturnStatement {
-                        expression: Identifier(
+                        value: Identifier(
                             "x" @ 127..128,
                         ) @ 127..128,
                     },

@@ -9,15 +9,15 @@ Policy {
     actions: [],
     effects: [
         EffectDefinition {
-            identifier: "Bar" @ 29..32,
+            name: "Bar" @ 29..32,
             items: [
                 StructRef(
                     "Foo" @ 40..43,
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "y" @ 49..50,
-                        field_type: Int @ 51..54,
+                        name: "y" @ 49..50,
+                        vtype: Int @ 51..54,
                         dynamic: false,
                     },
                 ),
@@ -27,12 +27,12 @@ Policy {
     ],
     structs: [
         StructDefinition {
-            identifier: "Foo" @ 7..10,
+            name: "Foo" @ 7..10,
             items: [
                 Field(
                     FieldDefinition {
-                        identifier: "x" @ 13..14,
-                        field_type: Int @ 15..18,
+                        name: "x" @ 13..14,
+                        vtype: Int @ 15..18,
                     },
                 ),
             ],

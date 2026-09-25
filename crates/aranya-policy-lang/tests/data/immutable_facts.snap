@@ -8,16 +8,16 @@ Policy {
     facts: [
         FactDefinition {
             immutable: false,
-            identifier: "A" @ 5..6,
-            key: [],
-            value: [],
+            name: "A" @ 5..6,
+            keys: [],
+            values: [],
             span: 0..12,
         },
         FactDefinition {
             immutable: true,
-            identifier: "B" @ 28..29,
-            key: [],
-            value: [],
+            name: "B" @ 28..29,
+            keys: [],
+            values: [],
             span: 13..35,
         },
     ],

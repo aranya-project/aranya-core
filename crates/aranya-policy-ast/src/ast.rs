@@ -346,7 +346,7 @@ pub struct Param {
     /// The name of the parameter.
     pub name: Ident,
     /// The type of the parameter.
-    pub ty: VType,
+    pub vtype: VType,
 }
 }
 
@@ -368,9 +368,9 @@ spanned! {
 )]
 pub struct FieldDefinition {
     /// the field's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// the field's type
-    pub field_type: VType,
+    pub vtype: VType,
 }
 }
 
@@ -378,7 +378,7 @@ impl FieldDefinition {
     /// Reports whether the field definitions are the same,
     /// ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
-        self.identifier.matches(&other.identifier) && self.field_type.matches(&other.field_type)
+        self.name.matches(&other.name) && self.vtype.matches(&other.vtype)
     }
 }
 
@@ -388,16 +388,16 @@ impl FieldDefinition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectFieldDefinition {
     /// the field's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// the field's type
-    pub field_type: VType,
+    pub vtype: VType,
     /// Whether the field is marked "dynamic" or not
     pub dynamic: bool,
 }
 
 impl Spanned for EffectFieldDefinition {
     fn span(&self) -> Span {
-        self.identifier.span.merge(self.field_type.span())
+        self.name.span.merge(self.vtype.span())
     }
 }
 
@@ -426,7 +426,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
 pub struct FactLiteral {
     /// the fact's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the fields of the fact key
     pub key_fields: Vec<(Ident, FactField)>,
     /// values for the fields of the fact value, which can be absent
@@ -441,7 +441,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionCall {
     /// the function's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
@@ -451,7 +451,7 @@ pub struct FunctionCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
@@ -470,7 +470,7 @@ impl Spanned for NamedStruct {
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
-    pub identifier: Ident,
+    pub name: Ident,
     /// list of possible values
     pub variants: Vec<Ident>,
     /// The source location of this definition
@@ -488,9 +488,9 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumReference {
     /// enum name
-    pub identifier: Ident,
+    pub enumeration: Ident,
     /// name of value inside enum
-    pub value: Ident,
+    pub variant: Ident,
 }
 }
 
@@ -567,7 +567,7 @@ pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Ident,
     /// the function's name
-    pub identifier: Ident,
+    pub function: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
@@ -670,7 +670,7 @@ impl ExprKind {
 
             // Named struct
             (Self::NamedStruct(a), Self::NamedStruct(b)) => {
-                a.identifier.matches(&b.identifier)
+                a.name.matches(&b.name)
                     && a.fields.len() == b.fields.len()
                     && a.fields
                         .iter()
@@ -685,12 +685,12 @@ impl ExprKind {
 
             // Enum reference
             (Self::EnumReference(a), Self::EnumReference(b)) => {
-                a.identifier.matches(&b.identifier) && a.value.matches(&b.value)
+                a.enumeration.matches(&b.enumeration) && a.variant.matches(&b.variant)
             }
 
             // Function call
             (Self::FunctionCall(a), Self::FunctionCall(b)) | (Self::Recall(a), Self::Recall(b)) => {
-                a.identifier.matches(&b.identifier)
+                a.name.matches(&b.name)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
                         .iter()
@@ -701,7 +701,7 @@ impl ExprKind {
             // Foreign function call
             (Self::ForeignFunctionCall(a), Self::ForeignFunctionCall(b)) => {
                 a.module.matches(&b.module)
-                    && a.identifier.matches(&b.identifier)
+                    && a.function.matches(&b.function)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
                         .iter()
@@ -714,7 +714,7 @@ impl ExprKind {
                 match (a, b) {
                     (InternalFunction::Query(f1), InternalFunction::Query(f2))
                     | (InternalFunction::Exists(f1), InternalFunction::Exists(f2)) => {
-                        f1.identifier.matches(&f2.identifier)
+                        f1.name.matches(&f2.name)
                             && f1.key_fields.len() == f2.key_fields.len()
                             && f1.key_fields.iter().zip(&f2.key_fields).all(
                                 |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
@@ -736,7 +736,7 @@ impl ExprKind {
                     ) => {
                         t1 == t2
                             && n1 == n2
-                            && f1.identifier.matches(&f2.identifier)
+                            && f1.name.matches(&f2.name)
                             && f1.key_fields.len() == f2.key_fields.len()
                             && f1.key_fields.iter().zip(&f2.key_fields).all(
                                 |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
@@ -825,21 +825,18 @@ fn matches_fact_field(a: &FactField, b: &FactField) -> bool {
 fn matches_statement(a: &Statement, b: &Statement) -> bool {
     use StmtKind::*;
     match (&a.inner, &b.inner) {
-        (Let(l1), Let(l2)) => {
-            l1.identifier.matches(&l2.identifier)
-                && l1.expression.inner.matches(&l2.expression.inner)
-        }
-        (Check(c1), Check(c2)) => c1.expression.inner.matches(&c2.expression.inner),
+        (Let(l1), Let(l2)) => l1.name.matches(&l2.name) && l1.value.inner.matches(&l2.value.inner),
+        (Check(c1), Check(c2)) => c1.condition.inner.matches(&c2.condition.inner),
         (Match(m1), Match(m2)) => {
-            m1.expression.inner.matches(&m2.expression.inner)
+            m1.scrutinee.inner.matches(&m2.scrutinee.inner)
                 && m1.arms.len() == m2.arms.len()
                 && m1.arms.iter().zip(&m2.arms).all(|(a1, a2)| {
                     matches_match_pattern(&a1.pattern, &a2.pattern)
-                        && a1.statements.len() == a2.statements.len()
+                        && a1.body.len() == a2.body.len()
                         && a1
-                            .statements
+                            .body
                             .iter()
-                            .zip(&a2.statements)
+                            .zip(&a2.body)
                             .all(|(s1, s2)| matches_statement(s1, s2))
                 })
         }
@@ -872,16 +869,16 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
         (Map(m1), Map(m2)) => {
             matches_fact_literal(&m1.fact, &m2.fact)
                 && m1.identifier.matches(&m2.identifier)
-                && m1.statements.len() == m2.statements.len()
+                && m1.body.len() == m2.body.len()
                 && m1
-                    .statements
+                    .body
                     .iter()
-                    .zip(&m2.statements)
+                    .zip(&m2.body)
                     .all(|(s1, s2)| matches_statement(s1, s2))
         }
-        (Return(r1), Return(r2)) => r1.expression.inner.matches(&r2.expression.inner),
+        (Return(r1), Return(r2)) => r1.value.inner.matches(&r2.value.inner),
         (ActionCall(c1), ActionCall(c2)) | (FunctionCall(c1), FunctionCall(c2)) => {
-            c1.identifier.matches(&c2.identifier)
+            c1.name.matches(&c2.name)
                 && c1.arguments.len() == c2.arguments.len()
                 && c1
                     .arguments
@@ -909,7 +906,7 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
 
 /// Helper function to compare FactLiteral instances, ignoring spans.
 fn matches_fact_literal(a: &FactLiteral, b: &FactLiteral) -> bool {
-    a.identifier.matches(&b.identifier)
+    a.name.matches(&b.name)
         && a.key_fields.len() == b.key_fields.len()
         && a.key_fields
             .iter()
@@ -948,8 +945,7 @@ fn matches_match_expression(a: &MatchExpression, b: &MatchExpression) -> bool {
     a.scrutinee.inner.matches(&b.scrutinee.inner)
         && a.arms.len() == b.arms.len()
         && a.arms.iter().zip(&b.arms).all(|(a1, a2)| {
-            matches_match_pattern(&a1.pattern, &a2.pattern)
-                && a1.expression.inner.matches(&a2.expression.inner)
+            matches_match_pattern(&a1.pattern, &a2.pattern) && a1.body.inner.matches(&a2.body.inner)
         })
 }
 
@@ -959,9 +955,9 @@ spanned! {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FunctionDecl {
     /// The identifier of the function
-    pub identifier: Ident,
-    /// A list of the arguments to the function, and their types
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// A list of the parameters to the function, and their types
+    pub parameters: Vec<Param>,
     /// The return type of the function, if any
     pub return_type: Option<VType>,
 }
@@ -972,9 +968,9 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LetStatement {
     /// The variable's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// The variable's value
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 
@@ -983,7 +979,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckStatement {
     /// The boolean expression being checked
-    pub expression: Expression,
+    pub condition: Expression,
     /// Expression to evaluate if the check fails. Must be a terminal expression
     /// (type `Never`), e.g. `return Err(..)` or `recall foo()`.
     pub else_expression: Expression,
@@ -1018,7 +1014,7 @@ pub struct MatchArm {
     // exhaustive range checks.
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -1029,7 +1025,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchStatement {
     /// The value to match against
-    pub expression: Expression,
+    pub scrutinee: Expression,
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
 }
@@ -1074,7 +1070,7 @@ pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
     /// Expression
-    pub expression: Expression,
+    pub body: Expression,
     /// The source location of this match arm
     pub span: Span,
 }
@@ -1105,7 +1101,7 @@ pub struct MapStatement {
     /// Identifier of container struct
     pub identifier: Ident,
     /// Statements to execute for each fact
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -1145,7 +1141,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReturnStatement {
     /// The value to return
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 
@@ -1210,19 +1206,19 @@ pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
     /// The name of the fact
-    pub identifier: Ident,
+    pub name: Ident,
     /// Types for all of the key fields
-    pub key: Vec<FieldDefinition>,
+    pub keys: Vec<FieldDefinition>,
     /// Types for all of the value fields
-    pub value: Vec<FieldDefinition>,
+    pub values: Vec<FieldDefinition>,
     /// The source location of this definition
     pub span: Span,
 }
 
 impl FactDefinition {
-    /// Returns an iterator of the [`Self::key`] and [`Self::value`] fields combined.
+    /// Returns an iterator of the [`Self::keys`] and [`Self::values`] fields combined.
     pub fn fields(&self) -> impl Iterator<Item = &FieldDefinition> {
-        self.key.iter().chain(self.value.iter())
+        self.keys.iter().chain(self.values.iter())
     }
 }
 
@@ -1238,14 +1234,14 @@ pub struct ActionDefinition {
     /// The persistence mode of the action
     pub persistence: Persistence,
     /// The name of the action
-    pub identifier: Ident,
-    /// The arguments to the action
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// The parameters to the action
+    pub parameters: Vec<Param>,
     /// The action's return type: a `result[unit, E]` for a fallible action, or
     /// [`TypeKind::Unit`] for an infallible one.
     pub return_type: VType,
     /// The statements executed when the action is called
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1260,7 +1256,7 @@ impl Spanned for ActionDefinition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectDefinition {
     /// The name of the effect
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields of the effect and their types
     pub items: Vec<StructItem<EffectFieldDefinition>>,
     /// The source location of this definition
@@ -1277,7 +1273,7 @@ impl Spanned for EffectDefinition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StructDefinition {
     /// The name of the struct
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields of the struct and their types
     pub items: Vec<StructItem<FieldDefinition>>,
     /// The source location of this definition
@@ -1322,11 +1318,11 @@ impl<T: Spanned> Spanned for StructItem<T> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecallBlockDefinition {
     /// The name of the recall block
-    pub identifier: Ident,
-    /// The arguments to the recall block
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// The parameters to the recall block
+    pub parameters: Vec<Param>,
     /// The recall rule statements for this block
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1347,7 +1343,7 @@ pub struct CommandDefinition {
     /// Optional attributes
     pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields of the command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
     /// The policy rule statements for this command
@@ -1368,7 +1364,7 @@ impl Spanned for CommandDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseCommandDefinition {
     /// The name of the base command
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields of the base command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
     /// The get key block
@@ -1387,13 +1383,13 @@ impl Spanned for BaseCommandDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionDefinition {
     /// The name of the function
-    pub identifier: Ident,
-    /// The argument names and types
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// The parameter names and types
+    pub parameters: Vec<Param>,
     /// The return type
     pub return_type: VType,
     /// The policy rule statements
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1410,11 +1406,11 @@ impl Spanned for FunctionDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FinishFunctionDefinition {
     /// The name of the function
-    pub identifier: Ident,
-    /// The argument names and types
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// The parameter names and types
+    pub parameters: Vec<Param>,
     /// The finish block statements
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1429,9 +1425,9 @@ impl Spanned for FinishFunctionDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlobalLetStatement {
     /// The variable's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// The variable's value
-    pub expression: Expression,
+    pub value: Expression,
     /// The source location of this statement
     pub span: Span,
 }

@@ -8,23 +8,23 @@ Policy {
     facts: [
         FactDefinition {
             immutable: false,
-            identifier: "Markdown" @ 52..60,
-            key: [],
-            value: [],
+            name: "Markdown" @ 52..60,
+            keys: [],
+            values: [],
             span: 47..66,
         },
     ],
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "foo" @ 125..128,
-            arguments: [],
+            name: "foo" @ 125..128,
+            parameters: [],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 Publish(
                     NamedStruct(
                         NamedStruct {
-                            identifier: "SomeCommand" @ 145..156,
+                            name: "SomeCommand" @ 145..156,
                             fields: [],
                             sources: [],
                             span: 145..158,
