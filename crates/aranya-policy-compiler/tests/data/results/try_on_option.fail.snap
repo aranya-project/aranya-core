@@ -5,4 +5,4 @@ expression: error
 error: invalid type: option[int]
   |
 6 |     return Ok(maybe(x)?)
-  |               ^^^^^^^^ expected `result[T, E]` but found `option[int]`
+  |               ^^^^^^^^ expected `result[T, fn_err]` but found `option[int]`
