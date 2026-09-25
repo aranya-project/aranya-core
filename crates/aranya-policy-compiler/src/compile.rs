@@ -1989,8 +1989,18 @@ impl<'a> CompileState<'a> {
         // TODO: Do properly
         {
             let flavors = self.config.flavors;
-            let envelopes = iter::once(&flavors.default.envelope)
-                .chain(flavors.flavors.iter().map(|(_, flavor)| &flavor.envelope));
+            let envelopes = iter::once(&flavors.default.envelope).chain(
+                flavors
+                    .flavors
+                    .iter()
+                    .filter(|(name, _)| {
+                        self.policy
+                            .base_commands
+                            .iter()
+                            .any(|bc| bc.flavor.as_ref().is_some_and(|f| f.inner == *name))
+                    })
+                    .map(|(_, flavor)| &flavor.envelope),
+            );
             for envelope in envelopes {
                 let fields = envelope
                     .fields
