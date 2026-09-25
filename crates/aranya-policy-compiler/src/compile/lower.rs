@@ -347,10 +347,10 @@ impl CompileState<'_> {
             }
             ExprKind::NamedStruct(s) => {
                 let lit = self.lower_struct_literal(s)?;
-                let ty = self.struct_type(s)?;
+                let vtype = self.struct_type(s)?;
                 thir::Expression {
                     kind: thir::ExprKind::NamedStruct(lit),
-                    vtype: ty,
+                    vtype,
                     span: expression.span,
                 }
             }
@@ -382,7 +382,7 @@ impl CompileState<'_> {
                 }
                 InternalFunction::FactCount(cmp_type, n, fact) => {
                     let fact = self.lower_fact_literal(fact, false)?;
-                    let ty = match cmp_type {
+                    let vtype = match cmp_type {
                         FactCountType::UpTo(span) => VType {
                             inner: TypeKind::Int,
                             span: *span,
@@ -396,7 +396,7 @@ impl CompileState<'_> {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::FactCount(
                             *cmp_type, *n, fact,
                         )),
-                        vtype: ty,
+                        vtype,
                         span: expression.span,
                     }
                 }
@@ -419,7 +419,7 @@ impl CompileState<'_> {
 
                     // The type of `if` is whatever the subexpressions
                     // are, as long as they are the same type
-                    let ty = types::unify_pair(t.vtype.clone(), f.vtype.clone())
+                    let vtype = types::unify_pair(t.vtype.clone(), f.vtype.clone())
                         .map_err(|err| self.err(err))?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::If(
@@ -427,7 +427,7 @@ impl CompileState<'_> {
                             Box::new(t),
                             Box::new(f),
                         )),
-                        vtype: ty,
+                        vtype,
                         span: expression.span,
                     }
                 }
@@ -648,22 +648,22 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Identifier(i) => {
-                let mut ty = self.identifier_types.get(i).map_err(|_| {
+                let mut vtype = self.identifier_types.get(i).map_err(|_| {
                     let note = format!("'{}' not in scope", i);
                     self.err(NotDefined(note, i.span))
                 })?;
                 // This makes type errors point to where the identifier is used, rather than where its type is determined.
                 // TODO: Add the type determination as a a third span to those errors?
-                ty.span = expression.span;
+                vtype.span = expression.span;
                 thir::Expression {
                     kind: thir::ExprKind::Identifier(i.clone()),
-                    vtype: ty,
+                    vtype,
                     span: expression.span,
                 }
             }
             ExprKind::EnumReference(e) => {
                 let value = self.enum_value(e)?;
-                let ty = VType {
+                let vtype = VType {
                     inner: TypeKind::Enum(e.enumeration.clone()),
                     span: expression.span,
                 };
@@ -672,7 +672,7 @@ impl CompileState<'_> {
                         enumeration: e.enumeration.clone(),
                         value,
                     }),
-                    vtype: ty,
+                    vtype,
                     span: expression.span,
                 }
             }
@@ -699,10 +699,10 @@ impl CompileState<'_> {
                         let note = format!("struct `{}` has no member `{}`", name, s.inner);
                         self.err(NotDefined(note, s.span))
                     })?;
-                let ty = field_def.vtype.clone();
+                let vtype = field_def.vtype.clone();
                 thir::Expression {
                     kind: thir::ExprKind::Dot(Box::new(t), s.clone()),
-                    vtype: ty,
+                    vtype,
                     span: expression.span,
                 }
             }
@@ -742,13 +742,13 @@ impl CompileState<'_> {
                     }));
                 }
 
-                let ty = VType {
+                let vtype = VType {
                     inner: TypeKind::Struct(sub.clone()),
                     span: expression.span,
                 };
                 thir::Expression {
                     kind: thir::ExprKind::Substruct(Box::new(lhs_expression), sub.clone()),
-                    vtype: ty,
+                    vtype,
                     span: expression.span,
                 }
             }
@@ -798,13 +798,13 @@ impl CompileState<'_> {
                     }));
                 }
 
-                let ty = VType {
+                let vtype = VType {
                     inner: TypeKind::Struct(rhs_ident.clone()),
                     span: rhs_ident.span(),
                 };
                 thir::Expression {
                     kind: thir::ExprKind::Cast(Box::new(lhs_expression), rhs_ident.clone()),
-                    vtype: ty,
+                    vtype,
                     span: expression.span,
                 }
             }
@@ -898,12 +898,12 @@ impl CompileState<'_> {
                 // Evaluate the expression
                 let e = self.lower_expression(e)?;
 
-                let ty = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
+                let vtype = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
                     .map_err(|e| self.err(e))?;
 
                 thir::Expression {
                     kind: thir::ExprKind::Not(Box::new(e)),
-                    vtype: ty,
+                    vtype,
                     span: expression.span,
                 }
             }
