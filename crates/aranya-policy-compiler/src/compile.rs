@@ -74,7 +74,7 @@ macro_rules! sig {
                 params: vec![$(
                     Param {
                         name: Ident { inner: ident!(stringify!($argname)), span: Span::empty() },
-                        ty: vtype!($($argty0 $($argty1)? $([ $($argty_tt)+ ])?)?)
+                        vtype: vtype!($($argty0 $($argty1)? $([ $($argty_tt)+ ])?)?)
                     }
                 ),*],
                 color: FunctionColor::Pure(vtype!($($ret0 $($ret1)? $([ $($ret_tt)+ ])?)?)),
@@ -133,21 +133,21 @@ mod param {
     pub fn author_id() -> Param {
         Param {
             name: ident!("author_id").nowhere(),
-            ty: TypeKind::Id.nowhere(),
+            vtype: TypeKind::Id.nowhere(),
         }
     }
 
     pub fn envelope() -> Param {
         Param {
             name: ident!("envelope").nowhere(),
-            ty: TypeKind::Struct(ident!("Envelope").nowhere()).nowhere(),
+            vtype: TypeKind::Struct(ident!("Envelope").nowhere()).nowhere(),
         }
     }
 
     pub fn this(name: Ident) -> Param {
         Param {
             name: ident!("this").nowhere(),
-            ty: TypeKind::Struct(name).nowhere(),
+            vtype: TypeKind::Struct(name).nowhere(),
         }
     }
 }
@@ -279,7 +279,7 @@ impl<'a> CompileState<'a> {
                 let err = InvalidType::new(
                     "int, bool, string, or id".to_owned(),
                     None,
-                    key.ty.to_string(),
+                    key.vtype.to_string(),
                     key.name.span,
                 );
                 return Err(self.err(err));
@@ -360,7 +360,7 @@ impl<'a> CompileState<'a> {
 
         field_definitions
             .iter()
-            .try_for_each(|f| self.ensure_type_is_defined(&f.ty))?;
+            .try_for_each(|f| self.ensure_type_is_defined(&f.vtype))?;
 
         self.m.interface.struct_defs.insert(name, field_definitions);
         Ok(())
@@ -1321,8 +1321,8 @@ impl<'a> CompileState<'a> {
 
         self.identifier_types.enter_function();
         for param in params.iter().rev() {
-            self.ensure_type_is_defined(&param.ty)?;
-            self.append_var(param.name.clone(), param.ty.clone())?;
+            self.ensure_type_is_defined(&param.vtype)?;
+            self.append_var(param.name.clone(), param.vtype.clone())?;
         }
         if let Some(return_type) = ret {
             self.ensure_type_is_defined(return_type)?;
@@ -1439,7 +1439,7 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .map(|f| Param {
                         name: f.name.clone(),
-                        ty: f.ty.clone(),
+                        vtype: f.vtype.clone(),
                     })
                     .collect(),
             })
@@ -1734,7 +1734,7 @@ impl<'a> CompileState<'a> {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.inner),
                 // { field_name struct Foo }
-                StructItem::Field(field) => field.ty.as_struct().map(|ident| &ident.inner),
+                StructItem::Field(field) => field.vtype.as_struct().map(|ident| &ident.inner),
             }
         }
 
@@ -1752,7 +1752,7 @@ impl<'a> CompileState<'a> {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.inner),
                 // { field_name struct Foo }
-                StructItem::Field(field) => field.ty.as_struct().map(|ident| &ident.inner),
+                StructItem::Field(field) => field.vtype.as_struct().map(|ident| &ident.inner),
             });
             let ident = &effect_def.name;
 
@@ -1763,7 +1763,7 @@ impl<'a> CompileState<'a> {
         for fact_def in &self.policy.facts {
             let deps = fact_def
                 .fields()
-                .filter_map(|def| def.ty.as_struct().map(|ident| &ident.inner));
+                .filter_map(|def| def.vtype.as_struct().map(|ident| &ident.inner));
             let ident = &fact_def.name;
 
             insert_type_def(ident.clone(), UserType::Fact(fact_def))?;
@@ -1854,7 +1854,7 @@ impl<'a> CompileState<'a> {
                         .map(|i| match i {
                             StructItem::Field(f) => StructItem::Field(FieldDefinition {
                                 name: f.name.clone(),
-                                ty: f.ty.clone(),
+                                vtype: f.vtype.clone(),
                             }),
                             StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                         })
@@ -1889,7 +1889,7 @@ impl<'a> CompileState<'a> {
                         .map(|a| {
                             StructItem::Field(FieldDefinition {
                                 name: a.name.clone().nowhere(),
-                                ty: VType::from(&a.vtype),
+                                vtype: VType::from(&a.vtype),
                             })
                         })
                         .collect();
@@ -2109,12 +2109,12 @@ impl<'a> CompileState<'a> {
                             base_struct.span(),
                         ))
                     })?;
-                if !base_struct_defn.ty.matches(&src_field_defn.ty) {
+                if !base_struct_defn.vtype.matches(&src_field_defn.vtype) {
                     let err = StructCompositionTypeMismatch {
                         field_name: src_field_defn.name.inner.to_string(),
-                        expected_type: base_struct_defn.ty.to_string(),
+                        expected_type: base_struct_defn.vtype.to_string(),
                         expected_span: base_struct_defn.span(),
-                        found_type: src_field_defn.ty.to_string(),
+                        found_type: src_field_defn.vtype.to_string(),
                         found_span: src_field_defn.span(),
                         composition_span: src_var_name.span,
                         literal_span: base_struct.span(),

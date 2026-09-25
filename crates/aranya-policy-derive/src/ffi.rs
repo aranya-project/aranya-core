@@ -60,7 +60,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         let fields = d.items.iter().map(|arg| match arg {
             StructItem::Field(arg) => {
                 let name = &arg.name.as_str();
-                let vtype = VTypeTokens::new(&arg.ty, &vm);
+                let vtype = VTypeTokens::new(&arg.vtype, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             }
             StructItem::StructRef(_) => {
@@ -95,7 +95,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             .unzip();
         let types = d.items.iter().map(|d| {
             let vtype = match d {
-                StructItem::Field(f) => TypeTokens::new(&f.ty, &alloc, &crypto, &vm),
+                StructItem::Field(f) => TypeTokens::new(&f.vtype, &alloc, &crypto, &vm),
                 StructItem::StructRef(_) => todo!(),
             };
             quote!(#vtype)
@@ -287,7 +287,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 .map(|arg| {
                     let name = format_ident!("__arg_{}", arg.ident);
                     let rtype = &arg.ty.ty;
-                    let vtype = VTypeTokens::new(&arg.def.ty, &vm);
+                    let vtype = VTypeTokens::new(&arg.def.vtype, &vm);
                     let msg = format!(
                         "mismatched types: expected `{want}`, found `{got}`",
                         want = quote!(#vtype),
@@ -338,7 +338,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             let name = f.ext_name.to_string();
             let args = f.args.iter().map(|arg| {
                 let name = arg.def.name.as_str();
-                let vtype = VTypeTokens::new(&arg.def.ty, &vm);
+                let vtype = VTypeTokens::new(&arg.def.vtype, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             });
             let return_type = {

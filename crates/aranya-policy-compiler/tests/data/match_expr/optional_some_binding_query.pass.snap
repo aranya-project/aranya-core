@@ -22,13 +22,13 @@ Module {
             keys: [
                 Field {
                     name: "i",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             values: [
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             immutable: false,
@@ -40,11 +40,11 @@ Module {
             items: [
                 Field {
                     name: "i",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },

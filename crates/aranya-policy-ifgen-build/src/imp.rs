@@ -33,7 +33,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
             let doc = format!(" {} policy struct.", id);
             let name = mk_ident(id);
             let names = fields.iter().map(|f| mk_ident(&f.name.inner));
-            let types = fields.iter().map(|f| vtype_to_rtype(&f.ty));
+            let types = fields.iter().map(|f| vtype_to_rtype(&f.vtype));
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -68,7 +68,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
         let doc = format!(" {} policy effect.", s);
         let ident = mk_ident(s);
         let field_idents = fields.iter().map(|f| mk_ident(&f.name.inner));
-        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.ty));
+        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.vtype));
         quote! {
             #[doc = #doc]
             #[effect]
@@ -115,7 +115,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
                 let doc = format!(" {} policy action.", def.name);
                 let ident = mk_ident(def.name.as_str());
                 let argnames = def.params.iter().map(|arg| mk_ident(arg.name.as_str()));
-                let argtypes = def.params.iter().map(|arg| vtype_to_rtype(&arg.ty));
+                let argtypes = def.params.iter().map(|arg| vtype_to_rtype(&arg.vtype));
                 quote! {
                     #[doc = #doc]
                     #[action(interface = #interface)]
@@ -316,7 +316,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         match ty {
             TypeKind::Struct(s) if found.insert(s.inner.clone()) => {
                 for field in struct_defs[s.as_str()] {
-                    visit(struct_defs, found, &field.ty.inner);
+                    visit(struct_defs, found, &field.vtype.inner);
                 }
             }
             TypeKind::Enum(s) => {
@@ -337,7 +337,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
 
     for def in target.action_defs.iter() {
         for param in &def.params {
-            visit(&struct_defs, &mut found, &param.ty.inner);
+            visit(&struct_defs, &mut found, &param.vtype.inner);
         }
     }
 
@@ -347,7 +347,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
         for field in fields {
-            visit(&struct_defs, &mut found, &field.ty.inner);
+            visit(&struct_defs, &mut found, &field.vtype.inner);
         }
     }
 

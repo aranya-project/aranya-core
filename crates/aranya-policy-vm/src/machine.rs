@@ -45,7 +45,7 @@ fn validate_fact_schema(fact: &Fact, schema: &FactDef) -> bool {
             return false;
         };
 
-        if !key.value.fits_type(&key_value.ty) {
+        if !key.value.fits_type(&key_value.vtype) {
             return false;
         }
     }
@@ -57,7 +57,7 @@ fn validate_fact_schema(fact: &Fact, schema: &FactDef) -> bool {
         };
 
         // Ensure fact value type matches schema
-        if !value.value.fits_type(&schema_value.ty) {
+        if !value.value.fits_type(&schema_value.vtype) {
             return false;
         }
     }
@@ -529,7 +529,7 @@ where
                 for f in &fields.items {
                     match s.fields.get(&f.name) {
                         Some(v) => {
-                            if !v.fits_type(&f.ty) {
+                            if !v.fits_type(&f.vtype) {
                                 return Err(mk_err());
                             }
                         }
@@ -816,7 +816,7 @@ where
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     };
 
-                    if !field_val.fits_type(&field_defn.ty) {
+                    if !field_val.fits_type(&field_defn.vtype) {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     }
 
@@ -1035,7 +1035,7 @@ where
                         // Check that all required fields exist and have matching types
                         for field in &rhs_struct.items {
                             let field_name = &field.name;
-                            let field_type = &field.ty;
+                            let field_type = &field.vtype;
 
                             // Check if the source struct has this field
                             let value = s.fields.get(field_name).ok_or_else(|| {
@@ -1145,7 +1145,7 @@ where
                 .iter()
                 .find(|f| &f.name == name)
                 .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?
-                .ty;
+                .vtype;
 
             if !value.fits_type(expected_type) {
                 return Err(self.err(MachineErrorType::invalid_type(
@@ -1236,9 +1236,9 @@ where
             )));
         }
         for (arg, param) in args.iter().zip(action_def.params.iter()) {
-            if !arg.fits_type(&param.ty) {
+            if !arg.fits_type(&param.vtype) {
                 return Err(MachineError::new(MachineErrorType::invalid_type(
-                    param.ty.to_string(),
+                    param.vtype.to_string(),
                     arg.type_name(),
                     "invalid function argument",
                 )));

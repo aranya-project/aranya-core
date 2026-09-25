@@ -7,11 +7,11 @@ FunctionDecl {
     parameters: [
         Param {
             name: "x" @ 13..14,
-            ty: Int @ 15..18,
+            vtype: Int @ 15..18,
         },
         Param {
             name: "y" @ 20..21,
-            ty: Struct(
+            vtype: Struct(
                 "bar" @ 29..32,
             ) @ 22..32,
         },

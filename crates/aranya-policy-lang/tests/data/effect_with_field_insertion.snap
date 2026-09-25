@@ -17,7 +17,7 @@ Policy {
                 Field(
                     EffectFieldDefinition {
                         name: "y" @ 49..50,
-                        ty: Int @ 51..54,
+                        vtype: Int @ 51..54,
                         dynamic: false,
                     },
                 ),
@@ -32,7 +32,7 @@ Policy {
                 Field(
                     FieldDefinition {
                         name: "x" @ 13..14,
-                        ty: Int @ 15..18,
+                        vtype: Int @ 15..18,
                     },
                 ),
             ],

@@ -13,7 +13,7 @@ Policy {
             parameters: [
                 Param {
                     name: "n" @ 12..13,
-                    ty: Int @ 14..17,
+                    vtype: Int @ 14..17,
                 },
             ],
             return_type: Unit @ 0..0,

@@ -346,7 +346,7 @@ pub struct Param {
     /// The name of the parameter.
     pub name: Ident,
     /// The type of the parameter.
-    pub ty: VType,
+    pub vtype: VType,
 }
 }
 
@@ -370,7 +370,7 @@ pub struct FieldDefinition {
     /// the field's name
     pub name: Ident,
     /// the field's type
-    pub ty: VType,
+    pub vtype: VType,
 }
 }
 
@@ -378,7 +378,7 @@ impl FieldDefinition {
     /// Reports whether the field definitions are the same,
     /// ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
-        self.name.matches(&other.name) && self.ty.matches(&other.ty)
+        self.name.matches(&other.name) && self.vtype.matches(&other.vtype)
     }
 }
 
@@ -390,14 +390,14 @@ pub struct EffectFieldDefinition {
     /// the field's name
     pub name: Ident,
     /// the field's type
-    pub ty: VType,
+    pub vtype: VType,
     /// Whether the field is marked "dynamic" or not
     pub dynamic: bool,
 }
 
 impl Spanned for EffectFieldDefinition {
     fn span(&self) -> Span {
-        self.name.span.merge(self.ty.span())
+        self.name.span.merge(self.vtype.span())
     }
 }
 

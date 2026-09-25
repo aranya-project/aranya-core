@@ -18,7 +18,7 @@ Policy {
             parameters: [
                 Param {
                     name: "x" @ 13..14,
-                    ty: Bytes @ 15..20,
+                    vtype: Bytes @ 15..20,
                 },
             ],
             return_type: Bytes @ 22..27,

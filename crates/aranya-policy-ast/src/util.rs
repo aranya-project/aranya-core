@@ -16,7 +16,7 @@ impl FieldDefinition {
     /// Is this a hashable type?
     pub fn is_hashable(&self) -> bool {
         matches!(
-            &self.ty.inner,
+            &self.vtype.inner,
             TypeKind::Int | TypeKind::Bool | TypeKind::String | TypeKind::Id | TypeKind::Enum(_)
         )
     }

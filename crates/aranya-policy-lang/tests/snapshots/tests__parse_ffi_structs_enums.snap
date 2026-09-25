@@ -10,13 +10,13 @@ FfiTypes {
                 Field(
                     FieldDefinition {
                         name: "x" @ 23..24,
-                        ty: Int @ 25..28,
+                        vtype: Int @ 25..28,
                     },
                 ),
                 Field(
                     FieldDefinition {
                         name: "y" @ 42..43,
-                        ty: Bool @ 44..48,
+                        vtype: Bool @ 44..48,
                     },
                 ),
             ],

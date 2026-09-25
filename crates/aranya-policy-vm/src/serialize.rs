@@ -185,7 +185,7 @@ impl DeserializeCtx<'_> {
             .ok_or_else(|| DeserializeError::UnknownStruct(name.clone()))?;
         let mut fields = BTreeMap::new();
         for d in &def.items {
-            let v = self.deserialize_value(&d.ty)?;
+            let v = self.deserialize_value(&d.vtype)?;
             fields.insert(d.name.clone(), v);
         }
         Ok(Struct::new(name, fields))

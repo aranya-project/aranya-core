@@ -41,7 +41,7 @@ pub struct IdentifierTypeStack {
 
 #[derive(Debug)]
 struct Local {
-    ty: VType,
+    vtype: VType,
     used: AtomicBool,
 }
 
@@ -72,7 +72,7 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
-    pub fn add(&mut self, ident: Ident, ty: VType) -> Result<(), AlreadyDefined> {
+    pub fn add(&mut self, ident: Ident, vtype: VType) -> Result<(), AlreadyDefined> {
         if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
             return Err(AlreadyDefined::new(existing_global.clone(), ident));
         }
@@ -89,7 +89,7 @@ impl IdentifierTypeStack {
             }
             indexmap::map::Entry::Vacant(e) => {
                 e.insert(Local {
-                    ty,
+                    vtype,
                     used: AtomicBool::new(false),
                 });
             }
@@ -105,7 +105,7 @@ impl IdentifierTypeStack {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
                     v.used.store(true, Ordering::Relaxed);
-                    return Ok(v.ty.clone());
+                    return Ok(v.vtype.clone());
                 }
             }
         }
@@ -181,18 +181,18 @@ impl Display for IdentNotDefined {
 /// Otherwise, it will keep its value the type kind matches the target,
 /// or error out otherwise.
 #[allow(clippy::result_large_err)]
-pub fn check_type(ty: VType, target_type: VType) -> Result<VType, InvalidType> {
-    match ty.inner {
+pub fn check_type(vtype: VType, target_type: VType) -> Result<VType, InvalidType> {
+    match vtype.inner {
         TypeKind::Never => Ok(target_type),
         _ => {
-            if ty.fits_type(&target_type) {
-                Ok(ty)
+            if vtype.fits_type(&target_type) {
+                Ok(vtype)
             } else {
                 Err(InvalidType::new(
                     target_type.to_string(),
                     Some(target_type.span()),
-                    ty.to_string(),
-                    ty.span,
+                    vtype.to_string(),
+                    vtype.span,
                 ))
             }
         }

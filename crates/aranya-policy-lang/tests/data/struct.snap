@@ -15,7 +15,7 @@ Policy {
                 Field(
                     FieldDefinition {
                         name: "x" @ 17..18,
-                        ty: Int @ 19..22,
+                        vtype: Int @ 19..22,
                     },
                 ),
             ],
@@ -31,7 +31,7 @@ Policy {
             parameters: [
                 Param {
                     name: "foo" @ 43..46,
-                    ty: Struct(
+                    vtype: Struct(
                         "Foo" @ 54..57,
                     ) @ 47..57,
                 },

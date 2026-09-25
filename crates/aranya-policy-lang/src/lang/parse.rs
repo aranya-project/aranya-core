@@ -350,7 +350,7 @@ impl ChunkParser<'_> {
     fn parse_field_definition(&self, field: Pair<'_, Rule>) -> Result<FieldDefinition, ParseError> {
         let pc = self.descend(field);
         let name = pc.consume_ident(self)?;
-        let ty = self.parse_type(pc.next().ok_or_else(|| {
+        let vtype = self.parse_type(pc.next().ok_or_else(|| {
             self.to_ast_span(pc.span).map_or_else(
                 |err| err,
                 |span| {
@@ -363,7 +363,7 @@ impl ChunkParser<'_> {
             )
         })?)?;
 
-        Ok(FieldDefinition { name, ty })
+        Ok(FieldDefinition { name, vtype })
     }
 
     /// Parse a Rule::field_definition token into a Param.
@@ -371,7 +371,7 @@ impl ChunkParser<'_> {
         let field = self.parse_field_definition(field)?;
         Ok(Param {
             name: field.name,
-            ty: field.ty,
+            vtype: field.vtype,
         })
     }
 
@@ -381,13 +381,17 @@ impl ChunkParser<'_> {
     ) -> Result<EffectFieldDefinition, ParseError> {
         let pc = self.descend(field);
         let name = pc.consume_ident(self)?;
-        let ty = pc.consume_type(self)?;
+        let vtype = pc.consume_type(self)?;
 
         let token = pc.next();
         // If there is another token, it has to be the "dynamic" marker
         let dynamic = token.is_some();
 
-        Ok(EffectFieldDefinition { name, ty, dynamic })
+        Ok(EffectFieldDefinition {
+            name,
+            vtype,
+            dynamic,
+        })
     }
 
     /// Parse a Rule::string_literal into a String.

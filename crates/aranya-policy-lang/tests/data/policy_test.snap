@@ -12,17 +12,17 @@ Policy {
             keys: [
                 FieldDefinition {
                     name: "v" @ 119..120,
-                    ty: String @ 121..127,
+                    vtype: String @ 121..127,
                 },
             ],
             values: [
                 FieldDefinition {
                     name: "x" @ 131..132,
-                    ty: Int @ 133..136,
+                    vtype: Int @ 133..136,
                 },
                 FieldDefinition {
                     name: "y" @ 138..139,
-                    ty: Bool @ 140..144,
+                    vtype: Bool @ 140..144,
                 },
             ],
             span: 112..145,
@@ -35,11 +35,11 @@ Policy {
             parameters: [
                 Param {
                     name: "x" @ 159..160,
-                    ty: Int @ 161..164,
+                    vtype: Int @ 161..164,
                 },
                 Param {
                     name: "y" @ 166..167,
-                    ty: Int @ 168..171,
+                    vtype: Int @ 168..171,
                 },
             ],
             return_type: Unit @ 0..0,
@@ -90,14 +90,14 @@ Policy {
                 Field(
                     EffectFieldDefinition {
                         name: "x" @ 257..258,
-                        ty: Int @ 259..262,
+                        vtype: Int @ 259..262,
                         dynamic: true,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
                         name: "y" @ 276..277,
-                        ty: Int @ 278..281,
+                        vtype: Int @ 278..281,
                         dynamic: false,
                     },
                 ),
@@ -117,7 +117,7 @@ Policy {
                 Field(
                     FieldDefinition {
                         name: "count" @ 321..326,
-                        ty: Int @ 327..330,
+                        vtype: Int @ 327..330,
                     },
                 ),
             ],
@@ -653,7 +653,7 @@ Policy {
                 Field(
                     FieldDefinition {
                         name: "x" @ 1880..1881,
-                        ty: Int @ 1882..1885,
+                        vtype: Int @ 1882..1885,
                     },
                 ),
             ],
@@ -669,7 +669,7 @@ Policy {
             parameters: [
                 Param {
                     name: "v" @ 1641..1642,
-                    ty: Optional(
+                    vtype: Optional(
                         Int @ 1650..1653,
                     ) @ 1643..1654,
                 },
@@ -737,7 +737,7 @@ Policy {
             parameters: [
                 Param {
                     name: "x" @ 1767..1768,
-                    ty: Int @ 1769..1772,
+                    vtype: Int @ 1769..1772,
                 },
             ],
             body: [

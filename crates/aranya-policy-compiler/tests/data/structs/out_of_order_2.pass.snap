@@ -13,13 +13,13 @@ Module {
             keys: [
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             values: [
                 Field {
                     name: "b",
-                    ty: Bool,
+                    vtype: Bool,
                 },
             ],
             immutable: false,
@@ -31,7 +31,7 @@ Module {
             items: [
                 Field {
                     name: "s",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },
@@ -40,11 +40,11 @@ Module {
             items: [
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Bool,
+                    vtype: Bool,
                 },
             ],
         },
@@ -53,15 +53,15 @@ Module {
             items: [
                 Field {
                     name: "s",
-                    ty: String,
+                    vtype: String,
                 },
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Bool,
+                    vtype: Bool,
                 },
             ],
         },

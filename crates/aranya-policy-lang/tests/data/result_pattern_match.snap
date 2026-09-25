@@ -18,7 +18,7 @@ Policy {
             parameters: [
                 Param {
                     name: "r" @ 13..14,
-                    ty: Result(
+                    vtype: Result(
                         ResultTypeKind {
                             ok: Int @ 22..25,
                             err: String @ 27..33,

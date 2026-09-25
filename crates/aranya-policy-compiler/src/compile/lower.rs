@@ -67,9 +67,9 @@ impl CompileState<'_> {
                     self.err(NotDefined(note, field_name.span))
                 })?;
             let e = self.lower_expression(e)?;
-            if !e.vtype.fits_type(&def_field.ty) {
+            if !e.vtype.fits_type(&def_field.vtype) {
                 let err = InvalidType::new(
-                    def_field.ty.to_string(),
+                    def_field.vtype.to_string(),
                     Some(def_field.span()),
                     e.vtype.to_string(),
                     e.span,
@@ -179,7 +179,7 @@ impl CompileState<'_> {
                         )));
                     }
                     let e = self.lower_expression(e)?;
-                    let def_field_type = &schema_key.ty;
+                    let def_field_type = &schema_key.vtype;
                     if !e.vtype.fits_type(def_field_type) {
                         let err = InvalidType::new(
                             def_field_type.to_string(),
@@ -242,7 +242,7 @@ impl CompileState<'_> {
                 )));
             }
             if let FactField::Expression(e) = &lit_value_field {
-                let def_field_type = &schema_value.ty;
+                let def_field_type = &schema_value.vtype;
                 let e = self.lower_expression(e)?;
                 if !e.vtype.fits_type(def_field_type) {
                     let err = InvalidType::new(
@@ -699,7 +699,7 @@ impl CompileState<'_> {
                         let note = format!("struct `{}` has no member `{}`", name, s.inner);
                         self.err(NotDefined(note, s.span))
                     })?;
-                let ty = field_def.ty.clone();
+                let ty = field_def.vtype.clone();
                 thir::Expression {
                     kind: thir::ExprKind::Dot(Box::new(t), s.clone()),
                     vtype: ty,
@@ -733,7 +733,7 @@ impl CompileState<'_> {
                 if !sub_field_defns.iter().all(|field_def| {
                     lhs_field_defns.iter().any(|lhs_field| {
                         lhs_field.name.inner == field_def.name.inner
-                            && lhs_field.ty.inner.matches(&field_def.ty.inner)
+                            && lhs_field.vtype.inner.matches(&field_def.vtype.inner)
                     })
                 }) {
                     return Err(self.err(InvalidSubstruct {
@@ -1009,9 +1009,9 @@ impl CompileState<'_> {
 
         for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
             let arg_te = self.lower_expression(arg_e)?;
-            if !arg_te.vtype.fits_type(&param.ty) {
+            if !arg_te.vtype.fits_type(&param.vtype) {
                 let err = InvalidType::new(
-                    param.ty.to_string(),
+                    param.vtype.to_string(),
                     Some(param.span()),
                     arg_te.vtype.to_string(),
                     arg_e.span,
@@ -1050,10 +1050,10 @@ impl CompileState<'_> {
         let mut arguments = Vec::new();
         for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
             let arg_te = self.lower_expression(arg_e)?;
-            if !arg_te.vtype.fits_type(&param.ty) {
+            if !arg_te.vtype.fits_type(&param.vtype) {
                 let err = InvalidType::new(
-                    DisplayType(&param.ty).to_string(),
-                    Some(param.ty.span),
+                    DisplayType(&param.vtype).to_string(),
+                    Some(param.vtype.span),
                     arg_te.vtype.to_string(),
                     arg_e.span,
                 );
@@ -1873,12 +1873,12 @@ impl CompileState<'_> {
                     for (arg, expected_arg) in fc.arguments.iter().zip(action_def.parameters.iter())
                     {
                         let arg = self.lower_expression(arg)?;
-                        if !arg.vtype.fits_type(&expected_arg.ty) {
+                        if !arg.vtype.fits_type(&expected_arg.vtype) {
                             // TODO(Steve): Replace with an 'InvalidType' error to make it consistent with calls to pure functions
                             let note = format!(
                                 "invalid argument type for `{}`: expected `{}`, but got `{}`",
                                 expected_arg.name,
-                                DisplayType(&expected_arg.ty),
+                                DisplayType(&expected_arg.vtype),
                                 arg.vtype,
                             );
                             return Err(self.err(BadArgument(note, statement.span)));
