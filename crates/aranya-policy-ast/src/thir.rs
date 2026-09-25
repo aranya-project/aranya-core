@@ -41,8 +41,6 @@ pub struct RecallCall {
     pub command_name: Ident,
     /// the name of the recall block
     pub recall_name: Ident,
-    /// whether the command has an envelope
-    pub has_envelope: bool,
     /// recall arguments
     pub arguments: Vec<Expression>,
 }

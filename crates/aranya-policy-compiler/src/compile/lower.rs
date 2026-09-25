@@ -1073,12 +1073,9 @@ impl CompileState<'_> {
             arguments.push(arg_te);
         }
 
-        let has_envelope = self.has_envelope[&cmd.identifier];
-
         Ok(thir::RecallCall {
             command_name: cmd.identifier.clone(),
             recall_name: fc.identifier.clone(),
-            has_envelope,
             arguments,
         })
     }

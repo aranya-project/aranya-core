@@ -42,6 +42,10 @@ Module {
             name: "A",
             items: [],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [
         EnumDef {
@@ -64,6 +68,7 @@ Module {
 ---
     exit panic
 <policy 'A'>:
+    def 'envelope'
     def 'this'
     meta: finish enabled
     block

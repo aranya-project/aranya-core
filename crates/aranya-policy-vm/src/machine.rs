@@ -282,7 +282,7 @@ impl Machine {
     pub fn call_command_policy<M>(
         &mut self,
         this_data: Struct,
-        envelope: Option<Struct>,
+        envelope: Struct,
         io: &mut M,
         ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
@@ -1187,7 +1187,7 @@ where
     pub fn call_command_policy(
         &mut self,
         this_data: Struct,
-        envelope: Option<Struct>,
+        envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
         if !matches!(&self.ctx, CommandContext::Policy(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
         {
@@ -1197,9 +1197,7 @@ where
             Label::new(this_data.name.clone(), LabelType::CommandPolicy),
             this_data,
         )?;
-        if let Some(envelope) = envelope {
-            self.ipush(envelope)?;
-        }
+        self.ipush(envelope)?;
         self.run()
     }
 

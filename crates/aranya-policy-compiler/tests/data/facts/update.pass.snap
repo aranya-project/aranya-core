@@ -49,6 +49,10 @@ Module {
             ],
         },
         StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
             name: "Test",
             items: [],
         },
@@ -60,6 +64,7 @@ Module {
 ---
     exit panic
 <policy 'Test'>:
+    def 'envelope'
     def 'this'
     meta: finish enabled
     block

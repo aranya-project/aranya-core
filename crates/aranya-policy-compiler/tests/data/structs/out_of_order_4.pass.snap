@@ -43,6 +43,10 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -51,6 +55,7 @@ Module {
 ---
     exit panic
 <policy 'Foo'>:
+    def 'envelope'
     def 'this'
     meta: finish enabled
     block

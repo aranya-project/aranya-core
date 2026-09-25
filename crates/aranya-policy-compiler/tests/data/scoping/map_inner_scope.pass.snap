@@ -36,6 +36,10 @@ Module {
     ],
     struct_defs: [
         StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
             name: "Pet",
             items: [
                 Field {

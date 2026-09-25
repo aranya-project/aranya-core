@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: invalid type: ephemeral command
-   |
-11 |     publish Cmd {}
-   |             ^^^^^^ expected `<default> command` but found `ephemeral command`
+error: a thing being referenced is not in scope
+  |
+1 | base command(ephemeral) Ephemeral {
+  |              ^^^^^^^^^ unknown flavor ephemeral

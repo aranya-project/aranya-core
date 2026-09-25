@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <policy 'AddThing'>: 1,
-        <recall 'AddThing_reject'>: 26,
+        <recall 'AddThing_reject'>: 29,
     },
     action_defs: [],
     command_defs: [
@@ -45,6 +45,10 @@ Module {
             ],
         },
         StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
             name: "Owner",
             items: [
                 Field {
@@ -61,34 +65,38 @@ Module {
 ---
     exit panic
 <policy 'AddThing'>:
+    def 'envelope'
     def 'this'
     fact.new 'Owner'
     query
     dup
     is some
-    branch 11
+    branch 13
     pop
     get 'this'
+    get 'envelope'
     recall <recall 'AddThing_reject'>
-    jump 12
-<11>:
+    jump 14
+<13>:
     unwrap some
-<12>:
+<14>:
     def 'owner'
     get 'owner'
     struct.get 'device_id'
     get 'owner'
     struct.get 'device_id'
     eq
-    branch 21
+    branch 24
     get 'this'
+    get 'envelope'
     recall <recall 'AddThing_reject'>
-<21>:
+<24>:
     meta: finish enabled
     block
     end
     exit normal
     exit panic
 <recall 'AddThing_reject'>:
+    def 'envelope'
     def 'this'
     exit check
