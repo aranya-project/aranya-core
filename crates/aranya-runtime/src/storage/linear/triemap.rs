@@ -5,7 +5,15 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use super::Bytes;
 
-/// A `TrieMap` maps bytes keys `k1, k2, ..., kn` to a value, allowing for efficient prefix queries.
+/// A map from a sequence of byte-string keys `[k1, k2, ..., kn]` to a value.
+///
+/// Stored as nested maps: each key selects a child one level down, and the
+/// final key reaches a leaf holding the value. Sharing a prefix means sharing
+/// a subtree, so all entries under a prefix can be found by walking to it.
+///
+/// Every entry is expected to have the same number of keys (e.g., a fact's
+/// key fields). Keys that end at a branch or continue past a leaf fail with
+/// [`InvalidDepth`].
 #[derive(Clone, Debug, Default, Archive, Serialize, Deserialize)]
 pub struct TrieMap(Slot);
 
@@ -15,6 +23,7 @@ pub struct TrieMap(Slot);
 #[derive(Debug)]
 pub struct InvalidDepth;
 
+/// A node in a [`TrieMap`]: either more keys to follow, or a value.
 #[derive(Clone, Debug, Archive, Serialize, Deserialize)]
 #[rkyv(serialize_bounds(
     __S: rkyv::ser::Writer + rkyv::ser::Allocator,
