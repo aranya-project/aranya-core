@@ -200,8 +200,7 @@ impl<'a> Iterator for TrieMapIter<'a> {
     type Item = (Vec<&'a [u8]>, Option<&'a [u8]>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (path, slot) = self.stack.pop()?;
+        while let Some((path, slot)) = self.stack.pop() {
             match slot {
                 Slot::Branch(b) => {
                     let start = self.stack.len();
@@ -213,9 +212,10 @@ impl<'a> Iterator for TrieMapIter<'a> {
                     // Reverse so the smallest key is popped first.
                     self.stack[start..].reverse();
                 }
-                Slot::Leaf(l) => break Some((path, l.as_deref())),
+                Slot::Leaf(l) => return Some((path, l.as_deref())),
             }
         }
+        None
     }
 }
 
@@ -228,8 +228,7 @@ impl Iterator for TrieMapIntoIter {
     type Item = (Vec<Bytes>, Option<Bytes>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (path, slot) = self.stack.pop()?;
+        while let Some((path, slot)) = self.stack.pop() {
             match slot {
                 Slot::Branch(b) => {
                     let start = self.stack.len();
@@ -241,9 +240,10 @@ impl Iterator for TrieMapIntoIter {
                     // Reverse so the smallest key is popped first.
                     self.stack[start..].reverse();
                 }
-                Slot::Leaf(l) => break Some((path, l)),
+                Slot::Leaf(l) => return Some((path, l)),
             }
         }
+        None
     }
 }
 
@@ -320,8 +320,7 @@ impl<'a> Iterator for ArchivedTrieMapIter<'a> {
     type Item = (Vec<&'a [u8]>, Option<&'a [u8]>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (path, slot) = self.stack.pop()?;
+        while let Some((path, slot)) = self.stack.pop() {
             match slot {
                 ArchivedSlot::Branch(b) => {
                     let start = self.stack.len();
@@ -333,9 +332,10 @@ impl<'a> Iterator for ArchivedTrieMapIter<'a> {
                     // Reverse so the smallest key is popped first.
                     self.stack[start..].reverse();
                 }
-                ArchivedSlot::Leaf(l) => break Some((path, l.as_deref())),
+                ArchivedSlot::Leaf(l) => return Some((path, l.as_deref())),
             }
         }
+        None
     }
 }
 
