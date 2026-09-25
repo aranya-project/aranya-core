@@ -228,6 +228,9 @@ struct CompileState<'a> {
     config: Config,
     /// Warnings produced by the obligation analysis
     obligation_warnings: Vec<ObligationWarning>,
+    /// Lowered finish function bodies, for the obligation analysis to
+    /// follow mutations through calls
+    finish_function_bodies: obligation::FinishFunctions,
 }
 
 impl<'a> CompileState<'a> {
@@ -894,18 +897,36 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let stmts = self.lower_statements(statements, scope)?;
         if self.config.analyze_obligations {
-            let empty_db = match self.get_statement_context()? {
+            match self.get_statement_context()? {
                 StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
-                    Some(is_init_command(cmd))
+                    let empty_db = is_init_command(cmd);
+                    self.obligation_warnings.extend(obligation::analyze_block(
+                        &stmts,
+                        &self.policy.text,
+                        empty_db,
+                        &self.finish_function_bodies,
+                    ));
                 }
-                _ => None,
-            };
-            if let Some(empty_db) = empty_db {
-                self.obligation_warnings.extend(obligation::analyze_block(
-                    &stmts,
-                    &self.policy.text,
-                    empty_db,
-                ));
+                // Finish functions are compiled before commands, so their
+                // bodies are recorded here before any command calls them.
+                StatementContext::Finish(span) => {
+                    let span = *span;
+                    if let Some(def) = self.policy.finish_functions.iter().find(|f| f.span == span)
+                    {
+                        self.finish_function_bodies.insert(
+                            def.identifier.inner.clone(),
+                            obligation::FinishFunctionBody {
+                                params: def
+                                    .arguments
+                                    .iter()
+                                    .map(|p| p.name.inner.clone())
+                                    .collect(),
+                                statements: stmts.clone(),
+                            },
+                        );
+                    }
+                }
+                _ => {}
             }
         }
         self.compile_typed_statements(stmts, scope)
@@ -2369,7 +2390,9 @@ impl<'a> Compiler<'a> {
     ) -> Result<(Module, Vec<ObligationWarning>), CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
-        let warnings = core::mem::take(&mut cs.obligation_warnings);
+        // A finish function reached from several commands produces the
+        // same warning from each, so deduplicate across all blocks.
+        let warnings = obligation::dedup_warnings(core::mem::take(&mut cs.obligation_warnings));
         Ok((cs.m.into_module(), warnings))
     }
 
@@ -2397,6 +2420,7 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             config: self.config,
             obligation_warnings: Vec::new(),
+            finish_function_bodies: obligation::FinishFunctions::new(),
         }
     }
 }

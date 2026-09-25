@@ -112,7 +112,25 @@ struct PathState<'a> {
     empty_db: bool,
     /// Facts that may have been mutated since the block started.
     dirty: Vec<Identifier>,
+    /// Variables bound by `let x = query F[..] or <terminal>`, with the
+    /// fact they hold. Used to prove an `update`'s stated values match
+    /// the stored fact.
+    query_bindings: Vec<(Identifier, FactPattern)>,
+    /// Finish function bodies, for following mutations through calls.
+    functions: &'a FinishFunctions,
 }
+
+/// The lowered body of a finish function.
+#[derive(Debug, Clone)]
+pub(crate) struct FinishFunctionBody {
+    /// Parameter names, in order.
+    pub(crate) params: Vec<Identifier>,
+    /// The function's statements.
+    pub(crate) statements: Vec<Statement>,
+}
+
+/// Finish function bodies by name.
+pub(crate) type FinishFunctions = BTreeMap<Identifier, FinishFunctionBody>;
 
 impl PathState<'_> {
     /// Is every fact named `name` known not to exist?
@@ -120,11 +138,20 @@ impl PathState<'_> {
         self.empty_db && !self.dirty.contains(name)
     }
 
-    /// Record that facts named `name` may have been mutated.
+    /// Record that facts named `name` may have been mutated. Query results
+    /// for that fact no longer reflect the database.
     fn mark_dirty(&mut self, name: &Identifier) {
         if !self.dirty.contains(name) {
             self.dirty.push(name.clone());
         }
+        self.query_bindings.retain(|(_, p)| p.name.inner != *name);
+    }
+
+    /// Forget everything: an unknown call may have mutated any fact.
+    fn forget_all(&mut self) {
+        self.facts.clear();
+        self.query_bindings.clear();
+        self.empty_db = false;
     }
 }
 
@@ -133,11 +160,13 @@ impl PathState<'_> {
 /// `src` is the full policy source text. `empty_db` is true for the
 /// blocks of an `init` command, which always runs against an empty fact
 /// database: the runtime only accepts an init command as the root of the
-/// graph.
+/// graph. `functions` holds the finish functions the block may call;
+/// their mutations are checked at each call site.
 pub(crate) fn analyze_block(
     stmts: &[Statement],
     src: &str,
     empty_db: bool,
+    functions: &FinishFunctions,
 ) -> Vec<ObligationWarning> {
     let st = PathState {
         src,
@@ -146,6 +175,8 @@ pub(crate) fn analyze_block(
         opaque: Vec::new(),
         empty_db,
         dirty: Vec::new(),
+        query_bindings: Vec::new(),
+        functions,
     };
     let mut warnings = Vec::new();
     walk(stmts, &[], st, &mut warnings);
@@ -159,7 +190,7 @@ pub(crate) fn analyze_block(
 /// Warnings with the same span and message are merged, keeping the first
 /// occurrence's position and taking the union of the notes (different
 /// paths may have skipped different opaque expressions).
-fn dedup_warnings(warnings: Vec<ObligationWarning>) -> Vec<ObligationWarning> {
+pub(crate) fn dedup_warnings(warnings: Vec<ObligationWarning>) -> Vec<ObligationWarning> {
     let mut out: Vec<ObligationWarning> = Vec::new();
     for w in warnings {
         match out
@@ -262,19 +293,30 @@ fn analyze_finish(
     warnings: &mut Vec<ObligationWarning>,
 ) {
     let mut touched: Vec<FactPattern> = Vec::new();
+    let mut calls: Vec<(Identifier, Span)> = Vec::new();
+    finish_statements(stmts, st, &mut touched, &mut calls, warnings);
+}
+
+/// Check the mutations in a finish block or in a finish function called
+/// from one. `touched` is shared by the whole finish block, including the
+/// functions it calls. `calls` is the stack of finish function calls that
+/// led here, innermost last.
+fn finish_statements(
+    stmts: &[Statement],
+    st: &mut PathState<'_>,
+    touched: &mut Vec<FactPattern>,
+    calls: &mut Vec<(Identifier, Span)>,
+    warnings: &mut Vec<ObligationWarning>,
+) {
     for stmt in stmts {
+        let mut found = Vec::new();
         match &stmt.kind {
             StmtKind::Create(c) => {
                 let pat = pattern_of(&c.fact, st);
                 if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
-                    warnings.push(double_manipulation(stmt.span, &pat, prev));
-                } else if !st.known_absent(&pat.name.inner)
-                    && !st
-                        .facts
-                        .iter()
-                        .any(|(p, s)| *s == FactState::NotExists && covers(p, &pat))
-                {
-                    warnings.push(unproven_create(stmt.span, &pat, &st.opaque));
+                    found.push(double_manipulation(stmt.span, &pat, prev));
+                } else if !proven_absent(st, &pat) {
+                    found.push(unproven_create(stmt.span, &pat, &st.opaque));
                 }
                 set_state(st, pat.clone(), FactState::Exists);
                 touched.push(pat);
@@ -282,7 +324,11 @@ fn analyze_finish(
             StmtKind::Update(u) => {
                 let pat = pattern_of(&u.fact, st);
                 if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
-                    warnings.push(double_manipulation(stmt.span, &pat, prev));
+                    found.push(double_manipulation(stmt.span, &pat, prev));
+                } else if !proven_exists(st, &pat) {
+                    found.push(unproven_exists(stmt.span, &pat, Mutation::Update, st));
+                } else if !values_proven(st, &u.fact, &pat) {
+                    found.push(unproven_values(stmt.span, &pat, st));
                 }
                 set_state(st, pat.clone(), FactState::Exists);
                 touched.push(pat);
@@ -290,23 +336,128 @@ fn analyze_finish(
             StmtKind::Delete(d) => {
                 let pat = pattern_of(&d.fact, st);
                 if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
-                    warnings.push(double_manipulation(stmt.span, &pat, prev));
+                    found.push(double_manipulation(stmt.span, &pat, prev));
+                } else if !proven_exists(st, &pat) {
+                    found.push(unproven_exists(stmt.span, &pat, Mutation::Delete, st));
                 }
                 set_state(st, pat.clone(), FactState::NotExists);
                 touched.push(pat);
             }
-            StmtKind::FunctionCall(_) => {
-                // A finish function may mutate any fact.
-                st.facts.clear();
-                st.empty_db = false;
+            StmtKind::FunctionCall(fc) => {
+                let name = &fc.identifier.inner;
+                let recursive = calls.iter().any(|(n, _)| n == name);
+                match st.functions.get(name) {
+                    Some(body) if !recursive && body.params.len() == fc.arguments.len() => {
+                        // Bind the parameters to the caller's arguments,
+                        // so the function's fact keys are expressed in the
+                        // caller's terms.
+                        let env = body
+                            .params
+                            .iter()
+                            .zip(&fc.arguments)
+                            .map(|(p, a)| (p.clone(), substitute(a, &st.env)))
+                            .collect();
+                        let caller_env = core::mem::replace(&mut st.env, env);
+                        calls.push((name.clone(), stmt.span));
+                        finish_statements(&body.statements, st, touched, calls, warnings);
+                        calls.pop();
+                        st.env = caller_env;
+                    }
+                    // Not a known finish function, or a recursive call:
+                    // it may mutate any fact.
+                    _ => {
+                        if recursive {
+                            found.push(recursive_call(stmt.span, name));
+                        }
+                        st.forget_all();
+                    }
+                }
             }
             _ => {}
+        }
+        for mut w in found {
+            // Point from a warning inside a finish function back to the
+            // calls that reached it, innermost first.
+            for (name, span) in calls.iter().rev() {
+                w.notes.push((*span, format!("in this call to `{name}`")));
+            }
+            warnings.push(w);
         }
     }
 }
 
-fn unproven_create(span: Span, pat: &FactPattern, opaque: &[(Ident, Span)]) -> ObligationWarning {
-    let notes = opaque
+/// Is `pat` known not to exist on this path?
+fn proven_absent(st: &PathState<'_>, pat: &FactPattern) -> bool {
+    st.known_absent(&pat.name.inner)
+        || st
+            .facts
+            .iter()
+            .any(|(p, s)| *s == FactState::NotExists && covers(p, pat))
+}
+
+/// Is `pat` known to exist on this path?
+///
+/// Unlike [`proven_absent`], a bind marker does not help: `F[a: x, b: ?]`
+/// existing says nothing about any particular `b`. So the observation must
+/// name exactly the same key.
+fn proven_exists(st: &PathState<'_>, pat: &FactPattern) -> bool {
+    st.facts
+        .iter()
+        .any(|(p, s)| *s == FactState::Exists && same_pattern(p, pat))
+}
+
+/// Does every value field an `update` states come from a query of the
+/// same fact? The VM requires the stated values to match the stored fact.
+///
+/// The accepted form is `x.field` for the same `field`, where `x` was bound
+/// by `let x = query F[k] or <terminal>` with the same key, and `F` has not
+/// been mutated since.
+fn values_proven(st: &PathState<'_>, fact: &FactLiteral, pat: &FactPattern) -> bool {
+    let Some(values) = &fact.value_fields else {
+        return true;
+    };
+    values.iter().all(|(field, expr)| {
+        let expr = substitute(expr, &st.env);
+        let ExprKind::Dot(base, read) = &expr.kind else {
+            return false;
+        };
+        let ExprKind::Identifier(var) = &base.kind else {
+            return false;
+        };
+        read.inner == field.inner
+            && st
+                .query_bindings
+                .iter()
+                .any(|(v, p)| *v == var.inner && same_pattern(p, pat))
+    })
+}
+
+/// A mutation that requires its fact to exist.
+#[derive(Debug, Clone, Copy)]
+enum Mutation {
+    Update,
+    Delete,
+}
+
+impl Mutation {
+    fn keyword(self) -> &'static str {
+        match self {
+            Self::Update => "update",
+            Self::Delete => "delete",
+        }
+    }
+
+    fn gerund(self) -> &'static str {
+        match self {
+            Self::Update => "updating",
+            Self::Delete => "deleting",
+        }
+    }
+}
+
+/// Notes for the opaque expressions that touched the same fact.
+fn opaque_notes(pat: &FactPattern, opaque: &[(Ident, Span)]) -> Vec<(Span, String)> {
+    opaque
         .iter()
         .filter(|(name, _)| *name == pat.name)
         .map(|(name, span)| {
@@ -315,12 +466,15 @@ fn unproven_create(span: Span, pat: &FactPattern, opaque: &[(Ident, Span)]) -> O
                 format!("touches `{name}` but is too complex to analyze"),
             )
         })
-        .collect();
+        .collect()
+}
+
+fn unproven_create(span: Span, pat: &FactPattern, opaque: &[(Ident, Span)]) -> ObligationWarning {
     ObligationWarning {
         span,
         message: format!("cannot prove `{}` does not exist before `create`", pat.text),
         label: "this fact may already exist".to_owned(),
-        notes,
+        notes: opaque_notes(pat, opaque),
         footnotes: vec![
             (
                 Footnote::Note,
@@ -334,6 +488,88 @@ fn unproven_create(span: Span, pat: &FactPattern, opaque: &[(Ident, Span)]) -> O
                 ),
             ),
         ],
+    }
+}
+
+fn unproven_exists(
+    span: Span,
+    pat: &FactPattern,
+    kind: Mutation,
+    st: &PathState<'_>,
+) -> ObligationWarning {
+    let mut footnotes = vec![(
+        Footnote::Note,
+        format!(
+            "{} a fact that does not exist is a runtime exception",
+            kind.gerund()
+        ),
+    )];
+    if st.known_absent(&pat.name.inner) {
+        footnotes.push((
+            Footnote::Note,
+            "no facts exist when an `init` command runs, so this always fails".to_owned(),
+        ));
+    } else {
+        footnotes.push((
+            Footnote::Help,
+            format!(
+                "check that it exists first: `check exists {} else ...`",
+                pat.text
+            ),
+        ));
+    }
+    ObligationWarning {
+        span,
+        message: format!(
+            "cannot prove `{}` exists before `{}`",
+            pat.text,
+            kind.keyword()
+        ),
+        label: "this fact may not exist".to_owned(),
+        notes: opaque_notes(pat, &st.opaque),
+        footnotes,
+    }
+}
+
+fn unproven_values(span: Span, pat: &FactPattern, st: &PathState<'_>) -> ObligationWarning {
+    ObligationWarning {
+        span,
+        message: format!(
+            "cannot prove the stated values of `{}` match the stored fact before `update`",
+            pat.text
+        ),
+        label: "the stored values may differ".to_owned(),
+        notes: opaque_notes(pat, &st.opaque),
+        footnotes: vec![
+            (
+                Footnote::Note,
+                "updating from values that don't match the stored fact is a runtime exception"
+                    .to_owned(),
+            ),
+            (
+                Footnote::Help,
+                format!(
+                    "read the values from a query of the same fact: \
+                     `let x = query {} or ...`, then `=>{{field: x.field}}`",
+                    pat.text
+                ),
+            ),
+        ],
+    }
+}
+
+fn recursive_call(span: Span, name: &Identifier) -> ObligationWarning {
+    ObligationWarning {
+        span,
+        message: format!("cannot check fact mutations through recursive call to `{name}`"),
+        label: "recursive call".to_owned(),
+        notes: Vec::new(),
+        footnotes: vec![(
+            Footnote::Note,
+            "the analysis stops following calls here, so mutations reached \
+             through this call are not checked"
+                .to_owned(),
+        )],
     }
 }
 
@@ -383,6 +619,9 @@ fn observe_let(st: &mut PathState<'_>, stmt: &LetStatement) {
         && let ExprKind::InternalFunction(InternalFunction::Query(fact)) = &lhs.kind
     {
         let pat = pattern_of(fact, st);
+        let var = stmt.identifier.inner.clone();
+        st.query_bindings.retain(|(v, _)| *v != var);
+        st.query_bindings.push((var, pat.clone()));
         observe(st, pat, FactState::Exists);
         return;
     }
@@ -875,6 +1114,380 @@ mod tests {
     }
 
     #[test]
+    fn update_without_check_warns() {
+        let warnings = warnings_for(&command(
+            r#"
+            finish {
+                update Account[user: this.user] to {balance: 1}
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert_eq!(
+            warnings[0].message,
+            "cannot prove `Account[user: this.user]` exists before `update`"
+        );
+    }
+
+    #[test]
+    fn delete_without_check_warns() {
+        let warnings = warnings_for(&command(
+            r#"
+            finish {
+                delete Account[user: this.user]
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert_eq!(
+            warnings[0].message,
+            "cannot prove `Account[user: this.user]` exists before `delete`"
+        );
+    }
+
+    #[test]
+    fn check_exists_then_delete_passes() {
+        let warnings = warnings_for(&command(
+            r#"
+            check exists Account[user: this.user] else recall failed()
+            finish {
+                delete Account[user: this.user]
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn check_not_exists_does_not_prove_exists() {
+        let warnings = warnings_for(&command(
+            r#"
+            check !exists Account[user: this.user] else recall failed()
+            finish {
+                delete Account[user: this.user]
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(warnings[0].message.contains("exists before `delete`"));
+    }
+
+    #[test]
+    fn bind_prefix_does_not_prove_exists() {
+        let warnings = warnings_for(
+            r#"
+            fact Grant[user int, perm int]=>{}
+
+            command Foo {
+                fields { user int }
+                policy {
+                    check exists Grant[user: this.user, perm: ?] else recall failed()
+                    finish {
+                        delete Grant[user: this.user, perm: 3]
+                    }
+                }
+                recall failed() { finish {} }
+            }
+            "#,
+        );
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(warnings[0].message.contains("exists before `delete`"));
+    }
+
+    #[test]
+    fn update_values_from_query_pass() {
+        let warnings = warnings_for(&command(
+            r#"
+            let account = query Account[user: this.user]=>{balance: ?} or recall failed()
+            finish {
+                update Account[user: this.user]=>{balance: account.balance} to {balance: 1}
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn update_values_through_let_alias_pass() {
+        let warnings = warnings_for(&command(
+            r#"
+            let account = query Account[user: this.user] or recall failed()
+            let old = account.balance
+            finish {
+                update Account[user: this.user]=>{balance: old} to {balance: 1}
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn update_literal_values_warn() {
+        let warnings = warnings_for(&command(
+            r#"
+            check exists Account[user: this.user] else recall failed()
+            finish {
+                update Account[user: this.user]=>{balance: 5} to {balance: 1}
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(
+            warnings[0].message.contains("stated values"),
+            "warnings: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn update_values_from_query_of_other_fact_warn() {
+        let warnings = warnings_for(
+            r#"
+            fact Account[user int]=>{balance int}
+            fact Limit[user int]=>{balance int}
+
+            command Foo {
+                fields { user int }
+                policy {
+                    let limit = query Limit[user: this.user] or recall failed()
+                    check exists Account[user: this.user] else recall failed()
+                    finish {
+                        update Account[user: this.user]=>{balance: limit.balance} to {balance: 1}
+                    }
+                }
+                recall failed() { finish {} }
+            }
+            "#,
+        );
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(warnings[0].message.contains("stated values"));
+    }
+
+    #[test]
+    fn init_command_update_always_fails() {
+        let warnings = warnings_for(&init_command(
+            r#"
+            finish {
+                update Account[user: this.user] to {balance: 1}
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(
+            warnings[0]
+                .footnotes
+                .iter()
+                .any(|(_, text)| text.contains("always fails")),
+            "warnings: {warnings:?}"
+        );
+    }
+
+    /// A policy with a finish function that creates an `Account`.
+    fn with_open_function(policy_block: &str) -> String {
+        format!(
+            r#"
+            fact Account[user int]=>{{balance int}}
+
+            finish function open_account(u int) {{
+                create Account[user: u]=>{{balance: 0}}
+            }}
+
+            command Foo {{
+                fields {{ user int }}
+                policy {{
+                    {policy_block}
+                }}
+                recall failed() {{ finish {{}} }}
+            }}
+            "#
+        )
+    }
+
+    #[test]
+    fn finish_function_create_checked_by_caller_passes() {
+        let warnings = warnings_for(&with_open_function(
+            r#"
+            check !exists Account[user: this.user] else recall failed()
+            finish {
+                open_account(this.user)
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn finish_function_create_unchecked_warns_with_call_note() {
+        let warnings = warnings_for(&with_open_function(
+            r#"
+            finish {
+                open_account(this.user)
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert_eq!(
+            warnings[0].message,
+            "cannot prove `Account[user: u]` does not exist before `create`"
+        );
+        assert!(
+            warnings[0]
+                .notes
+                .iter()
+                .any(|(_, n)| n == "in this call to `open_account`"),
+            "notes: {:?}",
+            warnings[0].notes
+        );
+    }
+
+    #[test]
+    fn finish_function_checked_for_other_key_warns() {
+        let warnings = warnings_for(&with_open_function(
+            r#"
+            check !exists Account[user: this.user] else recall failed()
+            finish {
+                open_account(1)
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    }
+
+    #[test]
+    fn finish_function_double_manipulation_across_call() {
+        let warnings = warnings_for(&with_open_function(
+            r#"
+            check !exists Account[user: this.user] else recall failed()
+            finish {
+                create Account[user: this.user]=>{balance: 1}
+                open_account(this.user)
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(warnings[0].message.contains("more than once"));
+    }
+
+    #[test]
+    fn nested_finish_functions_are_followed() {
+        let warnings = warnings_for(
+            r#"
+            fact Account[user int]=>{balance int}
+
+            finish function open_inner(u int) {
+                create Account[user: u]=>{balance: 0}
+            }
+
+            finish function open_outer(v int) {
+                open_inner(v)
+            }
+
+            command Foo {
+                fields { user int }
+                policy {
+                    check !exists Account[user: this.user] else recall failed()
+                    finish {
+                        open_outer(this.user)
+                    }
+                }
+                recall failed() { finish {} }
+            }
+            "#,
+        );
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn shared_finish_function_warns_once_with_each_call() {
+        let warnings = warnings_for(
+            r#"
+            fact Account[user int]=>{balance int}
+
+            finish function open_account(u int) {
+                create Account[user: u]=>{balance: 0}
+            }
+
+            command Foo {
+                fields { user int }
+                policy {
+                    finish { open_account(this.user) }
+                }
+            }
+
+            command Bar {
+                fields { user int }
+                policy {
+                    finish { open_account(this.user) }
+                }
+            }
+            "#,
+        );
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        let calls = warnings[0]
+            .notes
+            .iter()
+            .filter(|(_, n)| n.starts_with("in this call"))
+            .count();
+        assert_eq!(calls, 2, "notes: {:?}", warnings[0].notes);
+    }
+
+    #[test]
+    fn finish_function_update_uses_caller_query() {
+        let warnings = warnings_for(
+            r#"
+            fact Account[user int]=>{balance int}
+
+            finish function set_balance(u int, old int, new int) {
+                update Account[user: u]=>{balance: old} to {balance: new}
+            }
+
+            command Foo {
+                fields { user int }
+                policy {
+                    let account = query Account[user: this.user] or recall failed()
+                    finish {
+                        set_balance(this.user, account.balance, 5)
+                    }
+                }
+                recall failed() { finish {} }
+            }
+            "#,
+        );
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn recursive_finish_function_warns() {
+        let warnings = warnings_for(
+            r#"
+            fact Account[user int]=>{balance int}
+
+            finish function ping(u int) {
+                pong(u)
+            }
+
+            finish function pong(u int) {
+                create Account[user: u]=>{balance: 0}
+                ping(u)
+            }
+
+            command Foo {
+                fields { user int }
+                policy {
+                    check !exists Account[user: this.user] else recall failed()
+                    finish { ping(this.user) }
+                }
+                recall failed() { finish {} }
+            }
+            "#,
+        );
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert_eq!(
+            warnings[0].message,
+            "cannot check fact mutations through recursive call to `ping`"
+        );
+    }
+
+    #[test]
     fn double_create_warns() {
         let warnings = warnings_for(&command(
             r#"
@@ -893,6 +1506,7 @@ mod tests {
     fn delete_then_create_warns() {
         let warnings = warnings_for(&command(
             r#"
+            check exists Account[user: this.user] else recall failed()
             finish {
                 delete Account[user: this.user]
                 create Account[user: this.user]=>{balance: 0}
