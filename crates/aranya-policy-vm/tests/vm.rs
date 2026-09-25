@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, iter};
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
 use aranya_policy_ast::Version;
-use aranya_policy_compiler::{Compiler, Flavor, Flavors};
+use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Field,
@@ -1434,7 +1434,7 @@ fn test_nested_optionals() -> anyhow::Result<()> {
 
 #[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
-    use aranya_policy_module::ffi;
+    use aranya_policy_module::{arg, flavor};
 
     let text = r#"
         effect Recalled {}
@@ -1457,14 +1457,11 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         }
     "#;
 
-    let flavors = Flavors {
-        default: Flavor {
-            envelope: ffi::Struct {
+    let flavors = flavor::Flavors {
+        default: flavor::Flavor {
+            envelope: flavor::Struct {
                 name: ident!("CustomEnvelope"),
-                fields: &[ffi::Arg {
-                    name: ident!("payload"),
-                    vtype: ffi::Type::Bytes,
-                }],
+                fields: &[arg!("payload", Bytes)],
             },
         },
         flavors: &[],

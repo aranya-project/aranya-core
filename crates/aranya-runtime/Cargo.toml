@@ -20,6 +20,7 @@ buggy = { version = "0.1.0", features = ["alloc"] }
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
 aranya-libc = { version = "0.4.1", path = "../aranya-libc", default-features = false, optional = true }
 aranya-policy-vm = { version = "0.24.0", path = "../aranya-policy-vm" }
+aranya-policy-module = { version = "0.23.0", path = "../aranya-policy-module" }
 
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
@@ -34,7 +35,6 @@ yoke = { version = "0.8", features = ["derive"] }
 zerocopy = { workspace = true, features = ["derive"] }
 
 # Used by `testing`.
-aranya-policy-module = { version = "0.23.0", path = "../aranya-policy-module", optional = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"], optional = true }
 spin = { workspace = true, features = ["spin_mutex"], optional = true }
 
@@ -90,7 +90,6 @@ testing = [
 	"aranya-crypto/rand_compat",
 	"aranya-policy-vm/derive",
 
-	"dep:aranya-policy-module",
 	"dep:serde_json",
 	"dep:spin",
 ]

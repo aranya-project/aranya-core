@@ -9,15 +9,15 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{FfiContract, Machine, TypeContract, ffi::FfiModule as _, ident};
 use aranya_runtime::{
-    VmPolicy, VmPolicyError,
     testing::vm::{self, TestPolicyStore},
+    vm_policy::{FLAVORS, VmPolicy, VmPolicyError},
 };
 use test_log::test;
 
 /// Creates a `TestPolicyStore` from a policy document.
 fn new_policy_store() -> TestPolicyStore {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap();
-    let module = Compiler::new(&ast).compile().unwrap();
+    let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
     TestPolicyStore::from_module(module)
 }
 
@@ -52,6 +52,7 @@ fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap_or_else(|e| panic!("{e}"));
     let module = Compiler::new(&ast)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
+        .flavors(&FLAVORS)
         .compile()
         .unwrap_or_else(|e| panic!("{e}"));
     let mut machine = Machine::from_module(module).expect("module conversion failed");

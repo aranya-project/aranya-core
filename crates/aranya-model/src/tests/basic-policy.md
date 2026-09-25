@@ -15,8 +15,6 @@ Hence, they are also not delivered through syncs and should be transmitted via
 some other mechanism.
 
 ```policy
-use envelope
-
 fact Key[]=>{key bytes}
 
 base command(init) BaseInit {

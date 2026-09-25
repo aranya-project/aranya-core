@@ -10,8 +10,6 @@ management.
 ```policy
 // Import necessary FFIs
 use device
-use crypto
-use envelope
 use perspective
 use idam
 ```
@@ -80,7 +78,7 @@ command AddUser {
     }
 
     policy {
-        let dev_id = envelope::command_id(envelope)
+        let dev_id = envelope.command_id
         // Check that this device has not already been added
         check !exists Device[dev: dev_id] else test_fail("no device")
 

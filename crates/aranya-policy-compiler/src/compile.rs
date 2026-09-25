@@ -22,6 +22,7 @@ use aranya_policy_module::{
     CodeMap, ConstStruct, ConstValue, ExitReason, Instruction, Label, LabelType, Meta, Module,
     Target, WrapType,
     ffi::{self, ModuleSchema},
+    flavor::{Flavor, Flavors},
     interface,
     named::NamedMap,
 };
@@ -1462,22 +1463,30 @@ impl<'a> CompileState<'a> {
             )?;
         }
 
-        let flavor_def = self
-            .config
-            .flavors
-            .map(|flavors| match &cmd_flavor {
-                None => Ok(&flavors.default),
-                Some(cmd_flavor) => flavors
+        let flavor_def = match (&self.config.flavors, &cmd_flavor) {
+            (None, None) => None,
+            (None, Some(_)) => {
+                // TODO: real error.
+                return Err(self.err(UnknownError(
+                    "flavor specified but none provided".into(),
+                    None,
+                )));
+            }
+            (Some(flavors), None) => Some(&flavors.default),
+            (Some(flavors), Some(cmd_flavor)) => Some(
+                flavors
                     .flavors
                     .iter()
                     .find(|&(name, _)| *name == cmd_flavor.inner)
                     .map(|(_, flavor)| flavor)
                     .ok_or_else(|| {
-                        NotDefined(format!("unknown flavor {cmd_flavor}"), cmd_flavor.span)
-                    }),
-            })
-            .transpose()
-            .map_err(|e| self.err(e))?;
+                        self.err(NotDefined(
+                            format!("unknown flavor {cmd_flavor}"),
+                            cmd_flavor.span,
+                        ))
+                    })?,
+            ),
+        };
 
         self.has_envelope
             .insert(command.identifier.clone(), flavor_def.is_some());
@@ -2360,15 +2369,6 @@ impl Config<'_> {
             allow_baseless: false,
         }
     }
-}
-
-pub struct Flavors<'a> {
-    pub default: Flavor<'a>,
-    pub flavors: &'a [(Identifier, Flavor<'a>)],
-}
-
-pub struct Flavor<'a> {
-    pub envelope: ffi::Struct<'a>,
 }
 
 /// A builder for creating an instance of [`Module`]

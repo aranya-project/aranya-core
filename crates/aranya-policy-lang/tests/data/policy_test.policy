@@ -20,8 +20,8 @@ command Add {
         count int
     }
     policy {
-        let envelope_id = envelope::command_id(envelope)
-        let author = envelope::author_id(envelope)
+        let envelope_id = envelope.command_id
+        let author = envelope.author_id
         let new_x = add2(x, count)
         check exists TestFact[v: "test"]=>{} else recall default()
         match x {
@@ -53,8 +53,8 @@ command Add {
         }
     }
     recall default() {
-        let envelope_id = envelope::command_id(envelope)
-        let author = envelope::author_id(envelope)
+        let envelope_id = envelope.command_id
+        let author = envelope.author_id
         let new_x = add2(x, count)
         finish {
             create F[v: "hello"]=>{x, y: saturating_sub(0, x)}
