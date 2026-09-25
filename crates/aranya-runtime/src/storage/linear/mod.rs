@@ -1018,7 +1018,7 @@ impl<R> LinearFactPerspective<R> {
                         .or_default()
                         .insert(keys.iter(), Some(value.as_ref().into()))?;
                 } else if let Some(e) = self.map.get_mut(name.as_str()) {
-                    e.remove(keys.iter());
+                    e.remove(keys.iter())?;
                 }
             } else {
                 let value = match value {
@@ -1043,7 +1043,7 @@ impl<R> LinearFactPerspective<R> {
                         .or_default()
                         .insert(keys, Some(value.clone()))?;
                 } else if let Some(e) = self.map.get_mut(name) {
-                    e.remove(keys);
+                    e.remove(keys)?;
                 }
             } else {
                 self.map
@@ -1124,7 +1124,7 @@ impl<R: Read> QueryMut for LinearFactPerspective<R> {
         if self.prior.is_none() {
             // No need for tombstones with no prior.
             if let Some(kv) = self.map.get_mut(&name) {
-                kv.remove(&keys);
+                kv.remove(&keys)?;
             }
         } else {
             self.map

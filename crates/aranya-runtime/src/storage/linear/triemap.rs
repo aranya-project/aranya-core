@@ -161,26 +161,51 @@ impl TrieMap {
 
     /// Removes the value at `keys`, pruning any branches left empty.
     ///
-    /// Does nothing if `keys` doesn't lead exactly to a leaf.
-    pub fn remove(&mut self, keys: impl IntoIterator<Item: AsRef<[u8]>>) {
-        fn go<I: Iterator<Item: AsRef<[u8]>>>(slot: &mut Slot, mut keys: I) {
-            let Slot::Branch(b) = slot else { return };
-            let Some(key) = keys.next() else { return };
+    /// Does nothing if `keys` isn't present. Fails with [`InvalidDepth`] if
+    /// `keys` ends at a branch or continues past a leaf.
+    pub fn remove(
+        &mut self,
+        keys: impl IntoIterator<Item: AsRef<[u8]>>,
+    ) -> Result<(), InvalidDepth> {
+        fn go<I: Iterator<Item: AsRef<[u8]>>>(
+            b: &mut BTreeMap<Bytes, Slot>,
+            mut keys: I,
+        ) -> Result<(), InvalidDepth> {
+            let Some(key) = keys.next() else {
+                return Err(InvalidDepth);
+            };
             let Some(child) = b.get_mut(key.as_ref()) else {
-                return;
+                return Ok(());
             };
             let now_empty = match child {
-                Slot::Leaf(_) => keys.next().is_none(),
-                Slot::Branch(_) => {
-                    go(child, keys);
-                    matches!(child, Slot::Branch(c) if c.is_empty())
+                Slot::Leaf(_) => {
+                    if keys.next().is_some() {
+                        return Err(InvalidDepth);
+                    }
+                    true
+                }
+                Slot::Branch(c) => {
+                    go(c, keys)?;
+                    c.is_empty()
                 }
             };
             if now_empty {
                 b.remove(key.as_ref());
             }
+            Ok(())
         }
-        go(&mut self.0, keys.into_iter());
+        let mut keys = keys.into_iter();
+        match &mut self.0 {
+            Slot::Branch(b) if b.is_empty() => Ok(()),
+            Slot::Branch(b) => go(b, keys),
+            Slot::Leaf(_) => {
+                if keys.next().is_some() {
+                    return Err(InvalidDepth);
+                }
+                *self = Self::new();
+                Ok(())
+            }
+        }
     }
 
     /// Removes tombstones.
@@ -407,22 +432,42 @@ mod tests {
             .unwrap();
         map.insert([b"d", b"e"], None).unwrap();
 
-        // Wrong depth or missing keys are ignored.
-        map.remove([b"a"]);
-        map.remove([b"a", b"b", b"x"]);
-        map.remove([b"a", b"x"]);
+        // Missing keys are ignored.
+        map.remove([b"a", b"x"]).unwrap();
+        map.remove([b"x", b"y"]).unwrap();
+
+        // Wrong depth is an error.
+        assert!(map.remove([b"a"]).is_err());
+        assert!(map.remove([b"a", b"b", b"x"]).is_err());
         assert_eq!(map.get([b"a", b"b"]).unwrap(), Some(Some(b"1".as_slice())));
 
-        map.remove([b"a", b"b"]);
+        map.remove([b"a", b"b"]).unwrap();
         assert_eq!(map.get([b"a", b"b"]).unwrap(), None);
         assert_eq!(map.get([b"a", b"c"]).unwrap(), Some(Some(b"2".as_slice())));
 
         // Tombstones are removed too.
-        map.remove([b"d", b"e"]);
+        map.remove([b"d", b"e"]).unwrap();
         assert_eq!(map.get([b"d", b"e"]).unwrap(), None);
 
         // Emptied branches are pruned.
-        map.remove([b"a", b"c"]);
+        map.remove([b"a", b"c"]).unwrap();
+        assert!(map.is_empty());
+
+        // Anything is missing from an empty map.
+        let empty: [&[u8]; 0] = [];
+        map.remove([b"a"]).unwrap();
+        map.remove(empty).unwrap();
+    }
+
+    /// A fact with no key fields is stored as a leaf at the root.
+    #[test]
+    fn test_remove_no_keys() {
+        let empty: [&[u8]; 0] = [];
+        let mut map = TrieMap::new();
+        map.insert(empty, Some(b"1".as_slice().into())).unwrap();
+        assert!(map.remove([b"a"]).is_err());
+
+        map.remove(empty).unwrap();
         assert!(map.is_empty());
     }
 }
