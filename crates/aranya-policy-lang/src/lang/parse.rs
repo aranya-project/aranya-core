@@ -935,6 +935,23 @@ impl ChunkParser<'_> {
                         let s = pc.consume_ident(self)?;
                         ExprKind::Cast(Box::new(lhs), s)
                     },
+                    Rule::try_op => {
+                        // `?` is part of the call form, so its operand must be a
+                        // call - or another `?`, as in `f(x)??`.
+                        if !matches!(
+                            lhs.inner,
+                            ExprKind::FunctionCall(_)
+                                | ExprKind::ForeignFunctionCall(_)
+                                | ExprKind::Try(_)
+                        ) {
+                            return Err(ParseError::new(
+                                ParseErrorKind::Expression,
+                                String::from("the `?` operator can only follow a call"),
+                                Some(op_span),
+                            ));
+                        }
+                        ExprKind::Try(Box::new(lhs))
+                    },
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad postfix: {:?}", op.as_rule()),
@@ -2075,14 +2092,15 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 ///
 /// | Priority | Op |
 /// |----------|----|
-/// | 1        | `.` |
-/// | 2        | `substruct`, `as` (infix) |
-/// | 3        | `!` |
-/// | 4        | `%` |
-/// | 5        | `>`, `<`, `>=`, `<=`, `is` |
-/// | 6        | `==`, `!=` |
-/// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
-/// | 8        | `or` (optional coalescing, right-associative) |
+/// | 1        | `?` |
+/// | 2        | `.` |
+/// | 3        | `substruct`, `as` (infix) |
+/// | 4        | `!` |
+/// | 5        | `+`, `-` |
+/// | 6        | `>`, `<`, `>=`, `<=`, `is` |
+/// | 7        | `==`, `!=` |
+/// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 9        | `or` (optional coalescing, right-associative) |
 fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
         .op(Op::infix(Rule::coalesce, Assoc::Right))
@@ -2097,6 +2115,8 @@ fn get_pratt_parser() -> PrattParser<Rule> {
         .op(Op::prefix(Rule::not))
         .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
         .op(Op::postfix(Rule::dot))
+        // `?` binds tighter than `.` so that `f(x)?.field` is `(f(x)?).field`.
+        .op(Op::postfix(Rule::try_op))
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

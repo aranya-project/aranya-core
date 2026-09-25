@@ -1,0 +1,16 @@
+fact F[k int]=>{v int}
+
+function may_fail(x int) result[int, string] {
+    return Err("nope")
+}
+
+command Work {
+    fields {
+        n int,
+    }
+    policy {
+        finish {
+            create F[k: 1]=>{v: may_fail(2)?}
+        }
+    }
+}

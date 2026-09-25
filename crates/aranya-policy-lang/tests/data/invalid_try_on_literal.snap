@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Invalid expression
+  |
+2 |     let n = Err("nope")?
+  |                        ^ the `?` operator can only follow a call
