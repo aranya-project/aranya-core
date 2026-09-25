@@ -8,7 +8,7 @@ use core::iter;
 use aranya_crypto::{
     BaseId, Csprng, DeviceId, Random, Rng, default::DefaultEngine, id::IdExt as _, policy::CmdId,
 };
-use aranya_policy_vm::{CommandContext, OpenContext, PolicyContext, SealContext, ident};
+use aranya_policy_vm::{CommandContext, PolicyContext, ident};
 
 use crate::{Envelope, Ffi};
 
@@ -44,15 +44,6 @@ impl Random for Envelope {
     }
 }
 
-const SEAL_CTX: &CommandContext = &CommandContext::Seal(SealContext {
-    name: ident!("dummy"),
-    head_id: CmdId::default(),
-});
-
-const OPEN_CTX: &CommandContext = &CommandContext::Open(OpenContext {
-    name: ident!("dummy"),
-});
-
 const POLICY_CTX: &CommandContext = &CommandContext::Policy(PolicyContext {
     name: ident!("dummy"),
     id: CmdId::default(),
@@ -72,8 +63,6 @@ fn test_author_id() {
     let (eng, _) = E::from_entropy(Rng);
     let env = Envelope::random(Rng);
     let got = [
-        Ffi.author_id(OPEN_CTX, &eng, env.clone())
-            .expect("should not fail"),
         Ffi.author_id(POLICY_CTX, &eng, env.clone())
             .expect("should not fail"),
         Ffi.author_id(RECALL_CTX, &eng, env.clone())
@@ -89,8 +78,6 @@ fn test_command_id() {
     let (eng, _) = E::from_entropy(Rng);
     let env = Envelope::random(Rng);
     let got = [
-        Ffi.command_id(OPEN_CTX, &eng, env.clone())
-            .expect("should not fail"),
         Ffi.command_id(POLICY_CTX, &eng, env.clone())
             .expect("should not fail"),
         Ffi.command_id(RECALL_CTX, &eng, env.clone())
@@ -106,8 +93,6 @@ fn test_signature() {
     let (eng, _) = E::from_entropy(Rng);
     let env = Envelope::random(Rng);
     let got = [
-        Ffi.signature(OPEN_CTX, &eng, env.clone())
-            .expect("should not fail"),
         Ffi.signature(POLICY_CTX, &eng, env.clone())
             .expect("should not fail"),
         Ffi.signature(RECALL_CTX, &eng, env.clone())
@@ -116,21 +101,4 @@ fn test_signature() {
     for (got, want) in got.into_iter().zip(iter::repeat(env.signature)) {
         assert_eq!(got, want);
     }
-}
-
-#[test]
-fn test_new_envelope() {
-    let (eng, _) = E::from_entropy(Rng);
-    let env = Envelope::random(Rng);
-    let got = Ffi
-        .new_envelope(
-            SEAL_CTX,
-            &eng,
-            CmdId::from_base(env.parent_id),
-            DeviceId::from_base(env.author_id),
-            CmdId::from_base(env.command_id),
-            env.signature.clone(),
-        )
-        .expect("should not fail");
-    assert_eq!(got, env);
 }

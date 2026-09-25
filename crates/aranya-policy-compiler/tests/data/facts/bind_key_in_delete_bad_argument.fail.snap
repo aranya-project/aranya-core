@@ -4,5 +4,5 @@ expression: error
 ---
 error: bad argument
   |
-8 |             delete F[i:?]
+6 |             delete F[i:?]
   |                        ^ Cannot delete fact with wildcard keys

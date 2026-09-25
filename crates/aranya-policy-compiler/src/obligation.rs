@@ -88,7 +88,34 @@ struct PathState {
 pub(crate) fn analyze_block(stmts: &[Statement]) -> Vec<ObligationWarning> {
     let mut warnings = Vec::new();
     walk(stmts, &[], PathState::default(), &mut warnings);
-    warnings
+    dedup_warnings(warnings)
+}
+
+/// Collapse warnings that differ only in their notes.
+///
+/// Statements after an `if`/`match` are walked once per path, so a
+/// statement reached by several failing paths is reported once per path.
+/// Warnings with the same span and message are merged, keeping the first
+/// occurrence's position and taking the union of the notes (different
+/// paths may have skipped different opaque expressions).
+fn dedup_warnings(warnings: Vec<ObligationWarning>) -> Vec<ObligationWarning> {
+    let mut out: Vec<ObligationWarning> = Vec::new();
+    for w in warnings {
+        match out
+            .iter_mut()
+            .find(|o| o.span == w.span && o.message == w.message)
+        {
+            Some(existing) => {
+                for note in w.notes {
+                    if !existing.notes.contains(&note) {
+                        existing.notes.push(note);
+                    }
+                }
+            }
+            None => out.push(w),
+        }
+    }
+    out
 }
 
 /// Walk one path segment. `cont` holds the statement segments that follow
@@ -527,6 +554,7 @@ mod tests {
         let policy = parse_policy_str(text, Version::V2).expect("parse");
         let (_module, warnings) = Compiler::new(&policy)
             .debug(true)
+            .allow_baseless(true)
             .analyze_obligations(true)
             .compile_with_diagnostics()
             .expect("compile");
@@ -541,8 +569,6 @@ mod tests {
 
             command Foo {{
                 fields {{ user int }}
-                seal {{ return todo() }}
-                open {{ return todo() }}
                 policy {{
                     {policy_block}
                 }}
@@ -613,6 +639,42 @@ mod tests {
     }
 
     #[test]
+    fn unchecked_on_several_paths_warns_once() {
+        let warnings = warnings_for(&command(
+            r#"
+            if this.user == 1 {
+                let a = 1
+            } else {
+                let b = 2
+            }
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(warnings[0].message.contains("cannot prove"));
+    }
+
+    #[test]
+    fn duplicate_warnings_merge_notes() {
+        let warnings = warnings_for(&command(
+            r#"
+            if this.user == 1 {
+                check !(exists Account[user: this.user] && this.user == 1) else recall failed()
+            } else {
+                check !(exists Account[user: this.user] || this.user == 2) else recall failed()
+            }
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert_eq!(warnings[0].notes.len(), 2, "notes: {:?}", warnings[0].notes);
+    }
+
+    #[test]
     fn double_create_warns() {
         let warnings = warnings_for(&command(
             r#"
@@ -649,8 +711,6 @@ mod tests {
 
             command Foo {
                 fields { user int }
-                seal { return todo() }
-                open { return todo() }
                 policy {
                     check !exists Grant[user: this.user, perm: ?] else recall failed()
                     finish {
@@ -720,6 +780,7 @@ mod tests {
         let policy = parse_policy_str(&text, Version::V2).expect("parse");
         let (_module, warnings) = Compiler::new(&policy)
             .debug(true)
+            .allow_baseless(true)
             .compile_with_diagnostics()
             .expect("compile");
         assert_eq!(warnings, vec![], "expected no warnings when disabled");

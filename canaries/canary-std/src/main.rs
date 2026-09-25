@@ -4,7 +4,6 @@
 
 extern crate aranya_core;
 extern crate aranya_crypto;
-extern crate aranya_crypto_ffi;
 extern crate aranya_device_ffi;
 extern crate aranya_envelope_ffi;
 extern crate aranya_idam_ffi;

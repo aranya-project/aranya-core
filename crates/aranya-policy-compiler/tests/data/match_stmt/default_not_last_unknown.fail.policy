@@ -2,21 +2,19 @@ command Result {
     fields {
         x int
     }
-    seal { return todo() }
-    open { return todo() }
     policy { }
 }
 
 action foo(x int) {
     match x {
         5 => {
-            publish Result { x: x }
+            publish Result { x }
         }
         _ => {
             publish Result { x: 0 }
         }
         6 => {
-            publish Result { x: x }
+            publish Result { x }
         }
     }
 }

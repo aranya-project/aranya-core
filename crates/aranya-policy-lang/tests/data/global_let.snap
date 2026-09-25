@@ -59,38 +59,39 @@ Policy {
                             identifier: "Bar" @ 125..128,
                             fields: [
                                 (
-                                    "a" @ 139..140,
+                                    "a" @ 131..132,
                                     Identifier(
-                                        "a" @ 142..143,
-                                    ) @ 142..143,
+                                        "a" @ 131..132,
+                                    ) @ 131..132,
                                 ),
                                 (
-                                    "c" @ 153..154,
+                                    "c" @ 134..135,
                                     Identifier(
-                                        "c" @ 156..157,
-                                    ) @ 156..157,
+                                        "c" @ 134..135,
+                                    ) @ 134..135,
                                 ),
                             ],
                             sources: [],
-                            span: 125..164,
+                            span: 125..137,
                         },
-                    ) @ 125..164,
-                ) @ 120..169,
+                    ) @ 125..137,
+                ) @ 120..142,
                 Return(
                     ReturnStatement {
                         expression: Ok(
-                            Unit @ 179..183,
-                        ) @ 176..184,
+                            Unit @ 152..156,
+                        ) @ 149..157,
                     },
-                ) @ 169..185,
+                ) @ 142..158,
             ],
-            span: 25..186,
+            span: 25..159,
         },
     ],
     effects: [],
     structs: [],
     enums: [],
     commands: [],
+    base_commands: [],
     functions: [],
     finish_functions: [],
     global_lets: [
@@ -109,5 +110,5 @@ Policy {
             span: 11..25,
         },
     ],
-    text: "let x = 42\nlet z = true\n\naction foo() result[unit, unit] {\n    let a = add(x, 1) or return Err(Unit)\n    let c = !z\n    emit Bar {\n        a: a,\n        c: c,\n    }\n    return Ok(Unit)\n}\n",
+    text: "let x = 42\nlet z = true\n\naction foo() result[unit, unit] {\n    let a = add(x, 1) or return Err(Unit)\n    let c = !z\n    emit Bar { a, c }\n    return Ok(Unit)\n}\n",
 }
