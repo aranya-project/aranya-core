@@ -12,5 +12,5 @@ mod tracer;
 pub mod validate;
 
 pub use compile::*;
-pub use obligation::ObligationWarning;
+pub use obligation::{Footnote, ObligationWarning};
 pub use tracer::*;

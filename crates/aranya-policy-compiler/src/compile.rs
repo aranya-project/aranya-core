@@ -893,14 +893,20 @@ impl<'a> CompileState<'a> {
         scope: Scope,
     ) -> Result<(), CompileError> {
         let stmts = self.lower_statements(statements, scope)?;
-        if self.config.analyze_obligations
-            && matches!(
-                self.get_statement_context()?,
-                StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_)
-            )
-        {
-            self.obligation_warnings
-                .extend(obligation::analyze_block(&stmts));
+        if self.config.analyze_obligations {
+            let empty_db = match self.get_statement_context()? {
+                StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
+                    Some(is_init_command(cmd))
+                }
+                _ => None,
+            };
+            if let Some(empty_db) = empty_db {
+                self.obligation_warnings.extend(obligation::analyze_block(
+                    &stmts,
+                    &self.policy.text,
+                    empty_db,
+                ));
+            }
         }
         self.compile_typed_statements(stmts, scope)
     }
@@ -2393,6 +2399,16 @@ impl<'a> Compiler<'a> {
             obligation_warnings: Vec::new(),
         }
     }
+}
+
+/// Reports whether a command is marked `init: true`.
+///
+/// The runtime only accepts such a command as the root of the graph, so it
+/// always runs against an empty fact database.
+fn is_init_command(cmd: &ast::CommandDefinition) -> bool {
+    cmd.attributes
+        .iter()
+        .any(|(name, value)| name.as_str() == "init" && matches!(value.inner, ExprKind::Bool(true)))
 }
 
 /// Checks whether a vector has duplicate values, and returns the pair of the first and second ones, if found.

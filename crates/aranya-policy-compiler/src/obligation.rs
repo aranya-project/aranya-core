@@ -25,10 +25,23 @@ use aranya_policy_ast::{
 pub struct ObligationWarning {
     /// The location of the statement whose obligation could not be proven.
     pub span: Span,
-    /// The primary warning message.
+    /// The primary warning message, used as the title.
     pub message: String,
+    /// A short label attached to the statement's span.
+    pub label: String,
     /// Additional notes, each pointing at a source location.
     pub notes: Vec<(Span, String)>,
+    /// Notes and help text shown after the source snippet.
+    pub footnotes: Vec<(Footnote, String)>,
+}
+
+/// The kind of a footnote attached to an [`ObligationWarning`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Footnote {
+    /// Explains why the warning matters.
+    Note,
+    /// Suggests how to fix the warning.
+    Help,
 }
 
 impl ObligationWarning {
@@ -40,7 +53,7 @@ impl ObligationWarning {
         let mut annotations = vec![
             AnnotationKind::Primary
                 .span(self.span.into())
-                .label(self.message.clone())
+                .label(self.label.clone())
                 .highlight_source(true),
         ];
         for (span, note) in &self.notes {
@@ -50,8 +63,15 @@ impl ObligationWarning {
                     .label(note.clone()),
             );
         }
-        let report = vec![title.element(Snippet::source(input).annotations(annotations))];
-        Renderer::plain().render(&report)
+        let mut group = title.element(Snippet::source(input).annotations(annotations));
+        for (kind, text) in &self.footnotes {
+            let level = match kind {
+                Footnote::Note => Level::NOTE,
+                Footnote::Help => Level::HELP,
+            };
+            group = group.element(level.message(text.clone()));
+        }
+        Renderer::plain().render(&[group])
     }
 }
 
@@ -72,22 +92,63 @@ struct FactPattern {
     name: Ident,
     keys: Vec<(Identifier, Expression)>,
     span: Span,
+    /// The fact literal as written in the source (name and key fields),
+    /// for diagnostics.
+    text: String,
 }
 
 /// Analysis state along a single control-flow path.
-#[derive(Debug, Clone, Default)]
-struct PathState {
+#[derive(Debug, Clone)]
+struct PathState<'a> {
+    /// The full policy source text, for diagnostics.
+    src: &'a str,
     facts: Vec<(FactPattern, FactState)>,
     /// `let`-bound names with simple (substitutable) values.
     env: BTreeMap<Identifier, Expression>,
     /// Fact-touching expressions the extractor could not interpret.
     opaque: Vec<(Ident, Span)>,
+    /// The fact database is known to be empty at the start of the block
+    /// (an `init` command), except for facts named in `dirty`.
+    empty_db: bool,
+    /// Facts that may have been mutated since the block started.
+    dirty: Vec<Identifier>,
+}
+
+impl PathState<'_> {
+    /// Is every fact named `name` known not to exist?
+    fn known_absent(&self, name: &Identifier) -> bool {
+        self.empty_db && !self.dirty.contains(name)
+    }
+
+    /// Record that facts named `name` may have been mutated.
+    fn mark_dirty(&mut self, name: &Identifier) {
+        if !self.dirty.contains(name) {
+            self.dirty.push(name.clone());
+        }
+    }
 }
 
 /// Analyze the lowered statements of a command `policy` or `recall` block.
-pub(crate) fn analyze_block(stmts: &[Statement]) -> Vec<ObligationWarning> {
+///
+/// `src` is the full policy source text. `empty_db` is true for the
+/// blocks of an `init` command, which always runs against an empty fact
+/// database: the runtime only accepts an init command as the root of the
+/// graph.
+pub(crate) fn analyze_block(
+    stmts: &[Statement],
+    src: &str,
+    empty_db: bool,
+) -> Vec<ObligationWarning> {
+    let st = PathState {
+        src,
+        facts: Vec::new(),
+        env: BTreeMap::new(),
+        opaque: Vec::new(),
+        empty_db,
+        dirty: Vec::new(),
+    };
     let mut warnings = Vec::new();
-    walk(stmts, &[], PathState::default(), &mut warnings);
+    walk(stmts, &[], st, &mut warnings);
     dedup_warnings(warnings)
 }
 
@@ -124,7 +185,7 @@ fn dedup_warnings(warnings: Vec<ObligationWarning>) -> Vec<ObligationWarning> {
 fn walk(
     stmts: &[Statement],
     cont: &[&[Statement]],
-    mut st: PathState,
+    mut st: PathState<'_>,
     warnings: &mut Vec<ObligationWarning>,
 ) {
     let mut remaining = stmts;
@@ -168,6 +229,9 @@ fn walk(
                 // survive from one iteration to the next.
                 let mutated = mutated_fact_names(&m.statements);
                 st.facts.retain(|(p, _)| !mutated.contains(&p.name.inner));
+                for name in &mutated {
+                    st.mark_dirty(name);
+                }
                 walk(&m.statements, &[], st.clone(), warnings);
             }
             StmtKind::Finish(fstmts) => {
@@ -192,18 +256,23 @@ fn walk(
 }
 
 /// Check obligations for the mutations in a finish block.
-fn analyze_finish(stmts: &[Statement], st: &mut PathState, warnings: &mut Vec<ObligationWarning>) {
+fn analyze_finish(
+    stmts: &[Statement],
+    st: &mut PathState<'_>,
+    warnings: &mut Vec<ObligationWarning>,
+) {
     let mut touched: Vec<FactPattern> = Vec::new();
     for stmt in stmts {
         match &stmt.kind {
             StmtKind::Create(c) => {
-                let pat = pattern_of(&c.fact, &st.env);
+                let pat = pattern_of(&c.fact, st);
                 if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
                     warnings.push(double_manipulation(stmt.span, &pat, prev));
-                } else if !st
-                    .facts
-                    .iter()
-                    .any(|(p, s)| *s == FactState::NotExists && covers(p, &pat))
+                } else if !st.known_absent(&pat.name.inner)
+                    && !st
+                        .facts
+                        .iter()
+                        .any(|(p, s)| *s == FactState::NotExists && covers(p, &pat))
                 {
                     warnings.push(unproven_create(stmt.span, &pat, &st.opaque));
                 }
@@ -211,7 +280,7 @@ fn analyze_finish(stmts: &[Statement], st: &mut PathState, warnings: &mut Vec<Ob
                 touched.push(pat);
             }
             StmtKind::Update(u) => {
-                let pat = pattern_of(&u.fact, &st.env);
+                let pat = pattern_of(&u.fact, st);
                 if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
                     warnings.push(double_manipulation(stmt.span, &pat, prev));
                 }
@@ -219,7 +288,7 @@ fn analyze_finish(stmts: &[Statement], st: &mut PathState, warnings: &mut Vec<Ob
                 touched.push(pat);
             }
             StmtKind::Delete(d) => {
-                let pat = pattern_of(&d.fact, &st.env);
+                let pat = pattern_of(&d.fact, st);
                 if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
                     warnings.push(double_manipulation(stmt.span, &pat, prev));
                 }
@@ -229,6 +298,7 @@ fn analyze_finish(stmts: &[Statement], st: &mut PathState, warnings: &mut Vec<Ob
             StmtKind::FunctionCall(_) => {
                 // A finish function may mutate any fact.
                 st.facts.clear();
+                st.empty_db = false;
             }
             _ => {}
         }
@@ -242,18 +312,28 @@ fn unproven_create(span: Span, pat: &FactPattern, opaque: &[(Ident, Span)]) -> O
         .map(|(name, span)| {
             (
                 *span,
-                format!("this expression touches `{name}` but was too complex to analyze"),
+                format!("touches `{name}` but is too complex to analyze"),
             )
         })
         .collect();
     ObligationWarning {
         span,
-        message: format!(
-            "cannot prove fact `{}` does not exist before `create`; \
-             creating an existing fact is a runtime exception",
-            pat.name
-        ),
+        message: format!("cannot prove `{}` does not exist before `create`", pat.text),
+        label: "this fact may already exist".to_owned(),
         notes,
+        footnotes: vec![
+            (
+                Footnote::Note,
+                "creating a fact that already exists is a runtime exception".to_owned(),
+            ),
+            (
+                Footnote::Help,
+                format!(
+                    "check that it does not exist first: `check !exists {} else ...`",
+                    pat.text
+                ),
+            ),
+        ],
     }
 }
 
@@ -261,28 +341,33 @@ fn double_manipulation(span: Span, pat: &FactPattern, prev: &FactPattern) -> Obl
     ObligationWarning {
         span,
         message: format!(
-            "fact `{}` is manipulated more than once in this finish block, \
-             which is a runtime exception",
-            pat.name
+            "`{}` is manipulated more than once in this finish block",
+            pat.text
         ),
+        label: "manipulated again here".to_owned(),
         notes: vec![(prev.span, "first manipulated here".to_owned())],
+        footnotes: vec![(
+            Footnote::Note,
+            "manipulating the same fact twice in one finish block is a runtime exception"
+                .to_owned(),
+        )],
     }
 }
 
 /// Extract an observation from a `check` expression's fall-through arm
 /// (the else arm is `Never`-typed, so fall-through is the only continuation).
-fn observe_check(st: &mut PathState, expr: &Expression) {
+fn observe_check(st: &mut PathState<'_>, expr: &Expression) {
     match &expr.kind {
         ExprKind::Not(inner) => {
             if let ExprKind::InternalFunction(InternalFunction::Exists(fact)) = &inner.kind {
-                let pat = pattern_of(fact, &st.env);
+                let pat = pattern_of(fact, st);
                 observe(st, pat, FactState::NotExists);
             } else {
                 collect_opaque(st, expr);
             }
         }
         ExprKind::InternalFunction(InternalFunction::Exists(fact)) => {
-            let pat = pattern_of(fact, &st.env);
+            let pat = pattern_of(fact, st);
             observe(st, pat, FactState::Exists);
         }
         _ => collect_opaque(st, expr),
@@ -290,14 +375,14 @@ fn observe_check(st: &mut PathState, expr: &Expression) {
 }
 
 /// Extract an observation or a substitutable binding from a `let`.
-fn observe_let(st: &mut PathState, stmt: &LetStatement) {
+fn observe_let(st: &mut PathState<'_>, stmt: &LetStatement) {
     // `let x = query F[..] or <terminal>` proves the fact exists on
     // fall-through.
     if let ExprKind::Coalesce(lhs, rhs) = &stmt.expression.kind
         && matches!(rhs.vtype.inner, TypeKind::Never)
         && let ExprKind::InternalFunction(InternalFunction::Query(fact)) = &lhs.kind
     {
-        let pat = pattern_of(fact, &st.env);
+        let pat = pattern_of(fact, st);
         observe(st, pat, FactState::Exists);
         return;
     }
@@ -310,7 +395,7 @@ fn observe_let(st: &mut PathState, stmt: &LetStatement) {
 }
 
 /// Record an observation, replacing prior knowledge of the same pattern.
-fn observe(st: &mut PathState, pat: FactPattern, state: FactState) {
+fn observe(st: &mut PathState<'_>, pat: FactPattern, state: FactState) {
     st.facts.retain(|(p, _)| !same_pattern(p, &pat));
     st.facts.push((pat, state));
 }
@@ -318,21 +403,37 @@ fn observe(st: &mut PathState, pat: FactPattern, state: FactState) {
 /// Record a mutation's postcondition. A mutation invalidates all other
 /// knowledge about the same fact name, since other patterns may alias
 /// the mutated key.
-fn set_state(st: &mut PathState, pat: FactPattern, state: FactState) {
+fn set_state(st: &mut PathState<'_>, pat: FactPattern, state: FactState) {
+    st.mark_dirty(&pat.name.inner);
     st.facts.retain(|(p, _)| p.name != pat.name);
     st.facts.push((pat, state));
 }
 
-fn pattern_of(fact: &FactLiteral, env: &BTreeMap<Identifier, Expression>) -> FactPattern {
+fn pattern_of(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
     FactPattern {
         name: fact.identifier.clone(),
         keys: fact
             .key_fields
             .iter()
-            .map(|(name, expr)| (name.inner.clone(), substitute(expr, env)))
+            .map(|(name, expr)| (name.inner.clone(), substitute(expr, &st.env)))
             .collect(),
         span: fact.span(),
+        text: fact_text(fact, st.src),
     }
+}
+
+/// Render a fact literal's name and key fields as written in the source.
+fn fact_text(fact: &FactLiteral, src: &str) -> String {
+    let keys: Vec<String> = fact
+        .key_fields
+        .iter()
+        .map(|(name, expr)| {
+            let range: core::ops::Range<usize> = expr.span.into();
+            let value = src.get(range).unwrap_or("..");
+            format!("{name}: {value}")
+        })
+        .collect();
+    format!("{}[{}]", fact.identifier, keys.join(", "))
 }
 
 /// Does a `NotExists` observation of `obs` prove `NotExists` for `obl`?
@@ -415,7 +516,7 @@ fn substitute(expr: &Expression, env: &BTreeMap<Identifier, Expression>) -> Expr
 }
 
 /// Record every fact-touching subexpression as an opaque observation point.
-fn collect_opaque(st: &mut PathState, expr: &Expression) {
+fn collect_opaque(st: &mut PathState<'_>, expr: &Expression) {
     visit_facts(expr, &mut |fact, span| {
         st.opaque.push((fact.identifier.clone(), span));
     });
@@ -601,7 +702,10 @@ mod tests {
             "#,
         ));
         assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("cannot prove fact `Account`"));
+        assert_eq!(
+            warnings[0].message,
+            "cannot prove `Account[user: this.user]` does not exist before `create`"
+        );
         assert!(warnings[0].notes.is_empty());
     }
 
@@ -672,6 +776,102 @@ mod tests {
         ));
         assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
         assert_eq!(warnings[0].notes.len(), 2, "notes: {:?}", warnings[0].notes);
+    }
+
+    /// Wrap a policy body in an `init: true` command.
+    fn init_command(policy_block: &str) -> String {
+        format!(
+            r#"
+            fact Account[user int]=>{{balance int}}
+            fact Owner[]=>{{user int}}
+
+            command Init {{
+                attributes {{ init: true }}
+                fields {{ user int }}
+                policy {{
+                    {policy_block}
+                }}
+            }}
+            "#
+        )
+    }
+
+    #[test]
+    fn init_command_create_passes() {
+        let warnings = warnings_for(&init_command(
+            r#"
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+                create Owner[]=>{user: this.user}
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn init_command_double_create_warns() {
+        let warnings = warnings_for(&init_command(
+            r#"
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+                create Account[user: this.user]=>{balance: 1}
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(warnings[0].message.contains("more than once"));
+    }
+
+    #[test]
+    fn init_false_is_not_init() {
+        let warnings = warnings_for(
+            r#"
+            fact Account[user int]=>{balance int}
+
+            command Foo {
+                attributes { init: false }
+                fields { user int }
+                policy {
+                    finish {
+                        create Account[user: this.user]=>{balance: 0}
+                    }
+                }
+            }
+            "#,
+        );
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    }
+
+    #[test]
+    fn rendered_warning_shows_label_note_and_help() {
+        let text = command(
+            r#"
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+            }
+            "#,
+        );
+        let policy = parse_policy_str(&text, Version::V2).expect("parse");
+        let (_module, warnings) = Compiler::new(&policy)
+            .debug(true)
+            .allow_baseless(true)
+            .analyze_obligations(true)
+            .compile_with_diagnostics()
+            .expect("compile");
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        let rendered = warnings[0].render(&text);
+        for expected in [
+            "warning: cannot prove `Account[user: this.user]` does not exist before `create`",
+            "this fact may already exist",
+            "note: creating a fact that already exists is a runtime exception",
+            "help: check that it does not exist first: `check !exists Account[user: this.user] else ...`",
+        ] {
+            assert!(
+                rendered.contains(expected),
+                "missing {expected:?} in:\n{rendered}"
+            );
+        }
     }
 
     #[test]
