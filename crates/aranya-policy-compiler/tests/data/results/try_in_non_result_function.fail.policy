@@ -1,0 +1,7 @@
+function may_fail(x int) result[int, string] {
+    return Err("nope")
+}
+
+function f(x int) int {
+    return may_fail(x)?
+}

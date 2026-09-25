@@ -1,0 +1,12 @@
+// `f(x)??` unwraps a `result[result[T, E], E]`.
+function inner(x int) result[result[int, string], string] {
+    if x > 0 {
+        return Ok(Ok(x))
+    } else {
+        return Err("negative input")
+    }
+}
+
+function outer(x int) result[int, string] {
+    return Ok(inner(x)??)
+}

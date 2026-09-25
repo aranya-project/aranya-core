@@ -1,0 +1,13 @@
+function may_fail(x int) result[int, string] {
+    return Err("nope")
+}
+
+command Work {
+    fields {
+        n int,
+    }
+    policy {
+        let v = may_fail(this.n)?
+        finish {}
+    }
+}

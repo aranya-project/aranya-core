@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: option[int]
+  |
+6 |     return Ok(maybe(x)?)
+  |               ^^^^^^^^ expected `result[T, E]` but found `option[int]`

@@ -1,0 +1,7 @@
+function maybe(x int) option[int] {
+    return Some(x)
+}
+
+function f(x int) result[int, string] {
+    return Ok(maybe(x)?)
+}
