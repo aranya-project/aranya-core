@@ -199,16 +199,16 @@ impl ConstValue {
     /// Returns a string representing the value's type.
     pub fn type_name(&self) -> String {
         match self {
-            Self::Unit => String::from("Unit"),
-            Self::Int(_) => String::from("Int"),
-            Self::Bool(_) => String::from("Bool"),
-            Self::String(_) => String::from("String"),
-            Self::Struct(s) => format!("Struct {}", s.name),
-            Self::Enum(name, _) => format!("Enum {}", name),
-            Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
-            Self::Option(None) => String::from("Option[_]"),
-            Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
-            Self::Result(Err(inner)) => format!("Result[{}, _]", inner.type_name()),
+            Self::Unit => String::from("unit"),
+            Self::Int(_) => String::from("int"),
+            Self::Bool(_) => String::from("bool"),
+            Self::String(_) => String::from("string"),
+            Self::Struct(s) => format!("struct {}", s.name),
+            Self::Enum(name, _) => format!("enum {}", name),
+            Self::Option(Some(inner)) => format!("option[{}]", inner.type_name()),
+            Self::Option(None) => String::from("option[_]"),
+            Self::Result(Ok(inner)) => format!("result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("result[{}, _]", inner.type_name()),
         }
     }
 

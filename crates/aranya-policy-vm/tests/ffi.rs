@@ -108,7 +108,7 @@ impl TryFrom<Value> for Label {
             Value::Int(x) => x,
             _ => {
                 return Err(ValueConversionError::invalid_type(
-                    "Int",
+                    "int",
                     value.type_name(),
                     "Value -> Label",
                 ));

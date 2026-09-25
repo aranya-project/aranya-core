@@ -724,7 +724,7 @@ where
                             let a_type = a.type_name();
                             let b_type = b.type_name();
                             return Err(self.err(MachineErrorType::invalid_type(
-                                "Int, Int",
+                                "int, int",
                                 alloc::format!("{a_type}, {b_type}"),
                                 "Greater-than comparison",
                             )));
@@ -736,7 +736,7 @@ where
                             let a_type = a.type_name();
                             let b_type = b.type_name();
                             return Err(self.err(MachineErrorType::invalid_type(
-                                "Int, Int",
+                                "int, int",
                                 alloc::format!("{a_type}, {b_type}"),
                                 "Less-than comparison",
                             )));
@@ -1017,7 +1017,7 @@ where
                     }
                     _ => {
                         return Err(self.err(MachineErrorType::invalid_type(
-                            "Struct",
+                            "struct _",
                             value.type_name(),
                             "Cast LHS",
                         )));

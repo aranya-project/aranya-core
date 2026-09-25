@@ -91,7 +91,7 @@ impl<T: TryFromValue> TryFromValue for Option<T> {
     fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
         let Value::Option(opt) = value else {
             return Err(ValueConversionError::InvalidType {
-                want: "Option".into(),
+                want: "option[_]".into(),
                 got: value.type_name(),
                 msg: format!("Value -> {}", core::any::type_name::<Self>()),
             });
@@ -104,7 +104,7 @@ impl<T: TryFromValue, E: TryFromValue> TryFromValue for Result<T, E> {
     fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
         let Value::Result(res) = value else {
             return Err(ValueConversionError::InvalidType {
-                want: "Result".into(),
+                want: "result[]".into(),
                 got: value.type_name(),
                 msg: format!("Value -> {}", core::any::type_name::<Self>()),
             });
@@ -136,18 +136,18 @@ impl Value {
     /// Returns a string representing the value's type.
     pub fn type_name(&self) -> String {
         match self {
-            Self::Unit => String::from("Unit"),
-            Self::Int(_) => String::from("Int"),
-            Self::Bool(_) => String::from("Bool"),
-            Self::String(_) => String::from("String"),
-            Self::Bytes(_) => String::from("Bytes"),
-            Self::Struct(s) => format!("Struct {}", s.name),
-            Self::Id(_) => String::from("Id"),
-            Self::Enum(name, _) => format!("Enum {}", name),
-            Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
-            Self::Option(None) => String::from("Option[_]"),
-            Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
-            Self::Result(Err(inner)) => format!("Result[{}, _]", inner.type_name()),
+            Self::Unit => String::from("unit"),
+            Self::Int(_) => String::from("int"),
+            Self::Bool(_) => String::from("bool"),
+            Self::String(_) => String::from("string"),
+            Self::Bytes(_) => String::from("bytes"),
+            Self::Struct(s) => format!("struct {}", s.name),
+            Self::Id(_) => String::from("id"),
+            Self::Enum(name, _) => format!("enum {}", name),
+            Self::Option(Some(inner)) => format!("option[{}]", inner.type_name()),
+            Self::Option(None) => String::from("option[_]"),
+            Self::Result(Ok(inner)) => format!("result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => format!("result[{}, _]", inner.type_name()),
         }
     }
 
@@ -273,7 +273,7 @@ impl TryFrom<Value> for () {
             return Ok(());
         }
         Err(ValueConversionError::invalid_type(
-            "Unit",
+            "unit",
             value.type_name(),
             "Value -> ()",
         ))
@@ -288,7 +288,7 @@ impl TryFrom<Value> for i64 {
             return Ok(i);
         }
         Err(ValueConversionError::invalid_type(
-            "Int",
+            "int",
             value.type_name(),
             "Value -> i64",
         ))
@@ -303,7 +303,7 @@ impl TryFrom<Value> for bool {
             return Ok(b);
         }
         Err(ValueConversionError::invalid_type(
-            "Bool",
+            "bool",
             value.type_name(),
             "Value -> bool",
         ))
@@ -318,7 +318,7 @@ impl TryFrom<Value> for Text {
             return Ok(s);
         }
         Err(ValueConversionError::invalid_type(
-            "String",
+            "string",
             value.type_name(),
             "Value -> Text",
         ))
@@ -333,7 +333,7 @@ impl TryFrom<Value> for Vec<u8> {
             return Ok(v);
         }
         Err(ValueConversionError::invalid_type(
-            "Bytes",
+            "bytes",
             value.type_name(),
             "Value -> Vec<u8>",
         ))
@@ -348,7 +348,7 @@ impl TryFrom<Value> for Struct {
             return Ok(s);
         }
         Err(ValueConversionError::invalid_type(
-            "Struct",
+            "struct _",
             value.type_name(),
             "Value -> Struct",
         ))
@@ -363,7 +363,7 @@ impl<Tag: IdTag> TryFrom<Value> for Id<Tag> {
             Ok(Self::from_base(id))
         } else {
             Err(ValueConversionError::invalid_type(
-                "Id",
+                "id",
                 value.type_name(),
                 "Value -> Id",
             ))
@@ -378,7 +378,7 @@ impl TryAsMut<i64> for Value {
             return Ok(s);
         }
         Err(ValueConversionError::invalid_type(
-            "i64",
+            "int",
             self.type_name(),
             "Value -> i64",
         ))
@@ -406,7 +406,7 @@ impl TryAsMut<[u8]> for Value {
             return Ok(v);
         }
         Err(ValueConversionError::invalid_type(
-            "Vec<u8>",
+            "bytes",
             self.type_name(),
             "Value -> [u8]",
         ))
@@ -420,7 +420,7 @@ impl TryAsMut<Struct> for Value {
             return Ok(s);
         }
         Err(ValueConversionError::invalid_type(
-            "Struct",
+            "struct _",
             self.type_name(),
             "Value -> Struct",
         ))
@@ -495,7 +495,7 @@ impl TryFrom<Value> for HashableValue {
             Value::Id(v) => Ok(Self::Id(v)),
             Value::Enum(id, value) => Ok(Self::Enum(id, value)),
             _ => Err(ValueConversionError::invalid_type(
-                "Int | Bool | String | Id | Enum",
+                "int | bool | string | id | enum _",
                 value.type_name(),
                 "Value -> HashableValue",
             )),
@@ -762,7 +762,7 @@ mod test {
         let err = <Option<i64>>::try_from_value(Value::Bool(true)).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "expected type Option, but got Bool: Value -> core::option::Option<i64>"
+            "expected type option[_], but got bool: Value -> core::option::Option<i64>"
         );
     }
 }
