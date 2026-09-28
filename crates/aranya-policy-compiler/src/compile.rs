@@ -2453,6 +2453,18 @@ impl<'a> Compiler<'a> {
                     .iter()
                     .map(|g| g.identifier.inner.clone())
                     .collect(),
+                self.policy
+                    .facts
+                    .iter()
+                    .map(|f| {
+                        let keys = f
+                            .key
+                            .iter()
+                            .map(|k| (k.identifier.inner.clone(), k.field_type.clone()))
+                            .collect();
+                        (f.identifier.inner.clone(), keys)
+                    })
+                    .collect(),
                 self.config.max_exit_paths,
             ),
         }

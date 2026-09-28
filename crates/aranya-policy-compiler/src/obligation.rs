@@ -14,7 +14,7 @@ use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
 use aranya_policy_ast::{
-    FactCountType, Ident, Identifier, Span, Spanned as _, TypeKind,
+    FactCountType, Ident, Identifier, Span, Spanned as _, TypeKind, VType,
     thir::{
         ExprKind, Expression, FactLiteral, FunctionCall, InternalFunction, LetStatement,
         MatchPattern, Statement, StmtKind,
@@ -234,6 +234,8 @@ pub(crate) struct Analyzer {
     src: String,
     /// Global `let` names, which may appear in function bodies.
     globals: Vec<Identifier>,
+    /// The key fields of each fact, in schema order.
+    fact_keys: BTreeMap<Identifier, Vec<(Identifier, VType)>>,
     finish_functions: BTreeMap<Identifier, FunctionBody>,
     pure_functions: BTreeMap<Identifier, FunctionBody>,
     max_exit_paths: usize,
@@ -245,10 +247,16 @@ pub(crate) struct Analyzer {
 }
 
 impl Analyzer {
-    pub(crate) fn new(src: String, globals: Vec<Identifier>, max_exit_paths: usize) -> Self {
+    pub(crate) fn new(
+        src: String,
+        globals: Vec<Identifier>,
+        fact_keys: BTreeMap<Identifier, Vec<(Identifier, VType)>>,
+        max_exit_paths: usize,
+    ) -> Self {
         Self {
             src,
             globals,
+            fact_keys,
             finish_functions: BTreeMap::new(),
             pure_functions: BTreeMap::new(),
             max_exit_paths,
@@ -433,6 +441,21 @@ impl<'a> PathState<'a> {
         self.query_bindings.retain(|(v, _)| *v != var);
         self.query_bindings.push((var, pat));
     }
+
+    /// Forget everything that referred to an earlier binding of `v`,
+    /// before `v` is bound again.
+    ///
+    /// A name can be reused once the block that bound it ends, but the
+    /// walk carries a branch's state into the statements after it. A fact
+    /// or value that mentions the old `v` would silently start meaning
+    /// the new one.
+    fn forget_name(&mut self, v: &Identifier) {
+        self.env.remove(v);
+        self.env.retain(|_, e| !mentions(e, v));
+        self.facts.retain(|(p, _)| !mentions_pattern(p, v));
+        self.query_bindings
+            .retain(|(x, p)| x != v && !mentions_pattern(p, v));
+    }
 }
 
 /// Collapse warnings that differ only in their notes.
@@ -524,11 +547,14 @@ fn walk(stmts: &[Statement], cont: &[&[Statement]], mut st: PathState<'_>, out: 
                 let scrutinee = resolve(&st, &m.expression);
                 let mut earlier_false = nothing();
                 for arm in &m.arms {
-                    let (when_true, when_false, binding) =
+                    let (when_true, when_false, bound) =
                         arm_cond(&mut st, &scrutinee, &arm.pattern);
                     let mut branch = st.clone();
+                    for var in &bound.names {
+                        branch.forget_name(var);
+                    }
                     if branch.assume(both(when_true, earlier_false.clone())) {
-                        if let Some((var, pat)) = binding {
+                        if let Some((var, pat)) = bound.query {
                             branch.bind_query(var, pat);
                         }
                         walk(&arm.statements, &next, branch, out);
@@ -590,39 +616,63 @@ fn record_exit(st: PathState<'_>, value: &Expression, out: &mut Out) {
     });
 }
 
+/// The names a `match` arm binds.
+#[derive(Debug, Default)]
+struct ArmBinding {
+    /// Every name bound by the arm's patterns.
+    names: Vec<Identifier>,
+    /// The name bound by a lone `Some(x)` pattern on a query, with the
+    /// fact it holds.
+    query: Option<(Identifier, FactPattern)>,
+}
+
 /// What a `match` arm's pattern implies about the scrutinee when it
-/// matches, and when it doesn't. A `Some(x)` arm on a query also binds `x`
-/// to the fact it read.
+/// matches, and when it doesn't. An arm that is exactly `Some(x)` on a
+/// query also binds `x` to the fact it read, whose full key is then known
+/// to exist.
 fn arm_cond(
     st: &mut PathState<'_>,
     scrutinee: &Expression,
     pattern: &MatchPattern,
-) -> (Know, Know, Option<(Identifier, FactPattern)>) {
+) -> (Know, Know, ArmBinding) {
+    let mut bound = ArmBinding::default();
     let MatchPattern::Values(values) = pattern else {
         // The default arm: only the earlier arms' failures are known.
-        return (nothing(), nothing(), None);
+        return (nothing(), nothing(), bound);
     };
     let mut when_true = None;
     let mut when_false = nothing();
-    let mut binding = None;
     for value in values {
         let (t, f) = match &value.kind {
             ExprKind::Optional(None) => cond_is(st, scrutinee, false),
             ExprKind::Optional(Some(inner)) => {
-                if let ExprKind::Identifier(var) = &inner.kind
-                    && let ExprKind::InternalFunction(InternalFunction::Query(fact)) =
-                        &scrutinee.kind
-                {
-                    binding = Some((var.inner.clone(), pattern_raw(fact, st)));
+                let (mut t, f) = cond_is(st, scrutinee, true);
+                if let ExprKind::Identifier(var) = &inner.kind {
+                    bound.names.push(var.inner.clone());
+                    // With other values in the arm, the scrutinee may not
+                    // be `Some` at all, so `x` may hold nothing.
+                    if values.len() == 1
+                        && let Some(fact) = query_of(st, scrutinee)
+                    {
+                        let full = full_key_pattern(&pattern_raw(&fact, st), &var.inner, st);
+                        t = both(t, fact_is(full.clone(), FactState::Exists));
+                        bound.query = Some((var.inner.clone(), full));
+                    }
                 }
-                cond_is(st, scrutinee, true)
+                (t, f)
+            }
+            ExprKind::Ok(inner) | ExprKind::Err(inner) => {
+                if let ExprKind::Identifier(var) = &inner.kind {
+                    bound.names.push(var.inner.clone());
+                }
+                (nothing(), nothing())
             }
             _ => (nothing(), nothing()),
         };
         when_true = either(when_true, t);
         when_false = both(when_false, f);
     }
-    (when_true, when_false, binding)
+    (when_true, when_false, bound)
 }
 
 /// What `expr` implies when it is true, and when it is false.
@@ -1135,16 +1185,16 @@ fn double_manipulation(span: Span, pat: &FactPattern, prev: &FactPattern) -> Obl
 /// Apply a `let`. Returns false if the path ends here.
 ///
 /// `let x = e or <terminal>` continues only when `e` is `Some`. When `e`
-/// is a query, `x` holds the fact it read. Other substitutable values are
-/// remembered so later uses of `x` are compared by what it holds.
+/// is a query, `x` holds the fact it read, so that fact's full key is
+/// known to exist. Other substitutable values are remembered so later
+/// uses of `x` are compared by what it holds.
 fn observe_let(st: &mut PathState<'_>, stmt: &LetStatement, out: &mut Out) -> bool {
     let var = stmt.identifier.inner.clone();
-    st.env.remove(&var);
     if let ExprKind::Coalesce(lhs, rhs) = &stmt.expression.kind
         && matches!(rhs.vtype.inner, TypeKind::Never)
     {
         let lhs = resolve(st, lhs);
-        let (when_some, when_none) = cond_is(st, &lhs, true);
+        let (mut when_some, when_none) = cond_is(st, &lhs, true);
         // In a function, `e or return v` is an exit where `e` is `None`.
         if st.in_function
             && let ExprKind::Return(value) = &rhs.kind
@@ -1154,12 +1204,16 @@ fn observe_let(st: &mut PathState<'_>, stmt: &LetStatement, out: &mut Out) -> bo
                 record_exit(failed, value, out);
             }
         }
-        if let ExprKind::InternalFunction(InternalFunction::Query(fact)) = &lhs.kind {
-            let pat = pattern_raw(fact, st);
-            st.bind_query(var, pat);
+        // The compiler forbids shadowing, so `lhs` can't mention `var`.
+        st.forget_name(&var);
+        if let Some(fact) = query_of(st, &lhs) {
+            let full = full_key_pattern(&pattern_raw(&fact, st), &var, st);
+            when_some = both(when_some, fact_is(full.clone(), FactState::Exists));
+            st.bind_query(var, full);
         }
         return st.assume(when_some);
     }
+    st.forget_name(&var);
     if is_substitutable(&stmt.expression) {
         let value = resolve(st, &stmt.expression);
         st.env.insert(var, value);
@@ -1196,6 +1250,148 @@ fn pattern_raw(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
         span: fact.span(),
         text: fact_text(fact, &st.az.src),
     }
+}
+
+/// The pattern of the one fact `var` holds after it is bound to the
+/// result of a query with `prefix`'s keys: those keys, followed by
+/// `var.<key>` for each remaining key field of the schema.
+fn full_key_pattern(prefix: &FactPattern, var: &Identifier, st: &PathState<'_>) -> FactPattern {
+    let mut keys = prefix.keys.clone();
+    if let Some(schema) = st.az.fact_keys.get(&prefix.name.inner) {
+        for (key, ty) in schema.iter().skip(keys.len()) {
+            let base = Expression {
+                kind: ExprKind::Identifier(Ident::new(var.clone(), prefix.span)),
+                vtype: VType::new(TypeKind::Struct(prefix.name.clone()), prefix.span),
+                span: prefix.span,
+            };
+            let read = Expression {
+                kind: ExprKind::Dot(Box::new(base), Ident::new(key.clone(), prefix.span)),
+                vtype: ty.clone(),
+                span: prefix.span,
+            };
+            keys.push((key.clone(), read));
+        }
+    }
+    FactPattern {
+        keys,
+        ..prefix.clone()
+    }
+}
+
+/// The query `expr` evaluates to, if it is one: a `query` itself, or a
+/// call to a pure function that returns one.
+fn query_of(st: &mut PathState<'_>, expr: &Expression) -> Option<FactLiteral> {
+    match &expr.kind {
+        ExprKind::InternalFunction(InternalFunction::Query(fact)) => Some(fact.clone()),
+        ExprKind::FunctionCall(fc) => call_returns_query(st, fc),
+        _ => None,
+    }
+}
+
+/// The query a pure function returns, in the caller's terms, when every
+/// exit that can return `Some` returns a query of the same fact with the
+/// same keys. Exits returning the literal `None` are ignored.
+fn call_returns_query(st: &mut PathState<'_>, fc: &FunctionCall) -> Option<FactLiteral> {
+    let name = &fc.identifier.inner;
+    if st.evaluating.contains(name) {
+        return None;
+    }
+    let summary = st
+        .az
+        .summary(name)
+        .filter(|s| s.params.len() == fc.arguments.len())?;
+    let map: BTreeMap<Identifier, Expression> = summary
+        .params
+        .iter()
+        .cloned()
+        .zip(fc.arguments.iter().cloned())
+        .collect();
+    st.evaluating.push(name.clone());
+    let mut found: Option<FactLiteral> = None;
+    let mut agree = true;
+    for exit in &summary.exits {
+        if matches!(exit.ret.kind, ExprKind::Optional(None)) {
+            continue;
+        }
+        let fact = subst(&exit.ret, &map, Some(&st.az.globals)).and_then(|ret| query_of(st, &ret));
+        match (fact, &found) {
+            (Some(fact), None) => found = Some(fact),
+            (Some(fact), Some(prev))
+                if same_pattern(&pattern_raw(&fact, st), &pattern_raw(prev, st)) => {}
+            _ => {
+                agree = false;
+                break;
+            }
+        }
+    }
+    st.evaluating.pop();
+    agree.then_some(found).flatten()
+}
+
+/// Does `expr` name `v`?
+fn mentions(expr: &Expression, v: &Identifier) -> bool {
+    match &expr.kind {
+        ExprKind::Identifier(id) => id.inner == *v,
+        ExprKind::Unit
+        | ExprKind::Int(_)
+        | ExprKind::String(_)
+        | ExprKind::Bool(_)
+        | ExprKind::EnumReference(_) => false,
+        ExprKind::Optional(inner) => inner.as_ref().is_some_and(|e| mentions(e, v)),
+        ExprKind::NamedStruct(s) => {
+            s.sources.iter().any(|src| src.inner == *v)
+                || s.fields.iter().any(|(_, e)| mentions(e, v))
+        }
+        ExprKind::InternalFunction(func) => match func {
+            InternalFunction::Query(fact)
+            | InternalFunction::Exists(fact)
+            | InternalFunction::FactCount(_, _, fact) => mentions_fact(fact, v),
+            InternalFunction::If(c, t, e) => mentions(c, v) || mentions(t, v) || mentions(e, v),
+            InternalFunction::Todo(_) | InternalFunction::TestFail(..) => false,
+        },
+        ExprKind::FunctionCall(c) => c.arguments.iter().any(|e| mentions(e, v)),
+        ExprKind::ForeignFunctionCall(c) => c.arguments.iter().any(|e| mentions(e, v)),
+        ExprKind::Recall(c) => c.arguments.iter().any(|e| mentions(e, v)),
+        ExprKind::Return(e)
+        | ExprKind::Not(e)
+        | ExprKind::Is(e, _)
+        | ExprKind::Dot(e, _)
+        | ExprKind::Substruct(e, _)
+        | ExprKind::Cast(e, _)
+        | ExprKind::Ok(e)
+        | ExprKind::Err(e) => mentions(e, v),
+        ExprKind::And(a, b)
+        | ExprKind::Or(a, b)
+        | ExprKind::Coalesce(a, b)
+        | ExprKind::Equal(a, b)
+        | ExprKind::NotEqual(a, b)
+        | ExprKind::GreaterThan(a, b)
+        | ExprKind::LessThan(a, b)
+        | ExprKind::GreaterThanOrEqual(a, b)
+        | ExprKind::LessThanOrEqual(a, b) => mentions(a, v) || mentions(b, v),
+        ExprKind::Block(stmts, e) => {
+            let mut found = mentions(e, v);
+            stmt_exprs(stmts, &mut |e| found = found || mentions(e, v));
+            found
+        }
+        ExprKind::Match(m) => {
+            mentions(&m.scrutinee, v) || m.arms.iter().any(|arm| mentions(&arm.expression, v))
+        }
+    }
+}
+
+/// Does any key or value field of `fact` name `v`?
+fn mentions_fact(fact: &FactLiteral, v: &Identifier) -> bool {
+    fact.key_fields.iter().any(|(_, e)| mentions(e, v))
+        || fact
+            .value_fields
+            .as_ref()
+            .is_some_and(|values| values.iter().any(|(_, e)| mentions(e, v)))
+}
+
+/// Does any key of `pat` name `v`?
+fn mentions_pattern(pat: &FactPattern, v: &Identifier) -> bool {
+    pat.keys.iter().any(|(_, e)| mentions(e, v))
 }
 
 /// Express a pattern from a function's terms in the caller's, or `None`
@@ -1558,1078 +1754,4 @@ fn visit_facts(expr: &Expression, f: &mut impl FnMut(&FactLiteral, Span)) {
 }
 
 #[cfg(test)]
-mod tests {
-    use aranya_policy_ast::Version;
-    use aranya_policy_lang::lang::parse_policy_str;
-
-    use super::ObligationWarning;
-    use crate::Compiler;
-
-    #[track_caller]
-    fn warnings_for(text: &str) -> Vec<ObligationWarning> {
-        let policy = parse_policy_str(text, Version::V2).expect("parse");
-        let (_module, warnings) = Compiler::new(&policy)
-            .debug(true)
-            .allow_baseless(true)
-            .analyze_obligations(true)
-            .compile_with_diagnostics()
-            .expect("compile");
-        warnings
-    }
-
-    /// Wrap a policy body in a command with the `Account` fact defined.
-    fn command(policy_block: &str) -> String {
-        format!(
-            r#"
-            fact Account[user int]=>{{balance int}}
-
-            command Foo {{
-                fields {{ user int }}
-                policy {{
-                    {policy_block}
-                }}
-                recall failed() {{ finish {{}} }}
-            }}
-            "#
-        )
-    }
-
-    #[test]
-    fn check_then_create_passes() {
-        let warnings = warnings_for(&command(
-            r#"
-            check !exists Account[user: this.user] else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn create_without_check_warns() {
-        let warnings = warnings_for(&command(
-            r#"
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert_eq!(
-            warnings[0].message,
-            "cannot prove `Account[user: this.user]` does not exist before `create`"
-        );
-        assert!(warnings[0].notes.is_empty());
-    }
-
-    #[test]
-    fn check_in_one_branch_warns_on_other_path() {
-        let warnings = warnings_for(&command(
-            r#"
-            if this.user == 1 {
-                check !exists Account[user: this.user] else recall failed()
-            }
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("cannot prove"));
-    }
-
-    #[test]
-    fn check_in_all_branches_passes() {
-        let warnings = warnings_for(&command(
-            r#"
-            if this.user == 1 {
-                check !exists Account[user: this.user] else recall failed()
-            } else {
-                check !exists Account[user: this.user] else recall failed()
-            }
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn unchecked_on_several_paths_warns_once() {
-        let warnings = warnings_for(&command(
-            r#"
-            if this.user == 1 {
-                let a = 1
-            } else {
-                let b = 2
-            }
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("cannot prove"));
-    }
-
-    #[test]
-    fn duplicate_warnings_merge_notes() {
-        let warnings = warnings_for(&command(
-            r#"
-            if this.user == 1 {
-                check !(exists Account[user: this.user] && this.user == 1) else recall failed()
-            } else {
-                check !(exists Account[user: this.user] && this.user == 2) else recall failed()
-            }
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert_eq!(warnings[0].notes.len(), 2, "notes: {:?}", warnings[0].notes);
-    }
-
-    /// Wrap a policy body in an `init: true` command.
-    fn init_command(policy_block: &str) -> String {
-        format!(
-            r#"
-            fact Account[user int]=>{{balance int}}
-            fact Owner[]=>{{user int}}
-
-            command Init {{
-                attributes {{ init: true }}
-                fields {{ user int }}
-                policy {{
-                    {policy_block}
-                }}
-            }}
-            "#
-        )
-    }
-
-    #[test]
-    fn init_command_create_passes() {
-        let warnings = warnings_for(&init_command(
-            r#"
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-                create Owner[]=>{user: this.user}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn init_command_double_create_warns() {
-        let warnings = warnings_for(&init_command(
-            r#"
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-                create Account[user: this.user]=>{balance: 1}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("more than once"));
-    }
-
-    #[test]
-    fn init_false_is_not_init() {
-        let warnings = warnings_for(
-            r#"
-            fact Account[user int]=>{balance int}
-
-            command Foo {
-                attributes { init: false }
-                fields { user int }
-                policy {
-                    finish {
-                        create Account[user: this.user]=>{balance: 0}
-                    }
-                }
-            }
-            "#,
-        );
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    }
-
-    #[test]
-    fn rendered_warning_shows_label_note_and_help() {
-        let text = command(
-            r#"
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        );
-        let policy = parse_policy_str(&text, Version::V2).expect("parse");
-        let (_module, warnings) = Compiler::new(&policy)
-            .debug(true)
-            .allow_baseless(true)
-            .analyze_obligations(true)
-            .compile_with_diagnostics()
-            .expect("compile");
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        let rendered = warnings[0].render(&text);
-        for expected in [
-            "warning: cannot prove `Account[user: this.user]` does not exist before `create`",
-            "this fact may already exist",
-            "note: creating a fact that already exists is a runtime exception",
-            "help: check that it does not exist first: `check !exists Account[user: this.user] else ...`",
-        ] {
-            assert!(
-                rendered.contains(expected),
-                "missing {expected:?} in:\n{rendered}"
-            );
-        }
-    }
-
-    #[test]
-    fn update_without_check_warns() {
-        let warnings = warnings_for(&command(
-            r#"
-            finish {
-                update Account[user: this.user] to {balance: 1}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert_eq!(
-            warnings[0].message,
-            "cannot prove `Account[user: this.user]` exists before `update`"
-        );
-    }
-
-    #[test]
-    fn delete_without_check_warns() {
-        let warnings = warnings_for(&command(
-            r#"
-            finish {
-                delete Account[user: this.user]
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert_eq!(
-            warnings[0].message,
-            "cannot prove `Account[user: this.user]` exists before `delete`"
-        );
-    }
-
-    #[test]
-    fn check_exists_then_delete_passes() {
-        let warnings = warnings_for(&command(
-            r#"
-            check exists Account[user: this.user] else recall failed()
-            finish {
-                delete Account[user: this.user]
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn check_not_exists_does_not_prove_exists() {
-        let warnings = warnings_for(&command(
-            r#"
-            check !exists Account[user: this.user] else recall failed()
-            finish {
-                delete Account[user: this.user]
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("exists before `delete`"));
-    }
-
-    #[test]
-    fn bind_prefix_does_not_prove_exists() {
-        let warnings = warnings_for(
-            r#"
-            fact Grant[user int, perm int]=>{}
-
-            command Foo {
-                fields { user int }
-                policy {
-                    check exists Grant[user: this.user, perm: ?] else recall failed()
-                    finish {
-                        delete Grant[user: this.user, perm: 3]
-                    }
-                }
-                recall failed() { finish {} }
-            }
-            "#,
-        );
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("exists before `delete`"));
-    }
-
-    #[test]
-    fn update_values_from_query_pass() {
-        let warnings = warnings_for(&command(
-            r#"
-            let account = query Account[user: this.user]=>{balance: ?} or recall failed()
-            finish {
-                update Account[user: this.user]=>{balance: account.balance} to {balance: 1}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn update_values_through_let_alias_pass() {
-        let warnings = warnings_for(&command(
-            r#"
-            let account = query Account[user: this.user] or recall failed()
-            let old = account.balance
-            finish {
-                update Account[user: this.user]=>{balance: old} to {balance: 1}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn update_literal_values_warn() {
-        let warnings = warnings_for(&command(
-            r#"
-            check exists Account[user: this.user] else recall failed()
-            finish {
-                update Account[user: this.user]=>{balance: 5} to {balance: 1}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(
-            warnings[0].message.contains("stated values"),
-            "warnings: {warnings:?}"
-        );
-    }
-
-    #[test]
-    fn update_values_from_query_of_other_fact_warn() {
-        let warnings = warnings_for(
-            r#"
-            fact Account[user int]=>{balance int}
-            fact Limit[user int]=>{balance int}
-
-            command Foo {
-                fields { user int }
-                policy {
-                    let limit = query Limit[user: this.user] or recall failed()
-                    check exists Account[user: this.user] else recall failed()
-                    finish {
-                        update Account[user: this.user]=>{balance: limit.balance} to {balance: 1}
-                    }
-                }
-                recall failed() { finish {} }
-            }
-            "#,
-        );
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("stated values"));
-    }
-
-    #[test]
-    fn init_command_update_always_fails() {
-        let warnings = warnings_for(&init_command(
-            r#"
-            finish {
-                update Account[user: this.user] to {balance: 1}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(
-            warnings[0]
-                .footnotes
-                .iter()
-                .any(|(_, text)| text.contains("always fails")),
-            "warnings: {warnings:?}"
-        );
-    }
-
-    /// A policy with a finish function that creates an `Account`.
-    fn with_open_function(policy_block: &str) -> String {
-        format!(
-            r#"
-            fact Account[user int]=>{{balance int}}
-
-            finish function open_account(u int) {{
-                create Account[user: u]=>{{balance: 0}}
-            }}
-
-            command Foo {{
-                fields {{ user int }}
-                policy {{
-                    {policy_block}
-                }}
-                recall failed() {{ finish {{}} }}
-            }}
-            "#
-        )
-    }
-
-    #[test]
-    fn finish_function_create_checked_by_caller_passes() {
-        let warnings = warnings_for(&with_open_function(
-            r#"
-            check !exists Account[user: this.user] else recall failed()
-            finish {
-                open_account(this.user)
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn finish_function_create_unchecked_warns_with_call_note() {
-        let warnings = warnings_for(&with_open_function(
-            r#"
-            finish {
-                open_account(this.user)
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert_eq!(
-            warnings[0].message,
-            "cannot prove `Account[user: u]` does not exist before `create`"
-        );
-        assert!(
-            warnings[0]
-                .notes
-                .iter()
-                .any(|(_, n)| n == "in this call to `open_account`"),
-            "notes: {:?}",
-            warnings[0].notes
-        );
-    }
-
-    #[test]
-    fn finish_function_checked_for_other_key_warns() {
-        let warnings = warnings_for(&with_open_function(
-            r#"
-            check !exists Account[user: this.user] else recall failed()
-            finish {
-                open_account(1)
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    }
-
-    #[test]
-    fn finish_function_double_manipulation_across_call() {
-        let warnings = warnings_for(&with_open_function(
-            r#"
-            check !exists Account[user: this.user] else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 1}
-                open_account(this.user)
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("more than once"));
-    }
-
-    #[test]
-    fn nested_finish_functions_are_followed() {
-        let warnings = warnings_for(
-            r#"
-            fact Account[user int]=>{balance int}
-
-            finish function open_inner(u int) {
-                create Account[user: u]=>{balance: 0}
-            }
-
-            finish function open_outer(v int) {
-                open_inner(v)
-            }
-
-            command Foo {
-                fields { user int }
-                policy {
-                    check !exists Account[user: this.user] else recall failed()
-                    finish {
-                        open_outer(this.user)
-                    }
-                }
-                recall failed() { finish {} }
-            }
-            "#,
-        );
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn shared_finish_function_warns_once_with_each_call() {
-        let warnings = warnings_for(
-            r#"
-            fact Account[user int]=>{balance int}
-
-            finish function open_account(u int) {
-                create Account[user: u]=>{balance: 0}
-            }
-
-            command Foo {
-                fields { user int }
-                policy {
-                    finish { open_account(this.user) }
-                }
-            }
-
-            command Bar {
-                fields { user int }
-                policy {
-                    finish { open_account(this.user) }
-                }
-            }
-            "#,
-        );
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        let calls = warnings[0]
-            .notes
-            .iter()
-            .filter(|(_, n)| n.starts_with("in this call"))
-            .count();
-        assert_eq!(calls, 2, "notes: {:?}", warnings[0].notes);
-    }
-
-    #[test]
-    fn finish_function_update_uses_caller_query() {
-        let warnings = warnings_for(
-            r#"
-            fact Account[user int]=>{balance int}
-
-            finish function set_balance(u int, old int, new int) {
-                update Account[user: u]=>{balance: old} to {balance: new}
-            }
-
-            command Foo {
-                fields { user int }
-                policy {
-                    let account = query Account[user: this.user] or recall failed()
-                    finish {
-                        set_balance(this.user, account.balance, 5)
-                    }
-                }
-                recall failed() { finish {} }
-            }
-            "#,
-        );
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn recursive_finish_function_warns() {
-        let warnings = warnings_for(
-            r#"
-            fact Account[user int]=>{balance int}
-
-            finish function ping(u int) {
-                pong(u)
-            }
-
-            finish function pong(u int) {
-                create Account[user: u]=>{balance: 0}
-                ping(u)
-            }
-
-            command Foo {
-                fields { user int }
-                policy {
-                    check !exists Account[user: this.user] else recall failed()
-                    finish { ping(this.user) }
-                }
-                recall failed() { finish {} }
-            }
-            "#,
-        );
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert_eq!(
-            warnings[0].message,
-            "cannot check fact mutations through recursive call to `ping`"
-        );
-    }
-
-    /// A policy with `Account` and `Owner` facts, extra definitions, and
-    /// one command with the given policy block.
-    fn with_defs(defs: &str, policy_block: &str) -> String {
-        format!(
-            r#"
-            fact Account[user int]=>{{balance int}}
-            fact Owner[]=>{{user int}}
-
-            {defs}
-
-            command Foo {{
-                fields {{ user int }}
-                policy {{
-                    {policy_block}
-                }}
-                recall failed() {{ finish {{}} }}
-            }}
-            "#
-        )
-    }
-
-    #[track_caller]
-    fn warnings_with_cap(text: &str, cap: usize) -> Vec<ObligationWarning> {
-        let policy = parse_policy_str(text, Version::V2).expect("parse");
-        let (_module, warnings) = Compiler::new(&policy)
-            .debug(true)
-            .allow_baseless(true)
-            .analyze_obligations(true)
-            .max_exit_paths(cap)
-            .compile_with_diagnostics()
-            .expect("compile");
-        warnings
-    }
-
-    #[test]
-    fn helper_locals_are_not_confused_with_caller_names() {
-        // Both the helper and the command have a variable named `account`,
-        // holding different facts. The helper's `Link[user: account.balance]`
-        // must not prove the command's.
-        let warnings = warnings_for(&with_defs(
-            r#"
-            fact Link[user int]=>{}
-
-            function linked() bool {
-                let account = query Account[user: 1] or return false
-                return exists Link[user: account.balance]
-            }
-            "#,
-            r#"
-            let account = query Account[user: this.user] or recall failed()
-            check linked() else recall failed()
-            finish { delete Link[user: account.balance] }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("exists before `delete`"));
-    }
-
-    #[test]
-    fn check_and_proves_both_sides() {
-        let warnings = warnings_for(&with_defs(
-            "",
-            r#"
-            check exists Account[user: this.user] && !exists Owner[] else recall failed()
-            finish {
-                delete Account[user: this.user]
-                create Owner[]=>{user: this.user}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn check_not_or_proves_both_absent() {
-        let warnings = warnings_for(&with_defs(
-            "",
-            r#"
-            check !(exists Account[user: this.user] || exists Owner[]) else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-                create Owner[]=>{user: this.user}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn check_or_proves_nothing_and_is_pointed_out() {
-        let warnings = warnings_for(&command(
-            r#"
-            check !exists Account[user: this.user] || this.user == 1 else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(
-            warnings[0]
-                .notes
-                .iter()
-                .any(|(_, n)| n.contains("too complex")),
-            "notes: {:?}",
-            warnings[0].notes
-        );
-    }
-
-    #[test]
-    fn counting_queries() {
-        // Count limits must be at least 1.
-        let create = "create Account[user: this.user]=>{balance: 0}";
-        let delete = "delete Account[user: this.user]";
-        for (check, mutation, expected) in [
-            ("at_least 1 Account[user: this.user]", delete, 0),
-            ("exactly 1 Account[user: this.user]", delete, 0),
-            ("at_least 2 Account[user: this.user]", delete, 0),
-            ("!(at_least 1 Account[user: this.user])", create, 0),
-            ("!(at_most 1 Account[user: this.user])", delete, 0),
-            ("at_most 1 Account[user: this.user]", create, 1),
-            ("at_least 2 Account[user: this.user]", create, 1),
-        ] {
-            let warnings = warnings_for(&command(&format!(
-                "check {check} else recall failed()\n\
-                 finish {{ {mutation} }}"
-            )));
-            assert_eq!(warnings.len(), expected, "{check}: {warnings:?}");
-        }
-    }
-
-    #[test]
-    fn if_exists_proves_each_branch() {
-        let warnings = warnings_for(&command(
-            r#"
-            if exists Account[user: this.user] {
-                finish { delete Account[user: this.user] }
-            } else {
-                finish { create Account[user: this.user]=>{balance: 0} }
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn early_recall_proves_the_opposite() {
-        let warnings = warnings_for(&command(
-            r#"
-            if exists Account[user: this.user] {
-                recall failed()
-            }
-            finish { create Account[user: this.user]=>{balance: 0} }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn else_if_knows_earlier_conditions_were_false() {
-        let warnings = warnings_for(&command(
-            r#"
-            if this.user == 1 {
-                finish {}
-            } else if exists Account[user: this.user] {
-                finish { delete Account[user: this.user] }
-            } else {
-                finish { create Account[user: this.user]=>{balance: 0} }
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn query_is_none_early_exit_proves_exists() {
-        let warnings = warnings_for(&command(
-            r#"
-            let account = query Account[user: this.user]
-            if account is None {
-                recall failed()
-            }
-            finish { delete Account[user: this.user] }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn match_on_query_proves_each_arm() {
-        let warnings = warnings_for(&command(
-            r#"
-            match query Account[user: this.user] {
-                Some(account) => {
-                    finish {
-                        update Account[user: this.user]=>{balance: account.balance} to {balance: 1}
-                    }
-                }
-                None => {
-                    finish { create Account[user: this.user]=>{balance: 0} }
-                }
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn impossible_branch_is_skipped() {
-        // The branch can't run, so its unproven create is not reported.
-        let warnings = warnings_for(&with_defs(
-            "",
-            r#"
-            check !exists Account[user: this.user] else recall failed()
-            if exists Account[user: this.user] {
-                finish { create Owner[]=>{user: this.user} }
-            }
-            finish {}
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn one_line_helper_proves() {
-        let warnings = warnings_for(&with_defs(
-            r#"
-            function account_exists(u int) bool {
-                return exists Account[user: u]
-            }
-            "#,
-            r#"
-            check !account_exists(this.user) else recall failed()
-            finish { create Account[user: this.user]=>{balance: 0} }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn helper_in_if_condition_proves() {
-        let warnings = warnings_for(&with_defs(
-            r#"
-            function account_exists(u int) bool {
-                return exists Account[user: u]
-            }
-            "#,
-            r#"
-            if !account_exists(this.user) {
-                finish { create Account[user: this.user]=>{balance: 0} }
-            }
-            finish {}
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn helper_returning_false_on_missing_fact_proves_exists() {
-        let warnings = warnings_for(&with_defs(
-            r#"
-            function has_account(u int) bool {
-                let account = query Account[user: u] or return false
-                return account.balance >= 0
-            }
-            "#,
-            r#"
-            check has_account(this.user) else recall failed()
-            finish { delete Account[user: this.user] }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn helper_returning_query_used_as_value() {
-        let warnings = warnings_for(&with_defs(
-            r#"
-            function find_account(u int) option[struct Account] {
-                return query Account[user: u]
-            }
-            "#,
-            r#"
-            let account = find_account(this.user)
-            if account is None {
-                recall failed()
-            }
-            finish { delete Account[user: this.user] }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn helper_combining_checks_with_or() {
-        let warnings = warnings_for(&with_defs(
-            r#"
-            function taken(u int) bool {
-                let has_account = exists Account[user: u]
-                let has_owner = exists Owner[]
-                return has_account || has_owner
-            }
-            "#,
-            r#"
-            check !taken(this.user) else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-                create Owner[]=>{user: this.user}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn exit_path_cap_makes_calls_unknown() {
-        let text = with_defs(
-            r#"
-            function has_account(u int) bool {
-                let account = query Account[user: u] or return false
-                return true
-            }
-            "#,
-            r#"
-            check has_account(this.user) else recall failed()
-            finish { delete Account[user: this.user] }
-            "#,
-        );
-        assert_eq!(warnings_with_cap(&text, 2), vec![], "two exits fit");
-        let warnings = warnings_with_cap(&text, 1);
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(
-            warnings[0]
-                .notes
-                .iter()
-                .any(|(_, n)| n.contains("touches `Account`")),
-            "notes: {:?}",
-            warnings[0].notes
-        );
-    }
-
-    #[test]
-    fn recursive_pure_function_terminates() {
-        let warnings = warnings_for(&with_defs(
-            r#"
-            function spin(u int) bool {
-                return spin(u)
-            }
-            "#,
-            r#"
-            check !spin(this.user) else recall failed()
-            finish { create Account[user: this.user]=>{balance: 0} }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    }
-
-    #[test]
-    fn double_create_warns() {
-        let warnings = warnings_for(&command(
-            r#"
-            check !exists Account[user: this.user] else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-                create Account[user: this.user]=>{balance: 1}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("more than once"));
-    }
-
-    #[test]
-    fn delete_then_create_warns() {
-        let warnings = warnings_for(&command(
-            r#"
-            check exists Account[user: this.user] else recall failed()
-            finish {
-                delete Account[user: this.user]
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("more than once"));
-    }
-
-    #[test]
-    fn bind_prefix_subsumes_concrete_key() {
-        let warnings = warnings_for(
-            r#"
-            fact Grant[user int, perm int]=>{}
-
-            command Foo {
-                fields { user int }
-                policy {
-                    check !exists Grant[user: this.user, perm: ?] else recall failed()
-                    finish {
-                        create Grant[user: this.user, perm: 3]=>{}
-                    }
-                }
-                recall failed() { finish {} }
-            }
-            "#,
-        );
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn let_alias_matches() {
-        let warnings = warnings_for(&command(
-            r#"
-            let uid = this.user
-            check !exists Account[user: uid] else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn opaque_check_reported_in_notes() {
-        let warnings = warnings_for(&command(
-            r#"
-            check !(exists Account[user: this.user] && this.user == 1) else recall failed()
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-        assert!(warnings[0].message.contains("cannot prove"));
-        assert_eq!(warnings[0].notes.len(), 1, "notes: {:?}", warnings[0].notes);
-        assert!(warnings[0].notes[0].1.contains("too complex"));
-    }
-
-    #[test]
-    fn query_or_recall_then_update_passes() {
-        let warnings = warnings_for(&command(
-            r#"
-            let account = query Account[user: this.user] or recall failed()
-            let unused = account.balance
-            finish {
-                update Account[user: this.user] to {balance: 0}
-            }
-            "#,
-        ));
-        assert_eq!(warnings, vec![], "expected no warnings");
-    }
-
-    #[test]
-    fn disabled_analysis_reports_nothing() {
-        let text = command(
-            r#"
-            finish {
-                create Account[user: this.user]=>{balance: 0}
-            }
-            "#,
-        );
-        let policy = parse_policy_str(&text, Version::V2).expect("parse");
-        let (_module, warnings) = Compiler::new(&policy)
-            .debug(true)
-            .allow_baseless(true)
-            .compile_with_diagnostics()
-            .expect("compile");
-        assert_eq!(warnings, vec![], "expected no warnings when disabled");
-    }
-}
+mod tests;

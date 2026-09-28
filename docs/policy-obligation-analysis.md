@@ -174,9 +174,9 @@ exist yet gets a note that it always fails.
 | `check c else <terminal>` | What `c` proves when true | Implemented |
 | `let x = e or <terminal>` | What `e is Some` proves; if `e` is a query, `x` holds the fact | Implemented |
 | `if c { A } else { B }` | A learns what `c` proves when true, B what it proves when false | Implemented |
-| `match` on an optional | The `Some(x)` arm learns `is Some`, the `None` arm `is None` | Implemented |
+| `match` on an optional | The `Some(x)` arm learns `is Some`, the `None` arm `is None`; on a query, `x` holds the fact | Implemented |
 | `attributes { init: true }` | Every fact `NotExists` | Implemented |
-| `let f = query F[k: ?] or ..` | `Exists F[k: f.k]` | Future |
+| `let f = query F[k: ?] or ..` | `Exists F[k: f.k]`, and `f` holds that fact | Implemented |
 
 ### Conditions
 
@@ -215,6 +215,44 @@ expression gives the same value wherever it appears. So this proves
 let device = query Device[device_id: id]
 if device is None { recall missing_device() }
 ```
+
+### Keys read from query results
+
+A query with a bind marker only proves that *some* matching fact
+exists, which cannot discharge an `update` or `delete` obligation on
+its own. But when the result is bound to a name, that name holds
+exactly one fact, and its key is the query's keys followed by the
+name's remaining key fields:
+
+```policy
+let member = query Member[team: t, device: ?] or recall not_member()
+finish { delete Member[team: t, device: member.device] }
+```
+
+After the `let`, the path knows `Exists Member[team: t]` and
+`Exists Member[team: t, device: member.device]`, and `member` is
+recorded as holding the latter, so `update ..=>{rank: member.rank}` is
+proven too. The typed syntax tree drops trailing bind markers, so the
+query's keys are always a prefix of the schema's key fields; the
+analysis fills in the rest from the fact definition. The same applies
+to a `match` arm that is exactly `Some(member)` on a query. An arm that
+lists `Some(member)` alongside `None` proves nothing, since the arm
+can run when there is no fact.
+
+A call to a pure function counts as a query when every exit that can
+return `Some` returns a query of the same fact with the same keys, in
+the caller's terms. Exits returning the literal `None` are ignored.
+So `let m = find_member(t) or recall ..` and
+`match find_member(t) { Some(m) => .. }` work for:
+
+```policy
+function find_member(t int) option[struct Member] {
+    return query Member[team: t, device: ?]
+}
+```
+
+A helper whose exits query different keys, or that returns `Some` of a
+local variable, does not qualify.
 
 ### Opaque observation points
 
@@ -262,7 +300,9 @@ When an `update` states current values, as in `update F[k]=>{v: x} to
 {..}`, the VM requires the stored values to match. The analysis accepts
 a stated value when, after `let` substitution, it has the form
 `q.v` for the same field `v`, and `q` was bound by
-`let q = query F[k] or <terminal>` with exactly the same key. This is
+`let q = query F[k] or <terminal>` or a `Some(q)` arm with exactly the
+same key, counting keys read from `q` itself (see
+[Keys read from query results](#keys-read-from-query-results)). This is
 the common idiom:
 
 ```policy
@@ -289,6 +329,12 @@ fact database between an observation and an obligation:
   about the next.
 - A call the analysis cannot follow forgets everything. See
   [Finish functions](#finish-functions).
+- Binding a name again, with a `let` or a `match` arm, forgets every
+  fact, substitution, and query binding that mentioned the earlier
+  binding. A name can be reused once the block that bound it ends, but
+  the walk carries a branch's state into the statements after it, where
+  a fact written in terms of the old name would silently mean the new
+  one.
 
 Observations established in the `policy` block survive into `finish`
 blocks unchanged. No fact mutation can occur between them, because the
@@ -475,8 +521,10 @@ proven.
 
 ## Testing
 
-The unit tests at the bottom of `obligation.rs` compile small policies
-with the analysis enabled and assert on the warnings. They cover:
+The unit tests in `crates/aranya-policy-compiler/src/obligation/tests/`
+compile small policies with the analysis enabled and assert on the
+warnings. The shared helpers live in `obligation/tests.rs`, and each
+file covers one feature, in the order below:
 
 - each obligation passing with its observation and warning without it;
 - path sensitivity, with a check on only one branch;
@@ -497,6 +545,17 @@ with the analysis enabled and assert on the warnings. They cover:
   fact is missing, helpers returning a query, helpers combining checks,
   the exit limit, recursion, and a helper's local variable not being
   mistaken for the caller's;
+- keys read from query results: `delete` and `update` with the full
+  key after `let .. or`, after a `Some(m)` arm, with a value filter,
+  through a `let` alias, through a finish function, through a helper
+  returning the query (with `let` and with `match`), and in an init
+  command; warnings for an arm mixing `Some(m)` and `None`, for a
+  mutation of the same fact earlier in the finish block, for a helper
+  whose exits query different keys, and for a helper returning `Some`
+  of a local;
+- rebinding: a `let` or `Some(m)` arm reusing a name forgets facts
+  about the earlier binding, including a mention nested in another
+  fact's key;
 - rendering of the title, label, note, and help.
 
 ## Known limitations
@@ -510,8 +569,6 @@ with the analysis enabled and assert on the warnings. They cover:
   `create F[k1]`, the analysis cannot prove `F[k2]` is still absent,
   because it cannot prove `k1` and `k2` differ. A second create of the
   same fact name with a different key warns.
-- **Query-derived keys.** `let f = query F[k: ?] or ..` does not prove
-  `Exists F[k: f.k]`.
 - **FFI calls** are not substituted, so a key computed by an FFI call is
   compared by the name of the variable holding it.
 - **Helper knowledge** is limited to facts expressed in the helper's
@@ -519,8 +576,6 @@ with the analysis enabled and assert on the warnings. They cover:
 
 ## Future work
 
-- **Query-derived keys:** `let f = query F[k: ?] or ..` proving
-  `Exists F[k: f.k]`.
 - **Bytecode-level analyzer:** port the analysis to the
   path-enumerating tracer (`src/tracer.rs`, `Analyzer` trait in
   `src/tracer/analyzers.rs`) so compiled modules can be checked without
