@@ -86,6 +86,26 @@ fn control_exit_inside_block_returning_false() {
 }
 
 #[test]
+fn attack_test_fail_in_helper_is_not_an_exit() {
+    // `test_fail` aborts the run, so the helper's only exit returns
+    // `true` knowing nothing about `Account`.
+    let warnings = warnings_for(&with_defs(
+        r#"
+        function f(u int) bool {
+            check exists Owner[] else test_fail("no owner")
+            return true
+        }
+        "#,
+        r#"
+        check f(this.user) else recall failed()
+        finish { delete Account[user: this.user] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
 fn attack_mutual_recursion_terminates() {
     let warnings = warnings_for(&with_defs(
         r#"

@@ -650,7 +650,7 @@ fn arm_cond<'a>(
         let (t, f) = match &value.kind {
             ExprKind::Optional(None) => cond_is(st, scrutinee, false, out),
             ExprKind::Optional(Some(inner)) => {
-                let (mut t, f) = cond_is(st, scrutinee, true, out);
+                let (mut t, mut f) = cond_is(st, scrutinee, true, out);
                 if let ExprKind::Identifier(var) = &inner.kind {
                     bound.names.push(var.inner.clone());
                     // With other values in the arm, the scrutinee may not
@@ -662,6 +662,10 @@ fn arm_cond<'a>(
                         t = both(t, fact_is(full.clone(), FactState::Exists));
                         bound.query = Some((var.inner.clone(), full));
                     }
+                } else {
+                    // `Some(1)` matches only one value: when it doesn't,
+                    // the scrutinee may still be `Some`.
+                    f = nothing();
                 }
                 (t, f)
             }

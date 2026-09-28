@@ -230,6 +230,49 @@ fn attack_exists_prefix_via_let_or_does_not_prove_key() {
 }
 
 #[test]
+fn attack_or_of_exists_exact_then_prefix() {
+    // Only `NotExists` gets more specific under `||`; an `Exists` prefix
+    // on either side says nothing about the exact key.
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        check exists Member[team: 1, device: 5] || exists Member[team: 1, device: ?]
+            else recall failed()
+        finish { delete Member[team: 1, device: 5] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn attack_or_of_exists_prefix_then_exact() {
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        check exists Member[team: 1, device: ?] || exists Member[team: 1, device: 5]
+            else recall failed()
+        finish { delete Member[team: 1, device: 5] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_or_of_same_exists_proves() {
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        check exists Member[team: 1, device: 5] || exists Member[team: 1, device: 5]
+            else recall failed()
+        finish { delete Member[team: 1, device: 5] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
 fn control_exists_exact_key_proves_delete() {
     let warnings = warnings_for(&with_defs(
         MEMBER,

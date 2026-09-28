@@ -5,6 +5,7 @@
 
 use aranya_policy_ast::Version;
 use aranya_policy_lang::lang::parse_policy_str;
+use aranya_policy_module::{Instruction, Meta, ModuleData, ModuleV0};
 
 use super::{MEMBER, command, with_defs};
 use crate::Compiler;
@@ -113,6 +114,57 @@ fn binding_and_literal_in_one_arm_is_rejected() {
         }
         "#,
     )));
+}
+
+#[test]
+fn finish_inside_a_block_expression_exits() {
+    // `block_ends` relies on a `finish` ending its path, even when the
+    // finish sits inside a block expression whose value is still
+    // pending: every finish block is followed by an `Exit`. The three
+    // are the one in the block, the one after the `let`, and the
+    // recall block's.
+    let policy = parse_policy_str(
+        &command(
+            r#"
+            let x = if this.user == 1 {
+                finish { create Account[user: this.user]=>{balance: 0} }
+                : 1
+            } else {
+                : 2
+            }
+            finish {}
+            "#,
+        ),
+        Version::V2,
+    )
+    .expect("parse");
+    let module = Compiler::new(&policy)
+        .debug(true)
+        .allow_baseless(true)
+        .compile()
+        .expect("compile");
+    let m: ModuleV0 = match module.data {
+        ModuleData::V0(m) => m,
+        ModuleData::V1(m) => m.into(),
+    };
+    let progmem = m.progmem;
+    let finishes: Vec<usize> = progmem
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| matches!(i, Instruction::Meta(Meta::Finish(true))))
+        .map(|(n, _)| n)
+        .collect();
+    assert_eq!(finishes.len(), 3, "finish blocks: {finishes:?}");
+    for (n, start) in finishes.iter().enumerate() {
+        let end = finishes
+            .get(n.wrapping_add(1))
+            .copied()
+            .unwrap_or(progmem.len());
+        let exits = progmem[*start..end]
+            .iter()
+            .any(|i| matches!(i, Instruction::Exit(_)));
+        assert!(exits, "no exit after the finish at {start}");
+    }
 }
 
 #[test]

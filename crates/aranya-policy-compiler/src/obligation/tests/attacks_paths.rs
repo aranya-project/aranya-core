@@ -2,7 +2,7 @@
 //! run. A wrong contradiction hides every warning after it, so each
 //! attack puts an unchecked mutation on the path in question.
 
-use super::{MEMBER, warnings_for, with_defs};
+use super::{MEMBER, command, warnings_for, with_defs};
 
 #[test]
 fn attack_exists_prefix_then_not_exists_exact_is_not_contradiction() {
@@ -125,6 +125,70 @@ fn attack_non_init_does_not_prune_exists_branch() {
     );
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("`Owner[]` does not exist"));
+}
+
+#[test]
+fn attack_some_literal_arm_does_not_prune_binding_arm() {
+    // `Some(1)` not matching does not mean `None`: the value may be
+    // `Some(2)`, so the `Some(x)` arm can run.
+    let warnings = warnings_for(&with_defs(
+        "function maybe(u int) option[int] { return Some(u) }",
+        r#"
+        match maybe(this.user) {
+            Some(1) => { finish {} }
+            Some(x) => { finish { create Account[user: x]=>{balance: 0} } }
+            None => { finish {} }
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn attack_some_literal_arm_does_not_prove_none_in_default_arm() {
+    // A query result that isn't this particular account may still be
+    // some account, so the default arm cannot assume the fact is absent.
+    let warnings = warnings_for(&command(
+        r#"
+        match query Account[user: this.user] {
+            Some(Account { user: 1, balance: 0 }) => { finish {} }
+            _ => { finish { create Account[user: this.user]=>{balance: 0} } }
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn control_none_arm_after_literal_proves_absent() {
+    let warnings = warnings_for(&command(
+        r#"
+        match query Account[user: this.user] {
+            Some(Account { user: 1, balance: 0 }) => { finish {} }
+            None => { finish { create Account[user: this.user]=>{balance: 0} } }
+            _ => { finish {} }
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn control_some_binding_arm_prunes_none_arm() {
+    // `Some(x)` matches every `Some`, and the helper never returns
+    // `None`, so the `None` arm cannot run.
+    let warnings = warnings_for(&with_defs(
+        "function maybe(u int) option[int] { return Some(u) }",
+        r#"
+        match maybe(this.user) {
+            Some(x) => { finish {} }
+            None => { finish { create Account[user: this.user]=>{balance: 0} } }
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
 }
 
 #[test]

@@ -677,11 +677,18 @@ Each attack that defends a single rule was checked by disabling that
 rule and confirming the attack fails: the value-filter rule, `Ok`/`Err`
 forgetting, finish-function parameter substitution, block-scoped
 substitution, `or return` exits, the arm-local fact filter, and a
-mutation forgetting other keys of its fact. The campaign found one
-false negative, the value-filter bug described under
-[Conditions](#conditions), which is fixed. Attacks on `map` could not
+mutation forgetting other keys of its fact. Attacks on `map` could not
 be written because `map` is only allowed in actions, which cannot
 mutate facts.
+
+The campaign found two false negatives, both fixed:
+
+- the value-filter bug described under [Conditions](#conditions);
+- a `match` arm `Some(1)` that fails to match was treated as proving
+  the value is `None`, so a later `Some(x)` or `None` arm was pruned
+  as impossible and its mutations went unchecked. A literal `Some`
+  pattern now proves nothing when it fails, since the value may be
+  another `Some`. Only a binding pattern `Some(x)` proves `None`.
 
 ## Known limitations
 
