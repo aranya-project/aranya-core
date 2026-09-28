@@ -208,6 +208,15 @@ is recorded as `Exists` on the counted pattern. When the pattern has a
 bind marker, that says nothing about a particular key, so it cannot
 discharge an `update` or `delete` obligation.
 
+A literal with a value filter, such as `exists F[k]=>{v: 0}`, proves
+`Exists F[k]` when it matches, since some fact with that key exists.
+When it does not match it proves nothing: a fact with that key may
+still exist with another value. A filter made only of bind markers,
+`=>{v: ?}`, is no filter. This was found by the adversarial tests
+below; before the fix, `check !exists F[k]=>{v: 0}` wrongly discharged
+a `create F[k]`, and wrongly pruned a later `if exists F[k]` branch as
+impossible.
+
 A `let` whose value is substitutable is replaced by its value wherever
 the name appears. Substitutable values include fact reads (`exists`,
 `query`, and counts) and pure function calls, not just simple values.
@@ -615,6 +624,56 @@ file covers one feature, in the order below:
   an `else` arm that proves nothing, and arm-bound and block-local
   names not leaking;
 - rendering of the title, label, note, and help.
+
+### Adversarial tests
+
+The `attacks_*` files hold policies written to get a wrong "proven"
+out of the analysis. Each attack is a policy whose mutation can fail
+at runtime, asserting that the analysis warns, paired with a control
+twin that removes the trick and asserts no warnings, so the warning is
+attributable to the attack rather than to the analysis going opaque
+for an unrelated reason. They are grouped by the assumption they
+target:
+
+- `attacks_polarity.rs`: value filters on every negative form, bind
+  prefixes never discharging an exact key, and a negative observation
+  of one key saying nothing about another;
+- `attacks_names.rs`: `Ok`/`Err` arm rebinding, finish-function and
+  helper parameters named like caller variables, block-local query
+  bindings, alias chains, and arm-expression bindings;
+- `attacks_state.rs`: keys that may alias in one finish block, directly
+  and through a finish function, a finish function dropping the
+  caller's query binding, a recursive call in an init command, recall
+  blocks not inheriting policy knowledge, and double manipulation across
+  a call;
+- `attacks_helpers.rs`: early exits returning `true`, exits recorded
+  from inside a block in an arm, mutual recursion, non-substitutable
+  locals in exit facts, arguments rebound after a call, and summaries
+  reused across commands;
+- `attacks_paths.rs`: prefix and exact patterns of opposite polarity
+  that are not contradictions, counting queries, init pruning against
+  its non-init twin, and `!(a && b)` proving nothing;
+- `attacks_expressions.rs`: condition facts not surviving arms, an arm
+  weakened by `||` or a `_ => true` default, `if` arms querying
+  different keys, a `match` binding of another query, a block binding
+  the outer `let`'s own name, block-scoped names in a condition block,
+  and a nested `return` in an `if` arm.
+
+`assumptions.rs` guards what the analysis assumes the compiler
+enforces: no shadowing, keys as schema-order prefixes, no calls or
+queries in finish expressions, `map` only in actions, and the
+accepted and rejected `match` arm forms. A language change that breaks
+one fails there rather than silently unsounding the analysis.
+
+Each attack that defends a single rule was checked by disabling that
+rule and confirming the attack fails: the value-filter rule, `Ok`/`Err`
+forgetting, finish-function parameter substitution, block-scoped
+substitution, `or return` exits, the arm-local fact filter, and a
+mutation forgetting other keys of its fact. The campaign found one
+false negative, the value-filter bug described under
+[Conditions](#conditions), which is fixed. Attacks on `map` could not
+be written because `map` is only allowed in actions, which cannot
+mutate facts.
 
 ## Known limitations
 

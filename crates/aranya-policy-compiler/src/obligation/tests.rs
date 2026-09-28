@@ -7,6 +7,13 @@ use aranya_policy_lang::lang::parse_policy_str;
 use super::ObligationWarning;
 use crate::Compiler;
 
+mod assumptions;
+mod attacks_expressions;
+mod attacks_helpers;
+mod attacks_names;
+mod attacks_paths;
+mod attacks_polarity;
+mod attacks_state;
 mod bound_keys;
 mod branches;
 mod conditions;

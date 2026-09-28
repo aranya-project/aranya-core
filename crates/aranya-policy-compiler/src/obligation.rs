@@ -720,7 +720,7 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a
             let pat = pattern_raw(fact, st);
             (
                 fact_is(pat.clone(), FactState::Exists),
-                fact_is(pat, FactState::NotExists),
+                absent_unless_filtered(fact, pat),
             )
         }
         ExprKind::InternalFunction(InternalFunction::FactCount(ty, n, fact)) => {
@@ -748,7 +748,7 @@ fn count_cond<'a>(
 ) -> (Know, Know) {
     let pat = pattern_raw(fact, st);
     let exists = fact_is(pat.clone(), FactState::Exists);
-    let absent = fact_is(pat, FactState::NotExists);
+    let absent = absent_unless_filtered(fact, pat);
     match ty {
         FactCountType::AtLeast(_) => match n {
             ..=0 => (nothing(), None),
@@ -773,6 +773,20 @@ fn count_cond<'a>(
     }
 }
 
+/// What a fact literal not matching implies: `NotExists` for its key,
+/// unless the literal filters on values. Then a fact with that key may
+/// still exist with other values, so nothing is known. Value fields
+/// that are bind markers are dropped when lowering, so an all-bind
+/// filter is no filter.
+fn absent_unless_filtered(fact: &FactLiteral, pat: FactPattern) -> Know {
+    let filtered = fact.value_fields.as_ref().is_some_and(|v| !v.is_empty());
+    if filtered {
+        nothing()
+    } else {
+        fact_is(pat, FactState::NotExists)
+    }
+}
+
 /// What `expr is Some` (or `is None`, when `some` is false) implies.
 fn cond_is<'a>(
     st: &mut PathState<'a>,
@@ -794,7 +808,7 @@ fn cond_is<'a>(
             let pat = pattern_raw(fact, st);
             (
                 fact_is(pat.clone(), FactState::Exists),
-                fact_is(pat, FactState::NotExists),
+                absent_unless_filtered(fact, pat),
             )
         }
         ExprKind::Optional(None) => (None, nothing()),

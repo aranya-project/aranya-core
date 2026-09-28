@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Policy Obligation Analysis</title>
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --fg: #1f2328;
+    --muted: #5f6670;
+    --accent: #2f5fd0;
+    --ok: #1a7f37;
+    --warn: #9a6700;
+    --bad: #cf222e;
+    --code-bg: #f1f2f4;
+    --rule: #d8dbe0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --fg: #e6e8eb;
+      --muted: #9aa1ab;
+      --accent: #7aa2ff;
+      --ok: #56d364;
+      --warn: #e3b341;
+      --bad: #ff7b72;
+      --code-bg: #22252b;
+      --rule: #343841;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .slide { display: none; position: absolute; inset: 0; padding: 6vh 8vw 10vh;
+    flex-direction: column; justify-content: center; }
+  .slide.active { display: flex; }
+  h1 { font-size: 3.2rem; margin: 0 0 1rem; letter-spacing: -0.02em; }
+  h2 { font-size: 2.2rem; margin: 0 0 1.6rem; color: var(--accent); letter-spacing: -0.01em; }
+  p, li { font-size: 1.5rem; line-height: 1.5; }
+  ul { margin: 0; padding-left: 1.4rem; }
+  li { margin: 0.5rem 0; }
+  .sub { color: var(--muted); font-size: 1.5rem; }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.9em;
+    background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 1rem; line-height: 1.45;
+    background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; margin: 0.6rem 0;
+    overflow-x: auto; }
+  pre code { background: none; padding: 0; font-size: 1em; }
+  pre b { color: var(--ok); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 3vw; align-items: start; }
+  .label { font-size: 1rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 0 0 0.3rem; }
+  .ok { color: var(--ok); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+  table { border-collapse: collapse; font-size: 1.3rem; }
+  th, td { text-align: left; padding: 0.45rem 1rem 0.45rem 0; border-bottom: 1px solid var(--rule); }
+  th { color: var(--muted); font-weight: 600; }
+  .footer { position: absolute; bottom: 3vh; left: 8vw; right: 8vw; display: flex;
+    justify-content: space-between; color: var(--muted); font-size: 0.95rem; }
+  .hint { opacity: 0.8; }
+  .diagram svg { width: 100%; height: auto; max-height: 62vh; }
+  .diagram .box { fill: var(--code-bg); stroke: var(--rule); stroke-width: 1.5; }
+  .diagram .box.good { stroke: var(--ok); stroke-width: 2.5; }
+  .diagram .box.badbox { stroke: var(--bad); stroke-width: 2.5; }
+  .diagram .box.end { stroke-dasharray: 5 4; }
+  .diagram text { fill: var(--fg); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 14px; }
+  .diagram text.small { fill: var(--muted); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; }
+  .diagram text.okt { fill: var(--ok); font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .diagram text.badt { fill: var(--bad); font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .diagram line, .diagram path { stroke: var(--muted); stroke-width: 1.8; fill: none; }
+  .diagram .arrowhead { fill: var(--muted); stroke: none; }
+  .key { font-size: 1.5rem; border-left: 4px solid var(--accent); padding-left: 1rem; margin-top: 1.2rem; }
+  pre .ob { color: var(--bad); }
+  pre .obs { color: var(--ok); }
+</style>
+</head>
+<body>
+
+<section class="slide active">
+  <h1>Policy Obligation Analysis</h1>
+  <p class="sub">Catching fact-database runtime exceptions at compile time</p>
+</section>
+
+<section class="slide">
+  <h2>What is it?</h2>
+  <ul>
+    <li>It's a new check in the policy compiler for fact mutations that can fail at runtime.</li>
+    <li>It checks every <code>create</code>, <code>update</code> and <code>delete</code>, including those inside finish functions.</li>
+    <li>It also catches the same fact being changed twice in one <code>finish</code> block.</li>
+    <li>It's opt-in with <code>--check-obligations</code>, and it only produces warnings.</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <h2>What is the status?</h2>
+  <div class="cols">
+    <div>
+      <p class="label ok">Working</p>
+      <ul>
+        <li>All five fact-mutation invariants are checked on every path.</li>
+        <li>Mutations inside finish functions are checked at each call.</li>
+        <li>Init commands are understood to start with no facts.</li>
+        <li><code>if</code> and <code>match</code>, as statements or expressions, and helper functions provide proof.</li>
+        <li>Keys read from query results provide proof for the fact they came from.</li>
+      </ul>
+    </div>
+    <div>
+      <p class="label warn">Not yet</p>
+      <ul>
+        <li>Creating two facts of one name with different literal keys in an init command still warns.</li>
+        <li>The runtime still lets some of these errors through silently.</li>
+        <li>There's no PR yet.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <h2>Obligations</h2>
+  <p>Every fact mutation has a precondition that must hold when it runs. We call that precondition its <b>obligation</b>.</p>
+  <table style="margin: 1rem 0;">
+    <tr><th>Mutation</th><th>Obligation</th><th>Afterwards</th></tr>
+    <tr><td><code>create F[k]</code></td><td><code>F[k]</code> must not exist</td><td><code>F[k]</code> exists</td></tr>
+    <tr><td><code>update F[k]</code></td><td><code>F[k]</code> must exist</td><td><code>F[k]</code> exists</td></tr>
+    <tr><td><code>update F[k]=&gt;{v: x}</code></td><td>The stored <code>v</code> must equal <code>x</code></td><td><code>F[k]</code> exists</td></tr>
+    <tr><td><code>delete F[k]</code></td><td><code>F[k]</code> must exist</td><td><code>F[k]</code> does not exist</td></tr>
+    <tr><td>Any mutation</td><td>Only once per fact in a <code>finish</code> block</td><td></td></tr>
+  </table>
+<pre><code>finish {
+    create Account[user: this.user]=&gt;{balance: 0}
+    <span class="ob">// obligation: Account[user: this.user] must not exist</span>
+}</code></pre>
+  <p>If an obligation doesn't hold, the command fails with a runtime exception.</p>
+</section>
+
+<section class="slide">
+  <h2>Observations</h2>
+  <div class="cols">
+    <div>
+      <p>An <b>observation</b> is something a path has learned about the fact database.</p>
+      <p>A <code>check</code> ends the command when it fails. So the code after it knows the check passed.</p>
+<pre><code>check !exists Account[user: this.user]
+    else recall already_open()
+<span class="obs">// observed: Account[user: this.user]
+//           does not exist</span>
+finish {
+    create Account[user: this.user]=&gt;{..}
+    <span class="obs">// obligation met</span>
+}</code></pre>
+    </div>
+    <div class="diagram">
+      <svg viewBox="0 0 440 330" role="img" aria-label="A check splits into a failing path that ends at the recall, and a passing path that continues knowing the account does not exist.">
+        <defs>
+          <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+        </defs>
+        <rect class="box" x="70" y="10" width="300" height="46" rx="8"/>
+        <text x="220" y="39" text-anchor="middle">check !exists Account[..]</text>
+
+        <line x1="160" y1="56" x2="108" y2="130" marker-end="url(#ah1)"/>
+        <text class="small" x="95" y="100" text-anchor="end">fails</text>
+        <line x1="280" y1="56" x2="330" y2="130" marker-end="url(#ah1)"/>
+        <text class="small" x="325" y="100">passes</text>
+
+        <rect class="box end" x="2" y="132" width="212" height="46" rx="8"/>
+        <text x="108" y="161" text-anchor="middle">recall already_open()</text>
+        <text class="small" x="108" y="200" text-anchor="middle">path ends here</text>
+
+        <rect class="box good" x="240" y="132" width="190" height="64" rx="8"/>
+        <text class="okt" x="335" y="156" text-anchor="middle">observed</text>
+        <text x="335" y="180" text-anchor="middle">Account[..] absent</text>
+
+        <line x1="335" y1="196" x2="335" y2="250" marker-end="url(#ah1)"/>
+        <rect class="box good" x="250" y="252" width="170" height="46" rx="8"/>
+        <text x="335" y="281" text-anchor="middle">create Account[..]</text>
+        <text class="okt" x="335" y="322" text-anchor="middle">obligation met</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <h2>Every path needs proof</h2>
+  <div class="cols">
+    <div>
+      <p>The analysis follows each path separately. An obligation is only met if an observation on <b>that same path</b> proves it.</p>
+<pre><code>if this.user == 1 {
+    check !exists Account[user: this.user]
+        else recall already_open()
+}
+finish {
+    create Account[user: this.user]=&gt;{..}
+}</code></pre>
+      <p>Here only one of the two paths checks first, so the compiler warns.</p>
+    </div>
+    <div class="diagram">
+      <svg viewBox="0 0 440 330" role="img" aria-label="An if statement splits into two paths. The true path checks the account and its create is proven. The false path has no check and its create gets a warning.">
+        <defs>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+        </defs>
+        <rect class="box" x="120" y="10" width="200" height="46" rx="8"/>
+        <text x="220" y="39" text-anchor="middle">if this.user == 1</text>
+
+        <line x1="180" y1="56" x2="110" y2="110" marker-end="url(#ah2)"/>
+        <text class="small" x="125" y="80" text-anchor="end">true</text>
+        <line x1="260" y1="56" x2="330" y2="110" marker-end="url(#ah2)"/>
+        <text class="small" x="315" y="80">false</text>
+
+        <rect class="box" x="10" y="112" width="200" height="46" rx="8"/>
+        <text x="110" y="141" text-anchor="middle">check !exists ..</text>
+        <text class="small" x="330" y="141" text-anchor="middle">no check</text>
+
+        <line x1="110" y1="158" x2="110" y2="230" marker-end="url(#ah2)"/>
+        <line x1="330" y1="152" x2="330" y2="230" marker-end="url(#ah2)"/>
+
+        <rect class="box good" x="10" y="232" width="200" height="46" rx="8"/>
+        <text x="110" y="261" text-anchor="middle">create Account[..]</text>
+        <text class="okt" x="110" y="305" text-anchor="middle">proven</text>
+
+        <rect class="box badbox" x="230" y="232" width="200" height="46" rx="8"/>
+        <text x="330" y="261" text-anchor="middle">create Account[..]</text>
+        <text class="badt" x="330" y="305" text-anchor="middle">not proven: warning</text>
+      </svg>
+    </div>
+  </div>
+  <p class="key">Mutations are observations too. After a <code>create</code>, the path knows the fact exists, so a second <code>create</code> of it is caught.</p>
+</section>
+
+<section class="slide">
+  <h2>How does it work?</h2>
+  <div class="cols">
+    <div>
+      <p class="label">What counts as proof</p>
+      <table>
+        <tr><th>Statement</th><th>Proves</th></tr>
+        <tr><td><code>check !exists F[k] else ...</code></td><td><code>F[k]</code> absent</td></tr>
+        <tr><td><code>check exists F[k] else ...</code></td><td><code>F[k]</code> exists</td></tr>
+        <tr><td><code>let x = query F[k] or ...</code></td><td><code>F[k]</code> exists</td></tr>
+        <tr><td><code>if</code> / <code>match</code> on these</td><td>Each branch its side</td></tr>
+        <tr><td>A helper function call</td><td>What the helper proves</td></tr>
+        <tr><td><code>attributes { init: true }</code></td><td>No facts exist</td></tr>
+      </table>
+    </div>
+    <div>
+      <p class="label">How keys are matched</p>
+      <p>A <code>let</code> alias still matches the original expression.</p>
+<pre><code>let uid = this.user
+check !exists Account[user: uid] else ...
+create Account[user: this.user]=&gt;{..}  <span class="obs">// proven</span></code></pre>
+      <p>A <code>?</code> in a check covers every value of that key.</p>
+<pre><code>check !exists Grant[user: u, perm: ?] else ...
+create Grant[user: u, perm: 3]=&gt;{}  <span class="obs">// proven</span></code></pre>
+    </div>
+  </div>
+  <p class="label" style="margin-top: 1.4rem;">Complex checks are pointed out</p>
+  <p>A check like <code>!(exists F[k] &amp;&amp; ok)</code> proves nothing, but the warning points at it so the author knows what to simplify.</p>
+</section>
+
+<section class="slide">
+  <h2>Following finish functions</h2>
+  <p>A call to a finish function is followed into its body. Its parameters are replaced by the caller's arguments, so a check in the command proves a mutation inside the function.</p>
+<pre><code>finish function open_account(u int) {
+    create Account[user: u]=&gt;{balance: 0}  <span class="obs">// proven by the caller's check</span>
+}
+
+command Open with Base {
+    policy {
+        check !exists Account[user: this.user] else recall already_open()
+        finish {
+            open_account(this.user)
+        }
+    }
+    ...
+}</code></pre>
+  <p>A warning inside a function points back to each call that reached it.</p>
+</section>
+
+<section class="slide">
+  <h2>Example: the bug</h2>
+  <p>The <code>SetCounter</code> command in the core example policy creates a counter without checking for it first.</p>
+<pre><code>policy {
+    finish {
+        create Counter[name: this.name]=&gt;{value: this.value}
+        emit CounterSet{name: this.name, value: this.value}
+    }
+}</code></pre>
+  <p>Running it twice with the same name creates a fact that already exists.</p>
+<pre><code>warning: cannot prove `Counter[name: this.name]` does not exist before `create`
+    |
+179 |   create Counter[name: this.name]=&gt;{value: this.value}
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this fact may already exist
+    |
+    = note: creating a fact that already exists is a runtime exception
+    = help: check that it does not exist first: `check !exists Counter[name: this.name] else ...`</code></pre>
+</section>
+
+<section class="slide">
+  <h2>Example: the fix</h2>
+  <p>Adding the check the warning suggests, with a recall block to handle the failure, fixes it.</p>
+<pre><code>command SetCounter with Base {
+    ...
+    policy {
+        <b>check !exists Counter[name: this.name] else recall reject()</b>
+        finish {
+            create Counter[name: this.name]=&gt;{value: this.value}
+            emit CounterSet{name: this.name, value: this.value}
+        }
+    }
+
+    <b>recall reject() {}</b>
+}</code></pre>
+  <p>With this change, the policy compiles with no warnings.</p>
+</section>
+
+<section class="slide">
+  <h2>Try it</h2>
+  <p>The work is on the <code>execption-finder</code> branch. This command reproduces the warning:</p>
+<pre><code>git checkout execption-finder
+cargo run -p aranya-policy-compiler --bin policy-compiler -- \
+    --check-obligations --stub-ffi --no-validate \
+    crates/aranya-core-example/src/policy.md</code></pre>
+</section>
+
+<div class="footer">
+  <span class="hint">← → or click to navigate</span>
+  <span id="counter"></span>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const counter = document.getElementById('counter');
+  let i = 0;
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, j) => s.classList.toggle('active', j === i));
+    counter.textContent = `${i + 1} / ${slides.length}`;
+  }
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  document.addEventListener('click', e => {
+    if (e.target.closest('pre, a')) return;
+    show(e.clientX > window.innerWidth / 3 ? i + 1 : i - 1);
+  });
+  show(0);
+</script>
+</body>
+</html>
