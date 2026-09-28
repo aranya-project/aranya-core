@@ -17,6 +17,7 @@ mod attacks_state;
 mod bound_keys;
 mod branches;
 mod conditions;
+mod coverage;
 mod diagnostics;
 mod expressions;
 mod finish_functions;

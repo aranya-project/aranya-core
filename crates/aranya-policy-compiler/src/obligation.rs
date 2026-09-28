@@ -570,20 +570,11 @@ fn walk<'a>(stmts: &[Statement], cont: &[&[Statement]], mut st: PathState<'a>, o
                 }
                 return;
             }
-            StmtKind::Map(m) => {
-                // The map query itself touches the fact.
-                st.opaque.push((m.fact.identifier.clone(), m.fact.span()));
-                // Knowledge about facts mutated inside the body does not
-                // survive from one iteration to the next.
-                let mutated = mutated_fact_names(&m.statements);
-                st.facts.retain(|(p, _)| !mutated.contains(&p.name.inner));
-                for name in &mutated {
-                    st.mark_dirty(name);
-                }
-                // The body's ends are not the ends of an enclosing block.
-                let collecting = core::mem::replace(&mut out.collect_ends, false);
-                walk(&m.statements, &[], st.clone(), out);
-                out.collect_ends = collecting;
+            StmtKind::Map(_) => {
+                // `map` is only allowed in actions, which the analysis does
+                // not walk. Should that change, its body may mutate any
+                // fact any number of times.
+                st.forget_all();
             }
             StmtKind::Finish(fstmts) => {
                 analyze_finish(fstmts, &mut st, out);
@@ -595,9 +586,9 @@ fn walk<'a>(stmts: &[Statement], cont: &[&[Statement]], mut st: PathState<'a>, o
                 collect_opaque(&mut st, &e, out);
             }
             StmtKind::Return(r) => {
-                if st.in_function {
-                    record_exit(st, &r.expression, out);
-                }
+                // Only functions have `return` statements. Exits recorded
+                // for a command block are never read.
+                record_exit(st, &r.expression, out);
                 return;
             }
             StmtKind::Recall(_) => return,
@@ -995,17 +986,9 @@ fn contribution<'a>(
             .collect();
         result = (both(Some(facts.clone()), t), both(Some(facts), f));
     }
-    // What the arm touched, and what it may have changed, carries over.
-    if let Some(new) = end.opaque.get(base..) {
-        st.opaque.extend_from_slice(new);
-    }
-    for name in &end.dirty {
-        if !st.dirty.contains(name) {
-            st.facts.retain(|(p, _)| p.name.inner != *name);
-            st.mark_dirty(name);
-        }
-    }
-    st.empty_db &= end.empty_db;
+    // What the arm touched carries over. It can't have changed the
+    // database: every mutation ends its path before the arm's value.
+    st.opaque.extend(end.opaque.iter().skip(base).cloned());
     result
 }
 
@@ -1082,13 +1065,17 @@ fn arm_names(pattern: &MatchPattern) -> Vec<Identifier> {
 /// Record a call that couldn't be followed as touching every fact its
 /// function's body mentions, so warnings about those facts point at it.
 fn record_call_opaque(st: &mut PathState<'_>, name: &Identifier, span: Span) {
-    let Some(body) = st.az.pure_functions.get(name) else {
-        return;
-    };
-    let mut names: Vec<Ident> = Vec::new();
-    stmt_exprs(&body.statements, &mut |e| {
-        visit_facts(e, &mut |fact, _| names.push(fact.identifier.clone()));
-    });
+    let names: Vec<Ident> = st
+        .az
+        .pure_functions
+        .get(name)
+        .map_or_else(Vec::new, |body| {
+            let mut names = Vec::new();
+            stmt_exprs(&body.statements, &mut |e| {
+                visit_facts(e, &mut |fact, _| names.push(fact.identifier.clone()));
+            });
+            names
+        });
     for fact in names {
         st.opaque.push((fact, span));
     }
@@ -1184,8 +1171,8 @@ fn finish_statements<'a>(
                 let name = &fc.identifier.inner;
                 let recursive = calls.iter().any(|(n, _)| n == name);
                 let az = st.az;
-                match az.finish_functions.get(name) {
-                    Some(body) if !recursive && body.params.len() == fc.arguments.len() => {
+                match (az.finish_functions.get(name), recursive) {
+                    (Some(body), false) => {
                         // Bind the parameters to the caller's arguments,
                         // so the function's fact keys are expressed in the
                         // caller's terms.
@@ -1203,14 +1190,14 @@ fn finish_statements<'a>(
                         st.env = caller_env;
                         st.strict = caller_strict;
                     }
-                    // Not a known finish function, or a recursive call:
-                    // it may mutate any fact.
-                    _ => {
-                        if recursive {
-                            found.push(recursive_call(stmt.span, name));
-                        }
+                    // A recursive call is not followed: it may mutate any
+                    // fact.
+                    (Some(_), true) => {
+                        found.push(recursive_call(stmt.span, name));
                         st.forget_all();
                     }
+                    // The compiler rejects calls to unknown functions.
+                    (None, _) => st.forget_all(),
                 }
             }
             _ => {}
@@ -1549,20 +1536,19 @@ fn pattern_raw(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
 /// `var.<key>` for each remaining key field of the schema.
 fn full_key_pattern(prefix: &FactPattern, var: &Identifier, st: &PathState<'_>) -> FactPattern {
     let mut keys = prefix.keys.clone();
-    if let Some(schema) = st.az.fact_keys.get(&prefix.name.inner) {
-        for (key, ty) in schema.iter().skip(keys.len()) {
-            let base = Expression {
-                kind: ExprKind::Identifier(Ident::new(var.clone(), prefix.span)),
-                vtype: VType::new(TypeKind::Struct(prefix.name.clone()), prefix.span),
-                span: prefix.span,
-            };
-            let read = Expression {
-                kind: ExprKind::Dot(Box::new(base), Ident::new(key.clone(), prefix.span)),
-                vtype: ty.clone(),
-                span: prefix.span,
-            };
-            keys.push((key.clone(), read));
-        }
+    let schema = st.az.fact_keys.get(&prefix.name.inner);
+    for (key, ty) in schema.into_iter().flatten().skip(keys.len()) {
+        let base = Expression {
+            kind: ExprKind::Identifier(Ident::new(var.clone(), prefix.span)),
+            vtype: VType::new(TypeKind::Struct(prefix.name.clone()), prefix.span),
+            span: prefix.span,
+        };
+        let read = Expression {
+            kind: ExprKind::Dot(Box::new(base), Ident::new(key.clone(), prefix.span)),
+            vtype: ty.clone(),
+            span: prefix.span,
+        };
+        keys.push((key.clone(), read));
     }
     FactPattern {
         keys,
@@ -1859,9 +1845,8 @@ fn rewrite_stmts(
                     .iter_mut()
                     .all(|arm| rewrite_stmts(&mut arm.statements, env, strict))
         }
-        StmtKind::Map(m) => {
-            rewrite_fact(&mut m.fact, env, strict) && rewrite_stmts(&mut m.statements, env, strict)
-        }
+        // `map` is only allowed in actions, which are never rewritten.
+        StmtKind::Map(_) => false,
         StmtKind::Finish(body) => rewrite_stmts(body, env, strict),
         StmtKind::Return(r) => rewrite(&mut r.expression, env, strict),
         StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
@@ -1871,9 +1856,11 @@ fn rewrite_stmts(
             c.arguments.iter_mut().all(|e| rewrite(e, env, strict))
         }
         StmtKind::Create(c) => rewrite_fact(&mut c.fact, env, strict),
+        // A finish block is never rewritten under `strict`, so neither
+        // part can fail; `&` says so without a short circuit.
         StmtKind::Update(u) => {
             rewrite_fact(&mut u.fact, env, strict)
-                && u.to.iter_mut().all(|(_, e)| rewrite(e, env, strict))
+                & u.to.iter_mut().all(|(_, e)| rewrite(e, env, strict))
         }
         StmtKind::Delete(d) => rewrite_fact(&mut d.fact, env, strict),
         StmtKind::Recall(r) => r.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
@@ -1972,7 +1959,7 @@ fn covers(obs: &FactPattern, obl: &FactPattern) -> bool {
             .keys
             .iter()
             .zip(&obl.keys)
-            .all(|((n1, e1), (n2, e2))| n1 == n2 && matches_expr(e1, e2))
+            .all(|((_, e1), (_, e2))| matches_expr(e1, e2))
 }
 
 fn same_pattern(a: &FactPattern, b: &FactPattern) -> bool {
@@ -1989,15 +1976,15 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
         (ExprKind::String(x), ExprKind::String(y)) => x == y,
         (ExprKind::Bool(x), ExprKind::Bool(y)) => x == y,
         (ExprKind::Identifier(x), ExprKind::Identifier(y)) => x == y,
+        // The key's type makes the enum names agree.
         (ExprKind::EnumReference(x), ExprKind::EnumReference(y)) => {
-            x.identifier == y.identifier && x.value == y.value
+            (&x.identifier, &x.value) == (&y.identifier, &y.value)
         }
         (ExprKind::Dot(b1, f1), ExprKind::Dot(b2, f2)) => f1 == f2 && matches_expr(b1, b2),
         // Pure functions are deterministic and fact state cannot change
         // between policy statements, so equal calls yield equal values.
         (ExprKind::FunctionCall(f1), ExprKind::FunctionCall(f2)) => {
             f1.identifier == f2.identifier
-                && f1.arguments.len() == f2.arguments.len()
                 && f1
                     .arguments
                     .iter()
@@ -2018,39 +2005,6 @@ fn collect_opaque<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'
     });
     if st.in_function && any_sub(expr, &mut |e| matches!(e.kind, ExprKind::Return(_))) {
         out.unusable = true;
-    }
-}
-
-/// Fact names mutated anywhere in these statements (recursively).
-fn mutated_fact_names(stmts: &[Statement]) -> Vec<Identifier> {
-    let mut names = Vec::new();
-    collect_mutated(stmts, &mut names);
-    names
-}
-
-fn collect_mutated(stmts: &[Statement], names: &mut Vec<Identifier>) {
-    for stmt in stmts {
-        match &stmt.kind {
-            StmtKind::Create(c) => names.push(c.fact.identifier.inner.clone()),
-            StmtKind::Update(u) => names.push(u.fact.identifier.inner.clone()),
-            StmtKind::Delete(d) => names.push(d.fact.identifier.inner.clone()),
-            StmtKind::If(ifs) => {
-                for (_, body) in &ifs.branches {
-                    collect_mutated(body, names);
-                }
-                if let Some(body) = &ifs.fallback {
-                    collect_mutated(body, names);
-                }
-            }
-            StmtKind::Match(m) => {
-                for arm in &m.arms {
-                    collect_mutated(&arm.statements, names);
-                }
-            }
-            StmtKind::Map(m) => collect_mutated(&m.statements, names),
-            StmtKind::Finish(body) => collect_mutated(body, names),
-            _ => {}
-        }
     }
 }
 

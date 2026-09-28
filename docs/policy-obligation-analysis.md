@@ -135,8 +135,8 @@ a path:
 This is a strongest-postcondition analysis flowing forward along each
 control-flow path. There are no joins in the usual dataflow sense. The
 policy language has no general loops (`map` is the only iteration
-construct, handled specially), and `finish` blocks terminate execution,
-so the analysis simply enumerates paths.
+construct, and it is only allowed in actions), and `finish` blocks
+terminate execution, so the analysis simply enumerates paths.
 
 ### The finish-block touched set
 
@@ -368,9 +368,10 @@ fact database between an observation and an obligation:
   postcondition. It forgets every other literal of `F`, since their
   keys may alias the mutated one. It also forgets query results for `F`
   and init knowledge for `F`.
-- A `map` body forgets knowledge of the facts it mutates before it is
-  analyzed, because an observation about one iteration says nothing
-  about the next.
+- A `map` statement forgets everything. `map` is only allowed in
+  actions, which the analysis does not walk, so this is never reached
+  today; if the language ever allows it in a policy block, its body
+  may mutate any fact any number of times.
 - A call the analysis cannot follow forgets everything. See
   [Finish functions](#finish-functions).
 - Binding a name again, with a `let` or a `match` arm, forgets every
@@ -418,9 +419,8 @@ For each command `policy` and `recall` block:
    contradicts what it already knows, such as `if exists F[k]` after
    `check !exists F[k]`, the path cannot run, so nothing on it is
    reported.
-5. `map`: forget knowledge of the facts the body mutates, walk the
-   body once, and continue after it. Nothing learned inside the body is
-   kept after it.
+5. `map`: forget everything. Only actions may contain `map`, so this
+   is unreachable for the blocks the analysis walks.
 6. `finish`: check each mutation's obligation against the incoming
    state, apply its postcondition, and maintain the touched set. Follow
    calls into finish functions. A `finish` block terminates the path.
@@ -658,6 +658,14 @@ target:
   different keys, a `match` binding of another query, a block binding
   the outer `let`'s own name, block-scoped names in a condition block,
   and a nested `return` in an `if` arm.
+
+`coverage.rs` holds tests that exist to reach rules the feature and
+attack tests don't: rarer language forms, impossible paths, strict
+substitution failing inside each expression form, and visitor corners.
+With them, `cargo llvm-cov --branch` reports every branch side of
+`obligation.rs` taken. Branches that no valid policy could take, such
+as a `return` outside a function or a call to an undefined finish
+function, were removed from the code rather than left untested.
 
 `assumptions.rs` guards what the analysis assumes the compiler
 enforces: no shadowing, keys as schema-order prefixes, no calls or
