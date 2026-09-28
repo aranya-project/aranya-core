@@ -10,13 +10,14 @@
 //!
 //! See `docs/policy-obligation-analysis.md` for the design.
 
-use std::collections::BTreeMap;
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
 use aranya_policy_ast::{
-    Ident, Identifier, Span, Spanned as _, TypeKind,
+    FactCountType, Ident, Identifier, Span, Spanned as _, TypeKind,
     thir::{
-        ExprKind, Expression, FactLiteral, InternalFunction, LetStatement, Statement, StmtKind,
+        ExprKind, Expression, FactLiteral, FunctionCall, InternalFunction, LetStatement,
+        MatchPattern, Statement, StmtKind,
     },
 };
 
@@ -97,13 +98,263 @@ struct FactPattern {
     text: String,
 }
 
+/// Fact knowledge.
+type Facts = Vec<(FactPattern, FactState)>;
+
+/// What holds when some condition is true (or false), or `None` if that
+/// outcome is impossible.
+type Know = Option<Facts>;
+
+/// No knowledge, but possible.
+fn nothing() -> Know {
+    Some(Vec::new())
+}
+
+/// Knowledge of a single fact.
+fn fact_is(pat: FactPattern, state: FactState) -> Know {
+    Some(vec![(pat, state)])
+}
+
+/// Would adding `(pat, state)` contradict `facts`?
+///
+/// A `NotExists` pattern covers every longer pattern it is a prefix of, so
+/// `NotExists F[a: x]` contradicts `Exists F[a: x, b: y]`. An `Exists`
+/// pattern with fewer keys only says some matching fact exists.
+fn contradicts(facts: &Facts, pat: &FactPattern, state: FactState) -> bool {
+    facts.iter().any(|(q, s)| match (state, *s) {
+        (FactState::Exists, FactState::NotExists) => covers(q, pat),
+        (FactState::NotExists, FactState::Exists) => covers(pat, q),
+        _ => false,
+    })
+}
+
+/// Knowledge that holds when both `a` and `b` hold.
+fn both(a: Know, b: Know) -> Know {
+    let (mut a, b) = (a?, b?);
+    for (pat, state) in b {
+        if contradicts(&a, &pat, state) {
+            return None;
+        }
+        if !a.iter().any(|(q, s)| *s == state && same_pattern(q, &pat)) {
+            a.push((pat, state));
+        }
+    }
+    Some(a)
+}
+
+/// Knowledge that holds when at least one of `a` or `b` holds: only what
+/// both imply.
+fn either(a: Know, b: Know) -> Know {
+    let (a, b) = match (a, b) {
+        (None, k) | (k, None) => return k,
+        (Some(a), Some(b)) => (a, b),
+    };
+    let mut out: Facts = Vec::new();
+    for (pa, sa) in &a {
+        for (pb, sb) in &b {
+            if sa != sb {
+                continue;
+            }
+            // For `NotExists`, the more specific pattern is implied by both.
+            let kept = if same_pattern(pa, pb) {
+                Some(pa)
+            } else if *sa == FactState::NotExists && covers(pa, pb) {
+                Some(pb)
+            } else if *sa == FactState::NotExists && covers(pb, pa) {
+                Some(pa)
+            } else {
+                None
+            };
+            if let Some(p) = kept
+                && !out.iter().any(|(q, s)| s == sa && same_pattern(q, p))
+            {
+                out.push((p.clone(), *sa));
+            }
+        }
+    }
+    Some(out)
+}
+
+/// [`either`], recording an opaque point at `span` for each fact that one
+/// side knew about but the combination doesn't. The expression touches
+/// that fact but proves nothing about it on its own, which a warning about
+/// the fact should point out.
+fn either_noted(st: &mut PathState<'_>, span: Span, a: Know, b: Know) -> Know {
+    let mut known: Vec<Ident> = Vec::new();
+    for (pat, _) in a.iter().chain(b.iter()).flatten() {
+        if !known.contains(&pat.name) {
+            known.push(pat.name.clone());
+        }
+    }
+    let result = either(a, b);
+    for name in known {
+        let kept = result.iter().flatten().any(|(pat, _)| pat.name == name);
+        if !kept {
+            st.opaque.push((name, span));
+        }
+    }
+    result
+}
+
+/// The lowered body of a function.
+#[derive(Debug, Clone)]
+struct FunctionBody {
+    params: Vec<Identifier>,
+    statements: Vec<Statement>,
+}
+
+/// One way a pure function can return.
+#[derive(Debug, Clone)]
+struct Exit {
+    /// What is known on the path to this `return`, in the function's terms.
+    facts: Facts,
+    /// The returned value, in the function's terms.
+    ret: Expression,
+}
+
+/// A pure function's exits, used to evaluate calls to it.
+#[derive(Debug)]
+struct Summary {
+    params: Vec<Identifier>,
+    exits: Vec<Exit>,
+}
+
+/// The default limit on the number of exits recorded for one pure
+/// function. Functions with more are treated as unknown calls.
+pub const DEFAULT_MAX_EXIT_PATHS: usize = 64;
+
+/// Runs the obligation analysis for one policy.
+///
+/// Function bodies are recorded as the compiler lowers them. Pure and
+/// finish functions are compiled before commands, so every body is
+/// recorded before any command block is analyzed.
+#[derive(Debug)]
+pub(crate) struct Analyzer {
+    /// The full policy source text, for diagnostics.
+    src: String,
+    /// Global `let` names, which may appear in function bodies.
+    globals: Vec<Identifier>,
+    finish_functions: BTreeMap<Identifier, FunctionBody>,
+    pure_functions: BTreeMap<Identifier, FunctionBody>,
+    max_exit_paths: usize,
+    /// Pure function summaries, computed on first use. `None` means the
+    /// function can't be summarized.
+    summaries: RefCell<BTreeMap<Identifier, Option<Rc<Summary>>>>,
+    /// Pure functions being summarized, to stop at recursion.
+    summarizing: RefCell<Vec<Identifier>>,
+}
+
+impl Analyzer {
+    pub(crate) fn new(src: String, globals: Vec<Identifier>, max_exit_paths: usize) -> Self {
+        Self {
+            src,
+            globals,
+            finish_functions: BTreeMap::new(),
+            pure_functions: BTreeMap::new(),
+            max_exit_paths,
+            summaries: RefCell::new(BTreeMap::new()),
+            summarizing: RefCell::new(Vec::new()),
+        }
+    }
+
+    /// Record a finish function's lowered body.
+    pub(crate) fn record_finish_function(
+        &mut self,
+        name: Identifier,
+        params: Vec<Identifier>,
+        statements: Vec<Statement>,
+    ) {
+        self.finish_functions
+            .insert(name, FunctionBody { params, statements });
+    }
+
+    /// Record a pure function's lowered body.
+    pub(crate) fn record_pure_function(
+        &mut self,
+        name: Identifier,
+        params: Vec<Identifier>,
+        statements: Vec<Statement>,
+    ) {
+        self.pure_functions
+            .insert(name, FunctionBody { params, statements });
+    }
+
+    /// Analyze the lowered statements of a command `policy` or `recall`
+    /// block.
+    ///
+    /// `empty_db` is true for the blocks of an `init` command, which always
+    /// runs against an empty fact database: the runtime only accepts an
+    /// init command as the root of the graph.
+    pub(crate) fn analyze_block(
+        &self,
+        stmts: &[Statement],
+        empty_db: bool,
+    ) -> Vec<ObligationWarning> {
+        let mut out = Out::new(usize::MAX);
+        walk(stmts, &[], PathState::new(self, empty_db, false), &mut out);
+        dedup_warnings(out.warnings)
+    }
+
+    /// The summary of a pure function, computing it on first use.
+    fn summary(&self, name: &Identifier) -> Option<Rc<Summary>> {
+        if let Some(s) = self.summaries.borrow().get(name) {
+            return s.clone();
+        }
+        if self.summarizing.borrow().contains(name) {
+            // Recursion: the language forbids it, but the compiler does not
+            // yet reject it (#607, #751).
+            return None;
+        }
+        let body = self.pure_functions.get(name)?;
+        self.summarizing.borrow_mut().push(name.clone());
+        let mut out = Out::new(self.max_exit_paths);
+        walk(
+            &body.statements,
+            &[],
+            PathState::new(self, false, true),
+            &mut out,
+        );
+        self.summarizing.borrow_mut().pop();
+        let summary = (!out.overflowed).then(|| {
+            Rc::new(Summary {
+                params: body.params.clone(),
+                exits: out.exits,
+            })
+        });
+        self.summaries
+            .borrow_mut()
+            .insert(name.clone(), summary.clone());
+        summary
+    }
+}
+
+/// What a walk produces.
+struct Out {
+    warnings: Vec<ObligationWarning>,
+    /// Exits, when summarizing a pure function.
+    exits: Vec<Exit>,
+    max_exits: usize,
+    /// More than `max_exits` exits were found.
+    overflowed: bool,
+}
+
+impl Out {
+    fn new(max_exits: usize) -> Self {
+        Self {
+            warnings: Vec::new(),
+            exits: Vec::new(),
+            max_exits,
+            overflowed: false,
+        }
+    }
+}
+
 /// Analysis state along a single control-flow path.
 #[derive(Debug, Clone)]
 struct PathState<'a> {
-    /// The full policy source text, for diagnostics.
-    src: &'a str,
-    facts: Vec<(FactPattern, FactState)>,
-    /// `let`-bound names with simple (substitutable) values.
+    az: &'a Analyzer,
+    facts: Facts,
+    /// `let`-bound names with substitutable values.
     env: BTreeMap<Identifier, Expression>,
     /// Fact-touching expressions the extractor could not interpret.
     opaque: Vec<(Ident, Span)>,
@@ -112,27 +363,35 @@ struct PathState<'a> {
     empty_db: bool,
     /// Facts that may have been mutated since the block started.
     dirty: Vec<Identifier>,
-    /// Variables bound by `let x = query F[..] or <terminal>`, with the
-    /// fact they hold. Used to prove an `update`'s stated values match
-    /// the stored fact.
+    /// Variables holding a fact read by a query, with the fact they hold.
+    /// Used to prove an `update`'s stated values match the stored fact.
     query_bindings: Vec<(Identifier, FactPattern)>,
-    /// Finish function bodies, for following mutations through calls.
-    functions: &'a FinishFunctions,
+    /// Walking a pure function body to summarize it.
+    in_function: bool,
+    /// Inside a finish function body, where every name must be a parameter
+    /// or a global. Any other name must not be mistaken for a caller's
+    /// variable of the same name.
+    strict: bool,
+    /// Pure function calls being evaluated, to stop at recursion.
+    evaluating: Vec<Identifier>,
 }
 
-/// The lowered body of a finish function.
-#[derive(Debug, Clone)]
-pub(crate) struct FinishFunctionBody {
-    /// Parameter names, in order.
-    pub(crate) params: Vec<Identifier>,
-    /// The function's statements.
-    pub(crate) statements: Vec<Statement>,
-}
+impl<'a> PathState<'a> {
+    fn new(az: &'a Analyzer, empty_db: bool, in_function: bool) -> Self {
+        Self {
+            az,
+            facts: Vec::new(),
+            env: BTreeMap::new(),
+            opaque: Vec::new(),
+            empty_db,
+            dirty: Vec::new(),
+            query_bindings: Vec::new(),
+            in_function,
+            strict: false,
+            evaluating: Vec::new(),
+        }
+    }
 
-/// Finish function bodies by name.
-pub(crate) type FinishFunctions = BTreeMap<Identifier, FinishFunctionBody>;
-
-impl PathState<'_> {
     /// Is every fact named `name` known not to exist?
     fn known_absent(&self, name: &Identifier) -> bool {
         self.empty_db && !self.dirty.contains(name)
@@ -153,34 +412,27 @@ impl PathState<'_> {
         self.query_bindings.clear();
         self.empty_db = false;
     }
-}
 
-/// Analyze the lowered statements of a command `policy` or `recall` block.
-///
-/// `src` is the full policy source text. `empty_db` is true for the
-/// blocks of an `init` command, which always runs against an empty fact
-/// database: the runtime only accepts an init command as the root of the
-/// graph. `functions` holds the finish functions the block may call;
-/// their mutations are checked at each call site.
-pub(crate) fn analyze_block(
-    stmts: &[Statement],
-    src: &str,
-    empty_db: bool,
-    functions: &FinishFunctions,
-) -> Vec<ObligationWarning> {
-    let st = PathState {
-        src,
-        facts: Vec::new(),
-        env: BTreeMap::new(),
-        opaque: Vec::new(),
-        empty_db,
-        dirty: Vec::new(),
-        query_bindings: Vec::new(),
-        functions,
-    };
-    let mut warnings = Vec::new();
-    walk(stmts, &[], st, &mut warnings);
-    dedup_warnings(warnings)
+    /// Add knowledge to this path. Returns false if the path is impossible.
+    fn assume(&mut self, know: Know) -> bool {
+        let Some(facts) = know else {
+            return false;
+        };
+        for (pat, state) in facts {
+            if contradicts(&self.facts, &pat, state)
+                || (state == FactState::Exists && self.known_absent(&pat.name.inner))
+            {
+                return false;
+            }
+            observe(self, pat, state);
+        }
+        true
+    }
+
+    fn bind_query(&mut self, var: Identifier, pat: FactPattern) {
+        self.query_bindings.retain(|(v, _)| *v != var);
+        self.query_bindings.push((var, pat));
+    }
 }
 
 /// Collapse warnings that differ only in their notes.
@@ -213,33 +465,55 @@ pub(crate) fn dedup_warnings(warnings: Vec<ObligationWarning>) -> Vec<Obligation
 /// Walk one path segment. `cont` holds the statement segments that follow
 /// this one (innermost first), so branch arms continue into the statements
 /// after their enclosing `if`/`match`.
-fn walk(
-    stmts: &[Statement],
-    cont: &[&[Statement]],
-    mut st: PathState<'_>,
-    warnings: &mut Vec<ObligationWarning>,
-) {
+fn walk(stmts: &[Statement], cont: &[&[Statement]], mut st: PathState<'_>, out: &mut Out) {
     let mut remaining = stmts;
     while let Some((stmt, rest)) = remaining.split_first() {
+        if out.overflowed {
+            return;
+        }
         match &stmt.kind {
-            StmtKind::Let(l) => observe_let(&mut st, l),
-            StmtKind::Check(c) => observe_check(&mut st, &c.expression),
+            StmtKind::Let(l) => {
+                if !observe_let(&mut st, l, out) {
+                    return;
+                }
+            }
+            StmtKind::Check(c) => {
+                let (when_true, when_false) = cond_of(&mut st, &c.expression);
+                // In a function, `check c else return v` is an exit where
+                // `c` is false.
+                if st.in_function
+                    && let ExprKind::Return(value) = &c.else_expression.kind
+                {
+                    let mut failed = st.clone();
+                    if failed.assume(when_false) {
+                        record_exit(failed, value, out);
+                    }
+                }
+                if !st.assume(when_true) {
+                    return;
+                }
+            }
             StmtKind::If(ifs) => {
                 let mut next: Vec<&[Statement]> = Vec::new();
                 next.push(rest);
                 next.extend_from_slice(cont);
+                // Each branch knows its condition is true and every earlier
+                // condition was false.
+                let mut earlier_false = nothing();
                 for (cond, body) in &ifs.branches {
-                    let mut branch_st = st.clone();
-                    collect_opaque(&mut branch_st, cond);
-                    walk(body, &next, branch_st, warnings);
+                    let (when_true, when_false) = cond_of(&mut st, cond);
+                    let mut branch = st.clone();
+                    if branch.assume(both(when_true, earlier_false.clone())) {
+                        walk(body, &next, branch, out);
+                    }
+                    earlier_false = both(earlier_false, when_false);
                 }
-                let mut fallback_st = st;
-                for (cond, _) in &ifs.branches {
-                    collect_opaque(&mut fallback_st, cond);
-                }
-                match &ifs.fallback {
-                    Some(body) => walk(body, &next, fallback_st, warnings),
-                    None => walk(rest, cont, fallback_st, warnings),
+                let mut fallback = st;
+                if fallback.assume(earlier_false) {
+                    match &ifs.fallback {
+                        Some(body) => walk(body, &next, fallback, out),
+                        None => walk(rest, cont, fallback, out),
+                    }
                 }
                 return;
             }
@@ -247,9 +521,19 @@ fn walk(
                 let mut next: Vec<&[Statement]> = Vec::new();
                 next.push(rest);
                 next.extend_from_slice(cont);
-                collect_opaque(&mut st, &m.expression);
+                let scrutinee = resolve(&st, &m.expression);
+                let mut earlier_false = nothing();
                 for arm in &m.arms {
-                    walk(&arm.statements, &next, st.clone(), warnings);
+                    let (when_true, when_false, binding) =
+                        arm_cond(&mut st, &scrutinee, &arm.pattern);
+                    let mut branch = st.clone();
+                    if branch.assume(both(when_true, earlier_false.clone())) {
+                        if let Some((var, pat)) = binding {
+                            branch.bind_query(var, pat);
+                        }
+                        walk(&arm.statements, &next, branch, out);
+                    }
+                    earlier_false = both(earlier_false, when_false);
                 }
                 return;
             }
@@ -263,17 +547,24 @@ fn walk(
                 for name in &mutated {
                     st.mark_dirty(name);
                 }
-                walk(&m.statements, &[], st.clone(), warnings);
+                walk(&m.statements, &[], st.clone(), out);
             }
             StmtKind::Finish(fstmts) => {
-                analyze_finish(fstmts, &mut st, warnings);
+                analyze_finish(fstmts, &mut st, out);
                 // A finish block terminates policy execution.
                 return;
             }
             StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
-                collect_opaque(&mut st, e);
+                let e = resolve(&st, e);
+                collect_opaque(&mut st, &e);
             }
-            StmtKind::Return(_) | StmtKind::Recall(_) => return,
+            StmtKind::Return(r) => {
+                if st.in_function {
+                    record_exit(st, &r.expression, out);
+                }
+                return;
+            }
+            StmtKind::Recall(_) => return,
             StmtKind::ActionCall(_) | StmtKind::FunctionCall(_) => {}
             // Mutations only appear inside finish contexts, which are
             // handled by `analyze_finish`.
@@ -282,19 +573,267 @@ fn walk(
         remaining = rest;
     }
     if let Some((first, rest)) = cont.split_first() {
-        walk(first, rest, st, warnings);
+        walk(first, rest, st, out);
+    }
+}
+
+/// Record a pure function exit returning `value`.
+fn record_exit(st: PathState<'_>, value: &Expression, out: &mut Out) {
+    if out.exits.len() >= out.max_exits {
+        out.overflowed = true;
+        return;
+    }
+    let ret = resolve(&st, value);
+    out.exits.push(Exit {
+        facts: st.facts,
+        ret,
+    });
+}
+
+/// What a `match` arm's pattern implies about the scrutinee when it
+/// matches, and when it doesn't. A `Some(x)` arm on a query also binds `x`
+/// to the fact it read.
+fn arm_cond(
+    st: &mut PathState<'_>,
+    scrutinee: &Expression,
+    pattern: &MatchPattern,
+) -> (Know, Know, Option<(Identifier, FactPattern)>) {
+    let MatchPattern::Values(values) = pattern else {
+        // The default arm: only the earlier arms' failures are known.
+        return (nothing(), nothing(), None);
+    };
+    let mut when_true = None;
+    let mut when_false = nothing();
+    let mut binding = None;
+    for value in values {
+        let (t, f) = match &value.kind {
+            ExprKind::Optional(None) => cond_is(st, scrutinee, false),
+            ExprKind::Optional(Some(inner)) => {
+                if let ExprKind::Identifier(var) = &inner.kind
+                    && let ExprKind::InternalFunction(InternalFunction::Query(fact)) =
+                        &scrutinee.kind
+                {
+                    binding = Some((var.inner.clone(), pattern_raw(fact, st)));
+                }
+                cond_is(st, scrutinee, true)
+            }
+            _ => (nothing(), nothing()),
+        };
+        when_true = either(when_true, t);
+        when_false = both(when_false, f);
+    }
+    (when_true, when_false, binding)
+}
+
+/// What `expr` implies when it is true, and when it is false.
+fn cond_of(st: &mut PathState<'_>, expr: &Expression) -> (Know, Know) {
+    let expr = resolve(st, expr);
+    cond_resolved(st, &expr)
+}
+
+/// [`cond_of`] for an expression already in the path's terms.
+fn cond_resolved(st: &mut PathState<'_>, expr: &Expression) -> (Know, Know) {
+    match &expr.kind {
+        ExprKind::Bool(true) => (nothing(), None),
+        ExprKind::Bool(false) => (None, nothing()),
+        ExprKind::Not(inner) => {
+            let (t, f) = cond_resolved(st, inner);
+            (f, t)
+        }
+        ExprKind::And(a, b) => {
+            let (ta, fa) = cond_resolved(st, a);
+            let (tb, fb) = cond_resolved(st, b);
+            (both(ta, tb), either_noted(st, expr.span, fa, fb))
+        }
+        ExprKind::Or(a, b) => {
+            let (ta, fa) = cond_resolved(st, a);
+            let (tb, fb) = cond_resolved(st, b);
+            (either_noted(st, expr.span, ta, tb), both(fa, fb))
+        }
+        ExprKind::InternalFunction(InternalFunction::Exists(fact)) => {
+            let pat = pattern_raw(fact, st);
+            (
+                fact_is(pat.clone(), FactState::Exists),
+                fact_is(pat, FactState::NotExists),
+            )
+        }
+        ExprKind::InternalFunction(InternalFunction::FactCount(ty, n, fact)) => {
+            count_cond(st, expr, ty, n.inner, fact)
+        }
+        ExprKind::Is(inner, some) => cond_is(st, inner, *some),
+        ExprKind::FunctionCall(fc) => {
+            through_call(st, fc, expr.span, &mut |st, ret| cond_resolved(st, ret))
+        }
+        _ => {
+            collect_opaque(st, expr);
+            (nothing(), nothing())
+        }
+    }
+}
+
+/// What a counting query implies. `exists` is `at_least 1`.
+fn count_cond(
+    st: &mut PathState<'_>,
+    expr: &Expression,
+    ty: &FactCountType,
+    n: i64,
+    fact: &FactLiteral,
+) -> (Know, Know) {
+    let pat = pattern_raw(fact, st);
+    let exists = fact_is(pat.clone(), FactState::Exists);
+    let absent = fact_is(pat, FactState::NotExists);
+    match ty {
+        FactCountType::AtLeast(_) => match n {
+            ..=0 => (nothing(), None),
+            1 => (exists, absent),
+            _ => (exists, nothing()),
+        },
+        FactCountType::AtMost(_) => match n {
+            ..=-1 => (None, nothing()),
+            0 => (absent, exists),
+            _ => (nothing(), exists),
+        },
+        FactCountType::Exactly(_) => match n {
+            ..=-1 => (None, nothing()),
+            0 => (absent, exists),
+            _ => (exists, nothing()),
+        },
+        // `count_up_to` is a number, not a condition.
+        FactCountType::UpTo(_) => {
+            collect_opaque(st, expr);
+            (nothing(), nothing())
+        }
+    }
+}
+
+/// What `expr is Some` (or `is None`, when `some` is false) implies.
+fn cond_is(st: &mut PathState<'_>, expr: &Expression, some: bool) -> (Know, Know) {
+    let (when_some, when_none) = match &expr.kind {
+        ExprKind::InternalFunction(InternalFunction::Query(fact)) => {
+            let pat = pattern_raw(fact, st);
+            (
+                fact_is(pat.clone(), FactState::Exists),
+                fact_is(pat, FactState::NotExists),
+            )
+        }
+        ExprKind::Optional(None) => (None, nothing()),
+        ExprKind::Optional(Some(_)) => (nothing(), None),
+        ExprKind::FunctionCall(fc) => {
+            through_call(st, fc, expr.span, &mut |st, ret| cond_is(st, ret, true))
+        }
+        _ => {
+            collect_opaque(st, expr);
+            (nothing(), nothing())
+        }
+    };
+    if some {
+        (when_some, when_none)
+    } else {
+        (when_none, when_some)
+    }
+}
+
+/// Evaluate a call to a pure function through its summary. `eval` gives
+/// what one exit's return value implies; the result holds what every
+/// possible exit implies.
+fn through_call(
+    st: &mut PathState<'_>,
+    fc: &FunctionCall,
+    span: Span,
+    eval: &mut dyn FnMut(&mut PathState<'_>, &Expression) -> (Know, Know),
+) -> (Know, Know) {
+    let name = &fc.identifier.inner;
+    let summary = if st.evaluating.contains(name) {
+        None
+    } else {
+        st.az.summary(name)
+    };
+    let Some(summary) = summary.filter(|s| s.params.len() == fc.arguments.len()) else {
+        record_call_opaque(st, name, span);
+        return (nothing(), nothing());
+    };
+    // The arguments are already in the caller's terms.
+    let map: BTreeMap<Identifier, Expression> = summary
+        .params
+        .iter()
+        .cloned()
+        .zip(fc.arguments.iter().cloned())
+        .collect();
+    st.evaluating.push(name.clone());
+    let mut when_true = None;
+    let mut when_false = None;
+    for exit in &summary.exits {
+        // Anything that mentions one of the function's local variables
+        // can't be expressed in the caller's terms, so it is dropped.
+        let facts: Facts = exit
+            .facts
+            .iter()
+            .filter_map(|(p, s)| Some((subst_pattern(p, &map, &st.az.globals)?, *s)))
+            .collect();
+        let (t, f) = match subst(&exit.ret, &map, Some(&st.az.globals)) {
+            Some(ret) => eval(st, &ret),
+            None => (nothing(), nothing()),
+        };
+        when_true = either_noted(st, span, when_true, both(Some(facts.clone()), t));
+        when_false = either_noted(st, span, when_false, both(Some(facts), f));
+    }
+    st.evaluating.pop();
+    (when_true, when_false)
+}
+
+/// Record a call that couldn't be followed as touching every fact its
+/// function's body mentions, so warnings about those facts point at it.
+fn record_call_opaque(st: &mut PathState<'_>, name: &Identifier, span: Span) {
+    let Some(body) = st.az.pure_functions.get(name) else {
+        return;
+    };
+    let mut names: Vec<Ident> = Vec::new();
+    stmt_exprs(&body.statements, &mut |e| {
+        visit_facts(e, &mut |fact, _| names.push(fact.identifier.clone()));
+    });
+    for fact in names {
+        st.opaque.push((fact, span));
+    }
+}
+
+/// Call `f` on every expression directly in these statements, recursing
+/// into nested statement blocks.
+fn stmt_exprs(stmts: &[Statement], f: &mut impl FnMut(&Expression)) {
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::Let(l) => f(&l.expression),
+            StmtKind::Check(c) => {
+                f(&c.expression);
+                f(&c.else_expression);
+            }
+            StmtKind::If(ifs) => {
+                for (cond, body) in &ifs.branches {
+                    f(cond);
+                    stmt_exprs(body, f);
+                }
+                if let Some(body) = &ifs.fallback {
+                    stmt_exprs(body, f);
+                }
+            }
+            StmtKind::Match(m) => {
+                f(&m.expression);
+                for arm in &m.arms {
+                    stmt_exprs(&arm.statements, f);
+                }
+            }
+            StmtKind::Map(m) => stmt_exprs(&m.statements, f),
+            StmtKind::Return(r) => f(&r.expression),
+            StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => f(e),
+            _ => {}
+        }
     }
 }
 
 /// Check obligations for the mutations in a finish block.
-fn analyze_finish(
-    stmts: &[Statement],
-    st: &mut PathState<'_>,
-    warnings: &mut Vec<ObligationWarning>,
-) {
+fn analyze_finish(stmts: &[Statement], st: &mut PathState<'_>, out: &mut Out) {
     let mut touched: Vec<FactPattern> = Vec::new();
     let mut calls: Vec<(Identifier, Span)> = Vec::new();
-    finish_statements(stmts, st, &mut touched, &mut calls, warnings);
+    finish_statements(stmts, st, &mut touched, &mut calls, out);
 }
 
 /// Check the mutations in a finish block or in a finish function called
@@ -306,7 +845,7 @@ fn finish_statements(
     st: &mut PathState<'_>,
     touched: &mut Vec<FactPattern>,
     calls: &mut Vec<(Identifier, Span)>,
-    warnings: &mut Vec<ObligationWarning>,
+    out: &mut Out,
 ) {
     for stmt in stmts {
         let mut found = Vec::new();
@@ -346,7 +885,8 @@ fn finish_statements(
             StmtKind::FunctionCall(fc) => {
                 let name = &fc.identifier.inner;
                 let recursive = calls.iter().any(|(n, _)| n == name);
-                match st.functions.get(name) {
+                let az = st.az;
+                match az.finish_functions.get(name) {
                     Some(body) if !recursive && body.params.len() == fc.arguments.len() => {
                         // Bind the parameters to the caller's arguments,
                         // so the function's fact keys are expressed in the
@@ -355,13 +895,15 @@ fn finish_statements(
                             .params
                             .iter()
                             .zip(&fc.arguments)
-                            .map(|(p, a)| (p.clone(), substitute(a, &st.env)))
+                            .map(|(p, a)| (p.clone(), resolve(st, a)))
                             .collect();
                         let caller_env = core::mem::replace(&mut st.env, env);
+                        let caller_strict = core::mem::replace(&mut st.strict, true);
                         calls.push((name.clone(), stmt.span));
-                        finish_statements(&body.statements, st, touched, calls, warnings);
+                        finish_statements(&body.statements, st, touched, calls, out);
                         calls.pop();
                         st.env = caller_env;
+                        st.strict = caller_strict;
                     }
                     // Not a known finish function, or a recursive call:
                     // it may mutate any fact.
@@ -381,7 +923,7 @@ fn finish_statements(
             for (name, span) in calls.iter().rev() {
                 w.notes.push((*span, format!("in this call to `{name}`")));
             }
-            warnings.push(w);
+            out.warnings.push(w);
         }
     }
 }
@@ -409,15 +951,15 @@ fn proven_exists(st: &PathState<'_>, pat: &FactPattern) -> bool {
 /// Does every value field an `update` states come from a query of the
 /// same fact? The VM requires the stated values to match the stored fact.
 ///
-/// The accepted form is `x.field` for the same `field`, where `x` was bound
-/// by `let x = query F[k] or <terminal>` with the same key, and `F` has not
-/// been mutated since.
+/// The accepted form is `x.field` for the same `field`, where `x` holds a
+/// fact read by a query with the same key, and `F` has not been mutated
+/// since.
 fn values_proven(st: &PathState<'_>, fact: &FactLiteral, pat: &FactPattern) -> bool {
     let Some(values) = &fact.value_fields else {
         return true;
     };
     values.iter().all(|(field, expr)| {
-        let expr = substitute(expr, &st.env);
+        let expr = resolve(st, expr);
         let ExprKind::Dot(base, read) = &expr.kind else {
             return false;
         };
@@ -590,46 +1132,224 @@ fn double_manipulation(span: Span, pat: &FactPattern, prev: &FactPattern) -> Obl
     }
 }
 
-/// Extract an observation from a `check` expression's fall-through arm
-/// (the else arm is `Never`-typed, so fall-through is the only continuation).
-fn observe_check(st: &mut PathState<'_>, expr: &Expression) {
-    match &expr.kind {
-        ExprKind::Not(inner) => {
-            if let ExprKind::InternalFunction(InternalFunction::Exists(fact)) = &inner.kind {
-                let pat = pattern_of(fact, st);
-                observe(st, pat, FactState::NotExists);
-            } else {
-                collect_opaque(st, expr);
+/// Apply a `let`. Returns false if the path ends here.
+///
+/// `let x = e or <terminal>` continues only when `e` is `Some`. When `e`
+/// is a query, `x` holds the fact it read. Other substitutable values are
+/// remembered so later uses of `x` are compared by what it holds.
+fn observe_let(st: &mut PathState<'_>, stmt: &LetStatement, out: &mut Out) -> bool {
+    let var = stmt.identifier.inner.clone();
+    st.env.remove(&var);
+    if let ExprKind::Coalesce(lhs, rhs) = &stmt.expression.kind
+        && matches!(rhs.vtype.inner, TypeKind::Never)
+    {
+        let lhs = resolve(st, lhs);
+        let (when_some, when_none) = cond_is(st, &lhs, true);
+        // In a function, `e or return v` is an exit where `e` is `None`.
+        if st.in_function
+            && let ExprKind::Return(value) = &rhs.kind
+        {
+            let mut failed = st.clone();
+            if failed.assume(when_none) {
+                record_exit(failed, value, out);
             }
         }
-        ExprKind::InternalFunction(InternalFunction::Exists(fact)) => {
-            let pat = pattern_of(fact, st);
-            observe(st, pat, FactState::Exists);
+        if let ExprKind::InternalFunction(InternalFunction::Query(fact)) = &lhs.kind {
+            let pat = pattern_raw(fact, st);
+            st.bind_query(var, pat);
         }
-        _ => collect_opaque(st, expr),
+        return st.assume(when_some);
+    }
+    if is_substitutable(&stmt.expression) {
+        let value = resolve(st, &stmt.expression);
+        st.env.insert(var, value);
+    } else {
+        let value = resolve(st, &stmt.expression);
+        collect_opaque(st, &value);
+    }
+    true
+}
+
+/// The pattern for a fact literal as written, in the path's terms.
+fn pattern_of(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
+    FactPattern {
+        name: fact.identifier.clone(),
+        keys: fact
+            .key_fields
+            .iter()
+            .map(|(name, expr)| (name.inner.clone(), resolve(st, expr)))
+            .collect(),
+        span: fact.span(),
+        text: fact_text(fact, &st.az.src),
     }
 }
 
-/// Extract an observation or a substitutable binding from a `let`.
-fn observe_let(st: &mut PathState<'_>, stmt: &LetStatement) {
-    // `let x = query F[..] or <terminal>` proves the fact exists on
-    // fall-through.
-    if let ExprKind::Coalesce(lhs, rhs) = &stmt.expression.kind
-        && matches!(rhs.vtype.inner, TypeKind::Never)
-        && let ExprKind::InternalFunction(InternalFunction::Query(fact)) = &lhs.kind
-    {
-        let pat = pattern_of(fact, st);
-        let var = stmt.identifier.inner.clone();
-        st.query_bindings.retain(|(v, _)| *v != var);
-        st.query_bindings.push((var, pat.clone()));
-        observe(st, pat, FactState::Exists);
-        return;
+/// The pattern for a fact literal already in the path's terms.
+fn pattern_raw(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
+    FactPattern {
+        name: fact.identifier.clone(),
+        keys: fact
+            .key_fields
+            .iter()
+            .map(|(name, expr)| (name.inner.clone(), expr.clone()))
+            .collect(),
+        span: fact.span(),
+        text: fact_text(fact, &st.az.src),
     }
-    if is_simple(&stmt.expression) {
-        let value = substitute(&stmt.expression, &st.env);
-        st.env.insert(stmt.identifier.inner.clone(), value);
-    } else {
-        collect_opaque(st, &stmt.expression);
+}
+
+/// Express a pattern from a function's terms in the caller's, or `None`
+/// if it mentions something other than a parameter or a global.
+fn subst_pattern(
+    pat: &FactPattern,
+    map: &BTreeMap<Identifier, Expression>,
+    globals: &[Identifier],
+) -> Option<FactPattern> {
+    let keys = pat
+        .keys
+        .iter()
+        .map(|(name, expr)| Some((name.clone(), subst(expr, map, Some(globals))?)))
+        .collect::<Option<Vec<_>>>()?;
+    Some(FactPattern {
+        keys,
+        ..pat.clone()
+    })
+}
+
+/// Express `expr` in the path's terms by substituting `let`-bound names.
+///
+/// Inside a finish function (`strict`), a name that is not a parameter or
+/// a global can't be expressed in the caller's terms. The result is then
+/// wrapped so it never compares equal to anything.
+fn resolve(st: &PathState<'_>, expr: &Expression) -> Expression {
+    let globals = st.strict.then_some(st.az.globals.as_slice());
+    subst(expr, &st.env, globals).unwrap_or_else(|| Expression {
+        kind: ExprKind::Block(Vec::new(), Box::new(expr.clone())),
+        vtype: expr.vtype.clone(),
+        span: expr.span,
+    })
+}
+
+/// Substitute the names in `env` throughout `expr`.
+///
+/// With `strict`, every other name must be one of the given globals, and
+/// forms that can hide names (blocks, `match`, struct composition) are
+/// rejected. Returns `None` if that fails. Without `strict`, other names
+/// and forms are kept as they are.
+fn subst(
+    expr: &Expression,
+    env: &BTreeMap<Identifier, Expression>,
+    strict: Option<&[Identifier]>,
+) -> Option<Expression> {
+    let mut expr = expr.clone();
+    rewrite(&mut expr, env, strict).then_some(expr)
+}
+
+fn rewrite(
+    expr: &mut Expression,
+    env: &BTreeMap<Identifier, Expression>,
+    strict: Option<&[Identifier]>,
+) -> bool {
+    if let ExprKind::Identifier(id) = &expr.kind {
+        if let Some(value) = env.get(&id.inner) {
+            *expr = value.clone();
+            return true;
+        }
+        return strict.is_none_or(|globals| globals.contains(&id.inner));
+    }
+    match &mut expr.kind {
+        ExprKind::Identifier(_)
+        | ExprKind::Unit
+        | ExprKind::Int(_)
+        | ExprKind::String(_)
+        | ExprKind::Bool(_)
+        | ExprKind::EnumReference(_) => true,
+        ExprKind::Optional(inner) => inner.as_mut().is_none_or(|e| rewrite(e, env, strict)),
+        ExprKind::NamedStruct(s) => {
+            (strict.is_none() || s.sources.is_empty())
+                && s.fields.iter_mut().all(|(_, e)| rewrite(e, env, strict))
+        }
+        ExprKind::InternalFunction(func) => match func {
+            InternalFunction::Query(fact)
+            | InternalFunction::Exists(fact)
+            | InternalFunction::FactCount(_, _, fact) => rewrite_fact(fact, env, strict),
+            InternalFunction::If(c, t, e) => {
+                rewrite(c, env, strict) && rewrite(t, env, strict) && rewrite(e, env, strict)
+            }
+            InternalFunction::Todo(_) | InternalFunction::TestFail(..) => true,
+        },
+        ExprKind::FunctionCall(c) => c.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
+        ExprKind::ForeignFunctionCall(c) => c.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
+        ExprKind::Recall(c) => c.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
+        ExprKind::Return(e)
+        | ExprKind::Not(e)
+        | ExprKind::Is(e, _)
+        | ExprKind::Dot(e, _)
+        | ExprKind::Substruct(e, _)
+        | ExprKind::Cast(e, _)
+        | ExprKind::Ok(e)
+        | ExprKind::Err(e) => rewrite(e, env, strict),
+        ExprKind::And(a, b)
+        | ExprKind::Or(a, b)
+        | ExprKind::Coalesce(a, b)
+        | ExprKind::Equal(a, b)
+        | ExprKind::NotEqual(a, b)
+        | ExprKind::GreaterThan(a, b)
+        | ExprKind::LessThan(a, b)
+        | ExprKind::GreaterThanOrEqual(a, b)
+        | ExprKind::LessThanOrEqual(a, b) => rewrite(a, env, strict) && rewrite(b, env, strict),
+        ExprKind::Block(..) | ExprKind::Match(..) => strict.is_none(),
+    }
+}
+
+fn rewrite_fact(
+    fact: &mut FactLiteral,
+    env: &BTreeMap<Identifier, Expression>,
+    strict: Option<&[Identifier]>,
+) -> bool {
+    fact.key_fields
+        .iter_mut()
+        .all(|(_, e)| rewrite(e, env, strict))
+        && fact
+            .value_fields
+            .as_mut()
+            .is_none_or(|values| values.iter_mut().all(|(_, e)| rewrite(e, env, strict)))
+}
+
+/// Can a `let` value be substituted for its name? Pure functions and fact
+/// reads qualify: the fact database cannot change during a policy block,
+/// so the same expression gives the same value wherever it appears.
+fn is_substitutable(expr: &Expression) -> bool {
+    match &expr.kind {
+        ExprKind::Unit
+        | ExprKind::Int(_)
+        | ExprKind::String(_)
+        | ExprKind::Bool(_)
+        | ExprKind::Identifier(_)
+        | ExprKind::EnumReference(_) => true,
+        ExprKind::Dot(e, _) | ExprKind::Not(e) | ExprKind::Is(e, _) => is_substitutable(e),
+        ExprKind::And(a, b)
+        | ExprKind::Or(a, b)
+        | ExprKind::Equal(a, b)
+        | ExprKind::NotEqual(a, b)
+        | ExprKind::GreaterThan(a, b)
+        | ExprKind::LessThan(a, b)
+        | ExprKind::GreaterThanOrEqual(a, b)
+        | ExprKind::LessThanOrEqual(a, b) => is_substitutable(a) && is_substitutable(b),
+        ExprKind::Optional(inner) => inner.as_deref().is_none_or(is_substitutable),
+        ExprKind::InternalFunction(
+            InternalFunction::Query(fact)
+            | InternalFunction::Exists(fact)
+            | InternalFunction::FactCount(_, _, fact),
+        ) => {
+            fact.key_fields.iter().all(|(_, e)| is_substitutable(e))
+                && fact
+                    .value_fields
+                    .as_ref()
+                    .is_none_or(|values| values.iter().all(|(_, e)| is_substitutable(e)))
+        }
+        ExprKind::FunctionCall(c) => c.arguments.iter().all(is_substitutable),
+        _ => false,
     }
 }
 
@@ -646,19 +1366,6 @@ fn set_state(st: &mut PathState<'_>, pat: FactPattern, state: FactState) {
     st.mark_dirty(&pat.name.inner);
     st.facts.retain(|(p, _)| p.name != pat.name);
     st.facts.push((pat, state));
-}
-
-fn pattern_of(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
-    FactPattern {
-        name: fact.identifier.clone(),
-        keys: fact
-            .key_fields
-            .iter()
-            .map(|(name, expr)| (name.inner.clone(), substitute(expr, &st.env)))
-            .collect(),
-        span: fact.span(),
-        text: fact_text(fact, st.src),
-    }
 }
 
 /// Render a fact literal's name and key fields as written in the source.
@@ -720,37 +1427,6 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
                     .all(|(x, y)| matches_expr(x, y))
         }
         _ => false,
-    }
-}
-
-/// Is this expression simple enough to substitute into key patterns?
-fn is_simple(expr: &Expression) -> bool {
-    match &expr.kind {
-        ExprKind::Unit
-        | ExprKind::Int(_)
-        | ExprKind::String(_)
-        | ExprKind::Bool(_)
-        | ExprKind::Identifier(_)
-        | ExprKind::EnumReference(_) => true,
-        ExprKind::Dot(base, _) => is_simple(base),
-        _ => false,
-    }
-}
-
-/// One-step substitution of `let`-bound names, so trivially aliased keys
-/// compare equal.
-fn substitute(expr: &Expression, env: &BTreeMap<Identifier, Expression>) -> Expression {
-    match &expr.kind {
-        ExprKind::Identifier(id) => match env.get(&id.inner) {
-            Some(replacement) => replacement.clone(),
-            None => expr.clone(),
-        },
-        ExprKind::Dot(base, field) => Expression {
-            kind: ExprKind::Dot(Box::new(substitute(base, env)), field.clone()),
-            vtype: expr.vtype.clone(),
-            span: expr.span,
-        },
-        _ => expr.clone(),
     }
 }
 
@@ -1006,7 +1682,7 @@ mod tests {
             if this.user == 1 {
                 check !(exists Account[user: this.user] && this.user == 1) else recall failed()
             } else {
-                check !(exists Account[user: this.user] || this.user == 2) else recall failed()
+                check !(exists Account[user: this.user] && this.user == 2) else recall failed()
             }
             finish {
                 create Account[user: this.user]=>{balance: 0}
@@ -1485,6 +2161,363 @@ mod tests {
             warnings[0].message,
             "cannot check fact mutations through recursive call to `ping`"
         );
+    }
+
+    /// A policy with `Account` and `Owner` facts, extra definitions, and
+    /// one command with the given policy block.
+    fn with_defs(defs: &str, policy_block: &str) -> String {
+        format!(
+            r#"
+            fact Account[user int]=>{{balance int}}
+            fact Owner[]=>{{user int}}
+
+            {defs}
+
+            command Foo {{
+                fields {{ user int }}
+                policy {{
+                    {policy_block}
+                }}
+                recall failed() {{ finish {{}} }}
+            }}
+            "#
+        )
+    }
+
+    #[track_caller]
+    fn warnings_with_cap(text: &str, cap: usize) -> Vec<ObligationWarning> {
+        let policy = parse_policy_str(text, Version::V2).expect("parse");
+        let (_module, warnings) = Compiler::new(&policy)
+            .debug(true)
+            .allow_baseless(true)
+            .analyze_obligations(true)
+            .max_exit_paths(cap)
+            .compile_with_diagnostics()
+            .expect("compile");
+        warnings
+    }
+
+    #[test]
+    fn helper_locals_are_not_confused_with_caller_names() {
+        // Both the helper and the command have a variable named `account`,
+        // holding different facts. The helper's `Link[user: account.balance]`
+        // must not prove the command's.
+        let warnings = warnings_for(&with_defs(
+            r#"
+            fact Link[user int]=>{}
+
+            function linked() bool {
+                let account = query Account[user: 1] or return false
+                return exists Link[user: account.balance]
+            }
+            "#,
+            r#"
+            let account = query Account[user: this.user] or recall failed()
+            check linked() else recall failed()
+            finish { delete Link[user: account.balance] }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(warnings[0].message.contains("exists before `delete`"));
+    }
+
+    #[test]
+    fn check_and_proves_both_sides() {
+        let warnings = warnings_for(&with_defs(
+            "",
+            r#"
+            check exists Account[user: this.user] && !exists Owner[] else recall failed()
+            finish {
+                delete Account[user: this.user]
+                create Owner[]=>{user: this.user}
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn check_not_or_proves_both_absent() {
+        let warnings = warnings_for(&with_defs(
+            "",
+            r#"
+            check !(exists Account[user: this.user] || exists Owner[]) else recall failed()
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+                create Owner[]=>{user: this.user}
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn check_or_proves_nothing_and_is_pointed_out() {
+        let warnings = warnings_for(&command(
+            r#"
+            check !exists Account[user: this.user] || this.user == 1 else recall failed()
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+            }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(
+            warnings[0]
+                .notes
+                .iter()
+                .any(|(_, n)| n.contains("too complex")),
+            "notes: {:?}",
+            warnings[0].notes
+        );
+    }
+
+    #[test]
+    fn counting_queries() {
+        // Count limits must be at least 1.
+        let create = "create Account[user: this.user]=>{balance: 0}";
+        let delete = "delete Account[user: this.user]";
+        for (check, mutation, expected) in [
+            ("at_least 1 Account[user: this.user]", delete, 0),
+            ("exactly 1 Account[user: this.user]", delete, 0),
+            ("at_least 2 Account[user: this.user]", delete, 0),
+            ("!(at_least 1 Account[user: this.user])", create, 0),
+            ("!(at_most 1 Account[user: this.user])", delete, 0),
+            ("at_most 1 Account[user: this.user]", create, 1),
+            ("at_least 2 Account[user: this.user]", create, 1),
+        ] {
+            let warnings = warnings_for(&command(&format!(
+                "check {check} else recall failed()\n\
+                 finish {{ {mutation} }}"
+            )));
+            assert_eq!(warnings.len(), expected, "{check}: {warnings:?}");
+        }
+    }
+
+    #[test]
+    fn if_exists_proves_each_branch() {
+        let warnings = warnings_for(&command(
+            r#"
+            if exists Account[user: this.user] {
+                finish { delete Account[user: this.user] }
+            } else {
+                finish { create Account[user: this.user]=>{balance: 0} }
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn early_recall_proves_the_opposite() {
+        let warnings = warnings_for(&command(
+            r#"
+            if exists Account[user: this.user] {
+                recall failed()
+            }
+            finish { create Account[user: this.user]=>{balance: 0} }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn else_if_knows_earlier_conditions_were_false() {
+        let warnings = warnings_for(&command(
+            r#"
+            if this.user == 1 {
+                finish {}
+            } else if exists Account[user: this.user] {
+                finish { delete Account[user: this.user] }
+            } else {
+                finish { create Account[user: this.user]=>{balance: 0} }
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn query_is_none_early_exit_proves_exists() {
+        let warnings = warnings_for(&command(
+            r#"
+            let account = query Account[user: this.user]
+            if account is None {
+                recall failed()
+            }
+            finish { delete Account[user: this.user] }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn match_on_query_proves_each_arm() {
+        let warnings = warnings_for(&command(
+            r#"
+            match query Account[user: this.user] {
+                Some(account) => {
+                    finish {
+                        update Account[user: this.user]=>{balance: account.balance} to {balance: 1}
+                    }
+                }
+                None => {
+                    finish { create Account[user: this.user]=>{balance: 0} }
+                }
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn impossible_branch_is_skipped() {
+        // The branch can't run, so its unproven create is not reported.
+        let warnings = warnings_for(&with_defs(
+            "",
+            r#"
+            check !exists Account[user: this.user] else recall failed()
+            if exists Account[user: this.user] {
+                finish { create Owner[]=>{user: this.user} }
+            }
+            finish {}
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn one_line_helper_proves() {
+        let warnings = warnings_for(&with_defs(
+            r#"
+            function account_exists(u int) bool {
+                return exists Account[user: u]
+            }
+            "#,
+            r#"
+            check !account_exists(this.user) else recall failed()
+            finish { create Account[user: this.user]=>{balance: 0} }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn helper_in_if_condition_proves() {
+        let warnings = warnings_for(&with_defs(
+            r#"
+            function account_exists(u int) bool {
+                return exists Account[user: u]
+            }
+            "#,
+            r#"
+            if !account_exists(this.user) {
+                finish { create Account[user: this.user]=>{balance: 0} }
+            }
+            finish {}
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn helper_returning_false_on_missing_fact_proves_exists() {
+        let warnings = warnings_for(&with_defs(
+            r#"
+            function has_account(u int) bool {
+                let account = query Account[user: u] or return false
+                return account.balance >= 0
+            }
+            "#,
+            r#"
+            check has_account(this.user) else recall failed()
+            finish { delete Account[user: this.user] }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn helper_returning_query_used_as_value() {
+        let warnings = warnings_for(&with_defs(
+            r#"
+            function find_account(u int) option[struct Account] {
+                return query Account[user: u]
+            }
+            "#,
+            r#"
+            let account = find_account(this.user)
+            if account is None {
+                recall failed()
+            }
+            finish { delete Account[user: this.user] }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn helper_combining_checks_with_or() {
+        let warnings = warnings_for(&with_defs(
+            r#"
+            function taken(u int) bool {
+                let has_account = exists Account[user: u]
+                let has_owner = exists Owner[]
+                return has_account || has_owner
+            }
+            "#,
+            r#"
+            check !taken(this.user) else recall failed()
+            finish {
+                create Account[user: this.user]=>{balance: 0}
+                create Owner[]=>{user: this.user}
+            }
+            "#,
+        ));
+        assert_eq!(warnings, vec![], "expected no warnings");
+    }
+
+    #[test]
+    fn exit_path_cap_makes_calls_unknown() {
+        let text = with_defs(
+            r#"
+            function has_account(u int) bool {
+                let account = query Account[user: u] or return false
+                return true
+            }
+            "#,
+            r#"
+            check has_account(this.user) else recall failed()
+            finish { delete Account[user: this.user] }
+            "#,
+        );
+        assert_eq!(warnings_with_cap(&text, 2), vec![], "two exits fit");
+        let warnings = warnings_with_cap(&text, 1);
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+        assert!(
+            warnings[0]
+                .notes
+                .iter()
+                .any(|(_, n)| n.contains("touches `Account`")),
+            "notes: {:?}",
+            warnings[0].notes
+        );
+    }
+
+    #[test]
+    fn recursive_pure_function_terminates() {
+        let warnings = warnings_for(&with_defs(
+            r#"
+            function spin(u int) bool {
+                return spin(u)
+            }
+            "#,
+            r#"
+            check !spin(this.user) else recall failed()
+            finish { create Account[user: this.user]=>{balance: 0} }
+            "#,
+        ));
+        assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     }
 
     #[test]

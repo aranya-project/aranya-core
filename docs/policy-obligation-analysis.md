@@ -169,31 +169,66 @@ exist yet gets a note that it always fails.
 
 ## Observation sources
 
-| Form | Refinement on continuation | Status |
-|------|----------------------------|--------|
-| `check !exists F[k] else <terminal>` | `NotExists F[k]` | Implemented |
-| `check exists F[k] else <terminal>` | `Exists F[k]` | Implemented |
-| `let x = query F[k] or <terminal>` | `Exists F[k]`, and `x` holds its values | Implemented |
+| Form | What the path learns | Status |
+|------|----------------------|--------|
+| `check c else <terminal>` | What `c` proves when true | Implemented |
+| `let x = e or <terminal>` | What `e is Some` proves; if `e` is a query, `x` holds the fact | Implemented |
+| `if c { A } else { B }` | A learns what `c` proves when true, B what it proves when false | Implemented |
+| `match` on an optional | The `Some(x)` arm learns `is Some`, the `None` arm `is None` | Implemented |
 | `attributes { init: true }` | Every fact `NotExists` | Implemented |
-| `if exists F[k] { A } else { B }` | `Exists` in A, `NotExists` in B | Future |
-| `match` or `if` on a stored query result | `Exists` in the Some arm, `NotExists` in the None arm | Future |
-| `check query F[k] is Some else <terminal>` | `Exists F[k]` | Future |
-| `at_most 0 F[k…?]` | `NotExists F[k…?]` | Future |
-| `at_least 1 F[k…?]` | Some match exists | Future |
+| `let f = query F[k: ?] or ..` | `Exists F[k: f.k]` | Future |
+
+### Conditions
+
+Conditions are evaluated to a pair: what they prove when true, and what
+they prove when false. Either side can be *impossible*, which is how
+contradictory branches are detected.
+
+| Condition | When true | When false |
+|-----------|-----------|------------|
+| `exists F[k]` | `Exists F[k]` | `NotExists F[k]` |
+| `query F[k] is Some` | `Exists F[k]` | `NotExists F[k]` |
+| `query F[k] is None` | `NotExists F[k]` | `Exists F[k]` |
+| `!c` | `c` when false | `c` when true |
+| `a && b` | Both sides' true facts | Only facts both sides prove when false |
+| `a \|\| b` | Only facts both sides prove when true | Both sides' false facts |
+| `at_least 1 F[k]` | Some match exists | `NotExists F[k]` |
+| `at_least n F[k]`, `exactly n F[k]` | Some match exists | Nothing |
+| `at_most n F[k]` | Nothing | Some match exists |
+| `true`, `false` | Nothing, or impossible | Impossible, or nothing |
+| A call to a pure function | From the function's summary | From the function's summary |
+
+Count limits must be at least 1, so `at_most 0` is not valid policy;
+`!(at_least 1 F[k])` is the way to count to zero. "Some match exists"
+is recorded as `Exists` on the counted pattern. When the pattern has a
+bind marker, that says nothing about a particular key, so it cannot
+discharge an `update` or `delete` obligation.
+
+A `let` whose value is substitutable is replaced by its value wherever
+the name appears. Substitutable values include fact reads (`exists`,
+`query`, and counts) and pure function calls, not just simple values.
+The fact database cannot change during a policy block, so the same
+expression gives the same value wherever it appears. So this proves
+`Device[device_id: id]` exists after the `if`:
+
+```policy
+let device = query Device[device_id: id]
+if device is None { recall missing_device() }
+```
 
 ### Opaque observation points
 
 Any expression that touches a fact but that the extractor cannot
-interpret is **opaque**. Examples are compound booleans mixing several
-queries, negations of disjunctions, `if` conditions, `match`
-scrutinees, and counting queries. The analysis learns nothing from an
-opaque expression, but it records the fact name and span. When an
-obligation for the same fact name cannot be proven, those spans are
-listed in the warning, so the author sees which expression the analysis
-gave up on.
+interpret is **opaque**. Examples are comparisons, `if` and `match`
+expressions, `count_up_to`, and calls that can't be followed. The
+analysis learns nothing from an opaque expression, but it records the
+fact name and span. When an obligation for the same fact name cannot be
+proven, those spans are listed in the warning, so the author sees which
+expression the analysis gave up on.
 
-Queries inside pure functions are not visible to the analysis, not even
-as opaque points.
+A condition that touches a fact but proves nothing about it is recorded
+the same way. For example, `!exists F[k] || ok` proves nothing about
+`F`, because `ok` alone may be what made it true.
 
 ## Subsumption and key matching
 
@@ -281,22 +316,67 @@ For each command `policy` and `recall` block:
 
 1. Walk statements in order, threading the fact state, the `let`
    substitution environment, query bindings, and the opaque points.
-2. `let` and `check`: apply the observation if the form is recognized.
-   Otherwise record the expression's fact references as opaque.
-3. `if` and `match`: walk each arm with a clone of the state, then
+2. `let` and `check`: add what the condition proves to the path.
+3. `if` and `match`: walk each arm with a clone of the state, adding
+   what its condition proves when true and what every earlier
+   condition proves when false. The `else` branch, or the code after an
+   `if` without one, learns that every condition was false. Then
    continue each arm into the statements after the branch. Statements
    after a branch are analyzed once per path. Policy blocks are small
    and loop-free, so path explosion is not a practical concern.
-4. `map`: forget knowledge of the facts the body mutates, walk the
+4. **Impossible paths** are skipped. When what a path learns
+   contradicts what it already knows, such as `if exists F[k]` after
+   `check !exists F[k]`, the path cannot run, so nothing on it is
+   reported.
+5. `map`: forget knowledge of the facts the body mutates, walk the
    body once, and continue after it. Nothing learned inside the body is
    kept after it.
-5. `finish`: check each mutation's obligation against the incoming
+6. `finish`: check each mutation's obligation against the incoming
    state, apply its postcondition, and maintain the touched set. Follow
    calls into finish functions. A `finish` block terminates the path.
-6. `return` and `recall` statements terminate the path.
+7. `return` and `recall` statements terminate the path.
 
 Recall blocks are analyzed like policy blocks, with the same
 observation forms.
+
+### Pure functions
+
+A call to a pure function in a condition or a `let` is evaluated through
+the function's **summary**. The summary lists the function's *exits*:
+each way it can return, with the value it returns and what is known on
+the path to it. A `check c else return v` and an `e or return v` inside
+the function are exits too, where `c` was false or `e` was `None`.
+
+At a call, the function's parameters are replaced by the caller's
+arguments. When the call is used as a condition, its true side keeps
+only what holds on every exit whose return value could be true, and
+likewise for the false side. An exit that returns the literal `false`
+can't make the call true, so it doesn't weaken the true side. For
+example, `check device_has_perm(id, perm)` proves
+`AssignedRole[device_id: id]` exists here:
+
+```policy
+function device_has_perm(device_id id, perm enum Perm) bool {
+    let role = query AssignedRole[device_id: device_id] or return false
+    return role_has_perm(role.role_id, perm)
+}
+```
+
+A fact or return value that mentions one of the function's local
+variables can't be expressed in the caller's terms, so it is dropped.
+Keeping it would be unsound: a caller variable with the same name holds
+something else.
+
+Summaries are computed on first use and cached. A function is not
+summarized, and calls to it are treated as unknown, when:
+
+- it has more exits than the configured limit
+  (`Compiler::max_exit_paths`, 64 by default);
+- it is recursive, directly or through other functions.
+
+A call that is treated as unknown is recorded as an opaque point for
+every fact its function's body mentions, so warnings about those facts
+point at the call.
 
 ### Finish functions
 
@@ -323,8 +403,8 @@ bindings, and init knowledge. That covers two cases:
   through it go unchecked.
 
 The policy language forbids recursion, but the compiler does not
-currently reject it ([#607], [#751]). Mutually recursive finish
-functions compile today. The call-stack guard keeps the analysis
+currently reject it ([#607], [#751]). Recursive pure functions and
+mutually recursive finish functions compile today. The call-stack guard keeps the analysis
 terminating. Once the compiler rejects recursion, the recursion warning
 becomes unreachable.
 
@@ -372,13 +452,15 @@ that led into a finish function are labeled "in this call to `f`".
 
 - `Compiler::analyze_obligations(bool)` enables the analysis. It is off
   by default.
+- `Compiler::max_exit_paths(usize)` sets the most exits recorded for one
+  pure function. The default is `DEFAULT_MAX_EXIT_PATHS`, 64.
 - `Compiler::compile_with_diagnostics()` returns the compiled module and
   the warnings. `Compiler::compile()` is unchanged.
 - `ObligationWarning` holds the span, message, label, span notes, and
   footnotes of a warning. `ObligationWarning::render(source)` renders it
   with `annotate-snippets`, like compiler errors.
-- The `policy-compiler` binary takes `--check-obligations` and prints
-  warnings to stderr.
+- The `policy-compiler` binary takes `--check-obligations` and
+  `--max-exit-paths <N>`, and prints warnings to stderr.
 
 ```bash
 cargo run -p aranya-policy-compiler --bin policy-compiler -- \
@@ -407,12 +489,20 @@ with the analysis enabled and assert on the warnings. They cover:
 - finish functions: caller checks, call-site notes, nested calls,
   double manipulation across a call, one warning for a function shared
   by two commands, and recursion;
+- conditions: `&&`, `!(.. || ..)`, `||` proving nothing, and counting
+  queries;
+- branches: `if exists` on both sides, early `recall`, `else if`,
+  `is None` after a query, `match` on a query, and impossible branches;
+- pure functions: one-line helpers, helpers that return `false` when a
+  fact is missing, helpers returning a query, helpers combining checks,
+  the exit limit, recursion, and a helper's local variable not being
+  mistaken for the caller's;
 - rendering of the title, label, note, and help.
 
 ## Known limitations
 
-- **Branch refinement.** `if` and `match` conditions are opaque, so a
-  policy that tests `exists` in an `if` gets no credit for it.
+- **Expression forms.** `if` and `match` used as expressions, and
+  `count_up_to`, are opaque.
 - **Double manipulation is syntactic.** Only identical keys are flagged,
   so two mutations whose keys are equal at runtime but written
   differently are missed.
@@ -422,19 +512,15 @@ with the analysis enabled and assert on the warnings. They cover:
   same fact name with a different key warns.
 - **Query-derived keys.** `let f = query F[k: ?] or ..` does not prove
   `Exists F[k: f.k]`.
-- **Pure functions** are not analyzed, so queries inside them are not
-  observations or opaque points.
+- **FFI calls** are not substituted, so a key computed by an FFI call is
+  compared by the name of the variable holding it.
+- **Helper knowledge** is limited to facts expressed in the helper's
+  parameters and globals.
 
 ## Future work
 
-- **Branch refinement:** `if exists`, `match` on query results, and
-  `check query F[k] is Some` as observation sources.
-- **Counting queries:** `at_most 0`, `at_least 1`, and `exactly N` as
-  observation sources with polarity per the table above.
 - **Query-derived keys:** `let f = query F[k: ?] or ..` proving
   `Exists F[k: f.k]`.
-- **Pure function summaries**, so queries inside helpers count as
-  observations at the call site.
 - **Bytecode-level analyzer:** port the analysis to the
   path-enumerating tracer (`src/tracer.rs`, `Analyzer` trait in
   `src/tracer/analyzers.rs`) so compiled modules can be checked without
@@ -446,6 +532,7 @@ with the analysis enabled and assert on the warnings. They cover:
   touched-set rule, so the documented semantics hold for unanalyzed
   policies too. The static analysis then guarantees those exceptions
   are unreachable.
+- **Expression forms:** `if` and `match` expressions as conditions.
 - **Default-on, then errors:** make the analysis default-on once it has
   run cleanly on real policies such as the daemon policy, then promote
   warnings to errors.

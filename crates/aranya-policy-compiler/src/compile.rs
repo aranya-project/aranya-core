@@ -228,9 +228,9 @@ struct CompileState<'a> {
     config: Config,
     /// Warnings produced by the obligation analysis
     obligation_warnings: Vec<ObligationWarning>,
-    /// Lowered finish function bodies, for the obligation analysis to
-    /// follow mutations through calls
-    finish_function_bodies: obligation::FinishFunctions,
+    /// The obligation analysis, which records function bodies as they are
+    /// lowered so it can follow calls
+    obligations: obligation::Analyzer,
 }
 
 impl<'a> CompileState<'a> {
@@ -897,36 +897,49 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let stmts = self.lower_statements(statements, scope)?;
         if self.config.analyze_obligations {
-            match self.get_statement_context()? {
+            /// What the obligation analysis should do with these statements.
+            enum Use {
+                Analyze { empty_db: bool },
+                Finish(Span),
+                Pure(Identifier, Vec<Identifier>),
+                Nothing,
+            }
+            let usage = match self.get_statement_context()? {
                 StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
-                    let empty_db = is_init_command(cmd);
-                    self.obligation_warnings.extend(obligation::analyze_block(
-                        &stmts,
-                        &self.policy.text,
-                        empty_db,
-                        &self.finish_function_bodies,
-                    ));
+                    Use::Analyze {
+                        empty_db: is_init_command(cmd),
+                    }
                 }
-                // Finish functions are compiled before commands, so their
-                // bodies are recorded here before any command calls them.
-                StatementContext::Finish(span) => {
-                    let span = *span;
+                // Finish and pure functions are compiled before commands,
+                // so their bodies are recorded here before any command
+                // calls them.
+                StatementContext::Finish(span) => Use::Finish(*span),
+                StatementContext::PureFunction(def) => Use::Pure(
+                    def.identifier.inner.clone(),
+                    def.arguments.iter().map(|p| p.name.inner.clone()).collect(),
+                ),
+                StatementContext::Action(_) => Use::Nothing,
+            };
+            match usage {
+                Use::Analyze { empty_db } => {
+                    let warnings = self.obligations.analyze_block(&stmts, empty_db);
+                    self.obligation_warnings.extend(warnings);
+                }
+                Use::Finish(span) => {
                     if let Some(def) = self.policy.finish_functions.iter().find(|f| f.span == span)
                     {
-                        self.finish_function_bodies.insert(
+                        self.obligations.record_finish_function(
                             def.identifier.inner.clone(),
-                            obligation::FinishFunctionBody {
-                                params: def
-                                    .arguments
-                                    .iter()
-                                    .map(|p| p.name.inner.clone())
-                                    .collect(),
-                                statements: stmts.clone(),
-                            },
+                            def.arguments.iter().map(|p| p.name.inner.clone()).collect(),
+                            stmts.clone(),
                         );
                     }
                 }
-                _ => {}
+                Use::Pure(name, params) => {
+                    self.obligations
+                        .record_pure_function(name, params, stmts.clone());
+                }
+                Use::Nothing => {}
             }
         }
         self.compile_typed_statements(stmts, scope)
@@ -2310,6 +2323,9 @@ struct Config {
     allow_baseless: bool,
     /// Run the obligation analysis on command policy/recall blocks
     analyze_obligations: bool,
+    /// The most exits the obligation analysis records for one pure
+    /// function before treating calls to it as unknown
+    max_exit_paths: usize,
 }
 
 impl Config {
@@ -2319,6 +2335,7 @@ impl Config {
             stub_ffi: false,
             allow_baseless: false,
             analyze_obligations: false,
+            max_exit_paths: obligation::DEFAULT_MAX_EXIT_PATHS,
         }
     }
 }
@@ -2382,6 +2399,15 @@ impl<'a> Compiler<'a> {
         Ok(cs.m.into_module())
     }
 
+    /// Sets the most exits the obligation analysis records for one pure
+    /// function. Calls to a function with more exits are treated as
+    /// unknown. The default is [`obligation::DEFAULT_MAX_EXIT_PATHS`].
+    #[must_use]
+    pub fn max_exit_paths(mut self, max: usize) -> Self {
+        self.config.max_exit_paths = max;
+        self
+    }
+
     /// Like [`Compiler::compile`], but also returns the warnings produced
     /// by the obligation analysis (empty unless
     /// [`Compiler::analyze_obligations`] is enabled).
@@ -2420,7 +2446,15 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             config: self.config,
             obligation_warnings: Vec::new(),
-            finish_function_bodies: obligation::FinishFunctions::new(),
+            obligations: obligation::Analyzer::new(
+                self.policy.text.clone(),
+                self.policy
+                    .global_lets
+                    .iter()
+                    .map(|g| g.identifier.inner.clone())
+                    .collect(),
+                self.config.max_exit_paths,
+            ),
         }
     }
 }
