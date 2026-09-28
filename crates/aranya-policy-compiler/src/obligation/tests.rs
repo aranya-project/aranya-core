@@ -11,12 +11,16 @@ mod bound_keys;
 mod branches;
 mod conditions;
 mod diagnostics;
+mod expressions;
 mod finish_functions;
 mod init_commands;
 mod mutations;
 mod paths;
 mod pure_functions;
 mod update_values;
+
+/// A fact with a two-part key, for queries with a bound key.
+const MEMBER: &str = "fact Member[team int, device int]=>{rank int}";
 
 #[track_caller]
 fn warnings_for(text: &str) -> Vec<ObligationWarning> {
@@ -84,4 +88,17 @@ fn with_defs(defs: &str, policy_block: &str) -> String {
         }}
         "#
     )
+}
+
+#[track_caller]
+fn warnings_with_cap(text: &str, cap: usize) -> Vec<ObligationWarning> {
+    let policy = parse_policy_str(text, Version::V2).expect("parse");
+    let (_module, warnings) = Compiler::new(&policy)
+        .debug(true)
+        .allow_baseless(true)
+        .analyze_obligations(true)
+        .max_exit_paths(cap)
+        .compile_with_diagnostics()
+        .expect("compile");
+    warnings
 }

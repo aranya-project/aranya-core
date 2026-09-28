@@ -1,9 +1,6 @@
 //! Keys read from query results, and forgetting a name's earlier binding.
 
-use super::{warnings_for, with_defs};
-
-/// A fact with a two-part key, for queries with a bound key.
-const MEMBER: &str = "fact Member[team int, device int]=>{rank int}";
+use super::{MEMBER, warnings_for, with_defs};
 
 #[test]
 fn bound_key_query_then_delete_passes() {

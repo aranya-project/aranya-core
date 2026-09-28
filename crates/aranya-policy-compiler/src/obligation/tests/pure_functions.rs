@@ -1,23 +1,6 @@
 //! Calls to pure functions, evaluated through their summaries.
 
-use aranya_policy_ast::Version;
-use aranya_policy_lang::lang::parse_policy_str;
-
-use super::{warnings_for, with_defs};
-use crate::{Compiler, obligation::ObligationWarning};
-
-#[track_caller]
-fn warnings_with_cap(text: &str, cap: usize) -> Vec<ObligationWarning> {
-    let policy = parse_policy_str(text, Version::V2).expect("parse");
-    let (_module, warnings) = Compiler::new(&policy)
-        .debug(true)
-        .allow_baseless(true)
-        .analyze_obligations(true)
-        .max_exit_paths(cap)
-        .compile_with_diagnostics()
-        .expect("compile");
-    warnings
-}
+use super::{warnings_for, warnings_with_cap, with_defs};
 
 #[test]
 fn one_line_helper_proves() {

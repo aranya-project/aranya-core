@@ -177,6 +177,7 @@ exist yet gets a note that it always fails.
 | `match` on an optional | The `Some(x)` arm learns `is Some`, the `None` arm `is None`; on a query, `x` holds the fact | Implemented |
 | `attributes { init: true }` | Every fact `NotExists` | Implemented |
 | `let f = query F[k: ?] or ..` | `Exists F[k: f.k]`, and `f` holds that fact | Implemented |
+| `let x = match e { .. }`, `let x = if ..`, `let x = { .. : e }` | What holds when some arm produced a value; `match query F[k] { Some(x) => x  None => <terminal> }` makes `x` hold the fact | Implemented |
 
 ### Conditions
 
@@ -197,6 +198,9 @@ contradictory branches are detected.
 | `at_most n F[k]` | Nothing | Some match exists |
 | `true`, `false` | Nothing, or impossible | Impossible, or nothing |
 | A call to a pure function | From the function's summary | From the function's summary |
+| `if c { :a } else { :b }` | What both arms prove when true, each under its side of `c` | Likewise when false |
+| `match e { p => a  .. }` | What every arm proves when true, each under its pattern and the earlier patterns failing | Likewise when false |
+| `{ stmts : e }` | What `e` proves on every path through `stmts` that reaches it | Likewise when false |
 
 Count limits must be at least 1, so `at_most 0` is not valid policy;
 `!(at_least 1 F[k])` is the way to count to zero. "Some match exists"
@@ -254,11 +258,42 @@ function find_member(t int) option[struct Member] {
 A helper whose exits query different keys, or that returns `Some` of a
 local variable, does not qualify.
 
+### `if`, `match`, and block expressions
+
+An `if` expression's arms are always block expressions, `{ stmts : e }`,
+and a `match` expression's arms are bare expressions. Each arm is
+evaluated on a copy of the path that knows the arm's condition: the
+`if` condition or its negation, or the arm's pattern matching after the
+earlier patterns failed. What the arm's value proves is combined with
+what that copy knows, and the arms are joined with the same rule as
+`||`: only what every arm proves is kept. An arm whose expression has
+type `Never`, such as `recall r()` or `return v`, never produces a
+value, so it drops out. This is why `if c { :exists F[k] } else
+{ :false }` proves `F[k]` exists: the `else` arm can't be true.
+
+A block's statements are walked exactly like a policy block, forking at
+nested `if` and `match` statements and ending at a failing `check` or a
+`finish`. Every path that reaches the final expression contributes what
+it knows, with block-local `let`s substituted. Facts that mention a name
+bound inside the block or by the arm's pattern are dropped, since
+nothing outside can refer to them. Knowledge established by a `check` or
+`or recall` inside an arm carries out, which is what makes
+`let d = match e { Ok(d) => d  Err(e) => recall reject() }` an
+observation: the path past the `let` knows what the `Ok` path knew. When
+every value-producing arm is `Some(x) => x` on a query, the `let` name
+holds the fact the query read, as with `let x = query .. or ..`.
+
+The value of an `if`, `match`, or block is not substituted for the name
+it is bound to, so `let ok = if ..` followed by `check ok` proves
+nothing. Write the condition in the `check`, or bind the query
+result instead.
+
 ### Opaque observation points
 
 Any expression that touches a fact but that the extractor cannot
-interpret is **opaque**. Examples are comparisons, `if` and `match`
-expressions, `count_up_to`, and calls that can't be followed. The
+interpret is **opaque**. Examples are comparisons, `count_up_to`, calls
+that can't be followed, and blocks with more paths than the exit
+limit. The
 analysis learns nothing from an opaque expression, but it records the
 fact name and span. When an obligation for the same fact name cannot be
 proven, those spans are listed in the warning, so the author sees which
@@ -385,6 +420,14 @@ For each command `policy` and `recall` block:
 Recall blocks are analyzed like policy blocks, with the same
 observation forms.
 
+A block expression reuses the same walk. Its statements are walked with
+a flag set that keeps the state of every path that runs off their end,
+the way a pure function keeps the state at every `return`. Those end
+states are the block's arms. Function exits found inside the block
+still go to the function's summary, so the two never mix. The
+`max_exit_paths` limit bounds the number of ends; a block with more is
+opaque.
+
 ### Pure functions
 
 A call to a pure function in a condition or a `let` is evaluated through
@@ -411,7 +454,14 @@ function device_has_perm(device_id id, perm enum Perm) bool {
 A fact or return value that mentions one of the function's local
 variables can't be expressed in the caller's terms, so it is dropped.
 Keeping it would be unsound: a caller variable with the same name holds
-something else.
+something else. A return value that is an `if`, `match`, or block is
+kept, with the names its blocks and arms bind allowed inside it.
+
+A `return` inside an expression is an exit too. The ones the walk
+models, `e or return v`, `check c else return v`, and `return v` as a
+`match` or `if` arm, are recorded like any other. A `return` anywhere
+else, such as inside a function argument, is an exit the summary would
+miss, so the function is treated as unknown.
 
 Summaries are computed on first use and cached. A function is not
 summarized, and calls to it are treated as unknown, when:
@@ -556,12 +606,24 @@ file covers one feature, in the order below:
 - rebinding: a `let` or `Some(m)` arm reusing a name forgets facts
   about the earlier binding, including a mention nested in another
   fact's key;
+- expressions: `if` and `match` in a `check`, blocks with `let`,
+  `check`, `if`, and `match` statements, a `match` `let` binding the
+  query result and learning from its producing arms, an `if` returning
+  a query before `or recall`, a helper returning an `if`, an arm
+  returning from a helper, a nested `return` making a helper unknown, a
+  `finish` inside a block being checked, blocks over the exit limit,
+  an `else` arm that proves nothing, and arm-bound and block-local
+  names not leaking;
 - rendering of the title, label, note, and help.
 
 ## Known limitations
 
-- **Expression forms.** `if` and `match` used as expressions, and
-  `count_up_to`, are opaque.
+- **`count_up_to`** is opaque.
+- **Branching `let` values are not substituted.** `let ok = if ..`
+  followed by `check ok` proves nothing, though `ok` still matches
+  itself by name in fact keys.
+- **Blocks over the exit limit** are opaque, like functions with too
+  many exits.
 - **Double manipulation is syntactic.** Only identical keys are flagged,
   so two mutations whose keys are equal at runtime but written
   differently are missed.
@@ -587,7 +649,6 @@ file covers one feature, in the order below:
   touched-set rule, so the documented semantics hold for unanalyzed
   policies too. The static analysis then guarantees those exceptions
   are unreachable.
-- **Expression forms:** `if` and `match` expressions as conditions.
 - **Default-on, then errors:** make the analysis default-on once it has
   run cleanly on real policies such as the daemon policy, then promote
   warnings to errors.
