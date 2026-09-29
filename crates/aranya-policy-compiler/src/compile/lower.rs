@@ -1922,6 +1922,24 @@ impl CompileState<'_> {
                     thir::StmtKind::Emit(e)
                 }
                 (StmtKind::FunctionCall(f), _) => {
+                    // `bar()` where `bar` is an action. Without the `action`
+                    // keyword this parses as a bare function call, so say
+                    // what's missing rather than reporting `bar` as an
+                    // undefined function.
+                    if matches!(context, StatementContext::Action(_))
+                        && self
+                            .policy
+                            .actions
+                            .iter()
+                            .any(|a| a.identifier == f.identifier.inner)
+                    {
+                        let note = "actions must be called with the `action` keyword";
+                        let call = Expression {
+                            inner: ExprKind::FunctionCall(f.clone()),
+                            span: statement.span,
+                        };
+                        return Err(self.err(InvalidExpression(note, call, None)));
+                    }
                     match &self.get_function_signature(&f.identifier)?.color {
                         FunctionColor::Pure(_) => {
                             // Pure functions are not allowed inside finish blocks.
