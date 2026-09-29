@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: cannot use `?` in an infallible action; declare a `result[unit, E]` return type
+  |
+6 |     let n = may_fail(x)?
+  |             ^^^^^^^^^^^^

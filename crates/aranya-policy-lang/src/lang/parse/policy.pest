@@ -271,11 +271,15 @@ dot = { "." ~ identifier }
 substruct = { "substruct" ~ identifier }
 cast = { "as" ~ identifier }
 is = { "is" ~ (none | some) }
+// The try operator propagates the error out of a `result[T, E]`. Its
+// operand must be a call.
+try_op = { "?" }
 postfix_op = _{
     | dot
     | substruct
     | cast
     | is
+    | try_op
 }
 
 // The core expression syntax - atoms joined by infix operators, where

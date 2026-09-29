@@ -1,0 +1,4 @@
+function f(x int) result[int, string] {
+    let n = Err("nope")?
+    return Ok(n)
+}

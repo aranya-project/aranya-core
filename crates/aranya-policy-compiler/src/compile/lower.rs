@@ -283,6 +283,32 @@ impl CompileState<'_> {
         }
     }
 
+    // Returns the error type unwrapped by a `?`, paired with the
+    // span of the enclosing callable's declared return type, or explains why
+    // that callable can't carry an error.
+    fn try_error_type(&self, span: Span) -> Result<(VType, Span), CompileError> {
+        let message = match self.get_statement_context()? {
+            StatementContext::PureFunction(fd) => {
+                if let TypeKind::Result(r) = &fd.return_type.inner {
+                    return Ok((r.err.clone(), fd.return_type.span));
+                }
+                format!(
+                    "cannot use `?` in a function returning `{}`; the return type must be `result[T, E]`",
+                    fd.return_type
+                )
+            }
+            StatementContext::Action(action) => {
+                if let TypeKind::Result(r) = &action.return_type.inner {
+                    return Ok((r.err.clone(), action.return_type.span));
+                }
+                "cannot use `?` in an infallible action; declare a `result[unit, E]` return type"
+                    .to_owned()
+            }
+            _ => "`?` can only be used in a returning context".to_owned(),
+        };
+        Err(self.err(InvalidReturn { message, span }))
+    }
+
     fn lower_expression(
         &mut self,
         expression: &Expression,
@@ -954,6 +980,40 @@ impl CompileState<'_> {
 
                 thir::Expression {
                     kind: thir::ExprKind::Block(statements, Box::new(subexpr)),
+                    vtype,
+                    span: expression.span,
+                }
+            }
+            ExprKind::Try(e) => {
+                // `?` propagates an `Err` out of the enclosing callable, so that
+                // callable has to return a `result` of its own.
+                let (fn_err, fn_return_span) = self.try_error_type(expression.span)?;
+
+                let inner = self.lower_expression(e)?;
+                let TypeKind::Result(call_result) = &inner.vtype.inner else {
+                    let err = InvalidType::new(
+                        format!("result[T, {fn_err}]"),
+                        None,
+                        inner.vtype.to_string(),
+                        inner.span,
+                    );
+                    return Err(self.err(err));
+                };
+
+                // returned error type doesn't match enclosing return type
+                if !call_result.err.fits_type(&fn_err) {
+                    let err = InvalidType::new(
+                        fn_err.to_string(),
+                        Some(fn_return_span),
+                        call_result.err.to_string(),
+                        inner.span,
+                    );
+                    return Err(self.err(err));
+                }
+
+                let vtype = call_result.ok.clone();
+                thir::Expression {
+                    kind: thir::ExprKind::Try(Box::new(inner)),
                     vtype,
                     span: expression.span,
                 }
@@ -1922,6 +1982,23 @@ impl CompileState<'_> {
                     let _: VType = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
                         .map_err(|e| self.err(e))?;
                     thir::StmtKind::DebugAssert(e)
+                }
+                // `bar()` where `bar` is an action. Without the `action` keyword
+                // this parses as a bare function call, so say what's missing
+                // rather than just rejecting the statement.
+                (StmtKind::FunctionCall(f), StatementContext::Action(_))
+                    if self
+                        .policy
+                        .actions
+                        .iter()
+                        .any(|a| a.identifier == f.identifier.inner) =>
+                {
+                    let note = "actions must be called with the `action` keyword";
+                    let call = Expression {
+                        inner: ExprKind::FunctionCall(f.clone()),
+                        span: statement.span,
+                    };
+                    return Err(self.err(InvalidExpression(note, call, None)));
                 }
                 (_, _) => {
                     return Err(self.err(InvalidStatement(context, statement.span)));

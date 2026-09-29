@@ -859,6 +859,24 @@ impl<'a> CompileState<'a> {
                 self.compile_typed_expression(*e)?;
                 self.append_instruction(Instruction::Wrap(WrapType::Err));
             }
+            thir::ExprKind::Try(e) => {
+                // `f()?` leaves the `Ok` value on the stack, or returns the
+                // `Err` from the enclosing callable.
+                let is_ok = self.anonymous_label();
+
+                self.compile_typed_expression(*e)?;
+                self.append_instruction(Instruction::Dup);
+                self.append_instruction(Instruction::Is(WrapType::Ok));
+                self.append_instruction(Instruction::Branch(Target::Unresolved(is_ok.clone())));
+
+                // Err path: return error value
+                self.append_instruction(Instruction::RestoreSP);
+                self.append_instruction(Instruction::Return);
+
+                // Ok path: unwrap the value.
+                self.define_label(is_ok, self.wp)?;
+                self.append_instruction(Instruction::Unwrap(WrapType::Ok));
+            }
         }
 
         Ok(())

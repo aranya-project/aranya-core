@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: string
+   |
+ 9 | function f(x int) result[int, enum Error] {
+   |                   ----------------------- expected because of this
+10 |     return Ok(may_fail(x)?)
+   |               ^^^^^^^^^^^ expected `enum Error` but found `string`
