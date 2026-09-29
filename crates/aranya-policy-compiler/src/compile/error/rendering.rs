@@ -7,7 +7,7 @@ use super::{
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
     InvalidType, MissingBaseCommand, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined,
     RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
-    UnreachableMatchArm, UnusedVariable,
+    UnreachableMatchArm, UnusedValue, UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -140,6 +140,24 @@ impl Error for BadArgument {
     }
     fn description(&self) -> String {
         "bad argument".to_owned()
+    }
+}
+
+impl Error for UnusedValue {
+    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.description());
+
+        report.push(
+            title.elements([Snippet::source(input).annotation(
+                AnnotationKind::Primary
+                    .span(self.0.into())
+                    .label("expression values must be used")
+                    .highlight_source(true),
+            )]),
+        );
+    }
+    fn description(&self) -> String {
+        "unused value".to_owned()
     }
 }
 
