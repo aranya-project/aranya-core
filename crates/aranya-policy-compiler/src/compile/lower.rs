@@ -992,7 +992,7 @@ impl CompileState<'_> {
                 let inner = self.lower_expression(e)?;
                 let TypeKind::Result(call_result) = &inner.vtype.inner else {
                     let err = InvalidType::new(
-                        "result[T, fn_err]".to_owned(),
+                        format!("result[T, {fn_err}]"),
                         None,
                         inner.vtype.to_string(),
                         inner.span,
@@ -1981,6 +1981,37 @@ impl CompileState<'_> {
                     }
                     thir::StmtKind::Emit(e)
                 }
+                (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
+                    let call = self.lower_action_call_statement(fc, statement.span)?;
+                    thir::StmtKind::ActionCall(call)
+                }
+                (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
+                    let fc_thir = self.lower_recall_call(fc, cmd)?;
+                    thir::StmtKind::Recall(fc_thir)
+                }
+                (StmtKind::DebugAssert(e), _) => {
+                    let e = self.lower_expression(e)?;
+                    let _: VType = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
+                        .map_err(|e| self.err(e))?;
+                    thir::StmtKind::DebugAssert(e)
+                }
+                // `bar()` where `bar` is an action. Without the `action` keyword
+                // this parses as a bare function call, so say what's missing
+                // rather than just rejecting the statement.
+                (StmtKind::FunctionCall(f), StatementContext::Action(_))
+                    if self
+                        .policy
+                        .actions
+                        .iter()
+                        .any(|a| a.identifier == f.identifier.inner) =>
+                {
+                    let note = "actions must be called with the `action` keyword";
+                    let call = Expression {
+                        inner: ExprKind::FunctionCall(f.clone()),
+                        span: statement.span,
+                    };
+                    return Err(self.err(InvalidExpression(note, call, None)));
+                }
                 (StmtKind::FunctionCall(f), _) => {
                     // `bar()` where `bar` is an action. Without the `action`
                     // keyword this parses as a bare function call, so say
@@ -2023,37 +2054,6 @@ impl CompileState<'_> {
                     }
                     let f = self.lower_function_call(f, statement.span)?;
                     thir::StmtKind::FunctionCall(f)
-                }
-                (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
-                    let call = self.lower_action_call_statement(fc, statement.span)?;
-                    thir::StmtKind::ActionCall(call)
-                }
-                (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
-                    let fc_thir = self.lower_recall_call(fc, cmd)?;
-                    thir::StmtKind::Recall(fc_thir)
-                }
-                (StmtKind::DebugAssert(e), _) => {
-                    let e = self.lower_expression(e)?;
-                    let _: VType = types::check_type(e.vtype.clone(), TypeKind::Bool.nowhere())
-                        .map_err(|e| self.err(e))?;
-                    thir::StmtKind::DebugAssert(e)
-                }
-                // `bar()` where `bar` is an action. Without the `action` keyword
-                // this parses as a bare function call, so say what's missing
-                // rather than just rejecting the statement.
-                (StmtKind::FunctionCall(f), StatementContext::Action(_))
-                    if self
-                        .policy
-                        .actions
-                        .iter()
-                        .any(|a| a.identifier == f.identifier.inner) =>
-                {
-                    let note = "actions must be called with the `action` keyword";
-                    let call = Expression {
-                        inner: ExprKind::FunctionCall(f.clone()),
-                        span: statement.span,
-                    };
-                    return Err(self.err(InvalidExpression(note, call, None)));
                 }
                 (_, _) => {
                     return Err(self.err(InvalidStatement(context, statement.span)));
