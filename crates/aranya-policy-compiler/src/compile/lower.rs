@@ -2038,6 +2038,23 @@ impl CompileState<'_> {
                         .map_err(|e| self.err(e))?;
                     thir::StmtKind::DebugAssert(e)
                 }
+                // `bar()` where `bar` is an action. Without the `action` keyword
+                // this parses as a bare function call, so say what's missing
+                // rather than just rejecting the statement.
+                (StmtKind::FunctionCall(f), StatementContext::Action(_))
+                    if self
+                        .policy
+                        .actions
+                        .iter()
+                        .any(|a| a.identifier == f.identifier.inner) =>
+                {
+                    let note = "actions must be called with the `action` keyword";
+                    let call = Expression {
+                        inner: ExprKind::FunctionCall(f.clone()),
+                        span: statement.span,
+                    };
+                    return Err(self.err(InvalidExpression(note, call, None)));
+                }
                 (_, _) => {
                     return Err(self.err(InvalidStatement(context, statement.span)));
                 }
