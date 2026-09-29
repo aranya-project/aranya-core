@@ -992,7 +992,7 @@ impl CompileState<'_> {
                 let inner = self.lower_expression(e)?;
                 let TypeKind::Result(call_result) = &inner.vtype.inner else {
                     let err = InvalidType::new(
-                        "result[T, fn_err]".to_owned(),
+                        format!("result[T, {fn_err}]"),
                         None,
                         inner.vtype.to_string(),
                         inner.span,
