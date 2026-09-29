@@ -1,7 +1,7 @@
 //! Attacks on names: two mentions of one name must refer to one
 //! binding, and nothing local to a scope may escape it.
 
-use super::{MEMBER, command, warnings_for, with_defs};
+use super::{warnings_for, with_defs};
 
 const MEMBER_AND_OTHER: &str = r#"
     fact Member[team int, device int]=>{rank int}
@@ -143,72 +143,47 @@ fn control_helper_param_bound_to_caller_var() {
 }
 
 #[test]
-fn attack_block_local_binding_does_not_leak_into_values() {
-    let warnings = warnings_for(&command(
-        r#"
-        let b = {
-            let q = query Account[user: 1] or recall failed()
-            : q.balance
-        }
-        let q = query Account[user: 2] or recall failed()
-        finish { update Account[user: 1]=>{balance: q.balance} to {balance: 0} }
-        "#,
-    ));
-    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    assert!(warnings[0].message.contains("stated values"));
-}
-
-#[test]
-fn control_block_local_query_still_proves_exists() {
-    let warnings = warnings_for(&command(
-        r#"
-        let b = {
-            let q = query Account[user: 1] or recall failed()
-            : q.balance
-        }
-        let q = query Account[user: 2] or recall failed()
-        finish { update Account[user: 2]=>{balance: q.balance} to {balance: 0} }
-        "#,
-    ));
-    assert_eq!(warnings, vec![], "expected no warnings");
-}
-
-#[test]
-fn attack_alias_chain_rebinding() {
+fn attack_rebinding_through_call_argument() {
+    // Calls match structurally, so a stale fact keyed by `f(m.device)`
+    // would prove the create for the new `m`.
     let warnings = warnings_for(&with_defs(
-        MEMBER,
+        r#"
+        fact Member[team int, device int]=>{rank int}
+        fact Other[k int]=>{v int}
+
+        function f(d int) int { return d }
+        "#,
         r#"
         if this.user == 1 {
             let m = query Member[team: 1, device: ?] or recall failed()
-            let d = m.device
+            check !exists Other[k: f(m.device)] else recall failed()
         } else {
             let m = query Member[team: 1, device: ?] or recall failed()
-            let d = m.device
+            check !exists Other[k: f(m.device)] else recall failed()
         }
         let m = query Member[team: 2, device: ?] or recall failed()
-        let d = m.device
-        finish { delete Member[team: 1, device: d] }
+        let k = f(m.device)
+        finish { create Other[k: k]=>{v: 0} }
         "#,
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    assert!(warnings[0].message.contains("before `delete`"));
+    assert!(warnings[0].message.contains("before `create`"));
 }
 
 #[test]
-fn control_alias_chain_proves_current_binding() {
+fn control_call_argument_proves_current_binding() {
     let warnings = warnings_for(&with_defs(
-        MEMBER,
         r#"
-        if this.user == 1 {
-            let m = query Member[team: 1, device: ?] or recall failed()
-            let d = m.device
-        } else {
-            let m = query Member[team: 1, device: ?] or recall failed()
-            let d = m.device
-        }
-        let m = query Member[team: 2, device: ?] or recall failed()
-        let d = m.device
-        finish { delete Member[team: 2, device: d] }
+        fact Member[team int, device int]=>{rank int}
+        fact Other[k int]=>{v int}
+
+        function f(d int) int { return d }
+        "#,
+        r#"
+        let m = query Member[team: 1, device: ?] or recall failed()
+        check !exists Other[k: f(m.device)] else recall failed()
+        let k = f(m.device)
+        finish { create Other[k: k]=>{v: 0} }
         "#,
     ));
     assert_eq!(warnings, vec![], "expected no warnings");

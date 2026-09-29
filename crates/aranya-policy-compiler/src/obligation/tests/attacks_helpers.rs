@@ -1,7 +1,7 @@
 //! Attacks on helpers: a call's true side must keep only what holds on
 //! every exit that can be true.
 
-use super::{MEMBER, warnings_for, with_defs};
+use super::{warnings_for, with_defs};
 
 #[test]
 fn attack_early_exit_returning_true() {
@@ -86,23 +86,70 @@ fn control_exit_inside_block_returning_false() {
 }
 
 #[test]
-fn attack_test_fail_in_helper_is_not_an_exit() {
-    // `test_fail` aborts the run, so the helper's only exit returns
-    // `true` knowing nothing about `Account`.
+fn attack_return_inside_fact_key_is_an_exit() {
+    // When `u` is not 1 the helper returns `true` having checked
+    // nothing, so its true side cannot keep `Owner[]`.
     let warnings = warnings_for(&with_defs(
         r#"
         function f(u int) bool {
-            check exists Owner[] else test_fail("no owner")
+            check exists Owner[] && exists Account[user: match u { 1 => 1  _ => return true }]
+                else return false
             return true
         }
         "#,
         r#"
         check f(this.user) else recall failed()
-        finish { delete Account[user: this.user] }
+        finish { delete Owner[] }
         "#,
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    assert!(warnings[0].message.contains("before `delete`"));
+    assert!(
+        warnings[0]
+            .message
+            .contains("`Owner[]` exists before `delete`")
+    );
+}
+
+#[test]
+fn attack_return_inside_call_argument_is_an_exit() {
+    let warnings = warnings_for(&with_defs(
+        r#"
+        function same(n int) int { return n }
+        function f(u int) bool {
+            check exists Owner[] && same(match u { 1 => 1  _ => return true }) == 1
+                else return false
+            return true
+        }
+        "#,
+        r#"
+        check f(this.user) else recall failed()
+        finish { delete Owner[] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(
+        warnings[0]
+            .message
+            .contains("`Owner[]` exists before `delete`")
+    );
+}
+
+#[test]
+fn control_match_inside_fact_key_without_return() {
+    let warnings = warnings_for(&with_defs(
+        r#"
+        function f(u int) bool {
+            check exists Owner[] && exists Account[user: match u { 1 => 1  _ => 2 }]
+                else return false
+            return true
+        }
+        "#,
+        r#"
+        check f(this.user) else recall failed()
+        finish { delete Owner[] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
 }
 
 #[test]
@@ -243,16 +290,4 @@ fn attack_summary_reused_across_commands() {
             .message
             .contains("`Account[user: 1]` exists before `delete`")
     );
-}
-
-#[test]
-fn control_member_helper_proves_bound_key() {
-    let warnings = warnings_for(&with_defs(
-        MEMBER,
-        r#"
-        let m = query Member[team: 1, device: ?] or recall failed()
-        finish { delete Member[team: 1, device: m.device] }
-        "#,
-    ));
-    assert_eq!(warnings, vec![], "expected no warnings");
 }

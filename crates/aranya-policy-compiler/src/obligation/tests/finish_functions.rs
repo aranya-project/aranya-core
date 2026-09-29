@@ -71,6 +71,11 @@ fn finish_function_checked_for_other_key_warns() {
         "#,
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(
+        warnings[0]
+            .message
+            .contains("`Account[user: u]` does not exist")
+    );
 }
 
 #[test]

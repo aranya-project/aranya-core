@@ -93,3 +93,32 @@ fn impossible_branch_is_skipped() {
     ));
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+#[test]
+fn impossible_if_fallthrough_is_skipped() {
+    let warnings = warnings_for(&command(
+        r#"
+        check exists Account[user: this.user] else recall failed()
+        if exists Account[user: this.user] {
+            finish {}
+        }
+        finish { create Account[user: this.user]=>{balance: 0} }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn impossible_match_arm_is_skipped() {
+    let warnings = warnings_for(&with_defs(
+        "",
+        r#"
+        check exists Account[user: this.user] else recall failed()
+        match query Account[user: this.user] {
+            None => { finish { create Owner[]=>{user: this.user} } }
+            Some(a) => { finish {} }
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

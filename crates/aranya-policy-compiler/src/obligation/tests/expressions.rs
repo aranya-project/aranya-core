@@ -222,24 +222,6 @@ fn block_ends_over_cap_are_opaque() {
 }
 
 #[test]
-fn match_let_with_other_arm_does_not_bind() {
-    let warnings = warnings_for(&command(
-        r#"
-        let other = query Account[user: 0] or recall failed()
-        let a = match query Account[user: this.user] {
-            Some(x) => x
-            _ => other
-        }
-        finish {
-            update Account[user: this.user]=>{balance: a.balance} to {balance: 1}
-        }
-        "#,
-    ));
-    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    assert!(warnings[0].message.contains("before `update`"));
-}
-
-#[test]
 fn helper_match_arm_return_is_an_exit() {
     // The `_` arm returns `true` without proving anything, so the call
     // proves nothing.
@@ -260,33 +242,6 @@ fn helper_match_arm_return_is_an_exit() {
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("before `delete`"));
-}
-
-#[test]
-fn nested_return_makes_helper_unknown() {
-    let warnings = warnings_for(&with_defs(
-        r#"
-        function has(u int) bool {
-            let x = saturating_add(1, match u {
-                1 => 1
-                _ => return true
-            })
-            return exists Account[user: u]
-        }
-        "#,
-        r#"
-        check has(this.user) else recall failed()
-        finish { delete Account[user: this.user] }
-        "#,
-    ));
-    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    assert!(warnings[0].message.contains("before `delete`"));
-    assert!(
-        warnings[0]
-            .notes
-            .iter()
-            .any(|(_, n)| n.contains("too complex"))
-    );
 }
 
 #[test]
@@ -327,4 +282,39 @@ fn block_local_name_does_not_leak() {
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn match_expression_is_none_condition() {
+    let warnings = warnings_for(&command(
+        r#"
+        check match this.user {
+            1 => query Account[user: 1]
+            _ => query Account[user: 1]
+        } is None else recall failed()
+        finish { create Account[user: 1]=>{balance: 0} }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn facts_inside_optional_values_are_opaque_points() {
+    // A fact read wrapped in `Some`, in an arm and in a `let`, proves
+    // nothing but is pointed out when the mutation can't be proven.
+    let warnings = warnings_for(&command(
+        r#"
+        let z = if this.user == 1 { : Some(exists Account[user: 1]) } else { : None }
+        let w = Some(match this.user { 1 => true  _ => exists Account[user: 1] })
+        finish { delete Account[user: 1] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+    let notes: Vec<_> = warnings[0]
+        .notes
+        .iter()
+        .filter(|(_, n)| n.contains("too complex"))
+        .collect();
+    assert_eq!(notes.len(), 2, "notes: {:?}", warnings[0].notes);
 }

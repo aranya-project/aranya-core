@@ -64,7 +64,7 @@ fn attack_aliasing_keys_through_finish_function() {
 }
 
 #[test]
-fn attack_known_finish_function_drops_binding() {
+fn attack_known_finish_function_forgets_other_keys() {
     let warnings = warnings_for(&with_defs(
         r#"
         finish function bump(u int) {

@@ -153,6 +153,60 @@ fn attack_block_binds_outer_let_name() {
 }
 
 #[test]
+fn attack_block_nested_if_binding_does_not_leak() {
+    // `m` bound inside a nested `if` in the block, with or without an
+    // `else`, is not the outer `m`.
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        let m = if this.user == 1 {
+            if this.user == 2 {
+                let m = query Member[team: 1, device: ?] or recall failed()
+            } else {
+                let m = query Member[team: 1, device: ?] or recall failed()
+            }
+            if this.user == 3 {
+                let m = query Member[team: 1, device: ?] or recall failed()
+            }
+            let n = query Member[team: 2, device: ?] or recall failed()
+            : n
+        } else {
+            let m = query Member[team: 1, device: ?] or recall failed()
+            let n = query Member[team: 2, device: ?] or recall failed()
+            : n
+        }
+        finish { delete Member[team: 1, device: m.device] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn attack_block_nested_match_binding_does_not_leak() {
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        let m = if this.user == 1 {
+            match query Member[team: 1, device: ?] {
+                Some(m) => { let unused = m.rank }
+                None => { recall failed() }
+            }
+            let n = query Member[team: 2, device: ?] or recall failed()
+            : n
+        } else {
+            let m = query Member[team: 1, device: ?] or recall failed()
+            let n = query Member[team: 2, device: ?] or recall failed()
+            : n
+        }
+        finish { delete Member[team: 1, device: m.device] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
 fn attack_scoped_env_in_condition_block() {
     // The block's own `y` is 2, not the earlier branches' 1, so the
     // check says nothing about `Account[user: 1]`.

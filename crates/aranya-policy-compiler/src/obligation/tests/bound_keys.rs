@@ -1,6 +1,6 @@
 //! Keys read from query results, and forgetting a name's earlier binding.
 
-use super::{MEMBER, warnings_for, with_defs};
+use super::{MEMBER, command, warnings_for, with_defs};
 
 #[test]
 fn bound_key_query_then_delete_passes() {
@@ -133,17 +133,22 @@ fn helper_returning_bound_key_query_with_match_passes() {
 
 #[test]
 fn bound_key_query_in_init_command_reports_nothing() {
-    // No fact can exist, so the path past the query is impossible.
+    // No fact can exist, so the path past the query is impossible, and
+    // the unchecked create on it is not reported.
     let warnings = warnings_for(
         r#"
         fact Member[team int, device int]=>{rank int}
+        fact Owner[]=>{user int}
 
         command Init {
             attributes { init: true }
             fields { user int }
             policy {
                 let m = query Member[team: this.user, device: ?] or recall failed()
-                finish { delete Member[team: this.user, device: m.device] }
+                finish {
+                    delete Member[team: this.user, device: m.device]
+                    create Owner[]=>{user: this.user}
+                }
             }
             recall failed() { finish {} }
         }
@@ -287,4 +292,74 @@ fn helper_returning_some_local_warns() {
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn helper_exits_returning_same_query_bind() {
+    let warnings = warnings_for(&with_defs(
+        r#"
+        fact Member[team int, device int]=>{rank int}
+
+        function find(t int) option[struct Member] {
+            if t == 1 {
+                return query Member[team: t, device: ?]
+            }
+            return query Member[team: t, device: ?]
+        }
+        "#,
+        r#"
+        let m = find(this.user) or recall failed()
+        finish { delete Member[team: this.user, device: m.device] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn match_let_with_mixed_arm_does_not_bind() {
+    let warnings = warnings_for(&command(
+        r#"
+        let other = query Account[user: 0] or recall failed()
+        let a = match query Account[user: this.user] {
+            Some(x) | None => other
+        }
+        finish { update Account[user: 0]=>{balance: a.balance} to {balance: 1} }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("stated values"));
+}
+
+#[test]
+fn match_let_with_none_arm_value_does_not_bind() {
+    let warnings = warnings_for(&command(
+        r#"
+        let other = query Account[user: 0] or recall failed()
+        let a = match query Account[user: this.user] {
+            Some(x) => x
+            None => other
+        }
+        finish { update Account[user: 0]=>{balance: a.balance} to {balance: 1} }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("stated values"));
+}
+
+#[test]
+fn match_let_with_other_arm_does_not_bind() {
+    let warnings = warnings_for(&command(
+        r#"
+        let other = query Account[user: 0] or recall failed()
+        let a = match query Account[user: this.user] {
+            Some(x) => x
+            _ => other
+        }
+        finish {
+            update Account[user: this.user]=>{balance: a.balance} to {balance: 1}
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `update`"));
 }

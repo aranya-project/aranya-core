@@ -712,6 +712,7 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a
             (either_noted(st, expr.span, ta, tb), both(fa, fb))
         }
         ExprKind::InternalFunction(InternalFunction::Exists(fact)) => {
+            unusable_if_returns(st, expr, out);
             let pat = pattern_raw(fact, st);
             (
                 fact_is(pat.clone(), FactState::Exists),
@@ -719,12 +720,16 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a
             )
         }
         ExprKind::InternalFunction(InternalFunction::FactCount(ty, n, fact)) => {
+            unusable_if_returns(st, expr, out);
             count_cond(st, expr, ty, n.inner, fact, out)
         }
         ExprKind::Is(inner, some) => cond_is(st, inner, *some, out),
-        ExprKind::FunctionCall(fc) => through_call(st, fc, expr.span, out, &mut |st, ret, out| {
-            cond_resolved(st, ret, out)
-        }),
+        ExprKind::FunctionCall(fc) => {
+            unusable_if_returns(st, expr, out);
+            through_call(st, fc, expr.span, out, &mut |st, ret, out| {
+                cond_resolved(st, ret, out)
+            })
+        }
         _ => {
             collect_opaque(st, expr, out);
             (nothing(), nothing())
@@ -800,6 +805,7 @@ fn cond_is<'a>(
     }
     let (when_some, when_none) = match &expr.kind {
         ExprKind::InternalFunction(InternalFunction::Query(fact)) => {
+            unusable_if_returns(st, expr, out);
             let pat = pattern_raw(fact, st);
             (
                 fact_is(pat.clone(), FactState::Exists),
@@ -807,10 +813,16 @@ fn cond_is<'a>(
             )
         }
         ExprKind::Optional(None) => (None, nothing()),
-        ExprKind::Optional(Some(_)) => (nothing(), None),
-        ExprKind::FunctionCall(fc) => through_call(st, fc, expr.span, out, &mut |st, ret, out| {
-            cond_is(st, ret, true, out)
-        }),
+        ExprKind::Optional(Some(_)) => {
+            unusable_if_returns(st, expr, out);
+            (nothing(), None)
+        }
+        ExprKind::FunctionCall(fc) => {
+            unusable_if_returns(st, expr, out);
+            through_call(st, fc, expr.span, out, &mut |st, ret, out| {
+                cond_is(st, ret, true, out)
+            })
+        }
         _ => {
             collect_opaque(st, expr, out);
             (nothing(), nothing())
@@ -2000,13 +2012,20 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
 }
 
 /// Record every fact-touching subexpression as an opaque observation point.
-///
-/// In a pure function, a `return` inside such an expression is an exit
-/// the walk did not record, so the function can't be summarized.
 fn collect_opaque<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a>) {
     visit_facts(expr, &mut |fact, span| {
         st.opaque.push((fact.identifier.clone(), span));
     });
+    unusable_if_returns(st, expr, out);
+}
+
+/// In a pure function, a `return` inside an expression the walk does not
+/// model, such as a fact key, a call argument, or an opaque expression,
+/// is an exit the summary would miss, so the function can't be
+/// summarized. The modeled positions, `or return`, `else return`, and a
+/// `return` as an `if` or `match` arm, are handled before an expression
+/// reaches here.
+fn unusable_if_returns<'a>(st: &PathState<'a>, expr: &Expression, out: &mut Out<'a>) {
     if st.in_function && any_sub(expr, &mut |e| matches!(e.kind, ExprKind::Return(_))) {
         out.unusable = true;
     }

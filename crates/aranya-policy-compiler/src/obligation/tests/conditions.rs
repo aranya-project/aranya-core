@@ -1,6 +1,6 @@
 //! What `check` conditions prove: `&&`, `||`, `!`, and counting queries.
 
-use super::{command, warnings_for, with_defs};
+use super::{MEMBER, command, warnings_for, with_defs};
 
 #[test]
 fn check_and_proves_both_sides() {
@@ -72,5 +72,80 @@ fn counting_queries() {
              finish {{ {mutation} }}"
         )));
         assert_eq!(warnings.len(), expected, "{check}: {warnings:?}");
+        let keyword = if mutation == create {
+            "create"
+        } else {
+            "delete"
+        };
+        for w in &warnings {
+            assert!(
+                w.message.contains(&format!("before `{keyword}`")),
+                "{check}: {w:?}"
+            );
+        }
     }
+}
+
+// `either` joins the sides of `||`: only what both imply is kept, and
+// for `NotExists` the more specific pattern is implied by both.
+
+#[test]
+fn either_keeps_more_specific_absence_prefix_first() {
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        check !exists Member[team: 1, device: ?] || !exists Member[team: 1, device: 5]
+            else recall failed()
+        finish { create Member[team: 1, device: 5]=>{rank: 0} }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn either_keeps_more_specific_absence_exact_first() {
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        check !exists Member[team: 1, device: 5] || !exists Member[team: 1, device: ?]
+            else recall failed()
+        finish { create Member[team: 1, device: 5]=>{rank: 0} }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn either_dedups_patterns_implied_twice() {
+    // Each side knows both the prefix and the exact key, so the exact
+    // key is implied twice and kept once.
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        check (!exists Member[team: 1, device: ?] && !exists Member[team: 1, device: 5])
+            || (!exists Member[team: 1, device: ?] && !exists Member[team: 1, device: 5])
+            else recall failed()
+        finish { create Member[team: 1, device: 5]=>{rank: 0} }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn either_dedups_across_mixed_states() {
+    // `out` holds an `Exists` entry when the `NotExists` pair is
+    // compared against it.
+    let warnings = warnings_for(&with_defs(
+        "",
+        r#"
+        check (exists Account[user: 1] && !exists Owner[])
+            || (exists Account[user: 1] && !exists Owner[])
+            else recall failed()
+        finish {
+            delete Account[user: 1]
+            create Owner[]=>{user: 1}
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
 }

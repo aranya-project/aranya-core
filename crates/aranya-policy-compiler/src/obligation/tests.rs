@@ -17,7 +17,6 @@ mod attacks_state;
 mod bound_keys;
 mod branches;
 mod conditions;
-mod coverage;
 mod diagnostics;
 mod expressions;
 mod finish_functions;
@@ -25,6 +24,7 @@ mod init_commands;
 mod mutations;
 mod paths;
 mod pure_functions;
+mod strict_substitution;
 mod update_values;
 
 /// A fact with a two-part key, for queries with a bound key.

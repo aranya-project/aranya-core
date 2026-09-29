@@ -47,6 +47,7 @@ fn init_false_is_not_init() {
         "#,
     );
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
 }
 
 #[test]

@@ -176,6 +176,22 @@ fn control_none_arm_after_literal_proves_absent() {
 }
 
 #[test]
+fn attack_ok_literal_arm_does_not_prune_binding_arm() {
+    let warnings = warnings_for(&with_defs(
+        "function lookup(u int) result[int, int] { return Ok(u) }",
+        r#"
+        match lookup(this.user) {
+            Ok(1) => { finish {} }
+            Ok(x) => { finish { create Account[user: x]=>{balance: 0} } }
+            Err(e) => { finish {} }
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
 fn control_some_binding_arm_prunes_none_arm() {
     // `Some(x)` matches every `Some`, and the helper never returns
     // `None`, so the `None` arm cannot run.

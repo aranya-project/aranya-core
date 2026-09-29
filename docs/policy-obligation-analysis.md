@@ -469,8 +469,9 @@ kept, with the names its blocks and arms bind allowed inside it.
 A `return` inside an expression is an exit too. The ones the walk
 models, `e or return v`, `check c else return v`, and `return v` as a
 `match` or `if` arm, are recorded like any other. A `return` anywhere
-else, such as inside a function argument, is an exit the summary would
-miss, so the function is treated as unknown.
+else, such as inside a fact key, a call argument, a comparison, or an
+opaque expression, is an exit the summary would miss, so the function
+is treated as unknown.
 
 Summaries are computed on first use and cached. A function is not
 summarized, and calls to it are treated as unknown, when:
@@ -659,13 +660,20 @@ target:
   the outer `let`'s own name, block-scoped names in a condition block,
   and a nested `return` in an `if` arm.
 
-`coverage.rs` holds tests that exist to reach rules the feature and
-attack tests don't: rarer language forms, impossible paths, strict
-substitution failing inside each expression form, and visitor corners.
-With them, `cargo llvm-cov --branch` reports every branch side of
-`obligation.rs` taken. Branches that no valid policy could take, such
-as a `return` outside a function or a call to an undefined finish
-function, were removed from the code rather than left untested.
+Branch coverage of `obligation.rs` is complete: `cargo llvm-cov
+--branch` reports every branch side taken. The tests that closed the
+gap live in the feature file of the rule they reach, not in a file of
+their own: the `||` join and its deduplication in `conditions.rs`,
+impossible paths and note merging in `paths.rs` and `branches.rs`,
+mutual recursion and `test_fail` terminals in `pure_functions.rs`,
+strict substitution failing inside each expression form in
+`strict_substitution.rs`, literal
+`Some` and `Ok` arms in `branches.rs`, the binding rules and the
+rebinding visitor in `bound_keys.rs`, the key-matching forms in
+`mutations.rs`, and the visitor corners in `expressions.rs`. Branches
+that no valid policy could take, such as a `return` outside a function
+or a call to an undefined finish function, were removed from the code
+rather than left untested.
 
 `assumptions.rs` guards what the analysis assumes the compiler
 enforces: no shadowing, keys as schema-order prefixes, no calls or
@@ -681,14 +689,25 @@ mutation forgetting other keys of its fact. Attacks on `map` could not
 be written because `map` is only allowed in actions, which cannot
 mutate facts.
 
-The campaign found two false negatives, both fixed:
+The campaign found three false negatives, all fixed:
 
 - the value-filter bug described under [Conditions](#conditions);
 - a `match` arm `Some(1)` that fails to match was treated as proving
   the value is `None`, so a later `Some(x)` or `None` arm was pruned
   as impossible and its mutations went unchecked. A literal `Some`
   pattern now proves nothing when it fails, since the value may be
-  another `Some`. Only a binding pattern `Some(x)` proves `None`.
+  another `Some`. Only a binding pattern `Some(x)` proves `None`;
+- a `return` nested inside a fact key or call argument in a helper's
+  condition was never recorded as an exit, so the helper's true side
+  kept facts the missed exit did not guarantee. The nested-`return`
+  rule now applies at every condition leaf, not only to opaque
+  expressions.
+
+Every test asserts something the rule it names can change. A test
+whose result would be the same with the rule broken, such as "no
+warnings" after a mutation the path proves anyway, is not kept: an
+audit of the suite removed several and rewrote others so the rule is
+the only thing standing between the prover and a wrong answer.
 
 ## Known limitations
 
