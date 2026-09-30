@@ -210,11 +210,11 @@ pub enum HelloTopology {
         #[serde(default = "default_hierarchy_children")]
         children: u64,
     },
-    /// Each client is linked to about `links` peers chosen at random, and
-    /// linked clients subscribe to each other. Peers still short of `links`
-    /// are preferred, so most clients end up with exactly `links`.
+    /// Each client gets two-way links to random peers until it has at
+    /// least `links`, then components are joined by extra random links
+    /// until every client is connected.
     Random {
-        /// Target number of links per client.
+        /// Minimum number of links per client.
         #[serde(default = "default_random_links")]
         links: u64,
     },
@@ -232,7 +232,7 @@ fn default_hierarchy_children() -> u64 {
 }
 
 fn default_random_links() -> u64 {
-    3
+    2
 }
 
 fn default_small_world_long_links() -> u64 {
@@ -290,21 +290,21 @@ fn hello_subscriptions<R: rand::Rng>(
         }
         HelloTopology::Random { links } => {
             assert!(links < clients, "Random requires links < clients");
-            let mut linked: Vec<BTreeSet<u64>> = vec![BTreeSet::new(); clients as usize];
+            let mut linked = vec![BTreeSet::new(); clients as usize];
             for i in 0..clients {
                 while (linked[i as usize].len() as u64) < links {
-                    let unlinked = |&p: &u64| p != i && !linked[i as usize].contains(&p);
-                    let mut candidates: Vec<u64> = (0..clients)
-                        .filter(unlinked)
-                        .filter(|&p| (linked[p as usize].len() as u64) < links)
-                        .collect();
-                    if candidates.is_empty() {
-                        candidates = (0..clients).filter(unlinked).collect();
+                    let peer = rng.random_range(0..clients);
+                    if peer != i && linked[i as usize].insert(peer) {
+                        linked[peer as usize].insert(i);
                     }
-                    let peer = candidates[rng.random_range(0..candidates.len())];
-                    linked[i as usize].insert(peer);
-                    linked[peer as usize].insert(i);
                 }
+            }
+            // Join each component to the next so every client is connected.
+            for pair in components(&linked).windows(2) {
+                let a = pair[0][rng.random_range(0..pair[0].len())];
+                let b = pair[1][rng.random_range(0..pair[1].len())];
+                linked[a as usize].insert(b);
+                linked[b as usize].insert(a);
             }
             for (i, peers) in (0..clients).zip(linked) {
                 for peer in peers {
@@ -335,6 +335,32 @@ fn hello_subscriptions<R: rand::Rng>(
         }
     }
     subs
+}
+
+/// Returns the connected components of an undirected graph given as
+/// adjacency sets indexed by client.
+fn components(linked: &[BTreeSet<u64>]) -> Vec<Vec<u64>> {
+    let mut seen = vec![false; linked.len()];
+    let mut components = Vec::new();
+    for start in 0..linked.len() {
+        if seen[start] {
+            continue;
+        }
+        seen[start] = true;
+        let mut component = Vec::new();
+        let mut stack = vec![start as u64];
+        while let Some(node) = stack.pop() {
+            component.push(node);
+            for &peer in &linked[node as usize] {
+                if !seen[peer as usize] {
+                    seen[peer as usize] = true;
+                    stack.push(peer);
+                }
+            }
+        }
+        components.push(component);
+    }
+    components
 }
 
 /// Dispatches the sync message contained in data.
@@ -2694,6 +2720,23 @@ mod tests {
         let heads = storage.get_heads()?;
         assert_eq!(heads.len(), 1, "expected a single head");
         Ok(heads.as_slice()[0].location())
+    }
+
+    #[test]
+    fn random_topology_is_connected() {
+        for clients in [3, 10, 100, 1000] {
+            for seed in 0..20 {
+                let mut rng = SmallRng::seed_from_u64(seed);
+                let subs =
+                    hello_subscriptions(&HelloTopology::Random { links: 2 }, clients, &mut rng);
+                let mut linked = vec![BTreeSet::new(); clients as usize];
+                for (client, peer) in subs {
+                    linked[client as usize].insert(peer);
+                }
+                assert!(linked.iter().all(|peers| peers.len() >= 2));
+                assert_eq!(components(&linked).len(), 1);
+            }
+        }
     }
 
     #[test]

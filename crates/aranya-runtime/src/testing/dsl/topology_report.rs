@@ -11,7 +11,6 @@
 //! Set `TOPOLOGY_REPORT=<path>` to also write the report to a file.
 
 use std::{
-    collections::VecDeque,
     env,
     fmt::Write as _,
     fs,
@@ -56,44 +55,12 @@ fn topologies() -> Vec<(&'static str, HelloTopology)> {
             "Hierarchy (3 children)",
             HelloTopology::Hierarchy { children: 3 },
         ),
-        ("Random (3 links)", HelloTopology::Random { links: 3 }),
+        ("Random (2 links)", HelloTopology::Random { links: 2 }),
         (
             "Small world (1 long link)",
             HelloTopology::SmallWorld { long_links: 1 },
         ),
     ]
-}
-
-/// Returns subscriptions for `topology` in which every client can reach
-/// every other. A random topology can leave a client unreachable, which
-/// hello sync can never fix, so seeds are tried until one is connected.
-fn connected_subscriptions(topology: &HelloTopology, clients: u64) -> Vec<(u64, u64)> {
-    (0..100)
-        .map(|seed| hello_subscriptions(topology, clients, &mut SmallRng::seed_from_u64(seed)))
-        .find(|subs| strongly_connected(clients, subs))
-        .expect("no connected topology found in 100 seeds")
-}
-
-fn strongly_connected(clients: u64, subs: &[(u64, u64)]) -> bool {
-    let reaches_all = |edges: &BTreeMap<u64, Vec<u64>>| {
-        let mut seen = BTreeSet::from([0]);
-        let mut queue = VecDeque::from([0]);
-        while let Some(node) = queue.pop_front() {
-            for &next in edges.get(&node).into_iter().flatten() {
-                if seen.insert(next) {
-                    queue.push_back(next);
-                }
-            }
-        }
-        seen.len() as u64 == clients
-    };
-    let mut forward: BTreeMap<u64, Vec<u64>> = BTreeMap::new();
-    let mut backward: BTreeMap<u64, Vec<u64>> = BTreeMap::new();
-    for &(client, peer) in subs {
-        forward.entry(peer).or_default().push(client);
-        backward.entry(client).or_default().push(peer);
-    }
-    reaches_all(&forward) && reaches_all(&backward)
 }
 
 /// Times how long `commands` commands take to reach all `clients` clients.
@@ -108,7 +75,7 @@ fn run(topology: &HelloTopology, clients: u64, commands: u64, writers: Writers) 
         graph: GRAPH,
         policy: 0,
     }];
-    for (client, peer) in connected_subscriptions(topology, clients) {
+    for (client, peer) in hello_subscriptions(topology, clients, &mut SmallRng::seed_from_u64(0)) {
         rules.push(TestRule::HelloSubscribe {
             client,
             peer,
