@@ -5,18 +5,19 @@ use aranya_policy_ast::{
     WithSpanExt as _, thir,
 };
 use buggy::{BugExt as _, bug};
+use indexmap::IndexMap;
 
 use super::{
     CompileError, CompileState, FunctionColor, Scope, StatementContext,
     error::{
-        AlreadyDefined, BadArgument, DuplicateMatchPatterns, InvalidCallColor,
-        InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidReturn,
-        InvalidStatement, InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined,
-        RedundantMatchArm, UnknownError, UnreachableMatchArm,
+        BadArgument, DuplicateMatchPatterns, InvalidCallColor, InvalidCallColorKind, InvalidCast,
+        InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
+        InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm, UnknownError,
+        UnreachableMatchArm,
     },
-    find_duplicate,
     types::{self, DisplayType},
 };
+use crate::compile::error::{DuplicateField, InvalidStructLiteral, MissingFields, UnknownField};
 
 impl CompileState<'_> {
     fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
@@ -54,35 +55,73 @@ impl CompileState<'_> {
 
         let s = self.evaluate_sources(s, &struct_def)?;
 
-        // Check for duplicate fields in the struct literal
-        if let Some((ident1, ident2)) = find_duplicate(&s.fields, |(ident, _)| ident) {
-            let err = AlreadyDefined::new(ident1.clone(), ident2.clone());
-            return Err(self.err(err));
-        }
+        let duplicate = {
+            use indexmap::map::Entry;
+            let mut map = IndexMap::<Ident, Vec<Ident>>::new();
+            for (field, _) in &s.fields {
+                match map.entry(field.clone()) {
+                    Entry::Occupied(e) => e.into_mut().push(field.clone()),
+                    Entry::Vacant(e) => _ = e.insert(Vec::new()),
+                }
+            }
+            map.into_iter()
+                .filter(|(_, dupes)| !dupes.is_empty())
+                .map(|(first, rest)| DuplicateField { first, rest })
+                .collect::<Vec<_>>()
+        };
 
+        let mut unknown = Vec::new();
+        let mut mismatch = Vec::new();
         let mut fields = Vec::new();
         for (field_name, e) in &s.fields {
-            let def_field = &struct_def
+            let Some(def_field) = struct_def
                 .iter()
                 .find(|f| f.identifier.inner == field_name.inner)
-                .ok_or_else(|| {
-                    let note = format!(
-                        "field `{}` not found in `Struct {}`",
-                        field_name.inner, s.identifier
-                    );
-                    self.err(NotDefined(note, field_name.span))
-                })?;
+            else {
+                unknown.push(UnknownField {
+                    literal: s.identifier.inner.clone(),
+                    field: field_name.clone(),
+                });
+                continue;
+            };
             let e = self.lower_expression(e)?;
             if !e.vtype.fits_type(&def_field.field_type) {
-                let err = InvalidType::new(
-                    def_field.field_type.to_string(),
-                    Some(def_field.span()),
-                    e.vtype.to_string(),
-                    e.span,
-                );
-                return Err(self.err(err));
+                mismatch.push(InvalidType {
+                    expected: def_field.field_type.to_string(),
+                    expected_span: Some(def_field.span()),
+                    found_type: e.vtype.to_string(),
+                    found_expr: e.span,
+                });
+                continue;
             }
             fields.push((field_name.clone(), e));
+        }
+
+        let missing: Vec<_> = struct_def
+            .iter()
+            .map(|field_def| &field_def.identifier)
+            .filter(|field_def_name| {
+                !s.fields
+                    .iter()
+                    .any(|(lit_field_name, _)| field_def_name.matches(lit_field_name))
+            })
+            .cloned()
+            .collect();
+
+        if !(missing.is_empty()
+            && unknown.is_empty()
+            && duplicate.is_empty()
+            && mismatch.is_empty())
+        {
+            return Err(self.err(InvalidStructLiteral {
+                missing: (!missing.is_empty()).then(|| MissingFields {
+                    literal: s.identifier.clone(),
+                    fields: missing,
+                }),
+                unknown,
+                duplicate,
+                mismatch,
+            }));
         }
 
         Ok(thir::NamedStruct {

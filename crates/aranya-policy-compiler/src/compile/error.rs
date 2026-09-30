@@ -1,6 +1,6 @@
 use std::fmt;
 
-use aranya_policy_ast::{self as ast, Ident, Span};
+use aranya_policy_ast::{self as ast, Ident, Identifier, Span};
 use buggy::Bug;
 
 use crate::compile::StatementContext;
@@ -95,6 +95,28 @@ impl AlreadyDefined {
 pub(crate) struct DuplicateMatchPatterns {
     pub patt1: Span,
     pub patt2: Span,
+}
+
+pub(crate) struct InvalidStructLiteral {
+    pub missing: Option<MissingFields>,
+    pub unknown: Vec<UnknownField>,
+    pub duplicate: Vec<DuplicateField>,
+    pub mismatch: Vec<InvalidType>,
+}
+
+pub(crate) struct MissingFields {
+    pub literal: Ident,
+    pub fields: Vec<Ident>,
+}
+
+pub(crate) struct UnknownField {
+    pub literal: Identifier,
+    pub field: Ident,
+}
+
+pub(crate) struct DuplicateField {
+    pub first: Ident,
+    pub rest: Vec<Ident>,
 }
 
 /// Fact literal doesn't match definition.
