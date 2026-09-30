@@ -377,8 +377,8 @@ impl PolicyStore for TestPolicyStore {
     type Policy = VmPolicy<DefaultEngine<Rng>>;
     type Effect = VmEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
-        Ok(PolicyId::new(policy[0].into()))
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        Ok(PolicyId::default())
     }
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
