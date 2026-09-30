@@ -317,34 +317,6 @@ impl Display for ConstStruct {
     }
 }
 
-/// A [`Span`](ast::Span)-less version of [`ast::Persistence`]
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub enum Persistence {
-    /// Persisted on-graph (default behavior)
-    Persistent,
-    /// Not persisted on-graph (ephemeral)
-    Ephemeral,
-}
-
-impl From<ast::Persistence> for Persistence {
-    fn from(value: ast::Persistence) -> Self {
-        match value {
-            ast::Persistence::Persistent => Self::Persistent,
-            ast::Persistence::Ephemeral(_) => Self::Ephemeral,
-        }
-    }
-}
-
 /// A [`Span`](ast::Span)-less version of [`ast::Param`] and [`ast::FieldDefinition`], used for both
 /// function arguments and struct fields.
 #[derive(

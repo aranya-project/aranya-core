@@ -1661,22 +1661,31 @@ impl CompileState<'_> {
                         return Err(self.err(err));
                     }
 
-                    //  Persistent actions can publish only persistent commands, and vice versa.
-                    let command_persistence = &self
-                        .policy
-                        .commands
-                        .iter()
-                        .find(|c| c.identifier.inner == ident.inner)
+                    // Persistent actions can publish only persistent commands, and vice versa.
+                    let command_flavor = &self
+                        .m
+                        .command_defs
+                        .get(ident.inner.as_str())
                         .assume("command must be defined")?
-                        .persistence;
-                    if !action.persistence.matches(command_persistence) {
-                        let err = InvalidType::new(
-                            format!("{} command", action.persistence),
-                            None,
-                            format!("{} command", command_persistence),
-                            e.span,
-                        );
-                        return Err(self.err(err));
+                        .flavor;
+                    match (&action.flavor, command_flavor) {
+                        (None, None) => {}
+                        (Some(x), Some(y)) if x.matches(y) => {}
+                        _ => {
+                            let err = InvalidType::new(
+                                format!(
+                                    "{} command",
+                                    action.flavor.as_ref().map_or("<default>", |x| x.as_str())
+                                ),
+                                None,
+                                format!(
+                                    "{} command",
+                                    command_flavor.as_ref().map_or("<default>", |x| x.as_str())
+                                ),
+                                e.span,
+                            );
+                            return Err(self.err(err));
+                        }
                     }
                     thir::StmtKind::Publish(e)
                 }

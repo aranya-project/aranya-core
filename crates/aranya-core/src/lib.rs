@@ -66,7 +66,7 @@ pub mod policy {
 
     #[doc(inline)]
     pub use aranya_runtime::vm_policy::{
-        FfiCallable, SealCtx as VmSealCtx, VmAction, VmEffect, VmEffectData, VmPolicy,
+        FLAVORS, FfiCallable, SealCtx as VmSealCtx, VmAction, VmEffect, VmEffectData, VmPolicy,
         VmPolicyError,
     };
 

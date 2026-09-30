@@ -1,0 +1,3 @@
+struct Known { field int }
+let known = Known { field: 42 }
+let x = known.field

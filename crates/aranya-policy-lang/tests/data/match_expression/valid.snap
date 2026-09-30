@@ -8,7 +8,7 @@ Policy {
     facts: [],
     actions: [
         ActionDefinition {
-            persistence: Persistent,
+            flavor: None,
             identifier: "foo" @ 7..10,
             arguments: [
                 Param {

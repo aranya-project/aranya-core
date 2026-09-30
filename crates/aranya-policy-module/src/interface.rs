@@ -4,7 +4,7 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use aranya_policy_ast::{self as ast, Ident, Param, Persistence, VType};
+use aranya_policy_ast::{self as ast, Ident, Param, VType};
 use serde::{Deserialize, Serialize};
 
 use crate::{ConstValue, named::named};
@@ -24,8 +24,8 @@ use crate::{ConstValue, named::named};
 pub struct ActionDefinition {
     /// The name of the action.
     pub name: Ident,
-    /// The persistence of the action.
-    pub persistence: Persistence,
+    /// The flavor of the action.
+    pub flavor: Option<Ident>,
     /// The parameters of the action.
     pub params: Vec<Param>,
     /// The return type of the action
@@ -37,7 +37,7 @@ impl From<ast::ActionDefinition> for ActionDefinition {
     fn from(value: ast::ActionDefinition) -> Self {
         Self {
             name: value.identifier,
-            persistence: value.persistence,
+            flavor: value.flavor,
             params: value.arguments,
             return_type: value.return_type,
         }
@@ -59,8 +59,8 @@ impl From<ast::ActionDefinition> for ActionDefinition {
 pub struct CommandDefinition {
     /// The name of the command.
     pub name: Ident,
-    /// The persistence of the command.
-    pub persistence: Persistence,
+    /// The flavor of the command.
+    pub flavor: Option<Ident>,
     /// The attributes of the command.
     pub attributes: Vec<Attribute>,
     /// The fields of the command.

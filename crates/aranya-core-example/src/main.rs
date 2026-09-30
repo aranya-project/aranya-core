@@ -21,7 +21,6 @@ use aranya_core::{
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
 use aranya_device_ffi::FfiDevice as DeviceFfi;
-use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
@@ -160,10 +159,10 @@ fn compile_policy(seal_ctx: VmSealCtx<CE>, eng: CE, store: MemStore) -> Result<V
     let module = Compiler::new(&ast)
         .ffi_modules(&[
             DeviceFfi::SCHEMA,
-            EnvelopeFfi::SCHEMA,
             IdamFfi::<MemStore>::SCHEMA,
             PerspectiveFfi::SCHEMA,
         ])
+        .flavors(&aranya_core::policy::FLAVORS)
         .compile()
         .context("compile policy")?;
 
@@ -171,7 +170,6 @@ fn compile_policy(seal_ctx: VmSealCtx<CE>, eng: CE, store: MemStore) -> Result<V
 
     let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
         Box::from(DeviceFfi::new(seal_ctx.author)),
-        Box::from(EnvelopeFfi),
         Box::from(IdamFfi::new(store)),
         Box::from(PerspectiveFfi),
     ];

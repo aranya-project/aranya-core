@@ -55,7 +55,7 @@ fn benchmark_map() {
 policy-version: 2
 ---
 ```policy
-        base command BaseInit {
+        base command(init) BaseInit {
             fields { key bytes }
             get_key { return Some(this.key) }
         }
@@ -74,9 +74,6 @@ policy-version: 2
         fact F[i int]=>{ value string }
 
         command Init with BaseInit {
-            attributes {
-                init: true,
-            }
             policy {
                 finish {
                     create Key[]=>{key: this.key}
@@ -84,7 +81,7 @@ policy-version: 2
             }
         }
 
-        action init(key bytes) {
+        action(init) init(key bytes) {
             publish Init { key: key }
         }
 

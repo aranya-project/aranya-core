@@ -15,9 +15,9 @@ use aranya_policy_ifgen::{
     text, BaseId, ClientError, Value, Text,
 };
 #[derive(Debug)]
-pub enum Persistent {}
-#[derive(Debug)]
 pub enum Ephemeral {}
+#[derive(Debug)]
+pub enum Persistent {}
 /// Players policy struct.
 #[value]
 pub struct Players {
@@ -59,14 +59,14 @@ pub struct GameUpdate {
     pub X: i64,
     pub Y: i64,
 }
+#[actions(interface = Ephemeral)]
+pub enum EphemeralAction {
+    Temporary(Temporary),
+}
 #[actions(interface = Persistent)]
 pub enum PersistentAction {
     StartGame(StartGame),
     MakeMove(MakeMove),
-}
-#[actions(interface = Ephemeral)]
-pub enum EphemeralAction {
-    Temporary(Temporary),
 }
 /// StartGame policy action.
 #[action(interface = Persistent)]

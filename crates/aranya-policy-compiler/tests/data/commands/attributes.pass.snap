@@ -11,7 +11,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "A",
-            persistence: Persistent,
+            flavor: None,
             attributes: [
                 Attribute {
                     name: "i",
@@ -40,6 +40,10 @@ Module {
     struct_defs: [
         StructDef {
             name: "A",
+            items: [],
+        },
+        StructDef {
+            name: "NullEnvelope",
             items: [],
         },
     ],

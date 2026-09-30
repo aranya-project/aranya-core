@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -11,7 +10,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "test",
-            persistence: Persistent,
+            flavor: None,
             params: [],
             result_type: Unit,
         },
@@ -48,6 +47,10 @@ Module {
                     ty: String,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
         },
     ],
     enum_defs: [],

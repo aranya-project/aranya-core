@@ -47,9 +47,9 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     })
 }
 
-fn dummy_envelope() -> Struct {
+fn null_envelope() -> Struct {
     Struct {
-        name: ident!("Envelope"),
+        name: ident!("NullEnvelope"),
         fields: BTreeMap::new(),
     }
 }
@@ -271,7 +271,7 @@ fn test_command_policy() -> anyhow::Result<()> {
             .collect(),
     };
     machine
-        .call_command_policy(this_data, dummy_envelope(), &mut io, ctx)
+        .call_command_policy(this_data, null_envelope(), &mut io, ctx)
         .expect("Could not call command policy")
         .success();
 
@@ -295,7 +295,7 @@ fn test_command_invalid_this() {
             fields: vec![(ident!("b"), Value::Int(4))].into_iter().collect(),
         };
         let err = machine
-            .call_command_policy(this_data, dummy_envelope(), &mut io, ctx.clone())
+            .call_command_policy(this_data, null_envelope(), &mut io, ctx.clone())
             .unwrap_err()
             .err_type;
         assert_eq!(
@@ -316,7 +316,7 @@ fn test_command_invalid_this() {
                 .collect(),
         };
         let err = machine
-            .call_command_policy(this_data, dummy_envelope(), &mut io, ctx.clone())
+            .call_command_policy(this_data, null_envelope(), &mut io, ctx.clone())
             .unwrap_err()
             .err_type;
         assert_eq!(err, MachineErrorType::InvalidStructMember(ident!("aaa")));
@@ -335,7 +335,7 @@ fn test_command_invalid_this() {
             .collect(),
         };
         let err = machine
-            .call_command_policy(this_data, dummy_envelope(), &mut io, ctx)
+            .call_command_policy(this_data, null_envelope(), &mut io, ctx)
             .unwrap_err()
             .err_type;
         assert_eq!(
@@ -359,7 +359,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, [(KVPair::new_int(ident!("a"), 3))]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -372,7 +372,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, &[]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -391,14 +391,14 @@ fn test_fact_query() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, [KVPair::new_int(ident!("a"), 3)]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
 
         let name = ident!("Increment");
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, &[]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -420,13 +420,13 @@ fn test_invalid_update() -> anyhow::Result<()> {
             let ctx = dummy_ctx_policy(name.clone());
             let self_struct = Struct::new(name, [KVPair::new_int(ident!("a"), initial_value)]);
             machine
-                .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+                .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
                 .success();
 
             let name = ident!("Increment");
             let ctx = dummy_ctx_policy(name.clone());
             let self_struct = Struct::new(name, &[]);
-            machine.call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            machine.call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
         };
 
         let fk = (ident!("Foo"), vec![]);
@@ -492,7 +492,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -571,7 +571,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -581,7 +581,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -591,7 +591,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -601,7 +601,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -611,7 +611,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -682,7 +682,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 KVPair::new(ident!("x"), Value::Int(2)),
             ],
         );
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -692,7 +692,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(cmd_name, [KVPair::new(ident!("a"), a)]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -772,7 +772,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
     }
 
@@ -829,7 +829,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
         let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
     }
 
@@ -1274,7 +1274,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, [KVPair::new(ident!("x"), Value::Int(3))]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -1320,7 +1320,7 @@ fn test_check_errors() -> anyhow::Result<()> {
             name: name.clone(),
             fields: BTreeMap::new(),
         };
-        let result = rs.call_command_policy(self_struct, dummy_envelope())?;
+        let result = rs.call_command_policy(self_struct, null_envelope())?;
 
         assert_eq!(result, ExitReason::Check);
     }
@@ -1374,7 +1374,7 @@ fn test_coalesce_or() -> anyhow::Result<()> {
         };
         let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
     }
 
@@ -1452,11 +1452,9 @@ fn test_nested_optionals() -> anyhow::Result<()> {
 
 #[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
-    let text = r#"
-        struct Envelope {
-            payload bytes
-        }
+    use aranya_policy_module::{arg, flavor};
 
+    let text = r#"
         effect Recalled {}
 
         command Foo {
@@ -1477,12 +1475,29 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         }
     "#;
 
-    let mut io = TestIO::new();
-    let machine = compile(text);
+    let flavors = flavor::Flavors {
+        default: flavor::Flavor {
+            envelope: flavor::Struct {
+                name: ident!("CustomEnvelope"),
+                fields: &[arg!("payload", Bytes)],
+            },
+        },
+        flavors: &[],
+    };
+
+    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let module = Compiler::new(&policy)
+        .flavors(&flavors)
+        .allow_baseless(true)
+        .compile()
+        .unwrap();
+    let machine = Machine::from_module(module).unwrap();
+
     let test_data = "thing".as_bytes().to_vec();
 
     let name = ident!("Foo");
     let ctx = dummy_ctx_policy(name);
+    let mut io = TestIO::new();
     let mut rs = machine.create_run_state(&mut io, ctx);
     let result = rs.call_command_policy(
         Struct::new(
@@ -1490,7 +1505,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             [KVPair::new(ident!("test"), test_data.clone().into())],
         ),
         Struct::new(
-            ident!("Envelope"),
+            ident!("CustomEnvelope"),
             [KVPair::new(ident!("payload"), test_data.into())],
         ),
     )?;
@@ -1902,7 +1917,7 @@ fn test_map() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
     {
@@ -2001,7 +2016,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             let mut rs = machine.create_run_state(&mut io, ctx);
 
             assert_eq!(
-                rs.call_command_policy(Struct::new(name.clone(), args), dummy_envelope())
+                rs.call_command_policy(Struct::new(name.clone(), args), null_envelope())
                     .map_err(|e| e.err_type),
                 expected
             );
@@ -2464,7 +2479,7 @@ fn test_result() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(true))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[0],
@@ -2484,7 +2499,7 @@ fn test_result() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(false))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[1],
@@ -2536,7 +2551,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(5))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[0],
@@ -2553,7 +2568,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(6))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[1],
@@ -2624,7 +2639,7 @@ fn test_unit() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(42))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[0],
@@ -2641,7 +2656,7 @@ fn test_unit() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(99))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[1],
@@ -2690,7 +2705,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
             KVPair::new(ident!("y"), Value::from(text!("hello"))),
         ],
     );
-    let envelope = dummy_envelope();
+    let envelope = null_envelope();
 
     // Exec command
     let ctx = dummy_ctx_policy(name);
