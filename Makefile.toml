@@ -42,6 +42,13 @@ args = ["--verbose", "test-all-features", "${@}"]
 dependencies = ["install-cargo-all-features"]
 
 
+[tasks.topology-report]
+category = "test"
+description = "Generate the hello sync topology report (slow)"
+command = "cargo"
+args = ["test", "--release", "-p", "aranya-runtime", "--lib", "topology_report", "--", "--ignored", "--nocapture"]
+
+
 [tasks.run-aranya-core-example]
 category = "test"
 description = "Run aranya-core example"

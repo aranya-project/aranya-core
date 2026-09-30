@@ -57,6 +57,7 @@ use core::{
     cell::RefCell,
     fmt::{self, Display},
     iter,
+    ops::ControlFlow,
 };
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
@@ -103,8 +104,10 @@ fn default_max_syncs() -> u64 {
     1
 }
 
-fn default_max_cascade_depth() -> u64 {
-    100
+/// Bounds a hello cascade. A cascade can need a hop per client (e.g. a
+/// one-way ring), so the bound grows with the number of clients.
+fn max_cascade_depth(clients: usize) -> u64 {
+    (clients as u64).saturating_mul(2).max(100)
 }
 
 fn default_notify_interval() -> u64 {
@@ -207,9 +210,11 @@ pub enum HelloTopology {
         #[serde(default = "default_hierarchy_children")]
         children: u64,
     },
-    /// Each client subscribes to `links` distinct peers chosen at random.
+    /// Each client is linked to about `links` peers chosen at random, and
+    /// linked clients subscribe to each other. Peers still short of `links`
+    /// are preferred, so most clients end up with exactly `links`.
     Random {
-        /// Number of peers each client subscribes to.
+        /// Target number of links per client.
         #[serde(default = "default_random_links")]
         links: u64,
     },
@@ -232,6 +237,104 @@ fn default_random_links() -> u64 {
 
 fn default_small_world_long_links() -> u64 {
     1
+}
+
+/// Returns the `(client, peer)` hello subscriptions for `topology`, where
+/// `client` subscribes to `peer`.
+fn hello_subscriptions<R: rand::Rng>(
+    topology: &HelloTopology,
+    clients: u64,
+    rng: &mut R,
+) -> Vec<(u64, u64)> {
+    let mut subs = Vec::new();
+    match *topology {
+        HelloTopology::HubAndSpoke => {
+            // Client 0 is the hub; all others subscribe
+            // to it and it subscribes to all.
+            for i in 1..clients {
+                subs.push((i, 0));
+                subs.push((0, i));
+            }
+        }
+        HelloTopology::Ring => {
+            // Each client subscribes to the next:
+            // 0→1, 1→2, ..., N-1→0.
+            for i in 0..clients {
+                let next = (i + 1) % clients;
+                subs.push((i, next));
+            }
+        }
+        HelloTopology::TwoWayRing => {
+            for i in 0..clients {
+                let prev = (i + clients - 1) % clients;
+                let next = (i + 1) % clients;
+                for peer in [prev, next] {
+                    subs.push((i, peer));
+                }
+            }
+        }
+        HelloTopology::Clique => {
+            for i in 0..clients {
+                for peer in (0..clients).filter(|&p| p != i) {
+                    subs.push((i, peer));
+                }
+            }
+        }
+        HelloTopology::Hierarchy { children } => {
+            assert!(children >= 1, "Hierarchy requires children >= 1");
+            for i in 1..clients {
+                let parent = (i - 1) / children;
+                subs.push((i, parent));
+                subs.push((parent, i));
+            }
+        }
+        HelloTopology::Random { links } => {
+            assert!(links < clients, "Random requires links < clients");
+            let mut linked: Vec<BTreeSet<u64>> = vec![BTreeSet::new(); clients as usize];
+            for i in 0..clients {
+                while (linked[i as usize].len() as u64) < links {
+                    let unlinked = |&p: &u64| p != i && !linked[i as usize].contains(&p);
+                    let mut candidates: Vec<u64> = (0..clients)
+                        .filter(unlinked)
+                        .filter(|&p| (linked[p as usize].len() as u64) < links)
+                        .collect();
+                    if candidates.is_empty() {
+                        candidates = (0..clients).filter(unlinked).collect();
+                    }
+                    let peer = candidates[rng.random_range(0..candidates.len())];
+                    linked[i as usize].insert(peer);
+                    linked[peer as usize].insert(i);
+                }
+            }
+            for (i, peers) in (0..clients).zip(linked) {
+                for peer in peers {
+                    subs.push((i, peer));
+                }
+            }
+        }
+        HelloTopology::SmallWorld { long_links } => {
+            assert!(clients >= 3, "SmallWorld requires at least 3 clients");
+            assert!(
+                long_links <= clients - 3,
+                "SmallWorld requires long_links <= clients - 3"
+            );
+            for i in 0..clients {
+                let prev = (i + clients - 1) % clients;
+                let next = (i + 1) % clients;
+                let mut peers = BTreeSet::new();
+                while (peers.len() as u64) < long_links {
+                    let peer = rng.random_range(0..clients);
+                    if peer != i && peer != prev && peer != next {
+                        peers.insert(peer);
+                    }
+                }
+                for peer in [prev, next].into_iter().chain(peers) {
+                    subs.push((i, peer));
+                }
+            }
+        }
+    }
+    subs
 }
 
 /// Dispatches the sync message contained in data.
@@ -907,9 +1010,23 @@ fn gen_command_rule<R: rand::Rng>(
 }
 
 /// Runs a particular test.
-pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError>
+pub fn run_test<SB>(backend: SB, rules: &[TestRule]) -> Result<(), TestError>
 where
     SB: StorageBackend,
+{
+    run_test_with(backend, rules, |_| ControlFlow::Continue(()))
+}
+
+/// Like [`run_test`], but calls `hook` before each expanded rule runs.
+/// Returning [`ControlFlow::Break`] stops the test early without error.
+pub fn run_test_with<SB, F>(
+    mut backend: SB,
+    rules: &[TestRule],
+    mut hook: F,
+) -> Result<(), TestError>
+where
+    SB: StorageBackend,
+    F: FnMut(&TestRule) -> ControlFlow<()>,
 {
     let actions: Vec<_> = rules
         .iter()
@@ -1052,128 +1169,14 @@ where
                             assert!(clients >= 2, "HelloSync requires at least 2 clients");
                             let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
 
-                            match topology {
-                                HelloTopology::HubAndSpoke => {
-                                    // Client 0 is the hub; all others subscribe
-                                    // to it and it subscribes to all.
-                                    for i in 1..clients {
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: i,
-                                            peer: 0,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: 0,
-                                            peer: i,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                    }
-                                }
-                                HelloTopology::Ring => {
-                                    // Each client subscribes to the next:
-                                    // 0→1, 1→2, ..., N-1→0.
-                                    for i in 0..clients {
-                                        let next = (i + 1) % clients;
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: i,
-                                            peer: next,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                    }
-                                }
-                                HelloTopology::TwoWayRing => {
-                                    for i in 0..clients {
-                                        let prev = (i + clients - 1) % clients;
-                                        let next = (i + 1) % clients;
-                                        for peer in [prev, next] {
-                                            generated_actions.push(TestRule::HelloSubscribe {
-                                                client: i,
-                                                peer,
-                                                graph,
-                                                notify_interval,
-                                            });
-                                        }
-                                    }
-                                }
-                                HelloTopology::Clique => {
-                                    for i in 0..clients {
-                                        for peer in (0..clients).filter(|&p| p != i) {
-                                            generated_actions.push(TestRule::HelloSubscribe {
-                                                client: i,
-                                                peer,
-                                                graph,
-                                                notify_interval,
-                                            });
-                                        }
-                                    }
-                                }
-                                HelloTopology::Hierarchy { children } => {
-                                    assert!(children >= 1, "Hierarchy requires children >= 1");
-                                    for i in 1..clients {
-                                        let parent = (i - 1) / children;
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: i,
-                                            peer: parent,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: parent,
-                                            peer: i,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                    }
-                                }
-                                HelloTopology::Random { links } => {
-                                    assert!(links < clients, "Random requires links < clients");
-                                    for i in 0..clients {
-                                        let mut peers = BTreeSet::new();
-                                        while (peers.len() as u64) < links {
-                                            let peer = rng.random_range(0..clients);
-                                            if peer != i {
-                                                peers.insert(peer);
-                                            }
-                                        }
-                                        for peer in peers {
-                                            generated_actions.push(TestRule::HelloSubscribe {
-                                                client: i,
-                                                peer,
-                                                graph,
-                                                notify_interval,
-                                            });
-                                        }
-                                    }
-                                }
-                                HelloTopology::SmallWorld { long_links } => {
-                                    assert!(clients >= 3, "SmallWorld requires at least 3 clients");
-                                    assert!(
-                                        long_links <= clients - 3,
-                                        "SmallWorld requires long_links <= clients - 3"
-                                    );
-                                    for i in 0..clients {
-                                        let prev = (i + clients - 1) % clients;
-                                        let next = (i + 1) % clients;
-                                        let mut peers = BTreeSet::new();
-                                        while (peers.len() as u64) < long_links {
-                                            let peer = rng.random_range(0..clients);
-                                            if peer != i && peer != prev && peer != next {
-                                                peers.insert(peer);
-                                            }
-                                        }
-                                        for peer in [prev, next].into_iter().chain(peers) {
-                                            generated_actions.push(TestRule::HelloSubscribe {
-                                                client: i,
-                                                peer,
-                                                graph,
-                                                notify_interval,
-                                            });
-                                        }
-                                    }
-                                }
+                            for (client, peer) in hello_subscriptions(&topology, clients, &mut rng)
+                            {
+                                generated_actions.push(TestRule::HelloSubscribe {
+                                    client,
+                                    peer,
+                                    graph,
+                                    notify_interval,
+                                });
                             }
 
                             generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
@@ -1433,6 +1436,9 @@ where
     let mut subscriptions: BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>> = BTreeMap::new();
 
     for rule in actions {
+        if hook(&rule).is_break() {
+            break;
+        }
         debug!(?rule);
 
         match rule {
@@ -1559,7 +1565,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                 }
 
@@ -1613,7 +1619,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -1654,7 +1660,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -1695,7 +1701,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -2659,6 +2665,9 @@ test_vectors! {
     stress_no_sync_braid,
     stress_delete_noop_churn,
 }
+
+#[cfg(test)]
+mod topology_report;
 
 #[cfg(test)]
 mod tests {
