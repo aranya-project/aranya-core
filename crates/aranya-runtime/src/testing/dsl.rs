@@ -195,6 +195,43 @@ pub enum HelloTopology {
     HubAndSpoke,
     /// Each client subscribes to the next: 0→1, 1→2, ..., N-1→0.
     Ring,
+    /// Each client subscribes to both neighbours: i→i-1 and i→i+1 (mod N).
+    TwoWayRing,
+    /// Every client subscribes to every other client.
+    Clique,
+    /// A tree rooted at client 0 in which each node has up to `children`
+    /// children. Client `i`'s parent is `(i - 1) / children`, and each
+    /// parent and child subscribe to each other.
+    Hierarchy {
+        /// Maximum number of children per node.
+        #[serde(default = "default_hierarchy_children")]
+        children: u64,
+    },
+    /// Each client subscribes to `links` distinct peers chosen at random.
+    Random {
+        /// Number of peers each client subscribes to.
+        #[serde(default = "default_random_links")]
+        links: u64,
+    },
+    /// Each client subscribes to both ring neighbours, plus `long_links`
+    /// distinct non-neighbour peers chosen at random.
+    SmallWorld {
+        /// Number of random long links per client.
+        #[serde(default = "default_small_world_long_links")]
+        long_links: u64,
+    },
+}
+
+fn default_hierarchy_children() -> u64 {
+    3
+}
+
+fn default_random_links() -> u64 {
+    3
+}
+
+fn default_small_world_long_links() -> u64 {
+    1
 }
 
 /// Dispatches the sync message contained in data.
@@ -1045,6 +1082,96 @@ where
                                             graph,
                                             notify_interval,
                                         });
+                                    }
+                                }
+                                HelloTopology::TwoWayRing => {
+                                    for i in 0..clients {
+                                        let prev = (i + clients - 1) % clients;
+                                        let next = (i + 1) % clients;
+                                        for peer in [prev, next] {
+                                            generated_actions.push(TestRule::HelloSubscribe {
+                                                client: i,
+                                                peer,
+                                                graph,
+                                                notify_interval,
+                                            });
+                                        }
+                                    }
+                                }
+                                HelloTopology::Clique => {
+                                    for i in 0..clients {
+                                        for peer in (0..clients).filter(|&p| p != i) {
+                                            generated_actions.push(TestRule::HelloSubscribe {
+                                                client: i,
+                                                peer,
+                                                graph,
+                                                notify_interval,
+                                            });
+                                        }
+                                    }
+                                }
+                                HelloTopology::Hierarchy { children } => {
+                                    assert!(children >= 1, "Hierarchy requires children >= 1");
+                                    for i in 1..clients {
+                                        let parent = (i - 1) / children;
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: i,
+                                            peer: parent,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: parent,
+                                            peer: i,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                    }
+                                }
+                                HelloTopology::Random { links } => {
+                                    assert!(links < clients, "Random requires links < clients");
+                                    for i in 0..clients {
+                                        let mut peers = BTreeSet::new();
+                                        while (peers.len() as u64) < links {
+                                            let peer = rng.random_range(0..clients);
+                                            if peer != i {
+                                                peers.insert(peer);
+                                            }
+                                        }
+                                        for peer in peers {
+                                            generated_actions.push(TestRule::HelloSubscribe {
+                                                client: i,
+                                                peer,
+                                                graph,
+                                                notify_interval,
+                                            });
+                                        }
+                                    }
+                                }
+                                HelloTopology::SmallWorld { long_links } => {
+                                    assert!(clients >= 3, "SmallWorld requires at least 3 clients");
+                                    assert!(
+                                        long_links <= clients - 3,
+                                        "SmallWorld requires long_links <= clients - 3"
+                                    );
+                                    for i in 0..clients {
+                                        let prev = (i + clients - 1) % clients;
+                                        let next = (i + 1) % clients;
+                                        let mut peers = BTreeSet::new();
+                                        while (peers.len() as u64) < long_links {
+                                            let peer = rng.random_range(0..clients);
+                                            if peer != i && peer != prev && peer != next {
+                                                peers.insert(peer);
+                                            }
+                                        }
+                                        for peer in [prev, next].into_iter().chain(peers) {
+                                            generated_actions.push(TestRule::HelloSubscribe {
+                                                client: i,
+                                                peer,
+                                                graph,
+                                                notify_interval,
+                                            });
+                                        }
                                     }
                                 }
                             }
@@ -2523,7 +2650,12 @@ test_vectors! {
     stress_hot_key_ties,
     stress_long_divergence,
     stress_hello_ring,
+    stress_hello_two_way_ring,
     stress_hello_hub_noops,
+    stress_hello_clique,
+    stress_hello_hierarchy,
+    stress_hello_random,
+    stress_hello_small_world,
     stress_no_sync_braid,
     stress_delete_noop_churn,
 }
