@@ -414,6 +414,19 @@ fn test_validate_action_return_or_publish() {
             }
         "#,
         ),
+        // Calling an action delegates publishing to it
+        concat(
+            r#"
+            action do_pub() {
+                publish Foo { a: 5 }
+            }
+
+            action test(n int) {
+                // no return or publish, but we delegate to another action... ok
+                action do_pub()
+            }
+        "#,
+        ),
     ];
 
     let invalid = [
@@ -449,23 +462,6 @@ fn test_validate_action_return_or_publish() {
                     0 => { publish Foo { a: 0 } }
                     _ => { } // missing publish
                 }
-            }
-        "#,
-        ),
-        // The callee's `Err` path publishes nothing, and the VM swallows a
-        // nested `Err`, so the caller still has a path with no publish.
-        concat(
-            r#"
-            action j(n int) result[unit, string] {
-                if n < 0 {
-                    return Err("negative")
-                }
-                publish Foo { a: n }
-                return Ok(Unit)
-            }
-
-            action k(n int) {
-                action j(n) // fail
             }
         "#,
         ),

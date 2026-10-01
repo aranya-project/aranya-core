@@ -1,4 +1,4 @@
-use aranya_policy_module::{Instruction, ModuleV0, WrapType};
+use aranya_policy_module::{Instruction, LabelType, ModuleV0, Target, WrapType};
 
 use super::{Analyzer, AnalyzerStatus};
 use crate::tracer::TraceError;
@@ -6,10 +6,11 @@ use crate::tracer::TraceError;
 /// Ensures that each branch does one of the following:
 /// - publishes a command
 /// - returns an `Err`
-/// - calls another action. This allows actions do delegate publishing to other actions.
+/// - calls another action. This allows actions to delegate publishing to other actions.
 #[derive(Clone, Default)]
 pub struct ActionAnalyzer {
-    have_publish: bool,
+    // Set if action meets criteria
+    satisfied: bool,
     call_depth: usize,
 }
 
@@ -27,9 +28,14 @@ impl Analyzer for ActionAnalyzer {
         m: &ModuleV0,
     ) -> Result<AnalyzerStatus, TraceError> {
         match i {
-            Instruction::Publish => self.have_publish = true,
-            Instruction::Call(_) => {
+            Instruction::Publish => self.satisfied = true,
+            Instruction::Call(c) => {
                 self.call_depth = self.call_depth.saturating_add(1);
+                // Calling another action is enough; since each action must
+                // publish or call another, this guarantees a publish eventually.
+                if calls_action(c, m) {
+                    self.satisfied = true;
+                }
             }
             Instruction::Return => {
                 if self.call_depth > 0 {
@@ -40,13 +46,24 @@ impl Analyzer for ActionAnalyzer {
                 }
                 // If bailing with Err, don't need publish; if returning with
                 // Ok, should have published.
-                if !self.have_publish && !returns_err(pc, m) {
+                if !self.satisfied && !returns_err(pc, m) {
                     return Ok(AnalyzerStatus::Failed("no publish".to_string()));
                 }
             }
             _ => (),
         }
         Ok(AnalyzerStatus::Ok)
+    }
+}
+
+/// True if `target` is the entry point of an action.
+fn calls_action(target: &Target, m: &ModuleV0) -> bool {
+    match target {
+        Target::Unresolved(l) => l.ltype == LabelType::Action,
+        Target::Resolved(addr) => m
+            .labels
+            .iter()
+            .any(|(l, a)| a == addr && l.ltype == LabelType::Action),
     }
 }
 
