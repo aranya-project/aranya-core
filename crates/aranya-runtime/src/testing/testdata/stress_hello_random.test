@@ -7,7 +7,7 @@
       "sync_method": {
         "HelloSync": {
           "notify_interval": 2,
-          "topology": { "Random": { "links": 2 } }
+          "topology": { "Random": { "links": 3 } }
         }
       },
       "delete_proportion": 50,

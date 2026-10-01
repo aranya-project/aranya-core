@@ -57,7 +57,6 @@ use core::{
     cell::RefCell,
     fmt::{self, Display},
     iter,
-    ops::ControlFlow,
 };
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
@@ -232,7 +231,7 @@ fn default_hierarchy_children() -> u64 {
 }
 
 fn default_random_links() -> u64 {
-    2
+    3
 }
 
 fn default_small_world_long_links() -> u64 {
@@ -490,48 +489,21 @@ fn process_hello_notifications<SP: StorageProvider>(
                     .entry((graph, publisher, subscriber))
                     .or_default();
 
-                let mut received = 0;
-                if needs_sync {
-                    let mut request_cache = client_heads
-                        .get(&(graph, subscriber, publisher))
-                        .assume("cache must exist")?
-                        .borrow_mut();
-                    let mut response_cache = client_heads
-                        .get(&(graph, publisher, subscriber))
-                        .assume("cache must exist")?
-                        .borrow_mut();
-                    let mut response_client = clients
-                        .get(&publisher)
-                        .ok_or(TestError::MissingClient)?
-                        .borrow_mut();
-
-                    // The hello cascade needs committed state to serve
-                    // onward, so commit per notification here.
-                    let mut trx = request_client.transaction(graph_id);
-                    let mut received_addrs = Vec::new();
-                    loop {
-                        let (_, exchange_received) = sync::<SP>(
-                            &mut trx,
-                            (&request_cache, &mut request_client),
-                            (&mut response_cache, &mut response_client),
-                            &mut received_addrs,
-                            sink,
-                            graph_id,
-                            rt_buffers,
-                        )?;
-                        received += exchange_received;
-                        if exchange_received == 0 {
-                            break;
-                        }
-                    }
-                    request_client.commit(trx, sink, rt_buffers, mem_spill)?;
-                    request_client.update_heads(
+                let received = if needs_sync {
+                    pull_from(
+                        graph,
+                        subscriber,
+                        publisher,
+                        &mut request_client,
                         graph_id,
-                        received_addrs,
-                        &mut request_cache,
-                        &mut rt_buffers.traversal.primary,
-                    )?;
-                }
+                        clients,
+                        client_heads,
+                        sink,
+                        rt_buffers,
+                    )?
+                } else {
+                    0
+                };
 
                 // Track the advertised head in the subscriber's cache for the
                 // publisher. A multi-head publisher advertises a virtual
@@ -576,6 +548,65 @@ fn process_hello_notifications<SP: StorageProvider>(
     {
         panic!("hello sync cascade exceeded max depth of {max_depth}");
     }
+}
+
+/// Syncs `request_client` (client `subscriber`) from `publisher` until it
+/// is caught up, commits, and advances the subscriber's cache for the
+/// publisher. Both caches must already exist. Returns the number of
+/// commands received.
+#[allow(clippy::too_many_arguments)]
+fn pull_from<SP: StorageProvider>(
+    graph: u64,
+    subscriber: u64,
+    publisher: u64,
+    request_client: &mut ClientState<TestPolicyStore, SP>,
+    graph_id: GraphId,
+    clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
+    client_heads: &BTreeMap<(u64, u64, u64), RefCell<PeerCache>>,
+    sink: &mut TestSink,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
+) -> Result<usize, TestError> {
+    let mut request_cache = client_heads
+        .get(&(graph, subscriber, publisher))
+        .assume("cache must exist")?
+        .borrow_mut();
+    let mut response_cache = client_heads
+        .get(&(graph, publisher, subscriber))
+        .assume("cache must exist")?
+        .borrow_mut();
+    let mut response_client = clients
+        .get(&publisher)
+        .ok_or(TestError::MissingClient)?
+        .borrow_mut();
+
+    // The hello cascade needs committed state to serve
+    // onward, so commit per notification here.
+    let mut trx = request_client.transaction(graph_id);
+    let mut received_addrs = Vec::new();
+    let mut received = 0;
+    loop {
+        let (_, exchange_received) = sync::<SP>(
+            &mut trx,
+            (&request_cache, request_client),
+            (&mut response_cache, &mut response_client),
+            &mut received_addrs,
+            sink,
+            graph_id,
+            rt_buffers,
+        )?;
+        received += exchange_received;
+        if exchange_received == 0 {
+            break;
+        }
+    }
+    request_client.commit(trx, sink, rt_buffers, mem_spill)?;
+    request_client.update_heads(
+        graph_id,
+        received_addrs,
+        &mut request_cache,
+        &mut rt_buffers.traversal.primary,
+    )?;
+    Ok(received)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1036,23 +1067,9 @@ fn gen_command_rule<R: rand::Rng>(
 }
 
 /// Runs a particular test.
-pub fn run_test<SB>(backend: SB, rules: &[TestRule]) -> Result<(), TestError>
+pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError>
 where
     SB: StorageBackend,
-{
-    run_test_with(backend, rules, |_| ControlFlow::Continue(()))
-}
-
-/// Like [`run_test`], but calls `hook` before each expanded rule runs.
-/// Returning [`ControlFlow::Break`] stops the test early without error.
-pub fn run_test_with<SB, F>(
-    mut backend: SB,
-    rules: &[TestRule],
-    mut hook: F,
-) -> Result<(), TestError>
-where
-    SB: StorageBackend,
-    F: FnMut(&TestRule) -> ControlFlow<()>,
 {
     let actions: Vec<_> = rules
         .iter()
@@ -1462,9 +1479,6 @@ where
     let mut subscriptions: BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>> = BTreeMap::new();
 
     for rule in actions {
-        if hook(&rule).is_break() {
-            break;
-        }
         debug!(?rule);
 
         match rule {
@@ -2724,16 +2738,16 @@ mod tests {
 
     #[test]
     fn random_topology_is_connected() {
-        for clients in [3, 10, 100, 1000] {
+        for clients in [4, 10, 100, 1000] {
             for seed in 0..20 {
                 let mut rng = SmallRng::seed_from_u64(seed);
                 let subs =
-                    hello_subscriptions(&HelloTopology::Random { links: 2 }, clients, &mut rng);
+                    hello_subscriptions(&HelloTopology::Random { links: 3 }, clients, &mut rng);
                 let mut linked = vec![BTreeSet::new(); clients as usize];
                 for (client, peer) in subs {
                     linked[client as usize].insert(peer);
                 }
-                assert!(linked.iter().all(|peers| peers.len() >= 2));
+                assert!(linked.iter().all(|peers| peers.len() >= 3));
                 assert_eq!(components(&linked).len(), 1);
             }
         }
