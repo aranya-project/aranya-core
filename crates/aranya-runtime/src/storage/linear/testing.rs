@@ -1,10 +1,17 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use core::sync::atomic::{AtomicU64, Ordering};
+use alloc::{sync::Arc, vec::Vec};
+use core::{
+    ops::Deref,
+    ptr,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use buggy::BugExt as _;
+use rkyv::util::AlignedVec;
 use spin::mutex::Mutex;
+use stable_deref_trait::StableDeref;
+use yoke::Yoke;
 
-use super::io;
+use super::{Read, Readable, Writable, io};
 use crate::{
     GraphId, Location, MaxCut, SegmentIndex, StorageError,
     storage::{HeadSet, HeadSetOffset},
@@ -54,17 +61,18 @@ impl io::IoManager for Manager {
 
 #[derive(Default)]
 struct Shared {
-    items: Mutex<Vec<Box<[u8]>>>,
+    // invariant: push-only
+    items: Mutex<Vec<AlignedVec>>,
     fetches: AtomicU64,
     fetched_bytes: AtomicU64,
 }
 
 /// Cumulative counts of [`io::Read::fetch`] calls against one graph's
 /// storage. Take a snapshot before and after an operation and subtract to
-/// measure how much serialized data that operation had to decode.
+/// measure how much serialized data that operation had to access.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct FetchStats {
-    /// Number of items fetched (and deserialized).
+    /// Number of items fetched (and validated via `rkyv::access`).
     pub fetches: u64,
     /// Total serialized bytes of the fetched items.
     pub bytes: u64,
@@ -91,6 +99,38 @@ impl super::LinearStorage<Writer> {
         }
     }
 }
+
+impl Shared {
+    fn get(self: &Arc<Self>, idx: usize) -> Option<SharedItem> {
+        let item = ptr::from_ref(self.items.lock().get(idx)?.as_slice());
+        Some(SharedItem {
+            _backing: Arc::clone(self),
+            item,
+        })
+    }
+}
+
+struct SharedItem {
+    _backing: Arc<Shared>,
+    // Points into an `AlignedVec` within `_backing`.
+    item: *const [u8],
+}
+
+unsafe impl Send for SharedItem {}
+unsafe impl Sync for SharedItem {}
+
+impl Deref for SharedItem {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        // SAFETY: `Shared.items` is push-only and `AlignedVec` is stable-deref,
+        // so this pointer is valid as long as _backing is held.
+        unsafe { &*self.item }
+    }
+}
+
+// SAFETY: `deref` doesn't rely on location of the shared item.
+unsafe impl StableDeref for SharedItem {}
 
 #[derive(Clone)]
 struct Committed {
@@ -143,18 +183,16 @@ impl io::Write for Writer {
             .ok_or(StorageError::NotInitialized)
     }
 
-    fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
+    fn append<F, T>(&mut self, builder: F) -> Result<Handle<T>, StorageError>
     where
         F: FnOnce(u64) -> T,
-        T: serde::Serialize,
+        T: Writable + Readable,
     {
         let offset = self.shared.items.lock().len() as u64;
         let item = builder(offset);
-        let bytes = postcard::to_allocvec(&item)
-            .map_err(|_| StorageError::IoError)?
-            .into_boxed_slice();
+        let bytes = item.to_writer(AlignedVec::new())?;
         self.shared.items.lock().push(bytes);
-        Ok(item)
+        self.readonly().fetch(offset)
     }
 
     fn commit(
@@ -179,15 +217,13 @@ impl io::Write for Writer {
     }
 }
 
-impl io::Read for Reader {
-    fn fetch<T>(&self, offset: u64) -> Result<T, StorageError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let items = self.shared.items.lock();
+impl Read for Reader {
+    type Handle<T: Readable> = Handle<T>;
+
+    fn fetch<T: Readable>(&self, offset: u64) -> Result<Handle<T>, StorageError> {
         let bytes = usize::try_from(offset)
             .ok()
-            .and_then(|offset| items.get(offset))
+            .and_then(|offset| self.shared.get(offset))
             .ok_or(StorageError::SegmentOutOfBounds(Location::new(
                 SegmentIndex::new(offset),
                 MaxCut::new(u64::MAX), // Not right but this is just for testing...
@@ -196,6 +232,16 @@ impl io::Read for Reader {
         self.shared
             .fetched_bytes
             .fetch_add(bytes.len() as u64, Ordering::Relaxed);
-        postcard::from_bytes(bytes).map_err(|_| StorageError::IoError)
+
+        T::yoke(bytes).map(Handle)
+    }
+}
+
+pub struct Handle<T: Readable>(Yoke<&'static T::Archived, SharedItem>);
+
+impl<T: Readable> Deref for Handle<T> {
+    type Target = T::Archived;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
     }
 }
