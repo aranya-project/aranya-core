@@ -35,6 +35,8 @@ use super::{tests::MemBackend, *};
 const LIMIT: Duration = Duration::from_secs(30);
 /// The largest command count tried for each client count.
 const MAX_COMMANDS: u64 = 10_000;
+/// How long a run goes before its total time is estimated.
+const ESTIMATE_AFTER: Duration = Duration::from_secs(1);
 const SINGLE_COMMAND_CLIENT_COUNTS: [u64; 2] = [100, 300];
 const GRAPH: u64 = 0;
 
@@ -84,6 +86,9 @@ enum Cell {
     Done(Stats),
     /// The run did not finish within [`LIMIT`].
     TimedOut,
+    /// The run was stopped early because its estimated total time, given
+    /// here, exceeded [`LIMIT`].
+    Abandoned(Duration),
     /// The cell does not apply (fewer commands than equal writers).
     NotApplicable,
 }
@@ -137,11 +142,15 @@ fn pull(
 
 /// Simulates `commands` commands spreading across `n` clients by hello
 /// sync. Panics if the clients do not converge.
+///
+/// `expected_lag` is the lag expected after the last write, such as the lag
+/// of a smaller run, and is used to estimate the run's total time.
 fn run(
     topology: &HelloTopology,
     n: u64,
     commands: u64,
     writers: Writers,
+    expected_lag: u64,
 ) -> Result<Cell, TestError> {
     if writers == Writers::Equal && commands < n {
         return Ok(Cell::NotApplicable);
@@ -198,8 +207,18 @@ fn run(
     let mut written = 0u64;
     let mut round = 0u64;
     while round < write_rounds || !changed.is_empty() || pending.iter().any(|p| !p.is_empty()) {
-        if start.elapsed() > LIMIT {
+        let elapsed = start.elapsed();
+        if elapsed > LIMIT {
             return Ok(Cell::TimedOut);
+        }
+        // Rounds slow down as the graph grows, so scaling the time so far
+        // by the rounds expected underestimates the total.
+        let expected_rounds = write_rounds + expected_lag;
+        if round > 0 && round < expected_rounds && elapsed > ESTIMATE_AFTER {
+            let estimate = elapsed.mul_f64(ratio(expected_rounds, round));
+            if estimate > LIMIT {
+                return Ok(Cell::Abandoned(estimate));
+            }
         }
         round += 1;
 
@@ -303,10 +322,14 @@ fn run(
     Ok(Cell::Done(stats))
 }
 
+#[allow(clippy::cast_precision_loss, reason = "counts are far below 2^52")]
+fn ratio(a: u64, b: u64) -> f64 {
+    a as f64 / b as f64
+}
+
 impl Stats {
-    #[allow(clippy::cast_precision_loss, reason = "counts are far below 2^52")]
     fn commands_per_round(&self) -> f64 {
-        self.commands as f64 / self.rounds as f64
+        ratio(self.commands, self.rounds)
     }
 }
 
@@ -328,8 +351,10 @@ fn fmt_progress(cell: Cell) -> String {
     match cell {
         Cell::NotApplicable => "n/a".into(),
         Cell::TimedOut => format!("> {} s", LIMIT.as_secs()),
+        Cell::Abandoned(estimate) => format!("stopped, estimated {:.0} s", estimate.as_secs_f64()),
         Cell::Done(s) => format!(
-            "{} rounds, lag {}, {:.2} cmd/round, {} hellos, {} syncs, busiest {} hellos {} served",
+            "{:.1} s, {} rounds, lag {}, {:.2} cmd/round, {} hellos, {} syncs, busiest {} hellos {} served",
+            s.elapsed.as_secs_f64(),
             s.rounds,
             s.lag,
             s.commands_per_round(),
@@ -364,18 +389,22 @@ fn fmt_stats(s: &Stats) -> String {
 /// reaches the limit, larger client counts are skipped.
 fn grid(name: &str, topology: &HelloTopology, writers: Writers) -> Vec<(u64, Vec<Cell>)> {
     let mut rows = Vec::new();
+    // A topology's lag barely changes with the command count and grows with
+    // the client count, so each run expects the lag of the last finished
+    // one, which never overestimates.
+    let mut lag = 0;
     for clients in writers.client_counts() {
         let mut row = Vec::new();
         let mut commands = 10;
         while commands <= MAX_COMMANDS {
-            let cell = run(topology, clients, commands, writers).unwrap();
+            let cell = run(topology, clients, commands, writers, lag).unwrap();
             eprintln!(
                 "{name}: {clients} clients, {commands} commands: {}",
                 fmt_progress(cell)
             );
             row.push(cell);
             match cell {
-                Cell::Done(s) if s.elapsed < LIMIT => {}
+                Cell::Done(s) if s.elapsed < LIMIT => lag = s.lag,
                 Cell::NotApplicable => {}
                 _ => break,
             }
@@ -448,7 +477,8 @@ puller or as responder, so a hub serves only one spoke per round.
 - **Busiest**: the most hellos sent, and the most syncs served, by any one client.
 
 Command counts grow by 10× up to {max}. A run is abandoned after {limit} s of
-wall time, and larger runs for that client count are skipped. Only finished
+wall time, or earlier once its estimated time passes {limit} s, and larger runs
+for that client count are skipped. Only finished
 runs are listed. Equal writer runs with fewer commands than clients are
 skipped, since the commands cannot be split equally.
 ",
@@ -464,7 +494,7 @@ skipped, since the commands cannot be split equally.
         writeln!(out, "| Topology | {STATS_HEADER}").unwrap();
         writeln!(out, "|---|{STATS_ALIGN}").unwrap();
         for (name, topology) in topologies() {
-            let cell = run(&topology, clients, 1, Writers::Single).unwrap();
+            let cell = run(&topology, clients, 1, Writers::Single, 0).unwrap();
             eprintln!(
                 "{name}: 1 command to {clients} clients: {}",
                 fmt_progress(cell)
@@ -505,7 +535,7 @@ skipped, since the commands cannot be split equally.
 
 #[test]
 fn round_counts_match_topology() {
-    let rounds = |topology| match run(&topology, 10, 1, Writers::Single).unwrap() {
+    let rounds = |topology| match run(&topology, 10, 1, Writers::Single, 0).unwrap() {
         Cell::Done(s) => s.rounds,
         _ => panic!("run did not finish"),
     };
