@@ -5,14 +5,17 @@ use crate::{
 
 // Helper functions to reduce boilerplate
 
-fn enum_ref(identifier: Ident, value: Ident) -> ExprKind {
-    ExprKind::EnumReference(EnumReference { identifier, value })
+fn enum_ref(enumeration: Ident, variant: Ident) -> ExprKind {
+    ExprKind::EnumReference(EnumReference {
+        enumeration,
+        variant,
+    })
 }
 
 fn named_struct(name: Ident, fields: impl IntoIterator<Item = (Ident, Expression)>) -> ExprKind {
     let span = name.span;
     ExprKind::NamedStruct(NamedStruct {
-        identifier: name,
+        name,
         fields: fields.into_iter().collect(),
         sources: Vec::new(),
         span,

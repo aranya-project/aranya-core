@@ -310,9 +310,9 @@ pub struct FactDef {
     /// The name of the fact
     pub name: Identifier,
     /// Types for all of the key fields
-    pub key: Vec<Field>,
+    pub keys: Vec<Field>,
     /// Types for all of the value fields
-    pub value: Vec<Field>,
+    pub values: Vec<Field>,
     /// Is this fact immutable?
     pub immutable: bool,
 }
@@ -322,9 +322,9 @@ autokey_by_name!(FactDef);
 impl From<ast::FactDefinition> for FactDef {
     fn from(value: ast::FactDefinition) -> Self {
         Self {
-            name: value.identifier.inner,
-            key: value.key.into_iter().map(Field::from).collect(),
-            value: value.value.into_iter().map(Field::from).collect(),
+            name: value.name.inner,
+            keys: value.keys.into_iter().map(Field::from).collect(),
+            values: value.values.into_iter().map(Field::from).collect(),
             immutable: value.immutable,
         }
     }

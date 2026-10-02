@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -15,7 +14,7 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },
@@ -24,7 +23,7 @@ Module {
             items: [
                 Field {
                     name: "c",
-                    ty: Bool,
+                    vtype: Bool,
                 },
             ],
         },
@@ -33,15 +32,15 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: String,
+                    vtype: String,
                 },
                 Field {
                     name: "c",
-                    ty: Bool,
+                    vtype: Bool,
                 },
             ],
         },
