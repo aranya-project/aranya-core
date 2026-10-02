@@ -18,8 +18,8 @@ lookup:
 - it reads the fact index once per query,
 - it reads a full fact index just to learn its offset or depth.
 
-Nothing caches the decoded result, so every one of these reads pays for
-the whole item again.
+Nothing caches the result of a read, so every one of these reads pays
+for the whole item again.
 
 As a result, an operation meant to cost O(1), such as getting one
 command or looking up one fact, actually costs O(size of the graph). Any
@@ -31,9 +31,16 @@ loop over commands or facts becomes O(n²):
 2. **Each fact query is O(total facts)**, because it re-reads the whole
    fact database. So n commands that each query facts cost O(n²).
 
-Fixing this means either not repeating the reads (cache decoded items,
+Fixing this means either not repeating the reads (cache fetched items,
 and stop reading whole items just to get one field) or making stored
 items readable in smaller pieces (bounded segments, a paged fact index).
+
+**Status after the switch to `rkyv` (#676):** storage now uses zero-copy
+`rkyv` archives instead of postcard. That made each read much cheaper
+(about 7× for per-command fact cost and about 70× for braid, see
+[Effect of the `rkyv` switch](#effect-of-the-rkyv-switch)), but **it did
+not change how cost scales.** Every root cause below is still present,
+and all three demonstration tests still fail with the same growth rates.
 
 Both issues are reproduced by deterministic tests in
 `crates/aranya-runtime/src/client/scaling_tests.rs` (see
@@ -42,33 +49,71 @@ Both issues are reproduced by deterministic tests in
 ## Background: how linear storage reads data
 
 Every item in linear storage (segments, fact indexes, head sets) is
-written once with `Write::append` as a length-prefixed postcard blob, and
-read back with `Read::fetch<T>(offset)`:
+written once with `Write::append` as a length-prefixed `rkyv` archive, and
+read back with `Read::fetch<T>(offset)`, which returns a
+`Read::Handle<T>` that derefs to `T::Archived`. Nothing is deserialized
+into an owned `T`, but every fetch still validates the whole archive:
 
-- `libc` backend (`storage/linear/libc/imp.rs:539`, `File::load`): reads the
-  4-byte length, allocates a `Vec` of that size, reads the full blob, then
-  runs `postcard::from_bytes` into an owned `T`.
-- In-memory test backend (`storage/linear/testing.rs`): runs
-  `postcard::from_bytes` on the stored bytes.
+- Both backends call `Readable::yoke` (`storage/linear/io.rs:169`), which
+  runs `rkyv::access` with `bytecheck`. Validation walks the entire
+  archived structure: every command in a segment and every node of every
+  fact map in a fact index.
+- `libc` backend (`storage/linear/libc/imp.rs:550`, `File::load`): reads the
+  4-byte length, allocates a zeroed buffer of that size, `pread`s the full
+  blob into it, then validates it. The handle owns that buffer.
+- In-memory test backend (`storage/linear/testing.rs`): validates the
+  stored bytes in place. There is no copy and no allocation.
 
-There is no partial decode and no cache. Every `fetch` costs
-O(size of the item), plus a syscall and an allocation on the `libc`
-backend.
+There is no partial read and no cache. Every `fetch` costs O(number of
+elements in the item) for validation. On the `libc` backend it also
+costs O(size of the item) for the read and the allocation, plus a
+syscall.
+
+Validation does not appear to touch byte payloads: the braid measurement
+below validates about 4 GB of archives in about 60 ms. So on the in-memory
+backend, cost now scales with the number of commands, updates and facts in
+an item rather than with its raw size. The `libc` backend still copies
+every byte.
 
 The two item types that matter here are:
 
 | Item | Type | Contents | Size bound |
 |---|---|---|---|
-| Segment | `SegmentRepr` (`linear/mod.rs:80`) | header plus `Vec1<CommandData>`; each command has its full `data` bytes and all fact `updates` | **Unbounded.** A linear run of commands (for example a whole sync batch) becomes one segment. |
-| Fact index | `FactIndexRepr` (`linear/mod.rs:123`) | `offset`, `prior`, `depth`, and a `BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>` of facts | A delta over `prior`. After compaction, the **entire fact database**. |
+| Segment | `SegmentRepr` (`linear/mod.rs:83`) | header plus `NonEmpty<CommandData>`; each command has its full `data` bytes and all fact `updates` | **Unbounded.** A linear run of commands (for example a whole sync batch) becomes one segment. |
+| Fact index | `FactIndexRepr` (`linear/mod.rs:125`) | `offset`, `prior`, `depth`, and a `BTreeMap<String, TrieMap>` of facts (`linear/triemap.rs`) | A delta over `prior`. After compaction, the **entire fact database**. |
+
+## Effect of the `rkyv` switch
+
+#676 replaced postcard with `rkyv` and made `fetch` return a zero-copy
+handle instead of an owned, deserialized value. Measured on the same
+machine before and after (release build, in-memory backend):
+
+| Workload | Before | After | Speedup | Growth per doubling |
+|---|---|---|---|---|
+| Braid commit, two branches of 2000 commands | 4.30 s | 63 ms | about 70× | about x4, unchanged |
+| Add + commit one fact command on 8192 facts | 3.14 ms | 425 µs | about 7× | about x2, unchanged |
+| Build a graph of 8192 facts, one per commit | 11.6 s | 1.52 s | about 8× | about x4, unchanged |
+
+The constant factor dropped because nothing is deserialized into owned
+`BTreeMap`s and `Vec`s any more. The scaling did not change because the
+access pattern did not: the same call sites still fetch the same whole
+items the same number of times, and each fetch still validates (and on
+`libc`, reads and allocates) the whole item. The full tables are under
+each issue below.
+
+The braid speedup is larger because on the in-memory backend validation
+skips byte payloads, so payload size no longer matters there. On the
+`libc` backend each fetch still reads every payload byte, so expect a
+smaller gain on disk.
 
 ## Issue 1: per-command segment access during braid is O(n²)
 
 ### Root cause
 
-`LinearStorage::get_segment` (`storage/linear/mod.rs:730`) fetches and
-decodes the full `SegmentRepr`: every command's payload and every
-command's fact updates. Two places in the braid path call it once per
+`LinearStorage::get_segment` (`storage/linear/mod.rs:731`) fetches and
+validates the full `SegmentRepr`: every command and every command's fact
+updates. On the `libc` backend it also reads and allocates every
+command's payload. Two places in the braid path call it once per
 command:
 
 1. **`evaluate_braid`, `client/transaction.rs:498`**
@@ -93,7 +138,7 @@ command:
 
    The BFS runs command by command and only needs
    `shortest_max_cut()` and `prior()` (`Segment::previous`,
-   `storage/mod.rs:978`), which are a few bytes out of a blob that can be
+   `storage/mod.rs:990`), which are a few bytes out of a blob that can be
    megabytes.
 
 `braid()` itself (`client/braiding.rs:216`) is **not** affected: a
@@ -101,7 +146,8 @@ command:
 cached segment when one is passed in (`braiding.rs:330`).
 
 For a braid over a branch of `k` commands stored as one segment, both
-call sites decode about `k × O(k)` bytes, which is O(k²).
+call sites fetch about `k` segments of `O(k)` commands each, which is
+O(k²).
 
 ### Impact
 
@@ -109,21 +155,25 @@ call sites decode about `k × O(k)` bytes, which is O(k²).
   history, braids long single-segment branches.
 - `commit` with multiple heads (`transaction.rs:160`) and `add_merge`
   (`transaction.rs:341`) both go through `evaluate_braid`.
-- The newly supported very large commands (#758) make each decode
-  proportionally more expensive.
+- The newly supported very large commands (#758) make each fetch
+  proportionally more expensive on the `libc` backend, which reads and
+  allocates every payload byte.
 
-Early release-build measurement (in-memory backend, two branches of `k`
-commands, 200-byte payloads):
+Release-build measurement, in-memory backend, two branches of `k`
+commands with 200-byte payloads, timing the `commit` that braids them.
+Both columns were measured on the same machine.
 
-| k | commit time | bytes decoded |
-|---|---|---|
-| 250 | 65 ms | 56 MB |
-| 500 | 279 ms | 240 MB |
-| 1000 | 903 ms | 743 MB |
-| 2000 | 3.6 s | 3.06 GB |
+| k | before `rkyv` | after `rkyv` | bytes fetched (after) |
+|---|---|---|---|
+| 500 | 213 ms | 3.2 ms | 204 MB |
+| 1000 | 1.06 s | 15 ms | 981 MB |
+| 2000 | 4.30 s | 63 ms | 4.13 GB |
+| 4000 | 16.3 s | 224 ms | 14.7 GB |
 
-On the `libc` backend each of those fetches is also a pair of `pread`s
-and an allocation of the full segment size.
+Both columns still grow about x4 per doubling of `k`. On the `libc`
+backend each of those fetches is also a pair of `pread`s and an
+allocation of the full segment size, so the `libc` cost is closer to the
+"bytes fetched" column than the in-memory timing suggests.
 
 ### Proposed fix
 
@@ -136,70 +186,78 @@ and an allocation of the full segment size.
     in the middle of a segment can be the `Prior::Single` of another
     segment, which makes it a convergence point whose arrival count must
     be tracked.
-- **`evaluate_braid`:** cache decoded segments by `SegmentIndex` across
+- **`evaluate_braid`:** cache fetched segments by `SegmentIndex` across
   loop iterations.
   - Caching only the last segment is **not enough**. Braid order
     interleaves strands by `(priority, id)`, so consecutive locations
     alternate between segments. Use a small LRU sized to the number of
     concurrent strands (heads), or at least a few entries.
-- **Optional, broader:** an LRU of `Arc<SegmentRepr>` inside
+- **Optional, broader:** an LRU of segment handles inside
   `LinearStorage::get_segment`. This also speeds up `lca_pair`, the sync
   responder and requester, `has_nearby_rich_anchor`, and
   `walk_collecting_skips`. It needs interior mutability, because
   `get_segment` takes `&self`. `Storage` has no `Send` bound, so a
   `RefCell` would work in `no_std` with `alloc`.
-- **Longer term:** make segment access not require decoding every
-  command, either by capping segment length or by storing per-command
-  offsets so one command can be decoded on its own.
+  - A `Read::Handle` owns its buffer and isn't `Clone`, so a cache needs a
+    shareable handle, for example by putting the buffer behind an
+    `Rc`/`Arc` before yoking it.
+- **Longer term:** make segment access not require reading and
+  validating every command, either by capping segment length or by
+  storing per-command offsets so one command can be read on its own.
 
-## Issue 2: fact queries re-decode whole index blobs
+## Issue 2: fact queries re-fetch whole index blobs
 
 ### Root causes
 
-**A. Every query fetches and decodes the full fact index chain.**
+**A. Every query fetches and validates the full fact index chain.**
 
-- `LinearFactPerspective::query` (`linear/mod.rs:1020`, fetch at `:1029`):
+- `LinearFactPerspective::query` (`linear/mod.rs:1062`, fetch at `:1073`):
   on a miss in the perspective's in-memory map, it fetches the prior
   `FactIndexRepr` **on every call** and wraps it in a temporary
   `LinearFactIndex`.
-- `LinearFactIndex::query` (`linear/mod.rs:948`): walks the `prior` chain
-  and fetches and decodes each blob, up to `MAX_FACT_INDEX_DEPTH` = 16
-  (`linear/mod.rs:58`).
-- The `query_prefix_inner` paths (`linear/mod.rs:971`, `:1048`/`:1055`)
-  do the same and also build a new `BTreeMap` of all matches.
-- `LinearStorage::fact_cache` (`linear/mod.rs:746`) decodes the full
+- `LinearFactIndex::query` (`linear/mod.rs:959`): walks the `prior` chain
+  and fetches and validates each blob, up to `MAX_FACT_INDEX_DEPTH` = 16
+  (`linear/mod.rs:61`).
+- The `query_prefix_inner` paths (`linear/mod.rs:986`, `:1090`/`:1098`)
+  do the same and also build a new `TrieMap` of all matches.
+- `LinearStorage::fact_cache` (`linear/mod.rs:747`) fetches the full
   committed index for `Session::new` (`client/session.rs:56`). The session
   keeps it as `base_facts` and queries it (`session.rs:311`, `:323`), so
-  the decode isn't wasted, but it is the same problem: the whole top layer
-  is decoded up front, and queries that miss it still fetch and decode
+  the fetch isn't wasted, but it is the same problem: the whole top layer
+  is read up front, and queries that miss it still fetch and validate
   each prior layer.
 
 After compaction, the bottom of the chain holds **every fact in the
 graph**. A lookup for a key that doesn't exist (the common case for policy
-`!exists` checks) therefore decodes the entire fact database. The decoded
-data is thrown away after each query, so the next query in the same
-policy rule decodes it again.
+`!exists` checks) therefore validates the entire fact database, and on
+the `libc` backend reads it from disk. The lookup inside each layer is now
+a cheap probe into the archived `TrieMap`, but the fetched handle is
+thrown away after each query, so the next query in the same policy rule
+fetches and validates it again.
 
-**B. Full blobs are decoded just to read one small field.**
+**B. Full blobs are fetched just to read one small field.**
 
 This has two separate causes, each with its own fix.
 
-*B1. `commit_heads` takes a decoded index but only needs its offset.*
+*B1. `commit_heads` takes a fetched index but only needs its offset.*
 `Storage::commit_heads` takes a full `FactIndex`, but it only uses the
 offset:
 
 ```rust
-self.writer.commit(&heads, FactCacheOffset::new(fact_cache.repr.offset))?;
+self.writer.commit(
+    &heads,
+    FactCacheOffset::new(fact_cache.repr.offset.to_native()),
+)?;
 ```
 
 The only way to get a `FactIndex` from a segment is `Segment::facts()`,
-which fetches and decodes the whole blob. So both places that commit a
-single head decode the entire fact database just to read one number:
+which fetches and validates the whole blob. So both places that commit a
+single head read the entire fact database just to get one number:
 
 - `Transaction::commit` (`transaction.rs:153`), the sync path:
   `storage.get_segment(head).facts()?`
 - `ClientState::action` (`client.rs:315`), the action path:
-  `segment.facts()?`. Every local action pays one full fact-index decode
+  `segment.facts()?`. Every local action pays one full fact-index fetch
   on top of its policy queries. The demonstration tests use the sync path
   and don't exercise this call.
 
@@ -212,15 +270,15 @@ The multi-head branch of `commit` isn't affected: `evaluate_braid` gets
 its `FactIndex` from `write_facts`, which returns the index it just built
 without reading it back.
 
-*B2. The prior index is decoded just to read its depth.*
-`write_facts_with_prior` (`linear/mod.rs:534`, fetch at `:549`) decodes
+*B2. The prior index is fetched just to read its depth.*
+`write_facts_with_prior` (`linear/mod.rs:536`, fetch at `:551`) fetches
 the full prior `FactIndexRepr` to read its `depth`, which decides whether
 to compact, and its `offset`. This happens on every segment write and
 every `write_facts`. The fix is to carry `depth` alongside the offset.
 
 **C. Compaction rewrites the whole database.**
 
-`compact` (`linear/mod.rs:382`) merges the full chain into a new blob
+`compact` (`linear/mod.rs:379`) merges the full chain into a new blob
 with no prior about every 16 fact-index writes. That is O(F) work, and it
 adds O(F) bytes to the file each time, so file growth is O(n·F/16) over n
 commits.
@@ -229,14 +287,29 @@ commits.
 
 With F facts in the graph, each command that queries facts costs O(F),
 so a device that performs n actions does O(n²) total work. In the
-per-command test below, fact-index blobs are about 98% of all bytes
-decoded, at about 12 fact-index fetches per command.
+per-command test below, fact-index blobs make up nearly all bytes
+fetched.
+
+Release-build measurement, in-memory backend, adding and committing one
+fact command on top of `n` existing facts (averaged over 256 commands),
+plus the time to build the `n`-fact graph one command per commit. Both
+were measured on the same machine.
+
+| n | per command, before `rkyv` | per command, after `rkyv` | build graph, before | build graph, after |
+|---|---|---|---|---|
+| 1024 | 352 µs | 50 µs | 158 ms | 23 ms |
+| 2048 | 697 µs | 96 µs | 654 ms | 97 ms |
+| 4096 | 1.39 ms | 182 µs | 2.70 s | 352 ms |
+| 8192 | 3.14 ms | 425 µs | 11.6 s | 1.52 s |
+
+Per-command cost still doubles with `n`, and building the graph is still
+O(n²).
 
 ### Proposed fixes (cheapest first)
 
-1. **Stop decoding just to read a field (root cause B).**
+1. **Stop fetching whole blobs just to read a field (root cause B).**
    - B1: let `commit_heads` take a `FactCacheOffset` (or a lightweight
-     handle) instead of a decoded `FactIndex`, and give `Segment` a way to
+     handle) instead of a fetched `FactIndex`, and give `Segment` a way to
      return its fact index offset without fetching it. Update both
      single-head commit sites (`transaction.rs:153`, `client.rs:315`). No
      file format change.
@@ -246,17 +319,19 @@ decoded, at about 12 fact-index fetches per command.
      if `depth` is worked out when the perspective is built; persisting it
      in `SegmentRepr` would be one.
    - Both are small and self-contained. Neither fixes query cost.
-2. **Cache decoded fact indexes by offset (root cause A).**
+2. **Cache fetched fact indexes by offset (root cause A).**
    - A blob never changes after it is written, so its file offset is a
      perfect cache key and the cache never needs invalidating.
-   - An LRU of `Arc<FactIndexRepr>` in the reader or storage turns each
-     query into in-memory `BTreeMap` lookups along the chain.
+   - An LRU of shareable fact-index handles in the reader or storage
+     turns each query into archived `TrieMap` probes along the chain,
+     with no fetch or validation. As with segments, this needs a
+     `Clone`-able handle (buffer behind `Rc`/`Arc`).
    - Trade-off: the compacted base (the whole database) stays in memory.
-     That memory is already being allocated on every query today; the
-     cache just keeps it.
-   - At minimum, decode the prior once per `LinearFactPerspective` (a lazy
+     On the `libc` backend that memory is already being allocated on
+     every query today; the cache just keeps it.
+   - At minimum, fetch the prior once per `LinearFactPerspective` (a lazy
      `OnceCell`) instead of once per query. This helps repeated queries
-     within one rule or one braid, but still costs one full decode per
+     within one rule or one braid, but still costs one full fetch per
      perspective.
 3. **Change the on-disk structure (root causes A and C).**
    - Store facts as paged, sorted blocks (B-tree or LSM style) so a point
@@ -272,7 +347,7 @@ decoded, at about 12 fact-index fetches per command.
 
 | File | Change |
 |---|---|
-| `crates/aranya-runtime/src/storage/linear/testing.rs` | The in-memory backend counts fetches and bytes per storage. `LinearStorage::<Writer>::fetch_stats()` returns a cumulative `FetchStats { fetches, bytes }`, and `FetchStats` supports subtraction for before/after measurements. Counts are per storage, so tests running in parallel don't interfere. |
+| `crates/aranya-runtime/src/storage/linear/testing.rs` | The in-memory backend counts fetches and the serialized bytes of each fetched item, per storage. `LinearStorage::<Writer>::fetch_stats()` returns a cumulative `FetchStats { fetches, bytes }`, and `FetchStats` supports subtraction for before/after measurements. Counts are per storage, so tests running in parallel don't interfere. |
 | `crates/aranya-runtime/src/client/scaling_tests.rs` | The three tests, a minimal test policy (`ScalePolicy`), and a table-printing helper (`Scaling`). |
 | `crates/aranya-runtime/src/client.rs` | Registers `mod scaling_tests` under `#[cfg(test)]`. |
 
@@ -291,17 +366,19 @@ the issues are open. They take about 10 seconds in a debug build.
 
 ### Design
 
-- **Deterministic.** They measure serialized bytes decoded, not
-  wall-clock time. Command IDs and payloads are fixed, so every run
+- **Deterministic.** They measure the serialized bytes of every item
+  fetched (and so validated), not wall-clock time. Command IDs and payloads are fixed, so every run
   prints the same numbers on any machine.
 - **Scaling, not absolute cost.** Each test runs the same workload at five
-  doubling sizes of `n` and prints fetches, bytes decoded, bytes per unit
+  doubling sizes of `n` and prints fetches, bytes fetched, bytes per unit
   of work, and the growth factor per doubling:
   - work that doesn't depend on `n` stays about x1,
   - linear work grows about x2,
   - quadratic work grows about x4.
 - **Pass/fail.** A test fails when the last doubling grows by at least
-  1.5× the ideal rate, which is halfway to the next complexity class.
+  1.5× the ideal rate, which is halfway to the next complexity class. If
+  neither of the last two sizes fetched any bytes, there is no growth and
+  the test passes (see `growth` and its test `growth_handles_zero_bytes`).
 - **Test policy.** `ScalePolicy` either does nothing (`q` commands) or
   queries a key that never exists and inserts one new fact keyed by the
   command ID (`F` commands). The missing-key lookup is the worst case: it
@@ -312,6 +389,12 @@ the issues are open. They take about 10 seconds in a debug build.
 
 ### Tests and current output
 
+Output below is from the code after the `rkyv` switch (#676). The column
+headers still say "bytes decoded"; they count bytes fetched. Byte counts
+are about 1.3 to 1.7× higher than they were with postcard, because `rkyv`
+archives are larger (fixed-width integers and alignment padding). Growth
+rates are unchanged.
+
 **`braid_segment_decoding_is_linear`** (issue 1): two concurrent branches
 of `n` commands with 64-byte payloads, off init, each written as one
 segment. It measures the `commit` that braids them.
@@ -320,15 +403,15 @@ segment. It measures the `commit` that braids them.
 == braid two concurrent branches of n commands each (one segment per branch) ==
 ideal: bytes decoded grow x2 per doubling of n; x4 means O(n^2)
        n    fetches    bytes decoded      bytes/command   growth
-      50        187           941478               9414        -
-     100        345          3501061              17505     x3.7
-     200        620         12636107              31590     x3.6
-     400       1410         57665166              72081     x4.6
-     800       2662        218014153             136258     x3.8
+      50        188          1243808              12438        -
+     100        346          4567544              22837     x3.7
+     200        621         16381544              40953     x3.6
+     400       1411         74507624              93134     x4.5
+     800       2663        281196008             175747     x3.8
 ```
 
-Fetches grow linearly with `n`, but bytes decoded grow about x4 per
-doubling, because each fetch decodes a segment whose size is itself
+Fetches grow linearly with `n`, but bytes fetched grow about x4 per
+doubling, because each fetch reads a segment whose size is itself
 proportional to `n`.
 
 **`fact_query_cost_is_independent_of_fact_count`** (issue 2, root cause A):
@@ -340,15 +423,15 @@ query for a missing key.
 == one fact query (missing key) against a database of n facts ==
 ideal: bytes decoded grow x1 per doubling of n; x2 means each query is O(n)
        n    fetches    bytes decoded        bytes/query   growth
-     128          9             5336               5336        -
-     256          2            10515              10515     x2.0
-     512          3            21021              21021     x2.0
-    1024          5            42033              42033     x2.0
-    2048          9            84057              84057     x2.0
+     128          9            10520              10520        -
+     256          2            16800              16800     x1.6
+     512          3            33416              33416     x2.0
+    1024          5            66656              66656     x2.0
+    2048          9           133144             133144     x2.0
 ```
 
 One lookup takes only 2 to 9 fetches (how many depends on where the head
-is in the compaction cycle), but it decodes the entire fact database.
+is in the compaction cycle), but it fetches the entire fact database.
 
 **`per_command_fact_cost_is_independent_of_fact_count`** (issue 2, root
 causes A to C end to end): on top of `n` existing facts, it measures
@@ -359,11 +442,11 @@ fact.
 == add + commit one fact command on top of n existing facts ==
 ideal: bytes decoded grow x1 per doubling of n; x2 means each command is O(n), so n commands are O(n^2)
        n    fetches    bytes decoded      bytes/command   growth
-     128        768           258749               8085        -
-     256        823           447769              13992     x1.7
-     512        827           805124              25160     x1.8
-    1024        858          1522888              47590     x1.9
-    2048        915          2957148              92410     x1.9
+     128        834           592432              18513        -
+     256        889           910024              28438     x1.5
+     512        893          1500872              46902     x1.6
+    1024        924          2689504              84047     x1.8
+    2048        981          5063576             158236     x1.9
 ```
 
 Each test ends with a failure message like:
@@ -383,25 +466,22 @@ What to expect once the fixes are in:
 | Test | Today | After the fix |
 |---|---|---|
 | `braid_segment_decoding_is_linear` | about x4 per doubling; bytes/command doubles each row | about x2 per doubling; bytes/command roughly flat. Fetches should drop too, since cache hits skip `get_segment`. |
-| `fact_query_cost_is_independent_of_fact_count` | x2.0 per doubling; about 41 bytes decoded per fact in the database | With a decoded fact-index cache (work item 4), close to 0 bytes. With a paged index (work item 6), a small number of pages; growth about x1, or slightly above for O(log n). |
+| `fact_query_cost_is_independent_of_fact_count` | x2.0 per doubling; about 65 bytes fetched per fact in the database | With a fact-index cache (work item 4), close to 0 bytes. With a paged index (work item 6), a small number of pages; growth about x1, or slightly above for O(log n). |
 | `per_command_fact_cost_is_independent_of_fact_count` | about x1.9 per doubling | About x1 once work items 3a, 3b and 4 are in. The segment reads that remain are small and don't depend on `n`. |
 
-**Caveat: fixes that decode nothing.** The growth column divides one row's
-bytes by the previous row's. If a fix makes a measurement decode **0
-bytes** (most likely the fact query test with a warm cache), the ratio is
-0 / 0 = NaN. The table shows `xNaN`, and the check fails, because
-`NaN < limit` is false, even though the problem is fixed. When
-validating a cache fix, read the table: a `bytes decoded` column of zeros,
-or of small values that don't grow with `n`, means the fix worked. To
-keep the tests as regression tests after that, handle the zero case in
-`Scaling::run` (treat 0 → 0 as no growth and 0 → non-zero as unbounded)
-before removing `#[ignore]`.
+**Fixes that fetch nothing.** If a fix makes a measurement fetch **0
+bytes** (most likely the fact query test with a warm cache), the growth
+column shows `x-` and the check passes. Growing from 0 to a non-zero
+count counts as unbounded growth and fails.
 
 Also note:
 
-- Numbers are **decoded bytes on the in-memory backend**. They show how
-  cost scales, not wall-clock time. To confirm real-world gains, also time
-  the operation on the `libc` backend in a release build.
+- Numbers are **fetched bytes on the in-memory backend**. They show how
+  cost scales, not wall-clock time. Since the `rkyv` switch the in-memory
+  backend is zero-copy, so its wall-clock time understates the `libc`
+  backend, which still reads and allocates every fetched byte. To confirm
+  real-world gains, also time the operation on the `libc` backend in a
+  release build.
 - A cache that lives at storage level can be warmed while the test builds
   the graph, so the measured step shows the steady state with a warm
   cache. A cache scoped to one operation starts empty for each measurement.
@@ -416,10 +496,10 @@ Also note:
 |---|---|---|---|
 | 1 | Braid | Segment metadata cache (`SegmentIndex` → `(shortest_max_cut, prior)`) in `ConvergenceMap::advance_to` | Small |
 | 2 | Braid | Small segment LRU in `evaluate_braid` | Small |
-| 3a | Facts | `commit_heads` takes an offset instead of a decoded `FactIndex`; update both single-head commit sites (`transaction.rs:153`, `client.rs:315`) (root cause B1) | Small |
+| 3a | Facts | `commit_heads` takes an offset instead of a fetched `FactIndex`; update both single-head commit sites (`transaction.rs:153`, `client.rs:315`) (root cause B1) | Small |
 | 3b | Facts | Carry `depth` alongside the prior fact index offset so `write_facts_with_prior` doesn't fetch (root cause B2) | Small to medium |
-| 4 | Facts | Decoded `FactIndexRepr` cache keyed by offset (or at minimum once per perspective) | Medium |
-| 5 | Both, optional | Storage-level `Arc<SegmentRepr>` LRU in `LinearStorage::get_segment` | Medium |
+| 4 | Facts | Fact-index handle cache keyed by offset (or at minimum once per perspective) | Medium |
+| 5 | Both, optional | Storage-level segment handle LRU in `LinearStorage::get_segment` | Medium |
 | 6 | Facts, long term | Paged on-disk fact index with incremental compaction | Large (format change) |
 
 Items 1 and 2 should make `braid_segment_decoding_is_linear` pass. Item 4
@@ -434,8 +514,7 @@ than we want to hold in memory.
 
 - The scaling tables for all three tests show the expected growth (see
   [Using the tests to validate fixes](#using-the-tests-to-validate-fixes)).
-  If the tests are kept as CI regression tests, handle the zero-bytes case
-  in `Scaling::run` first, then remove `#[ignore]`.
+  To keep them as CI regression tests, remove `#[ignore]`.
 - Existing `aranya-runtime` unit tests, braid tests, and
   `cargo make correctness` still pass.
 - `no_std` canaries still build. Any cache must use `alloc` only (for
@@ -455,12 +534,18 @@ than we want to hold in memory.
 - **Segment length cap.** Whether to also limit commands per segment, which
   bounds issue 1 regardless of caching but changes how sync batches are
   stored.
+- **Skipping validation.** Every fetch runs `bytecheck` over the whole
+  archive. Items read back from our own file could use
+  `rkyv::access_unchecked` (or validate once and cache), which removes the
+  per-fetch O(elements) walk. The trade-off is that a corrupted or
+  tampered file becomes undefined behavior instead of an `IoError`.
 
 ### Not yet investigated
 
 - Other per-location `get_segment` callers that may have the same pattern:
   `sync/requester.rs:434`, `sync/responder.rs:216`, `:469`, `:701`,
-  `storage/mod.rs:672`, `:851`.
-- Real-disk cost on the `libc` backend. The tests measure decoded bytes on
-  the in-memory backend; on disk each fetch also adds `pread` calls and a
-  full-size allocation, so wall-clock impact will be higher.
+  `storage/mod.rs:684`, `:863`.
+- Real-disk cost on the `libc` backend. The tests measure fetched bytes on
+  the in-memory backend, which is now zero-copy; on disk each fetch also
+  adds `pread` calls and a full-size allocation, so wall-clock impact will
+  be higher than the in-memory timings above.
