@@ -317,7 +317,7 @@ macro_rules! keypair {
         $(#[$meta])*
         pub struct $sk<CS: $crate::CipherSuite> {
             pub(crate) sk: $sk_inner,
-            id: ::core::cell::OnceCell<::core::result::Result<$id, $crate::id::IdError>>,
+            id: $crate::util::CacheCell<::core::result::Result<$id, $crate::id::IdError>>,
         }
 
         impl<CS: $crate::CipherSuite> $sk<CS> {
@@ -330,7 +330,7 @@ macro_rules! keypair {
             pub(crate) fn from_inner(sk: $sk_inner) -> Self {
                 Self {
                     sk,
-                    id: ::core::cell::OnceCell::new(),
+                    id: $crate::util::CacheCell::new(),
                 }
             }
 
@@ -348,14 +348,14 @@ macro_rules! keypair {
         #[doc = ::core::concat!("`", ::core::stringify!($sk), "`")]
         pub struct $pk<CS: $crate::CipherSuite> {
             pub(crate) pk: $pk_inner,
-            id: ::core::cell::OnceCell<::core::result::Result<$id, $crate::id::IdError>>,
+            id: $crate::util::CacheCell<::core::result::Result<$id, $crate::id::IdError>>,
         }
 
         impl<CS: $crate::CipherSuite> $pk<CS> {
             pub(crate) fn from_inner(pk: $pk_inner) -> Self {
                 Self {
                     pk,
-                    id: ::core::cell::OnceCell::new(),
+                    id: $crate::util::CacheCell::new(),
                 }
             }
         }
@@ -391,7 +391,6 @@ macro_rules! sk_misc {
                         );
                         Ok(id)
                     })
-                    .clone()
             }
         }
 
@@ -412,7 +411,6 @@ macro_rules! sk_misc {
             pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
                 self.id
                     .get_or_init(|| self.public()?.id())
-                    .clone()
             }
 
             /// Returns the public half of the key.
