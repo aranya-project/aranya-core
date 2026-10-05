@@ -847,9 +847,13 @@ The last two need knowledge the policy doesn't state.
 - **D. A key read back from a query is not the key.** After `let label
   = query Label[label_id: this.label_id] or ..`, the key
   `label.label_id` is not recognized as `this.label_id`;
-- **E. Keys derived from the command's own ID are fresh.** No fact can
-  have such a key before the command runs, but the analysis can't know
-  that `envelope::command_id` is unique;
+- **E. Keys derived from the command's own ID.** In this policy, no
+  fact can hold such a key before the command runs, because every
+  command that stores an ID taken from a field first checks that its
+  object exists. That is a property of the whole policy, not of one
+  command. Elsewhere, a member who has seen a command could author a
+  concurrent one that stores its ID from a field, and the merge could
+  order that one first;
 - **F. Invariants between facts.** For example, a `Device` fact implies
   its three key facts and its `Rank`, and a `RoleAssignmentIndex` entry
   implies the matching `AssignedRole`. The policy checks some of these
@@ -917,9 +921,10 @@ ties to them only in debug builds.
 - **A key read back from a query is not the key.** After
   `let x = query F[k: e] or ..`, the key `x.k` is not recognized as
   `e`, so `delete F[k: x.k]` warns.
-- **Fresh IDs and invariants between facts** are unknown. A key derived
-  from the command's own ID can't exist yet, and one fact may imply
-  another, but the analysis can't know either.
+- **Properties of the whole policy** are unknown. A key derived from
+  the command's own ID may be absent because of how every other command
+  stores IDs, and one fact may imply another, but the analysis sees one
+  command at a time.
   [The daemon policy](#the-daemon-policy) shows how often these come
   up.
 
