@@ -806,6 +806,86 @@ warnings" after a mutation the path proves anyway, is not kept: an
 audit of the suite removed several and rewrote others so the rule is
 the only thing standing between the prover and a wrong answer.
 
+### The daemon policy
+
+`obligation/tests/data/daemon-policy.md` is Aranya's daemon policy,
+ported to the current syntax by `port-daemon-policy.py` next to it. It
+is a test artifact, not the production policy, and its preamble lists
+what the port changed. It compiles against the daemon's real FFI
+schemas, which are dev-dependencies of the compiler. Two tests use it:
+
+- `daemon_policy_warnings` keeps its warnings in a snapshot, one line
+  per warning followed by its calling contexts, so a change in
+  precision shows up as a diff to review;
+- `injected_bug_warns` injects bugs the policy's guards prevent, by
+  dropping a guard, pointing it at the wrong key, or inverting a
+  branch. Each must add a warning at the mutation the guard protected.
+  These are the analysis finding real bugs in real code, so a precision
+  change that silences one is unsound.
+
+Measured on 2026-10-05, the analysis added about 2.5 ms to a 5 ms
+debug-build compile and joined no paths. Joins first appear with the
+path limit lowered to 2.
+
+It raises 14 warnings, and none is a real bug: under the policy's
+invariants, every mutation it flags succeeds. Each warning comes from
+one or more of these causes. The first four are gaps in the analysis.
+The last two need knowledge the policy doesn't state.
+
+- **A. A helper's facts count only where its call is a whole
+  condition or the left side of `or`.**
+  `check this.old_rank == get_object_rank(id)` fails
+  unless the `Rank` fact exists, but proves nothing, and neither does
+  `let r = get_object_rank(id)`;
+- **B. Equalities are not tracked.** After `check a.role_id ==
+  this.old_role_id`, an update can't state `this.old_role_id` as the
+  stored value. Nor can it state a value checked equal to one a helper
+  read;
+- **C. A mutation forgets other keys of the same fact,** even keys that
+  differ by a literal, as described under
+  [Known limitations](#known-limitations);
+- **D. A key read back from a query is not the key.** After `let label
+  = query Label[label_id: this.label_id] or ..`, the key
+  `label.label_id` is not recognized as `this.label_id`;
+- **E. Keys derived from the command's own ID are fresh.** No fact can
+  have such a key before the command runs, but the analysis can't know
+  that `envelope::command_id` is unique;
+- **F. Invariants between facts.** For example, a `Device` fact implies
+  its three key facts and its `Rank`, and a `RoleAssignmentIndex` entry
+  implies the matching `AssignedRole`. The policy checks some of these
+  only in debug builds.
+
+| Warning | From | Causes |
+|---|---|---|
+| `update Rank`, existence | `ChangeRank` | A, B |
+| `create Role` | `CreateRole`, `SetupDefaultRole` | E |
+| `create Rank` | `CreateRole`, `SetupDefaultRole`, `CreateLabel` | E |
+| `create Rank` | `CreateTeam`, after the device's `Rank` | C, E |
+| `create Rank` | `AddDevice` | F |
+| `create RoleHasPerm` | `SetupDefaultRole` | C, E |
+| `create RoleHasPerm` | `CreateTeam` | C |
+| `delete Rank` | `DeleteRole` | A |
+| `update AssignedRole`, values | `ChangeRole` | B |
+| `create RoleAssignmentIndex` | `ChangeRole` | F |
+| `delete` of the three device key facts | `RemoveDevice` | F |
+| `delete Rank` | `RemoveDevice` | F, and A where the author is another device |
+| `create Label` | `CreateLabel` | E |
+| `delete Label` | `DeleteLabel` | D |
+| `delete Rank` | `DeleteLabel` | A, D |
+
+A warning shared by several commands, such as the one in
+`set_object_rank`, goes away only when every command's cause does.
+Fixing A through D in the analysis would clear 5 of the 14. Adding E
+would clear 8. The other 6 need F.
+
+Three commands rely on an invariant where the policy checks a similar
+one elsewhere. `AddDevice` checks that four of the five facts it
+creates are absent, but not `Rank`. `ChangeRole` creates a
+`RoleAssignmentIndex` entry without the absence check `AssignRole`
+makes before creating one. `RemoveDevice` deletes a device's key facts
+on the strength of its `Device` fact, which `valid_device_invariants`
+ties to them only in debug builds.
+
 ## Known limitations
 
 - **`count_up_to`** is opaque.
@@ -821,14 +901,27 @@ the only thing standing between the prover and a wrong answer.
 - **Double manipulation is syntactic.** Only identical keys are flagged,
   so two mutations whose keys are equal at runtime but written
   differently are missed.
-- **Distinct keys of one fact in an init command.** After
-  `create F[k1]`, the analysis cannot prove `F[k2]` is still absent,
-  because it cannot prove `k1` and `k2` differ. A second create of the
-  same fact name with a different key warns.
+- **A mutation forgets other keys of the same fact.** After
+  `create F[k1]`, everything known about `F` is dropped, even for keys
+  that differ from `k1` by a literal. So `check !exists F[a]`, then
+  `check !exists F[b]`, then creating both warns on the second, and in
+  an init command a second create of `F` warns too.
 - **FFI calls** are not substituted, so a key computed by an FFI call is
   compared by the name of the variable holding it.
 - **Helper knowledge** is limited to facts expressed in the helper's
-  parameters and globals.
+  parameters and globals, and is used only where the call is a whole
+  condition or the left side of `or`. A call inside a comparison, or
+  bound by `let` and then compared, proves nothing.
+- **Equalities are not tracked.** A value checked equal to a stored
+  value can't stand in for it in an update's stated values.
+- **A key read back from a query is not the key.** After
+  `let x = query F[k: e] or ..`, the key `x.k` is not recognized as
+  `e`, so `delete F[k: x.k]` warns.
+- **Fresh IDs and invariants between facts** are unknown. A key derived
+  from the command's own ID can't exist yet, and one fact may imply
+  another, but the analysis can't know either.
+  [The daemon policy](#the-daemon-policy) shows how often these come
+  up.
 
 ## Future work
 
@@ -845,7 +938,8 @@ the only thing standing between the prover and a wrong answer.
   are unreachable.
 - **Default-on, then errors:** make the analysis default-on once it has
   run cleanly on real policies such as the daemon policy, then promote
-  warnings to errors.
+  warnings to errors. The daemon policy raises 14 false positives
+  today. [The daemon policy](#the-daemon-policy) lists their causes.
 - **New obligation kinds:** the framework is not fact-specific.
   Candidates include every `policy` block reaching a `finish` on some
   path, envelope-author checks before privileged mutations, or
