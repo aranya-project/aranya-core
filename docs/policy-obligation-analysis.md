@@ -165,10 +165,13 @@ must have init priority, and a command with a parent must not (see
 `aranya-runtime/src/storage/linear/mod.rs`).
 
 So in an init command's `policy` and `recall` blocks, every fact starts
-known not to exist. That knowledge is dropped for a fact name as soon
-as a fact with that name is mutated, and for every fact at a call the
-analysis cannot follow. An `update` or `delete` of a fact that cannot
-exist yet gets a note that it always fails.
+known not to exist. After a `create` or `update`, that holds only for
+facts that provably differ from the one mutated, as described under
+[Invalidation](#invalidation), and a call the analysis cannot follow
+drops it entirely. So an init command can create `F[k: 1]` and then
+`F[k: 2]`, but creating `F[k: x]` after `F[k: 1]` warns. An `update`
+or `delete` of a fact that cannot exist yet gets a note that it always
+fails.
 
 ## Observation sources
 
@@ -181,6 +184,9 @@ exist yet gets a note that it always fails.
 | `attributes { init: true }` | Every fact `NotExists` | Implemented |
 | `let f = query F[k: ?] or ..` | `Exists F[k: f.k]`, and `f` holds that fact | Implemented |
 | `let x = match e { .. }`, `let x = if ..`, `let x = { .. : e }` | What holds when some arm produced a value; `match query F[k] { Some(x) => x  None => <terminal> }` makes `x` hold the fact | Implemented |
+| A call to a pure function wherever it always runs | What every exit of the function knows | Implemented |
+| A fact literal with the whole key and a value filter, matching | The fact exists with those stored values | Implemented |
+| `a == b`, where one side is a stored value | The other side is that stored value too | Implemented |
 
 ### Conditions
 
@@ -194,8 +200,10 @@ contradictory branches are detected.
 | `query F[k] is Some` | `Exists F[k]` | `NotExists F[k]` |
 | `query F[k] is None` | `NotExists F[k]` | `Exists F[k]` |
 | `!c` | `c` when false | `c` when true |
-| `a && b` | Both sides' true facts | Only facts both sides prove when false |
-| `a \|\| b` | Only facts both sides prove when true | Both sides' false facts |
+| `a && b` | Both sides' true facts | Only what holds both where `a` was false and where `a` was true and `b` false |
+| `a \|\| b` | Only what holds both where `a` was true and where `a` was false and `b` true | Both sides' false facts |
+| `a == b` | What a stored value on one side says about the other | Nothing |
+| `a != b` | Nothing | What a stored value on one side says about the other |
 | `at_least 1 F[k]` | Some match exists | `NotExists F[k]` |
 | `at_least n F[k]`, `exactly n F[k]` | Some match exists | Nothing |
 | `at_most n F[k]` | Nothing | Some match exists |
@@ -204,6 +212,9 @@ contradictory branches are detected.
 | `if c { :a } else { :b }` | What both arms prove when true, each under its side of `c` | Likewise when false |
 | `match e { p => a  .. }` | What every arm proves when true, each under its pattern and the earlier patterns failing | Likewise when false |
 | `{ stmts : e }` | What `e` proves on every path through `stmts` that reaches it | Likewise when false |
+
+Every condition also learns, on both sides, what the calls it always
+makes guarantee. See [Pure functions](#pure-functions).
 
 Count limits must be at least 1, so `at_most 0` is not valid policy;
 `!(at_least 1 F[k])` is the way to count to zero. "Some match exists"
@@ -218,7 +229,9 @@ still exist with another value. A filter made only of bind markers,
 `=>{v: ?}`, is no filter. This was found by the adversarial tests
 below; before the fix, `check !exists F[k]=>{v: 0}` wrongly discharged
 a `create F[k]`, and wrongly pruned a later `if exists F[k]` branch as
-impossible.
+impossible. When a matching literal names the whole key, it also
+proves the fact's stored values for the fields it filters on. With a
+bind marker in the key, it says nothing about any one fact's values.
 
 A `let` whose value is substitutable is replaced by its value wherever
 the name appears. Substitutable values include fact reads (`exists`,
@@ -270,6 +283,24 @@ function find_member(t int) option[struct Member] {
 A helper whose exits query different keys, or that returns `Some` of a
 local variable, does not qualify.
 
+A key the query gave is linked to the field that reads it back. After
+`let label = query Label[label_id: this.label_id] or ..`, a key written
+`label.label_id` is `this.label_id`. Unlike the fact's stored values,
+this holds after any mutation, since the variable never changes, so
+this is proven:
+
+```policy
+finish {
+    delete Label[label_id: label.label_id]
+    delete Rank[object_id: label.label_id]
+}
+```
+
+The link applies to fact keys once `let` names, and a finish function's
+parameters, are replaced by the caller's values, so a parameter that
+shares a name with a caller's variable never picks up its link. Binding
+the name again forgets it.
+
 ### `if`, `match`, and block expressions
 
 An `if` expression's arms are always block expressions, `{ stmts : e }`,
@@ -311,9 +342,9 @@ result instead.
 ### Opaque observation points
 
 Any expression that touches a fact but that the extractor cannot
-interpret is **opaque**. Examples are comparisons, `count_up_to`, calls
-that can't be followed, and blocks with more paths than the exit
-limit. The
+interpret is **opaque**. Examples are fact reads inside comparisons,
+`count_up_to`, calls that can't be followed, and blocks with more paths
+than the exit limit. The
 analysis learns nothing from an opaque expression, but it records the
 fact name and span. When an obligation for the same fact name cannot be
 proven, those spans are listed in the warning, so the author sees which
@@ -353,12 +384,27 @@ comparing, so `let uid = this.user` followed by
 
 When an `update` states current values, as in `update F[k]=>{v: x} to
 {..}`, the VM requires the stored values to match. The analysis accepts
-a stated value when, after `let` substitution, it has the form
-`q.v` for the same field `v`, and `q` was bound by
-`let q = query F[k] or <terminal>` or a `Some(q)` arm with exactly the
-same key, counting keys read from `q` itself (see
-[Keys read from query results](#keys-read-from-query-results)). This is
-the common idiom:
+a stated value when, after `let` substitution, it is known to be the
+stored `v` of `F[k]`:
+
+- `q.v`, where `q` was bound by `let q = query F[k] or <terminal>` or a
+  `Some(q)` arm with exactly the same key, counting keys read from `q`
+  itself (see
+  [Keys read from query results](#keys-read-from-query-results));
+- a value a matching fact literal with the whole key filtered on, as
+  in `check exists F[k]=>{v: x}`;
+- a call to a pure function whose every exit returns the same stored
+  value, such as `a.balance` where `a` holds `Account[user: u]`, in the
+  caller's terms;
+- a value checked equal to any of these, in either order, as in
+  `check q.v == x`.
+
+The analysis records these as *value entries*: the fact exists, and a
+field of it holds a value. Like other facts, they are combined across
+branches, carried out of helpers, and dropped when something may change
+them. Equalities are followed one step at a time, from a value already
+known to be stored, so `check a == b` followed by `check b == q.v` does
+not make `a` a stored value. This is the common idiom:
 
 ```policy
 let counter = query Counter[name: this.name]=>{value: ?} or recall reject()
@@ -367,8 +413,8 @@ finish {
 }
 ```
 
-Any other stated value, such as a literal or a field read from a
-different fact, gets a warning.
+Any other stated value, such as a literal nothing filtered on or a
+field read from a different fact, gets a warning.
 
 An update that states some values and binds the rest with `?` always
 fails, because the VM compares the stated values with the whole stored
@@ -380,10 +426,28 @@ skips the comparison.
 State is conservatively invalidated when something may have changed the
 fact database between an observation and an obligation:
 
-- A mutation of fact `F` sets the state of the matching literal to its
-  postcondition. It forgets every other literal of `F`, since their
-  keys may alias the mutated one. It also forgets query results for `F`
-  and init knowledge for `F`.
+- A mutation of `F[k]` sets the state of `F[k]` to its postcondition.
+  What the path knows about a fact that provably differs from `F[k]`,
+  meaning another fact or a key where both give different literals, is
+  kept. Of what it knows about one that may be `F[k]`:
+  - a `create` keeps everything. Creating a fact removes none, and if a
+    fact the path knew existed was the one created, the `create` raised
+    an exception, which its own obligation covers;
+  - a `delete` keeps only absence, since it may have removed the fact;
+  - an `update` keeps only absence too. The fact still exists, but its
+    values may have changed, and a second mutation of the same fact in
+    one finish block is an exception that the touched set only catches
+    for identical keys. Forgetting that the fact exists keeps a second
+    mutation of what may be the same fact from being proven.
+
+  An `update` or `delete` also forgets query results and stored values
+  for facts that may be `F[k]`. A `create` or `update` may make a fact
+  exist where the path knew it absent, so from then on, absence holds
+  only for facts that provably differ from every fact created or
+  updated since the block began. That covers observed absence and an
+  init command's empty database alike: after
+  `check !exists F[k: x, j: ?]`, creating `F[k: x, j: 1]` and then
+  `F[k: x, j: 2]` is proven.
 - A `map` statement forgets everything. `map` is only allowed in
   actions, which the analysis does not walk, so this is never reached
   today; if the language ever allows it in a policy block, its body
@@ -391,8 +455,8 @@ fact database between an observation and an obligation:
 - A call the analysis cannot follow forgets everything. See
   [Finish functions](#finish-functions).
 - Binding a name again, with a `let` or a `match` arm, forgets every
-  fact, substitution, and query binding that mentioned the earlier
-  binding. A name can be reused once the block that bound it ends, but
+  fact, substitution, query binding, and key link that mentioned the
+  earlier binding. A name can be reused once the block that bound it ends, but
   the walk carries a branch's state into the statements after it, where
   a fact written in terms of the old name would silently mean the new
   one.
@@ -500,6 +564,25 @@ function device_has_perm(device_id id, perm enum Perm) bool {
     return role_has_perm(role.role_id, perm)
 }
 ```
+
+A call doesn't have to be the whole condition. Wherever a call always
+runs, in a comparison, a `let` value, an argument, a fact key, a struct
+field, or a `match` scrutinee, it returns through one of its exits, so
+what every exit knows holds afterward. So
+`check this.old_rank == get_object_rank(id)` proves
+`Rank[object_id: id]` exists when the helper fails without it, and so
+does `let rank = get_object_rank(id)`. A call that may not run counts
+only where it ran. `a && b` and `a || b` keep what `a` proves on both
+of their outcomes, since `b` runs only after `a`, and the arms of an
+`if` or `match` are combined as described under
+[`if`, `match`, and block expressions](#if-match-and-block-expressions).
+A call in a `debug_assert` doesn't count, since release builds skip it.
+
+An exit knows what returning its value implies: the calls in the value
+returned, and that `x` was `Some` when the value is `x or <terminal>`.
+An exit whose value can't be computed on its path is no exit at all.
+An exit that returns a stored value records it, so a caller can use the
+call's value as that stored value.
 
 A fact or return value that mentions one of the function's local
 variables can't be expressed in the caller's terms, so it is dropped.
@@ -658,7 +741,16 @@ file covers one feature, in the order below:
 - bind-marker subsumption for negative observations only, and `let`
   aliases;
 - update stated values from a query, through a `let` alias, from a
-  literal, and from a query of a different fact;
+  literal, and from a query of a different fact; values checked equal
+  to a query's, in either order and through a `let`; values returned by
+  a helper, directly or through another; values filtered on by
+  `exists`, `query`, `at_least`, a `match` arm, and a bound-key query;
+  through a finish function; alongside a key checked equal to the same
+  value; and after creating another fact;
+- what a mutation keeps: keys that differ by an int, string, bool, or
+  enum literal, in a command and an init command; absence of a key
+  prefix surviving creates of parts of it; and what a `create`,
+  `update`, and `delete` each keep;
 - init commands, including `init: false`;
 - finish functions: caller checks, call-site notes, nested calls,
   double manipulation across a call, one warning for a function shared
@@ -671,6 +763,11 @@ file covers one feature, in the order below:
   fact is missing, helpers returning a query, helpers combining checks,
   the exit limit, recursion, and a helper's local variable not being
   mistaken for the caller's;
+- helper calls proving their facts compared, bound by `let`, passed as
+  an argument, in a fact key, in a struct field, returned through `or`,
+  through helpers that call helpers, inside a returned value, on the
+  left of `&&` and `||`, and as a `match` scrutinee; and an exit whose
+  value can't be computed not counting;
 - keys read from query results: `delete` and `update` with the full
   key after `let .. or`, after a `Some(m)` arm, with a value filter,
   through a `let` alias, through a finish function, through a helper
@@ -678,7 +775,9 @@ file covers one feature, in the order below:
   command; warnings for an arm mixing `Some(m)` and `None`, for a
   mutation of the same fact earlier in the finish block, for a helper
   whose exits query different keys, and for a helper returning `Some`
-  of a local;
+  of a local; and a key the query gave read back from its result,
+  after another mutation, in a `match` arm, through a finish function,
+  and in a condition;
 - rebinding: a `let` or `Some(m)` arm reusing a name forgets facts
   about the earlier binding, including a mention nested in another
   fact's key;
@@ -688,8 +787,8 @@ file covers one feature, in the order below:
   a query before `or recall`, a helper returning an `if`, an arm
   returning from a helper, a nested `return` making a helper unknown, a
   `finish` inside a block being checked, blocks over the exit limit,
-  an `else` arm that proves nothing, and arm-bound and block-local
-  names not leaking;
+  an `else` arm that proves nothing, arm-bound and block-local names
+  not leaking, and arms proving absences of different extents;
 - rendering of the title, label, note, and help.
 
 ### Adversarial tests
@@ -708,13 +807,26 @@ target:
 - `attacks_names.rs`: `Ok`/`Err` arm rebinding, finish-function and
   helper parameters named like caller variables, block-local query
   bindings, alias chains, arm-expression bindings, a helper's arm name
-  leaking into its caller, and an argument captured by a binder inside
-  a helper;
+  leaking into its caller, an argument captured by a binder inside
+  a helper, and a key read back after its name was bound again or from
+  a parameter named like the caller's variable;
 - `attacks_state.rs`: keys that may alias in one finish block, directly
   and through a finish function, a finish function dropping the
   caller's query binding, a recursive call in an init command, recall
-  blocks not inheriting policy knowledge, and double manipulation across
-  a call;
+  blocks not inheriting policy knowledge, double manipulation across
+  a call, two keys both checked absent that may be one fact, a prefix's
+  absence after creating what may be part of it, an `update` then a
+  `delete` of what may be one fact, and a `delete` dropping the query
+  result of what may be the deleted fact;
+- `attacks_calls.rs`: a helper's facts from a call that may not run, on
+  the right of `&&`, `||`, or `or`, as a condition and in a `let`, in
+  an arm of an `if` or `match`, and in a `debug_assert`, and from a call
+  whose exits disagree;
+- `attacks_values.rs`: stored values checked unequal, equal on one
+  branch only, equal to a key, of another fact, of another field,
+  filtered on with a bind marker in the key, which must also not stand
+  in for the missing key, and returned by a helper whose exits return
+  different values or that read through a key it bound;
 - `attacks_helpers.rs`: early exits returning `true`, exits recorded
   from inside a block in an arm, mutual recursion, non-substitutable
   locals in exit facts, arguments rebound after a call, summaries
@@ -800,6 +912,12 @@ Fixing those turned up two more of the same kind, also fixed. A
 exit. A `finish` inside an arm without a value, a `check`'s `else`, or
 an `or`'s right side was never checked.
 
+Writing the attacks for the four precision fixes of 2026-10-05 caught
+one design error before it landed. Keeping a fact's existence after an
+`update` of a fact that may be the same one would have proven a second
+mutation of it. That is an exception the touched set misses for keys
+written differently, and dropping the existence is what flags it.
+
 Every test asserts something the rule it names can change. A test
 whose result would be the same with the rule broken, such as "no
 warnings" after a mutation the path proves anyway, is not kept: an
@@ -823,64 +941,46 @@ schemas, which are dev-dependencies of the compiler. Two tests use it:
   These are the analysis finding real bugs in real code, so a precision
   change that silences one is unsound.
 
-Measured on 2026-10-05, the analysis added about 2.5 ms to a 5 ms
+Measured on 2026-10-05, the analysis added about 5 ms to a 5 ms
 debug-build compile and joined no paths. Joins first appear with the
 path limit lowered to 2.
 
-It raises 14 warnings, and none is a real bug: under the policy's
-invariants, every mutation it flags succeeds. Each warning comes from
-one or more of these causes. The first four are gaps in the analysis.
-The last two need knowledge the policy doesn't state.
+The analysis first raised 14 warnings there, and none is a real bug:
+under the policy's invariants, every mutation it flags succeeds. Five
+came from gaps in the analysis, since fixed. A helper's facts counted
+only where its call was a whole condition, values checked equal to a
+stored value weren't tracked, a mutation forgot every other key of its
+fact, and a key read back from a query wasn't linked to the key it
+used. The 9 left need knowledge the policy doesn't state:
 
-- **A. A helper's facts count only where its call is a whole
-  condition or the left side of `or`.**
-  `check this.old_rank == get_object_rank(id)` fails
-  unless the `Rank` fact exists, but proves nothing, and neither does
-  `let r = get_object_rank(id)`;
-- **B. Equalities are not tracked.** After `check a.role_id ==
-  this.old_role_id`, an update can't state `this.old_role_id` as the
-  stored value. Nor can it state a value checked equal to one a helper
-  read;
-- **C. A mutation forgets other keys of the same fact,** even keys that
-  differ by a literal, as described under
-  [Known limitations](#known-limitations);
-- **D. A key read back from a query is not the key.** After `let label
-  = query Label[label_id: this.label_id] or ..`, the key
-  `label.label_id` is not recognized as `this.label_id`;
-- **E. Keys derived from the command's own ID.** In this policy, no
+- **Keys derived from the command's own ID.** In this policy, no
   fact can hold such a key before the command runs, because every
   command that stores an ID taken from a field first checks that its
   object exists. That is a property of the whole policy, not of one
   command. Elsewhere, a member who has seen a command could author a
   concurrent one that stores its ID from a field, and the merge could
   order that one first;
-- **F. Invariants between facts.** For example, a `Device` fact implies
+- **Invariants between facts.** For example, a `Device` fact implies
   its three key facts and its `Rank`, and a `RoleAssignmentIndex` entry
   implies the matching `AssignedRole`. The policy checks some of these
   only in debug builds.
 
-| Warning | From | Causes |
+| Warning | From | Cause |
 |---|---|---|
-| `update Rank`, existence | `ChangeRank` | A, B |
-| `create Role` | `CreateRole`, `SetupDefaultRole` | E |
-| `create Rank` | `CreateRole`, `SetupDefaultRole`, `CreateLabel` | E |
-| `create Rank` | `CreateTeam`, after the device's `Rank` | C, E |
-| `create Rank` | `AddDevice` | F |
-| `create RoleHasPerm` | `SetupDefaultRole` | C, E |
-| `create RoleHasPerm` | `CreateTeam` | C |
-| `delete Rank` | `DeleteRole` | A |
-| `update AssignedRole`, values | `ChangeRole` | B |
-| `create RoleAssignmentIndex` | `ChangeRole` | F |
-| `delete` of the three device key facts | `RemoveDevice` | F |
-| `delete Rank` | `RemoveDevice` | F, and A where the author is another device |
-| `create Label` | `CreateLabel` | E |
-| `delete Label` | `DeleteLabel` | D |
-| `delete Rank` | `DeleteLabel` | A, D |
+| `create Role` | `CreateRole`, `SetupDefaultRole` | Own ID |
+| `create Rank` | `CreateRole`, `SetupDefaultRole`, `CreateLabel` | Own ID |
+| `create Rank` | `CreateTeam`, after the device's `Rank` | Own ID |
+| `create Rank` | `AddDevice` | Invariant |
+| `create RoleHasPerm` | `SetupDefaultRole` | Own ID |
+| `create RoleAssignmentIndex` | `ChangeRole` | Invariant |
+| `delete` of the three device key facts | `RemoveDevice` | Invariant |
+| `delete Rank` | `RemoveDevice`, when a device removes itself | Invariant |
+| `create Label` | `CreateLabel` | Own ID |
 
 A warning shared by several commands, such as the one in
 `set_object_rank`, goes away only when every command's cause does.
-Fixing A through D in the analysis would clear 5 of the 14. Adding E
-would clear 8. The other 6 need F.
+Knowing which IDs are fresh would clear 3 of the 9. The other 6 need
+invariants.
 
 Three commands rely on an invariant where the policy checks a similar
 one elsewhere. `AddDevice` checks that four of the five facts it
@@ -905,22 +1005,17 @@ ties to them only in debug builds.
 - **Double manipulation is syntactic.** Only identical keys are flagged,
   so two mutations whose keys are equal at runtime but written
   differently are missed.
-- **A mutation forgets other keys of the same fact.** After
-  `create F[k1]`, everything known about `F` is dropped, even for keys
-  that differ from `k1` by a literal. So `check !exists F[a]`, then
-  `check !exists F[b]`, then creating both warns on the second, and in
-  an init command a second create of `F` warns too.
+- **Keys differ only by literals.** Two keys are known to differ only
+  where both give different literals. A checked `x != y` is not used,
+  so after `delete F[k: x]`, nothing is known about `F[k: y]`.
 - **FFI calls** are not substituted, so a key computed by an FFI call is
   compared by the name of the variable holding it.
 - **Helper knowledge** is limited to facts expressed in the helper's
-  parameters and globals, and is used only where the call is a whole
-  condition or the left side of `or`. A call inside a comparison, or
-  bound by `let` and then compared, proves nothing.
-- **Equalities are not tracked.** A value checked equal to a stored
-  value can't stand in for it in an update's stated values.
-- **A key read back from a query is not the key.** After
-  `let x = query F[k: e] or ..`, the key `x.k` is not recognized as
-  `e`, so `delete F[k: x.k]` warns.
+  parameters and globals. A call inside a block that is itself inside
+  a compared expression doesn't count.
+- **Equalities are followed one step, to stored values only.** A
+  checked `a == b` says nothing until one side is a stored value, and
+  an equality between other values isn't used to match keys.
 - **Properties of the whole policy** are unknown. A key derived from
   the command's own ID may be absent because of how every other command
   stores IDs, and one fact may imply another, but the analysis sees one
@@ -943,7 +1038,7 @@ ties to them only in debug builds.
   are unreachable.
 - **Default-on, then errors:** make the analysis default-on once it has
   run cleanly on real policies such as the daemon policy, then promote
-  warnings to errors. The daemon policy raises 14 false positives
+  warnings to errors. The daemon policy raises 9 false positives
   today. [The daemon policy](#the-daemon-policy) lists their causes.
 - **New obligation kinds:** the framework is not fact-specific.
   Candidates include every `policy` block reaching a `finish` on some

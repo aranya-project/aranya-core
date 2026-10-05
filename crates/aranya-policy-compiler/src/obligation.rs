@@ -92,6 +92,10 @@ enum FactState {
 /// A canonicalized fact literal: fact name plus key-field values after
 /// `let` substitution. Trailing bind markers (`?`) are omitted, as in the
 /// typed HIR, so `keys` is a prefix of the schema's key fields.
+///
+/// An `Exists` entry may also name one value field, after the whole key.
+/// This *value entry* says the fact exists and its stored value for that
+/// field equals the expression. See [`value_entry`].
 #[derive(Debug, Clone)]
 struct FactPattern {
     name: Ident,
@@ -104,6 +108,10 @@ struct FactPattern {
 
 /// Fact knowledge.
 type Facts = Vec<(FactPattern, FactState)>;
+
+/// The keys of query results: for a variable and one of its key fields,
+/// the key the query that bound the variable gave.
+type KeyLinks = BTreeMap<(Identifier, Identifier), Expression>;
 
 /// Why the analysis lost track of a fact at some point, for the notes of
 /// a warning about that fact.
@@ -208,7 +216,7 @@ fn either_noted(st: &mut PathState<'_>, span: Span, a: Know, b: Know) -> Know {
     for name in known {
         let kept = result.iter().flatten().any(|(pat, _)| pat.name == name);
         if !kept {
-            st.opaque.push((name, span, Why::TooComplex));
+            st.lose_track(name, span, Why::TooComplex);
         }
     }
     result
@@ -228,6 +236,9 @@ struct Exit {
     facts: Facts,
     /// The returned value, in the function's terms.
     ret: Expression,
+    /// The stored value the exit returns, if it returns one: the fact
+    /// the function read it from, in its terms, and the value field.
+    value: Option<(FactPattern, Identifier)>,
 }
 
 /// A pure function's exits, used to evaluate calls to it.
@@ -303,6 +314,18 @@ impl Analyzer {
             summarizing: RefCell::new(Vec::new()),
             pending: RefCell::new(Vec::new()),
         }
+    }
+
+    /// How many key fields `fact` has.
+    fn key_count(&self, fact: &Identifier) -> usize {
+        self.facts.get(fact).map_or(0, |schema| schema.keys.len())
+    }
+
+    /// Is `field` one of `fact`'s key fields?
+    fn is_key(&self, fact: &Identifier, field: &Identifier) -> bool {
+        self.facts
+            .get(fact)
+            .is_some_and(|schema| schema.keys.iter().any(|(key, _)| key == field))
     }
 
     /// Record a finish function's lowered body.
@@ -425,13 +448,19 @@ struct PathState<'a> {
     /// could not interpret, and joins that dropped what it knew.
     opaque: Vec<OpaquePoint>,
     /// The fact database is known to be empty at the start of the block
-    /// (an `init` command), except for facts named in `dirty`.
+    /// (an `init` command), except for the facts in `mutated`.
     empty_db: bool,
-    /// Facts that may have been mutated since the block started.
-    dirty: Vec<Identifier>,
+    /// The facts created or updated since the block started. Each may
+    /// exist now, wherever the path knew it absent, so absence holds only
+    /// for facts that provably differ from all of them.
+    mutated: Vec<FactPattern>,
     /// Variables holding a fact read by a query, with the fact they hold.
     /// Used to prove an `update`'s stated values match the stored fact.
     query_bindings: Vec<(Identifier, FactPattern)>,
+    /// What each key field of a query result holds: the key the query
+    /// gave. Unlike the result's values, this stays true after any
+    /// mutation, since a variable never changes.
+    key_links: KeyLinks,
     /// Inside a finish function body, where every name must be a parameter
     /// or a global. Any other name must not be mistaken for a caller's
     /// variable of the same name.
@@ -448,25 +477,23 @@ impl<'a> PathState<'a> {
             env: BTreeMap::new(),
             opaque: Vec::new(),
             empty_db,
-            dirty: Vec::new(),
+            mutated: Vec::new(),
             query_bindings: Vec::new(),
+            key_links: BTreeMap::new(),
             strict: false,
             evaluating: Vec::new(),
         }
     }
 
-    /// Is every fact named `name` known not to exist?
-    fn known_absent(&self, name: &Identifier) -> bool {
-        self.empty_db && !self.dirty.contains(name)
+    /// Does `pat` provably differ from every fact created or updated since
+    /// the block started?
+    fn untouched(&self, pat: &FactPattern) -> bool {
+        self.mutated.iter().all(|m| distinct(m, pat))
     }
 
-    /// Record that facts named `name` may have been mutated. Query results
-    /// for that fact no longer reflect the database.
-    fn mark_dirty(&mut self, name: &Identifier) {
-        if !self.dirty.contains(name) {
-            self.dirty.push(name.clone());
-        }
-        self.query_bindings.retain(|(_, p)| p.name.inner != *name);
+    /// Is `pat` known not to exist because the database started empty?
+    fn known_absent(&self, pat: &FactPattern) -> bool {
+        self.empty_db && self.untouched(pat)
     }
 
     /// Forget everything: an unknown call may have mutated any fact.
@@ -483,7 +510,7 @@ impl<'a> PathState<'a> {
         };
         for (pat, state) in facts {
             if contradicts(&self.facts, &pat, state)
-                || (state == FactState::Exists && self.known_absent(&pat.name.inner))
+                || (state == FactState::Exists && self.known_absent(&pat))
             {
                 return false;
             }
@@ -492,7 +519,22 @@ impl<'a> PathState<'a> {
         true
     }
 
+    /// Note that the path lost track of facts named `name` at `span`, once
+    /// for each place and reason.
+    fn lose_track(&mut self, name: Ident, span: Span, why: Why) {
+        merge_opaque(&mut self.opaque, vec![(name, span, why)]);
+    }
+
     fn bind_query(&mut self, var: Identifier, pat: FactPattern) {
+        // `var` holds what the query gave for each key. A key it bound is
+        // read from `var` itself, which says nothing.
+        self.key_links.retain(|(v, _), _| *v != var);
+        for (key, given) in &pat.keys {
+            if !mentions(given, &var) {
+                self.key_links
+                    .insert((var.clone(), key.clone()), given.clone());
+            }
+        }
         self.query_bindings.retain(|(v, _)| *v != var);
         self.query_bindings.push((var, pat));
     }
@@ -510,6 +552,8 @@ impl<'a> PathState<'a> {
         self.facts.retain(|(p, _)| !mentions_pattern(p, v));
         self.query_bindings
             .retain(|(x, p)| x != v && !mentions_pattern(p, v));
+        self.key_links
+            .retain(|(x, _), given| (x != v) & !mentions(given, v));
     }
 }
 
@@ -654,7 +698,8 @@ fn walk_match<'a>(m: &MatchStatement, paths: Paths<'a>, out: &mut Out) -> Paths<
     let mut entering: Vec<Paths<'a>> = m.arms.iter().map(|_| Vec::new()).collect();
     for mut st in paths {
         let scrutinee = resolve(&st, &m.expression);
-        let mut earlier_false = nothing();
+        // The scrutinee runs before any arm.
+        let mut earlier_false = call_facts(&mut st, &scrutinee, out);
         for (arm, arm_paths) in m.arms.iter().zip(&mut entering) {
             let (when_true, when_false, bound) = arm_cond(&mut st, &scrutinee, &arm.pattern, out);
             let mut branch = st.clone();
@@ -730,7 +775,7 @@ fn limit<'a>(mut paths: Paths<'a>, site: Span, out: &mut Out) -> Paths<'a> {
     let first = paths.swap_remove(0);
     let (mut joined, dropped) = join(first, paths);
     for name in &dropped {
-        joined.opaque.push((name.clone(), site, Why::Joined));
+        joined.lose_track(name.clone(), site, Why::Joined);
     }
     add_warning(&mut out.warnings, paths_joined(site, max, &dropped));
     vec![joined]
@@ -746,6 +791,12 @@ fn same_state(a: &PathState<'_>, b: &PathState<'_>) -> bool {
         x.iter()
             .all(|(p, s)| y.iter().any(|(q, t)| (s == t) & same_pattern(p, q)))
     };
+    let mutated = |st: &PathState<'_>| -> Facts {
+        st.mutated
+            .iter()
+            .map(|p| (p.clone(), FactState::Exists))
+            .collect()
+    };
     let bindings_in = |x: &[(Identifier, FactPattern)], y: &[(Identifier, FactPattern)]| {
         x.iter()
             .all(|(v, p)| y.iter().any(|(w, q)| (v == w) & same_pattern(p, q)))
@@ -756,7 +807,9 @@ fn same_state(a: &PathState<'_>, b: &PathState<'_>) -> bool {
         bindings_in(&a.query_bindings, &b.query_bindings),
         bindings_in(&b.query_bindings, &a.query_bindings),
         a.env == b.env,
-        a.dirty == b.dirty,
+        a.key_links == b.key_links,
+        facts_in(&mutated(a), &mutated(b)),
+        facts_in(&mutated(b), &mutated(a)),
         a.empty_db == b.empty_db,
     ]
     .into_iter()
@@ -776,14 +829,15 @@ fn join<'a>(mut joined: PathState<'a>, rest: Paths<'a>) -> (PathState<'a>, Vec<I
         joined
             .env
             .retain(|name, value| st.env.get(name) == Some(value));
+        joined
+            .key_links
+            .retain(|link, given| st.key_links.get(link) == Some(given));
         joined.query_bindings.retain(|(v, p)| {
             st.query_bindings
                 .iter()
                 .any(|(w, q)| (v == w) & same_pattern(p, q))
         });
-        joined.dirty.extend(st.dirty);
-        joined.dirty.sort();
-        joined.dirty.dedup();
+        joined.mutated.extend(st.mutated);
         joined.empty_db &= st.empty_db;
         merge_opaque(&mut joined.opaque, st.opaque);
     }
@@ -811,16 +865,30 @@ fn merge_opaque(into: &mut Vec<OpaquePoint>, from: Vec<OpaquePoint>) {
     }
 }
 
-/// Record a pure function exit returning `value`.
-fn record_exit<'a>(st: PathState<'a>, value: &Expression, out: &mut Out) {
+/// Record a pure function exit returning `value`. The exit knows what
+/// returning `value` implies: the calls in it returned, and when it is
+/// `x or ..` with a right side that never produces a value, `x` is
+/// `Some`. On a path where that can't hold, there is no exit.
+fn record_exit<'a>(mut st: PathState<'a>, value: &Expression, out: &mut Out) {
     if out.exits.len() >= out.max_exits {
         out.unusable = true;
         return;
     }
     let ret = resolve(&st, value);
+    let returned = match &ret.kind {
+        ExprKind::Coalesce(lhs, rhs) if matches!(rhs.vtype.inner, TypeKind::Never) => {
+            cond_is(&mut st, lhs, true, out).0
+        }
+        _ => call_facts(&mut st, &ret, out),
+    };
+    if !st.assume(returned) {
+        return;
+    }
+    let value = stored_refs(&mut st, &ret).into_iter().next();
     out.exits.push(Exit {
         facts: st.facts,
         ret,
+        value,
     });
 }
 
@@ -985,7 +1053,7 @@ fn arm_cond<'a>(
                         && let Some(fact) = query_of(st, scrutinee)
                     {
                         let full = full_key_pattern(&pattern_raw(&fact, st), &var.inner, st);
-                        t = both(t, fact_is(full.clone(), FactState::Exists));
+                        t = both(t, exists_with_values(&fact, full.clone(), st));
                         bound.query = Some((var.inner.clone(), full));
                     }
                 } else {
@@ -1027,33 +1095,58 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -
             let (t, f) = cond_resolved(st, inner, out);
             (f, t)
         }
+        // `b` runs only where `a` lets it, so what `a` implies holds
+        // wherever `b` decides.
         ExprKind::And(a, b) => {
             let (ta, fa) = cond_resolved(st, a, out);
             let (tb, fb) = cond_resolved(st, b, out);
-            (both(ta, tb), either_noted(st, expr.span, fa, fb))
+            let b_false = both(ta.clone(), fb);
+            (both(ta, tb), either_noted(st, expr.span, fa, b_false))
         }
         ExprKind::Or(a, b) => {
             let (ta, fa) = cond_resolved(st, a, out);
             let (tb, fb) = cond_resolved(st, b, out);
-            (either_noted(st, expr.span, ta, tb), both(fa, fb))
+            let b_true = both(fa.clone(), tb);
+            (either_noted(st, expr.span, ta, b_true), both(fa, fb))
         }
         ExprKind::InternalFunction(InternalFunction::Exists(fact)) => {
+            let calls = call_facts(st, expr, out);
             let pat = pattern_raw(fact, st);
-            (
-                fact_is(pat.clone(), FactState::Exists),
-                absent_unless_filtered(fact, pat),
+            with_calls(
+                calls,
+                (
+                    exists_with_values(fact, pat.clone(), st),
+                    absent_unless_filtered(fact, pat),
+                ),
             )
         }
         ExprKind::InternalFunction(InternalFunction::FactCount(ty, n, fact)) => {
-            count_cond(st, expr, ty, n.inner, fact)
+            let calls = call_facts(st, expr, out);
+            let known = count_cond(st, expr, ty, n.inner, fact);
+            with_calls(calls, known)
         }
         ExprKind::Is(inner, some) => cond_is(st, inner, *some, out),
-        ExprKind::FunctionCall(fc) => through_call(st, fc, expr.span, out, &mut |st, ret, out| {
-            cond_resolved(st, ret, out)
-        }),
-        _ => {
+        ExprKind::FunctionCall(fc) => {
+            let args = args_facts(st, fc, out);
+            let known = through_call(st, fc, expr.span, out, &mut |st, ret, out| {
+                cond_resolved(st, ret, out)
+            });
+            with_calls(args, known)
+        }
+        ExprKind::Equal(a, b) | ExprKind::NotEqual(a, b) => {
+            let calls = call_facts(st, expr, out);
             collect_opaque(st, expr);
-            (nothing(), nothing())
+            let equal = both(calls.clone(), equal_values(st, a, b));
+            if matches!(expr.kind, ExprKind::Equal(..)) {
+                (equal, calls)
+            } else {
+                (calls, equal)
+            }
+        }
+        _ => {
+            let calls = call_facts(st, expr, out);
+            collect_opaque(st, expr);
+            (calls.clone(), calls)
         }
     }
 }
@@ -1067,7 +1160,7 @@ fn count_cond(
     fact: &FactLiteral,
 ) -> (Know, Know) {
     let pat = pattern_raw(fact, st);
-    let exists = fact_is(pat.clone(), FactState::Exists);
+    let exists = exists_with_values(fact, pat.clone(), st);
     let absent = absent_unless_filtered(fact, pat);
     match ty {
         FactCountType::AtLeast(_) => match n {
@@ -1125,20 +1218,29 @@ fn cond_is<'a>(
     }
     let (when_some, when_none) = match &expr.kind {
         ExprKind::InternalFunction(InternalFunction::Query(fact)) => {
+            let calls = call_facts(st, expr, out);
             let pat = pattern_raw(fact, st);
-            (
-                fact_is(pat.clone(), FactState::Exists),
-                absent_unless_filtered(fact, pat),
+            with_calls(
+                calls,
+                (
+                    exists_with_values(fact, pat.clone(), st),
+                    absent_unless_filtered(fact, pat),
+                ),
             )
         }
         ExprKind::Optional(None) => (None, nothing()),
         ExprKind::Optional(Some(_)) => (nothing(), None),
-        ExprKind::FunctionCall(fc) => through_call(st, fc, expr.span, out, &mut |st, ret, out| {
-            cond_is(st, ret, true, out)
-        }),
+        ExprKind::FunctionCall(fc) => {
+            let args = args_facts(st, fc, out);
+            let known = through_call(st, fc, expr.span, out, &mut |st, ret, out| {
+                cond_is(st, ret, true, out)
+            });
+            with_calls(args, known)
+        }
         _ => {
+            let calls = call_facts(st, expr, out);
             collect_opaque(st, expr);
-            (nothing(), nothing())
+            (calls.clone(), calls)
         }
     };
     if some {
@@ -1197,6 +1299,96 @@ fn through_call<'a>(
     (when_true, when_false)
 }
 
+/// The calls to pure functions that run whenever `expr` does. A call on
+/// the right of `&&`, `||`, or `or`, or in an arm of an `if` or `match`,
+/// may not run, so it doesn't count. Neither does a call in a block,
+/// whose value may use names the block binds, which mean nothing outside
+/// it.
+fn always_calls<'e>(expr: &'e Expression, calls: &mut Vec<(&'e FunctionCall, Span)>) {
+    match &expr.kind {
+        ExprKind::FunctionCall(fc) => {
+            for arg in &fc.arguments {
+                always_calls(arg, calls);
+            }
+            calls.push((fc, expr.span));
+        }
+        ExprKind::ForeignFunctionCall(fc) => {
+            for arg in &fc.arguments {
+                always_calls(arg, calls);
+            }
+        }
+        ExprKind::And(a, _) | ExprKind::Or(a, _) | ExprKind::Coalesce(a, _) => {
+            always_calls(a, calls);
+        }
+        ExprKind::Equal(a, b)
+        | ExprKind::NotEqual(a, b)
+        | ExprKind::GreaterThan(a, b)
+        | ExprKind::LessThan(a, b)
+        | ExprKind::GreaterThanOrEqual(a, b)
+        | ExprKind::LessThanOrEqual(a, b) => {
+            always_calls(a, calls);
+            always_calls(b, calls);
+        }
+        ExprKind::Not(e)
+        | ExprKind::Is(e, _)
+        | ExprKind::Dot(e, _)
+        | ExprKind::Substruct(e, _)
+        | ExprKind::Cast(e, _)
+        | ExprKind::Ok(e)
+        | ExprKind::Err(e)
+        | ExprKind::Optional(Some(e)) => always_calls(e, calls),
+        ExprKind::NamedStruct(s) => {
+            for (_, e) in &s.fields {
+                always_calls(e, calls);
+            }
+        }
+        ExprKind::InternalFunction(
+            InternalFunction::Query(fact)
+            | InternalFunction::Exists(fact)
+            | InternalFunction::FactCount(_, _, fact),
+        ) => {
+            let values = fact.value_fields.iter().flatten();
+            for (_, e) in fact.key_fields.iter().chain(values) {
+                always_calls(e, calls);
+            }
+        }
+        ExprKind::InternalFunction(InternalFunction::If(c, _, _)) => always_calls(c, calls),
+        ExprKind::Match(m) => always_calls(&m.scrutinee, calls),
+        _ => {}
+    }
+}
+
+/// What holds once the calls `expr` always makes have returned. A pure
+/// function returns through one of its exits, so what all of them know
+/// holds after the call, even where its value is only compared, bound by
+/// `let`, or passed to another call.
+fn call_facts<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -> Know {
+    let mut calls = Vec::new();
+    always_calls(expr, &mut calls);
+    let mut know = nothing();
+    for (fc, span) in calls {
+        let (returned, _) = through_call(st, fc, span, out, &mut |_, _, _| (nothing(), nothing()));
+        know = both(know, returned);
+    }
+    know
+}
+
+/// [`call_facts`] for the arguments of a call, which run before it.
+fn args_facts<'a>(st: &mut PathState<'a>, fc: &FunctionCall, out: &mut Out) -> Know {
+    let mut know = nothing();
+    for arg in &fc.arguments {
+        let calls = call_facts(st, arg, out);
+        know = both(know, calls);
+    }
+    know
+}
+
+/// Add what `calls` imply to both outcomes of a condition: the calls ran
+/// whichever way it went.
+fn with_calls(calls: Know, (when_true, when_false): (Know, Know)) -> (Know, Know) {
+    (both(calls.clone(), when_true), both(calls, when_false))
+}
+
 /// Gives what one arm's or exit's value implies when true and when false.
 type Eval<'e, 'a> = dyn FnMut(&mut PathState<'a>, &Expression, &mut Out) -> (Know, Know) + 'e;
 
@@ -1226,7 +1418,8 @@ fn branch_cond<'a>(
             }
         }
         ExprKind::Match(m) => {
-            let mut earlier_false = nothing();
+            // The scrutinee runs before any arm.
+            let mut earlier_false = call_facts(st, &m.scrutinee, out);
             for arm in &m.arms {
                 let (at, af, bound) = arm_cond(st, &m.scrutinee, &arm.pattern, out);
                 let know = both(at, earlier_false.clone());
@@ -1314,7 +1507,7 @@ fn contribution<'a>(
     }
     // What the arm touched carries over. It can't have changed the
     // database: every mutation ends its path before the arm's value.
-    st.opaque.extend(end.opaque.iter().skip(base).cloned());
+    merge_opaque(&mut st.opaque, end.opaque.into_iter().skip(base).collect());
     result
 }
 
@@ -1397,7 +1590,7 @@ fn record_call_opaque(st: &mut PathState<'_>, name: &Identifier, span: Span) {
             names
         });
     for fact in names {
-        st.opaque.push((fact, span, Why::TooComplex));
+        st.lose_track(fact, span, Why::TooComplex);
     }
 }
 
@@ -1462,7 +1655,7 @@ fn finish_statements<'a>(
                 } else if !proven_absent(st, &pat) {
                     found.push(unproven_create(stmt.span, &pat, &st.opaque));
                 }
-                set_state(st, pat.clone(), FactState::Exists);
+                apply_change(st, pat.clone(), Change::Create);
                 touched.push(pat);
             }
             StmtKind::Update(u) => {
@@ -1476,7 +1669,7 @@ fn finish_statements<'a>(
                 } else if !values_proven(st, &u.fact, &pat) {
                     found.push(unproven_values(stmt.span, &pat, st));
                 }
-                set_state(st, pat.clone(), FactState::Exists);
+                apply_change(st, pat.clone(), Change::Update);
                 touched.push(pat);
             }
             StmtKind::Delete(d) => {
@@ -1486,7 +1679,7 @@ fn finish_statements<'a>(
                 } else if !proven_exists(st, &pat) {
                     found.push(unproven_exists(stmt.span, &pat, Mutation::Delete, st));
                 }
-                set_state(st, pat.clone(), FactState::NotExists);
+                apply_change(st, pat.clone(), Change::Delete);
                 touched.push(pat);
             }
             StmtKind::FunctionCall(fc) => {
@@ -1535,13 +1728,16 @@ fn finish_statements<'a>(
     }
 }
 
-/// Is `pat` known not to exist on this path?
+/// Is `pat` known not to exist on this path? It must provably differ
+/// from every fact created or updated since the block started, and the
+/// database must have started empty or an observation cover it.
 fn proven_absent(st: &PathState<'_>, pat: &FactPattern) -> bool {
-    st.known_absent(&pat.name.inner)
-        || st
-            .facts
-            .iter()
-            .any(|(p, s)| *s == FactState::NotExists && covers(p, pat))
+    st.untouched(pat)
+        && (st.empty_db
+            || st
+                .facts
+                .iter()
+                .any(|(p, s)| *s == FactState::NotExists && covers(p, pat)))
 }
 
 /// Is `pat` known to exist on this path?
@@ -1555,30 +1751,138 @@ fn proven_exists(st: &PathState<'_>, pat: &FactPattern) -> bool {
         .any(|(p, s)| *s == FactState::Exists && same_pattern(p, pat))
 }
 
-/// Does every value field an `update` states come from a query of the
-/// same fact? The VM requires the stated values to match the stored fact.
+/// Does every value an `update` states equal the stored one? The VM
+/// requires the stated values to match the stored fact.
 ///
-/// The accepted form is `x.field` for the same `field`, where `x` holds a
-/// fact read by a query with the same key, and `F` has not been mutated
-/// since.
-fn values_proven(st: &PathState<'_>, fact: &FactLiteral, pat: &FactPattern) -> bool {
+/// A stated value passes when it is the same field of the same fact,
+/// read by a query, filtered on by a fact literal, checked equal to such
+/// a value, or returned by a helper. An `update` or `delete` of a fact
+/// that may be this one forgets all of these.
+fn values_proven(st: &mut PathState<'_>, fact: &FactLiteral, pat: &FactPattern) -> bool {
     let Some(values) = &fact.value_fields else {
         return true;
     };
     values.iter().all(|(field, expr)| {
         let expr = resolve(st, expr);
-        let ExprKind::Dot(base, read) = &expr.kind else {
-            return false;
-        };
-        let ExprKind::Identifier(var) = &base.kind else {
-            return false;
-        };
-        read.inner == field.inner
-            && st
-                .query_bindings
-                .iter()
-                .any(|(v, p)| *v == var.inner && same_pattern(p, pat))
+        stored_refs(st, &expr)
+            .iter()
+            .any(|(p, f)| (*f == field.inner) & same_pattern(p, pat))
     })
+}
+
+/// What a fact literal matching implies: its fact exists, and when the
+/// literal names the whole key, its stored values are the ones the
+/// literal filters on.
+fn exists_with_values(fact: &FactLiteral, pat: FactPattern, st: &PathState<'_>) -> Know {
+    let whole = pat.keys.len() == st.az.key_count(&pat.name.inner);
+    let mut facts: Facts = fact
+        .value_fields
+        .iter()
+        .flatten()
+        .filter(|_| whole)
+        .map(|(field, value)| {
+            let entry = value_entry(&pat, &field.inner, value.clone());
+            (entry, FactState::Exists)
+        })
+        .collect();
+    facts.push((pat, FactState::Exists));
+    Some(facts)
+}
+
+/// A value entry: `pat`, a whole key, exists with `value` as its stored
+/// `field`.
+fn value_entry(pat: &FactPattern, field: &Identifier, value: Expression) -> FactPattern {
+    let mut entry = pat.clone();
+    entry.keys.push((field.clone(), value));
+    entry
+}
+
+/// Split a value entry into its fact's pattern, the field, and the value.
+/// Any other pattern isn't a value entry.
+fn value_of<'p>(
+    entry: &'p FactPattern,
+    az: &Analyzer,
+) -> Option<(FactPattern, &'p Identifier, &'p Expression)> {
+    let ((field, value), keys) = entry.keys.split_last()?;
+    let pat = FactPattern {
+        keys: keys.to_vec(),
+        ..entry.clone()
+    };
+    (keys.len() == az.key_count(&entry.name.inner)).then_some((pat, field, value))
+}
+
+/// The stored values `expr` is known to equal: for each, the fact it was
+/// read from and the value field. `expr` may be a value field of a
+/// variable bound to a query, a call to a helper whose every exit
+/// returns the same stored value, or a value the path knows equals one.
+fn stored_refs(st: &mut PathState<'_>, expr: &Expression) -> Vec<(FactPattern, Identifier)> {
+    let read = match &expr.kind {
+        ExprKind::Dot(base, field) => match &base.kind {
+            ExprKind::Identifier(var) => bound_value(st, &var.inner, &field.inner),
+            _ => None,
+        },
+        ExprKind::FunctionCall(fc) => call_returns_value(st, fc),
+        _ => None,
+    };
+    let known = st.facts.iter().filter_map(|(entry, _)| {
+        let (pat, field, value) = value_of(entry, st.az)?;
+        matches_expr(value, expr).then(|| (pat, field.clone()))
+    });
+    read.into_iter().chain(known).collect()
+}
+
+/// `var.field`, when `var` holds a fact read by a query and `field` is
+/// one of its values.
+fn bound_value(
+    st: &PathState<'_>,
+    var: &Identifier,
+    field: &Identifier,
+) -> Option<(FactPattern, Identifier)> {
+    let (_, pat) = st.query_bindings.iter().find(|(v, _)| v == var)?;
+    (!st.az.is_key(&pat.name.inner, field)).then(|| (pat.clone(), field.clone()))
+}
+
+/// The stored value a call to a pure function returns, in the caller's
+/// terms, when every exit returns the same one.
+fn call_returns_value(
+    st: &mut PathState<'_>,
+    fc: &FunctionCall,
+) -> Option<(FactPattern, Identifier)> {
+    let summary = st
+        .az
+        .summary(&fc.identifier.inner)
+        .filter(|s| s.params.len() == fc.arguments.len())?;
+    let map: BTreeMap<Identifier, Expression> = summary
+        .params
+        .iter()
+        .cloned()
+        .zip(fc.arguments.iter().cloned())
+        .collect();
+    let mut found: Option<(FactPattern, Identifier)> = None;
+    for exit in &summary.exits {
+        let (pat, field) = exit.value.as_ref()?;
+        let pat = subst_pattern(pat, &map, &st.az.globals)?;
+        let differs = found
+            .as_ref()
+            .is_some_and(|(prev, f)| (f != field) | !same_pattern(prev, &pat));
+        if differs {
+            return None;
+        }
+        found = Some((pat, field.clone()));
+    }
+    found
+}
+
+/// What `a == b` implies about stored values: whatever stored value one
+/// side equals, the other equals too.
+fn equal_values(st: &mut PathState<'_>, a: &Expression, b: &Expression) -> Know {
+    let mut facts = Vec::new();
+    for (side, other) in [(a, b), (b, a)] {
+        for (pat, field) in stored_refs(st, side) {
+            facts.push((value_entry(&pat, &field, other.clone()), FactState::Exists));
+        }
+    }
+    Some(facts)
 }
 
 /// Does an `update` state some of its fact's values but not all? The VM
@@ -1694,7 +1998,7 @@ fn unproven_exists(
             kind.gerund()
         ),
     )];
-    if st.known_absent(&pat.name.inner) {
+    if st.known_absent(pat) {
         footnotes.push((
             Footnote::Note,
             "no facts exist when an `init` command runs, so this always fails".to_owned(),
@@ -1858,7 +2162,7 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out) -
         st.forget_name(&var);
         if let Some(fact) = query_of(st, &lhs) {
             let full = full_key_pattern(&pattern_raw(&fact, st), &var, st);
-            when_some = both(when_some, fact_is(full.clone(), FactState::Exists));
+            when_some = both(when_some, exists_with_values(&fact, full.clone(), st));
             st.bind_query(var, full);
         }
         return st.assume(when_some);
@@ -1866,25 +2170,28 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out) -
     st.forget_name(&var);
     let value = resolve(st, &stmt.expression);
     if is_substitutable(&stmt.expression) {
+        let calls = call_facts(st, &value, out);
         st.env.insert(var, value);
-        return true;
+        return st.assume(calls);
     }
     // The value of an `if`, `match`, or block is unknown, but the path
     // knows what holds when some arm produced it.
-    if let Some((produced, _)) = branch_cond(st, &value, out, &mut |st, e, _| {
+    if let Some((produced, _)) = branch_cond(st, &value, out, &mut |st, e, out| {
+        let calls = call_facts(st, e, out);
         collect_opaque(st, e);
-        (nothing(), nothing())
+        (calls.clone(), calls)
     }) {
         let mut know = produced;
         if let Some(fact) = match_returns_query(st, &value) {
             let full = full_key_pattern(&pattern_raw(&fact, st), &var, st);
-            know = both(know, fact_is(full.clone(), FactState::Exists));
+            know = both(know, exists_with_values(&fact, full.clone(), st));
             st.bind_query(var, full);
         }
         return st.assume(know);
     }
+    let calls = call_facts(st, &value, out);
     collect_opaque(st, &value);
-    true
+    st.assume(calls)
 }
 
 /// The query a `match` on a query returns, if every arm that produces a
@@ -1923,7 +2230,7 @@ fn pattern_of(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
         keys: fact
             .key_fields
             .iter()
-            .map(|(name, expr)| (name.inner.clone(), resolve(st, expr)))
+            .map(|(name, expr)| (name.inner.clone(), linked(st, resolve(st, expr))))
             .collect(),
         span: fact.span(),
         text: fact_text(fact, &st.az.src),
@@ -1937,11 +2244,25 @@ fn pattern_raw(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
         keys: fact
             .key_fields
             .iter()
-            .map(|(name, expr)| (name.inner.clone(), expr.clone()))
+            .map(|(name, expr)| (name.inner.clone(), linked(st, expr.clone())))
             .collect(),
         span: fact.span(),
         text: fact_text(fact, &st.az.src),
     }
+}
+
+/// `key`, or the key a query gave, when `key` reads it from the query's
+/// result. `key` is in the path's terms, so a name in it is one the path
+/// bound, and a finish function's parameter has already been replaced by
+/// the caller's argument.
+fn linked(st: &PathState<'_>, key: Expression) -> Expression {
+    if let ExprKind::Dot(base, field) = &key.kind
+        && let ExprKind::Identifier(var) = &base.kind
+        && let Some(given) = st.key_links.get(&(var.inner.clone(), field.inner.clone()))
+    {
+        return given.clone();
+    }
+    key
 }
 
 /// The pattern of the one fact `var` holds after it is bound to the
@@ -2482,13 +2803,72 @@ fn observe(st: &mut PathState<'_>, pat: FactPattern, state: FactState) {
     st.facts.push((pat, state));
 }
 
-/// Record a mutation's postcondition. A mutation invalidates all other
-/// knowledge about the same fact name, since other patterns may alias
-/// the mutated key.
-fn set_state(st: &mut PathState<'_>, pat: FactPattern, state: FactState) {
-    st.mark_dirty(&pat.name.inner);
-    st.facts.retain(|(p, _)| p.name != pat.name);
-    st.facts.push((pat, state));
+/// A fact mutation, for [`apply_change`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Change {
+    Create,
+    Update,
+    Delete,
+}
+
+/// Record a mutation's postcondition. What the path knows about a fact
+/// that provably differs from the mutated one is kept. Of what it knows
+/// about one that may be the same:
+///
+/// - a `create` keeps everything. Creating a fact removes none, and where
+///   a fact the path knew existed was the one created, the `create`
+///   raised an exception;
+/// - a `delete` keeps only absence, since it may remove the fact;
+/// - an `update` keeps only absence too. The fact still exists, but its
+///   values may have changed, and mutating it again in the same finish
+///   block is an exception that the touched set only catches for
+///   identical keys. Forgetting that it exists keeps a second mutation
+///   of a fact that may be the same one from being proven.
+///
+/// A `create` or `update` may make a fact exist where the path knew it
+/// absent. Recording it in `mutated` limits that absence to the facts
+/// that provably differ from it.
+fn apply_change(st: &mut PathState<'_>, pat: FactPattern, change: Change) {
+    st.facts.retain(|(p, s)| {
+        let kept = match change {
+            Change::Create => true,
+            Change::Update | Change::Delete => *s == FactState::NotExists,
+        };
+        kept | distinct(p, &pat)
+    });
+    if change != Change::Create {
+        st.query_bindings.retain(|(_, p)| distinct(p, &pat));
+    }
+    let state = if change == Change::Delete {
+        FactState::NotExists
+    } else {
+        st.mutated.push(pat.clone());
+        FactState::Exists
+    };
+    observe(st, pat, state);
+}
+
+/// Can `p` and `q` never be the same fact? True for different facts, and
+/// for keys where both give literals that differ.
+fn distinct(p: &FactPattern, q: &FactPattern) -> bool {
+    p.name != q.name
+        || p.keys
+            .iter()
+            .zip(&q.keys)
+            .any(|((_, a), (_, b))| literals_differ(a, b))
+}
+
+/// Are `a` and `b` literals with different values?
+fn literals_differ(a: &Expression, b: &Expression) -> bool {
+    match (&a.kind, &b.kind) {
+        (ExprKind::Int(x), ExprKind::Int(y)) => x != y,
+        (ExprKind::String(x), ExprKind::String(y)) => x != y,
+        (ExprKind::Bool(x), ExprKind::Bool(y)) => x != y,
+        (ExprKind::EnumReference(x), ExprKind::EnumReference(y)) => {
+            (&x.identifier, &x.value) != (&y.identifier, &y.value)
+        }
+        _ => false,
+    }
 }
 
 /// Render a fact literal's name and key fields as written in the source.
@@ -2556,8 +2936,7 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
 /// Record every fact-touching subexpression as an opaque observation point.
 fn collect_opaque(st: &mut PathState<'_>, expr: &Expression) {
     visit_facts(expr, &mut |fact, span| {
-        st.opaque
-            .push((fact.identifier.clone(), span, Why::TooComplex));
+        st.lose_track(fact.identifier.clone(), span, Why::TooComplex);
     });
 }
 

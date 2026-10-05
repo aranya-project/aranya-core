@@ -141,3 +141,147 @@ fn update_binding_every_value_passes() {
     let warnings = warnings_for(&update_pair("a: ?, b: ?"));
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+/// Helpers returning the stored balance of `u`, directly and through
+/// another helper.
+const BALANCE_OF: &str = r#"
+    function balance_of(u int) int {
+        let a = query Account[user: u] or test_fail()
+        return a.balance
+    }
+
+    function balance_via(u int) int {
+        return balance_of(u)
+    }
+"#;
+
+#[rstest::rstest]
+#[case::checked_equal(
+    "let a = query Account[user: this.user] or recall failed()
+     check a.balance == this.user else recall failed()"
+)]
+#[case::checked_equal_reversed(
+    "let a = query Account[user: this.user] or recall failed()
+     check this.user == a.balance else recall failed()"
+)]
+#[case::helper_return("check this.user == balance_of(this.user) else recall failed()")]
+#[case::helper_return_through_helper(
+    "check balance_via(this.user) == this.user else recall failed()"
+)]
+#[case::compared_twice(
+    "let a = query Account[user: this.user] or recall failed()
+     let b = a.balance
+     check b == this.user else recall failed()"
+)]
+fn update_value_known_equal_to_the_stored_one_passes(#[case] proof: &str) {
+    let warnings = warnings_for(&with_defs(
+        BALANCE_OF,
+        &format!(
+            r#"
+            {proof}
+            finish {{
+                update Account[user: this.user]=>{{balance: this.user}} to {{balance: 1}}
+            }}
+            "#
+        ),
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[rstest::rstest]
+#[case::exists("check exists Account[user: this.user]=>{balance: 5} else recall failed()")]
+#[case::query("let a = query Account[user: this.user]=>{balance: 5} or recall failed()")]
+#[case::at_least("check at_least 1 Account[user: this.user]=>{balance: 5} else recall failed()")]
+fn update_value_filtered_on_passes(#[case] filter: &str) {
+    let warnings = warnings_for(&command(&format!(
+        r#"
+        {filter}
+        finish {{
+            update Account[user: this.user]=>{{balance: 5}} to {{balance: 6}}
+        }}
+        "#
+    )));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn update_value_filtered_on_in_a_match_arm_passes() {
+    let warnings = warnings_for(&command(
+        r#"
+        match query Account[user: this.user]=>{balance: 5} {
+            Some(a) => {
+                finish {
+                    update Account[user: this.user]=>{balance: 5} to {balance: 6}
+                }
+            }
+            None => { finish {} }
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn update_value_filtered_on_by_a_bound_key_query_passes() {
+    let warnings = warnings_for(&with_defs(
+        "fact Member[team int, device int]=>{rank int}",
+        r#"
+        let m = query Member[team: this.user, device: ?]=>{rank: 2} or recall failed()
+        finish {
+            update Member[team: this.user, device: m.device]=>{rank: 2} to {rank: 3}
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn update_value_known_equal_through_a_finish_function_passes() {
+    let warnings = warnings_for(&with_defs(
+        r#"
+        finish function set_balance(u int, old int, new int) {
+            update Account[user: u]=>{balance: old} to {balance: new}
+        }
+        "#,
+        r#"
+        let a = query Account[user: this.user] or recall failed()
+        check a.balance == this.user else recall failed()
+        finish { set_balance(this.user, this.user, 1) }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn update_value_known_after_creating_another_fact_passes() {
+    // Creating another fact leaves the stored value alone, and creating
+    // this one would have failed.
+    let warnings = warnings_for(&command(
+        r#"
+        let a = query Account[user: this.user] or recall failed()
+        check a.balance == this.user else recall failed()
+        check !exists Account[user: 1] else recall failed()
+        finish {
+            create Account[user: 1]=>{balance: 0}
+            update Account[user: this.user]=>{balance: this.user} to {balance: 1}
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn update_value_known_alongside_a_key_passes() {
+    // `a.user` equals `this.user` too, but it is a key, not a value.
+    let warnings = warnings_for(&command(
+        r#"
+        let a = query Account[user: this.user] or recall failed()
+        check a.user == this.user else recall failed()
+        check a.balance == this.user else recall failed()
+        finish {
+            update Account[user: this.user]=>{balance: this.user} to {balance: 1}
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

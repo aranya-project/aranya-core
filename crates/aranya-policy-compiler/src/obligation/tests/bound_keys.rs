@@ -363,3 +363,79 @@ fn match_let_with_other_arm_does_not_bind() {
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("before `update`"));
 }
+
+#[test]
+fn key_read_back_from_a_query_passes() {
+    let warnings = warnings_for(&command(
+        r#"
+        let a = query Account[user: this.user] or recall failed()
+        finish { delete Account[user: a.user] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn key_read_back_survives_a_mutation() {
+    let warnings = warnings_for(&with_defs(
+        r#"
+        fact Member[team int, device int]=>{rank int}
+        fact Other[k int]=>{v int}
+        "#,
+        r#"
+        let m = query Member[team: this.user, device: 1] or recall failed()
+        check exists Other[k: this.user] else recall failed()
+        finish {
+            delete Member[team: m.team, device: m.device]
+            delete Other[k: m.team]
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn key_read_back_in_a_match_arm_passes() {
+    let warnings = warnings_for(&command(
+        r#"
+        match query Account[user: this.user] {
+            Some(a) => {
+                finish { delete Account[user: a.user] }
+            }
+            None => {
+                finish {}
+            }
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn key_read_back_through_a_finish_function_passes() {
+    let warnings = warnings_for(&with_defs(
+        r#"
+        finish function remove(u int) {
+            delete Account[user: u]
+        }
+        "#,
+        r#"
+        let a = query Account[user: this.user] or recall failed()
+        finish { remove(a.user) }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn key_read_back_in_a_condition_passes() {
+    let warnings = warnings_for(&with_defs(
+        MEMBER,
+        r#"
+        let a = query Account[user: this.user] or recall failed()
+        check !exists Member[team: a.user, device: 1] else recall failed()
+        finish { create Member[team: this.user, device: 1]=>{rank: 0} }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

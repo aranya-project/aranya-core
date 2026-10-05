@@ -289,3 +289,37 @@ fn facts_inside_optional_values_are_opaque_points() {
         .collect();
     assert_eq!(notes.len(), 2, "notes: {:?}", warnings[0].notes);
 }
+
+/// A command whose `check` is an `if` with arms proving `then` and
+/// `other`, then creates `Member[team: 1, device: 2]`.
+fn absence_by_arms(then: &str, other: &str) -> String {
+    with_defs(
+        MEMBER,
+        &format!(
+            r#"
+            check (if this.user > 1 {{ :{then} }} else {{ :{other} }}) else recall failed()
+            finish {{ create Member[team: 1, device: 2]=>{{rank: 0}} }}
+            "#
+        ),
+    )
+}
+
+#[test]
+fn arms_proving_absence_of_more_and_less_keep_the_narrower() {
+    // One arm proves the whole team has no members, the other only
+    // device 2. Either way, device 2 is absent.
+    let warnings = warnings_for(&absence_by_arms(
+        "!exists Member[team: 1, device: 2]",
+        "!exists Member[team: 1, device: ?]",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn arms_proving_overlapping_absences_pass() {
+    let warnings = warnings_for(&absence_by_arms(
+        "!exists Member[team: 1, device: 2]",
+        "!exists Member[team: 1, device: ?] && !exists Member[team: 1, device: 2]",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

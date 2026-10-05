@@ -282,3 +282,82 @@ fn control_helper_block_binder_without_capture() {
     ));
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+/// A helper returning the account a user must have.
+const ACCOUNT_OF: &str = r#"
+    function account_of(u int) struct Account {
+        return query Account[user: u] or test_fail()
+    }
+"#;
+
+#[test]
+fn attack_key_read_back_after_rebinding() {
+    // The first `a` read `Account[user: 1]`. The second is another
+    // account, so `a.user` is no longer 1. An `if` value isn't
+    // substituted, so `a.user` reaches the link if it was kept.
+    let warnings = warnings_for(&with_defs(
+        ACCOUNT_OF,
+        r#"
+        match query Account[user: 1] {
+            Some(a) => { let unused = a.balance }
+            None => { recall failed() }
+        }
+        let a = if this.user > 2 { : account_of(this.user) } else { : account_of(2) }
+        finish { delete Account[user: a.user] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_key_read_back_in_the_binding_arm() {
+    let warnings = warnings_for(&with_defs(
+        ACCOUNT_OF,
+        r#"
+        match query Account[user: 1] {
+            Some(a) => {
+                finish { delete Account[user: a.user] }
+            }
+            None => { recall failed() }
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+/// A finish function removing the member it is given, called with `arg`
+/// by a command that read `Member[team: 1, device: 5]` into `m`.
+fn remove_member(arg: &str) -> String {
+    with_defs(
+        r#"
+        fact Member[team int, device int]=>{rank int}
+
+        finish function remove(m struct Member) {
+            delete Member[team: m.team, device: 5]
+        }
+        "#,
+        &format!(
+            r#"
+            let m = query Member[team: 1, device: 5] or recall failed()
+            finish {{ remove({arg}) }}
+            "#
+        ),
+    )
+}
+
+#[test]
+fn attack_key_read_back_from_a_param_named_like_caller_var() {
+    // Inside `remove`, `m` is the argument, whose team is `this.user`.
+    let warnings = warnings_for(&remove_member(
+        "Member { team: this.user, device: 5, rank: 0 }",
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_key_read_back_from_the_caller_var_passed_in() {
+    let warnings = warnings_for(&remove_member("m"));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

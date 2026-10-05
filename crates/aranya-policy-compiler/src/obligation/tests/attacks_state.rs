@@ -1,7 +1,7 @@
 //! Attacks on state: knowledge must be dropped whenever the database
 //! may have changed.
 
-use super::{MEMBER, command, warnings_for, with_defs};
+use super::{MEMBER, command, init_command, warnings_for, with_defs};
 
 #[test]
 fn attack_aliasing_keys_in_one_finish() {
@@ -231,4 +231,163 @@ fn attack_update_then_delete_same_finish() {
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("more than once"));
+}
+
+#[test]
+fn attack_both_checked_absent_may_be_one_fact() {
+    // Both are absent, but `this.user` may be 7, and then the second
+    // create hits the first.
+    let warnings = warnings_for(&command(
+        r#"
+        check !exists Account[user: this.user] else recall failed()
+        check !exists Account[user: 7] else recall failed()
+        finish {
+            create Account[user: 7]=>{balance: 0}
+            create Account[user: this.user]=>{balance: 0}
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn control_both_checked_absent_differ() {
+    let warnings = warnings_for(&command(
+        r#"
+        check !exists Account[user: 8] else recall failed()
+        check !exists Account[user: 7] else recall failed()
+        finish {
+            create Account[user: 7]=>{balance: 0}
+            create Account[user: 8]=>{balance: 0}
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+/// A policy whose `Paint` facts for the user are all absent, then
+/// creates the two given colors.
+fn paint_two(first: &str, second: &str) -> String {
+    format!(
+        r#"
+        enum Color {{ Red, Blue }}
+        fact Paint[user int, color enum Color]=>{{}}
+
+        command Foo {{
+            fields {{ user int, color enum Color }}
+            policy {{
+                check !exists Paint[user: this.user, color: ?] else test_fail()
+                finish {{
+                    create Paint[user: this.user, color: {first}]=>{{}}
+                    create Paint[user: this.user, color: {second}]=>{{}}
+                }}
+            }}
+        }}
+        "#
+    )
+}
+
+#[test]
+fn attack_absence_of_a_prefix_excepts_what_may_be_created() {
+    // `this.color` may be `Red`.
+    let warnings = warnings_for(&paint_two("this.color", "Color::Red"));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn control_absence_of_a_prefix_with_two_colors() {
+    let warnings = warnings_for(&paint_two("Color::Blue", "Color::Red"));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_update_then_delete_of_what_may_be_the_same_fact() {
+    // If `this.user` is 1, the same fact is manipulated twice.
+    let warnings = warnings_for(&command(
+        r#"
+        check exists Account[user: 1] else recall failed()
+        check exists Account[user: this.user] else recall failed()
+        finish {
+            update Account[user: this.user] to {balance: 0}
+            delete Account[user: 1]
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_update_then_delete_of_another_fact() {
+    let warnings = warnings_for(&command(
+        r#"
+        check exists Account[user: 1] else recall failed()
+        check exists Account[user: 2] else recall failed()
+        finish {
+            update Account[user: 2] to {balance: 0}
+            delete Account[user: 1]
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_init_create_may_hit_a_created_fact() {
+    let warnings = warnings_for(&init_command(
+        r#"
+        finish {
+            create Account[user: this.user]=>{balance: 0}
+            create Account[user: 7]=>{balance: 0}
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn control_init_creates_two_literal_keys() {
+    let warnings = warnings_for(&init_command(
+        r#"
+        finish {
+            create Account[user: 8]=>{balance: 0}
+            create Account[user: 7]=>{balance: 0}
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_delete_drops_the_query_result_of_what_may_be_the_same_fact() {
+    let warnings = warnings_for(&command(
+        r#"
+        let a = query Account[user: this.user] or recall failed()
+        check exists Account[user: 1] else recall failed()
+        finish {
+            delete Account[user: 1]
+            update Account[user: this.user]=>{balance: a.balance} to {balance: 5}
+        }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `update`"));
+}
+
+#[test]
+fn control_delete_keeps_the_query_result_of_another_fact() {
+    let warnings = warnings_for(&command(
+        r#"
+        let a = query Account[user: 2] or recall failed()
+        check exists Account[user: 1] else recall failed()
+        finish {
+            delete Account[user: 1]
+            update Account[user: 2]=>{balance: a.balance} to {balance: 5}
+        }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
 }
