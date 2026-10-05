@@ -244,3 +244,69 @@ fn attack_nested_return_in_if_arm_in_argument() {
             .any(|(_, n)| n.contains("too complex"))
     );
 }
+
+#[test]
+fn attack_finish_inside_arm_without_value() {
+    // The arm's block ends in `recall`, so it never produces a value, but
+    // its `finish` still runs.
+    let warnings = warnings_for(&command(
+        r#"
+        let x = if this.user == 1 {
+            finish { create Account[user: this.user]=>{balance: 0} }
+            : recall failed()
+        } else {
+            : 2
+        }
+        finish {}
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn attack_finish_inside_check_else_block() {
+    // The `else` runs when the check fails, finish and all.
+    let warnings = warnings_for(&command(
+        r#"
+        check this.user == 1 else {
+            finish { create Account[user: this.user]=>{balance: 0} }
+            : recall failed()
+        }
+        finish {}
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn attack_finish_inside_or_block() {
+    let warnings = warnings_for(&with_defs(
+        "",
+        r#"
+        let a = query Account[user: this.user] or {
+            finish { create Owner[]=>{user: this.user} }
+            : recall failed()
+        }
+        finish {}
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("`Owner[]` does not exist"));
+}
+
+#[test]
+fn control_checked_finish_inside_check_else_block() {
+    let warnings = warnings_for(&command(
+        r#"
+        check this.user == 1 else {
+            check !exists Account[user: this.user] else recall failed()
+            finish { create Account[user: this.user]=>{balance: 0} }
+            : recall failed()
+        }
+        finish {}
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

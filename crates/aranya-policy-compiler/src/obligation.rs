@@ -10,7 +10,11 @@
 //!
 //! See `docs/policy-obligation-analysis.md` for the design.
 
-use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
 use aranya_policy_ast::{
@@ -223,6 +227,15 @@ struct Summary {
 /// function. Functions with more are treated as unknown calls.
 pub const DEFAULT_MAX_EXIT_PATHS: usize = 64;
 
+/// The parts of a fact's schema the analysis needs.
+#[derive(Debug)]
+pub(crate) struct FactSchema {
+    /// The key fields, in schema order.
+    pub(crate) keys: Vec<(Identifier, VType)>,
+    /// How many value fields the fact has.
+    pub(crate) values: usize,
+}
+
 /// Runs the obligation analysis for one policy.
 ///
 /// Function bodies are recorded as the compiler lowers them. Pure and
@@ -234,8 +247,8 @@ pub(crate) struct Analyzer {
     src: String,
     /// Global `let` names, which may appear in function bodies.
     globals: Vec<Identifier>,
-    /// The key fields of each fact, in schema order.
-    fact_keys: BTreeMap<Identifier, Vec<(Identifier, VType)>>,
+    /// The schema of each fact.
+    facts: BTreeMap<Identifier, FactSchema>,
     finish_functions: BTreeMap<Identifier, FunctionBody>,
     pure_functions: BTreeMap<Identifier, FunctionBody>,
     max_exit_paths: usize,
@@ -250,13 +263,13 @@ impl Analyzer {
     pub(crate) fn new(
         src: String,
         globals: Vec<Identifier>,
-        fact_keys: BTreeMap<Identifier, Vec<(Identifier, VType)>>,
+        facts: BTreeMap<Identifier, FactSchema>,
         max_exit_paths: usize,
     ) -> Self {
         Self {
             src,
             globals,
-            fact_keys,
+            facts,
             finish_functions: BTreeMap::new(),
             pure_functions: BTreeMap::new(),
             max_exit_paths,
@@ -323,7 +336,13 @@ impl Analyzer {
             &mut out,
         );
         self.summarizing.borrow_mut().pop();
-        let summary = (!out.unusable).then(|| {
+        // Every `return` must be one the walk records as an exit. A
+        // statement-level one it never reached is on no path that can run.
+        // Any other is an exit the summary would miss.
+        let mut recorded = core::mem::take(&mut out.modeled_returns);
+        statement_exits(&body.statements, &mut recorded);
+        let complete = return_sites(&body.statements).is_subset(&recorded);
+        let summary = (!out.unusable && complete).then(|| {
             Rc::new(Summary {
                 params: body.params.clone(),
                 exits: out.exits,
@@ -343,8 +362,11 @@ struct Out<'a> {
     exits: Vec<Exit>,
     max_exits: usize,
     /// The walk can't be summarized: it found more than `max_exits`
-    /// exits, or a `return` the walk doesn't model as an exit.
+    /// exits, or a block with more ways through it than that.
     unusable: bool,
+    /// The `return`s the walk recognized as exits, whether or not a path
+    /// could reach them.
+    modeled_returns: BTreeSet<Span>,
     /// Keep the state of every path that runs off the end of the walked
     /// statements, to evaluate a block expression.
     collect_ends: bool,
@@ -358,6 +380,7 @@ impl<'a> Out<'a> {
             exits: Vec::new(),
             max_exits,
             unusable: false,
+            modeled_returns: BTreeSet::new(),
             collect_ends: false,
             ends: Vec::new(),
         }
@@ -509,16 +532,7 @@ fn walk<'a>(stmts: &[Statement], cont: &[&[Statement]], mut st: PathState<'a>, o
             }
             StmtKind::Check(c) => {
                 let (when_true, when_false) = cond_of(&mut st, &c.expression, out);
-                // In a function, `check c else return v` is an exit where
-                // `c` is false.
-                if st.in_function
-                    && let ExprKind::Return(value) = &c.else_expression.kind
-                {
-                    let mut failed = st.clone();
-                    if failed.assume(when_false) {
-                        record_exit(failed, value, out);
-                    }
-                }
+                terminal_branch(&st, when_false, &c.else_expression, out);
                 if !st.assume(when_true) {
                     return;
                 }
@@ -583,11 +597,12 @@ fn walk<'a>(stmts: &[Statement], cont: &[&[Statement]], mut st: PathState<'a>, o
             }
             StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
                 let e = resolve(&st, e);
-                collect_opaque(&mut st, &e, out);
+                collect_opaque(&mut st, &e);
             }
             StmtKind::Return(r) => {
                 // Only functions have `return` statements. Exits recorded
                 // for a command block are never read.
+                out.modeled_returns.insert(stmt.span);
                 record_exit(st, &r.expression, out);
                 return;
             }
@@ -617,6 +632,127 @@ fn record_exit<'a>(st: PathState<'a>, value: &Expression, out: &mut Out<'a>) {
         facts: st.facts,
         ret,
     });
+}
+
+/// Add to `sites` the `return`s the walk records inside `e` whenever it
+/// evaluates `e` as an arm or a terminal: `e` itself if it is a `return`,
+/// the statement-level exits and final expression of a block, and the
+/// arms of an `if` or `match`. Called before checking whether the path
+/// can run, so a `return` on a path that can't run still counts.
+fn mark_arm_exits(e: &Expression, sites: &mut BTreeSet<Span>) {
+    match &e.kind {
+        ExprKind::Return(_) => {
+            sites.insert(e.span);
+        }
+        ExprKind::Block(stmts, last) => {
+            statement_exits(stmts, sites);
+            mark_arm_exits(last, sites);
+        }
+        ExprKind::InternalFunction(InternalFunction::If(_, then, other)) => {
+            mark_arm_exits(then, sites);
+            mark_arm_exits(other, sites);
+        }
+        ExprKind::Match(m) => {
+            for arm in &m.arms {
+                mark_arm_exits(&arm.expression, sites);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The path where a `check`'s `else` or an `or`'s right side runs: a
+/// copy of `st` that knows `know`, on which terminal `e` runs.
+fn terminal_branch<'a>(st: &PathState<'a>, know: Know, e: &Expression, out: &mut Out<'a>) {
+    mark_arm_exits(e, &mut out.modeled_returns);
+    // `recall`, `todo()`, and `test_fail()` have nothing to walk.
+    let walkable = matches!(
+        e.kind,
+        ExprKind::Return(_)
+            | ExprKind::Block(..)
+            | ExprKind::Match(..)
+            | ExprKind::InternalFunction(InternalFunction::If(..))
+    );
+    if !walkable {
+        return;
+    }
+    let mut failed = st.clone();
+    if failed.assume(know) {
+        run_terminal(&mut failed, e, out);
+    }
+}
+
+/// Run `e`, which never produces a value, on the path `st`: the `else`
+/// of a `check`, the right side of an `or`, or an arm of type `Never`. A
+/// `return` there is an exit, and the statements of a block there are
+/// walked, since they can hold a `finish` or a `return`.
+fn run_terminal<'a>(st: &mut PathState<'a>, e: &Expression, out: &mut Out<'a>) {
+    if let ExprKind::Return(value) = &e.kind {
+        // Only functions have `return`. Exits recorded for a command
+        // block are never read.
+        out.modeled_returns.insert(e.span);
+        record_exit(st.clone(), value, out);
+        return;
+    }
+    let e = resolve(st, e);
+    branch_cond(st, &e, out, &mut |st, e, _| {
+        collect_opaque(st, e);
+        (nothing(), nothing())
+    });
+}
+
+/// The span of every `return` in a function body, wherever it appears.
+/// Lowering keeps source spans and never adds a `return`, so the spans
+/// tell them apart.
+fn return_sites(stmts: &[Statement]) -> BTreeSet<Span> {
+    let mut sites = BTreeSet::new();
+    visit_stmts(stmts, &mut |node| match node {
+        Node::Stmt(s) if matches!(s.kind, StmtKind::Return(_)) => {
+            sites.insert(s.span);
+        }
+        Node::Expr(e) if matches!(e.kind, ExprKind::Return(_)) => {
+            sites.insert(e.span);
+        }
+        _ => {}
+    });
+    sites
+}
+
+/// Add the statement-level `return`s in `stmts` to `sites`: `return`
+/// statements and the exits in the `else` of a `check` and the right side
+/// of an `or`, including those in `if` and `match` statement bodies but
+/// not those inside other expressions. The walk records each of these as
+/// an exit whenever it reaches it, so one it never reaches can't run.
+fn statement_exits(stmts: &[Statement], sites: &mut BTreeSet<Span>) {
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::Return(_) => {
+                sites.insert(stmt.span);
+            }
+            StmtKind::Check(c) => mark_arm_exits(&c.else_expression, sites),
+            StmtKind::Let(l) => {
+                if let ExprKind::Coalesce(_, rhs) = &l.expression.kind
+                    && matches!(rhs.vtype.inner, TypeKind::Never)
+                {
+                    mark_arm_exits(rhs, sites);
+                }
+            }
+            StmtKind::If(ifs) => {
+                for (_, body) in &ifs.branches {
+                    statement_exits(body, sites);
+                }
+                if let Some(body) = &ifs.fallback {
+                    statement_exits(body, sites);
+                }
+            }
+            StmtKind::Match(m) => {
+                for arm in &m.arms {
+                    statement_exits(&arm.statements, sites);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// The names a `match` arm binds.
@@ -712,7 +848,6 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a
             (either_noted(st, expr.span, ta, tb), both(fa, fb))
         }
         ExprKind::InternalFunction(InternalFunction::Exists(fact)) => {
-            unusable_if_returns(st, expr, out);
             let pat = pattern_raw(fact, st);
             (
                 fact_is(pat.clone(), FactState::Exists),
@@ -720,31 +855,26 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a
             )
         }
         ExprKind::InternalFunction(InternalFunction::FactCount(ty, n, fact)) => {
-            unusable_if_returns(st, expr, out);
-            count_cond(st, expr, ty, n.inner, fact, out)
+            count_cond(st, expr, ty, n.inner, fact)
         }
         ExprKind::Is(inner, some) => cond_is(st, inner, *some, out),
-        ExprKind::FunctionCall(fc) => {
-            unusable_if_returns(st, expr, out);
-            through_call(st, fc, expr.span, out, &mut |st, ret, out| {
-                cond_resolved(st, ret, out)
-            })
-        }
+        ExprKind::FunctionCall(fc) => through_call(st, fc, expr.span, out, &mut |st, ret, out| {
+            cond_resolved(st, ret, out)
+        }),
         _ => {
-            collect_opaque(st, expr, out);
+            collect_opaque(st, expr);
             (nothing(), nothing())
         }
     }
 }
 
 /// What a counting query implies. `exists` is `at_least 1`.
-fn count_cond<'a>(
-    st: &mut PathState<'a>,
+fn count_cond(
+    st: &mut PathState<'_>,
     expr: &Expression,
     ty: &FactCountType,
     n: i64,
     fact: &FactLiteral,
-    out: &mut Out<'a>,
 ) -> (Know, Know) {
     let pat = pattern_raw(fact, st);
     let exists = fact_is(pat.clone(), FactState::Exists);
@@ -767,7 +897,7 @@ fn count_cond<'a>(
         },
         // `count_up_to` is a number, not a condition.
         FactCountType::UpTo(_) => {
-            collect_opaque(st, expr, out);
+            collect_opaque(st, expr);
             (nothing(), nothing())
         }
     }
@@ -805,7 +935,6 @@ fn cond_is<'a>(
     }
     let (when_some, when_none) = match &expr.kind {
         ExprKind::InternalFunction(InternalFunction::Query(fact)) => {
-            unusable_if_returns(st, expr, out);
             let pat = pattern_raw(fact, st);
             (
                 fact_is(pat.clone(), FactState::Exists),
@@ -813,18 +942,12 @@ fn cond_is<'a>(
             )
         }
         ExprKind::Optional(None) => (None, nothing()),
-        ExprKind::Optional(Some(_)) => {
-            unusable_if_returns(st, expr, out);
-            (nothing(), None)
-        }
-        ExprKind::FunctionCall(fc) => {
-            unusable_if_returns(st, expr, out);
-            through_call(st, fc, expr.span, out, &mut |st, ret, out| {
-                cond_is(st, ret, true, out)
-            })
-        }
+        ExprKind::Optional(Some(_)) => (nothing(), None),
+        ExprKind::FunctionCall(fc) => through_call(st, fc, expr.span, out, &mut |st, ret, out| {
+            cond_is(st, ret, true, out)
+        }),
         _ => {
-            collect_opaque(st, expr, out);
+            collect_opaque(st, expr);
             (nothing(), nothing())
         }
     };
@@ -926,9 +1049,16 @@ fn branch_cond<'a>(
         ExprKind::Block(stmts, e) => {
             let base = st.opaque.len();
             let Some(ends) = block_ends(st, stmts, out) else {
-                collect_opaque(st, expr, out);
+                // Too many ways through the block, so its final expression
+                // goes unevaluated. In a function, an exit there would be
+                // missed.
+                if st.in_function {
+                    out.unusable = true;
+                }
+                collect_opaque(st, expr);
                 return Some((nothing(), nothing()));
             };
+            mark_arm_exits(e, &mut out.modeled_returns);
             let bound = bound_names(stmts);
             for end in ends {
                 let (t, f) = contribution(st, end, base, &bound, e, out, eval);
@@ -951,6 +1081,8 @@ fn under<'a>(
     out: &mut Out<'a>,
     eval: &mut Eval<'_, 'a>,
 ) -> (Know, Know) {
+    // The exits in the arm count as recorded even if the arm can't run.
+    mark_arm_exits(e, &mut out.modeled_returns);
     let base = st.opaque.len();
     let mut end = st.clone();
     for var in &bound.names {
@@ -982,30 +1114,37 @@ fn contribution<'a>(
     out: &mut Out<'a>,
     eval: &mut Eval<'_, 'a>,
 ) -> (Know, Know) {
-    let e = resolve(&end, e);
     let mut result = (None, None);
     if matches!(e.vtype.inner, TypeKind::Never) {
-        if end.in_function
-            && let ExprKind::Return(value) = &e.kind
-        {
-            record_exit(end.clone(), value, out);
-        }
+        // The arm never produces a value, but it still runs.
+        run_terminal(&mut end, e, out);
     } else {
-        // The arm may itself be an `if`, `match`, or block.
+        let e = resolve(&end, e);
+        // The arm may itself be an `if`, `match`, or block. Nothing it
+        // proves about its own names can leave it: outside, those names
+        // are unbound or mean something else.
         let (t, f) =
             branch_cond(&mut end, &e, out, eval).unwrap_or_else(|| eval(&mut end, &e, out));
-        let facts: Facts = end
-            .facts
-            .iter()
-            .filter(|(p, _)| !bound.iter().any(|v| mentions_pattern(p, v)))
-            .cloned()
-            .collect();
-        result = (both(Some(facts.clone()), t), both(Some(facts), f));
+        let facts = without_names(Some(end.facts.clone()), bound);
+        result = (
+            both(facts.clone(), without_names(t, bound)),
+            both(facts, without_names(f, bound)),
+        );
     }
     // What the arm touched carries over. It can't have changed the
     // database: every mutation ends its path before the arm's value.
     st.opaque.extend(end.opaque.iter().skip(base).cloned());
     result
+}
+
+/// `know` without the facts that mention any of `names`.
+fn without_names(know: Know, names: &[Identifier]) -> Know {
+    know.map(|facts| {
+        facts
+            .into_iter()
+            .filter(|(p, _)| !names.iter().any(|v| mentions_pattern(p, v)))
+            .collect()
+    })
 }
 
 /// The states of every path through a block expression's statements
@@ -1165,6 +1304,8 @@ fn finish_statements<'a>(
                 let pat = pattern_of(&u.fact, st);
                 if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
                     found.push(double_manipulation(stmt.span, &pat, prev));
+                } else if partially_stated(st, &u.fact) {
+                    found.push(partial_values(stmt.span, &pat));
                 } else if !proven_exists(st, &pat) {
                     found.push(unproven_exists(stmt.span, &pat, Mutation::Update, st));
                 } else if !values_proven(st, &u.fact, &pat) {
@@ -1273,6 +1414,20 @@ fn values_proven(st: &PathState<'_>, fact: &FactLiteral, pat: &FactPattern) -> b
                 .iter()
                 .any(|(v, p)| *v == var.inner && same_pattern(p, pat))
     })
+}
+
+/// Does an `update` state some of its fact's values but not all? The VM
+/// compares the stated values with the whole stored value list, so such
+/// an update always fails. A value bound with `?` is dropped when
+/// lowering, so it shows up as missing.
+fn partially_stated(st: &PathState<'_>, fact: &FactLiteral) -> bool {
+    let stated = fact.value_fields.as_ref().map_or(0, Vec::len);
+    let total = st
+        .az
+        .facts
+        .get(&fact.identifier.inner)
+        .map_or(0, |schema| schema.values);
+    stated > 0 && stated < total
 }
 
 /// A mutation that requires its fact to exist.
@@ -1401,6 +1556,30 @@ fn unproven_values(span: Span, pat: &FactPattern, st: &PathState<'_>) -> Obligat
     }
 }
 
+fn partial_values(span: Span, pat: &FactPattern) -> ObligationWarning {
+    ObligationWarning {
+        span,
+        message: format!(
+            "the stated values of `{}` can never match the stored fact",
+            pat.text
+        ),
+        label: "this update always fails".to_owned(),
+        notes: Vec::new(),
+        footnotes: vec![
+            (
+                Footnote::Note,
+                "`update` compares the stated values with every stored value, \
+                 so leaving any of them as `?` always fails"
+                    .to_owned(),
+            ),
+            (
+                Footnote::Help,
+                "state every value, or bind all of them with `?` to skip the comparison".to_owned(),
+            ),
+        ],
+    }
+}
+
 fn recursive_call(span: Span, name: &Identifier) -> ObligationWarning {
     ObligationWarning {
         span,
@@ -1448,15 +1627,7 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out<'a
     {
         let lhs = resolve(st, lhs);
         let (mut when_some, when_none) = cond_is(st, &lhs, true, out);
-        // In a function, `e or return v` is an exit where `e` is `None`.
-        if st.in_function
-            && let ExprKind::Return(value) = &rhs.kind
-        {
-            let mut failed = st.clone();
-            if failed.assume(when_none) {
-                record_exit(failed, value, out);
-            }
-        }
+        terminal_branch(st, when_none, rhs, out);
         // The compiler forbids shadowing, so `lhs` can't mention `var`.
         st.forget_name(&var);
         if let Some(fact) = query_of(st, &lhs) {
@@ -1474,8 +1645,8 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out<'a
     }
     // The value of an `if`, `match`, or block is unknown, but the path
     // knows what holds when some arm produced it.
-    if let Some((produced, _)) = branch_cond(st, &value, out, &mut |st, e, out| {
-        collect_opaque(st, e, out);
+    if let Some((produced, _)) = branch_cond(st, &value, out, &mut |st, e, _| {
+        collect_opaque(st, e);
         (nothing(), nothing())
     }) {
         let mut know = produced;
@@ -1486,7 +1657,7 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out<'a
         }
         return st.assume(know);
     }
-    collect_opaque(st, &value, out);
+    collect_opaque(st, &value);
     true
 }
 
@@ -1552,7 +1723,7 @@ fn pattern_raw(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
 /// `var.<key>` for each remaining key field of the schema.
 fn full_key_pattern(prefix: &FactPattern, var: &Identifier, st: &PathState<'_>) -> FactPattern {
     let mut keys = prefix.keys.clone();
-    let schema = st.az.fact_keys.get(&prefix.name.inner);
+    let schema = st.az.facts.get(&prefix.name.inner).map(|s| &s.keys);
     for (key, ty) in schema.into_iter().flatten().skip(keys.len()) {
         let base = Expression {
             kind: ExprKind::Identifier(Ident::new(var.clone(), prefix.span)),
@@ -1631,32 +1802,137 @@ fn mentions(expr: &Expression, v: &Identifier) -> bool {
     })
 }
 
-/// Does `pred` hold for `expr` or any expression inside it?
+/// Does `pred` hold for `expr` or any expression inside it, including
+/// inside the statements of a block expression?
 fn any_sub(expr: &Expression, pred: &mut impl FnMut(&Expression) -> bool) -> bool {
-    if pred(expr) {
-        return true;
+    let mut found = false;
+    visit_expr(expr, &mut |node| {
+        found |= node.expr().is_some_and(&mut *pred);
+    });
+    found
+}
+
+/// A statement or an expression, for [`visit_stmts`] and [`visit_expr`].
+#[derive(Clone, Copy)]
+enum Node<'n> {
+    Stmt(&'n Statement),
+    Expr(&'n Expression),
+}
+
+impl<'n> Node<'n> {
+    fn expr(self) -> Option<&'n Expression> {
+        match self {
+            Self::Expr(e) => Some(e),
+            Self::Stmt(_) => None,
+        }
     }
+}
+
+/// Call `f` on every statement and expression in `stmts`, at any depth:
+/// nested statement bodies, block expressions, fact literals, and `match`
+/// patterns included.
+fn visit_stmts<'n>(stmts: &'n [Statement], f: &mut impl FnMut(Node<'n>)) {
+    for stmt in stmts {
+        f(Node::Stmt(stmt));
+        match &stmt.kind {
+            StmtKind::Let(l) => visit_expr(&l.expression, f),
+            StmtKind::Check(c) => {
+                visit_expr(&c.expression, f);
+                visit_expr(&c.else_expression, f);
+            }
+            StmtKind::If(ifs) => {
+                for (cond, body) in &ifs.branches {
+                    visit_expr(cond, f);
+                    visit_stmts(body, f);
+                }
+                if let Some(body) = &ifs.fallback {
+                    visit_stmts(body, f);
+                }
+            }
+            StmtKind::Match(m) => {
+                visit_expr(&m.expression, f);
+                for arm in &m.arms {
+                    visit_pattern(&arm.pattern, f);
+                    visit_stmts(&arm.statements, f);
+                }
+            }
+            StmtKind::Map(m) => {
+                visit_fact(&m.fact, f);
+                visit_stmts(&m.statements, f);
+            }
+            StmtKind::Finish(body) => visit_stmts(body, f),
+            StmtKind::Return(r) => visit_expr(&r.expression, f),
+            StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
+                visit_expr(e, f);
+            }
+            StmtKind::ActionCall(c) | StmtKind::FunctionCall(c) => {
+                for e in &c.arguments {
+                    visit_expr(e, f);
+                }
+            }
+            StmtKind::Create(c) => visit_fact(&c.fact, f),
+            StmtKind::Update(u) => {
+                visit_fact(&u.fact, f);
+                for (_, e) in &u.to {
+                    visit_expr(e, f);
+                }
+            }
+            StmtKind::Delete(d) => visit_fact(&d.fact, f),
+            StmtKind::Recall(r) => {
+                for e in &r.arguments {
+                    visit_expr(e, f);
+                }
+            }
+        }
+    }
+}
+
+/// [`visit_stmts`] for one expression.
+fn visit_expr<'n>(expr: &'n Expression, f: &mut impl FnMut(Node<'n>)) {
+    f(Node::Expr(expr));
     match &expr.kind {
         ExprKind::Identifier(_)
         | ExprKind::Unit
         | ExprKind::Int(_)
         | ExprKind::String(_)
         | ExprKind::Bool(_)
-        | ExprKind::EnumReference(_) => false,
-        ExprKind::Optional(inner) => inner.as_ref().is_some_and(|e| any_sub(e, pred)),
-        ExprKind::NamedStruct(s) => s.fields.iter().any(|(_, e)| any_sub(e, pred)),
+        | ExprKind::EnumReference(_) => {}
+        ExprKind::Optional(inner) => {
+            if let Some(e) = inner {
+                visit_expr(e, f);
+            }
+        }
+        ExprKind::NamedStruct(s) => {
+            for (_, e) in &s.fields {
+                visit_expr(e, f);
+            }
+        }
         ExprKind::InternalFunction(func) => match func {
             InternalFunction::Query(fact)
             | InternalFunction::Exists(fact)
-            | InternalFunction::FactCount(_, _, fact) => any_sub_fact(fact, pred),
+            | InternalFunction::FactCount(_, _, fact) => visit_fact(fact, f),
             InternalFunction::If(c, t, e) => {
-                any_sub(c, pred) || any_sub(t, pred) || any_sub(e, pred)
+                visit_expr(c, f);
+                visit_expr(t, f);
+                visit_expr(e, f);
             }
-            InternalFunction::Todo(_) | InternalFunction::TestFail(..) => false,
+            InternalFunction::Todo(_) | InternalFunction::TestFail(..) => {}
         },
-        ExprKind::FunctionCall(c) => c.arguments.iter().any(|e| any_sub(e, pred)),
-        ExprKind::ForeignFunctionCall(c) => c.arguments.iter().any(|e| any_sub(e, pred)),
-        ExprKind::Recall(c) => c.arguments.iter().any(|e| any_sub(e, pred)),
+        ExprKind::FunctionCall(c) => {
+            for e in &c.arguments {
+                visit_expr(e, f);
+            }
+        }
+        ExprKind::ForeignFunctionCall(c) => {
+            for e in &c.arguments {
+                visit_expr(e, f);
+            }
+        }
+        ExprKind::Recall(c) => {
+            for e in &c.arguments {
+                visit_expr(e, f);
+            }
+        }
         ExprKind::Return(e)
         | ExprKind::Not(e)
         | ExprKind::Is(e, _)
@@ -1664,7 +1940,7 @@ fn any_sub(expr: &Expression, pred: &mut impl FnMut(&Expression) -> bool) -> boo
         | ExprKind::Substruct(e, _)
         | ExprKind::Cast(e, _)
         | ExprKind::Ok(e)
-        | ExprKind::Err(e) => any_sub(e, pred),
+        | ExprKind::Err(e) => visit_expr(e, f),
         ExprKind::And(a, b)
         | ExprKind::Or(a, b)
         | ExprKind::Coalesce(a, b)
@@ -1673,25 +1949,41 @@ fn any_sub(expr: &Expression, pred: &mut impl FnMut(&Expression) -> bool) -> boo
         | ExprKind::GreaterThan(a, b)
         | ExprKind::LessThan(a, b)
         | ExprKind::GreaterThanOrEqual(a, b)
-        | ExprKind::LessThanOrEqual(a, b) => any_sub(a, pred) || any_sub(b, pred),
+        | ExprKind::LessThanOrEqual(a, b) => {
+            visit_expr(a, f);
+            visit_expr(b, f);
+        }
         ExprKind::Block(stmts, e) => {
-            let mut found = any_sub(e, pred);
-            stmt_exprs(stmts, &mut |e| found = found || any_sub(e, pred));
-            found
+            visit_stmts(stmts, f);
+            visit_expr(e, f);
         }
         ExprKind::Match(m) => {
-            any_sub(&m.scrutinee, pred) || m.arms.iter().any(|arm| any_sub(&arm.expression, pred))
+            visit_expr(&m.scrutinee, f);
+            for arm in &m.arms {
+                visit_pattern(&arm.pattern, f);
+                visit_expr(&arm.expression, f);
+            }
         }
     }
 }
 
-/// [`any_sub`] over the key and value fields of `fact`.
-fn any_sub_fact(fact: &FactLiteral, pred: &mut impl FnMut(&Expression) -> bool) -> bool {
-    fact.key_fields.iter().any(|(_, e)| any_sub(e, pred))
-        || fact
-            .value_fields
-            .as_ref()
-            .is_some_and(|values| values.iter().any(|(_, e)| any_sub(e, pred)))
+/// [`visit_stmts`] for the key and value fields of a fact literal.
+fn visit_fact<'n>(fact: &'n FactLiteral, f: &mut impl FnMut(Node<'n>)) {
+    for (_, e) in &fact.key_fields {
+        visit_expr(e, f);
+    }
+    for (_, e) in fact.value_fields.iter().flatten() {
+        visit_expr(e, f);
+    }
+}
+
+/// [`visit_stmts`] for the values of a `match` pattern.
+fn visit_pattern<'n>(pattern: &'n MatchPattern, f: &mut impl FnMut(Node<'n>)) {
+    if let MatchPattern::Values(values) = pattern {
+        for v in values {
+            visit_expr(v, f);
+        }
+    }
 }
 
 /// Does any key of `pat` name `v`?
@@ -1734,25 +2026,38 @@ fn resolve(st: &PathState<'_>, expr: &Expression) -> Expression {
 /// Substitute the names in `env` throughout `expr`.
 ///
 /// With `strict`, every other name must be one of the given globals, or
-/// be bound by an enclosing block or `match` arm; struct composition is
-/// rejected. Returns `None` if that fails. Without `strict`, other names
-/// are kept as they are.
+/// be bound by an enclosing block or `match` arm, and struct composition
+/// is rejected. A substitution that would move a value into a block or
+/// arm that binds a name the value mentions is refused too, since that
+/// name would then refer to the block's or arm's binding. Returns `None`
+/// if any of these fails. Without `strict`, other names are kept as they
+/// are.
 fn subst(
     expr: &Expression,
     env: &BTreeMap<Identifier, Expression>,
     strict: Option<&[Identifier]>,
 ) -> Option<Expression> {
     let mut expr = expr.clone();
-    rewrite(&mut expr, env, strict).then_some(expr)
+    rewrite(&mut expr, env, strict, &mut Vec::new()).then_some(expr)
 }
 
+/// [`subst`] in place. `binders` holds the names bound by the blocks and
+/// arms of the expression being rewritten that enclose `expr`.
 fn rewrite(
     expr: &mut Expression,
     env: &BTreeMap<Identifier, Expression>,
     strict: Option<&[Identifier]>,
+    binders: &mut Vec<Identifier>,
 ) -> bool {
     if let ExprKind::Identifier(id) = &expr.kind {
+        // A name bound by an enclosing block or arm refers to that binding.
+        if binders.contains(&id.inner) {
+            return true;
+        }
         if let Some(value) = env.get(&id.inner) {
+            if binders.iter().any(|b| mentions(value, b)) {
+                return false;
+            }
             *expr = value.clone();
             return true;
         }
@@ -1765,23 +2070,38 @@ fn rewrite(
         | ExprKind::String(_)
         | ExprKind::Bool(_)
         | ExprKind::EnumReference(_) => true,
-        ExprKind::Optional(inner) => inner.as_mut().is_none_or(|e| rewrite(e, env, strict)),
+        ExprKind::Optional(inner) => inner
+            .as_mut()
+            .is_none_or(|e| rewrite(e, env, strict, binders)),
         ExprKind::NamedStruct(s) => {
             (strict.is_none() || s.sources.is_empty())
-                && s.fields.iter_mut().all(|(_, e)| rewrite(e, env, strict))
+                && s.fields
+                    .iter_mut()
+                    .all(|(_, e)| rewrite(e, env, strict, binders))
         }
         ExprKind::InternalFunction(func) => match func {
             InternalFunction::Query(fact)
             | InternalFunction::Exists(fact)
-            | InternalFunction::FactCount(_, _, fact) => rewrite_fact(fact, env, strict),
+            | InternalFunction::FactCount(_, _, fact) => rewrite_fact(fact, env, strict, binders),
             InternalFunction::If(c, t, e) => {
-                rewrite(c, env, strict) && rewrite(t, env, strict) && rewrite(e, env, strict)
+                rewrite(c, env, strict, binders)
+                    && rewrite(t, env, strict, binders)
+                    && rewrite(e, env, strict, binders)
             }
             InternalFunction::Todo(_) | InternalFunction::TestFail(..) => true,
         },
-        ExprKind::FunctionCall(c) => c.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
-        ExprKind::ForeignFunctionCall(c) => c.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
-        ExprKind::Recall(c) => c.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
+        ExprKind::FunctionCall(c) => c
+            .arguments
+            .iter_mut()
+            .all(|e| rewrite(e, env, strict, binders)),
+        ExprKind::ForeignFunctionCall(c) => c
+            .arguments
+            .iter_mut()
+            .all(|e| rewrite(e, env, strict, binders)),
+        ExprKind::Recall(c) => c
+            .arguments
+            .iter_mut()
+            .all(|e| rewrite(e, env, strict, binders)),
         ExprKind::Return(e)
         | ExprKind::Not(e)
         | ExprKind::Is(e, _)
@@ -1789,7 +2109,7 @@ fn rewrite(
         | ExprKind::Substruct(e, _)
         | ExprKind::Cast(e, _)
         | ExprKind::Ok(e)
-        | ExprKind::Err(e) => rewrite(e, env, strict),
+        | ExprKind::Err(e) => rewrite(e, env, strict, binders),
         ExprKind::And(a, b)
         | ExprKind::Or(a, b)
         | ExprKind::Coalesce(a, b)
@@ -1798,39 +2118,26 @@ fn rewrite(
         | ExprKind::GreaterThan(a, b)
         | ExprKind::LessThan(a, b)
         | ExprKind::GreaterThanOrEqual(a, b)
-        | ExprKind::LessThanOrEqual(a, b) => rewrite(a, env, strict) && rewrite(b, env, strict),
+        | ExprKind::LessThanOrEqual(a, b) => {
+            rewrite(a, env, strict, binders) && rewrite(b, env, strict, binders)
+        }
         ExprKind::Block(stmts, e) => {
-            let names = bound_names(stmts);
-            let env = scoped_env(env, &names);
-            let allowed = strict.map(|g| [g, names.as_slice()].concat());
-            rewrite_stmts(stmts, &env, allowed.as_deref()) && rewrite(e, &env, allowed.as_deref())
+            let depth = binders.len();
+            binders.extend(bound_names(stmts));
+            let ok = rewrite_stmts(stmts, env, strict, binders) && rewrite(e, env, strict, binders);
+            binders.truncate(depth);
+            ok
         }
         ExprKind::Match(m) => {
-            rewrite(&mut m.scrutinee, env, strict)
+            rewrite(&mut m.scrutinee, env, strict, binders)
                 && m.arms.iter_mut().all(|arm| {
-                    let names = arm_names(&arm.pattern);
-                    let env = scoped_env(env, &names);
-                    let allowed = strict.map(|g| [g, names.as_slice()].concat());
-                    rewrite(&mut arm.expression, &env, allowed.as_deref())
+                    let depth = binders.len();
+                    binders.extend(arm_names(&arm.pattern));
+                    let ok = rewrite(&mut arm.expression, env, strict, binders);
+                    binders.truncate(depth);
+                    ok
                 })
         }
-    }
-}
-
-/// `env` without the names a nested scope binds, which refer to that
-/// scope's own bindings.
-fn scoped_env<'e>(
-    env: &'e BTreeMap<Identifier, Expression>,
-    names: &[Identifier],
-) -> Cow<'e, BTreeMap<Identifier, Expression>> {
-    if names.iter().any(|n| env.contains_key(n)) {
-        let mut env = env.clone();
-        for n in names {
-            env.remove(n);
-        }
-        Cow::Owned(env)
-    } else {
-        Cow::Borrowed(env)
     }
 }
 
@@ -1840,46 +2147,53 @@ fn rewrite_stmts(
     stmts: &mut [Statement],
     env: &BTreeMap<Identifier, Expression>,
     strict: Option<&[Identifier]>,
+    binders: &mut Vec<Identifier>,
 ) -> bool {
     stmts.iter_mut().all(|stmt| match &mut stmt.kind {
-        StmtKind::Let(l) => rewrite(&mut l.expression, env, strict),
+        StmtKind::Let(l) => rewrite(&mut l.expression, env, strict, binders),
         StmtKind::Check(c) => {
-            rewrite(&mut c.expression, env, strict) && rewrite(&mut c.else_expression, env, strict)
+            rewrite(&mut c.expression, env, strict, binders)
+                && rewrite(&mut c.else_expression, env, strict, binders)
         }
         StmtKind::If(ifs) => {
-            ifs.branches
-                .iter_mut()
-                .all(|(c, body)| rewrite(c, env, strict) && rewrite_stmts(body, env, strict))
-                && ifs
-                    .fallback
-                    .as_mut()
-                    .is_none_or(|body| rewrite_stmts(body, env, strict))
+            ifs.branches.iter_mut().all(|(c, body)| {
+                rewrite(c, env, strict, binders) && rewrite_stmts(body, env, strict, binders)
+            }) && ifs
+                .fallback
+                .as_mut()
+                .is_none_or(|body| rewrite_stmts(body, env, strict, binders))
         }
         StmtKind::Match(m) => {
-            rewrite(&mut m.expression, env, strict)
+            rewrite(&mut m.expression, env, strict, binders)
                 && m.arms
                     .iter_mut()
-                    .all(|arm| rewrite_stmts(&mut arm.statements, env, strict))
+                    .all(|arm| rewrite_stmts(&mut arm.statements, env, strict, binders))
         }
         // `map` is only allowed in actions, which are never rewritten.
         StmtKind::Map(_) => false,
-        StmtKind::Finish(body) => rewrite_stmts(body, env, strict),
-        StmtKind::Return(r) => rewrite(&mut r.expression, env, strict),
+        StmtKind::Finish(body) => rewrite_stmts(body, env, strict, binders),
+        StmtKind::Return(r) => rewrite(&mut r.expression, env, strict, binders),
         StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
-            rewrite(e, env, strict)
+            rewrite(e, env, strict, binders)
         }
-        StmtKind::ActionCall(c) | StmtKind::FunctionCall(c) => {
-            c.arguments.iter_mut().all(|e| rewrite(e, env, strict))
-        }
-        StmtKind::Create(c) => rewrite_fact(&mut c.fact, env, strict),
+        StmtKind::ActionCall(c) | StmtKind::FunctionCall(c) => c
+            .arguments
+            .iter_mut()
+            .all(|e| rewrite(e, env, strict, binders)),
+        StmtKind::Create(c) => rewrite_fact(&mut c.fact, env, strict, binders),
         // A finish block is never rewritten under `strict`, so neither
         // part can fail; `&` says so without a short circuit.
         StmtKind::Update(u) => {
-            rewrite_fact(&mut u.fact, env, strict)
-                & u.to.iter_mut().all(|(_, e)| rewrite(e, env, strict))
+            rewrite_fact(&mut u.fact, env, strict, binders)
+                & u.to
+                    .iter_mut()
+                    .all(|(_, e)| rewrite(e, env, strict, binders))
         }
-        StmtKind::Delete(d) => rewrite_fact(&mut d.fact, env, strict),
-        StmtKind::Recall(r) => r.arguments.iter_mut().all(|e| rewrite(e, env, strict)),
+        StmtKind::Delete(d) => rewrite_fact(&mut d.fact, env, strict, binders),
+        StmtKind::Recall(r) => r
+            .arguments
+            .iter_mut()
+            .all(|e| rewrite(e, env, strict, binders)),
     })
 }
 
@@ -1887,14 +2201,16 @@ fn rewrite_fact(
     fact: &mut FactLiteral,
     env: &BTreeMap<Identifier, Expression>,
     strict: Option<&[Identifier]>,
+    binders: &mut Vec<Identifier>,
 ) -> bool {
     fact.key_fields
         .iter_mut()
-        .all(|(_, e)| rewrite(e, env, strict))
-        && fact
-            .value_fields
-            .as_mut()
-            .is_none_or(|values| values.iter_mut().all(|(_, e)| rewrite(e, env, strict)))
+        .all(|(_, e)| rewrite(e, env, strict, binders))
+        && fact.value_fields.as_mut().is_none_or(|values| {
+            values
+                .iter_mut()
+                .all(|(_, e)| rewrite(e, env, strict, binders))
+        })
 }
 
 /// Can a `let` value be substituted for its name? Pure functions and fact
@@ -2012,23 +2328,10 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
 }
 
 /// Record every fact-touching subexpression as an opaque observation point.
-fn collect_opaque<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a>) {
+fn collect_opaque(st: &mut PathState<'_>, expr: &Expression) {
     visit_facts(expr, &mut |fact, span| {
         st.opaque.push((fact.identifier.clone(), span));
     });
-    unusable_if_returns(st, expr, out);
-}
-
-/// In a pure function, a `return` inside an expression the walk does not
-/// model, such as a fact key, a call argument, or an opaque expression,
-/// is an exit the summary would miss, so the function can't be
-/// summarized. The modeled positions, `or return`, `else return`, and a
-/// `return` as an `if` or `match` arm, are handled before an expression
-/// reaches here.
-fn unusable_if_returns<'a>(st: &PathState<'a>, expr: &Expression, out: &mut Out<'a>) {
-    if st.in_function && any_sub(expr, &mut |e| matches!(e.kind, ExprKind::Return(_))) {
-        out.unusable = true;
-    }
 }
 
 /// Visit every fact literal referenced by query-like functions in `expr`.

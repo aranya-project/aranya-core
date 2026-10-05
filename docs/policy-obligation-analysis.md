@@ -276,16 +276,24 @@ evaluated on a copy of the path that knows the arm's condition: the
 earlier patterns failed. What the arm's value proves is combined with
 what that copy knows, and the arms are joined with the same rule as
 `||`: only what every arm proves is kept. An arm whose expression has
-type `Never`, such as `recall r()` or `return v`, never produces a
-value, so it drops out. This is why `if c { :exists F[k] } else
-{ :false }` proves `F[k]` exists: the `else` arm can't be true.
+type `Never`, such as `recall r()` or `{ :return v }`, never produces a
+value, so it drops out of the join. This is why `if c { :exists F[k] }
+else { :false }` proves `F[k]` exists: the `else` arm can't be true.
+
+An arm without a value still runs. A `return` in it is an exit of the
+enclosing function, and a block in it is walked, so a `finish` there is
+checked. The same holds for the `else` of a `check` and the right side
+of an `or`: when they are blocks, `if`s, or `match`es, they are walked
+on the path where they run.
 
 A block's statements are walked exactly like a policy block, forking at
 nested `if` and `match` statements and ending at a failing `check` or a
 `finish`. Every path that reaches the final expression contributes what
 it knows, with block-local `let`s substituted. Facts that mention a name
-bound inside the block or by the arm's pattern are dropped, since
-nothing outside can refer to them. Knowledge established by a `check` or
+bound inside the block or by the arm's pattern are dropped, both from
+what the path knows and from what the arm's value proves. Outside the
+arm those names are unbound, or, in a helper's caller, they name
+something else. Knowledge established by a `check` or
 `or recall` inside an arm carries out, which is what makes
 `let d = match e { Ok(d) => d  Err(e) => recall reject() }` an
 observation: the path past the `let` knows what the `Ok` path knew. When
@@ -358,6 +366,11 @@ finish {
 
 Any other stated value, such as a literal or a field read from a
 different fact, gets a warning.
+
+An update that states some values and binds the rest with `?` always
+fails, because the VM compares the stated values with the whole stored
+value list. It gets its own warning. Binding every value with `?`
+skips the comparison.
 
 ### Invalidation
 
@@ -465,20 +478,30 @@ variables can't be expressed in the caller's terms, so it is dropped.
 Keeping it would be unsound: a caller variable with the same name holds
 something else. A return value that is an `if`, `match`, or block is
 kept, with the names its blocks and arms bind allowed inside it.
+Substituting the caller's arguments into such a value is refused when
+an argument mentions a name one of those blocks or arms binds, since
+the argument would then refer to that binding instead.
 
-A `return` inside an expression is an exit too. The ones the walk
-models, `e or return v`, `check c else return v`, and `return v` as a
-`match` or `if` arm, are recorded like any other. A `return` anywhere
-else, such as inside a fact key, a call argument, a comparison, or an
-opaque expression, is an exit the summary would miss, so the function
-is treated as unknown.
+A `return` inside an expression is an exit too. The walk records the
+ones in `e or return v`, `check c else return v`, and arms without a
+value, including a `return` inside a block arm such as
+`if c { :return v } else { .. }`. Any other `return`, such as one inside
+a returned value, a fact key, a call argument, or a `match` scrutinee,
+would be an exit the summary misses. So every summary passes a census:
+each `return` in the function body must be one the walk recorded, or a
+statement-level one on no path that can run, such as inside a branch a
+contradiction rules out. If any is left over, the function is treated
+as unknown.
 
 Summaries are computed on first use and cached. A function is not
 summarized, and calls to it are treated as unknown, when:
 
 - it has more exits than the configured limit
-  (`Compiler::max_exit_paths`, 64 by default);
-- it is recursive, directly or through other functions.
+  (`Compiler::max_exit_paths`, 64 by default), or a block in it has
+  more ways through it than that, which leaves the block's final
+  expression unevaluated;
+- it is recursive, directly or through other functions;
+- a `return` in it fails the census.
 
 A call that is treated as unknown is recorded as an opaque point for
 every fact its function's body mentions, so warnings about those facts
@@ -547,6 +570,7 @@ warning: cannot prove `Counter[name: this.name]` does not exist before `create`
 | cannot prove `F[k]` does not exist before `create` | this fact may already exist |
 | cannot prove `F[k]` exists before `update` or `delete` | this fact may not exist |
 | cannot prove the stated values of `F[k]` match the stored fact before `update` | the stored values may differ |
+| the stated values of `F[k]` can never match the stored fact | this update always fails |
 | `F[k]` is manipulated more than once in this finish block | manipulated again here |
 | cannot check fact mutations through recursive call to `f` | recursive call |
 
@@ -641,7 +665,9 @@ target:
   of one key saying nothing about another;
 - `attacks_names.rs`: `Ok`/`Err` arm rebinding, finish-function and
   helper parameters named like caller variables, block-local query
-  bindings, alias chains, and arm-expression bindings;
+  bindings, alias chains, arm-expression bindings, a helper's arm name
+  leaking into its caller, and an argument captured by a binder inside
+  a helper;
 - `attacks_state.rs`: keys that may alias in one finish block, directly
   and through a finish function, a finish function dropping the
   caller's query binding, a recursive call in an init command, recall
@@ -649,8 +675,10 @@ target:
   a call;
 - `attacks_helpers.rs`: early exits returning `true`, exits recorded
   from inside a block in an arm, mutual recursion, non-substitutable
-  locals in exit facts, arguments rebound after a call, and summaries
-  reused across commands;
+  locals in exit facts, arguments rebound after a call, summaries
+  reused across commands, `return`s inside a returned value, a `match`
+  scrutinee, a block argument, an `if` arm, and a block over the exit
+  limit, and a base command's `get_key`;
 - `attacks_paths.rs`: prefix and exact patterns of opposite polarity
   that are not contradictions, counting queries, init pruning against
   its non-init twin, and `!(a && b)` proving nothing;
@@ -658,7 +686,8 @@ target:
   weakened by `||` or a `_ => true` default, `if` arms querying
   different keys, a `match` binding of another query, a block binding
   the outer `let`'s own name, block-scoped names in a condition block,
-  and a nested `return` in an `if` arm.
+  a nested `return` in an `if` arm, and a `finish` inside an arm
+  without a value, a `check`'s `else`, or an `or`'s right side.
 
 Branch coverage of `obligation.rs` is complete: `cargo llvm-cov
 --branch` reports every branch side taken. The tests that closed the
@@ -684,8 +713,12 @@ one fails there rather than silently unsounding the analysis.
 Each attack that defends a single rule was checked by disabling that
 rule and confirming the attack fails: the value-filter rule, `Ok`/`Err`
 forgetting, finish-function parameter substitution, block-scoped
-substitution, `or return` exits, the arm-local fact filter, and a
-mutation forgetting other keys of its fact. Attacks on `map` could not
+substitution, `or return` exits, the arm-local fact filter, a
+mutation forgetting other keys of its fact, the return census, the
+statement-level and arm exits it counts on paths that can't run,
+walking arms without a value and terminal blocks, the block-limit
+rule, the arm-name filter on what an arm proves, capture refusal, the
+`get_key` guard, and the partial-update check. Attacks on `map` could not
 be written because `map` is only allowed in actions, which cannot
 mutate facts.
 
@@ -699,9 +732,32 @@ The campaign found three false negatives, all fixed:
   another `Some`. Only a binding pattern `Some(x)` proves `None`;
 - a `return` nested inside a fact key or call argument in a helper's
   condition was never recorded as an exit, so the helper's true side
-  kept facts the missed exit did not guarantee. The nested-`return`
-  rule now applies at every condition leaf, not only to opaque
-  expressions.
+  kept facts the missed exit did not guarantee. The census described
+  under [Pure functions](#pure-functions) now catches every such
+  `return`.
+
+A code review found seven more, all fixed, each pinned by an attack and
+a control:
+
+- a `return` inside a returned value, inside a `match` scrutinee, or as
+  a statement in a block expression in an argument was never recorded
+  as an exit. When every exit of a helper was lost this way, a `check`
+  on the call marked the rest of the command impossible and hid its
+  warnings;
+- a fact proven by a helper's `match` arm kept the arm's binding name,
+  so it leaked into the caller, where that name meant a different
+  variable;
+- substituting a caller's argument into a helper could place it inside
+  a block or arm that binds a name the argument mentions, capturing it;
+- a base command's `get_key` block was recorded as a pure function
+  named `get_key`, replacing a user function with that name;
+- an update that stated some values and bound the rest always fails at
+  runtime, but was accepted.
+
+Fixing those turned up two more of the same kind, also fixed. A
+`return` in a block arm of an `if` expression was never recorded as an
+exit. A `finish` inside an arm without a value, a `check`'s `else`, or
+an `or`'s right side was never checked.
 
 Every test asserts something the rule it names can change. A test
 whose result would be the same with the rule broken, such as "no
@@ -716,7 +772,9 @@ the only thing standing between the prover and a wrong answer.
   followed by `check ok` proves nothing, though `ok` still matches
   itself by name in fact keys.
 - **Blocks over the exit limit** are opaque, like functions with too
-  many exits.
+  many exits. In a function, one makes the function unknown.
+- **A `return` the walk can't record**, such as one inside a returned
+  value or a `match` scrutinee, makes its function unknown.
 - **Double manipulation is syntactic.** Only identical keys are flagged,
   so two mutations whose keys are equal at runtime but written
   differently are missed.

@@ -364,3 +364,63 @@ fn nested_return_makes_helper_unknown() {
             .any(|(_, n)| n.contains("too complex"))
     );
 }
+
+#[test]
+fn dead_statement_level_return_keeps_helper_usable() {
+    // The `if` can't run after the check, so its `return` is never
+    // reached. It is still a `return` the walk records when it gets there,
+    // so the helper stays usable.
+    let warnings = warnings_for(&with_defs(
+        r#"
+        function f(u int) bool {
+            check exists Account[user: u] else return false
+            if !exists Account[user: u] { return false }
+            return true
+        }
+        "#,
+        r#"
+        check f(this.user) else recall failed()
+        finish { delete Account[user: this.user] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn dead_arm_return_keeps_helper_usable() {
+    // The `else` arm can't run after the check, and its `return` is one
+    // the walk records when the arm can run.
+    let warnings = warnings_for(&with_defs(
+        r#"
+        function f(u int) bool {
+            check exists Account[user: u] else return false
+            let x = if exists Account[user: u] { : 1 } else { : return false }
+            return true
+        }
+        "#,
+        r#"
+        check f(this.user) else recall failed()
+        finish { delete Account[user: this.user] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn early_return_arm_is_an_exit() {
+    // The `return false` arm is recorded as an exit, so the helper stays
+    // usable, and its true side knows the account exists.
+    let warnings = warnings_for(&with_defs(
+        r#"
+        function f(u int) bool {
+            let x = if !exists Account[user: u] { : return false } else { : 1 }
+            return true
+        }
+        "#,
+        r#"
+        check f(this.user) else recall failed()
+        finish { delete Account[user: this.user] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

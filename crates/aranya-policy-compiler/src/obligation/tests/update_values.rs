@@ -1,6 +1,6 @@
 //! An `update`'s stated values.
 
-use super::{command, warnings_for};
+use super::{command, warnings_for, with_defs};
 
 #[test]
 fn update_values_from_query_pass() {
@@ -104,4 +104,40 @@ fn update_value_from_nested_field_warns() {
     );
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("stated values"));
+}
+
+/// A fact with two values, read by a query and then updated.
+fn update_pair(stated: &str) -> String {
+    with_defs(
+        "fact Pair[k int]=>{a int, b int}",
+        &format!(
+            "let p = query Pair[k: this.user] or recall failed()\n\
+             finish {{ update Pair[k: this.user]=>{{{stated}}} to {{a: 1, b: 2}} }}"
+        ),
+    )
+}
+
+#[test]
+fn partially_stated_update_always_fails() {
+    // The VM compares the stated values with the whole stored list.
+    let warnings = warnings_for(&update_pair("a: p.a, b: ?"));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert_eq!(
+        warnings[0].message,
+        "the stated values of `Pair[k: this.user]` can never match the stored fact"
+    );
+    assert_eq!(warnings[0].label, "this update always fails");
+}
+
+#[test]
+fn fully_stated_update_passes() {
+    let warnings = warnings_for(&update_pair("a: p.a, b: p.b"));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn update_binding_every_value_passes() {
+    // With every value bound, the VM skips the comparison.
+    let warnings = warnings_for(&update_pair("a: ?, b: ?"));
+    assert_eq!(warnings, vec![], "expected no warnings");
 }

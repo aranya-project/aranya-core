@@ -914,10 +914,18 @@ impl<'a> CompileState<'a> {
                 // so their bodies are recorded here before any command
                 // calls them.
                 StatementContext::Finish(span) => Use::Finish(*span),
-                StatementContext::PureFunction(def) => Use::Pure(
-                    def.identifier.inner.clone(),
-                    def.arguments.iter().map(|p| p.name.inner.clone()).collect(),
-                ),
+                // A base command's `get_key` block is compiled like a pure
+                // function named `get_key`. It can't be called, and it must
+                // not replace a user function with that name.
+                StatementContext::PureFunction(def)
+                    if self.policy.functions.iter().any(|f| f.span == def.span) =>
+                {
+                    Use::Pure(
+                        def.identifier.inner.clone(),
+                        def.arguments.iter().map(|p| p.name.inner.clone()).collect(),
+                    )
+                }
+                StatementContext::PureFunction(_) => Use::Nothing,
                 StatementContext::Action(_) => Use::Nothing,
             };
             match usage {
@@ -2457,12 +2465,15 @@ impl<'a> Compiler<'a> {
                     .facts
                     .iter()
                     .map(|f| {
-                        let keys = f
-                            .key
-                            .iter()
-                            .map(|k| (k.identifier.inner.clone(), k.field_type.clone()))
-                            .collect();
-                        (f.identifier.inner.clone(), keys)
+                        let schema = obligation::FactSchema {
+                            keys: f
+                                .key
+                                .iter()
+                                .map(|k| (k.identifier.inner.clone(), k.field_type.clone()))
+                                .collect(),
+                            values: f.value.len(),
+                        };
+                        (f.identifier.inner.clone(), schema)
                     })
                     .collect(),
                 self.config.max_exit_paths,

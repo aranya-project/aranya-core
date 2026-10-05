@@ -205,3 +205,80 @@ fn attack_arm_expression_binding_does_not_leak() {
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("before `delete`"));
 }
+
+#[test]
+fn attack_helper_arm_name_does_not_leak() {
+    // The helper's `m` is `Account[1]`, not the caller's `m`.
+    let warnings = warnings_for(&with_defs(
+        r#"
+        fact G[b int]=>{}
+
+        function f(p int) bool {
+            return match query Account[user: p] { Some(m) => exists G[b: m.balance]  None => false }
+        }
+        "#,
+        r#"
+        let m = query Account[user: this.user] or recall failed()
+        check f(1) else recall failed()
+        finish { delete G[b: m.balance] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_helper_arm_fact_in_parameters() {
+    // What the arm proves about the parameters still reaches the caller.
+    let warnings = warnings_for(&with_defs(
+        r#"
+        fact G[b int]=>{}
+
+        function f(p int) bool {
+            return match query Account[user: p] { Some(m) => exists G[b: p]  None => false }
+        }
+        "#,
+        r#"
+        check f(this.user) else recall failed()
+        finish { delete G[b: this.user] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_argument_captured_by_helper_binder() {
+    // The caller's `m` is 3 or 4. Inside the helper, the block's own `m`
+    // is 1. Moving the argument into the block must not turn it into the
+    // block's `m`.
+    let warnings = warnings_for(&with_defs(
+        r#"
+        fact Pair2[k int, j int]=>{}
+
+        function f(p int) bool { return { let m = 1 : exists Pair2[k: p, j: m] } }
+        "#,
+        r#"
+        let m = if this.user == 1 { : 3 } else { : 4 }
+        check f(m) else recall failed()
+        finish { delete Pair2[k: 1, j: 1] }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_helper_block_binder_without_capture() {
+    let warnings = warnings_for(&with_defs(
+        r#"
+        fact Pair2[k int, j int]=>{}
+
+        function f(p int) bool { return { let m = 1 : exists Pair2[k: p, j: m] } }
+        "#,
+        r#"
+        check f(1) else recall failed()
+        finish { delete Pair2[k: 1, j: 1] }
+        "#,
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

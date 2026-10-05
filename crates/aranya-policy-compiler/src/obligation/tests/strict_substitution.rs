@@ -136,7 +136,7 @@ fn helper_block_check_mentioning_local_is_dropped() {
         function f(u int) bool {
             let n = if true { : 1 } else { : 2 }
             return if u == 1 {
-                check n == 1 else return false
+                check n == 1 else test_fail("not one")
                 : exists Account[user: u]
             } else {
                 : exists Account[user: u]
