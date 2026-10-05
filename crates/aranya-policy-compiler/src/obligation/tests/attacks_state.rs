@@ -391,3 +391,94 @@ fn control_delete_keeps_the_query_result_of_another_fact() {
     ));
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+/// A command with fields `x` and `y` that checks both items absent,
+/// runs `proof`, then creates both.
+fn create_two_items(proof: &str) -> String {
+    format!(
+        r#"
+        fact Item[k int]=>{{}}
+
+        command Foo {{
+            fields {{ x int, y int }}
+            policy {{
+                check !exists Item[k: this.x] else recall failed()
+                check !exists Item[k: this.y] else recall failed()
+                {proof}
+                finish {{
+                    create Item[k: this.x]=>{{}}
+                    create Item[k: this.y]=>{{}}
+                }}
+            }}
+            recall failed() {{ finish {{}} }}
+        }}
+        "#
+    )
+}
+
+#[track_caller]
+fn assert_second_create_unproven(policy: &str) {
+    let warnings = warnings_for(policy);
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn attack_unequal_to_another_value() {
+    assert_second_create_unproven(&create_two_items("check this.x != 5 else recall failed()"));
+}
+
+#[test]
+fn control_unequal_to_each_other() {
+    let warnings = warnings_for(&create_two_items(
+        "check this.x != this.y else recall failed()",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_unequal_on_one_branch_only() {
+    // The paths merge after the `if`, and only one of them knew.
+    assert_second_create_unproven(&create_two_items("if this.x != this.y { let unused = 1 }"));
+}
+
+#[test]
+fn attack_checked_equal() {
+    // Equal keys name one fact, which the second create hits.
+    assert_second_create_unproven(&create_two_items(
+        "check this.x == this.y else recall failed()",
+    ));
+}
+
+#[test]
+fn attack_unequal_value_bound_again() {
+    // The first `y` differs from `this.x`. The second may not.
+    let warnings = warnings_for(
+        r#"
+        fact Item[k int]=>{}
+
+        command Foo {
+            fields { x int, y int }
+            policy {
+                match this.x {
+                    0 => { recall failed() }
+                    _ => {
+                        let y = if this.x > 0 { :this.y } else { :this.y }
+                        check this.x != y else recall failed()
+                    }
+                }
+                let y = if this.x > 0 { :this.x } else { :this.x }
+                check !exists Item[k: this.x] else recall failed()
+                check !exists Item[k: y] else recall failed()
+                finish {
+                    create Item[k: this.x]=>{}
+                    create Item[k: y]=>{}
+                }
+            }
+            recall failed() { finish {} }
+        }
+        "#,
+    );
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}

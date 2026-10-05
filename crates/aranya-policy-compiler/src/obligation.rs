@@ -18,7 +18,7 @@ use std::{
 
 use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
 use aranya_policy_ast::{
-    FactCountType, Ident, Identifier, Span, Spanned as _, TypeKind, VType,
+    FactCountType, Ident, Identifier, Span, Spanned as _, TypeKind, VType, ident,
     thir::{
         ExprKind, Expression, FactLiteral, FunctionCall, IfStatement, InternalFunction,
         LetStatement, MatchPattern, MatchStatement, Statement, StmtKind,
@@ -87,6 +87,9 @@ impl ObligationWarning {
 enum FactState {
     Exists,
     NotExists,
+    /// Not the state of a fact: the entry's two keys hold different
+    /// values. See [`unequal`].
+    Differ,
 }
 
 /// A canonicalized fact literal: fact name plus key-field values after
@@ -207,7 +210,8 @@ fn either(a: Know, b: Know) -> Know {
 /// the fact should point out.
 fn either_noted(st: &mut PathState<'_>, span: Span, a: Know, b: Know) -> Know {
     let mut known: Vec<Ident> = Vec::new();
-    for (pat, _) in a.iter().chain(b.iter()).flatten() {
+    let facts = a.iter().chain(b.iter()).flatten();
+    for (pat, _) in facts.filter(|(_, s)| *s != FactState::Differ) {
         if !known.contains(&pat.name) {
             known.push(pat.name.clone());
         }
@@ -488,7 +492,7 @@ impl<'a> PathState<'a> {
     /// Does `pat` provably differ from every fact created or updated since
     /// the block started?
     fn untouched(&self, pat: &FactPattern) -> bool {
-        self.mutated.iter().all(|m| distinct(m, pat))
+        self.mutated.iter().all(|m| differ(&self.facts, m, pat))
     }
 
     /// Is `pat` known not to exist because the database started empty?
@@ -755,7 +759,14 @@ fn merge(paths: Paths<'_>) -> Paths<'_> {
     let mut kept: Paths<'_> = Vec::new();
     for st in paths {
         match kept.iter_mut().find(|k| same_state(k, &st)) {
-            Some(k) => merge_opaque(&mut k.opaque, st.opaque),
+            Some(k) => {
+                // Only values both paths know differ still do.
+                k.facts.retain(|(p, s)| {
+                    (*s != FactState::Differ)
+                        | st.facts.iter().any(|(q, t)| (t == s) & same_pattern(p, q))
+                });
+                merge_opaque(&mut k.opaque, st.opaque);
+            }
             None => kept.push(st),
         }
     }
@@ -787,8 +798,12 @@ fn same_state(a: &PathState<'_>, b: &PathState<'_>) -> bool {
     // Within one walk, once each branch forgets the names it bound, paths
     // differ only in their facts. The rest is compared anyway, since
     // merging paths that differ would be unsound.
+    // Which values differ doesn't count: paths that differ only there
+    // merge, keeping what all of them know. Otherwise each `!=` on a
+    // branch would double the paths after it.
     let facts_in = |x: &Facts, y: &Facts| {
         x.iter()
+            .filter(|(_, s)| *s != FactState::Differ)
             .all(|(p, s)| y.iter().any(|(q, t)| (s == t) & same_pattern(p, q)))
     };
     let mutated = |st: &PathState<'_>| -> Facts {
@@ -844,7 +859,7 @@ fn join<'a>(mut joined: PathState<'a>, rest: Paths<'a>) -> (PathState<'a>, Vec<I
     // Paths that weren't merged differ in their facts, since everything
     // else is the same within one walk, so a join always drops some.
     let mut dropped: Vec<Ident> = Vec::new();
-    for (p, s) in &known {
+    for (p, s) in known.iter().filter(|(_, s)| *s != FactState::Differ) {
         let kept = joined
             .facts
             .iter()
@@ -1136,11 +1151,14 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -
         ExprKind::Equal(a, b) | ExprKind::NotEqual(a, b) => {
             let calls = call_facts(st, expr, out);
             collect_opaque(st, expr);
-            let equal = both(calls.clone(), equal_values(st, a, b));
+            let a = linked(st, a.as_ref().clone());
+            let b = linked(st, b.as_ref().clone());
+            let equal = both(calls.clone(), equal_values(st, &a, &b));
+            let unequal = both(calls, unequal(&a, &b));
             if matches!(expr.kind, ExprKind::Equal(..)) {
-                (equal, calls)
+                (equal, unequal)
             } else {
-                (calls, equal)
+                (unequal, equal)
             }
         }
         _ => {
@@ -2849,15 +2867,16 @@ enum Change {
 /// absent. Recording it in `mutated` limits that absence to the facts
 /// that provably differ from it.
 fn apply_change(st: &mut PathState<'_>, pat: FactPattern, change: Change) {
+    let known = st.facts.clone();
     st.facts.retain(|(p, s)| {
         let kept = match change {
             Change::Create => true,
-            Change::Update | Change::Delete => *s == FactState::NotExists,
+            Change::Update | Change::Delete => *s != FactState::Exists,
         };
-        kept | distinct(p, &pat)
+        kept | differ(&known, p, &pat)
     });
     if change != Change::Create {
-        st.query_bindings.retain(|(_, p)| distinct(p, &pat));
+        st.query_bindings.retain(|(_, p)| differ(&known, p, &pat));
     }
     let state = if change == Change::Delete {
         FactState::NotExists
@@ -2869,13 +2888,44 @@ fn apply_change(st: &mut PathState<'_>, pat: FactPattern, change: Change) {
 }
 
 /// Can `p` and `q` never be the same fact? True for different facts, and
-/// for keys where both give literals that differ.
-fn distinct(p: &FactPattern, q: &FactPattern) -> bool {
+/// for keys where both give literals that differ, or values `known` says
+/// differ.
+fn differ(known: &Facts, p: &FactPattern, q: &FactPattern) -> bool {
     p.name != q.name
         || p.keys
             .iter()
             .zip(&q.keys)
-            .any(|((_, a), (_, b))| literals_differ(a, b))
+            .any(|((_, a), (_, b))| literals_differ(a, b) | known_unequal(known, a, b))
+}
+
+/// Does `known` say that `a` and `b` hold different values?
+fn known_unequal(known: &Facts, a: &Expression, b: &Expression) -> bool {
+    known.iter().any(|(p, s)| {
+        let values = p.keys.iter().map(|(_, e)| e);
+        (*s == FactState::Differ)
+            & (p.keys.len() == 2)
+            & values.zip([a, b]).all(|(x, y)| matches_expr(x, y))
+    })
+}
+
+/// What `a` and `b` differing says: an entry for each order, so a lookup
+/// needs only one. No fact can be named `fact`, a keyword, so these
+/// entries never meet a real one. The same expression can't differ from
+/// itself, so that is impossible.
+fn unequal(a: &Expression, b: &Expression) -> Know {
+    if matches_expr(a, b) {
+        return None;
+    }
+    let entry = |x: &Expression, y: &Expression| FactPattern {
+        name: Ident::new(ident!("fact"), Span::empty()),
+        keys: vec![(ident!("fact"), x.clone()), (ident!("fact"), y.clone())],
+        span: Span::empty(),
+        text: String::new(),
+    };
+    Some(vec![
+        (entry(a, b), FactState::Differ),
+        (entry(b, a), FactState::Differ),
+    ])
 }
 
 /// Are `a` and `b` literals with different values?

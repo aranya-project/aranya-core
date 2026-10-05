@@ -202,8 +202,8 @@ contradictory branches are detected.
 | `!c` | `c` when false | `c` when true |
 | `a && b` | Both sides' true facts | Only what holds both where `a` was false and where `a` was true and `b` false |
 | `a \|\| b` | Only what holds both where `a` was true and where `a` was false and `b` true | Both sides' false facts |
-| `a == b` | What a stored value on one side says about the other | Nothing |
-| `a != b` | Nothing | What a stored value on one side says about the other |
+| `a == b` | What a stored value on one side says about the other | The two values differ |
+| `a != b` | The two values differ | What a stored value on one side says about the other |
 | `at_least 1 F[k]` | Some match exists | `NotExists F[k]` |
 | `at_least n F[k]`, `exactly n F[k]` | Some match exists | Nothing |
 | `at_most n F[k]` | Nothing | Some match exists |
@@ -215,6 +215,10 @@ contradictory branches are detected.
 
 Every condition also learns, on both sides, what the calls it always
 makes guarantee. See [Pure functions](#pure-functions).
+
+Knowing two values differ tells two keys apart, as described under
+[Invalidation](#invalidation). A value can't differ from itself, so
+`x != x` is impossible, and so is `x == x` failing.
 
 Count limits must be at least 1, so `at_most 0` is not valid policy;
 `!(at_least 1 F[k])` is the way to count to zero. "Some match exists"
@@ -433,9 +437,10 @@ State is conservatively invalidated when something may have changed the
 fact database between an observation and an obligation:
 
 - A mutation of `F[k]` sets the state of `F[k]` to its postcondition.
-  What the path knows about a fact that provably differs from `F[k]`,
-  meaning another fact or a key where both give different literals, is
-  kept. Of what it knows about one that may be `F[k]`:
+  What the path knows about a fact that provably differs from `F[k]`
+  is kept. It differs when it is another fact, or has a key where both
+  give different literals or values the path knows differ, from a
+  checked `!=` or a failed `==`. Of what it knows about one that may be `F[k]`:
   - a `create` keeps everything. Creating a fact removes none, and if a
     fact the path knew existed was the one created, the `create` raised
     an exception, which its own obligation covers;
@@ -527,7 +532,10 @@ through the code after it. Two steps keep the walk bounded.
   refer to them. Branches that differ only in their locals, or that
   learn the same facts, then reach the same state, and the code after
   them is walked once. This loses nothing: the paths knew the same
-  things. Their opaque points are kept, once each.
+  things. Their opaque points are kept, once each. Paths that differ
+  only in which values they know differ merge too, keeping the
+  differences all of them know. Otherwise every `if` on a `!=` would
+  double the paths after it.
 - **Past the path limit, paths are joined.** When more distinct states
   than the limit (`Compiler::max_paths`, 64 by default) reach one
   point, they are joined into one state that keeps only what every path
@@ -739,8 +747,9 @@ file covers one feature, in the order below:
 - merging and joining paths: a correlation between branches kept when
   their paths stay apart or merge, and lost past the path limit, a join
   keeping what every path knows, one copy of each note on merged paths,
-  and long chains of branches finishing in bounded time, enforced by a
-  time limit so a regression fails rather than hangs;
+  long chains of branches finishing in bounded time, enforced by a
+  time limit so a regression fails rather than hangs, and branches on
+  `!=` merging rather than multiplying the paths;
 - join reporting: the join warning naming only the facts it dropped,
   the note and false-positive footnote on a warning it caused, and a
   join inside a helper reported once;
@@ -753,6 +762,10 @@ file covers one feature, in the order below:
   `exists`, `query`, `at_least`, a `match` arm, and a bound-key query;
   through a finish function; alongside a key checked equal to the same
   value; and after creating another fact;
+- values known to differ: from a checked `!=`, a failed `==`, a negated
+  `==`, either order, and a helper, letting two keys both be created or
+  deleted, including in an init command; and a value checked unequal
+  to itself being impossible;
 - struct fields: a key read from a struct literal passed to a finish
   function, bound by `let`, read in the command, nested in another
   struct, and composed from another struct, and a stored value read
@@ -828,8 +841,10 @@ target:
   blocks not inheriting policy knowledge, double manipulation across
   a call, two keys both checked absent that may be one fact, a prefix's
   absence after creating what may be part of it, an `update` then a
-  `delete` of what may be one fact, and a `delete` dropping the query
-  result of what may be the deleted fact;
+  `delete` of what may be one fact, a `delete` dropping the query
+  result of what may be the deleted fact, and values known to differ
+  from another value, on one branch only, after a check that they are
+  equal, and after their name was bound again;
 - `attacks_calls.rs`: a helper's facts from a call that may not run, on
   the right of `&&`, `||`, or `or`, as a condition and in a `let`, in
   an arm of an `if` or `match`, and in a `debug_assert`, and from a call
@@ -1002,6 +1017,11 @@ see that this is the ID the caller put in the struct. Now a field read
 from a struct literal is the field's value. That clears nothing on its
 own here, since the role's ID is the command's own.
 
+On a copy of the policy, explicit checks clear all 9: thirteen across
+six commands, plus a check in `CreateTeam` that the role's ID differs
+from the device's. That last one works because a checked `!=` tells
+two keys apart.
+
 Three commands rely on an invariant where the policy checks a similar
 one elsewhere. `AddDevice` checks that four of the five facts it
 creates are absent, but not `Rank`. `ChangeRole` creates a
@@ -1025,9 +1045,9 @@ ties to them only in debug builds.
 - **Double manipulation is syntactic.** Only identical keys are flagged,
   so two mutations whose keys are equal at runtime but written
   differently are missed.
-- **Keys differ only by literals.** Two keys are known to differ only
-  where both give different literals. A checked `x != y` is not used,
-  so after `delete F[k: x]`, nothing is known about `F[k: y]`.
+- **Keys differ only by literals and checked disequalities.** An
+  ordering such as `x < y` is not used, so after `delete F[k: x]`,
+  nothing is known about `F[k: y]` unless `x != y` was checked.
 - **FFI calls** are not substituted, so a key computed by an FFI call is
   compared by the name of the variable holding it.
 - **Helper knowledge** is limited to facts expressed in the helper's

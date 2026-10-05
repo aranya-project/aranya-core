@@ -328,3 +328,20 @@ fn helpers_within_the_limit_report_no_join() {
     ));
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+#[test]
+fn branches_on_unequal_values_merge() {
+    // Each branch learns a value differs, but its paths still merge, so
+    // the branches don't multiply the paths and force a join.
+    let branches: String = (1..=8)
+        .map(|i| format!("if this.user != {i} {{ let u{i} = {i} }}\n"))
+        .collect();
+    let warnings = warnings_with_paths(
+        &command(&format!(
+            "{branches}check exists Account[user: this.user] else recall failed()
+             finish {{ delete Account[user: this.user] }}"
+        )),
+        4,
+    );
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
