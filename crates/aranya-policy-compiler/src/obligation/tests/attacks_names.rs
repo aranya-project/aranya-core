@@ -361,3 +361,62 @@ fn control_key_read_back_from_the_caller_var_passed_in() {
     let warnings = warnings_for(&remove_member("m"));
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+/// A struct and a finish function creating the fact it names, called
+/// after `Item[k: this.user]` was checked absent.
+fn make_item(setup: &str, call: &str) -> String {
+    with_defs(
+        r#"
+        struct Info { k int, v int }
+        fact Item[k int]=>{v int}
+
+        finish function make(i struct Info) {
+            create Item[k: i.k]=>{v: i.v}
+        }
+        "#,
+        &format!(
+            r#"
+            check !exists Item[k: this.user] else recall failed()
+            {setup}
+            finish {{ {call} }}
+            "#
+        ),
+    )
+}
+
+#[test]
+fn attack_another_field_of_the_struct() {
+    // `k` is 7. The user is in `v`, written first.
+    let warnings = warnings_for(&make_item(
+        "let info = Info { v: this.user, k: 7 }",
+        "create Item[k: info.k]=>{v: 0}",
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn control_the_field_holding_the_user() {
+    let warnings = warnings_for(&make_item(
+        "let info = Info { v: this.user, k: 7 }",
+        "create Item[k: info.v]=>{v: 0}",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_struct_param_named_like_caller_var() {
+    // Inside `make`, `i` is the argument, whose `k` is 7.
+    let warnings = warnings_for(&make_item(
+        "let i = Info { k: this.user, v: 0 }",
+        "make(Info { k: 7, v: 0 })",
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn control_struct_param_bound_to_caller_var() {
+    let warnings = warnings_for(&make_item("let i = Info { k: this.user, v: 0 }", "make(i)"));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

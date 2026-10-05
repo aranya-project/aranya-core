@@ -30,6 +30,7 @@ mod mutations;
 mod paths;
 mod pure_functions;
 mod strict_substitution;
+mod struct_fields;
 mod update_values;
 
 /// A fact with a two-part key, for queries with a bound key.

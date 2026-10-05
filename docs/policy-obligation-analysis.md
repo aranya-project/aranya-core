@@ -235,15 +235,21 @@ bind marker in the key, it says nothing about any one fact's values.
 
 A `let` whose value is substitutable is replaced by its value wherever
 the name appears. Substitutable values include fact reads (`exists`,
-`query`, and counts) and pure function calls, not just simple values.
-The fact database cannot change during a policy block, so the same
-expression gives the same value wherever it appears. So this proves
-`Device[device_id: id]` exists after the `if`:
+`query`, and counts), pure function calls, and struct literals, not
+just simple values. The fact database cannot change during a policy
+block, so the same expression gives the same value wherever it
+appears. So this proves `Device[device_id: id]` exists after the `if`:
 
 ```policy
 let device = query Device[device_id: id]
 if device is None { recall missing_device() }
 ```
+
+A field read from a struct literal is the value the literal gave it, so
+a `RoleInfo { role_id: id, .. }` passed to a finish function lets a key
+written `role.role_id` in its body match `id`. A literal composed from
+another struct, as in `Info { v: 0, ...key }`, gives `key.k` for the
+field it took from `key`.
 
 ### Keys read from query results
 
@@ -747,6 +753,10 @@ file covers one feature, in the order below:
   `exists`, `query`, `at_least`, a `match` arm, and a bound-key query;
   through a finish function; alongside a key checked equal to the same
   value; and after creating another fact;
+- struct fields: a key read from a struct literal passed to a finish
+  function, bound by `let`, read in the command, nested in another
+  struct, and composed from another struct, and a stored value read
+  from a struct field;
 - what a mutation keeps: keys that differ by an int, string, bool, or
   enum literal, in a command and an init command; absence of a key
   prefix surviving creates of parts of it; and what a `create`,
@@ -808,8 +818,10 @@ target:
   helper parameters named like caller variables, block-local query
   bindings, alias chains, arm-expression bindings, a helper's arm name
   leaking into its caller, an argument captured by a binder inside
-  a helper, and a key read back after its name was bound again or from
-  a parameter named like the caller's variable;
+  a helper, a key read back after its name was bound again or from
+  a parameter named like the caller's variable, and a struct field read
+  from the wrong field or from a parameter named like the caller's
+  variable;
 - `attacks_state.rs`: keys that may alias in one finish block, directly
   and through a finish function, a finish function dropping the
   caller's query binding, a recursive call in an init command, recall
@@ -968,19 +980,27 @@ used. The 9 left need knowledge the policy doesn't state:
 | Warning | From | Cause |
 |---|---|---|
 | `create Role` | `CreateRole`, `SetupDefaultRole` | Own ID |
-| `create Rank` | `CreateRole`, `SetupDefaultRole`, `CreateLabel` | Own ID |
-| `create Rank` | `CreateTeam`, after the device's `Rank` | Own ID |
+| `create Rank` | `CreateLabel`, `CreateRole`, `SetupDefaultRole` | Own ID |
+| `create Rank` | `CreateTeam`, after the device's `Rank` | Own ID, distinct from the device's ID |
 | `create Rank` | `AddDevice` | Invariant |
 | `create RoleHasPerm` | `SetupDefaultRole` | Own ID |
-| `create RoleAssignmentIndex` | `ChangeRole` | Invariant |
+| `create RoleAssignmentIndex` | `ChangeRole` | Invariant on a stored value |
 | `delete` of the three device key facts | `RemoveDevice` | Invariant |
 | `delete Rank` | `RemoveDevice`, when a device removes itself | Invariant |
 | `create Label` | `CreateLabel` | Own ID |
 
 A warning shared by several commands, such as the one in
 `set_object_rank`, goes away only when every command's cause does.
-Knowing which IDs are fresh would clear 3 of the 9. The other 6 need
-invariants.
+Knowing which IDs are fresh would clear 3 of the 9. The rank create
+needs that and an invariant. The other 5 need invariants alone. Each
+cause was confirmed on a copy of the policy by adding the checks it
+stands for.
+
+A third cause was found that way and fixed. `create_role_facts` takes a
+`RoleInfo` and keys its facts by `role.role_id`, and the analysis didn't
+see that this is the ID the caller put in the struct. Now a field read
+from a struct literal is the field's value. That clears nothing on its
+own here, since the role's ID is the command's own.
 
 Three commands rely on an invariant where the policy checks a similar
 one elsewhere. `AddDevice` checks that four of the five facts it
@@ -1013,6 +1033,9 @@ ties to them only in debug builds.
 - **Helper knowledge** is limited to facts expressed in the helper's
   parameters and globals. A call inside a block that is itself inside
   a compared expression doesn't count.
+- **Struct fields are followed only on literals.** A field read through
+  `substruct` or a cast with `as` isn't recognized as the field it came
+  from, so a fact key read that way matches nothing.
 - **Equalities are followed one step, to stored values only.** A
   checked `a == b` says nothing until one side is a stored value, and
   an equality between other values isn't used to match keys.
@@ -1040,6 +1063,15 @@ ties to them only in debug builds.
   run cleanly on real policies such as the daemon policy, then promote
   warnings to errors. The daemon policy raises 9 false positives
   today. [The daemon policy](#the-daemon-policy) lists their causes.
+- **Declared invariants, next:** state relationships between facts in
+  the schema, such as a `Device` implying its three key facts, or a key
+  that must refer to an existing fact. Each becomes an obligation every
+  command must prove holds when it finishes, and that every command may
+  then assume holds when it starts. The analysis checks the relationships
+  the policy declares instead of trying to discover them. Declared
+  references would also settle keys built from the command's own ID:
+  when every key holding another object's ID must refer to an existing
+  fact, no fact can hold a command's ID before that command runs.
 - **New obligation kinds:** the framework is not fact-specific.
   Candidates include every `policy` block reaching a `finish` on some
   path, envelope-author checks before privileged mutations, or

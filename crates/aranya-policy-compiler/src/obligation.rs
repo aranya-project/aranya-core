@@ -2649,10 +2649,29 @@ fn rewrite(
             .arguments
             .iter_mut()
             .all(|e| rewrite(e, env, strict, binders)),
+        // A field read from a struct literal is that field's value. The
+        // typed tree lists every field of a literal, including those
+        // taken from a struct it was composed from.
+        ExprKind::Dot(base, field) => {
+            if !rewrite(base, env, strict, binders) {
+                return false;
+            }
+            let value = match &base.kind {
+                ExprKind::NamedStruct(s) => s
+                    .fields
+                    .iter()
+                    .find(|(name, _)| name.inner == field.inner)
+                    .map(|(_, value)| value.clone()),
+                _ => None,
+            };
+            if let Some(value) = value {
+                *expr = value;
+            }
+            true
+        }
         ExprKind::Return(e)
         | ExprKind::Not(e)
         | ExprKind::Is(e, _)
-        | ExprKind::Dot(e, _)
         | ExprKind::Substruct(e, _)
         | ExprKind::Cast(e, _)
         | ExprKind::Ok(e)
@@ -2781,6 +2800,7 @@ fn is_substitutable(expr: &Expression) -> bool {
         | ExprKind::GreaterThanOrEqual(a, b)
         | ExprKind::LessThanOrEqual(a, b) => is_substitutable(a) && is_substitutable(b),
         ExprKind::Optional(inner) => inner.as_deref().is_none_or(is_substitutable),
+        ExprKind::NamedStruct(s) => s.fields.iter().all(|(_, e)| is_substitutable(e)),
         ExprKind::InternalFunction(
             InternalFunction::Query(fact)
             | InternalFunction::Exists(fact)

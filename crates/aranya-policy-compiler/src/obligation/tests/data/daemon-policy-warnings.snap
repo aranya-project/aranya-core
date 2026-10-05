@@ -1,0 +1,50 @@
+---
+source: crates/aranya-policy-compiler/src/obligation/tests/daemon_policy.rs
+expression: "summary(&text, &warnings)"
+---
+1543: cannot prove `Role[role_id: role.role_id]` does not exist before `create`
+    1620: in this call to `create_role_facts`
+    1723: in this call to `create_role_facts`
+    1755: in this call to `create_role_facts`
+    1783: in this call to `create_role_facts`
+871: cannot prove `Rank[object_id: object_id]` does not exist before `create`
+    1548: in this call to `set_object_rank`
+    1620: in this call to `create_role_facts`
+    1723: in this call to `create_role_facts`
+    1755: in this call to `create_role_facts`
+    1783: in this call to `create_role_facts`
+    2489: in this call to `create_role_facts`
+    2570: in this call to `set_object_rank`
+    2731: in this call to `add_new_device`
+    2744: in this call to `add_new_device`
+    2985: in this call to `set_object_rank`
+1342: cannot prove `RoleHasPerm[role_id: role_id, perm: perm]` does not exist before `create`
+    1731: in this call to `assign_perm_to_role`
+    1732: in this call to `assign_perm_to_role`
+    1733: in this call to `assign_perm_to_role`
+    1734: in this call to `assign_perm_to_role`
+    1735: in this call to `assign_perm_to_role`
+    1736: in this call to `assign_perm_to_role`
+    1737: in this call to `assign_perm_to_role`
+    1738: in this call to `assign_perm_to_role`
+    1763: in this call to `assign_perm_to_role`
+    1764: in this call to `assign_perm_to_role`
+    1765: in this call to `assign_perm_to_role`
+    1766: in this call to `assign_perm_to_role`
+    1791: in this call to `assign_perm_to_role`
+    1792: in this call to `assign_perm_to_role`
+1937: cannot prove `RoleAssignmentIndex[role_id: new_role_id, device_id: device_id]` does not exist before `create`
+    2222: in this call to `update_role_assignment`
+2576: cannot prove `DeviceIdentPubKey[device_id: device_id]` exists before `delete`
+    2842: in this call to `delete_device_core`
+    2858: in this call to `delete_device_core`
+2577: cannot prove `DeviceSignPubKey[device_id: device_id]` exists before `delete`
+    2842: in this call to `delete_device_core`
+    2858: in this call to `delete_device_core`
+2578: cannot prove `DeviceEncPubKey[device_id: device_id]` exists before `delete`
+    2842: in this call to `delete_device_core`
+    2858: in this call to `delete_device_core`
+2579: cannot prove `Rank[object_id: device_id]` exists before `delete`
+    2842: in this call to `delete_device_core`
+    2858: in this call to `delete_device_core`
+2981: cannot prove `Label[label_id: label_id]` does not exist before `create`
