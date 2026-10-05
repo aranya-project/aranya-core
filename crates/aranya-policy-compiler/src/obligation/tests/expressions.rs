@@ -1,6 +1,6 @@
 //! `if`, `match`, and block expressions.
 
-use super::{MEMBER, command, warnings_for, warnings_with_cap, with_defs};
+use super::{MEMBER, command, warnings_for, with_defs};
 
 #[test]
 fn if_expression_check_proves() {
@@ -190,35 +190,6 @@ fn finish_inside_block_is_checked() {
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("before `create`"));
-}
-
-#[test]
-fn block_ends_over_cap_are_opaque() {
-    let text = command(
-        r#"
-        check if this.user == 1 {
-            if this.user == 2 {
-                let a = 1
-            } else {
-                let b = 2
-            }
-            : !exists Account[user: this.user]
-        } else {
-            : !exists Account[user: this.user]
-        } else recall failed()
-        finish { create Account[user: this.user]=>{balance: 0} }
-        "#,
-    );
-    assert_eq!(warnings_with_cap(&text, 2), vec![], "expected no warnings");
-    let warnings = warnings_with_cap(&text, 1);
-    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    assert!(warnings[0].message.contains("before `create`"));
-    assert!(
-        warnings[0]
-            .notes
-            .iter()
-            .any(|(_, n)| n.contains("too complex"))
-    );
 }
 
 #[test]

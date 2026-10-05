@@ -1,6 +1,8 @@
 //! Path sensitivity, deduplication across paths, and opaque points in notes.
 
-use super::{command, warnings_for, with_defs};
+use std::{sync::mpsc, thread, time::Duration};
+
+use super::{command, warnings_for, warnings_with_paths, with_defs};
 
 #[test]
 fn check_in_one_branch_warns_on_other_path() {
@@ -113,7 +115,9 @@ fn policy_block_without_finish() {
 
 // --- Deduplication.
 #[test]
-fn duplicate_notes_are_merged() {
+fn merged_paths_keep_one_copy_of_each_note() {
+    // The branches only bind locals, so their paths merge. Both carry the
+    // note from the check before them, which must appear once.
     let warnings = warnings_for(&command(
         r#"
         check !exists Account[user: this.user] || this.user == 1 else recall failed()
@@ -123,4 +127,129 @@ fn duplicate_notes_are_merged() {
     ));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert_eq!(warnings[0].notes.len(), 1, "notes: {:?}", warnings[0].notes);
+}
+
+#[test]
+fn duplicate_notes_are_merged() {
+    // The two paths know different things about `Owner`, so they stay
+    // apart, and each reports the unproven create with the same note.
+    let warnings = warnings_for(&with_defs(
+        "",
+        r#"
+        check !exists Account[user: this.user] || this.user == 1 else recall failed()
+        if exists Owner[] { let a = 1 } else { let b = 2 }
+        finish { create Account[user: this.user]=>{balance: 0} }
+        "#,
+    ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert_eq!(warnings[0].notes.len(), 1, "notes: {:?}", warnings[0].notes);
+}
+
+// --- Merging and joining paths.
+
+/// A policy where the second `if` is only safe because it takes the same
+/// branch as the first.
+const CORRELATED: &str = r#"
+    if exists Owner[] {
+        check exists Account[user: 1] else recall failed()
+    }
+    if exists Owner[] {
+        finish { delete Account[user: 1] }
+    }
+    finish {}
+"#;
+
+#[test]
+fn distinct_paths_keep_their_correlation() {
+    let warnings = warnings_for(&with_defs("", CORRELATED));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn paths_past_the_limit_are_joined() {
+    // With room for one path, the two paths out of the first `if` are
+    // joined, and the second `if` no longer knows which one it is on.
+    let warnings = warnings_with_paths(&with_defs("", CORRELATED), 1);
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(
+        warnings[0]
+            .message
+            .contains("`Account[user: 1]` exists before `delete`")
+    );
+}
+
+#[test]
+fn joined_paths_keep_what_every_path_knows() {
+    let warnings = warnings_with_paths(
+        &with_defs(
+            "",
+            r#"
+            if this.user == 1 {
+                check exists Account[user: 1] else recall failed()
+                check exists Owner[] else recall failed()
+            } else {
+                check exists Account[user: 1] else recall failed()
+            }
+            finish { delete Account[user: 1] }
+            "#,
+        ),
+        1,
+    );
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn merged_paths_keep_their_correlation() {
+    // Six branches that only bind locals sit between the correlated `if`s.
+    // Walked separately they would make 2 * 2^6 = 128 paths, past the
+    // limit, and the join would lose the correlation. Merged, they stay 2.
+    let mut body =
+        String::from("if exists Owner[] { check exists Account[user: 1] else recall failed() }\n");
+    for i in 0..6 {
+        body.push_str(&format!("if this.user == {i} {{ let x{i} = {i} }}\n"));
+    }
+    body.push_str("if exists Owner[] { finish { delete Account[user: 1] } }\nfinish {}\n");
+    let warnings = warnings_for(&with_defs("", &body));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+/// Run `f` on another thread, failing if it takes longer than `secs`,
+/// so a walk that blows up fails the test instead of hanging it.
+#[track_caller]
+fn within<T: Send + 'static>(secs: u64, f: impl FnOnce() -> T + Send + 'static) -> T {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || tx.send(f()));
+    rx.recv_timeout(Duration::from_secs(secs))
+        .expect("the analysis took too long")
+}
+
+#[test]
+fn branches_binding_only_locals_merge() {
+    // Each `if` binds a local and learns nothing about facts, so its two
+    // paths are the same once the local is forgotten. Walking each way
+    // through them would take 2^60 paths.
+    let mut body = String::new();
+    for i in 0..60 {
+        body.push_str(&format!("if this.user == {i} {{ let x{i} = {i} }}\n"));
+    }
+    body.push_str("finish { create Account[user: this.user]=>{balance: 0} }\n");
+    let warnings = within(30, move || warnings_for(&command(&body)));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `create`"));
+}
+
+#[test]
+fn branches_on_facts_stay_bounded() {
+    // Each `if` splits the paths on a different fact, so they never
+    // merge. Past the path limit they are joined.
+    let mut body = String::new();
+    for i in 0..40 {
+        body.push_str(&format!(
+            "if exists Account[user: {i}] {{ let x{i} = {i} }}\n"
+        ));
+    }
+    body.push_str("finish { create Owner[]=>{user: this.user} }\n");
+    let warnings = within(30, move || warnings_for(&with_defs("", &body)));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("`Owner[]` does not exist"));
 }

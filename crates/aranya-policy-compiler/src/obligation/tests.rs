@@ -110,3 +110,16 @@ fn warnings_with_cap(text: &str, cap: usize) -> Vec<ObligationWarning> {
         .expect("compile");
     warnings
 }
+
+#[track_caller]
+fn warnings_with_paths(text: &str, max_paths: usize) -> Vec<ObligationWarning> {
+    let policy = parse_policy_str(text, Version::V2).expect("parse");
+    let (_module, warnings) = Compiler::new(&policy)
+        .debug(true)
+        .allow_baseless(true)
+        .analyze_obligations(true)
+        .max_paths(max_paths)
+        .compile_with_diagnostics()
+        .expect("compile");
+    warnings
+}

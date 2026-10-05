@@ -230,7 +230,8 @@ struct CompileState<'a> {
     obligation_warnings: Vec<ObligationWarning>,
     /// The obligation analysis, which records function bodies as they are
     /// lowered so it can follow calls
-    obligations: obligation::Analyzer,
+    /// The obligation analysis, when it is enabled.
+    obligations: Option<obligation::Analyzer>,
 }
 
 impl<'a> CompileState<'a> {
@@ -928,26 +929,28 @@ impl<'a> CompileState<'a> {
                 StatementContext::PureFunction(_) => Use::Nothing,
                 StatementContext::Action(_) => Use::Nothing,
             };
-            match usage {
-                Use::Analyze { empty_db } => {
-                    let warnings = self.obligations.analyze_block(&stmts, empty_db);
-                    self.obligation_warnings.extend(warnings);
-                }
-                Use::Finish(span) => {
-                    if let Some(def) = self.policy.finish_functions.iter().find(|f| f.span == span)
-                    {
-                        self.obligations.record_finish_function(
-                            def.identifier.inner.clone(),
-                            def.arguments.iter().map(|p| p.name.inner.clone()).collect(),
-                            stmts.clone(),
-                        );
+            if let Some(obligations) = self.obligations.as_mut() {
+                match usage {
+                    Use::Analyze { empty_db } => {
+                        let warnings = obligations.analyze_block(&stmts, empty_db);
+                        self.obligation_warnings.extend(warnings);
                     }
+                    Use::Finish(span) => {
+                        if let Some(def) =
+                            self.policy.finish_functions.iter().find(|f| f.span == span)
+                        {
+                            obligations.record_finish_function(
+                                def.identifier.inner.clone(),
+                                def.arguments.iter().map(|p| p.name.inner.clone()).collect(),
+                                stmts.clone(),
+                            );
+                        }
+                    }
+                    Use::Pure(name, params) => {
+                        obligations.record_pure_function(name, params, stmts.clone());
+                    }
+                    Use::Nothing => {}
                 }
-                Use::Pure(name, params) => {
-                    self.obligations
-                        .record_pure_function(name, params, stmts.clone());
-                }
-                Use::Nothing => {}
             }
         }
         self.compile_typed_statements(stmts, scope)
@@ -2334,6 +2337,9 @@ struct Config {
     /// The most exits the obligation analysis records for one pure
     /// function before treating calls to it as unknown
     max_exit_paths: usize,
+    /// The most distinct paths the obligation analysis keeps at one point
+    /// before joining them
+    max_paths: usize,
 }
 
 impl Config {
@@ -2344,6 +2350,7 @@ impl Config {
             allow_baseless: false,
             analyze_obligations: false,
             max_exit_paths: obligation::DEFAULT_MAX_EXIT_PATHS,
+            max_paths: obligation::DEFAULT_MAX_PATHS,
         }
     }
 }
@@ -2416,6 +2423,16 @@ impl<'a> Compiler<'a> {
         self
     }
 
+    /// Sets the most distinct paths the obligation analysis keeps at one
+    /// point of a block. Past it, the paths are joined into one, which
+    /// keeps only what all of them know. The default is
+    /// [`obligation::DEFAULT_MAX_PATHS`].
+    #[must_use]
+    pub fn max_paths(mut self, max: usize) -> Self {
+        self.config.max_paths = max;
+        self
+    }
+
     /// Like [`Compiler::compile`], but also returns the warnings produced
     /// by the obligation analysis (empty unless
     /// [`Compiler::analyze_obligations`] is enabled).
@@ -2454,30 +2471,33 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             config: self.config,
             obligation_warnings: Vec::new(),
-            obligations: obligation::Analyzer::new(
-                self.policy.text.clone(),
-                self.policy
-                    .global_lets
-                    .iter()
-                    .map(|g| g.identifier.inner.clone())
-                    .collect(),
-                self.policy
-                    .facts
-                    .iter()
-                    .map(|f| {
-                        let schema = obligation::FactSchema {
-                            keys: f
-                                .key
-                                .iter()
-                                .map(|k| (k.identifier.inner.clone(), k.field_type.clone()))
-                                .collect(),
-                            values: f.value.len(),
-                        };
-                        (f.identifier.inner.clone(), schema)
-                    })
-                    .collect(),
-                self.config.max_exit_paths,
-            ),
+            obligations: self.config.analyze_obligations.then(|| {
+                obligation::Analyzer::new(
+                    self.policy.text.clone(),
+                    self.policy
+                        .global_lets
+                        .iter()
+                        .map(|g| g.identifier.inner.clone())
+                        .collect(),
+                    self.policy
+                        .facts
+                        .iter()
+                        .map(|f| {
+                            let schema = obligation::FactSchema {
+                                keys: f
+                                    .key
+                                    .iter()
+                                    .map(|k| (k.identifier.inner.clone(), k.field_type.clone()))
+                                    .collect(),
+                                values: f.value.len(),
+                            };
+                            (f.identifier.inner.clone(), schema)
+                        })
+                        .collect(),
+                    self.config.max_exit_paths,
+                    self.config.max_paths,
+                )
+            }),
         }
     }
 }

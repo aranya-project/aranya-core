@@ -1,7 +1,7 @@
 //! Attacks on helpers: a call's true side must keep only what holds on
 //! every exit that can be true.
 
-use super::{warnings_for, warnings_with_cap, with_defs};
+use super::{warnings_for, with_defs};
 
 #[test]
 fn attack_early_exit_returning_true() {
@@ -516,7 +516,7 @@ fn attack_return_in_if_expression_arm() {
 /// A helper whose `else` arm is a block with three ways through it and
 /// a final `return {value}`, and a command that checks it and deletes
 /// `Owner[]`. When `u` is 1 the arm can't run.
-fn with_capped_arm(value: &str) -> String {
+fn with_branching_arm(value: &str) -> String {
     with_defs(
         &format!(
             r#"
@@ -542,12 +542,10 @@ fn with_capped_arm(value: &str) -> String {
 }
 
 #[test]
-fn attack_exit_in_block_over_cap() {
-    // With room for only two ways through a block, the arm's block is
-    // never evaluated where it can run, so its `return true` is missed
-    // there. Where it can't run, the `return` still counts as recorded.
-    // The helper must become unknown rather than drop that exit.
-    let warnings = warnings_with_cap(&with_capped_arm("true"), 2);
+fn attack_exit_in_block_final_after_branches() {
+    // Where the arm runs, its block's branches must not hide the final
+    // `return true`, which returns without `Owner[]`.
+    let warnings = warnings_for(&with_branching_arm("true"));
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(
         warnings[0]
@@ -557,10 +555,9 @@ fn attack_exit_in_block_over_cap() {
 }
 
 #[test]
-fn control_exit_in_block_within_cap() {
-    // At the default cap the block is evaluated. The arm returns false
-    // on each of its three ways through, and every way `f` returns true
-    // knows `Owner[]` exists.
-    let warnings = warnings_for(&with_capped_arm("false"));
+fn control_exit_in_block_final_after_branches() {
+    // The arm returns false, and every way `f` returns true knows
+    // `Owner[]` exists.
+    let warnings = warnings_for(&with_branching_arm("false"));
     assert_eq!(warnings, vec![], "expected no warnings");
 }

@@ -133,10 +133,13 @@ a path:
   their postcondition.
 
 This is a strongest-postcondition analysis flowing forward along each
-control-flow path. There are no joins in the usual dataflow sense. The
-policy language has no general loops (`map` is the only iteration
-construct, and it is only allowed in actions), and `finish` blocks
-terminate execution, so the analysis simply enumerates paths.
+control-flow path. The policy language has no general loops (`map` is
+the only iteration construct, and it is only allowed in actions), and
+`finish` blocks terminate execution, so the analysis can follow each
+path separately. Paths that reach the same state are merged, which
+loses nothing. Only past a limit on the number of paths are different
+states joined, as in a usual dataflow analysis. See
+[Merging and joining paths](#merging-and-joining-paths).
 
 ### The finish-block touched set
 
@@ -421,13 +424,14 @@ For each command `policy` and `recall` block:
 1. Walk statements in order, threading the fact state, the `let`
    substitution environment, query bindings, and the opaque points.
 2. `let` and `check`: add what the condition proves to the path.
-3. `if` and `match`: walk each arm with a clone of the state, adding
-   what its condition proves when true and what every earlier
+3. `if` and `match`: walk each arm from a clone of every path's state,
+   adding what its condition proves when true and what every earlier
    condition proves when false. The `else` branch, or the code after an
-   `if` without one, learns that every condition was false. Then
-   continue each arm into the statements after the branch. Statements
-   after a branch are analyzed once per path. Policy blocks are small
-   and loop-free, so path explosion is not a practical concern.
+   `if` without one, learns that every condition was false. At the end
+   of each arm, forget the names it bound, then merge the paths out of
+   all the arms, as described under
+   [Merging and joining paths](#merging-and-joining-paths), and walk the
+   statements after the branch once per remaining path.
 4. **Impossible paths** are skipped. When what a path learns
    contradicts what it already knows, such as `if exists F[k]` after
    `check !exists F[k]`, the path cannot run, so nothing on it is
@@ -441,6 +445,28 @@ For each command `policy` and `recall` block:
 
 Recall blocks are analyzed like policy blocks, with the same
 observation forms.
+
+### Merging and joining paths
+
+Walking each way through a block separately would take time
+exponential in the number of branches: each `if` doubles the paths
+through the code after it. Two steps keep the walk bounded.
+
+- **Paths with the same state are merged.** At the end of each branch,
+  the names it bound are forgotten, since nothing after the branch can
+  refer to them. Branches that differ only in their locals, or that
+  learn the same facts, then reach the same state, and the code after
+  them is walked once. This loses nothing: the paths knew the same
+  things. Their opaque points are kept, once each.
+- **Past the path limit, paths are joined.** When more distinct states
+  than the limit (`Compiler::max_paths`, 64 by default) reach one
+  point, they are joined into one state that keeps only what every path
+  knows: the facts all of them imply, combined as for `||`, and the
+  substitutions and query bindings they all share. This is sound but
+  loses any correlation between branches from that point on.
+
+Block expressions are walked the same way, so every path through a
+block reaches its final expression.
 
 A block expression reuses the same walk. Its statements are walked with
 a flag set that keeps the state of every path that runs off their end,
@@ -497,9 +523,7 @@ Summaries are computed on first use and cached. A function is not
 summarized, and calls to it are treated as unknown, when:
 
 - it has more exits than the configured limit
-  (`Compiler::max_exit_paths`, 64 by default), or a block in it has
-  more ways through it than that, which leaves the block's final
-  expression unevaluated;
+  (`Compiler::max_exit_paths`, 64 by default);
 - it is recursive, directly or through other functions;
 - a `return` in it fails the census.
 
@@ -542,11 +566,11 @@ becomes unreachable.
 
 ### Deduplication
 
-Because statements after a branch are analyzed once per path, one
-mutation can fail on several paths, and a shared finish function can
-fail from several commands. Warnings with the same span and message are
-merged, keeping the first one's position and the union of their notes.
-This happens per block and again across the whole policy.
+One mutation can fail on several paths that stay apart, and a shared
+finish function can fail from several commands. Warnings with the same
+span and message are merged, keeping the first one's position and the
+union of their notes. This happens as warnings are added, and again
+across the whole policy.
 
 ## Diagnostics
 
@@ -584,13 +608,17 @@ that led into a finish function are labeled "in this call to `f`".
   by default.
 - `Compiler::max_exit_paths(usize)` sets the most exits recorded for one
   pure function. The default is `DEFAULT_MAX_EXIT_PATHS`, 64.
+- `Compiler::max_paths(usize)` sets the most distinct paths kept at one
+  point before they are joined. The default is `DEFAULT_MAX_PATHS`, 64.
+- The analyzer is only built when the analysis is enabled.
 - `Compiler::compile_with_diagnostics()` returns the compiled module and
   the warnings. `Compiler::compile()` is unchanged.
 - `ObligationWarning` holds the span, message, label, span notes, and
   footnotes of a warning. `ObligationWarning::render(source)` renders it
   with `annotate-snippets`, like compiler errors.
-- The `policy-compiler` binary takes `--check-obligations` and
-  `--max-exit-paths <N>`, and prints warnings to stderr.
+- The `policy-compiler` binary takes `--check-obligations`,
+  `--max-exit-paths <N>`, and `--max-paths <N>`, and prints warnings to
+  stderr.
 
 ```bash
 cargo run -p aranya-policy-compiler --bin policy-compiler -- \
@@ -613,6 +641,11 @@ file covers one feature, in the order below:
 - each obligation passing with its observation and warning without it;
 - path sensitivity, with a check on only one branch;
 - deduplication across paths, with merged notes;
+- merging and joining paths: a correlation between branches kept when
+  their paths stay apart or merge, and lost past the path limit, a join
+  keeping what every path knows, one copy of each note on merged paths,
+  and long chains of branches finishing in bounded time, enforced by a
+  time limit so a regression fails rather than hangs;
 - bind-marker subsumption for negative observations only, and `let`
   aliases;
 - update stated values from a query, through a `let` alias, from a
@@ -716,8 +749,7 @@ forgetting, finish-function parameter substitution, block-scoped
 substitution, `or return` exits, the arm-local fact filter, a
 mutation forgetting other keys of its fact, the return census, the
 statement-level and arm exits it counts on paths that can't run,
-walking arms without a value and terminal blocks, the block-limit
-rule, the arm-name filter on what an arm proves, capture refusal, the
+walking arms without a value and terminal blocks, the arm-name filter on what an arm proves, capture refusal, the
 `get_key` guard, and the partial-update check. Attacks on `map` could not
 be written because `map` is only allowed in actions, which cannot
 mutate facts.
@@ -771,8 +803,9 @@ the only thing standing between the prover and a wrong answer.
 - **Branching `let` values are not substituted.** `let ok = if ..`
   followed by `check ok` proves nothing, though `ok` still matches
   itself by name in fact keys.
-- **Blocks over the exit limit** are opaque, like functions with too
-  many exits. In a function, one makes the function unknown.
+- **Past the path limit, branches lose their correlation.** Paths are
+  joined, keeping only what every one of them knows, so a later branch
+  can't rely on an earlier one having gone the same way.
 - **A `return` the walk can't record**, such as one inside a returned
   value or a `match` scrutinee, makes its function unknown.
 - **Double manipulation is syntactic.** Only identical keys are flagged,

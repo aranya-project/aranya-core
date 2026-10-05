@@ -31,6 +31,10 @@ struct Args {
     /// function before treating calls to it as unknown
     #[arg(long, default_value_t = aranya_policy_compiler::obligation::DEFAULT_MAX_EXIT_PATHS)]
     max_exit_paths: usize,
+    /// The most distinct paths the obligation analysis keeps at one point
+    /// of a block before joining them into one
+    #[arg(long, default_value_t = aranya_policy_compiler::obligation::DEFAULT_MAX_PATHS)]
+    max_paths: usize,
 }
 
 pub fn main() -> ExitCode {
@@ -57,7 +61,8 @@ pub fn main() -> ExitCode {
     let compiler = Compiler::new(&ast)
         .stub_ffi(args.stub_ffi)
         .analyze_obligations(args.check_obligations)
-        .max_exit_paths(args.max_exit_paths);
+        .max_exit_paths(args.max_exit_paths)
+        .max_paths(args.max_paths);
     let (module, warnings) = match compiler.compile_with_diagnostics() {
         Ok(m) => m,
         Err(e) => {

@@ -20,8 +20,8 @@ use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
 use aranya_policy_ast::{
     FactCountType, Ident, Identifier, Span, Spanned as _, TypeKind, VType,
     thir::{
-        ExprKind, Expression, FactLiteral, FunctionCall, InternalFunction, LetStatement,
-        MatchPattern, Statement, StmtKind,
+        ExprKind, Expression, FactLiteral, FunctionCall, IfStatement, InternalFunction,
+        LetStatement, MatchPattern, MatchStatement, Statement, StmtKind,
     },
 };
 
@@ -227,6 +227,11 @@ struct Summary {
 /// function. Functions with more are treated as unknown calls.
 pub const DEFAULT_MAX_EXIT_PATHS: usize = 64;
 
+/// The default limit on the number of distinct paths the analysis keeps
+/// at one point of a walk. Past it, the paths are joined into one, which
+/// keeps only what all of them know.
+pub const DEFAULT_MAX_PATHS: usize = 64;
+
 /// The parts of a fact's schema the analysis needs.
 #[derive(Debug)]
 pub(crate) struct FactSchema {
@@ -252,6 +257,8 @@ pub(crate) struct Analyzer {
     finish_functions: BTreeMap<Identifier, FunctionBody>,
     pure_functions: BTreeMap<Identifier, FunctionBody>,
     max_exit_paths: usize,
+    /// The most distinct paths kept at one point of a walk.
+    max_paths: usize,
     /// Pure function summaries, computed on first use. `None` means the
     /// function can't be summarized.
     summaries: RefCell<BTreeMap<Identifier, Option<Rc<Summary>>>>,
@@ -265,6 +272,7 @@ impl Analyzer {
         globals: Vec<Identifier>,
         facts: BTreeMap<Identifier, FactSchema>,
         max_exit_paths: usize,
+        max_paths: usize,
     ) -> Self {
         Self {
             src,
@@ -273,6 +281,7 @@ impl Analyzer {
             finish_functions: BTreeMap::new(),
             pure_functions: BTreeMap::new(),
             max_exit_paths,
+            max_paths,
             summaries: RefCell::new(BTreeMap::new()),
             summarizing: RefCell::new(Vec::new()),
         }
@@ -312,8 +321,8 @@ impl Analyzer {
         empty_db: bool,
     ) -> Vec<ObligationWarning> {
         let mut out = Out::new(usize::MAX);
-        walk(stmts, &[], PathState::new(self, empty_db, false), &mut out);
-        dedup_warnings(out.warnings)
+        walk(stmts, vec![PathState::new(self, empty_db)], &mut out);
+        out.warnings
     }
 
     /// The summary of a pure function, computing it on first use.
@@ -331,8 +340,7 @@ impl Analyzer {
         let mut out = Out::new(self.max_exit_paths);
         walk(
             &body.statements,
-            &[],
-            PathState::new(self, false, true),
+            vec![PathState::new(self, false)],
             &mut out,
         );
         self.summarizing.borrow_mut().pop();
@@ -356,24 +364,20 @@ impl Analyzer {
 }
 
 /// What a walk produces.
-struct Out<'a> {
+struct Out {
     warnings: Vec<ObligationWarning>,
     /// Exits, when summarizing a pure function.
     exits: Vec<Exit>,
     max_exits: usize,
     /// The walk can't be summarized: it found more than `max_exits`
-    /// exits, or a block with more ways through it than that.
+    /// exits.
     unusable: bool,
     /// The `return`s the walk recognized as exits, whether or not a path
     /// could reach them.
     modeled_returns: BTreeSet<Span>,
-    /// Keep the state of every path that runs off the end of the walked
-    /// statements, to evaluate a block expression.
-    collect_ends: bool,
-    ends: Vec<PathState<'a>>,
 }
 
-impl<'a> Out<'a> {
+impl Out {
     fn new(max_exits: usize) -> Self {
         Self {
             warnings: Vec::new(),
@@ -381,8 +385,6 @@ impl<'a> Out<'a> {
             max_exits,
             unusable: false,
             modeled_returns: BTreeSet::new(),
-            collect_ends: false,
-            ends: Vec::new(),
         }
     }
 }
@@ -404,8 +406,6 @@ struct PathState<'a> {
     /// Variables holding a fact read by a query, with the fact they hold.
     /// Used to prove an `update`'s stated values match the stored fact.
     query_bindings: Vec<(Identifier, FactPattern)>,
-    /// Walking a pure function body to summarize it.
-    in_function: bool,
     /// Inside a finish function body, where every name must be a parameter
     /// or a global. Any other name must not be mistaken for a caller's
     /// variable of the same name.
@@ -415,7 +415,7 @@ struct PathState<'a> {
 }
 
 impl<'a> PathState<'a> {
-    fn new(az: &'a Analyzer, empty_db: bool, in_function: bool) -> Self {
+    fn new(az: &'a Analyzer, empty_db: bool) -> Self {
         Self {
             az,
             facts: Vec::new(),
@@ -424,7 +424,6 @@ impl<'a> PathState<'a> {
             empty_db,
             dirty: Vec::new(),
             query_bindings: Vec::new(),
-            in_function,
             strict: false,
             evaluating: Vec::new(),
         }
@@ -488,141 +487,278 @@ impl<'a> PathState<'a> {
     }
 }
 
-/// Collapse warnings that differ only in their notes.
-///
-/// Statements after an `if`/`match` are walked once per path, so a
-/// statement reached by several failing paths is reported once per path.
-/// Warnings with the same span and message are merged, keeping the first
-/// occurrence's position and taking the union of the notes (different
-/// paths may have skipped different opaque expressions).
-pub(crate) fn dedup_warnings(warnings: Vec<ObligationWarning>) -> Vec<ObligationWarning> {
-    let mut out: Vec<ObligationWarning> = Vec::new();
-    for w in warnings {
-        match out
-            .iter_mut()
-            .find(|o| o.span == w.span && o.message == w.message)
-        {
-            Some(existing) => {
-                for note in w.notes {
-                    if !existing.notes.contains(&note) {
-                        existing.notes.push(note);
-                    }
+/// Add `w` to `warnings`, merging it into an earlier warning with the
+/// same span and message. A statement reached on several paths, or a
+/// finish function reached from several commands, can fail the same way
+/// on each, and the paths may have skipped different opaque expressions,
+/// so the merged warning takes the union of the notes.
+fn add_warning(warnings: &mut Vec<ObligationWarning>, w: ObligationWarning) {
+    match warnings
+        .iter_mut()
+        .find(|o| o.span == w.span && o.message == w.message)
+    {
+        Some(existing) => {
+            for note in w.notes {
+                if !existing.notes.contains(&note) {
+                    existing.notes.push(note);
                 }
             }
-            None => out.push(w),
         }
+        None => warnings.push(w),
+    }
+}
+
+/// Collapse warnings that differ only in their notes, as [`add_warning`]
+/// does.
+pub(crate) fn dedup_warnings(warnings: Vec<ObligationWarning>) -> Vec<ObligationWarning> {
+    let mut out = Vec::new();
+    for w in warnings {
+        add_warning(&mut out, w);
     }
     out
 }
 
-/// Walk one path segment. `cont` holds the statement segments that follow
-/// this one (innermost first), so branch arms continue into the statements
-/// after their enclosing `if`/`match`.
-fn walk<'a>(stmts: &[Statement], cont: &[&[Statement]], mut st: PathState<'a>, out: &mut Out<'a>) {
-    let mut remaining = stmts;
-    while let Some((stmt, rest)) = remaining.split_first() {
-        if out.unusable {
-            return;
+/// The states of the paths that reach one point of a walk.
+type Paths<'a> = Vec<PathState<'a>>;
+
+/// Walk `stmts` from every path in `paths`, and return the paths that
+/// run off the end. A path that ends inside, at a `finish`, a `return`, a
+/// `recall`, or a check that fails, records what it must and drops out.
+///
+/// After an `if` or `match`, the paths out of its branches are merged by
+/// [`normalize`], so what follows runs once per distinct state rather
+/// than once per way through the branches.
+fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'a> {
+    for stmt in stmts {
+        if paths.is_empty() {
+            return paths;
         }
-        match &stmt.kind {
-            StmtKind::Let(l) => {
-                if !observe_let(&mut st, l, out) {
-                    return;
-                }
-            }
-            StmtKind::Check(c) => {
-                let (when_true, when_false) = cond_of(&mut st, &c.expression, out);
-                terminal_branch(&st, when_false, &c.else_expression, out);
-                if !st.assume(when_true) {
-                    return;
-                }
-            }
-            StmtKind::If(ifs) => {
-                let mut next: Vec<&[Statement]> = Vec::new();
-                next.push(rest);
-                next.extend_from_slice(cont);
-                // Each branch knows its condition is true and every earlier
-                // condition was false.
-                let mut earlier_false = nothing();
-                for (cond, body) in &ifs.branches {
-                    let (when_true, when_false) = cond_of(&mut st, cond, out);
-                    let mut branch = st.clone();
-                    if branch.assume(both(when_true, earlier_false.clone())) {
-                        walk(body, &next, branch, out);
-                    }
-                    earlier_false = both(earlier_false, when_false);
-                }
-                let mut fallback = st;
-                if fallback.assume(earlier_false) {
-                    match &ifs.fallback {
-                        Some(body) => walk(body, &next, fallback, out),
-                        None => walk(rest, cont, fallback, out),
-                    }
-                }
-                return;
-            }
-            StmtKind::Match(m) => {
-                let mut next: Vec<&[Statement]> = Vec::new();
-                next.push(rest);
-                next.extend_from_slice(cont);
-                let scrutinee = resolve(&st, &m.expression);
-                let mut earlier_false = nothing();
-                for arm in &m.arms {
-                    let (when_true, when_false, bound) =
-                        arm_cond(&mut st, &scrutinee, &arm.pattern, out);
-                    let mut branch = st.clone();
-                    for var in &bound.names {
-                        branch.forget_name(var);
-                    }
-                    if branch.assume(both(when_true, earlier_false.clone())) {
-                        if let Some((var, pat)) = bound.query {
-                            branch.bind_query(var, pat);
-                        }
-                        walk(&arm.statements, &next, branch, out);
-                    }
-                    earlier_false = both(earlier_false, when_false);
-                }
-                return;
-            }
+        paths = match &stmt.kind {
+            StmtKind::Let(l) => paths
+                .into_iter()
+                .filter_map(|mut st| observe_let(&mut st, l, out).then_some(st))
+                .collect(),
+            StmtKind::Check(c) => paths
+                .into_iter()
+                .filter_map(|mut st| {
+                    let (when_true, when_false) = cond_of(&mut st, &c.expression, out);
+                    terminal_branch(&st, when_false, &c.else_expression, out);
+                    st.assume(when_true).then_some(st)
+                })
+                .collect(),
+            StmtKind::If(ifs) => walk_if(ifs, paths, out),
+            StmtKind::Match(m) => walk_match(m, paths, out),
             StmtKind::Map(_) => {
                 // `map` is only allowed in actions, which the analysis does
                 // not walk. Should that change, its body may mutate any
                 // fact any number of times.
-                st.forget_all();
+                for st in &mut paths {
+                    st.forget_all();
+                }
+                paths
             }
             StmtKind::Finish(fstmts) => {
-                analyze_finish(fstmts, &mut st, out);
+                for mut st in paths {
+                    analyze_finish(fstmts, &mut st, out);
+                }
                 // A finish block terminates policy execution.
-                return;
+                Vec::new()
             }
             StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
-                let e = resolve(&st, e);
-                collect_opaque(&mut st, &e);
+                for st in &mut paths {
+                    let e = resolve(st, e);
+                    collect_opaque(st, &e);
+                }
+                paths
             }
             StmtKind::Return(r) => {
                 // Only functions have `return` statements. Exits recorded
                 // for a command block are never read.
                 out.modeled_returns.insert(stmt.span);
-                record_exit(st, &r.expression, out);
-                return;
+                for st in paths {
+                    record_exit(st, &r.expression, out);
+                }
+                Vec::new()
             }
-            StmtKind::Recall(_) => return,
-            StmtKind::ActionCall(_) | StmtKind::FunctionCall(_) => {}
+            StmtKind::Recall(_) => Vec::new(),
+            StmtKind::ActionCall(_) | StmtKind::FunctionCall(_) => paths,
             // Mutations only appear inside finish contexts, which are
             // handled by `analyze_finish`.
-            StmtKind::Create(_) | StmtKind::Update(_) | StmtKind::Delete(_) => {}
-        }
-        remaining = rest;
+            StmtKind::Create(_) | StmtKind::Update(_) | StmtKind::Delete(_) => paths,
+        };
     }
-    if let Some((first, rest)) = cont.split_first() {
-        walk(first, rest, st, out);
-    } else if out.collect_ends {
-        out.ends.push(st);
+    paths
+}
+
+/// Walk an `if` statement. Each branch runs on the paths where its
+/// condition is true and every earlier one false, and the paths where
+/// all are false take the `else`, if there is one.
+fn walk_if<'a>(ifs: &IfStatement, paths: Paths<'a>, out: &mut Out) -> Paths<'a> {
+    let mut entering: Vec<Paths<'a>> = ifs.branches.iter().map(|_| Vec::new()).collect();
+    let mut fallback = Vec::new();
+    for mut st in paths {
+        let mut earlier_false = nothing();
+        for ((cond, _), branch_paths) in ifs.branches.iter().zip(&mut entering) {
+            let (when_true, when_false) = cond_of(&mut st, cond, out);
+            let mut branch = st.clone();
+            if branch.assume(both(when_true, earlier_false.clone())) {
+                branch_paths.push(branch);
+            }
+            earlier_false = both(earlier_false, when_false);
+        }
+        if st.assume(earlier_false) {
+            fallback.push(st);
+        }
+    }
+    let mut next = Vec::new();
+    for ((_, body), branch_paths) in ifs.branches.iter().zip(entering) {
+        next.extend(walk_scope(body, &[], branch_paths, out));
+    }
+    match &ifs.fallback {
+        Some(body) => next.extend(walk_scope(body, &[], fallback, out)),
+        None => next.extend(fallback),
+    }
+    normalize(next)
+}
+
+/// Walk a `match` statement. Each arm runs on the paths where its
+/// pattern matches and every earlier one doesn't.
+fn walk_match<'a>(m: &MatchStatement, paths: Paths<'a>, out: &mut Out) -> Paths<'a> {
+    let mut entering: Vec<Paths<'a>> = m.arms.iter().map(|_| Vec::new()).collect();
+    for mut st in paths {
+        let scrutinee = resolve(&st, &m.expression);
+        let mut earlier_false = nothing();
+        for (arm, arm_paths) in m.arms.iter().zip(&mut entering) {
+            let (when_true, when_false, bound) = arm_cond(&mut st, &scrutinee, &arm.pattern, out);
+            let mut branch = st.clone();
+            for var in &bound.names {
+                branch.forget_name(var);
+            }
+            if branch.assume(both(when_true, earlier_false.clone())) {
+                if let Some((var, pat)) = bound.query {
+                    branch.bind_query(var, pat);
+                }
+                arm_paths.push(branch);
+            }
+            earlier_false = both(earlier_false, when_false);
+        }
+    }
+    let mut next = Vec::new();
+    for (arm, arm_paths) in m.arms.iter().zip(entering) {
+        next.extend(walk_scope(
+            &arm.statements,
+            &arm_names(&arm.pattern),
+            arm_paths,
+            out,
+        ));
+    }
+    normalize(next)
+}
+
+/// Walk `body`, a scope of its own, from `paths`. On each path out of it,
+/// forget the names it binds, and `names` bound with it by a `match`
+/// pattern: nothing after the scope can refer to them, and paths that
+/// differ only in them can then merge.
+fn walk_scope<'a>(
+    body: &[Statement],
+    names: &[Identifier],
+    paths: Paths<'a>,
+    out: &mut Out,
+) -> Paths<'a> {
+    let mut ends = walk(body, normalize(paths), out);
+    let mut bound = bound_names(body);
+    bound.extend_from_slice(names);
+    for end in &mut ends {
+        for name in &bound {
+            end.forget_name(name);
+        }
+    }
+    ends
+}
+
+/// Keep one copy of each distinct state in `paths`, merging the opaque
+/// points of the copies, so the rest of the walk runs once per state.
+/// Past the path limit, join them all into one state that keeps only
+/// what every path knows.
+fn normalize(paths: Paths<'_>) -> Paths<'_> {
+    let mut kept: Paths<'_> = Vec::new();
+    for st in paths {
+        match kept.iter_mut().find(|k| same_state(k, &st)) {
+            Some(k) => merge_opaque(&mut k.opaque, st.opaque),
+            None => kept.push(st),
+        }
+    }
+    let limit = kept.first().map_or(usize::MAX, |st| st.az.max_paths);
+    if kept.len() > limit {
+        join(kept).into_iter().collect()
+    } else {
+        kept
+    }
+}
+
+/// Do two path states know the same things? Opaque points, which only
+/// feed diagnostics, don't count.
+fn same_state(a: &PathState<'_>, b: &PathState<'_>) -> bool {
+    // Within one walk, once each branch forgets the names it bound, paths
+    // differ only in their facts. The rest is compared anyway, since
+    // merging paths that differ would be unsound.
+    let facts_in = |x: &Facts, y: &Facts| {
+        x.iter()
+            .all(|(p, s)| y.iter().any(|(q, t)| (s == t) & same_pattern(p, q)))
+    };
+    let bindings_in = |x: &[(Identifier, FactPattern)], y: &[(Identifier, FactPattern)]| {
+        x.iter()
+            .all(|(v, p)| y.iter().any(|(w, q)| (v == w) & same_pattern(p, q)))
+    };
+    [
+        facts_in(&a.facts, &b.facts),
+        facts_in(&b.facts, &a.facts),
+        bindings_in(&a.query_bindings, &b.query_bindings),
+        bindings_in(&b.query_bindings, &a.query_bindings),
+        a.env == b.env,
+        a.dirty == b.dirty,
+        a.empty_db == b.empty_db,
+    ]
+    .into_iter()
+    .all(|same| same)
+}
+
+/// The state that holds on every one of `paths`: the facts all of them
+/// imply, and the substitutions and query bindings they all share.
+fn join(paths: Paths<'_>) -> Option<PathState<'_>> {
+    let mut paths = paths.into_iter();
+    let mut joined = paths.next()?;
+    for st in paths {
+        let facts = core::mem::take(&mut joined.facts);
+        joined.facts = either(Some(facts), Some(st.facts)).unwrap_or_default();
+        joined
+            .env
+            .retain(|name, value| st.env.get(name) == Some(value));
+        joined.query_bindings.retain(|(v, p)| {
+            st.query_bindings
+                .iter()
+                .any(|(w, q)| (v == w) & same_pattern(p, q))
+        });
+        joined.dirty.extend(st.dirty);
+        joined.dirty.sort();
+        joined.dirty.dedup();
+        joined.empty_db &= st.empty_db;
+        merge_opaque(&mut joined.opaque, st.opaque);
+    }
+    Some(joined)
+}
+
+/// Add the opaque points of `from` that `into` lacks.
+fn merge_opaque(into: &mut Vec<(Ident, Span)>, from: Vec<(Ident, Span)>) {
+    for point in from {
+        if !into.contains(&point) {
+            into.push(point);
+        }
     }
 }
 
 /// Record a pure function exit returning `value`.
-fn record_exit<'a>(st: PathState<'a>, value: &Expression, out: &mut Out<'a>) {
+fn record_exit<'a>(st: PathState<'a>, value: &Expression, out: &mut Out) {
     if out.exits.len() >= out.max_exits {
         out.unusable = true;
         return;
@@ -663,7 +799,7 @@ fn mark_arm_exits(e: &Expression, sites: &mut BTreeSet<Span>) {
 
 /// The path where a `check`'s `else` or an `or`'s right side runs: a
 /// copy of `st` that knows `know`, on which terminal `e` runs.
-fn terminal_branch<'a>(st: &PathState<'a>, know: Know, e: &Expression, out: &mut Out<'a>) {
+fn terminal_branch<'a>(st: &PathState<'a>, know: Know, e: &Expression, out: &mut Out) {
     mark_arm_exits(e, &mut out.modeled_returns);
     // `recall`, `todo()`, and `test_fail()` have nothing to walk.
     let walkable = matches!(
@@ -686,7 +822,7 @@ fn terminal_branch<'a>(st: &PathState<'a>, know: Know, e: &Expression, out: &mut
 /// of a `check`, the right side of an `or`, or an arm of type `Never`. A
 /// `return` there is an exit, and the statements of a block there are
 /// walked, since they can hold a `finish` or a `return`.
-fn run_terminal<'a>(st: &mut PathState<'a>, e: &Expression, out: &mut Out<'a>) {
+fn run_terminal<'a>(st: &mut PathState<'a>, e: &Expression, out: &mut Out) {
     if let ExprKind::Return(value) = &e.kind {
         // Only functions have `return`. Exits recorded for a command
         // block are never read.
@@ -773,7 +909,7 @@ fn arm_cond<'a>(
     st: &mut PathState<'a>,
     scrutinee: &Expression,
     pattern: &MatchPattern,
-    out: &mut Out<'a>,
+    out: &mut Out,
 ) -> (Know, Know, ArmBinding) {
     let mut bound = ArmBinding::default();
     let MatchPattern::Values(values) = pattern else {
@@ -820,13 +956,13 @@ fn arm_cond<'a>(
 }
 
 /// What `expr` implies when it is true, and when it is false.
-fn cond_of<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a>) -> (Know, Know) {
+fn cond_of<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -> (Know, Know) {
     let expr = resolve(st, expr);
     cond_resolved(st, &expr, out)
 }
 
 /// [`cond_of`] for an expression already in the path's terms.
-fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out<'a>) -> (Know, Know) {
+fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -> (Know, Know) {
     if let Some(known) = branch_cond(st, expr, out, &mut |st, e, out| cond_resolved(st, e, out)) {
         return known;
     }
@@ -922,7 +1058,7 @@ fn cond_is<'a>(
     st: &mut PathState<'a>,
     expr: &Expression,
     some: bool,
-    out: &mut Out<'a>,
+    out: &mut Out,
 ) -> (Know, Know) {
     if let Some((when_some, when_none)) =
         branch_cond(st, expr, out, &mut |st, e, out| cond_is(st, e, true, out))
@@ -965,7 +1101,7 @@ fn through_call<'a>(
     st: &mut PathState<'a>,
     fc: &FunctionCall,
     span: Span,
-    out: &mut Out<'a>,
+    out: &mut Out,
     eval: &mut Eval<'_, 'a>,
 ) -> (Know, Know) {
     let name = &fc.identifier.inner;
@@ -1008,7 +1144,7 @@ fn through_call<'a>(
 }
 
 /// Gives what one arm's or exit's value implies when true and when false.
-type Eval<'e, 'a> = dyn FnMut(&mut PathState<'a>, &Expression, &mut Out<'a>) -> (Know, Know) + 'e;
+type Eval<'e, 'a> = dyn FnMut(&mut PathState<'a>, &Expression, &mut Out) -> (Know, Know) + 'e;
 
 /// What an `if`, `match`, or block expression implies, or `None` if
 /// `expr` is another form. `eval` gives what one arm's value implies;
@@ -1016,7 +1152,7 @@ type Eval<'e, 'a> = dyn FnMut(&mut PathState<'a>, &Expression, &mut Out<'a>) -> 
 fn branch_cond<'a>(
     st: &mut PathState<'a>,
     expr: &Expression,
-    out: &mut Out<'a>,
+    out: &mut Out,
     eval: &mut Eval<'_, 'a>,
 ) -> Option<(Know, Know)> {
     debug_assert!(
@@ -1048,16 +1184,7 @@ fn branch_cond<'a>(
         }
         ExprKind::Block(stmts, e) => {
             let base = st.opaque.len();
-            let Some(ends) = block_ends(st, stmts, out) else {
-                // Too many ways through the block, so its final expression
-                // goes unevaluated. In a function, an exit there would be
-                // missed.
-                if st.in_function {
-                    out.unusable = true;
-                }
-                collect_opaque(st, expr);
-                return Some((nothing(), nothing()));
-            };
+            let ends = walk(stmts, vec![st.clone()], out);
             mark_arm_exits(e, &mut out.modeled_returns);
             let bound = bound_names(stmts);
             for end in ends {
@@ -1078,7 +1205,7 @@ fn under<'a>(
     know: Know,
     bound: &ArmBinding,
     e: &Expression,
-    out: &mut Out<'a>,
+    out: &mut Out,
     eval: &mut Eval<'_, 'a>,
 ) -> (Know, Know) {
     // The exits in the arm count as recorded even if the arm can't run.
@@ -1111,7 +1238,7 @@ fn contribution<'a>(
     base: usize,
     bound: &[Identifier],
     e: &Expression,
-    out: &mut Out<'a>,
+    out: &mut Out,
     eval: &mut Eval<'_, 'a>,
 ) -> (Know, Know) {
     let mut result = (None, None);
@@ -1145,22 +1272,6 @@ fn without_names(know: Know, names: &[Identifier]) -> Know {
             .filter(|(p, _)| !names.iter().any(|v| mentions_pattern(p, v)))
             .collect()
     })
-}
-
-/// The states of every path through a block expression's statements
-/// that reaches its final expression, or `None` if there are more than
-/// the exit cap.
-fn block_ends<'a>(
-    st: &PathState<'a>,
-    stmts: &[Statement],
-    out: &mut Out<'a>,
-) -> Option<Vec<PathState<'a>>> {
-    let saved = core::mem::take(&mut out.ends);
-    let collecting = core::mem::replace(&mut out.collect_ends, true);
-    walk(stmts, &[], st.clone(), out);
-    let ends = core::mem::replace(&mut out.ends, saved);
-    out.collect_ends = collecting;
-    (ends.len() <= st.az.max_exit_paths).then_some(ends)
 }
 
 /// The names bound anywhere in these statements.
@@ -1270,7 +1381,7 @@ fn stmt_exprs(stmts: &[Statement], f: &mut impl FnMut(&Expression)) {
 }
 
 /// Check obligations for the mutations in a finish block.
-fn analyze_finish<'a>(stmts: &[Statement], st: &mut PathState<'a>, out: &mut Out<'a>) {
+fn analyze_finish<'a>(stmts: &[Statement], st: &mut PathState<'a>, out: &mut Out) {
     let mut touched: Vec<FactPattern> = Vec::new();
     let mut calls: Vec<(Identifier, Span)> = Vec::new();
     finish_statements(stmts, st, &mut touched, &mut calls, out);
@@ -1285,7 +1396,7 @@ fn finish_statements<'a>(
     st: &mut PathState<'a>,
     touched: &mut Vec<FactPattern>,
     calls: &mut Vec<(Identifier, Span)>,
-    out: &mut Out<'a>,
+    out: &mut Out,
 ) {
     for stmt in stmts {
         let mut found = Vec::new();
@@ -1365,7 +1476,7 @@ fn finish_statements<'a>(
             for (name, span) in calls.iter().rev() {
                 w.notes.push((*span, format!("in this call to `{name}`")));
             }
-            out.warnings.push(w);
+            add_warning(&mut out.warnings, w);
         }
     }
 }
@@ -1620,7 +1731,7 @@ fn double_manipulation(span: Span, pat: &FactPattern, prev: &FactPattern) -> Obl
 /// value continues only through the arms that can. Other substitutable
 /// values are remembered so later uses of `x` are compared by what it
 /// holds.
-fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out<'a>) -> bool {
+fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out) -> bool {
     let var = stmt.identifier.inner.clone();
     if let ExprKind::Coalesce(lhs, rhs) = &stmt.expression.kind
         && matches!(rhs.vtype.inner, TypeKind::Never)
