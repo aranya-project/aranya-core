@@ -111,46 +111,126 @@ fn topologies() -> Vec<(&'static str, HelloTopology)> {
     ]
 }
 
-/// Syncs `subscriber` from `publisher`, returning the commands received.
-fn pull(
-    clients: &Clients,
-    caches: &mut Caches,
-    sink: &mut TestSink,
-    rt_buffers: &mut RuntimeBuffers<<Provider as StorageProvider>::Segment>,
+/// Clients sharing one graph.
+struct Team {
+    clients: Clients,
+    caches: Caches,
+    sink: TestSink,
+    rt_buffers: RuntimeBuffers<<Provider as StorageProvider>::Segment>,
     graph_id: GraphId,
-    subscriber: u64,
-    publisher: u64,
-) -> Result<usize, TestError> {
-    caches.entry((GRAPH, subscriber, publisher)).or_default();
-    caches.entry((GRAPH, publisher, subscriber)).or_default();
-    let mut request_client = clients
-        .get(&subscriber)
-        .ok_or(TestError::MissingClient)?
-        .borrow_mut();
-    pull_from(
-        GRAPH,
-        subscriber,
-        publisher,
-        &mut request_client,
-        graph_id,
-        clients,
-        caches,
-        sink,
-        rt_buffers,
-    )
+}
+
+impl Team {
+    /// Creates `n` clients that all hold the graph's init command.
+    fn new(n: u64) -> Result<Self, TestError> {
+        let mut backend = MemBackend;
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let clients: Clients = (0..n)
+            .map(|id| {
+                let state = ClientState::new(TestPolicyStore::new(), backend.provider(id));
+                (id, RefCell::new(state))
+            })
+            .collect();
+        let graph_id = clients[&0].borrow_mut().new_graph(
+            0u64.to_be_bytes().as_slice(),
+            TestActions::Init(0),
+            &mut sink,
+        )?;
+        let mut team = Self {
+            clients,
+            caches: Caches::new(),
+            sink,
+            rt_buffers: RuntimeBuffers::new(),
+            graph_id,
+        };
+        for i in 1..n {
+            team.pull(i, 0)?;
+        }
+        Ok(team)
+    }
+
+    /// Has `client` write one command.
+    fn write(&mut self, client: u64, value: u64) -> Result<(), TestError> {
+        let set = TestActions::SetValuePriority(value % 16, value, 0);
+        self.clients[&client].borrow_mut().action(
+            self.graph_id,
+            &mut self.sink,
+            set,
+            &mut self.rt_buffers,
+            mem_spill,
+        )?;
+        Ok(())
+    }
+
+    /// Returns the head `client` advertises in a hello.
+    fn hello_head(&self, client: u64) -> Result<Address, TestError> {
+        Ok(self.clients[&client]
+            .borrow_mut()
+            .hello_head(self.graph_id)?)
+    }
+
+    /// Returns whether a hello advertising `head` warrants `client` syncing.
+    fn should_sync(&mut self, client: u64, head: Address) -> Result<bool, TestError> {
+        Ok(self.clients[&client].borrow_mut().should_sync_on_hello(
+            self.graph_id,
+            head,
+            &mut self.rt_buffers.traversal.primary,
+        )?)
+    }
+
+    /// Syncs `subscriber` from `publisher`, returning the commands received.
+    fn pull(&mut self, subscriber: u64, publisher: u64) -> Result<usize, TestError> {
+        self.caches
+            .entry((GRAPH, subscriber, publisher))
+            .or_default();
+        self.caches
+            .entry((GRAPH, publisher, subscriber))
+            .or_default();
+        let mut request_client = self.clients[&subscriber].borrow_mut();
+        pull_from(
+            GRAPH,
+            subscriber,
+            publisher,
+            &mut request_client,
+            self.graph_id,
+            &self.clients,
+            &self.caches,
+            &mut self.sink,
+            &mut self.rt_buffers,
+        )
+    }
+
+    /// Panics unless every client holds the same graph.
+    fn assert_converged(&self) -> Result<(), TestError> {
+        let mut first = self.clients[&0].borrow_mut();
+        for (i, other) in self.clients.iter().skip(1) {
+            let mut other = other.borrow_mut();
+            assert!(
+                graph_eq(
+                    first.provider().get_storage(self.graph_id)?,
+                    other.provider().get_storage(self.graph_id)?,
+                ),
+                "client {i} did not converge"
+            );
+        }
+        Ok(())
+    }
 }
 
 /// Simulates `commands` commands spreading across `n` clients by hello
 /// sync. Panics if the clients do not converge.
 ///
-/// `expected_lag` is the lag expected after the last write, such as the lag
-/// of a smaller run, and is used to estimate the run's total time.
+/// The run is stopped early once its estimated time passes [`LIMIT`]. The
+/// estimate assumes at least `min_lag` rounds after the last write and at
+/// least `min_rounds` rounds in total, so both must be lower bounds.
 fn run(
     topology: &HelloTopology,
     n: u64,
     commands: u64,
     writers: Writers,
-    expected_lag: u64,
+    min_lag: u64,
+    min_rounds: u64,
 ) -> Result<Cell, TestError> {
     if writers == Writers::Equal && commands < n {
         return Ok(Cell::NotApplicable);
@@ -160,34 +240,7 @@ fn run(
         Writers::Equal => commands / n,
     };
 
-    // Setup: every client starts with the graph's init command.
-    let mut backend = MemBackend;
-    let mut sink = TestSink::new();
-    sink.ignore_expectations(true);
-    let mut rt_buffers = RuntimeBuffers::<<Provider as StorageProvider>::Segment>::new();
-    let clients: Clients = (0..n)
-        .map(|id| {
-            let state = ClientState::new(TestPolicyStore::new(), backend.provider(id));
-            (id, RefCell::new(state))
-        })
-        .collect();
-    let mut caches = Caches::new();
-    let graph_id = clients[&0].borrow_mut().new_graph(
-        0u64.to_be_bytes().as_slice(),
-        TestActions::Init(0),
-        &mut sink,
-    )?;
-    for i in 1..n {
-        pull(
-            &clients,
-            &mut caches,
-            &mut sink,
-            &mut rt_buffers,
-            graph_id,
-            i,
-            0,
-        )?;
-    }
+    let mut team = Team::new(n)?;
     let mut subscribers = vec![Vec::new(); n as usize];
     for (client, peer) in hello_subscriptions(topology, n, &mut SmallRng::seed_from_u64(0)) {
         subscribers[peer as usize].push(client);
@@ -213,7 +266,7 @@ fn run(
         }
         // Rounds slow down as the graph grows, so scaling the time so far
         // by the rounds expected underestimates the total.
-        let expected_rounds = write_rounds + expected_lag;
+        let expected_rounds = (write_rounds + min_lag).max(min_rounds);
         if round > 0 && round < expected_rounds && elapsed > ESTIMATE_AFTER {
             let estimate = elapsed.mul_f64(ratio(expected_rounds, round));
             if estimate > LIMIT {
@@ -228,21 +281,14 @@ fn run(
                 Writers::Equal => 0..n,
             };
             for writer in round_writers {
-                let set = TestActions::SetValuePriority(written % 16, written, 0);
-                clients[&writer].borrow_mut().action(
-                    graph_id,
-                    &mut sink,
-                    set,
-                    &mut rt_buffers,
-                    mem_spill,
-                )?;
+                team.write(writer, written)?;
                 written += 1;
                 changed.insert(writer);
             }
         }
 
         for publisher in core::mem::take(&mut changed) {
-            let head = clients[&publisher].borrow_mut().hello_head(graph_id)?;
+            let head = team.hello_head(publisher)?;
             for &subscriber in &subscribers[publisher as usize] {
                 pending[subscriber as usize].insert(publisher, head);
                 hellos_sent[publisher as usize] += 1;
@@ -264,11 +310,7 @@ fn run(
                 if busy[publisher as usize] {
                     continue;
                 }
-                if clients[&subscriber].borrow_mut().should_sync_on_hello(
-                    graph_id,
-                    head,
-                    &mut rt_buffers.traversal.primary,
-                )? {
+                if team.should_sync(subscriber, head)? {
                     chosen = Some(publisher);
                     break;
                 }
@@ -285,15 +327,7 @@ fn run(
         }
 
         for (subscriber, publisher) in pairs {
-            let received = pull(
-                &clients,
-                &mut caches,
-                &mut sink,
-                &mut rt_buffers,
-                graph_id,
-                subscriber,
-                publisher,
-            )?;
+            let received = team.pull(subscriber, publisher)?;
             stats.syncs += 1;
             served[publisher as usize] += 1;
             if received > 0 {
@@ -308,17 +342,7 @@ fn run(
     stats.max_hellos_sent = hellos_sent.into_iter().max().unwrap_or(0);
     stats.max_syncs_served = served.into_iter().max().unwrap_or(0);
 
-    let mut first = clients[&0].borrow_mut();
-    for i in 1..n {
-        let mut other = clients[&i].borrow_mut();
-        assert!(
-            graph_eq(
-                first.provider().get_storage(graph_id)?,
-                other.provider().get_storage(graph_id)?,
-            ),
-            "client {i} did not converge"
-        );
-    }
+    team.assert_converged()?;
     Ok(Cell::Done(stats))
 }
 
@@ -331,6 +355,150 @@ impl Stats {
     fn commands_per_round(&self) -> f64 {
         ratio(self.commands, self.rounds)
     }
+}
+
+/// Writes rounds of commands across `n` clients, keeping them in sync,
+/// until `target` commands are written or [`LIMIT`] passes. Each round, the
+/// writers add one command each, then client 0 pulls from every client
+/// whose hello shows something new, and every client then pulls back from
+/// client 0 if its hello shows something new. Returns the commands written
+/// and the time taken.
+fn throughput(n: u64, writers: Writers, target: u64) -> Result<(u64, Duration), TestError> {
+    let mut team = Team::new(n)?;
+    let round_writers = match writers {
+        Writers::Single => n - 1..n,
+        Writers::Equal => 0..n,
+    };
+    let start = Instant::now();
+    let mut written = 0u64;
+    while written < target && start.elapsed() < LIMIT {
+        for writer in round_writers.clone() {
+            team.write(writer, written)?;
+            written += 1;
+        }
+        for i in 1..n {
+            let head = team.hello_head(i)?;
+            if team.should_sync(0, head)? {
+                team.pull(0, i)?;
+            }
+        }
+        let head = team.hello_head(0)?;
+        for i in 1..n {
+            if team.should_sync(i, head)? {
+                team.pull(i, 0)?;
+            }
+        }
+    }
+    let elapsed = start.elapsed();
+    team.assert_converged()?;
+    Ok((written, elapsed))
+}
+
+/// Finds the most equal writers that write `target` commands within
+/// [`LIMIT`], doubling the writer count and then bisecting. Returns the
+/// largest passing count and every run as (writers, commands, time).
+fn max_equal_writers(target: u64) -> (u64, Vec<(u64, u64, Duration)>) {
+    let mut runs = Vec::new();
+    let mut attempt = |n: u64| {
+        let (commands, elapsed) = throughput(n, Writers::Equal, target).unwrap();
+        let ok = commands >= target && elapsed <= LIMIT;
+        eprintln!(
+            "{n} equal writers: {commands} commands in {:.1} s",
+            elapsed.as_secs_f64()
+        );
+        runs.push((n, commands, elapsed));
+        ok
+    };
+    let mut pass = 0;
+    let mut fail = None;
+    let mut n = 2;
+    while fail.is_none() {
+        if attempt(n) {
+            pass = n;
+            n *= 2;
+        } else {
+            fail = Some(n);
+        }
+    }
+    let mut fail = fail.unwrap_or(n);
+    while fail - pass > 1 {
+        let mid = (pass + fail) / 2;
+        if attempt(mid) {
+            pass = mid;
+        } else {
+            fail = mid;
+        }
+    }
+    runs.sort_by_key(|&(n, ..)| n);
+    (pass, runs)
+}
+
+/// Writes the throughput section.
+fn write_throughput(out: &mut String) {
+    const TARGET: u64 = 100_000;
+    let rate = |commands: u64, elapsed: Duration| {
+        let per_sec = u128::from(commands) * 1000 / elapsed.as_millis().max(1);
+        u64::try_from(per_sec).unwrap_or(u64::MAX)
+    };
+
+    writeln!(out, "## Throughput\n").unwrap();
+    writeln!(
+        out,
+        "Wall time on this machine, unlike the rest of the report. Each round, the writers add one \
+         command each, then client 0 pulls from every client whose hello shows something new, and \
+         every client then pulls back from client 0 if its hello shows something new. Every round \
+         ends with all clients in sync.\n"
+    )
+    .unwrap();
+
+    writeln!(out, "### Two clients for {} s\n", LIMIT.as_secs()).unwrap();
+    writeln!(out, "| Writers | Commands | Cmd/s |").unwrap();
+    writeln!(out, "|---|---:|---:|").unwrap();
+    for (writers, label) in [(Writers::Single, "One"), (Writers::Equal, "Both")] {
+        let (commands, elapsed) = throughput(2, writers, u64::MAX).unwrap();
+        eprintln!(
+            "two clients, {label} writing: {commands} commands in {:.1} s",
+            elapsed.as_secs_f64()
+        );
+        writeln!(
+            out,
+            "| {label} | {} | {} |",
+            fmt_count(commands),
+            fmt_count(rate(commands, elapsed))
+        )
+        .unwrap();
+    }
+    out.push('\n');
+
+    let (max, runs) = max_equal_writers(TARGET);
+    writeln!(
+        out,
+        "### Equal writers for {} commands\n\nAt most **{max}** equal writers write {} commands within {} s.\n",
+        fmt_count(TARGET),
+        fmt_count(TARGET),
+        LIMIT.as_secs()
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "| Writers | Commands | Time | Cmd/s | Within {} s |",
+        LIMIT.as_secs()
+    )
+    .unwrap();
+    writeln!(out, "|---:|---:|---:|---:|---|").unwrap();
+    for (n, commands, elapsed) in runs {
+        let ok = commands >= TARGET && elapsed <= LIMIT;
+        writeln!(
+            out,
+            "| {n} | {} | {:.1} s | {} | {} |",
+            fmt_count(commands),
+            elapsed.as_secs_f64(),
+            fmt_count(rate(commands, elapsed)),
+            if ok { "yes" } else { "no" }
+        )
+        .unwrap();
+    }
+    out.push('\n');
 }
 
 /// Formats `n` with thousands separators.
@@ -389,22 +557,32 @@ fn fmt_stats(s: &Stats) -> String {
 /// reaches the limit, larger client counts are skipped.
 fn grid(name: &str, topology: &HelloTopology, writers: Writers) -> Vec<(u64, Vec<Cell>)> {
     let mut rows = Vec::new();
-    // A topology's lag barely changes with the command count and grows with
-    // the client count, so each run expects the lag of the last finished
-    // one, which never overestimates.
-    let mut lag = 0;
+    // Bounds for the early-stop estimate. A run never needs fewer rounds
+    // than a smaller run with the same clients, but its lag can shrink as
+    // catching up overlaps the writes. Lag does grow with the client count,
+    // so a row's first run expects the smallest lag seen in smaller rows.
+    let mut min_lag = 0;
     for clients in writers.client_counts() {
         let mut row = Vec::new();
         let mut commands = 10;
+        let mut prev_rounds = None;
+        let mut row_min_lag = None;
         while commands <= MAX_COMMANDS {
-            let cell = run(topology, clients, commands, writers, lag).unwrap();
+            let cell = match prev_rounds {
+                Some(rounds) => run(topology, clients, commands, writers, 0, rounds),
+                None => run(topology, clients, commands, writers, min_lag, 0),
+            }
+            .unwrap();
             eprintln!(
                 "{name}: {clients} clients, {commands} commands: {}",
                 fmt_progress(cell)
             );
             row.push(cell);
             match cell {
-                Cell::Done(s) if s.elapsed < LIMIT => lag = s.lag,
+                Cell::Done(s) if s.elapsed < LIMIT => {
+                    prev_rounds = Some(s.rounds);
+                    row_min_lag = Some(row_min_lag.map_or(s.lag, |lag: u64| lag.min(s.lag)));
+                }
                 Cell::NotApplicable => {}
                 _ => break,
             }
@@ -415,6 +593,9 @@ fn grid(name: &str, topology: &HelloTopology, writers: Writers) -> Vec<(u64, Vec
             .find(|c| !matches!(c, Cell::NotApplicable))
             .is_some_and(|c| !matches!(c, Cell::Done(s) if s.elapsed < LIMIT));
         rows.push((clients, row));
+        if let Some(lag) = row_min_lag {
+            min_lag = lag;
+        }
         if gave_up {
             break;
         }
@@ -462,7 +643,9 @@ fn topology_report() {
 
 > **Note:** the simulation runs serially in one process, so it is CPU
 > constrained. Wall time measures how fast the simulator runs, not how fast
-> a network would deliver commands, so results are reported in rounds.
+> a network would deliver commands, so results are reported in rounds. The
+> throughput section is the exception: it reports wall time to show how fast
+> the runtime itself writes and syncs.
 
 Hello sync simulated in rounds, where a round stands in for one network
 round trip. In each round, writers add their commands, every client whose
@@ -487,6 +670,8 @@ skipped, since the commands cannot be split equally.
     )
     .unwrap();
 
+    write_throughput(&mut out);
+
     writeln!(out, "## Single command propagation\n").unwrap();
     writeln!(out, "One command written by the last client.\n").unwrap();
     for clients in SINGLE_COMMAND_CLIENT_COUNTS {
@@ -494,7 +679,7 @@ skipped, since the commands cannot be split equally.
         writeln!(out, "| Topology | {STATS_HEADER}").unwrap();
         writeln!(out, "|---|{STATS_ALIGN}").unwrap();
         for (name, topology) in topologies() {
-            let cell = run(&topology, clients, 1, Writers::Single, 0).unwrap();
+            let cell = run(&topology, clients, 1, Writers::Single, 0, 0).unwrap();
             eprintln!(
                 "{name}: 1 command to {clients} clients: {}",
                 fmt_progress(cell)
@@ -535,7 +720,7 @@ skipped, since the commands cannot be split equally.
 
 #[test]
 fn round_counts_match_topology() {
-    let rounds = |topology| match run(&topology, 10, 1, Writers::Single, 0).unwrap() {
+    let rounds = |topology| match run(&topology, 10, 1, Writers::Single, 0, 0).unwrap() {
         Cell::Done(s) => s.rounds,
         _ => panic!("run did not finish"),
     };
