@@ -152,9 +152,26 @@ already-touched key is flagged.
 
 The conservative direction flips here. To discharge an obligation, the
 analysis must *prove* two keys equal. To flag a double manipulation, it
-must *fail to prove them distinct*. The analysis uses syntactic
-equality for "may equal", so it only flags identical keys and accepts
-false negatives.
+must *fail to prove them distinct*. The touched set itself only flags
+keys written the same way or known equal, as described under
+[Values known equal](#values-known-equal).
+
+The rest comes from what a mutation forgets, described under
+[Invalidation](#invalidation). An `update` or `delete` forgets that any
+fact it may be exists, and after a `create` or `update`, absence holds
+only for facts that provably differ from it. So a second mutation of a
+fact that may be the same one can't prove its own obligation, and is
+reported as an existence or absence warning. The touched set is needed
+only where the first mutation's postcondition satisfies the second's
+precondition: `create` then `delete`, `update` then `delete`, or
+`delete` then `create`, with keys known to be the same.
+
+That makes keeping knowledge across a mutation a soundness question,
+not just a precision one. Knowledge about a fact that may be the
+mutated one can be kept only while a second mutation of it still can't
+be proven. This is why an `update` forgets that such a fact exists,
+although it still does: keeping it would prove a following `delete` of
+what may be the same fact.
 
 ### Init commands
 
@@ -753,6 +770,51 @@ dropping facts about `F`", and the warning gets a note that it may be a
 false positive. Calls that led into a finish function are labeled "in
 this call to `f`".
 
+### Relationships the analysis can't see
+
+Some warnings are false positives because the mutation relies on a
+relationship that holds across the whole policy, which the analysis
+can't see from one command. Declaring such relationships is future
+work. Until then, a policy states the relationship with an explicit
+check where the command relies on it. The daemon policy has all four
+kinds:
+
+- **A fact that implies another.** `RemoveDevice` checks that the device
+  exists and then deletes its key facts, which every device has. Check
+  each fact before deleting it:
+
+  ```policy
+  check exists DeviceIdentPubKey[device_id: this.device_id] else recall rejected()
+  ```
+
+- **A key built from the command's own ID.** No fact can hold it yet,
+  but only because of how every other command stores IDs. Check that it
+  is absent. One check with a bind marker covers every fact sharing that
+  key prefix:
+
+  ```policy
+  check !exists Role[role_id: role_id] else recall rejected()
+  check !exists RoleHasPerm[role_id: role_id, perm: ?] else recall rejected()
+  ```
+
+- **Two IDs that never collide.** A command's ID and a device's ID come
+  from different hashes. Check that they differ, which tells their facts
+  apart:
+
+  ```policy
+  check owner_role_id != owner_device_id else recall rejected()
+  ```
+
+- **An index kept in step with another fact.** Check that the entry
+  about to be created is absent, as `AssignRole` does.
+
+Each check is one fact lookup or comparison per command. It never fails
+while the relationship holds. If the relationship is ever broken, the
+command fails its check cleanly instead of raising a runtime exception
+partway through its finish block. On the daemon policy, fourteen such
+checks clear every remaining warning, as described under
+[The daemon policy](#the-daemon-policy).
+
 ## Interface
 
 - `Compiler::analyze_obligations(bool)` enables the analysis. It is off
@@ -1077,7 +1139,8 @@ own here, since the role's ID is the command's own.
 On a copy of the policy, explicit checks clear all 9: thirteen across
 six commands, plus a check in `CreateTeam` that the role's ID differs
 from the device's. That last one works because a checked `!=` tells
-two keys apart.
+two keys apart. [Relationships the analysis can't see](#relationships-the-analysis-cant-see)
+describes each kind of check.
 
 Three commands rely on an invariant where the policy checks a similar
 one elsewhere. `AddDevice` checks that four of the five facts it
@@ -1099,9 +1162,10 @@ ties to them only in debug builds.
   reported, and warnings it may have caused say so.
 - **A `return` the walk can't record**, such as one inside a returned
   value or a `match` scrutinee, makes its function unknown.
-- **Double manipulation is syntactic.** Only identical keys are flagged,
-  so two mutations whose keys are equal at runtime but written
-  differently are missed.
+- **Double manipulation names the cause only for keys known equal.**
+  Two mutations of keys that are equal at runtime but not known to be
+  are still reported, as an existence or absence warning on the second.
+  See [The finish-block touched set](#the-finish-block-touched-set).
 - **Keys differ only by literals and checked disequalities.** An
   ordering such as `x < y` is not used, so after `delete F[k: x]`,
   nothing is known about `F[k: y]` unless `x != y` was checked.
@@ -1120,7 +1184,9 @@ ties to them only in debug builds.
 - **Properties of the whole policy** are unknown. A key derived from
   the command's own ID may be absent because of how every other command
   stores IDs, and one fact may imply another, but the analysis sees one
-  command at a time.
+  command at a time. Until relationships can be declared, explicit
+  checks state them, as described under
+  [Relationships the analysis can't see](#relationships-the-analysis-cant-see).
   [The daemon policy](#the-daemon-policy) shows how often these come
   up.
 
@@ -1141,19 +1207,21 @@ ties to them only in debug builds.
   run cleanly on real policies such as the daemon policy, then promote
   warnings to errors. The daemon policy raises 9 false positives
   today. [The daemon policy](#the-daemon-policy) lists their causes.
-- **Declared invariants, next:** state relationships between facts in
-  the schema, such as a `Device` implying its three key facts, or a key
-  that must refer to an existing fact. Each becomes an obligation every
-  command must prove holds when it finishes, and that every command may
-  then assume holds when it starts. The analysis checks the relationships
-  the policy declares instead of trying to discover them. Declared
-  references would also settle keys built from the command's own ID:
-  when every key holding another object's ID must refer to an existing
-  fact, no fact can hold a command's ID before that command runs.
+- **Declared invariants, after the current work is delivered:** state
+  relationships between facts in the schema, such as a `Device`
+  implying its three key facts, or a key that must refer to an existing
+  fact. Each becomes an obligation every command must prove holds when
+  it finishes, and that every command may then assume holds when it
+  starts. The analysis checks the relationships the policy declares
+  instead of trying to discover them. Declared references would also
+  settle keys built from the command's own ID: when every key holding
+  another object's ID must refer to an existing fact, no fact can hold a
+  command's ID before that command runs. Until then, explicit checks
+  state these relationships, as described under
+  [Relationships the analysis can't see](#relationships-the-analysis-cant-see).
 - **New obligation kinds:** the framework is not fact-specific.
   Candidates include every `policy` block reaching a `finish` on some
-  path, envelope-author checks before privileged mutations, or
-  invariants declared in policy source.
+  path, and envelope-author checks before privileged mutations.
 
 ## Terminology
 
