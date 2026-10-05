@@ -420,3 +420,58 @@ fn control_struct_param_bound_to_caller_var() {
     let warnings = warnings_for(&make_item("let i = Info { k: this.user, v: 0 }", "make(i)"));
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+#[test]
+fn attack_equal_value_bound_again() {
+    // The first `y` equals `this.x`. The second may not.
+    let warnings = warnings_for(
+        r#"
+        fact Item[k int]=>{}
+
+        command Foo {
+            fields { x int, y int, z int }
+            policy {
+                match this.x {
+                    0 => { recall failed() }
+                    _ => {
+                        let y = if this.x > 0 { :this.y } else { :this.y }
+                        check y == this.x else recall failed()
+                    }
+                }
+                let y = if this.x > 0 { :this.z } else { :this.z }
+                check exists Item[k: this.x] else recall failed()
+                finish { delete Item[k: y] }
+            }
+            recall failed() { finish {} }
+        }
+        "#,
+    );
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_equal_value_in_its_own_scope() {
+    let warnings = warnings_for(
+        r#"
+        fact Item[k int]=>{}
+
+        command Foo {
+            fields { x int, y int, z int }
+            policy {
+                check exists Item[k: this.x] else recall failed()
+                match this.x {
+                    0 => { recall failed() }
+                    _ => {
+                        let y = if this.x > 0 { :this.y } else { :this.y }
+                        check y == this.x else recall failed()
+                        finish { delete Item[k: y] }
+                    }
+                }
+            }
+            recall failed() { finish {} }
+        }
+        "#,
+    );
+    assert_eq!(warnings, vec![], "expected no warnings");
+}

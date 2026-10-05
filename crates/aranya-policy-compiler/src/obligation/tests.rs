@@ -21,6 +21,7 @@ mod branches;
 mod conditions;
 mod daemon_policy;
 mod diagnostics;
+mod equal_values;
 mod expressions;
 mod finish_functions;
 mod helper_calls;

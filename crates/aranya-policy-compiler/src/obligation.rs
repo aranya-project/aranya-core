@@ -11,6 +11,7 @@
 //! See `docs/policy-obligation-analysis.md` for the design.
 
 use std::{
+    borrow::Cow,
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
@@ -90,6 +91,10 @@ enum FactState {
     /// Not the state of a fact: the entry's two keys hold different
     /// values. See [`unequal`].
     Differ,
+    /// Not the state of a fact: the entry's two keys hold the same value,
+    /// and the path writes the first as the second. See
+    /// [`PathState::equate`].
+    Same,
 }
 
 /// A canonicalized fact literal: fact name plus key-field values after
@@ -157,6 +162,11 @@ fn contradicts(facts: &Facts, pat: &FactPattern, state: FactState) -> bool {
     })
 }
 
+/// Is `state` about values rather than a fact?
+fn relates_values(state: FactState) -> bool {
+    matches!(state, FactState::Differ | FactState::Same)
+}
+
 /// Knowledge that holds when both `a` and `b` hold.
 fn both(a: Know, b: Know) -> Know {
     let (mut a, b) = (a?, b?);
@@ -211,7 +221,7 @@ fn either(a: Know, b: Know) -> Know {
 fn either_noted(st: &mut PathState<'_>, span: Span, a: Know, b: Know) -> Know {
     let mut known: Vec<Ident> = Vec::new();
     let facts = a.iter().chain(b.iter()).flatten();
-    for (pat, _) in facts.filter(|(_, s)| *s != FactState::Differ) {
+    for (pat, _) in facts.filter(|(_, s)| !relates_values(*s)) {
         if !known.contains(&pat.name) {
             known.push(pat.name.clone());
         }
@@ -441,6 +451,70 @@ impl Out {
     }
 }
 
+/// How a path writes values for comparing them: each value it knows
+/// equal to another is written as that one. Facts stay stored as
+/// written, so they match what other paths know, and comparisons go
+/// through a view, so keys written with either of two equal values match.
+struct View {
+    /// Each value known equal to another, with what it is written as.
+    aliases: Vec<(Expression, Expression)>,
+}
+
+impl View {
+    /// The facts in `facts` that can match a pattern named `name`, written
+    /// as the view writes values. With nothing to rewrite, that is all of
+    /// them, unchanged.
+    fn named<'f>(&self, facts: &'f Facts, name: &Ident) -> Cow<'f, Facts> {
+        if self.aliases.is_empty() {
+            return Cow::Borrowed(facts);
+        }
+        Cow::Owned(
+            facts
+                .iter()
+                .filter(|(p, _)| p.name == *name)
+                .map(|(p, s)| (self.pattern(p).into_owned(), *s))
+                .collect(),
+        )
+    }
+
+    /// What `facts` says about which values differ, written as the view
+    /// writes values.
+    fn differing<'f>(&self, facts: &'f Facts) -> Cow<'f, Facts> {
+        self.named(facts, &pair_name())
+    }
+
+    /// `e`, written as the view writes values.
+    fn expr<'e>(&self, e: &'e Expression) -> Cow<'e, Expression> {
+        if self.aliases.is_empty() {
+            return Cow::Borrowed(e);
+        }
+        let env = BTreeMap::new();
+        let sub = Subst {
+            env: &env,
+            strict: None,
+            aliases: &self.aliases,
+        };
+        let mut out = e.clone();
+        rewrite(&mut out, &sub, &mut Vec::new());
+        Cow::Owned(out)
+    }
+
+    /// `p`, with its keys written as the view writes values.
+    fn pattern<'p>(&self, p: &'p FactPattern) -> Cow<'p, FactPattern> {
+        if self.aliases.is_empty() {
+            return Cow::Borrowed(p);
+        }
+        Cow::Owned(FactPattern {
+            keys: p
+                .keys
+                .iter()
+                .map(|(name, e)| (name.clone(), self.expr(e).into_owned()))
+                .collect(),
+            ..p.clone()
+        })
+    }
+}
+
 /// Analysis state along a single control-flow path.
 #[derive(Debug, Clone)]
 struct PathState<'a> {
@@ -492,7 +566,12 @@ impl<'a> PathState<'a> {
     /// Does `pat` provably differ from every fact created or updated since
     /// the block started?
     fn untouched(&self, pat: &FactPattern) -> bool {
-        self.mutated.iter().all(|m| differ(&self.facts, m, pat))
+        let view = self.view();
+        let pat = view.pattern(pat);
+        let differing = view.differing(&self.facts);
+        self.mutated
+            .iter()
+            .all(|m| differ(&differing, &view.pattern(m), &pat))
     }
 
     /// Is `pat` known not to exist because the database started empty?
@@ -512,13 +591,97 @@ impl<'a> PathState<'a> {
         let Some(facts) = know else {
             return false;
         };
-        for (pat, state) in facts {
-            if contradicts(&self.facts, &pat, state)
+        // Equalities first: they decide which facts are the same.
+        let (equal, rest): (Facts, Facts) =
+            facts.into_iter().partition(|(_, s)| *s == FactState::Same);
+        for (pat, _) in &equal {
+            for (a, b) in pair_values(pat) {
+                if !self.equate(a, b) {
+                    return false;
+                }
+            }
+        }
+        let view = self.view();
+        for (pat, state) in rest {
+            let written = view.pattern(&pat);
+            let differs_from_itself = (state == FactState::Differ)
+                & pair_values(&written).any(|(a, b)| matches_expr(a, b));
+            if differs_from_itself
+                || contradicts(&view.named(&self.facts, &pat.name), &written, state)
                 || (state == FactState::Exists && self.known_absent(&pat))
             {
                 return false;
             }
             observe(self, pat, state);
+        }
+        true
+    }
+
+    /// How the path writes values for comparing them. See [`View`].
+    fn view(&self) -> View {
+        View {
+            aliases: self
+                .facts
+                .iter()
+                .filter(|(_, s)| *s == FactState::Same)
+                .flat_map(|(p, _)| pair_values(p))
+                .map(|(from, to)| (from.clone(), to.clone()))
+                .collect(),
+        }
+    }
+
+    /// Learn that `a` and `b` hold the same value. From now on, whenever
+    /// the path compares values, it writes the more transient of the two
+    /// as the other, so keys written with either match. What the path
+    /// knows stays as written, so it still matches what other paths
+    /// know. Returns false if the path is impossible: two different
+    /// literals, or facts that contradict each other once their keys are
+    /// the same, including values known to differ.
+    fn equate(&mut self, a: &Expression, b: &Expression) -> bool {
+        let view = self.view();
+        let (a, b) = (view.expr(a).into_owned(), view.expr(b).into_owned());
+        if matches_expr(&a, &b) {
+            return true;
+        }
+        if literals_differ(&a, &b) {
+            return false;
+        }
+        // Keep the less transient side, or else the smaller one. A side
+        // containing the other is larger, so it is never kept, and writing
+        // it as the other can't loop.
+        let globals = &self.az.globals;
+        let rank = |e: &Expression| (transience(e, globals), size(e));
+        let (from, to) = if rank(&a) < rank(&b) { (b, a) } else { (a, b) };
+        // Keep every equality written in terms of the others.
+        let alias = [(from.clone(), to.clone())];
+        let env = BTreeMap::new();
+        let sub = Subst {
+            env: &env,
+            strict: None,
+            aliases: &alias,
+        };
+        self.facts
+            .iter_mut()
+            .filter(|(_, s)| *s == FactState::Same)
+            .flat_map(|(p, _)| p.keys.iter_mut())
+            .for_each(|(_, e)| {
+                rewrite(e, &sub, &mut Vec::new());
+            });
+        self.facts.push((pair_entry(&from, &to), FactState::Same));
+        // Facts written differently that now name the same fact must agree.
+        let view = self.view();
+        let mut seen: Facts = Vec::new();
+        for (p, state) in self
+            .facts
+            .iter()
+            .map(|(p, s)| (view.pattern(p).into_owned(), *s))
+        {
+            let differs_from_itself =
+                (state == FactState::Differ) & pair_values(&p).any(|(a, b)| matches_expr(a, b));
+            if differs_from_itself || contradicts(&seen, &p, state) {
+                return false;
+            }
+            seen.push((p, state));
         }
         true
     }
@@ -760,9 +923,9 @@ fn merge(paths: Paths<'_>) -> Paths<'_> {
     for st in paths {
         match kept.iter_mut().find(|k| same_state(k, &st)) {
             Some(k) => {
-                // Only values both paths know differ still do.
+                // Only what both paths know about values still holds.
                 k.facts.retain(|(p, s)| {
-                    (*s != FactState::Differ)
+                    !relates_values(*s)
                         | st.facts.iter().any(|(q, t)| (t == s) & same_pattern(p, q))
                 });
                 merge_opaque(&mut k.opaque, st.opaque);
@@ -798,12 +961,12 @@ fn same_state(a: &PathState<'_>, b: &PathState<'_>) -> bool {
     // Within one walk, once each branch forgets the names it bound, paths
     // differ only in their facts. The rest is compared anyway, since
     // merging paths that differ would be unsound.
-    // Which values differ doesn't count: paths that differ only there
-    // merge, keeping what all of them know. Otherwise each `!=` on a
-    // branch would double the paths after it.
+    // Which values are equal or differ doesn't count: paths that differ
+    // only there merge, keeping what all of them know. Otherwise each `==`
+    // or `!=` on a branch would double the paths after it.
     let facts_in = |x: &Facts, y: &Facts| {
         x.iter()
-            .filter(|(_, s)| *s != FactState::Differ)
+            .filter(|(_, s)| !relates_values(*s))
             .all(|(p, s)| y.iter().any(|(q, t)| (s == t) & same_pattern(p, q)))
     };
     let mutated = |st: &PathState<'_>| -> Facts {
@@ -859,7 +1022,7 @@ fn join<'a>(mut joined: PathState<'a>, rest: Paths<'a>) -> (PathState<'a>, Vec<I
     // Paths that weren't merged differ in their facts, since everything
     // else is the same within one walk, so a join always drops some.
     let mut dropped: Vec<Ident> = Vec::new();
-    for (p, s) in known.iter().filter(|(_, s)| *s != FactState::Differ) {
+    for (p, s) in known.iter().filter(|(_, s)| !relates_values(*s)) {
         let kept = joined
             .facts
             .iter()
@@ -1084,7 +1247,8 @@ fn arm_cond<'a>(
                 }
                 (nothing(), nothing())
             }
-            _ => (nothing(), nothing()),
+            // Any other value is a literal the scrutinee is compared with.
+            _ => (same(scrutinee, value), unequal(scrutinee, value)),
         };
         when_true = either(when_true, t);
         when_false = both(when_false, f);
@@ -1153,7 +1317,7 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -
             collect_opaque(st, expr);
             let a = linked(st, a.as_ref().clone());
             let b = linked(st, b.as_ref().clone());
-            let equal = both(calls.clone(), equal_values(st, &a, &b));
+            let equal = both(calls.clone(), both(equal_values(st, &a, &b), same(&a, &b)));
             let unequal = both(calls, unequal(&a, &b));
             if matches!(expr.kind, ExprKind::Equal(..)) {
                 (equal, unequal)
@@ -1668,7 +1832,7 @@ fn finish_statements<'a>(
         match &stmt.kind {
             StmtKind::Create(c) => {
                 let pat = pattern_of(&c.fact, st);
-                if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
+                if let Some(prev) = manipulated(st, touched, &pat) {
                     found.push(double_manipulation(stmt.span, &pat, prev));
                 } else if !proven_absent(st, &pat) {
                     found.push(unproven_create(stmt.span, &pat, &st.opaque));
@@ -1678,7 +1842,7 @@ fn finish_statements<'a>(
             }
             StmtKind::Update(u) => {
                 let pat = pattern_of(&u.fact, st);
-                if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
+                if let Some(prev) = manipulated(st, touched, &pat) {
                     found.push(double_manipulation(stmt.span, &pat, prev));
                 } else if partially_stated(st, &u.fact) {
                     found.push(partial_values(stmt.span, &pat));
@@ -1692,7 +1856,7 @@ fn finish_statements<'a>(
             }
             StmtKind::Delete(d) => {
                 let pat = pattern_of(&d.fact, st);
-                if let Some(prev) = touched.iter().find(|t| same_pattern(t, &pat)) {
+                if let Some(prev) = manipulated(st, touched, &pat) {
                     found.push(double_manipulation(stmt.span, &pat, prev));
                 } else if !proven_exists(st, &pat) {
                     found.push(unproven_exists(stmt.span, &pat, Mutation::Delete, st));
@@ -1746,16 +1910,32 @@ fn finish_statements<'a>(
     }
 }
 
+/// The fact already manipulated in this finish block that `pat` names,
+/// if any. Keys the path knows are equal name the same fact.
+fn manipulated<'t>(
+    st: &PathState<'_>,
+    touched: &'t [FactPattern],
+    pat: &FactPattern,
+) -> Option<&'t FactPattern> {
+    let view = st.view();
+    let pat = view.pattern(pat);
+    touched
+        .iter()
+        .find(|t| same_pattern(&view.pattern(t), &pat))
+}
+
 /// Is `pat` known not to exist on this path? It must provably differ
 /// from every fact created or updated since the block started, and the
 /// database must have started empty or an observation cover it.
 fn proven_absent(st: &PathState<'_>, pat: &FactPattern) -> bool {
+    let view = st.view();
+    let written = view.pattern(pat);
     st.untouched(pat)
         && (st.empty_db
-            || st
-                .facts
+            || view
+                .named(&st.facts, &pat.name)
                 .iter()
-                .any(|(p, s)| *s == FactState::NotExists && covers(p, pat)))
+                .any(|(p, s)| *s == FactState::NotExists && covers(p, &written)))
 }
 
 /// Is `pat` known to exist on this path?
@@ -1764,9 +1944,11 @@ fn proven_absent(st: &PathState<'_>, pat: &FactPattern) -> bool {
 /// existing says nothing about any particular `b`. So the observation must
 /// name exactly the same key.
 fn proven_exists(st: &PathState<'_>, pat: &FactPattern) -> bool {
-    st.facts
+    let view = st.view();
+    let pat = view.pattern(pat);
+    view.named(&st.facts, &pat.name)
         .iter()
-        .any(|(p, s)| *s == FactState::Exists && same_pattern(p, pat))
+        .any(|(p, s)| *s == FactState::Exists && same_pattern(p, &pat))
 }
 
 /// Does every value an `update` states equal the stored one? The VM
@@ -1780,11 +1962,13 @@ fn values_proven(st: &mut PathState<'_>, fact: &FactLiteral, pat: &FactPattern) 
     let Some(values) = &fact.value_fields else {
         return true;
     };
+    let view = st.view();
+    let pat = view.pattern(pat);
     values.iter().all(|(field, expr)| {
         let expr = resolve(st, expr);
         stored_refs(st, &expr)
             .iter()
-            .any(|(p, f)| (*f == field.inner) & same_pattern(p, pat))
+            .any(|(p, f)| (*f == field.inner) & same_pattern(&view.pattern(p), &pat))
     })
 }
 
@@ -1842,9 +2026,11 @@ fn stored_refs(st: &mut PathState<'_>, expr: &Expression) -> Vec<(FactPattern, I
         ExprKind::FunctionCall(fc) => call_returns_value(st, fc),
         _ => None,
     };
+    let view = st.view();
+    let expr = view.expr(expr);
     let known = st.facts.iter().filter_map(|(entry, _)| {
         let (pat, field, value) = value_of(entry, st.az)?;
-        matches_expr(value, expr).then(|| (pat, field.clone()))
+        matches_expr(&view.expr(value), &expr).then(|| (pat, field.clone()))
     });
     read.into_iter().chain(known).collect()
 }
@@ -2602,31 +2788,60 @@ fn subst(
     env: &BTreeMap<Identifier, Expression>,
     strict: Option<&[Identifier]>,
 ) -> Option<Expression> {
+    let sub = Subst {
+        env,
+        strict,
+        aliases: &[],
+    };
     let mut expr = expr.clone();
-    rewrite(&mut expr, env, strict, &mut Vec::new()).then_some(expr)
+    rewrite(&mut expr, &sub, &mut Vec::new()).then_some(expr)
+}
+
+/// What [`rewrite`] substitutes, and what it requires.
+struct Subst<'s> {
+    /// Values for names.
+    env: &'s BTreeMap<Identifier, Expression>,
+    /// With `Some`, every other name must be one of these globals. See
+    /// [`subst`].
+    strict: Option<&'s [Identifier]>,
+    /// Values known equal to others, each written as the other: `(from,
+    /// to)`. Each `to` is already written this way.
+    aliases: &'s [(Expression, Expression)],
 }
 
 /// [`subst`] in place. `binders` holds the names bound by the blocks and
 /// arms of the expression being rewritten that enclose `expr`.
-fn rewrite(
-    expr: &mut Expression,
-    env: &BTreeMap<Identifier, Expression>,
-    strict: Option<&[Identifier]>,
-    binders: &mut Vec<Identifier>,
-) -> bool {
+fn rewrite(expr: &mut Expression, sub: &Subst<'_>, binders: &mut Vec<Identifier>) -> bool {
+    if !rewrite_parts(expr, sub, binders) {
+        return false;
+    }
+    // A value known equal to another is written as that one, unless the
+    // expression binds a name either mentions.
+    let alias = sub.aliases.iter().find(|(from, to)| {
+        matches_expr(expr, from) & !binders.iter().any(|b| mentions(from, b) | mentions(to, b))
+    });
+    if let Some((_, to)) = alias {
+        *expr = to.clone();
+    }
+    true
+}
+
+/// [`rewrite`] for `expr` and the expressions inside it, before any alias
+/// for `expr` itself.
+fn rewrite_parts(expr: &mut Expression, sub: &Subst<'_>, binders: &mut Vec<Identifier>) -> bool {
     if let ExprKind::Identifier(id) = &expr.kind {
         // A name bound by an enclosing block or arm refers to that binding.
         if binders.contains(&id.inner) {
             return true;
         }
-        if let Some(value) = env.get(&id.inner) {
+        if let Some(value) = sub.env.get(&id.inner) {
             if binders.iter().any(|b| mentions(value, b)) {
                 return false;
             }
             *expr = value.clone();
             return true;
         }
-        return strict.is_none_or(|globals| globals.contains(&id.inner));
+        return sub.strict.is_none_or(|globals| globals.contains(&id.inner));
     }
     match &mut expr.kind {
         ExprKind::Identifier(_)
@@ -2635,43 +2850,30 @@ fn rewrite(
         | ExprKind::String(_)
         | ExprKind::Bool(_)
         | ExprKind::EnumReference(_) => true,
-        ExprKind::Optional(inner) => inner
-            .as_mut()
-            .is_none_or(|e| rewrite(e, env, strict, binders)),
+        ExprKind::Optional(inner) => inner.as_mut().is_none_or(|e| rewrite(e, sub, binders)),
         ExprKind::NamedStruct(s) => {
-            (strict.is_none() || s.sources.is_empty())
-                && s.fields
-                    .iter_mut()
-                    .all(|(_, e)| rewrite(e, env, strict, binders))
+            (sub.strict.is_none() || s.sources.is_empty())
+                && s.fields.iter_mut().all(|(_, e)| rewrite(e, sub, binders))
         }
         ExprKind::InternalFunction(func) => match func {
             InternalFunction::Query(fact)
             | InternalFunction::Exists(fact)
-            | InternalFunction::FactCount(_, _, fact) => rewrite_fact(fact, env, strict, binders),
+            | InternalFunction::FactCount(_, _, fact) => rewrite_fact(fact, sub, binders),
             InternalFunction::If(c, t, e) => {
-                rewrite(c, env, strict, binders)
-                    && rewrite(t, env, strict, binders)
-                    && rewrite(e, env, strict, binders)
+                rewrite(c, sub, binders) && rewrite(t, sub, binders) && rewrite(e, sub, binders)
             }
             InternalFunction::Todo(_) | InternalFunction::TestFail(..) => true,
         },
-        ExprKind::FunctionCall(c) => c
-            .arguments
-            .iter_mut()
-            .all(|e| rewrite(e, env, strict, binders)),
-        ExprKind::ForeignFunctionCall(c) => c
-            .arguments
-            .iter_mut()
-            .all(|e| rewrite(e, env, strict, binders)),
-        ExprKind::Recall(c) => c
-            .arguments
-            .iter_mut()
-            .all(|e| rewrite(e, env, strict, binders)),
+        ExprKind::FunctionCall(c) => c.arguments.iter_mut().all(|e| rewrite(e, sub, binders)),
+        ExprKind::ForeignFunctionCall(c) => {
+            c.arguments.iter_mut().all(|e| rewrite(e, sub, binders))
+        }
+        ExprKind::Recall(c) => c.arguments.iter_mut().all(|e| rewrite(e, sub, binders)),
         // A field read from a struct literal is that field's value. The
         // typed tree lists every field of a literal, including those
         // taken from a struct it was composed from.
         ExprKind::Dot(base, field) => {
-            if !rewrite(base, env, strict, binders) {
+            if !rewrite(base, sub, binders) {
                 return false;
             }
             let value = match &base.kind {
@@ -2693,7 +2895,7 @@ fn rewrite(
         | ExprKind::Substruct(e, _)
         | ExprKind::Cast(e, _)
         | ExprKind::Ok(e)
-        | ExprKind::Err(e) => rewrite(e, env, strict, binders),
+        | ExprKind::Err(e) => rewrite(e, sub, binders),
         ExprKind::And(a, b)
         | ExprKind::Or(a, b)
         | ExprKind::Coalesce(a, b)
@@ -2702,22 +2904,20 @@ fn rewrite(
         | ExprKind::GreaterThan(a, b)
         | ExprKind::LessThan(a, b)
         | ExprKind::GreaterThanOrEqual(a, b)
-        | ExprKind::LessThanOrEqual(a, b) => {
-            rewrite(a, env, strict, binders) && rewrite(b, env, strict, binders)
-        }
+        | ExprKind::LessThanOrEqual(a, b) => rewrite(a, sub, binders) && rewrite(b, sub, binders),
         ExprKind::Block(stmts, e) => {
             let depth = binders.len();
             binders.extend(bound_names(stmts));
-            let ok = rewrite_stmts(stmts, env, strict, binders) && rewrite(e, env, strict, binders);
+            let ok = rewrite_stmts(stmts, sub, binders) && rewrite(e, sub, binders);
             binders.truncate(depth);
             ok
         }
         ExprKind::Match(m) => {
-            rewrite(&mut m.scrutinee, env, strict, binders)
+            rewrite(&mut m.scrutinee, sub, binders)
                 && m.arms.iter_mut().all(|arm| {
                     let depth = binders.len();
                     binders.extend(arm_names(&arm.pattern));
-                    let ok = rewrite(&mut arm.expression, env, strict, binders);
+                    let ok = rewrite(&mut arm.expression, sub, binders);
                     binders.truncate(depth);
                     ok
                 })
@@ -2727,74 +2927,58 @@ fn rewrite(
 
 /// [`rewrite`] for the expressions in the statements of a block
 /// expression.
-fn rewrite_stmts(
-    stmts: &mut [Statement],
-    env: &BTreeMap<Identifier, Expression>,
-    strict: Option<&[Identifier]>,
-    binders: &mut Vec<Identifier>,
-) -> bool {
+fn rewrite_stmts(stmts: &mut [Statement], sub: &Subst<'_>, binders: &mut Vec<Identifier>) -> bool {
     stmts.iter_mut().all(|stmt| match &mut stmt.kind {
-        StmtKind::Let(l) => rewrite(&mut l.expression, env, strict, binders),
+        StmtKind::Let(l) => rewrite(&mut l.expression, sub, binders),
         StmtKind::Check(c) => {
-            rewrite(&mut c.expression, env, strict, binders)
-                && rewrite(&mut c.else_expression, env, strict, binders)
+            rewrite(&mut c.expression, sub, binders)
+                && rewrite(&mut c.else_expression, sub, binders)
         }
         StmtKind::If(ifs) => {
-            ifs.branches.iter_mut().all(|(c, body)| {
-                rewrite(c, env, strict, binders) && rewrite_stmts(body, env, strict, binders)
-            }) && ifs
-                .fallback
-                .as_mut()
-                .is_none_or(|body| rewrite_stmts(body, env, strict, binders))
+            ifs.branches
+                .iter_mut()
+                .all(|(c, body)| rewrite(c, sub, binders) && rewrite_stmts(body, sub, binders))
+                && ifs
+                    .fallback
+                    .as_mut()
+                    .is_none_or(|body| rewrite_stmts(body, sub, binders))
         }
         StmtKind::Match(m) => {
-            rewrite(&mut m.expression, env, strict, binders)
+            rewrite(&mut m.expression, sub, binders)
                 && m.arms
                     .iter_mut()
-                    .all(|arm| rewrite_stmts(&mut arm.statements, env, strict, binders))
+                    .all(|arm| rewrite_stmts(&mut arm.statements, sub, binders))
         }
         // `map` is only allowed in actions, which are never rewritten.
         StmtKind::Map(_) => false,
-        StmtKind::Finish(body) => rewrite_stmts(body, env, strict, binders),
-        StmtKind::Return(r) => rewrite(&mut r.expression, env, strict, binders),
+        StmtKind::Finish(body) => rewrite_stmts(body, sub, binders),
+        StmtKind::Return(r) => rewrite(&mut r.expression, sub, binders),
         StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
-            rewrite(e, env, strict, binders)
+            rewrite(e, sub, binders)
         }
-        StmtKind::ActionCall(c) | StmtKind::FunctionCall(c) => c
-            .arguments
-            .iter_mut()
-            .all(|e| rewrite(e, env, strict, binders)),
-        StmtKind::Create(c) => rewrite_fact(&mut c.fact, env, strict, binders),
+        StmtKind::ActionCall(c) | StmtKind::FunctionCall(c) => {
+            c.arguments.iter_mut().all(|e| rewrite(e, sub, binders))
+        }
+        StmtKind::Create(c) => rewrite_fact(&mut c.fact, sub, binders),
         // A finish block is never rewritten under `strict`, so neither
         // part can fail; `&` says so without a short circuit.
         StmtKind::Update(u) => {
-            rewrite_fact(&mut u.fact, env, strict, binders)
-                & u.to
-                    .iter_mut()
-                    .all(|(_, e)| rewrite(e, env, strict, binders))
+            rewrite_fact(&mut u.fact, sub, binders)
+                & u.to.iter_mut().all(|(_, e)| rewrite(e, sub, binders))
         }
-        StmtKind::Delete(d) => rewrite_fact(&mut d.fact, env, strict, binders),
-        StmtKind::Recall(r) => r
-            .arguments
-            .iter_mut()
-            .all(|e| rewrite(e, env, strict, binders)),
+        StmtKind::Delete(d) => rewrite_fact(&mut d.fact, sub, binders),
+        StmtKind::Recall(r) => r.arguments.iter_mut().all(|e| rewrite(e, sub, binders)),
     })
 }
 
-fn rewrite_fact(
-    fact: &mut FactLiteral,
-    env: &BTreeMap<Identifier, Expression>,
-    strict: Option<&[Identifier]>,
-    binders: &mut Vec<Identifier>,
-) -> bool {
+fn rewrite_fact(fact: &mut FactLiteral, sub: &Subst<'_>, binders: &mut Vec<Identifier>) -> bool {
     fact.key_fields
         .iter_mut()
-        .all(|(_, e)| rewrite(e, env, strict, binders))
-        && fact.value_fields.as_mut().is_none_or(|values| {
-            values
-                .iter_mut()
-                .all(|(_, e)| rewrite(e, env, strict, binders))
-        })
+        .all(|(_, e)| rewrite(e, sub, binders))
+        && fact
+            .value_fields
+            .as_mut()
+            .is_none_or(|values| values.iter_mut().all(|(_, e)| rewrite(e, sub, binders)))
 }
 
 /// Can a `let` value be substituted for its name? Pure functions and fact
@@ -2867,16 +3051,20 @@ enum Change {
 /// absent. Recording it in `mutated` limits that absence to the facts
 /// that provably differ from it.
 fn apply_change(st: &mut PathState<'_>, pat: FactPattern, change: Change) {
-    let known = st.facts.clone();
+    let view = st.view();
+    let written = view.pattern(&pat);
+    let written = written.into_owned();
+    let differing = view.differing(&st.facts).into_owned();
+    let differs = |p: &FactPattern| differ(&differing, &view.pattern(p), &written);
     st.facts.retain(|(p, s)| {
         let kept = match change {
             Change::Create => true,
             Change::Update | Change::Delete => *s != FactState::Exists,
         };
-        kept | differ(&known, p, &pat)
+        kept | differs(p)
     });
     if change != Change::Create {
-        st.query_bindings.retain(|(_, p)| differ(&known, p, &pat));
+        st.query_bindings.retain(|(_, p)| differs(p));
     }
     let state = if change == Change::Delete {
         FactState::NotExists
@@ -2909,23 +3097,85 @@ fn known_unequal(known: &Facts, a: &Expression, b: &Expression) -> bool {
 }
 
 /// What `a` and `b` differing says: an entry for each order, so a lookup
-/// needs only one. No fact can be named `fact`, a keyword, so these
-/// entries never meet a real one. The same expression can't differ from
-/// itself, so that is impossible.
+/// needs only one. The same expression can't differ from itself, so that
+/// is impossible.
 fn unequal(a: &Expression, b: &Expression) -> Know {
     if matches_expr(a, b) {
         return None;
     }
-    let entry = |x: &Expression, y: &Expression| FactPattern {
-        name: Ident::new(ident!("fact"), Span::empty()),
-        keys: vec![(ident!("fact"), x.clone()), (ident!("fact"), y.clone())],
+    Some(vec![
+        (pair_entry(a, b), FactState::Differ),
+        (pair_entry(b, a), FactState::Differ),
+    ])
+}
+
+/// What `a == b` holding says. Whether that is possible is decided when a
+/// path takes it on: see [`PathState::equate`].
+fn same(a: &Expression, b: &Expression) -> Know {
+    Some(vec![(pair_entry(a, b), FactState::Same)])
+}
+
+/// The name of entries relating two values. No fact can be named `fact`,
+/// a keyword, so these entries never meet a real one.
+fn pair_name() -> Ident {
+    Ident::new(ident!("fact"), Span::empty())
+}
+
+/// An entry relating two values, for [`FactState::Differ`] and
+/// [`FactState::Same`].
+fn pair_entry(a: &Expression, b: &Expression) -> FactPattern {
+    FactPattern {
+        name: pair_name(),
+        keys: vec![(ident!("fact"), a.clone()), (ident!("fact"), b.clone())],
         span: Span::empty(),
         text: String::new(),
-    };
-    Some(vec![
-        (entry(a, b), FactState::Differ),
-        (entry(b, a), FactState::Differ),
-    ])
+    }
+}
+
+/// The two values a pair entry relates, once.
+fn pair_values(p: &FactPattern) -> impl Iterator<Item = (&Expression, &Expression)> {
+    p.keys
+        .iter()
+        .zip(p.keys.iter().skip(1))
+        .map(|((_, a), (_, b))| (a, b))
+}
+
+/// How many expressions `e` is made of.
+fn size(e: &Expression) -> usize {
+    let mut n = 0usize;
+    visit_expr(e, &mut |_| n = n.saturating_add(1));
+    n
+}
+
+/// Is `e` a literal?
+fn is_literal(e: &Expression) -> bool {
+    matches!(
+        e.kind,
+        ExprKind::Unit
+            | ExprKind::Int(_)
+            | ExprKind::String(_)
+            | ExprKind::Bool(_)
+            | ExprKind::EnumReference(_)
+    )
+}
+
+/// How briefly `e` names one value, for choosing which side of an
+/// equality the path keeps. A literal always names the same value. An
+/// expression over `this`, `envelope`, and globals does for the whole
+/// block. One over another name does only until the name is bound again.
+fn transience(e: &Expression, globals: &[Identifier]) -> u8 {
+    let lasting = [ident!("this"), ident!("envelope")];
+    let local = any_sub(e, &mut |n| match &n.kind {
+        ExprKind::Identifier(id) => !(lasting.contains(&id.inner) | globals.contains(&id.inner)),
+        _ => false,
+    });
+    if is_literal(e) {
+        0
+    } else if local {
+        2
+    } else {
+        1
+    }
 }
 
 /// Are `a` and `b` literals with different values?

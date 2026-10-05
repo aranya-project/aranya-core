@@ -202,8 +202,8 @@ contradictory branches are detected.
 | `!c` | `c` when false | `c` when true |
 | `a && b` | Both sides' true facts | Only what holds both where `a` was false and where `a` was true and `b` false |
 | `a \|\| b` | Only what holds both where `a` was true and where `a` was false and `b` true | Both sides' false facts |
-| `a == b` | What a stored value on one side says about the other | The two values differ |
-| `a != b` | The two values differ | What a stored value on one side says about the other |
+| `a == b` | The two values are equal | The two values differ |
+| `a != b` | The two values differ | The two values are equal |
 | `at_least 1 F[k]` | Some match exists | `NotExists F[k]` |
 | `at_least n F[k]`, `exactly n F[k]` | Some match exists | Nothing |
 | `at_most n F[k]` | Nothing | Some match exists |
@@ -218,7 +218,11 @@ makes guarantee. See [Pure functions](#pure-functions).
 
 Knowing two values differ tells two keys apart, as described under
 [Invalidation](#invalidation). A value can't differ from itself, so
-`x != x` is impossible, and so is `x == x` failing.
+`x != x` is impossible, and so is `x == x` failing. Knowing two values
+are equal makes keys written with either match, as described under
+[Values known equal](#values-known-equal). A `match` arm on a literal
+is an equality too, and every arm after it knows the scrutinee differs
+from that literal.
 
 Count limits must be at least 1, so `at_most 0` is not valid policy;
 `!(at_least 1 F[k])` is the way to count to zero. "Some match exists"
@@ -349,6 +353,48 @@ it is bound to, so `let ok = if ..` followed by `check ok` proves
 nothing. Write the condition in the `check`, or bind the query
 result instead.
 
+### Values known equal
+
+After `x == y` holds, a fact keyed by `x` is the fact keyed by `y`, just
+as after `let x = y`. The path records the equality, choosing which
+side to keep: a literal over anything else, then an expression over
+`this`, `envelope`, and globals over one with a local name, then the
+smaller expression. Whenever it compares keys or values, it writes the
+other side as the kept one. So in
+
+```policy
+let author_rank = get_object_rank(this.author)
+if this.author == this.target {
+    finish {
+        update Rank[object_id: this.target]=>{rank: author_rank} to {rank: new_rank}
+    }
+}
+```
+
+what the path knows about `this.author`'s rank is known about
+`this.target`'s, and both the fact's existence and its stated value
+are proven. Keeping a literal lets `check this.k == 1` tell `F[k:
+this.k]` apart from `F[k: 2]`. Keeping the smaller side means a value
+is never written as an expression containing it, which would never
+settle.
+
+What the path knows stays as written, and only comparisons go through
+the equalities. Facts learned in two branches, written the same way,
+then still match after the branches, even if one branch knew more
+values were equal. Equalities that chain, such as `x == z` and then
+`z == y`, are kept written in terms of each other.
+
+An equality can make the path impossible. Two different literals can't
+be equal, and facts written differently that turn out to be the same
+fact must agree: after `check exists F[k: x]` and
+`check !exists F[k: y]`, `check x == y` can't hold. The same goes for
+values known to differ, including through calls: `f(x) != f(y)` rules
+out `x == y`.
+
+Keys proven equal name the same fact, so two mutations of them in one
+finish block are reported as a fact manipulated twice, rather than as
+an existence that can't be proven.
+
 ### Opaque observation points
 
 Any expression that touches a fact but that the extractor cannot
@@ -376,7 +422,9 @@ matching arguments are compared. Any other expression compares unequal,
 which is the conservative direction. To handle trivial aliasing, the
 analysis substitutes `let`-bound names with simple values before
 comparing, so `let uid = this.user` followed by
-`check !exists F[user: uid]` covers `create F[user: this.user]`.
+`check !exists F[user: uid]` covers `create F[user: this.user]`. It
+also writes values known equal as one, as described under
+[Values known equal](#values-known-equal).
 
 **Bind-marker subsumption is polarity-dependent.**
 
@@ -533,9 +581,9 @@ through the code after it. Two steps keep the walk bounded.
   learn the same facts, then reach the same state, and the code after
   them is walked once. This loses nothing: the paths knew the same
   things. Their opaque points are kept, once each. Paths that differ
-  only in which values they know differ merge too, keeping the
-  differences all of them know. Otherwise every `if` on a `!=` would
-  double the paths after it.
+  only in which values they know are equal or differ merge too,
+  keeping what all of them know about values. Otherwise every `if` on
+  a `==` or `!=` would double the paths after it.
 - **Past the path limit, paths are joined.** When more distinct states
   than the limit (`Compiler::max_paths`, 64 by default) reach one
   point, they are joined into one state that keeps only what every path
@@ -762,6 +810,13 @@ file covers one feature, in the order below:
   `exists`, `query`, `at_least`, a `match` arm, and a bound-key query;
   through a finish function; alongside a key checked equal to the same
   value; and after creating another fact;
+- values known equal: from a checked `==`, either order, `!(.. != ..)`,
+  a failed `!=`, a helper, and another value; the equality before or
+  after the fact; a reference read from a fact; the self branch; a
+  literal on either side telling keys apart; `match` arms on a literal
+  and the default arm after them; keys proven equal manipulated twice;
+  a value equal to a term containing it; and the ways an equality can
+  be impossible;
 - values known to differ: from a checked `!=`, a failed `==`, a negated
   `==`, either order, and a helper, letting two keys both be created or
   deleted, including in an init command; and a value checked unequal
@@ -832,9 +887,9 @@ target:
   bindings, alias chains, arm-expression bindings, a helper's arm name
   leaking into its caller, an argument captured by a binder inside
   a helper, a key read back after its name was bound again or from
-  a parameter named like the caller's variable, and a struct field read
+  a parameter named like the caller's variable, a struct field read
   from the wrong field or from a parameter named like the caller's
-  variable;
+  variable, and an equality after its name was bound again;
 - `attacks_state.rs`: keys that may alias in one finish block, directly
   and through a finish function, a finish function dropping the
   caller's query binding, a recursive call in an init command, recall
@@ -842,9 +897,11 @@ target:
   a call, two keys both checked absent that may be one fact, a prefix's
   absence after creating what may be part of it, an `update` then a
   `delete` of what may be one fact, a `delete` dropping the query
-  result of what may be the deleted fact, and values known to differ
-  from another value, on one branch only, after a check that they are
-  equal, and after their name was bound again;
+  result of what may be the deleted fact, values known to differ from
+  another value, on one branch only, after a check that they are
+  equal, and after their name was bound again, and values known equal
+  on one branch only, on the branch that ended, on one side of `||`,
+  and in a `match` arm after the match;
 - `attacks_calls.rs`: a helper's facts from a call that may not run, on
   the right of `&&`, `||`, or `or`, as a condition and in a `let`, in
   an arm of an `if` or `match`, and in a `debug_assert`, and from a call
@@ -968,9 +1025,9 @@ schemas, which are dev-dependencies of the compiler. Two tests use it:
   These are the analysis finding real bugs in real code, so a precision
   change that silences one is unsound.
 
-Measured on 2026-10-05, the analysis added about 5 ms to a 5 ms
-debug-build compile and joined no paths. Joins first appear with the
-path limit lowered to 2.
+Measured on 2026-10-05, the analysis added about 11 ms to a 5 ms
+debug-build compile, and about 2 ms to a 1 ms release-build one. It
+joined no paths. Joins first appear with the path limit lowered to 2.
 
 The analysis first raised 14 warnings there, and none is a real bug:
 under the policy's invariants, every mutation it flags succeeds. Five
@@ -1056,9 +1113,10 @@ ties to them only in debug builds.
 - **Struct fields are followed only on literals.** A field read through
   `substruct` or a cast with `as` isn't recognized as the field it came
   from, so a fact key read that way matches nothing.
-- **Equalities are followed one step, to stored values only.** A
-  checked `a == b` says nothing until one side is a stored value, and
-  an equality between other values isn't used to match keys.
+- **Equalities from one branch are lost after it.** When paths that
+  differ only in what they know about values merge, only what all of
+  them know is kept. A `match` arm listing several literals knows no
+  equality at all.
 - **Properties of the whole policy** are unknown. A key derived from
   the command's own ID may be absent because of how every other command
   stores IDs, and one fact may imply another, but the analysis sees one

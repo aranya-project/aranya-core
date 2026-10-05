@@ -444,10 +444,12 @@ fn attack_unequal_on_one_branch_only() {
 
 #[test]
 fn attack_checked_equal() {
-    // Equal keys name one fact, which the second create hits.
-    assert_second_create_unproven(&create_two_items(
+    // Equal keys name one fact, which the second create manipulates again.
+    let warnings = warnings_for(&create_two_items(
         "check this.x == this.y else recall failed()",
     ));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("more than once"));
 }
 
 #[test]
@@ -481,4 +483,123 @@ fn attack_unequal_value_bound_again() {
     );
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
     assert!(warnings[0].message.contains("before `create`"));
+}
+
+/// A command with fields `x`, `y`, and `k` that runs `proof`, checks
+/// `Item[k: this.x]` exists, then deletes `Item[k: this.y]`.
+fn delete_other_item(proof: &str) -> String {
+    format!(
+        r#"
+        fact Item[k int]=>{{}}
+
+        command Foo {{
+            fields {{ x int, y int, k int }}
+            policy {{
+                {proof}
+                check exists Item[k: this.x] else recall failed()
+                finish {{ delete Item[k: this.y] }}
+            }}
+            recall failed() {{ finish {{}} }}
+        }}
+        "#
+    )
+}
+
+#[track_caller]
+fn assert_delete_unproven(policy: &str) {
+    let warnings = warnings_for(policy);
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn attack_equal_on_one_branch_only() {
+    // The paths merge after the `if`, and only one of them knew.
+    assert_delete_unproven(&delete_other_item("if this.x == this.y { let unused = 1 }"));
+}
+
+#[test]
+fn control_equal_checked() {
+    let warnings = warnings_for(&delete_other_item(
+        "check this.x == this.y else recall failed()",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_equal_on_the_branch_that_ended() {
+    // Past the `if`, the values differ.
+    assert_delete_unproven(&delete_other_item(
+        "if this.x == this.y { recall failed() }",
+    ));
+}
+
+#[test]
+fn control_unequal_on_the_branch_that_ended() {
+    let warnings = warnings_for(&delete_other_item(
+        "if this.x != this.y { recall failed() }",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_equal_on_one_side_of_or() {
+    assert_delete_unproven(&delete_other_item(
+        "check this.x == this.y || this.k > 0 else recall failed()",
+    ));
+}
+
+#[test]
+fn control_equal_on_both_sides_of_and() {
+    let warnings = warnings_for(&delete_other_item(
+        "check this.x == this.y && this.k > 0 else recall failed()",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+#[test]
+fn attack_match_arm_value_after_the_match() {
+    // Only the first arm knew `this.y` is 1.
+    let warnings = warnings_for(
+        r#"
+        fact Item[k int]=>{}
+
+        command Foo {
+            fields { x int, y int }
+            policy {
+                match this.y {
+                    1 => { let unused = 1 }
+                    _ => { let unused = 2 }
+                }
+                check exists Item[k: 1] else recall failed()
+                finish { delete Item[k: this.y] }
+            }
+            recall failed() { finish {} }
+        }
+        "#,
+    );
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("before `delete`"));
+}
+
+#[test]
+fn control_match_arm_value_in_the_arm() {
+    let warnings = warnings_for(
+        r#"
+        fact Item[k int]=>{}
+
+        command Foo {
+            fields { x int, y int }
+            policy {
+                check exists Item[k: 1] else recall failed()
+                match this.y {
+                    1 => { finish { delete Item[k: this.y] } }
+                    _ => { finish {} }
+                }
+            }
+            recall failed() { finish {} }
+        }
+        "#,
+    );
+    assert_eq!(warnings, vec![], "expected no warnings");
 }
