@@ -465,16 +465,18 @@ through the code after it. Two steps keep the walk bounded.
   substitutions and query bindings they all share. This is sound but
   loses any correlation between branches from that point on.
 
-Block expressions are walked the same way, so every path through a
-block reaches its final expression.
+A join is never silent, because what it drops can cause false
+positives. Every join is reported at the branch whose paths were
+joined, with a warning naming the facts it dropped. On the joined path,
+each of those facts gets a note pointing at the join, so a later
+warning about one of them shows where its proof may have been lost and
+says it may be a false positive. A join inside a pure function is
+reported once, when the function is first summarized.
 
-A block expression reuses the same walk. Its statements are walked with
-a flag set that keeps the state of every path that runs off their end,
-the way a pure function keeps the state at every `return`. Those end
-states are the block's arms. Function exits found inside the block
-still go to the function's summary, so the two never mix. The
-`max_exit_paths` limit bounds the number of ends; a block with more is
-opaque.
+Block expressions are walked the same way. The paths that run off the
+end of a block's statements are the block's arms, and every one of them
+reaches the block's final expression. Function exits found inside the
+block still go to the function's summary.
 
 ### Pure functions
 
@@ -597,10 +599,14 @@ warning: cannot prove `Counter[name: this.name]` does not exist before `create`
 | the stated values of `F[k]` can never match the stored fact | this update always fails |
 | `F[k]` is manipulated more than once in this finish block | manipulated again here |
 | cannot check fact mutations through recursive call to `f` | recursive call |
+| paths were joined here, dropping facts about `F` that only some of them knew | more than N distinct paths leave this branch |
 
 Opaque points touching the same fact are shown as secondary
-annotations labeled "touches `F` but is too complex to analyze". Calls
-that led into a finish function are labeled "in this call to `f`".
+annotations labeled "touches `F` but is too complex to analyze". Joins
+that dropped facts about it are labeled "paths were joined here,
+dropping facts about `F`", and the warning gets a note that it may be a
+false positive. Calls that led into a finish function are labeled "in
+this call to `f`".
 
 ## Interface
 
@@ -646,6 +652,9 @@ file covers one feature, in the order below:
   keeping what every path knows, one copy of each note on merged paths,
   and long chains of branches finishing in bounded time, enforced by a
   time limit so a regression fails rather than hangs;
+- join reporting: the join warning naming only the facts it dropped,
+  the note and false-positive footnote on a warning it caused, and a
+  join inside a helper reported once;
 - bind-marker subsumption for negative observations only, and `let`
   aliases;
 - update stated values from a query, through a `let` alias, from a
@@ -805,7 +814,8 @@ the only thing standing between the prover and a wrong answer.
   itself by name in fact keys.
 - **Past the path limit, branches lose their correlation.** Paths are
   joined, keeping only what every one of them knows, so a later branch
-  can't rely on an earlier one having gone the same way.
+  can't rely on an earlier one having gone the same way. Each join is
+  reported, and warnings it may have caused say so.
 - **A `return` the walk can't record**, such as one inside a returned
   value or a `match` scrutinee, makes its function unknown.
 - **Double manipulation is syntactic.** Only identical keys are flagged,

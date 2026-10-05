@@ -168,18 +168,48 @@ fn distinct_paths_keep_their_correlation() {
 #[test]
 fn paths_past_the_limit_are_joined() {
     // With room for one path, the two paths out of the first `if` are
-    // joined, and the second `if` no longer knows which one it is on.
-    let warnings = warnings_with_paths(&with_defs("", CORRELATED), 1);
-    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    // joined, and the second `if` no longer knows which one it is on. The
+    // join is reported, and the warning it causes points back at it.
+    let text = with_defs("", CORRELATED);
+    let warnings = warnings_with_paths(&text, 1);
+    assert_eq!(warnings.len(), 2, "warnings: {warnings:?}");
+    assert_eq!(
+        warnings[0].message,
+        "paths were joined here, dropping facts about `Owner`, `Account` that only some of them knew"
+    );
+    let rendered = warnings[0].render(&text);
     assert!(
-        warnings[0]
+        rendered.contains("help: raise the limit with `--max-paths`"),
+        "{rendered}"
+    );
+    assert!(
+        warnings[1]
             .message
             .contains("`Account[user: 1]` exists before `delete`")
+    );
+    assert!(
+        warnings[1]
+            .notes
+            .iter()
+            .any(|(span, n)| *span == warnings[0].span
+                && n == "paths were joined here, dropping facts about `Account`"),
+        "notes: {:?}",
+        warnings[1].notes
+    );
+    assert!(
+        warnings[1]
+            .footnotes
+            .iter()
+            .any(|(_, text)| text.contains("may be a false positive")),
+        "footnotes: {:?}",
+        warnings[1].footnotes
     );
 }
 
 #[test]
 fn joined_paths_keep_what_every_path_knows() {
+    // The join drops only `Owner`, which one path didn't know about. Every
+    // path knew the account exists, so the delete is still proven.
     let warnings = warnings_with_paths(
         &with_defs(
             "",
@@ -195,7 +225,11 @@ fn joined_paths_keep_what_every_path_knows() {
         ),
         1,
     );
-    assert_eq!(warnings, vec![], "expected no warnings");
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert_eq!(
+        warnings[0].message,
+        "paths were joined here, dropping facts about `Owner` that only some of them knew"
+    );
 }
 
 #[test]
@@ -241,7 +275,8 @@ fn branches_binding_only_locals_merge() {
 #[test]
 fn branches_on_facts_stay_bounded() {
     // Each `if` splits the paths on a different fact, so they never
-    // merge. Past the path limit they are joined.
+    // merge. Past the path limit they are joined, and each join is
+    // reported.
     let mut body = String::new();
     for i in 0..40 {
         body.push_str(&format!(
@@ -250,6 +285,46 @@ fn branches_on_facts_stay_bounded() {
     }
     body.push_str("finish { create Owner[]=>{user: this.user} }\n");
     let warnings = within(30, move || warnings_for(&with_defs("", &body)));
+    let (joins, others): (Vec<_>, Vec<_>) = warnings
+        .iter()
+        .partition(|w| w.message.starts_with("paths were joined here"));
+    assert!(!joins.is_empty(), "warnings: {warnings:?}");
+    assert_eq!(others.len(), 1, "warnings: {warnings:?}");
+    assert!(others[0].message.contains("`Owner[]` does not exist"));
+}
+
+/// A helper whose `if` splits its paths on `Owner`, and a command that
+/// calls it.
+const HELPER_WITH_BRANCH: &str = r#"
+    function f(u int) bool {
+        if exists Owner[] {
+            check exists Account[user: u] else return false
+        }
+        return true
+    }
+"#;
+
+#[test]
+fn joins_inside_helpers_are_reported() {
+    let warnings = warnings_with_paths(
+        &with_defs(
+            HELPER_WITH_BRANCH,
+            "check f(this.user) else recall failed()\nfinish {}",
+        ),
+        1,
+    );
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    assert!(warnings[0].message.contains("`Owner[]` does not exist"));
+    assert_eq!(
+        warnings[0].message,
+        "paths were joined here, dropping facts about `Owner`, `Account` that only some of them knew"
+    );
+}
+
+#[test]
+fn helpers_within_the_limit_report_no_join() {
+    let warnings = warnings_for(&with_defs(
+        HELPER_WITH_BRANCH,
+        "check f(this.user) else recall failed()\nfinish {}",
+    ));
+    assert_eq!(warnings, vec![], "expected no warnings");
 }

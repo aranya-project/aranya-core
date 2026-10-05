@@ -105,6 +105,20 @@ struct FactPattern {
 /// Fact knowledge.
 type Facts = Vec<(FactPattern, FactState)>;
 
+/// Why the analysis lost track of a fact at some point, for the notes of
+/// a warning about that fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Why {
+    /// An expression touched the fact but was too complex to analyze.
+    TooComplex,
+    /// Paths that knew different things about the fact were joined.
+    Joined,
+}
+
+/// A point where the analysis lost track of a fact: the fact's name, the
+/// source location, and why.
+type OpaquePoint = (Ident, Span, Why);
+
 /// What holds when some condition is true (or false), or `None` if that
 /// outcome is impossible.
 type Know = Option<Facts>;
@@ -194,7 +208,7 @@ fn either_noted(st: &mut PathState<'_>, span: Span, a: Know, b: Know) -> Know {
     for name in known {
         let kept = result.iter().flatten().any(|(pat, _)| pat.name == name);
         if !kept {
-            st.opaque.push((name, span));
+            st.opaque.push((name, span, Why::TooComplex));
         }
     }
     result
@@ -264,6 +278,9 @@ pub(crate) struct Analyzer {
     summaries: RefCell<BTreeMap<Identifier, Option<Rc<Summary>>>>,
     /// Pure functions being summarized, to stop at recursion.
     summarizing: RefCell<Vec<Identifier>>,
+    /// Warnings from summarizing pure functions, such as joins inside
+    /// them, reported with the block being analyzed.
+    pending: RefCell<Vec<ObligationWarning>>,
 }
 
 impl Analyzer {
@@ -284,6 +301,7 @@ impl Analyzer {
             max_paths,
             summaries: RefCell::new(BTreeMap::new()),
             summarizing: RefCell::new(Vec::new()),
+            pending: RefCell::new(Vec::new()),
         }
     }
 
@@ -322,7 +340,11 @@ impl Analyzer {
     ) -> Vec<ObligationWarning> {
         let mut out = Out::new(usize::MAX);
         walk(stmts, vec![PathState::new(self, empty_db)], &mut out);
-        out.warnings
+        let mut warnings = out.warnings;
+        for w in self.pending.take() {
+            add_warning(&mut warnings, w);
+        }
+        warnings
     }
 
     /// The summary of a pure function, computing it on first use.
@@ -344,6 +366,9 @@ impl Analyzer {
             &mut out,
         );
         self.summarizing.borrow_mut().pop();
+        self.pending
+            .borrow_mut()
+            .extend(core::mem::take(&mut out.warnings));
         // Every `return` must be one the walk records as an exit. A
         // statement-level one it never reached is on no path that can run.
         // Any other is an exit the summary would miss.
@@ -396,8 +421,9 @@ struct PathState<'a> {
     facts: Facts,
     /// `let`-bound names with substitutable values.
     env: BTreeMap<Identifier, Expression>,
-    /// Fact-touching expressions the extractor could not interpret.
-    opaque: Vec<(Ident, Span)>,
+    /// Points where the analysis lost track of a fact: expressions it
+    /// could not interpret, and joins that dropped what it knew.
+    opaque: Vec<OpaquePoint>,
     /// The fact database is known to be empty at the start of the block
     /// (an `init` command), except for facts named in `dirty`.
     empty_db: bool,
@@ -526,7 +552,7 @@ type Paths<'a> = Vec<PathState<'a>>;
 /// `recall`, or a check that fails, records what it must and drops out.
 ///
 /// After an `if` or `match`, the paths out of its branches are merged by
-/// [`normalize`], so what follows runs once per distinct state rather
+/// [`merge`] and [`limit`], so what follows runs once per distinct state rather
 /// than once per way through the branches.
 fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'a> {
     for stmt in stmts {
@@ -546,7 +572,7 @@ fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'
                     st.assume(when_true).then_some(st)
                 })
                 .collect(),
-            StmtKind::If(ifs) => walk_if(ifs, paths, out),
+            StmtKind::If(ifs) => walk_if(ifs, stmt.span, paths, out),
             StmtKind::Match(m) => walk_match(m, paths, out),
             StmtKind::Map(_) => {
                 // `map` is only allowed in actions, which the analysis does
@@ -593,7 +619,7 @@ fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'
 /// Walk an `if` statement. Each branch runs on the paths where its
 /// condition is true and every earlier one false, and the paths where
 /// all are false take the `else`, if there is one.
-fn walk_if<'a>(ifs: &IfStatement, paths: Paths<'a>, out: &mut Out) -> Paths<'a> {
+fn walk_if<'a>(ifs: &IfStatement, span: Span, paths: Paths<'a>, out: &mut Out) -> Paths<'a> {
     let mut entering: Vec<Paths<'a>> = ifs.branches.iter().map(|_| Vec::new()).collect();
     let mut fallback = Vec::new();
     for mut st in paths {
@@ -618,7 +644,8 @@ fn walk_if<'a>(ifs: &IfStatement, paths: Paths<'a>, out: &mut Out) -> Paths<'a> 
         Some(body) => next.extend(walk_scope(body, &[], fallback, out)),
         None => next.extend(fallback),
     }
-    normalize(next)
+    let site = ifs.branches.first().map_or(span, |(cond, _)| cond.span);
+    limit(merge(next), site, out)
 }
 
 /// Walk a `match` statement. Each arm runs on the paths where its
@@ -652,7 +679,7 @@ fn walk_match<'a>(m: &MatchStatement, paths: Paths<'a>, out: &mut Out) -> Paths<
             out,
         ));
     }
-    normalize(next)
+    limit(merge(next), m.expression.span, out)
 }
 
 /// Walk `body`, a scope of its own, from `paths`. On each path out of it,
@@ -665,7 +692,7 @@ fn walk_scope<'a>(
     paths: Paths<'a>,
     out: &mut Out,
 ) -> Paths<'a> {
-    let mut ends = walk(body, normalize(paths), out);
+    let mut ends = walk(body, merge(paths), out);
     let mut bound = bound_names(body);
     bound.extend_from_slice(names);
     for end in &mut ends {
@@ -678,9 +705,8 @@ fn walk_scope<'a>(
 
 /// Keep one copy of each distinct state in `paths`, merging the opaque
 /// points of the copies, so the rest of the walk runs once per state.
-/// Past the path limit, join them all into one state that keeps only
-/// what every path knows.
-fn normalize(paths: Paths<'_>) -> Paths<'_> {
+/// This loses nothing: the copies knew the same things.
+fn merge(paths: Paths<'_>) -> Paths<'_> {
     let mut kept: Paths<'_> = Vec::new();
     for st in paths {
         match kept.iter_mut().find(|k| same_state(k, &st)) {
@@ -688,12 +714,26 @@ fn normalize(paths: Paths<'_>) -> Paths<'_> {
             None => kept.push(st),
         }
     }
-    let limit = kept.first().map_or(usize::MAX, |st| st.az.max_paths);
-    if kept.len() > limit {
-        join(kept).into_iter().collect()
-    } else {
-        kept
+    kept
+}
+
+/// Past the path limit, join `paths` into one state that keeps only what
+/// every path knows. The join is reported at `site`, the branch whose
+/// paths were joined, naming the facts it dropped. Each of those facts
+/// also gets a note pointing here on the joined path, so a later warning
+/// about it says it may come from the join.
+fn limit<'a>(mut paths: Paths<'a>, site: Span, out: &mut Out) -> Paths<'a> {
+    let max = paths.first().map_or(usize::MAX, |st| st.az.max_paths);
+    if paths.len() <= max {
+        return paths;
     }
+    let first = paths.swap_remove(0);
+    let (mut joined, dropped) = join(first, paths);
+    for name in &dropped {
+        joined.opaque.push((name.clone(), site, Why::Joined));
+    }
+    add_warning(&mut out.warnings, paths_joined(site, max, &dropped));
+    vec![joined]
 }
 
 /// Do two path states know the same things? Opaque points, which only
@@ -723,12 +763,14 @@ fn same_state(a: &PathState<'_>, b: &PathState<'_>) -> bool {
     .all(|same| same)
 }
 
-/// The state that holds on every one of `paths`: the facts all of them
-/// imply, and the substitutions and query bindings they all share.
-fn join(paths: Paths<'_>) -> Option<PathState<'_>> {
-    let mut paths = paths.into_iter();
-    let mut joined = paths.next()?;
-    for st in paths {
+/// Join `rest` into `joined`, keeping only what every path knows: the
+/// facts all of them imply, and the substitutions and query bindings they
+/// all share. Returns the joined state and the names of the facts some
+/// path knew that the joined state doesn't.
+fn join<'a>(mut joined: PathState<'a>, rest: Paths<'a>) -> (PathState<'a>, Vec<Ident>) {
+    let mut known = joined.facts.clone();
+    for st in rest {
+        known.extend(st.facts.iter().cloned());
         let facts = core::mem::take(&mut joined.facts);
         joined.facts = either(Some(facts), Some(st.facts)).unwrap_or_default();
         joined
@@ -745,11 +787,23 @@ fn join(paths: Paths<'_>) -> Option<PathState<'_>> {
         joined.empty_db &= st.empty_db;
         merge_opaque(&mut joined.opaque, st.opaque);
     }
-    Some(joined)
+    // Paths that weren't merged differ in their facts, since everything
+    // else is the same within one walk, so a join always drops some.
+    let mut dropped: Vec<Ident> = Vec::new();
+    for (p, s) in &known {
+        let kept = joined
+            .facts
+            .iter()
+            .any(|(q, t)| (s == t) & same_pattern(p, q));
+        if !kept && !dropped.contains(&p.name) {
+            dropped.push(p.name.clone());
+        }
+    }
+    (joined, dropped)
 }
 
 /// Add the opaque points of `from` that `into` lacks.
-fn merge_opaque(into: &mut Vec<(Ident, Span)>, from: Vec<(Ident, Span)>) {
+fn merge_opaque(into: &mut Vec<OpaquePoint>, from: Vec<OpaquePoint>) {
     for point in from {
         if !into.contains(&point) {
             into.push(point);
@@ -1343,7 +1397,7 @@ fn record_call_opaque(st: &mut PathState<'_>, name: &Identifier, span: Span) {
             names
         });
     for fact in names {
-        st.opaque.push((fact, span));
+        st.opaque.push((fact, span, Why::TooComplex));
     }
 }
 
@@ -1564,39 +1618,66 @@ impl Mutation {
     }
 }
 
-/// Notes for the opaque expressions that touched the same fact.
-fn opaque_notes(pat: &FactPattern, opaque: &[(Ident, Span)]) -> Vec<(Span, String)> {
+/// Notes for the points where the analysis lost track of the same fact.
+fn opaque_notes(pat: &FactPattern, opaque: &[OpaquePoint]) -> Vec<(Span, String)> {
     opaque
         .iter()
-        .filter(|(name, _)| *name == pat.name)
-        .map(|(name, span)| {
-            (
-                *span,
-                format!("touches `{name}` but is too complex to analyze"),
-            )
+        .filter(|(name, _, _)| *name == pat.name)
+        .map(|(name, span, why)| {
+            let note = match why {
+                Why::TooComplex => format!("touches `{name}` but is too complex to analyze"),
+                Why::Joined => format!("paths were joined here, dropping facts about `{name}`"),
+            };
+            (*span, note)
         })
         .collect()
 }
 
-fn unproven_create(span: Span, pat: &FactPattern, opaque: &[(Ident, Span)]) -> ObligationWarning {
+/// `footnotes`, plus a note when a join dropped facts about `pat`'s fact
+/// on the way here. The warning may then come from the join rather than
+/// from the policy.
+fn with_join_note(
+    mut footnotes: Vec<(Footnote, String)>,
+    pat: &FactPattern,
+    opaque: &[OpaquePoint],
+) -> Vec<(Footnote, String)> {
+    let joined = opaque
+        .iter()
+        .any(|(name, _, why)| (*name == pat.name) & (*why == Why::Joined));
+    footnotes.extend(joined.then(|| {
+        (
+            Footnote::Note,
+            "paths were joined on the way here, dropping facts about this one, so this \
+             warning may be a false positive. Raising the limit with `--max-paths` will tell"
+                .to_owned(),
+        )
+    }));
+    footnotes
+}
+
+fn unproven_create(span: Span, pat: &FactPattern, opaque: &[OpaquePoint]) -> ObligationWarning {
     ObligationWarning {
         span,
         message: format!("cannot prove `{}` does not exist before `create`", pat.text),
         label: "this fact may already exist".to_owned(),
         notes: opaque_notes(pat, opaque),
-        footnotes: vec![
-            (
-                Footnote::Note,
-                "creating a fact that already exists is a runtime exception".to_owned(),
-            ),
-            (
-                Footnote::Help,
-                format!(
-                    "check that it does not exist first: `check !exists {} else ...`",
-                    pat.text
+        footnotes: with_join_note(
+            vec![
+                (
+                    Footnote::Note,
+                    "creating a fact that already exists is a runtime exception".to_owned(),
                 ),
-            ),
-        ],
+                (
+                    Footnote::Help,
+                    format!(
+                        "check that it does not exist first: `check !exists {} else ...`",
+                        pat.text
+                    ),
+                ),
+            ],
+            pat,
+            opaque,
+        ),
     }
 }
 
@@ -1636,7 +1717,7 @@ fn unproven_exists(
         ),
         label: "this fact may not exist".to_owned(),
         notes: opaque_notes(pat, &st.opaque),
-        footnotes,
+        footnotes: with_join_note(footnotes, pat, &st.opaque),
     }
 }
 
@@ -1649,21 +1730,25 @@ fn unproven_values(span: Span, pat: &FactPattern, st: &PathState<'_>) -> Obligat
         ),
         label: "the stored values may differ".to_owned(),
         notes: opaque_notes(pat, &st.opaque),
-        footnotes: vec![
-            (
-                Footnote::Note,
-                "updating from values that don't match the stored fact is a runtime exception"
-                    .to_owned(),
-            ),
-            (
-                Footnote::Help,
-                format!(
-                    "read the values from a query of the same fact: \
-                     `let x = query {} or ...`, then `=>{{field: x.field}}`",
-                    pat.text
+        footnotes: with_join_note(
+            vec![
+                (
+                    Footnote::Note,
+                    "updating from values that don't match the stored fact is a runtime exception"
+                        .to_owned(),
                 ),
-            ),
-        ],
+                (
+                    Footnote::Help,
+                    format!(
+                        "read the values from a query of the same fact: \
+                     `let x = query {} or ...`, then `=>{{field: x.field}}`",
+                        pat.text
+                    ),
+                ),
+            ],
+            pat,
+            &st.opaque,
+        ),
     }
 }
 
@@ -1686,6 +1771,36 @@ fn partial_values(span: Span, pat: &FactPattern) -> ObligationWarning {
             (
                 Footnote::Help,
                 "state every value, or bind all of them with `?` to skip the comparison".to_owned(),
+            ),
+        ],
+    }
+}
+
+fn paths_joined(site: Span, max: usize, dropped: &[Ident]) -> ObligationWarning {
+    let facts = match dropped {
+        [] => "facts".to_owned(),
+        names => {
+            let names: Vec<String> = names.iter().map(|name| format!("`{name}`")).collect();
+            format!("facts about {}", names.join(", "))
+        }
+    };
+    ObligationWarning {
+        span: site,
+        message: format!("paths were joined here, dropping {facts} that only some of them knew"),
+        label: format!("more than {max} distinct paths leave this branch"),
+        notes: Vec::new(),
+        footnotes: vec![
+            (
+                Footnote::Note,
+                format!(
+                    "the analysis keeps at most {max} distinct paths at one point. Past that \
+                     it joins them and keeps only what all of them know, so a later warning \
+                     about these facts may be a false positive"
+                ),
+            ),
+            (
+                Footnote::Help,
+                "raise the limit with `--max-paths` or `Compiler::max_paths`".to_owned(),
             ),
         ],
     }
@@ -2441,7 +2556,8 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
 /// Record every fact-touching subexpression as an opaque observation point.
 fn collect_opaque(st: &mut PathState<'_>, expr: &Expression) {
     visit_facts(expr, &mut |fact, span| {
-        st.opaque.push((fact.identifier.clone(), span));
+        st.opaque
+            .push((fact.identifier.clone(), span, Why::TooComplex));
     });
 }
 
