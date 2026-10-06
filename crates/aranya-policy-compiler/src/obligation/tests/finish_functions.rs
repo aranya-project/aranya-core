@@ -54,7 +54,7 @@ fn finish_function_create_unchecked_warns_with_call_note() {
         warnings[0]
             .notes
             .iter()
-            .any(|(_, n)| n == "in this call to `open_account`"),
+            .any(|(_, n)| n == "`Foo` calls `open_account` here"),
         "notes: {:?}",
         warnings[0].notes
     );
@@ -148,12 +148,14 @@ fn shared_finish_function_warns_once_with_each_call() {
         "#,
     );
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
-    let calls = warnings[0]
-        .notes
-        .iter()
-        .filter(|(_, n)| n.starts_with("in this call"))
-        .count();
-    assert_eq!(calls, 2, "notes: {:?}", warnings[0].notes);
+    let calls: Vec<&str> = warnings[0].notes.iter().map(|(_, n)| n.as_str()).collect();
+    assert_eq!(
+        calls,
+        [
+            "`Foo` calls `open_account` here",
+            "`Bar` calls `open_account` here"
+        ]
+    );
 }
 
 #[test]
@@ -210,5 +212,85 @@ fn recursive_finish_function_warns() {
     assert_eq!(
         warnings[0].message,
         "cannot check fact mutations through recursive call to `ping`"
+    );
+}
+
+#[test]
+fn call_notes_name_each_caller() {
+    // Innermost first, so the chain reads from the mutation back to the
+    // command.
+    let warnings = warnings_for(
+        r#"
+        fact Account[user int]=>{balance int}
+
+        finish function open_account(u int) {
+            create Account[user: u]=>{balance: 0}
+        }
+
+        finish function welcome(u int) {
+            open_account(u)
+        }
+
+        command Foo {
+            fields { user int }
+            policy {
+                finish { welcome(this.user) }
+            }
+        }
+        "#,
+    );
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    let notes: Vec<&str> = warnings[0].notes.iter().map(|(_, n)| n.as_str()).collect();
+    assert_eq!(
+        notes,
+        [
+            "`welcome` calls `open_account` here",
+            "`Foo` calls `welcome` here"
+        ]
+    );
+}
+
+#[test]
+fn shared_finish_function_keeps_each_callers_footnotes() {
+    // From `Foo`, a check would fix the delete. From `Init`, it always
+    // fails. The merged warning says both, says which command the second
+    // is about, and puts its notes before its help.
+    let warnings = warnings_for(
+        r#"
+        fact Account[user int]=>{balance int}
+
+        finish function close(u int) {
+            delete Account[user: u]
+        }
+
+        command Foo {
+            fields { user int }
+            policy {
+                finish { close(this.user) }
+            }
+        }
+
+        command Init {
+            attributes { init: true }
+            fields { user int }
+            policy {
+                finish { close(this.user) }
+            }
+        }
+        "#,
+    );
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    let footnotes: Vec<&str> = warnings[0]
+        .footnotes
+        .iter()
+        .map(|(_, text)| text.as_str())
+        .collect();
+    assert_eq!(
+        footnotes,
+        [
+            "deleting a fact that does not exist is a runtime exception",
+            "no facts exist when the `init` command `Init` runs, so this always fails in it",
+            "check that it exists first: `check exists Account[user: u] else ...`",
+        ]
     );
 }

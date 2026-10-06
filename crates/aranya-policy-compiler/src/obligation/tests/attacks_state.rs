@@ -59,7 +59,7 @@ fn attack_aliasing_keys_through_finish_function() {
         warnings[0]
             .notes
             .iter()
-            .any(|(_, n)| n.contains("in this call"))
+            .any(|(_, n)| n == "`Foo` calls `rm` here")
     );
 }
 

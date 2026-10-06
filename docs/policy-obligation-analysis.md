@@ -187,8 +187,8 @@ facts that provably differ from the one mutated, as described under
 [Invalidation](#invalidation), and a call the analysis cannot follow
 drops it entirely. So an init command can create `F[k: 1]` and then
 `F[k: 2]`, but creating `F[k: x]` after `F[k: 1]` warns. An `update`
-or `delete` of a fact that cannot exist yet gets a note that it always
-fails.
+or `delete` of a fact that cannot exist yet gets a note that names the
+init command and says the mutation always fails in it.
 
 ## Observation sources
 
@@ -419,9 +419,10 @@ interpret is **opaque**. Examples are fact reads inside comparisons,
 `count_up_to`, calls that can't be followed, and blocks with more paths
 than the exit limit. The
 analysis learns nothing from an opaque expression, but it records the
-fact name and span. When an obligation for the same fact name cannot be
-proven, those spans are listed in the warning, so the author sees which
-expression the analysis gave up on.
+name and span of each fact read in it, including reads in the
+statements of a block inside it. When an obligation for the same fact
+name cannot be proven, those spans are listed in the warning, so the
+author sees which expression the analysis gave up on.
 
 A condition that touches a fact but proves nothing about it is recorded
 the same way. For example, `!exists F[k] || ok` proves nothing about
@@ -707,8 +708,10 @@ followed the same way, and a fact changed both in the `finish` block and
 in a called function is flagged as manipulated twice.
 
 A warning inside a finish function carries a note for each call on the
-path that reached it, innermost first. The same function reached from
-several commands produces one warning listing every call site.
+path that reached it, innermost first, naming the caller: "`welcome`
+calls `open_account` here", then "`Foo` calls `welcome` here". The same
+function reached from several commands produces one warning listing
+every call site, with each command's footnotes.
 
 A call the analysis cannot follow forgets all state: known facts, query
 bindings, and init knowledge. That covers two cases:
@@ -733,8 +736,11 @@ becomes unreachable.
 One mutation can fail on several paths that stay apart, and a shared
 finish function can fail from several commands. Warnings with the same
 span and message are merged, keeping the first one's position and the
-union of their notes. This happens as warnings are added, and again
-across the whole policy.
+union of their notes and footnotes, with the help footnotes last. So a
+note that only some paths or commands earned survives the merge, such
+as a join that dropped facts on a later path, or a finish function
+always failing when an init command calls it. This happens as warnings
+are added, and again across the whole policy.
 
 ## Diagnostics
 
@@ -767,8 +773,24 @@ Opaque points touching the same fact are shown as secondary
 annotations labeled "touches `F` but is too complex to analyze". Joins
 that dropped facts about it are labeled "paths were joined here,
 dropping facts about `F`", and the warning gets a note that it may be a
-false positive. Calls that led into a finish function are labeled "in
-this call to `f`".
+false positive. Calls that led into a finish function are labeled with
+their caller, from the mutation back to the command:
+
+```
+warning: cannot prove `Account[user: u]` does not exist before `create`
+   |
+16 |     create Account[user: u]=>{balance: 0}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this fact may already exist
+...
+20 |     open_account(u)
+   |     --------------- `welcome` calls `open_account` here
+...
+30 |         finish { welcome(this.user) }
+   |                  ------------------ `Foo` calls `welcome` here
+   |
+   = note: creating a fact that already exists is a runtime exception
+   = help: check that it does not exist first: `check !exists Account[user: u] else ...`
+```
 
 ### Relationships the analysis can't see
 
@@ -853,7 +875,7 @@ file covers one feature, in the order below:
 
 - each obligation passing with its observation and warning without it;
 - path sensitivity, with a check on only one branch;
-- deduplication across paths, with merged notes;
+- deduplication across paths, with merged notes and footnotes;
 - merging and joining paths: a correlation between branches kept when
   their paths stay apart or merge, and lost past the path limit, a join
   keeping what every path knows, one copy of each note on merged paths,
@@ -861,7 +883,8 @@ file covers one feature, in the order below:
   time limit so a regression fails rather than hangs, and branches on
   `!=` merging rather than multiplying the paths;
 - join reporting: the join warning naming only the facts it dropped,
-  the note and false-positive footnote on a warning it caused, and a
+  the note and false-positive footnote on a warning it caused, kept
+  when that warning merges into one from a path without a join, and a
   join inside a helper reported once;
 - bind-marker subsumption for negative observations only, and `let`
   aliases;
@@ -892,9 +915,10 @@ file covers one feature, in the order below:
   prefix surviving creates of parts of it; and what a `create`,
   `update`, and `delete` each keep;
 - init commands, including `init: false`;
-- finish functions: caller checks, call-site notes, nested calls,
-  double manipulation across a call, one warning for a function shared
-  by two commands, and recursion;
+- finish functions: caller checks, call-site notes naming each caller,
+  nested calls, double manipulation across a call, one warning for a
+  function shared by two commands keeping each command's footnotes,
+  and recursion;
 - conditions: `&&`, `!(.. || ..)`, `||` proving nothing, and counting
   queries;
 - branches: `if exists` on both sides, early `recall`, `else if`,
@@ -929,7 +953,8 @@ file covers one feature, in the order below:
   `finish` inside a block being checked, blocks over the exit limit,
   an `else` arm that proves nothing, arm-bound and block-local names
   not leaking, and arms proving absences of different extents;
-- rendering of the title, label, note, and help.
+- rendering of the title, label, note, and help, and a note for a fact
+  read in a block statement inside an opaque expression.
 
 ### Adversarial tests
 

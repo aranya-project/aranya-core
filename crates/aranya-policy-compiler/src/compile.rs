@@ -900,7 +900,7 @@ impl<'a> CompileState<'a> {
         if self.config.analyze_obligations {
             /// What the obligation analysis should do with these statements.
             enum Use {
-                Analyze { empty_db: bool },
+                Analyze { empty_db: bool, command: Identifier },
                 Finish(Span),
                 Pure(Identifier, Vec<Identifier>),
                 Nothing,
@@ -909,6 +909,7 @@ impl<'a> CompileState<'a> {
                 StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
                     Use::Analyze {
                         empty_db: is_init_command(cmd),
+                        command: cmd.identifier.inner.clone(),
                     }
                 }
                 // Finish and pure functions are compiled before commands,
@@ -931,8 +932,8 @@ impl<'a> CompileState<'a> {
             };
             if let Some(obligations) = self.obligations.as_mut() {
                 match usage {
-                    Use::Analyze { empty_db } => {
-                        let warnings = obligations.analyze_block(&stmts, empty_db);
+                    Use::Analyze { empty_db, command } => {
+                        let warnings = obligations.analyze_block(&stmts, empty_db, command);
                         self.obligation_warnings.extend(warnings);
                     }
                     Use::Finish(span) => {

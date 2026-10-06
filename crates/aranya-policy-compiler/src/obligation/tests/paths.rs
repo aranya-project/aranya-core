@@ -345,3 +345,58 @@ fn branches_on_unequal_values_merge() {
     );
     assert_eq!(warnings, vec![], "expected no warnings");
 }
+
+#[test]
+fn merged_warning_keeps_a_later_paths_join_note() {
+    // `Bar` reaches the delete without a join, then `Foo` reaches it past
+    // one. The merged warning says it may come from the join.
+    let warnings = warnings_with_paths(
+        r#"
+        fact Account[user int]=>{balance int}
+
+        finish function close(u int) {
+            delete Account[user: u]
+        }
+
+        command Bar {
+            fields { user int }
+            policy {
+                finish { close(this.user) }
+            }
+        }
+
+        command Foo {
+            fields { user int }
+            policy {
+                if this.user == 1 {
+                    check exists Account[user: this.user] else test_fail()
+                } else {
+                    check exists Account[user: 2] else test_fail()
+                }
+                finish { close(this.user) }
+            }
+        }
+        "#,
+        1,
+    );
+    let delete = warnings
+        .iter()
+        .find(|w| w.message.contains("before `delete`"))
+        .expect("a warning for the delete");
+    assert!(
+        delete
+            .notes
+            .iter()
+            .any(|(_, n)| n.starts_with("paths were joined here")),
+        "notes: {:?}",
+        delete.notes
+    );
+    assert!(
+        delete
+            .footnotes
+            .iter()
+            .any(|(_, text)| text.contains("paths were joined on the way here")),
+        "footnotes: {:?}",
+        delete.footnotes
+    );
+}

@@ -374,8 +374,9 @@ impl Analyzer {
         &self,
         stmts: &[Statement],
         empty_db: bool,
+        command: Identifier,
     ) -> Vec<ObligationWarning> {
-        let mut out = Out::new(usize::MAX);
+        let mut out = Out::new(usize::MAX, command);
         walk(stmts, vec![PathState::new(self, empty_db)], &mut out);
         let mut warnings = out.warnings;
         for w in self.pending.take() {
@@ -396,7 +397,7 @@ impl Analyzer {
         }
         let body = self.pure_functions.get(name)?;
         self.summarizing.borrow_mut().push(name.clone());
-        let mut out = Out::new(self.max_exit_paths);
+        let mut out = Out::new(self.max_exit_paths, name.clone());
         walk(
             &body.statements,
             vec![PathState::new(self, false)],
@@ -437,16 +438,20 @@ struct Out {
     /// The `return`s the walk recognized as exits, whether or not a path
     /// could reach them.
     modeled_returns: BTreeSet<Span>,
+    /// What the walk is of: the command whose block it is, or the pure
+    /// function being summarized. It makes the outermost calls.
+    caller: Identifier,
 }
 
 impl Out {
-    fn new(max_exits: usize) -> Self {
+    fn new(max_exits: usize, caller: Identifier) -> Self {
         Self {
             warnings: Vec::new(),
             exits: Vec::new(),
             max_exits,
             unusable: false,
             modeled_returns: BTreeSet::new(),
+            caller,
         }
     }
 }
@@ -727,8 +732,10 @@ impl<'a> PathState<'a> {
 /// Add `w` to `warnings`, merging it into an earlier warning with the
 /// same span and message. A statement reached on several paths, or a
 /// finish function reached from several commands, can fail the same way
-/// on each, and the paths may have skipped different opaque expressions,
-/// so the merged warning takes the union of the notes.
+/// on each. The paths may have skipped different opaque expressions,
+/// lost facts at different joins, or come from different commands, so
+/// the merged warning takes the union of the notes and of the footnotes,
+/// with every note before any help.
 fn add_warning(warnings: &mut Vec<ObligationWarning>, w: ObligationWarning) {
     match warnings
         .iter_mut()
@@ -740,6 +747,14 @@ fn add_warning(warnings: &mut Vec<ObligationWarning>, w: ObligationWarning) {
                     existing.notes.push(note);
                 }
             }
+            for footnote in w.footnotes {
+                if !existing.footnotes.contains(&footnote) {
+                    existing.footnotes.push(footnote);
+                }
+            }
+            existing
+                .footnotes
+                .sort_by_key(|(kind, _)| *kind == Footnote::Help);
         }
         None => warnings.push(w),
     }
@@ -1847,7 +1862,13 @@ fn finish_statements<'a>(
                 } else if partially_stated(st, &u.fact) {
                     found.push(partial_values(stmt.span, &pat));
                 } else if !proven_exists(st, &pat) {
-                    found.push(unproven_exists(stmt.span, &pat, Mutation::Update, st));
+                    found.push(unproven_exists(
+                        stmt.span,
+                        &pat,
+                        Mutation::Update,
+                        st,
+                        &out.caller,
+                    ));
                 } else if !values_proven(st, &u.fact, &pat) {
                     found.push(unproven_values(stmt.span, &pat, st));
                 }
@@ -1859,7 +1880,13 @@ fn finish_statements<'a>(
                 if let Some(prev) = manipulated(st, touched, &pat) {
                     found.push(double_manipulation(stmt.span, &pat, prev));
                 } else if !proven_exists(st, &pat) {
-                    found.push(unproven_exists(stmt.span, &pat, Mutation::Delete, st));
+                    found.push(unproven_exists(
+                        stmt.span,
+                        &pat,
+                        Mutation::Delete,
+                        st,
+                        &out.caller,
+                    ));
                 }
                 apply_change(st, pat.clone(), Change::Delete);
                 touched.push(pat);
@@ -1901,10 +1928,17 @@ fn finish_statements<'a>(
         }
         for mut w in found {
             // Point from a warning inside a finish function back to the
-            // calls that reached it, innermost first.
-            for (name, span) in calls.iter().rev() {
-                w.notes.push((*span, format!("in this call to `{name}`")));
-            }
+            // calls that reached it, innermost first. Each names its
+            // caller, the command or the finish function that made it, so
+            // the chain from the command to here can be read off.
+            let callers = core::iter::once(&out.caller).chain(calls.iter().map(|(name, _)| name));
+            let notes: Vec<(Span, String)> = callers
+                .zip(calls.iter())
+                .map(|(caller, (callee, span))| {
+                    (*span, format!("`{caller}` calls `{callee}` here"))
+                })
+                .collect();
+            w.notes.extend(notes.into_iter().rev());
             add_warning(&mut out.warnings, w);
         }
     }
@@ -2194,6 +2228,7 @@ fn unproven_exists(
     pat: &FactPattern,
     kind: Mutation,
     st: &PathState<'_>,
+    command: &Identifier,
 ) -> ObligationWarning {
     let mut footnotes = vec![(
         Footnote::Note,
@@ -2203,9 +2238,11 @@ fn unproven_exists(
         ),
     )];
     if st.known_absent(pat) {
+        // The same warning may be reached from other commands, where this
+        // doesn't hold, so it says which command it is about.
         footnotes.push((
             Footnote::Note,
-            "no facts exist when an `init` command runs, so this always fails".to_owned(),
+            format!("no facts exist when the `init` command `{command}` runs, so this always fails in it"),
         ));
     } else {
         footnotes.push((
@@ -3260,91 +3297,22 @@ fn collect_opaque(st: &mut PathState<'_>, expr: &Expression) {
     });
 }
 
-/// Visit every fact literal referenced by query-like functions in `expr`.
+/// Visit every fact literal read in `expr`, by `query`, `exists`, or a
+/// count, with the span of the read. That includes reads in the
+/// statements of a block inside it, but not in the body of a function it
+/// calls.
 fn visit_facts(expr: &Expression, f: &mut impl FnMut(&FactLiteral, Span)) {
-    match &expr.kind {
-        ExprKind::InternalFunction(func) => match func {
-            InternalFunction::Query(fact)
-            | InternalFunction::Exists(fact)
-            | InternalFunction::FactCount(_, _, fact) => f(fact, expr.span),
-            InternalFunction::If(c, t, e) => {
-                visit_facts(c, f);
-                visit_facts(t, f);
-                visit_facts(e, f);
-            }
-            InternalFunction::Todo(_) | InternalFunction::TestFail(..) => {}
-        },
-        ExprKind::Not(e)
-        | ExprKind::Return(e)
-        | ExprKind::Substruct(e, _)
-        | ExprKind::Cast(e, _)
-        | ExprKind::Dot(e, _)
-        | ExprKind::Ok(e)
-        | ExprKind::Err(e)
-        | ExprKind::Is(e, _) => visit_facts(e, f),
-        ExprKind::Optional(o) => {
-            if let Some(e) = o {
-                visit_facts(e, f);
-            }
+    visit_expr(expr, &mut |node| {
+        if let Some(e) = node.expr()
+            && let ExprKind::InternalFunction(
+                InternalFunction::Query(fact)
+                | InternalFunction::Exists(fact)
+                | InternalFunction::FactCount(_, _, fact),
+            ) = &e.kind
+        {
+            f(fact, e.span);
         }
-        ExprKind::And(a, b)
-        | ExprKind::Or(a, b)
-        | ExprKind::Coalesce(a, b)
-        | ExprKind::Equal(a, b)
-        | ExprKind::NotEqual(a, b)
-        | ExprKind::GreaterThan(a, b)
-        | ExprKind::LessThan(a, b)
-        | ExprKind::GreaterThanOrEqual(a, b)
-        | ExprKind::LessThanOrEqual(a, b) => {
-            visit_facts(a, f);
-            visit_facts(b, f);
-        }
-        ExprKind::NamedStruct(s) => {
-            for (_, e) in &s.fields {
-                visit_facts(e, f);
-            }
-        }
-        ExprKind::FunctionCall(c) => {
-            for e in &c.arguments {
-                visit_facts(e, f);
-            }
-        }
-        ExprKind::ForeignFunctionCall(c) => {
-            for e in &c.arguments {
-                visit_facts(e, f);
-            }
-        }
-        ExprKind::Recall(c) => {
-            for e in &c.arguments {
-                visit_facts(e, f);
-            }
-        }
-        ExprKind::Block(stmts, e) => {
-            for stmt in stmts {
-                match &stmt.kind {
-                    StmtKind::Let(l) => visit_facts(&l.expression, f),
-                    StmtKind::Check(c) => {
-                        visit_facts(&c.expression, f);
-                        visit_facts(&c.else_expression, f);
-                    }
-                    _ => {}
-                }
-            }
-            visit_facts(e, f);
-        }
-        ExprKind::Match(m) => {
-            visit_facts(&m.scrutinee, f);
-            for arm in &m.arms {
-                visit_facts(&arm.expression, f);
-            }
-        }
-        ExprKind::Unit
-        | ExprKind::Int(_)
-        | ExprKind::String(_)
-        | ExprKind::Bool(_)
-        | ExprKind::Identifier(_)
-        | ExprKind::EnumReference(_) => {}
-    }
+    });
 }
 
 #[cfg(test)]

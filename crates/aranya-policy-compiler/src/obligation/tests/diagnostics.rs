@@ -54,3 +54,31 @@ fn disabled_analysis_reports_nothing() {
         .expect("compile");
     assert_eq!(warnings, vec![], "expected no warnings when disabled");
 }
+
+#[test]
+fn fact_read_in_a_block_statement_gets_a_note() {
+    // The `exists` is in an `if` statement inside a block compared with 1,
+    // which the analysis doesn't interpret, so the warning points at it.
+    let text = command(
+        r#"
+        check { if exists Account[user: this.user] { let u = 1 } : 1 } == 1 else recall failed()
+        finish { delete Account[user: this.user] }
+        "#,
+    );
+    let policy = parse_policy_str(&text, Version::V2).expect("parse");
+    let (_module, warnings) = Compiler::new(&policy)
+        .debug(true)
+        .allow_baseless(true)
+        .analyze_obligations(true)
+        .compile_with_diagnostics()
+        .expect("compile");
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(
+        warnings[0]
+            .notes
+            .iter()
+            .any(|(_, n)| n == "touches `Account` but is too complex to analyze"),
+        "notes: {:?}",
+        warnings[0].notes
+    );
+}
