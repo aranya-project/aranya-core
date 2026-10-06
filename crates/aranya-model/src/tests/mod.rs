@@ -1,5 +1,3 @@
-#![expect(clippy::arc_with_non_send_sync, reason = "TODO: make keys thread safe")]
-
 mod keygen;
 
 use std::{cell::RefCell, fs, marker::PhantomData, sync::Arc, vec::Vec};
