@@ -103,8 +103,10 @@ fn default_max_syncs() -> u64 {
     1
 }
 
-fn default_max_cascade_depth() -> u64 {
-    100
+/// Bounds a hello cascade. A cascade can need a hop per client (e.g. a
+/// one-way ring), so the bound grows with the number of clients.
+fn max_cascade_depth(clients: usize) -> u64 {
+    (clients as u64).saturating_mul(2).max(100)
 }
 
 fn default_notify_interval() -> u64 {
@@ -195,6 +197,169 @@ pub enum HelloTopology {
     HubAndSpoke,
     /// Each client subscribes to the next: 0→1, 1→2, ..., N-1→0.
     Ring,
+    /// Each client subscribes to both neighbours: i→i-1 and i→i+1 (mod N).
+    TwoWayRing,
+    /// Every client subscribes to every other client.
+    Clique,
+    /// A tree rooted at client 0 in which each node has up to `children`
+    /// children. Client `i`'s parent is `(i - 1) / children`, and each
+    /// parent and child subscribe to each other.
+    Hierarchy {
+        /// Maximum number of children per node.
+        #[serde(default = "default_hierarchy_children")]
+        children: u64,
+    },
+    /// Each client gets two-way links to random peers until it has at
+    /// least `links`, then components are joined by extra random links
+    /// until every client is connected.
+    Random {
+        /// Minimum number of links per client.
+        #[serde(default = "default_random_links")]
+        links: u64,
+    },
+    /// Each client subscribes to both ring neighbours, plus `long_links`
+    /// distinct non-neighbour peers chosen at random.
+    SmallWorld {
+        /// Number of random long links per client.
+        #[serde(default = "default_small_world_long_links")]
+        long_links: u64,
+    },
+}
+
+fn default_hierarchy_children() -> u64 {
+    3
+}
+
+fn default_random_links() -> u64 {
+    3
+}
+
+fn default_small_world_long_links() -> u64 {
+    1
+}
+
+/// Returns the `(client, peer)` hello subscriptions for `topology`, where
+/// `client` subscribes to `peer`.
+fn hello_subscriptions<R: rand::Rng>(
+    topology: &HelloTopology,
+    clients: u64,
+    rng: &mut R,
+) -> Vec<(u64, u64)> {
+    let mut subs = Vec::new();
+    match *topology {
+        HelloTopology::HubAndSpoke => {
+            // Client 0 is the hub; all others subscribe
+            // to it and it subscribes to all.
+            for i in 1..clients {
+                subs.push((i, 0));
+                subs.push((0, i));
+            }
+        }
+        HelloTopology::Ring => {
+            // Each client subscribes to the next:
+            // 0→1, 1→2, ..., N-1→0.
+            for i in 0..clients {
+                let next = (i + 1) % clients;
+                subs.push((i, next));
+            }
+        }
+        HelloTopology::TwoWayRing => {
+            for i in 0..clients {
+                let prev = (i + clients - 1) % clients;
+                let next = (i + 1) % clients;
+                for peer in [prev, next] {
+                    subs.push((i, peer));
+                }
+            }
+        }
+        HelloTopology::Clique => {
+            for i in 0..clients {
+                for peer in (0..clients).filter(|&p| p != i) {
+                    subs.push((i, peer));
+                }
+            }
+        }
+        HelloTopology::Hierarchy { children } => {
+            assert!(children >= 1, "Hierarchy requires children >= 1");
+            for i in 1..clients {
+                let parent = (i - 1) / children;
+                subs.push((i, parent));
+                subs.push((parent, i));
+            }
+        }
+        HelloTopology::Random { links } => {
+            assert!(links < clients, "Random requires links < clients");
+            let mut linked = vec![BTreeSet::new(); clients as usize];
+            for i in 0..clients {
+                while (linked[i as usize].len() as u64) < links {
+                    let peer = rng.random_range(0..clients);
+                    if peer != i && linked[i as usize].insert(peer) {
+                        linked[peer as usize].insert(i);
+                    }
+                }
+            }
+            // Join each component to the next so every client is connected.
+            for pair in components(&linked).windows(2) {
+                let a = pair[0][rng.random_range(0..pair[0].len())];
+                let b = pair[1][rng.random_range(0..pair[1].len())];
+                linked[a as usize].insert(b);
+                linked[b as usize].insert(a);
+            }
+            for (i, peers) in (0..clients).zip(linked) {
+                for peer in peers {
+                    subs.push((i, peer));
+                }
+            }
+        }
+        HelloTopology::SmallWorld { long_links } => {
+            assert!(clients >= 3, "SmallWorld requires at least 3 clients");
+            assert!(
+                long_links <= clients - 3,
+                "SmallWorld requires long_links <= clients - 3"
+            );
+            for i in 0..clients {
+                let prev = (i + clients - 1) % clients;
+                let next = (i + 1) % clients;
+                let mut peers = BTreeSet::new();
+                while (peers.len() as u64) < long_links {
+                    let peer = rng.random_range(0..clients);
+                    if peer != i && peer != prev && peer != next {
+                        peers.insert(peer);
+                    }
+                }
+                for peer in [prev, next].into_iter().chain(peers) {
+                    subs.push((i, peer));
+                }
+            }
+        }
+    }
+    subs
+}
+
+/// Returns the connected components of an undirected graph given as
+/// adjacency sets indexed by client.
+fn components(linked: &[BTreeSet<u64>]) -> Vec<Vec<u64>> {
+    let mut seen = vec![false; linked.len()];
+    let mut components = Vec::new();
+    for start in 0..linked.len() {
+        if seen[start] {
+            continue;
+        }
+        seen[start] = true;
+        let mut component = Vec::new();
+        let mut stack = vec![start as u64];
+        while let Some(node) = stack.pop() {
+            component.push(node);
+            for &peer in &linked[node as usize] {
+                if !seen[peer as usize] {
+                    seen[peer as usize] = true;
+                    stack.push(peer);
+                }
+            }
+        }
+        components.push(component);
+    }
+    components
 }
 
 /// Dispatches the sync message contained in data.
@@ -324,48 +489,21 @@ fn process_hello_notifications<SP: StorageProvider>(
                     .entry((graph, publisher, subscriber))
                     .or_default();
 
-                let mut received = 0;
-                if needs_sync {
-                    let mut request_cache = client_heads
-                        .get(&(graph, subscriber, publisher))
-                        .assume("cache must exist")?
-                        .borrow_mut();
-                    let mut response_cache = client_heads
-                        .get(&(graph, publisher, subscriber))
-                        .assume("cache must exist")?
-                        .borrow_mut();
-                    let mut response_client = clients
-                        .get(&publisher)
-                        .ok_or(TestError::MissingClient)?
-                        .borrow_mut();
-
-                    // The hello cascade needs committed state to serve
-                    // onward, so commit per notification here.
-                    let mut trx = request_client.transaction(graph_id);
-                    let mut received_addrs = Vec::new();
-                    loop {
-                        let (_, exchange_received) = sync::<SP>(
-                            &mut trx,
-                            (&request_cache, &mut request_client),
-                            (&mut response_cache, &mut response_client),
-                            &mut received_addrs,
-                            sink,
-                            graph_id,
-                            rt_buffers,
-                        )?;
-                        received += exchange_received;
-                        if exchange_received == 0 {
-                            break;
-                        }
-                    }
-                    request_client.commit(trx, sink, rt_buffers, mem_spill)?;
-                    request_client.update_heads(
+                let received = if needs_sync {
+                    pull_from(
+                        graph,
+                        subscriber,
+                        publisher,
+                        &mut request_client,
                         graph_id,
-                        received_addrs,
-                        &mut request_cache,
-                        &mut rt_buffers.traversal.primary,
-                    )?;
-                }
+                        clients,
+                        client_heads,
+                        sink,
+                        rt_buffers,
+                    )?
+                } else {
+                    0
+                };
 
                 // Track the advertised head in the subscriber's cache for the
                 // publisher. A multi-head publisher advertises a virtual
@@ -410,6 +548,65 @@ fn process_hello_notifications<SP: StorageProvider>(
     {
         panic!("hello sync cascade exceeded max depth of {max_depth}");
     }
+}
+
+/// Syncs `request_client` (client `subscriber`) from `publisher` until it
+/// is caught up, commits, and advances the subscriber's cache for the
+/// publisher. Both caches must already exist. Returns the number of
+/// commands received.
+#[allow(clippy::too_many_arguments)]
+fn pull_from<SP: StorageProvider>(
+    graph: u64,
+    subscriber: u64,
+    publisher: u64,
+    request_client: &mut ClientState<TestPolicyStore, SP>,
+    graph_id: GraphId,
+    clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
+    client_heads: &BTreeMap<(u64, u64, u64), RefCell<PeerCache>>,
+    sink: &mut TestSink,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
+) -> Result<usize, TestError> {
+    let mut request_cache = client_heads
+        .get(&(graph, subscriber, publisher))
+        .assume("cache must exist")?
+        .borrow_mut();
+    let mut response_cache = client_heads
+        .get(&(graph, publisher, subscriber))
+        .assume("cache must exist")?
+        .borrow_mut();
+    let mut response_client = clients
+        .get(&publisher)
+        .ok_or(TestError::MissingClient)?
+        .borrow_mut();
+
+    // The hello cascade needs committed state to serve
+    // onward, so commit per notification here.
+    let mut trx = request_client.transaction(graph_id);
+    let mut received_addrs = Vec::new();
+    let mut received = 0;
+    loop {
+        let (_, exchange_received) = sync::<SP>(
+            &mut trx,
+            (&request_cache, request_client),
+            (&mut response_cache, &mut response_client),
+            &mut received_addrs,
+            sink,
+            graph_id,
+            rt_buffers,
+        )?;
+        received += exchange_received;
+        if exchange_received == 0 {
+            break;
+        }
+    }
+    request_client.commit(trx, sink, rt_buffers, mem_spill)?;
+    request_client.update_heads(
+        graph_id,
+        received_addrs,
+        &mut request_cache,
+        &mut rt_buffers.traversal.primary,
+    )?;
+    Ok(received)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1015,38 +1212,14 @@ where
                             assert!(clients >= 2, "HelloSync requires at least 2 clients");
                             let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
 
-                            match topology {
-                                HelloTopology::HubAndSpoke => {
-                                    // Client 0 is the hub; all others subscribe
-                                    // to it and it subscribes to all.
-                                    for i in 1..clients {
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: i,
-                                            peer: 0,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: 0,
-                                            peer: i,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                    }
-                                }
-                                HelloTopology::Ring => {
-                                    // Each client subscribes to the next:
-                                    // 0→1, 1→2, ..., N-1→0.
-                                    for i in 0..clients {
-                                        let next = (i + 1) % clients;
-                                        generated_actions.push(TestRule::HelloSubscribe {
-                                            client: i,
-                                            peer: next,
-                                            graph,
-                                            notify_interval,
-                                        });
-                                    }
-                                }
+                            for (client, peer) in hello_subscriptions(&topology, clients, &mut rng)
+                            {
+                                generated_actions.push(TestRule::HelloSubscribe {
+                                    client,
+                                    peer,
+                                    graph,
+                                    notify_interval,
+                                });
                             }
 
                             generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
@@ -1432,7 +1605,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                 }
 
@@ -1486,7 +1659,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -1527,7 +1700,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -1568,7 +1741,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        max_cascade_depth(clients.len()),
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -2523,10 +2696,18 @@ test_vectors! {
     stress_hot_key_ties,
     stress_long_divergence,
     stress_hello_ring,
+    stress_hello_two_way_ring,
     stress_hello_hub_noops,
+    stress_hello_clique,
+    stress_hello_hierarchy,
+    stress_hello_random,
+    stress_hello_small_world,
     stress_no_sync_braid,
     stress_delete_noop_churn,
 }
+
+#[cfg(test)]
+mod topology_report;
 
 #[cfg(test)]
 mod tests {
@@ -2553,6 +2734,23 @@ mod tests {
         let heads = storage.get_heads()?;
         assert_eq!(heads.len(), 1, "expected a single head");
         Ok(heads.as_slice()[0].location())
+    }
+
+    #[test]
+    fn random_topology_is_connected() {
+        for clients in [4, 10, 100, 1000] {
+            for seed in 0..20 {
+                let mut rng = SmallRng::seed_from_u64(seed);
+                let subs =
+                    hello_subscriptions(&HelloTopology::Random { links: 3 }, clients, &mut rng);
+                let mut linked = vec![BTreeSet::new(); clients as usize];
+                for (client, peer) in subs {
+                    linked[client as usize].insert(peer);
+                }
+                assert!(linked.iter().all(|peers| peers.len() >= 3));
+                assert_eq!(components(&linked).len(), 1);
+            }
+        }
     }
 
     #[test]

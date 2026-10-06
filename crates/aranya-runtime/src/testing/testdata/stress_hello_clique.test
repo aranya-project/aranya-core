@@ -1,0 +1,19 @@
+[
+  {
+    "GenerateGraph": {
+      "clients": 5,
+      "graph": 0,
+      "commands": 80,
+      "sync_method": {
+        "HelloSync": {
+          "notify_interval": 2,
+          "topology": "Clique"
+        }
+      },
+      "delete_proportion": 50,
+      "noop_proportion": 20,
+      "key_range": 2,
+      "max_priority": 100
+    }
+  }
+]
