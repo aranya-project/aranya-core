@@ -10,13 +10,13 @@ command Result {
 action foo(x int) {
     match x {
         5 => {
-            publish Result { x: x }
+            publish Result { x }
         }
         6 => {
-            publish Result { x: x }
+            publish Result { x }
         }
         5 => {
-            publish Result { x: x }
+            publish Result { x }
         }
     }
 }

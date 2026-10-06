@@ -31,9 +31,7 @@ the first device in the team. See `init.run`.
 
 ```policy
 action init(owner_key bytes) {
-    publish Init{
-        owner_key: owner_key,
-    }
+    publish Init { owner_key }
 }
 
 effect TeamCreated {
@@ -69,9 +67,7 @@ ID is the id of this command. See `init.run`.
 
 ```policy
 action add_user(new_user_key bytes) {
-    publish AddUser {
-        new_user_key: new_user_key
-    }
+    publish AddUser { new_user_key }
 }
 
 effect UserAdded {
@@ -111,10 +107,7 @@ testing. See `add_raw_device.run`.
 
 ```policy
 action add_raw_device(device_id id, device_key bytes) {
-    publish AddDevice {
-        device_id: device_id,
-        device_key: device_key,
-    }
+    publish AddDevice { device_id, device_key }
 }
 
 command AddDevice {
@@ -147,9 +140,7 @@ This simply fetches the keys from the `Device` fact, or reports that the device 
 
 ```policy
 action get_raw_device(device_id id) {
-    publish GetDevice {
-        device_id: device_id,
-    }
+    publish GetDevice { device_id }
 }
 
 effect DeviceInfo {

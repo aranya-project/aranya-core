@@ -743,6 +743,10 @@ impl ChunkParser<'_> {
                     let ffc = self.parse_foreign_function_call(primary)?;
                     Ok(Expression { inner: ExprKind::ForeignFunctionCall(ffc), span })
                 }
+                Rule::action_call => {
+                    let fc = self.parse_action_call(primary)?;
+                    Ok(Expression { inner: ExprKind::ActionCall(fc), span })
+                }
                 Rule::return_expression => {
                     let pc = self.descend(primary);
                     let expression = pc.consume_expression(self)?;
@@ -1093,7 +1097,13 @@ impl ChunkParser<'_> {
             match rule_kind {
                 Rule::struct_literal_field => {
                     let identifier = pc.consume_ident(self)?;
-                    let expression = pc.consume_expression(self)?;
+                    let expression = match pc.consume_optional(Rule::expression) {
+                        Some(token) => self.parse_expression(token)?,
+                        None => Expression {
+                            inner: ExprKind::Identifier(identifier.clone()),
+                            span: identifier.span,
+                        },
+                    };
                     field_expressions.push((identifier, expression));
                 }
                 Rule::struct_composition => {
@@ -1117,11 +1127,16 @@ impl ChunkParser<'_> {
             let pc = self.descend(field);
             let identifier = pc.consume_ident(self)?;
 
-            let token = pc.consume()?;
-            let field = match token.as_rule() {
-                Rule::expression => FactField::Expression(self.parse_expression(token)?),
-                Rule::bind => FactField::Bind(self.to_ast_span(token.as_span())?),
-                _ => {
+            let field = match pc.next().map(|token| (token.as_rule(), token)) {
+                None => FactField::Expression(Expression {
+                    inner: ExprKind::Identifier(identifier.clone()),
+                    span: identifier.span,
+                }),
+                Some((Rule::expression, token)) => {
+                    FactField::Expression(self.parse_expression(token)?)
+                }
+                Some((Rule::bind, token)) => FactField::Bind(self.to_ast_span(token.as_span())?),
+                Some((_, token)) => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in fact field"),
@@ -1321,7 +1336,10 @@ impl ChunkParser<'_> {
             let span = self.to_ast_span(statement.as_span())?;
             let kind = match statement.as_rule() {
                 Rule::let_statement => StmtKind::Let(self.parse_let_statement(statement)?),
-                Rule::action_call => StmtKind::ActionCall(self.parse_action_call(statement)?),
+                Rule::action_call => {
+                    let fc = self.parse_action_call(statement)?;
+                    StmtKind::ActionCall(fc)
+                }
                 Rule::publish_statement => {
                     StmtKind::Publish(self.parse_publish_statement(statement)?)
                 }

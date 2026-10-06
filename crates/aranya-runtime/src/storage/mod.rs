@@ -530,7 +530,19 @@ impl fmt::Display for Location {
 }
 
 #[derive(
-    Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
 )]
 pub struct LocatedAddress {
     pub id: CmdId,
@@ -1103,8 +1115,6 @@ pub(crate) trait FactIndexExtra {
     Eq,
     PartialOrd,
     Ord,
-    serde::Serialize,
-    serde::Deserialize,
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,

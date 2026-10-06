@@ -227,35 +227,22 @@ ephemeral command GetCounter with Base {
 
 ```policy
 action init(owner_keys struct PublicKeys, nonce int) {
-    publish Init {
-        owner_keys: owner_keys,
-        nonce: nonce,
-    }
+    publish Init { owner_keys, nonce }
 }
 
 action add_device(device_keys struct PublicKeys) {
-    publish AddDevice {
-        device_keys: device_keys,
-    }
+    publish AddDevice { device_keys }
 }
 
 action set_counter(name int, value int) {
-    publish SetCounter {
-        name: name,
-        value: value,
-    }
+    publish SetCounter { name, value }
 }
 
 action increment_counter(name int, amount int) {
-    publish IncrementCounter {
-        name: name,
-        amount: amount,
-    }
+    publish IncrementCounter { name, amount }
 }
 
 ephemeral action get_counter(name int) {
-    publish GetCounter {
-        name: name,
-    }
+    publish GetCounter { name }
 }
 ```
