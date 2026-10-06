@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unused value
+  |
+7 |     f()
+  |     ^^^ expression values must be used

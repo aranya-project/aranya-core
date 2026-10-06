@@ -1,18 +1,18 @@
 use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern, MatchStatement,
-    NamedStruct, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
+    NamedStruct, Param, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
     WithSpanExt as _, thir,
 };
 use buggy::{BugExt as _, bug};
 
 use super::{
-    CompileError, CompileState, FunctionColor, Scope, StatementContext,
+    CompileError, CompileState, FunctionColor, FunctionSignature, Scope, StatementContext,
     error::{
         AlreadyDefined, BadArgument, DuplicateMatchPatterns, InvalidCallColor,
         InvalidCallColorKind, InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidReturn,
         InvalidStatement, InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined,
-        RedundantMatchArm, UnknownError, UnreachableMatchArm,
+        RedundantMatchArm, UnknownError, UnreachableMatchArm, UnusedValue,
     },
     find_duplicate,
     types::{self, DisplayType},
@@ -22,6 +22,14 @@ impl CompileState<'_> {
     fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
         self.m.fact_defs.get(&name.inner).ok_or_else(|| {
             let note = format!("fact `{}` not defined", name);
+            self.err(NotDefined(note, name.span))
+        })
+    }
+
+    /// Looks up the signature of the function named `name`.
+    fn get_function_signature(&self, name: &Ident) -> Result<&FunctionSignature, CompileError> {
+        self.function_signatures.get(&name.inner).ok_or_else(|| {
+            let note = format!("function `{}` not defined", name);
             self.err(NotDefined(note, name.span))
         })
     }
@@ -459,10 +467,7 @@ impl CompileState<'_> {
                 }
             },
             ExprKind::FunctionCall(f) => {
-                let signature = self.function_signatures.get(&f.name.inner).ok_or_else(|| {
-                    let note = format!("function `{}` not defined", f.name);
-                    self.err(NotDefined(note, f.name.span))
-                })?;
+                let signature = self.get_function_signature(&f.name)?;
                 // Check that this function is the right color - only
                 // pure functions are allowed in expressions.
                 let FunctionColor::Pure(return_type) = signature.color.clone() else {
@@ -474,20 +479,7 @@ impl CompileState<'_> {
                         None,
                     )));
                 };
-                // For now all we can do is check that the argument
-                // list has the same length.
-                // TODO(chip): Do more deep type analysis to check
-                // arguments and return types.
-                if signature.params.len() != f.arguments.len() {
-                    let note = format!(
-                        "call to `{}` has {} arguments and it should have {}",
-                        f.name,
-                        f.arguments.len(),
-                        signature.params.len()
-                    );
-                    return Err(self.err(BadArgument(note, f.span())));
-                }
-                let f = self.lower_function_call(f)?;
+                let f = self.lower_function_call(f, f.span())?;
 
                 thir::Expression {
                     kind: thir::ExprKind::FunctionCall(f),
@@ -624,6 +616,17 @@ impl CompileState<'_> {
                     },
                     span: expression.span,
                 }
+            }
+            ExprKind::ActionCall(fc) => {
+                if !matches!(self.get_statement_context()?, StatementContext::Action(_)) {
+                    let note = "`action` calls are only valid in actions";
+                    return Err(self.err(InvalidExpression(
+                        note,
+                        expression.clone(),
+                        Some(expression.span),
+                    )));
+                }
+                self.lower_action_call_expression(fc, expression)?
             }
             ExprKind::Recall(fc) => {
                 let cmd = match self.get_statement_context()? {
@@ -991,23 +994,27 @@ impl CompileState<'_> {
         })
     }
 
-    fn lower_function_call(
+    /// Lowers a call's arguments, checking the arity and each argument against
+    /// the parameter it fills. `span` covers the whole call.
+    fn lower_call_args(
         &mut self,
         fc: &FunctionCall,
-    ) -> Result<thir::FunctionCall, CompileError> {
-        let arg_defs = self
-            .function_signatures
-            .get(&fc.name.inner)
-            .ok_or_else(|| {
-                let note = format!("function `{}` not defined", fc.name);
-                self.err(NotDefined(note, fc.name.span))
-            })?
-            .params
-            .clone();
+        params: &[Param],
+        span: Span,
+    ) -> Result<Vec<thir::Expression>, CompileError> {
+        if params.len() != fc.arguments.len() {
+            let note = format!(
+                "call to `{}` has {} arguments, but it should have {}",
+                fc.name,
+                fc.arguments.len(),
+                params.len()
+            );
+            return Err(self.err(BadArgument(note, span)));
+        }
 
         let mut arguments = Vec::new();
 
-        for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
+        for (param, arg_e) in params.iter().zip(&fc.arguments) {
             let arg_te = self.lower_expression(arg_e)?;
             if !arg_te.vtype.fits_type(&param.vtype) {
                 let err = InvalidType::new(
@@ -1021,9 +1028,82 @@ impl CompileState<'_> {
             arguments.push(arg_te);
         }
 
+        Ok(arguments)
+    }
+
+    fn lower_function_call(
+        &mut self,
+        fc: &FunctionCall,
+        span: Span,
+    ) -> Result<thir::FunctionCall, CompileError> {
+        let param_defs = self.get_function_signature(&fc.name)?.params.clone();
+
+        let arguments = self.lower_call_args(fc, &param_defs, span)?;
+
         Ok(thir::FunctionCall {
             name: fc.name.clone(),
             arguments,
+        })
+    }
+
+    /// Lowers a statement-form action
+    fn lower_action_call_statement(
+        &mut self,
+        fc: &FunctionCall,
+        span: Span,
+    ) -> Result<thir::FunctionCall, CompileError> {
+        let Some(action_def) = self.policy.actions.iter().find(|a| a.name == fc.name.inner) else {
+            let note = format!("action `{}` not defined", fc.name);
+            return Err(self.err(NotDefined(note, fc.name.span)));
+        };
+
+        // A returning action is an expression, not a statement. Its result
+        // can't be discarded.
+        if matches!(action_def.return_type.inner, TypeKind::Result(_)) {
+            return Err(self.err(UnusedValue(span)));
+        }
+
+        let params = action_def.parameters.clone();
+        let arguments = self.lower_call_args(fc, &params, span)?;
+
+        Ok(thir::FunctionCall {
+            name: fc.name.clone(),
+            arguments,
+        })
+    }
+
+    /// Lowers an expression-form action invocation.
+    fn lower_action_call_expression(
+        &mut self,
+        fc: &FunctionCall,
+        expression: &Expression,
+    ) -> Result<thir::Expression, CompileError> {
+        let Some(action_def) = self.policy.actions.iter().find(|a| a.name == fc.name.inner) else {
+            let note = format!("action `{}` not defined", fc.name);
+            return Err(self.err(NotDefined(note, fc.name.span)));
+        };
+
+        // Only a returning action can be used in an expression.
+        if !matches!(action_def.return_type.inner, TypeKind::Result(_)) {
+            let note = "this action does not return a value";
+            return Err(self.err(InvalidExpression(
+                note,
+                expression.clone(),
+                Some(expression.span),
+            )));
+        }
+
+        let return_type = action_def.return_type.clone();
+        let params = action_def.parameters.clone();
+        let arguments = self.lower_call_args(fc, &params, expression.span)?;
+
+        Ok(thir::Expression {
+            kind: thir::ExprKind::ActionCall(thir::FunctionCall {
+                name: fc.name.clone(),
+                arguments,
+            }),
+            vtype: return_type,
+            span: expression.span,
         })
     }
 
@@ -1817,79 +1897,48 @@ impl CompileState<'_> {
                     }
                     thir::StmtKind::Emit(e)
                 }
-                (StmtKind::FunctionCall(f), StatementContext::Finish(finish_ctx_span)) => {
-                    let signature =
-                        self.function_signatures.get(&f.name.inner).ok_or_else(|| {
-                            let note = format!("function `{}` not defined", f.name);
-                            self.err(NotDefined(note, f.name.span))
-                        })?;
-                    // Check that this function is the right color -
-                    // only finish functions are allowed in finish
-                    // blocks.
-                    if let FunctionColor::Pure(_) = signature.color {
-                        // Note: `statement.span` is used here instead of `f.span()`
-                        // so the parentheses enclosing the params are included.
-                        return Err(self.err(InvalidCallColor(
-                            InvalidCallColorKind::Pure,
-                            statement.span,
-                            Some(*finish_ctx_span),
-                        )));
+                (StmtKind::FunctionCall(f), _) => {
+                    // `bar()` where `bar` is an action. Without the `action`
+                    // keyword this parses as a bare function call, so say
+                    // what's missing rather than reporting `bar` as an
+                    // undefined function.
+                    if matches!(context, StatementContext::Action(_))
+                        && self.policy.actions.iter().any(|a| a.name == f.name.inner)
+                    {
+                        let note = "actions must be called with the `action` keyword";
+                        let call = Expression {
+                            inner: ExprKind::FunctionCall(f.clone()),
+                            span: statement.span,
+                        };
+                        return Err(self.err(InvalidExpression(note, call, None)));
                     }
-                    // For now all we can do is check that the argument
-                    // list has the same length.
-                    // TODO(chip): Do more deep type analysis to check
-                    // arguments and return types.
-                    if signature.params.len() != f.arguments.len() {
-                        let note = format!(
-                            "call to `{}` has {} arguments but it should have {}",
-                            f.name,
-                            f.arguments.len(),
-                            signature.params.len()
-                        );
-                        return Err(self.err(BadArgument(note, statement.span)));
+                    match &self.get_function_signature(&f.name)?.color {
+                        FunctionColor::Pure(_) => {
+                            // Pure functions are not allowed inside finish blocks.
+                            if let StatementContext::Finish(finish_ctx_span) = &context {
+                                return Err(self.err(InvalidCallColor(
+                                    InvalidCallColorKind::Pure,
+                                    statement.span,
+                                    Some(*finish_ctx_span),
+                                )));
+                            }
+                            // A pure function returns a value, which must be used.
+                            return Err(self.err(UnusedValue(statement.span)));
+                        }
+                        // A finish function returns nothing, but is only
+                        // callable inside a finish block.
+                        FunctionColor::Finish => {
+                            if !matches!(context, StatementContext::Finish(_)) {
+                                return Err(self.err(InvalidStatement(context, statement.span)));
+                            }
+                        }
                     }
-                    let f = self.lower_function_call(f)?;
+                    let f = self.lower_function_call(f, statement.span)?;
                     thir::StmtKind::FunctionCall(f)
                 }
                 (StmtKind::ActionCall(fc), StatementContext::Action(_)) => {
-                    let Some(action_def) =
-                        self.policy.actions.iter().find(|a| a.name == fc.name.inner)
-                    else {
-                        let note = format!("action `{}` not defined", fc.name);
-                        return Err(self.err(NotDefined(note, fc.name.span)));
-                    };
-
-                    if action_def.parameters.len() != fc.arguments.len() {
-                        let note = format!(
-                            "call to `{}` has {} arguments, but it should have {}",
-                            fc.name.inner,
-                            fc.arguments.len(),
-                            action_def.parameters.len()
-                        );
-                        return Err(self.err(BadArgument(note, statement.span)));
-                    }
-
-                    let mut args = Vec::new();
-                    for (arg, expected_arg) in fc.arguments.iter().zip(action_def.parameters.iter())
-                    {
-                        let arg = self.lower_expression(arg)?;
-                        if !arg.vtype.fits_type(&expected_arg.vtype) {
-                            // TODO(Steve): Replace with an 'InvalidType' error to make it consistent with calls to pure functions
-                            let note = format!(
-                                "invalid argument type for `{}`: expected `{}`, but got `{}`",
-                                expected_arg.name,
-                                DisplayType(&expected_arg.vtype),
-                                arg.vtype,
-                            );
-                            return Err(self.err(BadArgument(note, statement.span)));
-                        }
-                        args.push(arg);
-                    }
-
-                    thir::StmtKind::ActionCall(thir::FunctionCall {
-                        name: fc.name.clone(),
-                        arguments: args,
-                    })
+                    let call = self.lower_action_call_statement(fc, statement.span)?;
+                    thir::StmtKind::ActionCall(call)
                 }
                 (StmtKind::Recall(fc), StatementContext::CommandPolicy(cmd)) => {
                     let fc_thir = self.lower_recall_call(fc, cmd)?;
