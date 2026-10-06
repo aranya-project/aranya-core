@@ -44,13 +44,13 @@ Policy {
                                                             true,
                                                         ) @ 77..81,
                                                     },
-                                                ) @ 69..94,
+                                                ) @ 69..81,
                                             ],
                                             Identifier(
                                                 "x" @ 96..97,
                                             ) @ 96..97,
                                         ) @ 55..107,
-                                        span: 50..116,
+                                        span: 50..107,
                                     },
                                     MatchExpressionArm {
                                         pattern: Default(
@@ -59,13 +59,13 @@ Policy {
                                         expression: Bool(
                                             false,
                                         ) @ 121..126,
-                                        span: 116..131,
+                                        span: 116..126,
                                     },
                                 ],
                             },
                         ) @ 32..132,
                     },
-                ) @ 24..133,
+                ) @ 24..132,
             ],
             span: 0..134,
         },
