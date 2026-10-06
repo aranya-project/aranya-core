@@ -16,11 +16,10 @@ use aranya_core::{
     keystore::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStoreExt as _, MemStore, SigningKey,
     },
-    policy::{FfiSet, VmEffect, VmPolicyStore},
+    policy::{FfiSet, VmEffect, VmPolicyStore, VmSealCtx},
     storage::{FileManager, LibcSpill, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
-use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
 use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
@@ -88,6 +87,19 @@ struct Device {
     public_keys: PublicKeys,
 }
 
+impl Device {
+    fn seal_ctx(&self) -> Result<VmSealCtx<CE>> {
+        let key = self
+            .store
+            .get_key(&self.engine, self.sign_id)?
+            .context("missing signing key")?;
+        Ok(VmSealCtx {
+            author: self.device_id,
+            key,
+        })
+    }
+}
+
 fn create_device() -> Result<Device> {
     let (eng, _) = DefaultEngine::<_, DefaultCipherSuite>::from_entropy(Rng);
     let eng = Arc::new(eng);
@@ -144,21 +156,23 @@ fn create_device() -> Result<Device> {
 
 const POLICY_SOURCE: &str = include_str!("policy.md");
 
-fn create_policy_store(eng: CE, store: MemStore, device_id: DeviceId) -> Result<VmPolicyStore<CE>> {
+fn create_policy_store(
+    seal_ctx: VmSealCtx<CE>,
+    eng: CE,
+    store: MemStore,
+) -> Result<VmPolicyStore<CE>> {
     let ffis = FfiSet::new()
-        .with(CryptoFfi::new(store.clone()))?
-        .with(DeviceFfi::new(device_id))?
+        .with(DeviceFfi::new(seal_ctx.author))?
         .with(EnvelopeFfi)?
         .with(IdamFfi::new(store))?
         .with(PerspectiveFfi)?;
-    Ok(VmPolicyStore::new(eng, ffis))
+    Ok(VmPolicyStore::new(eng, ffis, seal_ctx))
 }
 
 fn compile_policy() -> Result<Vec<u8>> {
     let ast = parse_policy_document(POLICY_SOURCE).context("parse policy document")?;
     let module = Compiler::new(&ast)
         .ffi_modules(&[
-            CryptoFfi::<MemStore>::SCHEMA,
             DeviceFfi::SCHEMA,
             EnvelopeFfi::SCHEMA,
             IdamFfi::<MemStore>::SCHEMA,
@@ -284,7 +298,7 @@ fn main() -> Result<()> {
     println!("\n== Device A: Create Team ==");
     println!("\nStep 3: Compiling policy for Device A...");
     let policy_module = compile_policy()?;
-    let policy_store_a = create_policy_store(dev_a.engine, dev_a.store, dev_a.device_id)?;
+    let policy_store_a = create_policy_store(dev_a.seal_ctx()?, dev_a.engine, dev_a.store)?;
     let mut cs_a = ClientState::new(policy_store_a, provider_a);
     let mut sink = PrintSink::new();
     let mut rt_buffers = RuntimeBuffers::new();
@@ -306,7 +320,7 @@ fn main() -> Result<()> {
     // Step 5: Add Device B
     println!("\n== Device A: Add Device B ==");
     println!("\nStep 5: Adding Device B...");
-    add_device(dev_b.public_keys)
+    add_device(dev_b.public_keys.clone())
         .with_action(|action| cs_a.action(graph_id, &mut sink, action, &mut rt_buffers, make_spill))
         .context("add_device")?;
     sink.drain_and_print("Device A / add_device");
@@ -329,7 +343,7 @@ fn main() -> Result<()> {
     // Step 8: Compile policy for Device B, create Client B
     println!("\n== Sync: A -> B ==");
     println!("\nStep 8: Compiling policy for Device B...");
-    let policy_store_b = create_policy_store(dev_b.engine, dev_b.store, dev_b.device_id)?;
+    let policy_store_b = create_policy_store(dev_b.seal_ctx()?, dev_b.engine, dev_b.store)?;
     let mut cs_b = ClientState::new(policy_store_b, provider_b);
 
     // Step 9: Sync graph from A to B

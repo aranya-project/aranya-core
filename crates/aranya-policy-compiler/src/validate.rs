@@ -30,8 +30,8 @@ pub fn validate(module: &Module) -> bool {
             LabelType::CommandPolicy | LabelType::CommandRecall => {
                 tracer = tracer.add_analyzer(FinishAnalyzer::new());
             }
-            LabelType::CommandSeal | LabelType::CommandOpen => {
-                // TODO: Add function analyzer once panics are handled correctly.
+            LabelType::GetKey => {
+                tracer = tracer.add_analyzer(FunctionAnalyzer::new());
             }
             LabelType::Function => {
                 tracer = tracer.add_analyzer(FunctionAnalyzer::new());

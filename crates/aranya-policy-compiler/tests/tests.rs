@@ -58,6 +58,7 @@ fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
         .debug(is_debug)
+        .allow_baseless(true)
         .compile()
 }
 
@@ -139,12 +140,11 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
         ModuleData::V1(m) => (&m.program.progmem, &m.program.labels),
     };
 
-    let mut labels: HashMap<usize, &Label> = HashMap::new();
+    let mut labels: HashMap<usize, Vec<&Label>> = HashMap::new();
     let mut targets: HashSet<usize> = HashSet::new();
 
     for (label, &addr) in m_labels {
-        let old = labels.insert(addr, label);
-        assert!(old.is_none(), "labels shouldn't point to same place");
+        labels.entry(addr).or_default().push(label);
     }
 
     for ins in progmem {
@@ -155,8 +155,10 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
     }
 
     for (i, ins) in progmem.iter().enumerate() {
-        if let Some(label) = labels.get(&i) {
-            writeln!(f, "{label:?}:")?;
+        if let Some(label_vec) = labels.get(&i) {
+            for label in label_vec {
+                writeln!(f, "{label:?}:")?;
+            }
         }
         if targets.contains(&i) {
             writeln!(f, "<{i}>:")?;
@@ -171,13 +173,17 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt:
                     Instruction::Call(t) => {
                         let label = labels
                             .get(&t.resolved().expect("unresolved target"))
-                            .expect("missing target label");
+                            .expect("missing target label")
+                            .first()
+                            .unwrap();
                         write!(f, "call {label:?}")
                     }
                     Instruction::Recall(t) => {
                         let label = labels
                             .get(&t.resolved().expect("unresolved target"))
-                            .expect("missing target label");
+                            .expect("missing target label")
+                            .first()
+                            .unwrap();
                         write!(f, "recall {label:?}")
                     }
                     // Fall back to display impl.

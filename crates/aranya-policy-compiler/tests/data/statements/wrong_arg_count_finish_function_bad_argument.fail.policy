@@ -3,7 +3,7 @@ effect Result {
 }
 
 finish function f(x int) {
-    emit Result { x: x }
+    emit Result { x }
 }
 
 command Foo {
@@ -11,8 +11,6 @@ command Foo {
         x int,
     }
 
-    seal { return todo() }
-    open { return todo() }
 
     policy {
         finish {

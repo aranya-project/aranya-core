@@ -1,8 +1,0 @@
-command Foo {
-    fields {}
-    seal { return todo() }
-    open { return todo() }
-    policy {
-        finish {}
-    }
-}

@@ -2,10 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: invalid statement
+error: invalid expression
   |
-2 | action foo() {
 3 |     bar()
-  |     ^^^^^ statement not allowed in action context
-4 | }
-  |
+  |     ^^^^^ actions must be called with the `action` keyword

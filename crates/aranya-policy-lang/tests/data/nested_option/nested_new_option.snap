@@ -11,6 +11,7 @@ Policy {
     structs: [],
     enums: [],
     commands: [],
+    base_commands: [],
     functions: [
         FunctionDefinition {
             identifier: "maybe_maybe_int" @ 9..24,

@@ -52,9 +52,6 @@ audit-as-crates-io = false
 [policy.aranya-crypto]
 audit-as-crates-io = false
 
-[policy.aranya-crypto-ffi]
-audit-as-crates-io = false
-
 [policy.aranya-device-ffi]
 audit-as-crates-io = false
 
@@ -686,6 +683,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.vec1]]
 version = "1.12.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.version_check]]
+version = "0.9.5"
 criteria = "safe-to-deploy"
 
 [[exemptions.wait-timeout]]

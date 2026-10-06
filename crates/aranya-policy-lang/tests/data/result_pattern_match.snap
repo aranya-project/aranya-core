@@ -11,6 +11,7 @@ Policy {
     structs: [],
     enums: [],
     commands: [],
+    base_commands: [],
     functions: [
         FunctionDefinition {
             identifier: "foo" @ 9..12,

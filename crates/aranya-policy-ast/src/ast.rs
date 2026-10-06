@@ -604,6 +604,8 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// Calls an action, evaluating to the action's return value.
+    ActionCall(FunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
     /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
@@ -689,7 +691,9 @@ impl ExprKind {
             }
 
             // Function call
-            (Self::FunctionCall(a), Self::FunctionCall(b)) | (Self::Recall(a), Self::Recall(b)) => {
+            (Self::FunctionCall(a), Self::FunctionCall(b))
+            | (Self::ActionCall(a), Self::ActionCall(b))
+            | (Self::Recall(a), Self::Recall(b)) => {
                 a.identifier.matches(&b.identifier)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
@@ -1172,7 +1176,7 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Calls an action
+    /// Calls an non-returning action. For returning actions, see [`ExprKind::ActionCall`].
     ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
@@ -1342,16 +1346,14 @@ impl Spanned for RecallBlockDefinition {
 pub struct CommandDefinition {
     /// The persistence mode of the command
     pub persistence: Persistence,
+    /// The name of the base command for this command
+    pub base: Option<Ident>,
     /// Optional attributes
     pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
     pub identifier: Ident,
     /// The fields of the command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
-    /// Statements for sealing the command into an envelope
-    pub seal: Vec<Statement>,
-    /// Statements for opening the command envelope
-    pub open: Vec<Statement>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
     /// The named recall blocks for this command
@@ -1361,6 +1363,25 @@ pub struct CommandDefinition {
 }
 
 impl Spanned for CommandDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// A base command definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BaseCommandDefinition {
+    /// The name of the base command
+    pub identifier: Ident,
+    /// The fields of the base command and their types
+    pub fields: Vec<StructItem<FieldDefinition>>,
+    /// The get key block
+    pub get_key: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for BaseCommandDefinition {
     fn span(&self) -> Span {
         self.span
     }
@@ -1446,6 +1467,8 @@ pub struct Policy {
     pub enums: Vec<EnumDefinition>,
     /// The policy's command definitions.
     pub commands: Vec<CommandDefinition>,
+    /// The policy's base command definitions.
+    pub base_commands: Vec<BaseCommandDefinition>,
     /// The policy's function definitions.
     pub functions: Vec<FunctionDefinition>,
     /// The policy's finish function definitions.

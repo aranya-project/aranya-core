@@ -1,6 +1,0 @@
-command Foo {
-    fields {}
-    policy {
-        finish {}
-    }
-}

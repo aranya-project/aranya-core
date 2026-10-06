@@ -3,8 +3,6 @@ command Foo {
         +Bar, // Bar is not defined
         b string
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

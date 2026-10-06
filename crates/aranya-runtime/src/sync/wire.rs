@@ -91,6 +91,16 @@ pub(crate) enum SubscribeResult {
     TooManySubscriptions,
 }
 
+/// An upper bound on the size of serialized [`CommandMeta`].
+pub(super) const COMMAND_META_SERIALIZED_UPPER_BOUND: usize = {
+    let id = 1 + size_of::<CmdId>(); // length + bytes
+    let max_cut = size_of::<u64>() + 1; // varint
+    let address = id + max_cut;
+    let parent = 1 + 2 * address; // tag + two addresses
+    let length = size_of::<u32>() + 1; // varint
+    id + parent + length + length
+};
+
 /// Represents high-level data of a command.
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct CommandMeta {

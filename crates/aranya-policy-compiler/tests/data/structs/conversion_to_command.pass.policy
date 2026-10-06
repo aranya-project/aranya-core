@@ -7,8 +7,6 @@ command Bar {
         a int,
         b string,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

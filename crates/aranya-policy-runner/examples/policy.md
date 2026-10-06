@@ -23,57 +23,6 @@ use idam
 fact Device[dev id]=>{key bytes}
 ```
 
-## Envelope management
-
-```policy
-// General signing function. It creates an envelope with the given payload (a serialized command)
-// and signing key.
-function sign_command(payload bytes, key option[bytes]) struct Envelope {
-    let parent_id = perspective::head_id()
-    let author_id = device::current_device_id()
-    let author_sign_key_id = match key {
-        Some(k) => Some(idam::derive_sign_key_id(k))
-        None => None
-    }
-    let signed = crypto::sign(
-        author_sign_key_id,
-        payload,
-    )
-    return envelope::new(
-    	parent_id,
-        author_id,
-        signed.command_id,
-        signed.signature,
-    )
-}
-
-// General open function. Opens an envelope using the given signing key and returns the verified
-// payload.
-function open_command(payload bytes, e struct Envelope, key option[bytes]) unit {
-    return crypto::verify(
-        key,
-        envelope::parent_id(e),
-        payload,
-        envelope::command_id(e),
-        envelope::signature(e),
-    )
-}
-
-// Retrieves a device key by taking the current device ID and looking it up in the Device fact.
-function current_device_key() option[bytes] {
-    let author_id = device::current_device_id()
-    let author_dev = query Device[dev: author_id] or return None
-    return Some(author_dev.key)
-}
-
-/// Retrieves a device key by taking the envelope author ID and looking it up in the Device fact.
-function envelope_author_key(envelope struct Envelope) option[bytes] {
-    let author_id = envelope::author_id(envelope)
-    let author_dev = query Device[dev: author_id] or return None
-    return Some(author_dev.key)
-}
-```
-
 ## Team Creation
 
 This initializes a device with a given "owner key". This owner doesn't actually have any more
@@ -82,9 +31,7 @@ the first device in the team. See `init.run`.
 
 ```policy
 action init(owner_key bytes) {
-    publish Init{
-        owner_key: owner_key,
-    }
+    publish Init { owner_key }
 }
 
 effect TeamCreated {
@@ -100,11 +47,6 @@ command Init {
     fields {
         owner_key bytes,
     }
-
-    // Note the special case for both seal and open here. The owner key is used explicitly rather
-    // than a device key pulled from a fact, because that fact doesn't yet exist.
-    seal { return sign_command(payload, Some(this.owner_key)) }
-    open { return open_command(payload, envelope, Some(this.owner_key)) }
 
     policy {
         let device_id = device::current_device_id()
@@ -125,9 +67,7 @@ ID is the id of this command. See `init.run`.
 
 ```policy
 action add_user(new_user_key bytes) {
-    publish AddUser {
-        new_user_key: new_user_key
-    }
+    publish AddUser { new_user_key }
 }
 
 effect UserAdded {
@@ -142,13 +82,6 @@ command AddUser {
 
     fields {
         new_user_key bytes,
-    }
-
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
@@ -174,10 +107,7 @@ testing. See `add_raw_device.run`.
 
 ```policy
 action add_raw_device(device_id id, device_key bytes) {
-    publish AddDevice {
-        device_id: device_id,
-        device_key: device_key,
-    }
+    publish AddDevice { device_id, device_key }
 }
 
 command AddDevice {
@@ -188,13 +118,6 @@ command AddDevice {
     fields {
         device_id id,
         device_key bytes,
-    }
-
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
@@ -217,9 +140,7 @@ This simply fetches the keys from the `Device` fact, or reports that the device 
 
 ```policy
 action get_raw_device(device_id id) {
-    publish GetDevice {
-        device_id: device_id,
-    }
+    publish GetDevice { device_id }
 }
 
 effect DeviceInfo {
@@ -238,13 +159,6 @@ command GetDevice {
 
     fields {
         device_id id,
-    }
-
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {
@@ -286,13 +200,6 @@ command Hello {
 
     fields {
         msg string,
-    }
-
-    seal {
-        return sign_command(payload, current_device_key())
-    }
-    open {
-        return open_command(payload, envelope, envelope_author_key(envelope))
     }
 
     policy {

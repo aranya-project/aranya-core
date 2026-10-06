@@ -67,48 +67,6 @@ effect CounterValue {
 }
 ```
 
-## Base Cryptography
-
-Signs and verifies commands using the author's DeviceSignPubKey fact.
-
-```policy
-// Signs the payload using the current device's Device Signing Key,
-// then packages the data and signature into an Envelope.
-function seal_command(payload bytes) struct Envelope {
-    let parent_id = perspective::head_id()
-    let author_id = device::current_device_id()
-    let author_sign_id = match query DeviceSignPubKey[device_id: author_id] {
-        Some(pk) => Some(pk.key_id)
-        None => None
-    }
-
-    let signed = crypto::sign(author_sign_id, payload)
-    return envelope::new(
-        parent_id,
-        author_id,
-        signed.command_id,
-        signed.signature,
-    )
-}
-
-// Opens an envelope using the author's public Device Signing Key.
-function open_envelope(payload bytes, sealed_envelope struct Envelope) unit {
-    let author_id = envelope::author_id(sealed_envelope)
-    let author_sign_pk = match query DeviceSignPubKey[device_id: author_id] {
-        Some(pk) => Some(pk.key)
-        None => None
-    }
-
-    return crypto::verify(
-        author_sign_pk,
-        envelope::parent_id(sealed_envelope),
-        payload,
-        envelope::command_id(sealed_envelope),
-        envelope::signature(sealed_envelope),
-    )
-}
-```
-
 ## Init Command
 
 The first command in the graph. Creates the owner device's signing
@@ -116,40 +74,22 @@ key fact and the Owner singleton. Because no DeviceSignPubKey exists
 yet, seal/open inline the crypto using keys from the command fields.
 
 ```policy
-command Init {
+base command BaseInit {
+    fields {
+        owner_keys struct PublicKeys,
+    }
+    get_key {
+        return Some(this.owner_keys.sign_key)
+    }
+}
+
+command Init with BaseInit {
     attributes {
         init: true
     }
 
     fields {
-        owner_keys struct PublicKeys,
         nonce int,
-    }
-
-    seal {
-        let parent_id = perspective::head_id()
-        let author_id = device::current_device_id()
-        let author_sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
-
-        let signed = crypto::sign(Some(author_sign_key_id), payload)
-        return envelope::new(
-            parent_id,
-            author_id,
-            signed.command_id,
-            signed.signature,
-        )
-    }
-
-    open {
-        let author_sign_key = this.owner_keys.sign_key
-
-        return crypto::verify(
-            Some(author_sign_key),
-            envelope::parent_id(envelope),
-            payload,
-            envelope::command_id(envelope),
-            envelope::signature(envelope),
-        )
     }
 
     policy {
@@ -170,13 +110,26 @@ command Init {
 }
 ```
 
+## Base Command
+
+```policy
+base command Base {
+    get_key {
+        return match query DeviceSignPubKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+```
+
 ## AddDevice Command
 
 Only the owner can add new devices. Uses seal_command/open_envelope
 since the owner's signing key is already in the fact DB.
 
 ```policy
-command AddDevice {
+command AddDevice with Base {
     attributes {
         priority: 100
     }
@@ -184,9 +137,6 @@ command AddDevice {
     fields {
         device_keys struct PublicKeys,
     }
-
-    seal { return seal_command(payload) }
-    open { return open_envelope(payload, envelope) }
 
     policy {
         let author_id = envelope::author_id(envelope)
@@ -214,7 +164,7 @@ command AddDevice {
 ## Application Commands
 
 ```policy
-command SetCounter {
+command SetCounter with Base {
     attributes {
         priority: 50
     }
@@ -224,9 +174,6 @@ command SetCounter {
         value int,
     }
 
-    seal { return seal_command(payload) }
-    open { return open_envelope(payload, envelope) }
-
     policy {
         finish {
             create Counter[name: this.name]=>{value: this.value}
@@ -235,7 +182,7 @@ command SetCounter {
     }
 }
 
-command IncrementCounter {
+command IncrementCounter with Base {
     attributes {
         priority: 50
     }
@@ -244,9 +191,6 @@ command IncrementCounter {
         name int,
         amount int,
     }
-
-    seal { return seal_command(payload) }
-    open { return open_envelope(payload, envelope) }
 
     policy {
         let counter = query Counter[name: this.name]=>{value: ?} or recall reject()
@@ -265,13 +209,10 @@ command IncrementCounter {
 ## Ephemeral Query
 
 ```policy
-ephemeral command GetCounter {
+ephemeral command GetCounter with Base {
     fields {
         name int,
     }
-
-    seal { return seal_command(payload) }
-    open { return open_envelope(payload, envelope) }
 
     policy {
         let counter = query Counter[name: this.name]=>{value: ?} or test_fail()
@@ -286,35 +227,22 @@ ephemeral command GetCounter {
 
 ```policy
 action init(owner_keys struct PublicKeys, nonce int) {
-    publish Init {
-        owner_keys: owner_keys,
-        nonce: nonce,
-    }
+    publish Init { owner_keys, nonce }
 }
 
 action add_device(device_keys struct PublicKeys) {
-    publish AddDevice {
-        device_keys: device_keys,
-    }
+    publish AddDevice { device_keys }
 }
 
 action set_counter(name int, value int) {
-    publish SetCounter {
-        name: name,
-        value: value,
-    }
+    publish SetCounter { name, value }
 }
 
 action increment_counter(name int, amount int) {
-    publish IncrementCounter {
-        name: name,
-        amount: amount,
-    }
+    publish IncrementCounter { name, amount }
 }
 
 ephemeral action get_counter(name int) {
-    publish GetCounter {
-        name: name,
-    }
+    publish GetCounter { name }
 }
 ```
