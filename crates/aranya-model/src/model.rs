@@ -2,13 +2,18 @@
 //!
 //! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
 
-extern crate alloc;
-use alloc::{collections::BTreeMap, vec::Vec};
-use core::{cell::RefCell, fmt::Debug, mem};
-use std::{collections::btree_map::Entry, marker::PhantomData};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, btree_map::Entry},
+    fmt::Debug,
+    marker::PhantomData,
+    mem,
+    sync::Arc,
+    vec::Vec,
+};
 
 use anyhow::Result;
-use aranya_crypto::Rng;
+use aranya_crypto::{Engine, Rng};
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
@@ -17,7 +22,7 @@ use aranya_runtime::{
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
-    vm_policy::{VmEffect, VmPolicy, VmPolicyError},
+    vm_policy::{SealCtx, VmEffect, VmPolicy, VmPolicyError},
 };
 use derive_where::derive_where;
 
@@ -29,24 +34,19 @@ pub type ModelEffect = VmEffect;
 /// Model policy store.
 ///
 /// Holds the [`VmPolicy`] model policy store methods.
-pub struct ModelPolicyStore<CE> {
+pub struct ModelPolicyStore<CE: Engine> {
     policy: VmPolicy<CE>,
+    seal_ctx: Option<Arc<SealCtx<CE>>>,
 }
 
-impl<CE> ModelPolicyStore<CE>
-where
-    CE: aranya_crypto::Engine,
-{
+impl<CE: Engine> ModelPolicyStore<CE> {
     /// Creates a new [`ModelPolicyStore`] instance with a [`VmPolicy`].
-    pub fn new(policy: VmPolicy<CE>) -> Self {
-        Self { policy }
+    pub fn new(policy: VmPolicy<CE>, seal_ctx: Option<Arc<SealCtx<CE>>>) -> Self {
+        Self { policy, seal_ctx }
     }
 }
 
-impl<CE> PolicyStore for ModelPolicyStore<CE>
-where
-    CE: aranya_crypto::Engine,
-{
+impl<CE: Engine> PolicyStore for ModelPolicyStore<CE> {
     type Policy = VmPolicy<CE>;
     type Effect = ModelEffect;
 
@@ -58,6 +58,13 @@ where
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
+    }
+
+    fn seal_ctx(
+        &self,
+        _id: PolicyId,
+    ) -> std::result::Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        self.seal_ctx.as_deref().ok_or(PolicyError::Panic)
     }
 }
 

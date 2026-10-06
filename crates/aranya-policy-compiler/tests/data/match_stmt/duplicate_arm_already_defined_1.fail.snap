@@ -4,8 +4,8 @@ expression: error
 ---
 error: duplicate match patterns found
    |
-14 |         5 => {
+12 |         5 => {
    |         - first defined here
 ...
-20 |         5 => {
+18 |         5 => {
    |         ^ duplicate pattern

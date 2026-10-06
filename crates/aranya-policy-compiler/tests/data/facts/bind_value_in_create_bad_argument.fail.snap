@@ -4,5 +4,5 @@ expression: error
 ---
 error: bad argument
   |
-9 |             create F[i:1] => {s:?}
+7 |             create F[i:1] => {s:?}
   |                                 ^ Cannot create fact with bind values

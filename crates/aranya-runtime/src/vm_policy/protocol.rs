@@ -1,10 +1,10 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, collections::BTreeMap};
+use alloc::borrow::Cow;
 
 use aranya_crypto::DeviceId;
 use aranya_policy_vm::{
-    Struct, Value,
+    Struct,
     ast::{Identifier, ident},
 };
 use serde::{Deserialize, Serialize};
@@ -75,47 +75,4 @@ impl From<Envelope<'_>> for Struct {
             ],
         )
     }
-}
-
-impl TryFrom<Struct> for Envelope<'_> {
-    type Error = EnvelopeError;
-
-    fn try_from(
-        Struct {
-            name,
-            ref mut fields,
-        }: Struct,
-    ) -> Result<Self, Self::Error> {
-        if name != "Envelope" {
-            return Err(EnvelopeError::InvalidName(name));
-        }
-
-        Ok(Self {
-            parent_id: get(fields, "parent_id")?,
-            author_id: get(fields, "author_id")?,
-            command_id: get(fields, "command_id")?,
-            signature: Cow::Owned(get(fields, "signature")?),
-        })
-    }
-}
-
-fn get<T: TryFrom<Value>>(
-    fields: &mut BTreeMap<Identifier, Value>,
-    key: &'static str,
-) -> Result<T, EnvelopeError> {
-    fields
-        .remove(key)
-        .ok_or(EnvelopeError::MissingField(key))?
-        .try_into()
-        .map_err(|_| EnvelopeError::InvalidType(key))
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum EnvelopeError {
-    #[error("invalid struct name {0:?}")]
-    InvalidName(Identifier),
-    #[error("missing field {0:?}")]
-    MissingField(&'static str),
-    #[error("invalid type for field {0:?}")]
-    InvalidType(&'static str),
 }

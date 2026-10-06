@@ -4,5 +4,5 @@ expression: err
 ---
 error: Syntax error
   |
-9 | }
+3 | }
   | ^ expected policy_block

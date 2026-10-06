@@ -101,11 +101,18 @@ where
     ) -> Result<GraphId, ClientError> {
         let policy_id = self.policy_store.add_policy(policy_data)?;
         let policy = self.policy_store.get_policy(policy_id)?;
+        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
 
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
         policy
-            .call_action(action, &mut perspective, sink, ActionPlacement::OnGraph)
+            .call_action(
+                action,
+                &mut perspective,
+                sink,
+                ActionPlacement::OnGraph,
+                seal_ctx,
+            )
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
 
@@ -283,12 +290,19 @@ where
 
         let policy_id = perspective.policy();
         let policy = self.policy_store.get_policy(policy_id)?;
+        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
 
         // No need to checkpoint the perspective since it is only for this action.
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            sink,
+            ActionPlacement::OnGraph,
+            seal_ctx,
+        ) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
                 let new_head = LocatedAddress {

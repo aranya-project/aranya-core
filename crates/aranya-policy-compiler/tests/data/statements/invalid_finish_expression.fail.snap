@@ -4,5 +4,5 @@ expression: error
 ---
 error: invalid expression
   |
-7 |             create Foo[]=>{x: saturating_add(1, 2)}
+5 |             create Foo[]=>{x: saturating_add(1, 2)}
   |                               ^^^^^^^^^^^^^^^^^^^^ This expression is invalid in finish blocks/functions

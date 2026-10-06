@@ -1,8 +1,6 @@
 immutable fact Foo[i int] => {a string}
 command test {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {
             create Foo[i: 1]=>{a: ""}

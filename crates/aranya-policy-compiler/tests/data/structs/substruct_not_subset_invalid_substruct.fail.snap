@@ -4,7 +4,7 @@ expression: error
 ---
 error: invalid substruct operation: struct `Foo` must be a subset of struct `Bar`
    |
-18 |     publish source substruct Foo
+16 |     publish source substruct Foo
    |             ------           ^^^ `Foo` is not a subset of `Bar`
    |             |
    |             type `Bar`

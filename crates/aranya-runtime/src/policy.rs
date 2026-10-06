@@ -83,6 +83,9 @@ pub trait PolicyStore {
     ///
     /// * `policy` - Byte slice representing a [`PolicyId`].
     fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError>;
+
+    // TODO: Pass into actions instead?
+    fn seal_ctx(&self, id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
@@ -151,6 +154,7 @@ impl From<MergeIds> for (Address, Address) {
 /// as a result.
 pub trait Policy {
     type Action<'a>;
+    type SealCtx;
     type Effect;
     type Command<'a>: Command;
 
@@ -184,6 +188,7 @@ pub trait Policy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: ActionPlacement,
+        seal_ctx: &Self::SealCtx,
     ) -> Result<(), PolicyError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
@@ -246,6 +251,13 @@ mod impls {
         fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
             PS::get_policy(self, id)
         }
+
+        fn seal_ctx(
+            &self,
+            id: PolicyId,
+        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyError> {
+            PS::seal_ctx(self, id)
+        }
     }
 
     impl<PS: PolicyStore> PolicyStore for Box<PS> {
@@ -258,6 +270,13 @@ mod impls {
 
         fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
             PS::get_policy(self, id)
+        }
+
+        fn seal_ctx(
+            &self,
+            id: PolicyId,
+        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyError> {
+            PS::seal_ctx(self, id)
         }
     }
 

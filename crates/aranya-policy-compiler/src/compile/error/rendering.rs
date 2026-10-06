@@ -5,9 +5,9 @@ use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
-    InvalidType, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm,
-    SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError, UnreachableMatchArm,
-    UnusedVariable,
+    InvalidType, MissingBaseCommand, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined,
+    RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
+    UnreachableMatchArm, UnusedValue, UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -140,6 +140,24 @@ impl Error for BadArgument {
     }
     fn description(&self) -> String {
         "bad argument".to_owned()
+    }
+}
+
+impl Error for UnusedValue {
+    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.description());
+
+        report.push(
+            title.elements([Snippet::source(input).annotation(
+                AnnotationKind::Primary
+                    .span(self.0.into())
+                    .label("expression values must be used")
+                    .highlight_source(true),
+            )]),
+        );
+    }
+    fn description(&self) -> String {
+        "unused value".to_owned()
     }
 }
 
@@ -577,5 +595,25 @@ impl Error for UnusedVariable {
     fn description(&self) -> String {
         let names: Vec<String> = self.names.iter().map(|n| format!("`{n}`")).collect();
         format!("unused variable(s): {}", names.join(", "))
+    }
+}
+
+impl Error for MissingBaseCommand {
+    fn add_group<'a>(&self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.description());
+
+        report.push(
+            title.element(
+                Snippet::source(input).annotation(
+                    AnnotationKind::Primary
+                        .span(self.command.span.into())
+                        .label("command defined here"),
+                ),
+            ),
+        );
+    }
+
+    fn description(&self) -> String {
+        format!("command {} has no base command", self.command)
     }
 }

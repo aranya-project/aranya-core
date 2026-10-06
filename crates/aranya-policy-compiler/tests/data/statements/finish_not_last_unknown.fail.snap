@@ -3,8 +3,8 @@ source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
 error: unknown error
-   |
- 8 | /         finish {
- 9 | |             delete Blah[]
-10 | |         } // finish must be the last statement in policy
-   | |_________^ `finish` must be the last statement in the block
+  |
+6 | /         finish {
+7 | |             delete Blah[]
+8 | |         } // finish must be the last statement in policy
+  | |_________^ `finish` must be the last statement in the block

@@ -80,8 +80,8 @@ impl<T: AutoKey> IntoIterator for AutoMap<T> {
     }
 }
 
-impl<T: AutoKey> FromIterator<(T::Key, T)> for AutoMap<T> {
-    fn from_iter<I: IntoIterator<Item = (T::Key, T)>>(iter: I) -> Self {
-        Self(iter.into_iter().collect())
+impl<T: AutoKey> FromIterator<T> for AutoMap<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self(iter.into_iter().map(|v| (v.name().clone(), v)).collect())
     }
 }

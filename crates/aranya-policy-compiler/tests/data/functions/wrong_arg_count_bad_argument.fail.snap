@@ -5,4 +5,4 @@ expression: error
 error: bad argument
   |
 6 |     return f()
-  |            ^ call to `f` has 0 arguments and it should have 1
+  |            ^ call to `f` has 0 arguments, but it should have 1

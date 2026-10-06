@@ -24,6 +24,7 @@ Policy {
     ],
     enums: [],
     commands: [],
+    base_commands: [],
     functions: [
         FunctionDefinition {
             identifier: "convert" @ 35..42,

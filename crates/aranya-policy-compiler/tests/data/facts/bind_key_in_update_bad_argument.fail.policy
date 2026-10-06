@@ -1,8 +1,6 @@
 fact F[i int] => {}
 command C {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {
             update F[i:?] => {} to {}

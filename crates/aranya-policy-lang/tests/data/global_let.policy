@@ -4,9 +4,6 @@ let z = true
 action foo() result[unit, unit] {
     let a = add(x, 1) or return Err(Unit)
     let c = !z
-    emit Bar {
-        a: a,
-        c: c,
-    }
+    emit Bar { a, c }
     return Ok(Unit)
 }

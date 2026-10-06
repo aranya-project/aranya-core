@@ -1,8 +1,0 @@
-command Foo {
-    fields {}
-    seal { let x = 3 }
-    open { return todo() }
-    policy {
-        finish {}
-    }
-}

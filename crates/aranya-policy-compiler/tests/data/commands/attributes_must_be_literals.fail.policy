@@ -1,7 +1,5 @@
 command A {
     attributes { i: false || true }
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {}
     }

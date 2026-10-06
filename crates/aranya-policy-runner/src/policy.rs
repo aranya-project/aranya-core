@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use aranya_afc_util::Ffi as AfcFfi;
 use aranya_crypto::{DeviceId, keystore::fs_keystore};
-use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
 use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
@@ -17,9 +16,8 @@ type KS = fs_keystore::Store;
 // NOTE(chip): It is important that these are the same FFIs in the same
 // order as `create_vmpolicy()` below. Failure to uphold this invariant
 // will cause VM execution to break in weird ways.
-pub const FFI_MODULES: [ModuleSchema<'static>; 6] = [
+pub const FFI_MODULES: [ModuleSchema<'static>; 5] = [
     AfcFfi::<KS>::SCHEMA,
-    CryptoFfi::<KS>::SCHEMA,
     DeviceFfi::SCHEMA,
     EnvelopeFfi::SCHEMA,
     IdamFfi::<KS>::SCHEMA,
@@ -39,7 +37,6 @@ pub fn create_vmpolicy<CE: aranya_crypto::Engine>(
     // will cause VM execution to break in weird ways.
     let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
         Box::from(AfcFfi::new(keystore.try_clone()?)),
-        Box::from(CryptoFfi::new(keystore.try_clone()?)),
         Box::from(DeviceFfi::new(device_id)),
         Box::from(EnvelopeFfi),
         Box::from(IdamFfi::new(keystore)),
