@@ -64,10 +64,14 @@ pub fn main() -> ExitCode {
     };
     let compiler = Compiler::new(&ast)
         .stub_ffi(args.stub_ffi)
-        .analyze_obligations(args.check_obligations)
         .max_exit_paths(args.max_exit_paths)
         .max_paths(args.max_paths);
-    let (module, warnings) = match compiler.compile_with_diagnostics() {
+    let compiled = if args.check_obligations {
+        compiler.compile_with_diagnostics()
+    } else {
+        compiler.compile().map(|module| (module, Vec::new()))
+    };
+    let (module, warnings) = match compiled {
         Ok(m) => m,
         Err(e) => {
             println!("{e}");

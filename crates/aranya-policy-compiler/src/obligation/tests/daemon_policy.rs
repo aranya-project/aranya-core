@@ -42,7 +42,6 @@ fn warnings_in(text: &str) -> (String, Vec<ObligationWarning>) {
     let (_module, warnings) = Compiler::new(&ast)
         .ffi_modules(&FFI_MODULES)
         .debug(true)
-        .analyze_obligations(true)
         .compile_with_diagnostics()
         .unwrap_or_else(|e| panic!("{e}"));
     (ast.text, warnings)
@@ -72,6 +71,25 @@ fn daemon_policy_warnings() {
     insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => "data" }, {
         insta::assert_snapshot!("daemon-policy-warnings", summary(&text, &warnings));
     });
+}
+
+#[test]
+fn analysis_does_not_change_the_module() {
+    // The CLI runs the analysis only with `--check-obligations`, so the
+    // module it writes must be the same either way.
+    let ast = parse_policy_document(POLICY).unwrap_or_else(|e| panic!("{e}"));
+    let module = Compiler::new(&ast)
+        .ffi_modules(&FFI_MODULES)
+        .debug(true)
+        .compile()
+        .unwrap_or_else(|e| panic!("{e}"));
+    let (analyzed, _) = Compiler::new(&ast)
+        .ffi_modules(&FFI_MODULES)
+        .debug(true)
+        .compile_with_diagnostics()
+        .unwrap_or_else(|e| panic!("{e}"));
+    // Not `assert_eq!`, which would print both modules.
+    assert!(analyzed == module, "the analysis changed the module");
 }
 
 /// Each case injects a bug the policy's guards prevent, by dropping a

@@ -18,7 +18,6 @@ fn compiles(text: &str) -> bool {
     Compiler::new(&policy)
         .debug(true)
         .allow_baseless(true)
-        .analyze_obligations(true)
         .compile_with_diagnostics()
         .is_ok()
 }

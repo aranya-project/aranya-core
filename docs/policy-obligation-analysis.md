@@ -839,15 +839,14 @@ checks clear every remaining warning, as described under
 
 ## Interface
 
-- `Compiler::analyze_obligations(bool)` enables the analysis. It is off
-  by default.
+- `Compiler::compile_with_diagnostics()` runs the analysis and returns
+  the compiled module with the warnings. `Compiler::compile()` neither
+  builds nor runs the analyzer, so no call can run the analysis and lose
+  its warnings. Both return the same module.
 - `Compiler::max_exit_paths(usize)` sets the most exits recorded for one
   pure function. The default is `DEFAULT_MAX_EXIT_PATHS`, 64.
 - `Compiler::max_paths(usize)` sets the most distinct paths kept at one
   point before they are joined. The default is `DEFAULT_MAX_PATHS`, 64.
-- The analyzer is only built when the analysis is enabled.
-- `Compiler::compile_with_diagnostics()` returns the compiled module and
-  the warnings. `Compiler::compile()` is unchanged.
 - `ObligationWarning` holds the span, message, label, span notes, and
   footnotes of a warning. `ObligationWarning::render(source)` renders it
   with `annotate-snippets`, like compiler errors.
@@ -877,9 +876,10 @@ without a message.
 ## Testing
 
 The unit tests in `crates/aranya-policy-compiler/src/obligation/tests/`
-compile small policies with the analysis enabled and assert on the
-warnings. The shared helpers live in `obligation/tests.rs`, and each
-file covers one feature, in the order below:
+compile small policies with `Compiler::compile_with_diagnostics()` and
+assert on the warnings. The shared helpers live in
+`obligation/tests.rs`, and each file covers one feature, in the order
+below:
 
 - each obligation passing with its observation and warning without it;
 - path sensitivity, with a check on only one branch;
@@ -1109,7 +1109,8 @@ the only thing standing between the prover and a wrong answer.
 ported to the current syntax by `port-daemon-policy.py` next to it. It
 is a test artifact, not the production policy, and its preamble lists
 what the port changed. It compiles against the daemon's real FFI
-schemas, which are dev-dependencies of the compiler. Two tests use it:
+schemas, which are dev-dependencies of the compiler. Three tests use
+it:
 
 - `daemon_policy_warnings` keeps its warnings in a snapshot, one line
   per warning followed by its calling contexts, so a change in
@@ -1118,7 +1119,11 @@ schemas, which are dev-dependencies of the compiler. Two tests use it:
   dropping a guard, pointing it at the wrong key, or inverting a
   branch. Each must add a warning at the mutation the guard protected.
   These are the analysis finding real bugs in real code, so a precision
-  change that silences one is unsound.
+  change that silences one is unsound;
+- `analysis_does_not_change_the_module` compiles it with and without
+  the analysis and checks that the modules match. The binary runs the
+  analysis only with `--check-obligations`, so the module it writes
+  must not depend on that flag.
 
 Measured on 2026-10-05, the analysis added about 11 ms to a 5 ms
 debug-build compile, and about 2 ms to a 1 ms release-build one. It

@@ -2333,7 +2333,9 @@ struct Config {
     stub_ffi: bool,
     /// Allows commands without a base command
     allow_baseless: bool,
-    /// Run the obligation analysis on command policy/recall blocks
+    /// Run the obligation analysis on command policy/recall blocks. Only
+    /// [`Compiler::compile_with_diagnostics`] sets this, since only it
+    /// returns the warnings.
     analyze_obligations: bool,
     /// The most exits the obligation analysis records for one pure
     /// function before treating calls to it as unknown
@@ -2399,16 +2401,8 @@ impl<'a> Compiler<'a> {
         self
     }
 
-    /// Enables or disables the obligation analysis (see
-    /// `docs/policy-obligation-analysis.md`). Warnings are reported by
-    /// [`Compiler::compile_with_diagnostics`].
-    #[must_use]
-    pub fn analyze_obligations(mut self, flag: bool) -> Self {
-        self.config.analyze_obligations = flag;
-        self
-    }
-
-    /// Consumes the builder to create a [`Module`]
+    /// Consumes the builder to create a [`Module`]. This doesn't run the
+    /// obligation analysis; [`Compiler::compile_with_diagnostics`] does.
     pub fn compile(self) -> Result<Module, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
@@ -2434,12 +2428,13 @@ impl<'a> Compiler<'a> {
         self
     }
 
-    /// Like [`Compiler::compile`], but also returns the warnings produced
-    /// by the obligation analysis (empty unless
-    /// [`Compiler::analyze_obligations`] is enabled).
+    /// Like [`Compiler::compile`], but also runs the obligation analysis
+    /// (see `docs/policy-obligation-analysis.md`) and returns its
+    /// warnings. The module is the same as [`Compiler::compile`]'s.
     pub fn compile_with_diagnostics(
-        self,
+        mut self,
     ) -> Result<(Module, Vec<ObligationWarning>), CompileError> {
+        self.config.analyze_obligations = true;
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
         // A finish function reached from several commands produces the

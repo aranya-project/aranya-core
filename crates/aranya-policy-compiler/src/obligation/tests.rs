@@ -44,7 +44,6 @@ fn warnings_for(text: &str) -> Vec<ObligationWarning> {
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
         .allow_baseless(true)
-        .analyze_obligations(true)
         .compile_with_diagnostics()
         .expect("compile");
     warnings
@@ -112,7 +111,6 @@ fn warnings_with_cap(text: &str, cap: usize) -> Vec<ObligationWarning> {
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
         .allow_baseless(true)
-        .analyze_obligations(true)
         .max_exit_paths(cap)
         .compile_with_diagnostics()
         .expect("compile");
@@ -125,7 +123,6 @@ fn warnings_with_paths(text: &str, max_paths: usize) -> Vec<ObligationWarning> {
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
         .allow_baseless(true)
-        .analyze_obligations(true)
         .max_paths(max_paths)
         .compile_with_diagnostics()
         .expect("compile");

@@ -19,7 +19,6 @@ fn rendered_warning_shows_label_note_and_help() {
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
         .allow_baseless(true)
-        .analyze_obligations(true)
         .compile_with_diagnostics()
         .expect("compile");
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
@@ -38,24 +37,6 @@ fn rendered_warning_shows_label_note_and_help() {
 }
 
 #[test]
-fn disabled_analysis_reports_nothing() {
-    let text = command(
-        r#"
-        finish {
-            create Account[user: this.user]=>{balance: 0}
-        }
-        "#,
-    );
-    let policy = parse_policy_str(&text, Version::V2).expect("parse");
-    let (_module, warnings) = Compiler::new(&policy)
-        .debug(true)
-        .allow_baseless(true)
-        .compile_with_diagnostics()
-        .expect("compile");
-    assert_eq!(warnings, vec![], "expected no warnings when disabled");
-}
-
-#[test]
 fn fact_read_in_a_block_statement_gets_a_note() {
     // The `exists` is in an `if` statement inside a block compared with 1,
     // which the analysis doesn't interpret, so the warning points at it.
@@ -69,7 +50,6 @@ fn fact_read_in_a_block_statement_gets_a_note() {
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
         .allow_baseless(true)
-        .analyze_obligations(true)
         .compile_with_diagnostics()
         .expect("compile");
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");

@@ -84,6 +84,13 @@ const WARNING: &str =
 const DENIED: &str = "error: aborting due to 1 obligation warning (--deny-warnings)";
 
 #[test]
+fn no_analysis_without_check_obligations() {
+    let (output, _) = compile("unanalyzed", UNCHECKED, &["--no-validate"]);
+    assert!(output.status.success(), "{output:?}");
+    assert!(!stderr(&output).contains(WARNING), "{output:?}");
+}
+
+#[test]
 fn warnings_do_not_fail_by_default() {
     let (output, out) = compile(
         "default",
