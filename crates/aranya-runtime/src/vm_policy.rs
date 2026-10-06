@@ -117,15 +117,15 @@ use core::fmt;
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, Persistence, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
-    ffi_contract_validate,
+    MachineStack, Module, Persistence, PolicyContext, RunState, Stack as _, Struct, Value,
+    ast::Identifier, ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
 
 use crate::{
     ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, NullSink, Perspective,
-    Prior, Priority,
+    PolicyId, Prior, Priority,
     command::{CmdId, Command},
     policy::{Policy, PolicyError, Sink},
 };
@@ -157,6 +157,7 @@ macro_rules! vm_action {
         $crate::VmAction {
             name: ::aranya_policy_vm::ident!(stringify!($name)),
             args: [$(::aranya_policy_vm::Value::from($arg)),*].as_slice().into(),
+            policy: ::core::option::Option::None,
         }
     };
 }
@@ -184,6 +185,125 @@ macro_rules! vm_effect {
             ),*],
         }
     };
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("duplicate ffi name: {0}")]
+pub struct DuplicateFfiName(Identifier);
+
+#[derive(Debug, thiserror::Error)]
+#[error("missing ffi name: {0}")]
+pub struct MissingFfiName(Identifier);
+
+pub struct VmPolicyStore<CE: aranya_crypto::Engine> {
+    engine: CE,
+    seal_ctx: SealCtx<CE>,
+    ffis: FfiSet<CE>,
+    policies: BTreeMap<PolicyId, VmPolicy<CE>>,
+}
+
+impl<CE: aranya_crypto::Engine> VmPolicyStore<CE> {
+    pub fn new(engine: CE, ffis: FfiSet<CE>, seal_ctx: SealCtx<CE>) -> Self {
+        Self {
+            engine,
+            seal_ctx,
+            ffis,
+            policies: BTreeMap::new(),
+        }
+    }
+}
+
+impl<CE: aranya_crypto::Engine + Clone> crate::PolicyStore for VmPolicyStore<CE> {
+    type Policy = VmPolicy<CE>;
+    type Effect = VmEffect;
+
+    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        use aranya_crypto::id::IdExt as _;
+
+        let id = PolicyId::new::<<CE as aranya_crypto::Engine>::CS>(
+            b"VmPolicyId-v1",
+            core::iter::once(policy),
+        );
+
+        if let alloc::collections::btree_map::Entry::Vacant(e) = self.policies.entry(id) {
+            let module = Module::read_from_slice(policy).expect("TODO");
+            let ffi_names = match &module.data {
+                aranya_policy_vm::ModuleData::V0(_) => todo!("error unsupported"),
+                aranya_policy_vm::ModuleData::V1(m) => {
+                    m.contract.ffis.iter().map(|f| f.name.clone())
+                }
+            };
+            let ffis = self.ffis.select(ffi_names).expect("TODO");
+            let machine = Machine::from_module(module).expect("TODO");
+            let policy = VmPolicy::new(machine, self.engine.clone(), ffis).expect("TODO");
+            e.insert(policy);
+        }
+
+        Ok(id)
+    }
+
+    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+        self.policies.get(&id).ok_or(PolicyError::InternalError) // which error?
+    }
+
+    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        Ok(&self.seal_ctx)
+    }
+}
+
+pub struct FfiSet<CE> {
+    inner: BTreeMap<Identifier, Arc<dyn FfiCallable<CE> + Send + 'static>>,
+}
+
+impl<CE> FfiSet<CE> {
+    pub const fn new() -> Self {
+        Self {
+            inner: BTreeMap::new(),
+        }
+    }
+
+    pub fn add(
+        &mut self,
+        ffi: impl FfiCallable<CE> + Send + 'static,
+    ) -> Result<(), DuplicateFfiName> {
+        use alloc::collections::btree_map::Entry;
+        match self.inner.entry(ffi.schema().name) {
+            Entry::Occupied(e) => Err(DuplicateFfiName(e.get().schema().name)),
+            Entry::Vacant(e) => {
+                e.insert(Arc::new(ffi));
+                Ok(())
+            }
+        }
+    }
+
+    pub fn with(
+        mut self,
+        ffi: impl FfiCallable<CE> + Send + 'static,
+    ) -> Result<Self, DuplicateFfiName> {
+        self.add(ffi)?;
+        Ok(self)
+    }
+
+    fn select(
+        &self,
+        names: impl IntoIterator<Item = Identifier>,
+    ) -> Result<Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>, MissingFfiName> {
+        names
+            .into_iter()
+            .map(|name| {
+                self.inner
+                    .get(name.as_ref())
+                    .cloned()
+                    .ok_or(MissingFfiName(name))
+            })
+            .collect()
+    }
+}
+
+impl<CE> Default for FfiSet<CE> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// A [Policy] implementation that uses the Policy VM.
@@ -433,6 +553,8 @@ pub struct VmAction<'a> {
     pub name: Identifier,
     /// The arguments of the action.
     pub args: Cow<'a, [Value]>,
+    /// Policy bytes for init (and upgrade?).
+    pub policy: Option<&'a [u8]>,
 }
 
 /// A partial version of [`VmEffect`] containing only the data. Created by
@@ -613,7 +735,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         action_placement: ActionPlacement,
         seal_ctx: &SealCtx<CE>,
     ) -> Result<(), PolicyError> {
-        let VmAction { name, args } = action;
+        let VmAction { name, args, policy } = action;
 
         let def = self.machine.action_defs.get(&name).ok_or_else(|| {
             error!("action not found");
@@ -699,31 +821,30 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         let priority = self.get_command_priority(&command_name).into();
 
                         let parent_id;
-                        let policy;
-                        match parent {
+                        let policy = match parent {
                             Prior::None => {
                                 parent_id = CmdId::default();
                                 // TODO(chip): where does the policy value come from?
-                                policy = Some(&[0u8; 8][..]);
                                 if !matches!(priority, Priority::Init) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
                                     return Err(PolicyError::InternalError);
                                 }
+                                Some(policy.unwrap_or(&[0u8; 8]))
                             }
                             Prior::Single(p) => {
                                 parent_id = p.id;
-                                policy = None;
                                 if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
                                     return Err(PolicyError::InternalError);
                                 }
+                                None
                             }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
-                        }
+                        };
 
                         let (payload, envelope) =
                             self.seal_command(&command_struct, parent_id, seal_ctx)?;

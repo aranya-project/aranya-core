@@ -21,7 +21,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 
-mod client;
 pub mod id;
 
 #[doc(inline)]
@@ -66,12 +65,9 @@ pub mod policy {
 
     #[doc(inline)]
     pub use aranya_runtime::vm_policy::{
-        FfiCallable, SealCtx as VmSealCtx, VmAction, VmEffect, VmEffectData, VmPolicy,
-        VmPolicyError,
+        FfiCallable, FfiSet, SealCtx as VmSealCtx, VmAction, VmEffect, VmEffectData, VmPolicy,
+        VmPolicyError, VmPolicyStore,
     };
-
-    #[doc(inline)]
-    pub use crate::client::VmPolicyStore;
 }
 
 pub mod crypto {
