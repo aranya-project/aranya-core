@@ -853,7 +853,10 @@ checks clear every remaining warning, as described under
   with `annotate-snippets`, like compiler errors.
 - The `policy-compiler` binary takes `--check-obligations`,
   `--max-exit-paths <N>`, and `--max-paths <N>`, and prints warnings to
-  stderr.
+  stderr. With `--deny-warnings`, which requires `--check-obligations`,
+  any warning makes it exit with an error without writing the output
+  file, so CI can fail on warnings.
+  `crates/aranya-policy-compiler/tests/cli.rs` checks its exit status.
 
 ```bash
 cargo run -p aranya-policy-compiler --bin policy-compiler -- \
@@ -865,6 +868,11 @@ On the core example policy, this reports one real bug: `SetCounter`
 creates `Counter[name: this.name]` without checking that it does not
 exist. The init command's creates and `IncrementCounter`'s update are
 proven.
+
+The binary loads no FFI modules, so a policy that uses them needs
+`--stub-ffi`. Pass `--no-validate` as well: the binary reads the
+validator's result backwards, so a policy that validates cleanly fails
+without a message.
 
 ## Testing
 

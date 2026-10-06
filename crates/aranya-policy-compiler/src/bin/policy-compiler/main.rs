@@ -27,6 +27,10 @@ struct Args {
     /// without a prior proof that the fact does not exist)
     #[arg(long)]
     check_obligations: bool,
+    /// Fail, without writing the output file, if the obligation analysis
+    /// reports any warnings
+    #[arg(long, requires = "check_obligations")]
+    deny_warnings: bool,
     /// The most exit paths the obligation analysis records for one pure
     /// function before treating calls to it as unknown
     #[arg(long, default_value_t = aranya_policy_compiler::obligation::DEFAULT_MAX_EXIT_PATHS)]
@@ -72,6 +76,13 @@ pub fn main() -> ExitCode {
     };
     for warning in &warnings {
         eprintln!("{}", warning.render(&ast.text));
+    }
+
+    if args.deny_warnings && !warnings.is_empty() {
+        let n = warnings.len();
+        let s = if n == 1 { "" } else { "s" };
+        eprintln!("error: aborting due to {n} obligation warning{s} (--deny-warnings)");
+        return ExitCode::FAILURE;
     }
 
     if !args.no_validate && !validate(&module) {
