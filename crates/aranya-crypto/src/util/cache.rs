@@ -131,3 +131,143 @@ impl<T> Drop for CacheCell<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{
+        sync::{Barrier, atomic::AtomicUsize},
+        thread,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_simple() {
+        #![expect(clippy::redundant_clone, reason = "testing clone")]
+
+        let cell = CacheCell::<i32>::new();
+
+        // Starts empty.
+        assert_eq!(cell.get(), None);
+
+        // Can initialize and get back the value.
+        assert_eq!(cell.get_or_init(|| 42), 42);
+        assert_eq!(*cell.get().unwrap(), 42);
+
+        // Doesn't reinitialize.
+        assert_eq!(cell.get_or_init(|| 0), 42);
+        // Still has old value.
+        assert_eq!(*cell.get().unwrap(), 42);
+
+        // Cloning after init clones value.
+        assert_eq!(*cell.clone().get().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_concurrent_init() {
+        let cell = CacheCell::<i32>::new();
+        // Barrier to ensure concurrent initialization.
+        let b1 = Barrier::new(2);
+        // Barrier to ensure thread 1 finishes first.
+        let b2 = Barrier::new(2);
+        // Thread 1 and 2 try to initialize the cell concurrently.
+        // Each will receive their own created output value.
+        thread::scope(|s| {
+            s.spawn(|| {
+                let val = cell.get_or_init(|| {
+                    // Wait to ensure both threads have called `get_or_init`.
+                    b1.wait();
+                    1
+                });
+                assert_eq!(val, 1);
+                // Let thread 2 know we've finished.
+                b2.wait();
+            });
+            s.spawn(|| {
+                let val = cell.get_or_init(|| {
+                    // Wait to ensure both threads have called `get_or_init`.
+                    b1.wait();
+                    // Wait to let thread 1 finish first.
+                    b2.wait();
+                    2
+                });
+                assert_eq!(val, 2);
+            });
+        });
+        // Since thread 1 finished first, the cell will hold 1.
+        let val = *cell.get().unwrap();
+        assert_eq!(val, 1);
+    }
+
+    #[test]
+    fn test_concurrent_clone() {
+        let cell = CacheCell::<i32>::new();
+        let b1 = Barrier::new(2);
+        let b2 = Barrier::new(2);
+        let b3 = Barrier::new(2);
+        thread::scope(|s| {
+            s.spawn(|| {
+                let val = cell.get_or_init(|| {
+                    b1.wait();
+                    b2.wait();
+                    1
+                });
+                assert_eq!(val, 1);
+                b3.wait();
+            });
+            s.spawn(|| {
+                b1.wait();
+                // Clone during init should create empty cell.
+                let cloned = cell.clone();
+                b2.wait();
+                // Wait for after first cell has been initialized.
+                b3.wait();
+                assert_eq!(cloned.get(), None);
+            });
+        });
+    }
+
+    #[test]
+    fn test_does_not_drop_empty() {
+        struct Fragile;
+        impl Drop for Fragile {
+            fn drop(&mut self) {
+                panic!("Dropped Fragile");
+            }
+        }
+        drop(CacheCell::<Fragile>::new());
+    }
+
+    #[test]
+    fn test_drop_count() {
+        #[derive(Clone)]
+        struct Counter<'a>(&'a AtomicUsize);
+        impl Drop for Counter<'_> {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let count = AtomicUsize::new(0);
+        let cell = CacheCell::<Counter<'_>>::new();
+        let val = cell.get_or_init(|| Counter(&count));
+        assert_eq!(count.load(Ordering::Relaxed), 0);
+        drop(val);
+        assert_eq!(count.load(Ordering::Relaxed), 1);
+        drop(cell);
+        assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn test_send_sync() {
+        fn is_send<T: Send>() {}
+        fn is_sync<T: Sync>() {}
+        fn cache_cell_is_send<T: Send>() {
+            is_send::<CacheCell<T>>();
+        }
+        fn cache_cell_is_sync<T: Send + Sync>() {
+            is_sync::<CacheCell<T>>();
+        }
+        cache_cell_is_send::<core::cell::Cell<()>>();
+        cache_cell_is_sync::<()>();
+    }
+}
