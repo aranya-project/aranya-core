@@ -32,7 +32,7 @@ pub struct VmProtocolData<'a> {
 pub struct VmProtocol<'a> {
     pub id: CmdId,
     pub parent: Prior<Address>,
-    pub policy: Option<[u8; 8]>,
+    pub policy: Option<&'a [u8]>,
     /// Serialized [`VmProtocolData`].
     pub data: &'a [u8],
 }

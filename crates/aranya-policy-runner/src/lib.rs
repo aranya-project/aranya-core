@@ -320,7 +320,7 @@ impl PolicyRunner {
             }
             None => {
                 tracing::debug!("creating new graph");
-                (provider.new_perspective(PolicyId::new(0)), None)
+                (provider.new_perspective(PolicyId::default()), None)
             }
         };
 
