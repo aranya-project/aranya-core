@@ -604,6 +604,8 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// Calls an action, evaluating to the action's return value.
+    ActionCall(FunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
     /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
@@ -689,7 +691,9 @@ impl ExprKind {
             }
 
             // Function call
-            (Self::FunctionCall(a), Self::FunctionCall(b)) | (Self::Recall(a), Self::Recall(b)) => {
+            (Self::FunctionCall(a), Self::FunctionCall(b))
+            | (Self::ActionCall(a), Self::ActionCall(b))
+            | (Self::Recall(a), Self::Recall(b)) => {
                 a.identifier.matches(&b.identifier)
                     && a.arguments.len() == b.arguments.len()
                     && a.arguments
@@ -1172,7 +1176,7 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Calls an action
+    /// Calls an non-returning action. For returning actions, see [`ExprKind::ActionCall`].
     ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
     /// Valid only in actions.

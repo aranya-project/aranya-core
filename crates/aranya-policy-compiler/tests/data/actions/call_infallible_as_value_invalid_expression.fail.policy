@@ -1,0 +1,6 @@
+action infallible() {}
+
+action foo() {
+    // there's no value on the stack to assign
+    let x = action infallible()
+}

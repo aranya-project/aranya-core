@@ -2,7 +2,10 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: bad argument
+error: invalid type: bool
   |
+1 | action bar(n int) {}
+  |            ----- expected because of this
+2 | action foo() {
 3 |     action bar(false)
-  |     ^^^^^^^^^^^^^^^^^ invalid argument type for `n`: expected `int`, but got `bool`
+  |                ^^^^^ expected `int` but found `bool`
