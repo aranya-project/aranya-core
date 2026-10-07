@@ -939,23 +939,7 @@ impl ChunkParser<'_> {
                         let s = pc.consume_ident(self)?;
                         ExprKind::Cast(Box::new(lhs), s)
                     },
-                    Rule::try_op => {
-                        // `?` is part of the call form, so its operand must be a
-                        // call - or another `?`, as in `f(x)??`.
-                        if !matches!(
-                            lhs.inner,
-                            ExprKind::FunctionCall(_)
-                                | ExprKind::ForeignFunctionCall(_)
-                                | ExprKind::Try(_)
-                        ) {
-                            return Err(ParseError::new(
-                                ParseErrorKind::Expression,
-                                String::from("the `?` operator can only follow a call"),
-                                Some(op_span),
-                            ));
-                        }
-                        ExprKind::Try(Box::new(lhs))
-                    },
+                    Rule::try_op => ExprKind::Try(Box::new(lhs)),
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad postfix: {:?}", op.as_rule()),

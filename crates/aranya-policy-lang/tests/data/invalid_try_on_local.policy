@@ -1,4 +1,0 @@
-function f(x int) result[int, string] {
-    let n = x?
-    return Ok(n)
-}

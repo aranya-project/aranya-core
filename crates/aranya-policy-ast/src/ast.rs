@@ -647,7 +647,6 @@ pub enum ExprKind {
     /// Match expression
     Match(Box<MatchExpression>),
     /// `expr?` — unwrap a `result[T, E]`, propagating `Err` to the caller.
-    /// The operand is always a call, or another `Try`.
     Try(Box<Expression>),
 }
 

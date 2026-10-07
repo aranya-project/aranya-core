@@ -274,8 +274,7 @@ dot = { "." ~ identifier }
 substruct = { "substruct" ~ identifier }
 cast = { "as" ~ identifier }
 is = { "is" ~ (none | some) }
-// The try operator propagates the error out of a `result[T, E]`. Its
-// operand must be a call.
+// The try operator propagates the error out of a `result[T, E]`.
 try_op = { "?" }
 postfix_op = _{
     | dot
