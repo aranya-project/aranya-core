@@ -49,7 +49,6 @@ extern crate alloc;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::ToString as _,
     vec,
     vec::Vec,
 };
@@ -95,28 +94,24 @@ use crate::{
 /// `"payload"` is the only name those tests ever write.
 const TEST_FACT_NAMES: &[&str] = &["payload", "Stuff", "seq", "stuff"];
 
-fn default_repeat() -> u64 {
-    1
+const DEFAULT_MAX_CASCADE_DEPTH: u64 = 100;
+
+const DEFAULT_REPEAT: u64 = 1;
+const DEFAULT_MAX_SYNCS: u64 = 1;
+const DEFAULT_NOTIFY_INTERVAL: u64 = 1;
+const DEFAULT_KEY_RANGE: u64 = 1;
+const DEFAULT_SYNC_INTERVAL: u64 = 1;
+
+fn constant<const VALUE: u64>() -> u64 {
+    VALUE
 }
 
-fn default_max_syncs() -> u64 {
-    1
+fn is<const VALUE: u64>(val: &u64) -> bool {
+    *val == VALUE
 }
 
-fn default_max_cascade_depth() -> u64 {
-    100
-}
-
-fn default_notify_interval() -> u64 {
-    1
-}
-
-fn default_key_range() -> u64 {
-    1
-}
-
-fn default_sync_interval() -> u64 {
-    1
+fn is_default<T: Default + PartialEq>(val: &T) -> bool {
+    *val == T::default()
 }
 
 /// Tracks per-subscriber state for hello sync debouncing.
@@ -137,15 +132,18 @@ struct HelloSub {
 pub enum SyncMethod {
     /// Explicit poll-based sync (existing behavior).
     Poll {
-        /// Probability weight for generating a sync action.
-        sync_chance: u64,
         /// Probability weight for generating a command action.
         add_command_chance: u64,
+        /// Probability weight for generating a sync action.
+        sync_chance: u64,
     },
     /// Hello notification-driven sync.
     HelloSync {
         /// Notify after this many graph changes (debounce).
-        #[serde(default = "default_notify_interval")]
+        #[serde(
+            default = "constant::<DEFAULT_NOTIFY_INTERVAL>",
+            skip_serializing_if = "is::<DEFAULT_NOTIFY_INTERVAL>"
+        )]
         notify_interval: u64,
         /// How clients are connected for hello notifications.
         #[serde(default)]
@@ -159,7 +157,7 @@ pub enum SyncMethod {
         /// If true, client 0 participates in the round-robin distribution.
         /// If false, client 0 is excluded and commands are split across
         /// clients 1..N only.
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         add_commands_to_client_zero: bool,
     },
     /// Deterministic tick-driven generation. On each tick, every client
@@ -176,7 +174,10 @@ pub enum SyncMethod {
         write_intervals: Vec<u64>,
         /// Bidirectional pairwise sync every `sync_interval` ticks.
         /// Ignored when `hello_notify_interval` is set.
-        #[serde(default = "default_sync_interval")]
+        #[serde(
+            default = "constant::<DEFAULT_SYNC_INTERVAL>",
+            skip_serializing_if = "is::<DEFAULT_SYNC_INTERVAL>"
+        )]
         sync_interval: u64,
         /// If set, sync via hello notifications instead of explicit
         /// per-tick pair syncs: the peers subscribe to each other with
@@ -415,24 +416,36 @@ fn process_hello_notifications<SP: StorageProvider>(
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum TestRule {
     AddClient {
-        id: u64,
+        #[serde(alias = "id")]
+        client: u64,
     },
     NewGraph {
+        #[serde(alias = "id")]
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         client: u64,
-        id: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         policy: u64,
     },
     RemoveGraph {
+        #[serde(alias = "id")]
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         client: u64,
-        id: u64,
     },
     Sync {
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
         client: u64,
         from: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         must_send: Option<usize>,
+        #[serde(default, skip_serializing_if = "is_default")]
         must_receive: Option<usize>,
-        #[serde(default = "default_max_syncs")]
+        #[serde(
+            default = "constant::<DEFAULT_MAX_SYNCS>",
+            skip_serializing_if = "is::<DEFAULT_MAX_SYNCS>"
+        )]
         max_syncs: u64,
     },
     AddExpectation(u64),
@@ -441,27 +454,33 @@ pub enum TestRule {
         repeat: u64,
     },
     ActionSet {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         key: u64,
         value: u64,
-        #[serde(default = "default_repeat")]
+        #[serde(
+            default = "constant::<DEFAULT_REPEAT>",
+            skip_serializing_if = "is::<DEFAULT_REPEAT>"
+        )]
         repeat: u64,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         priority: u32,
     },
     ActionDelete {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         key: u64,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         priority: u32,
     },
     ActionNoOp {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         nonce: u64,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         priority: u32,
     },
     /// Ingests a command whose rule writes `payload[poison_key] =
@@ -474,62 +493,74 @@ pub enum TestRule {
     /// rule's writes are reverted, so nothing from the rejected command may
     /// reach committed fact state.
     IngestPoisonThenSet {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         poison_key: u64,
         poison_value: u64,
         key: u64,
         value: u64,
     },
     CompareGraphs {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         clienta: u64,
         clientb: u64,
-        graph: u64,
         equal: bool,
     },
     PrintGraph {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
     },
     IgnoreExpectations {
         ignore: bool,
     },
     GenerateGraph {
-        clients: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        clients: u64,
         commands: u64,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         policy: u64,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         sync_client_zero: bool,
         sync_method: SyncMethod,
         /// Percent (0-100) of generated commands that delete a fact.
-        #[serde(default, alias = "delete_chance")]
+        #[serde(alias = "delete_chance")]
+        #[serde(default, skip_serializing_if = "is_default")]
         delete_proportion: u8,
         /// Percent (0-100) of generated commands that are no-ops (no fact
         /// mutation). Produces segments with empty fact maps.
-        #[serde(default, alias = "noop_chance")]
+        #[serde(alias = "noop_chance")]
+        #[serde(default, skip_serializing_if = "is_default")]
         noop_proportion: u8,
         /// Fact keys are drawn from `0..key_range`.
-        #[serde(default = "default_key_range")]
+        #[serde(
+            default = "constant::<DEFAULT_KEY_RANGE>",
+            skip_serializing_if = "is::<DEFAULT_KEY_RANGE>"
+        )]
         key_range: u64,
         /// Command priorities are drawn from `0..=max_priority`.
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         max_priority: u32,
         /// Seed for the RNG driving generation, making the run
         /// repeatable. When absent, a random seed is drawn and
         /// reported so a failure can still be replayed.
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_default")]
         seed: Option<u64>,
     },
     SetupClientsAndGraph {
-        clients: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        clients: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         policy: u64,
     },
     MaxCut {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         max_cut: MaxCut,
     },
     VerifyGraphIds {
@@ -537,255 +568,36 @@ pub enum TestRule {
         ids: Vec<u64>,
     },
     ConvergeAll {
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
         clients: u64,
         max_syncs: u64,
     },
     HelloSubscribe {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         client: u64,
         peer: u64,
-        graph: u64,
-        #[serde(default = "default_notify_interval")]
+        #[serde(
+            default = "constant::<DEFAULT_NOTIFY_INTERVAL>",
+            skip_serializing_if = "is::<DEFAULT_NOTIFY_INTERVAL>"
+        )]
         notify_interval: u64,
     },
     HelloUnsubscribe {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         client: u64,
         peer: u64,
-        graph: u64,
     },
     /// Asserts a client's graph holds exactly `count` heads. With lazy merges a
     /// divergent graph holds multiple heads; this checks the lazy property.
     HeadCount {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         count: usize,
     },
-}
-
-impl Display for TestRule {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: None,
-                must_receive: None,
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, max_syncs,
-            ),
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: None,
-                must_receive: Some(must_receive),
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_receive, max_syncs,
-            ),
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: Some(must_send),
-                must_receive: None,
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, max_syncs,
-            ),
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: Some(must_send),
-                must_receive: Some(must_receive),
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, must_receive, max_syncs,
-            ),
-            Self::ActionSet {
-                client,
-                graph,
-                key,
-                value,
-                repeat,
-                priority,
-            } => write!(
-                f,
-                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {}, "priority": {} }} }},"#,
-                graph, client, key, value, repeat, priority,
-            ),
-            Self::ActionDelete {
-                client,
-                graph,
-                key,
-                priority,
-            } => write!(
-                f,
-                r#"{{"ActionDelete": {{ "graph": {}, "client": {}, "key": {}, "priority": {} }} }},"#,
-                graph, client, key, priority,
-            ),
-            Self::ActionNoOp {
-                client,
-                graph,
-                nonce,
-                priority,
-            } => write!(
-                f,
-                r#"{{"ActionNoOp": {{ "graph": {}, "client": {}, "nonce": {}, "priority": {} }} }},"#,
-                graph, client, nonce, priority,
-            ),
-            Self::IngestPoisonThenSet {
-                client,
-                graph,
-                poison_key,
-                poison_value,
-                key,
-                value,
-            } => write!(
-                f,
-                r#"{{"IngestPoisonThenSet": {{ "client": {}, "graph": {}, "poison_key": {}, "poison_value": {}, "key": {}, "value": {} }} }},"#,
-                client, graph, poison_key, poison_value, key, value,
-            ),
-            Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
-            Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
-            Self::AddExpectations {
-                expectation,
-                repeat,
-            } => write!(
-                f,
-                r#"{{"AddExpectations": {{ "expectation": {}, "repeat": {} }} }},"#,
-                expectation, repeat,
-            ),
-            Self::CompareGraphs {
-                clienta,
-                clientb,
-                graph,
-                equal,
-            } => write!(
-                f,
-                r#"{{"CompareGraphs": {{ "clienta": {}, "clientb": {}, "graph": {}, "equal": {} }} }},"#,
-                clienta, clientb, graph, equal,
-            ),
-            Self::GenerateGraph {
-                clients,
-                graph,
-                commands,
-                policy,
-                sync_client_zero,
-                sync_method,
-                delete_proportion,
-                noop_proportion,
-                key_range,
-                max_priority,
-                seed,
-            } => write!(
-                f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "policy": {}, "sync_client_zero": {}, "sync_method": "{:?}", "delete_proportion": {}, "noop_proportion": {}, "key_range": {}, "max_priority": {}, "seed": {} }} }},"#,
-                clients,
-                graph,
-                commands,
-                policy,
-                sync_client_zero,
-                sync_method,
-                delete_proportion,
-                noop_proportion,
-                key_range,
-                max_priority,
-                seed.map_or_else(|| "null".into(), |s| s.to_string()),
-            ),
-            Self::IgnoreExpectations { ignore } => write!(
-                f,
-                r#"{{"IgnoreExpectations": {{ "ignore": {} }} }},"#,
-                ignore,
-            ),
-            Self::MaxCut {
-                client,
-                graph,
-                max_cut,
-            } => write!(
-                f,
-                r#"{{"MaxCut": {{ "client": {}, "graph": {}, "max_cut": {} }} }},"#,
-                client, graph, max_cut,
-            ),
-            Self::NewGraph { client, id, policy } => write!(
-                f,
-                r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
-                client, id, policy,
-            ),
-            Self::RemoveGraph { client, id } => write!(
-                f,
-                r#"{{"RemoveGraph": {{ "client": {}, "id": {} }} }},"#,
-                client, id,
-            ),
-            Self::PrintGraph { client, graph } => write!(
-                f,
-                r#"{{"PrintGraph": {{ "client": {}, "graph": {} }} }},"#,
-                client, graph,
-            ),
-            Self::SetupClientsAndGraph {
-                clients,
-                graph,
-                policy,
-            } => write!(
-                f,
-                r#"{{"SetupClientsAndGraph": {{ "clients": {}, "graph": {}, "policy": {} }} }},"#,
-                clients, graph, policy,
-            ),
-            Self::VerifyGraphIds { client, ids } => write!(
-                f,
-                r#"{{"VerifyGraphIds": {{ "client": {}, "ids": {:?} }} }},"#,
-                client, ids
-            ),
-            Self::ConvergeAll {
-                graph,
-                clients,
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"ConvergeAll": {{ "graph": {}, "clients": {}, "max_syncs": {} }} }},"#,
-                graph, clients, max_syncs,
-            ),
-            Self::HelloSubscribe {
-                client,
-                peer,
-                graph,
-                notify_interval,
-            } => write!(
-                f,
-                r#"{{"HelloSubscribe": {{ "client": {}, "peer": {}, "graph": {}, "notify_interval": {} }} }},"#,
-                client, peer, graph, notify_interval,
-            ),
-            Self::HelloUnsubscribe {
-                client,
-                peer,
-                graph,
-            } => write!(
-                f,
-                r#"{{"HelloUnsubscribe": {{ "client": {}, "peer": {}, "graph": {} }} }},"#,
-                client, peer, graph,
-            ),
-            Self::HeadCount {
-                client,
-                graph,
-                count,
-            } => write!(
-                f,
-                r#"{{"HeadCount": {{ "client": {}, "graph": {}, "count": {} }} }},"#,
-                client, graph, count,
-            ),
-        }
-    }
 }
 
 /// An error result from a test.
@@ -909,11 +721,11 @@ where
                     // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
-                        generated_actions.push(TestRule::AddClient { id: i });
+                        generated_actions.push(TestRule::AddClient { client: i });
                     }
                     generated_actions.push(TestRule::NewGraph {
                         client: 0,
-                        id: graph,
+                        graph,
                         policy,
                     });
                     for i in 1..clients {
@@ -1239,11 +1051,11 @@ where
                 } => {
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
-                        generated_actions.push(TestRule::AddClient { id: i });
+                        generated_actions.push(TestRule::AddClient { client: i });
                     }
                     generated_actions.push(TestRule::NewGraph {
                         client: 0,
-                        id: graph,
+                        graph,
                         policy,
                     });
                     for i in 1..clients {
@@ -1309,14 +1121,18 @@ where
         debug!(?rule);
 
         match rule {
-            TestRule::AddClient { id } => {
+            TestRule::AddClient { client: id } => {
                 let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
                 let state = ClientState::new(policy_store, storage);
                 clients.insert(id, RefCell::new(state));
             }
-            TestRule::NewGraph { client, id, policy } => {
+            TestRule::NewGraph {
+                client,
+                graph,
+                policy,
+            } => {
                 let state = clients
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
@@ -1328,16 +1144,16 @@ where
                     &mut sink,
                 )?;
 
-                graphs.insert(id, graph_id);
+                graphs.insert(graph, graph_id);
 
                 assert_eq!(0, sink.count());
             }
-            TestRule::RemoveGraph { client, id } => {
+            TestRule::RemoveGraph { client, graph } => {
                 let state = clients
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
-                let graph_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 state.remove_graph(*graph_id)?;
 
                 assert_eq!(0, sink.count());
@@ -1432,7 +1248,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        DEFAULT_MAX_CASCADE_DEPTH,
                     )?;
                 }
 
@@ -1486,7 +1302,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        DEFAULT_MAX_CASCADE_DEPTH,
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -1527,7 +1343,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        DEFAULT_MAX_CASCADE_DEPTH,
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -1568,7 +1384,7 @@ where
                         &mut client_heads,
                         &mut sink,
                         &mut rt_buffers,
-                        default_max_cascade_depth(),
+                        DEFAULT_MAX_CASCADE_DEPTH,
                     )?;
                     assert_eq!(0, sink.count());
                 }
@@ -2649,11 +2465,11 @@ mod tests {
     #[test]
     fn action_rules_converge_facts() -> Result<(), TestError> {
         let rules = vec![
-            TestRule::AddClient { id: 0 },
-            TestRule::AddClient { id: 1 },
+            TestRule::AddClient { client: 0 },
+            TestRule::AddClient { client: 1 },
             TestRule::NewGraph {
                 client: 0,
-                id: 0,
+                graph: 0,
                 policy: 0,
             },
             TestRule::Sync {
