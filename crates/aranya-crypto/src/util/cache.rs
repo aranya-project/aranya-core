@@ -254,24 +254,48 @@ mod test {
 
         let cell = CacheCell::<Counter<'_>>::new();
 
-        let val = cell.get_or_init(|| Counter(&count));
+        // Initialize cell from two threads concurrently.
+        let barrier = Barrier::new(2);
+        let (counter_1, counter_2) = thread::scope(|s| {
+            let t1 = s.spawn(|| {
+                cell.get_or_init(|| {
+                    barrier.wait();
+                    Counter(&count)
+                })
+            });
+            let t2 = s.spawn(|| {
+                cell.get_or_init(|| {
+                    barrier.wait();
+                    Counter(&count)
+                })
+            });
+            (t1.join().unwrap(), t2.join().unwrap())
+        });
+
         assert_eq!(
             count.load(Ordering::Relaxed),
             0,
             "initializing cell should not cause any drops"
         );
 
-        drop(val);
+        drop(counter_1);
         assert_eq!(
             count.load(Ordering::Relaxed),
             1,
-            "dropping cloned out value from init should increase drop count"
+            "dropping first value from init should increase drop count"
+        );
+
+        drop(counter_2);
+        assert_eq!(
+            count.load(Ordering::Relaxed),
+            2,
+            "dropping second value from init should increase drop count"
         );
 
         drop(cell);
         assert_eq!(
             count.load(Ordering::Relaxed),
-            2,
+            3,
             "dropping cell should increase drop count"
         );
     }
