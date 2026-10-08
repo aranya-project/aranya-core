@@ -7,7 +7,7 @@ Module {
     labels: {
         <get_key 'Cmd'>: 1,
         <policy 'Cmd'>: 8,
-        <action 'test'>: 14,
+        <action 'test'>: 15,
     },
     action_defs: [
         ActionDef {
@@ -39,6 +39,10 @@ Module {
             name: "Ephemeral",
             items: [],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -55,6 +59,7 @@ Module {
     return
     exit panic
 <policy 'Cmd'>:
+    def 'envelope'
     def 'this'
     meta: finish enabled
     block
