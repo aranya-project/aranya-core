@@ -35,7 +35,7 @@ impl Command for Cmd {
 }
 
 fn init<SP: StorageProvider>(sp: &mut SP) -> &mut SP::Storage {
-    let mut p = sp.new_perspective(PolicyId::new(0));
+    let mut p = sp.new_perspective(PolicyId::default());
 
     let mut parent = CmdId::random(Rng);
     p.add_command(
