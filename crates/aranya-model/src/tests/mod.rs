@@ -8,7 +8,6 @@ use aranya_crypto::{
     keystore::fs_keystore::Store,
 };
 use aranya_device_ffi::FfiDevice as DeviceFfi;
-use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
@@ -22,7 +21,7 @@ use aranya_runtime::{
     ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
     storage::linear::{self, testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::{SealCtx, VmPolicy},
+    vm_policy::{FLAVORS, SealCtx, VmPolicy},
 };
 use tempfile::tempdir;
 use test_log::test;
@@ -50,9 +49,7 @@ impl BasicClientFactory {
     fn new(policy_doc: &str) -> Result<Self, ModelError> {
         let policy_ast = parse_policy_document(policy_doc)?;
         // Create policy machine
-        let module = Compiler::new(&policy_ast)
-            .ffi_modules(&[EnvelopeFfi::SCHEMA])
-            .compile()?;
+        let module = Compiler::new(&policy_ast).flavors(&FLAVORS).compile()?;
         let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
         let seal_ctx = Arc::new(SealCtx {
@@ -87,8 +84,7 @@ impl ClientFactory for BasicClientFactory {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
 
         // Configure testing FFIs
-        let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
-            vec![Arc::new(EnvelopeFfi)];
+        let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
         let policy_store = ModelPolicyStore::new(policy, Some(Arc::clone(&self.seal_ctx)));
@@ -109,7 +105,6 @@ impl FfiClientFactory {
     fn new(policy_doc: &str) -> Result<Self, ModelError> {
         let ffi_schema: &[ModuleSchema<'static>] = &[
             DeviceFfi::SCHEMA,
-            EnvelopeFfi::SCHEMA,
             PerspectiveFfi::SCHEMA,
             IdamFfi::<Store>::SCHEMA,
         ];
@@ -118,6 +113,7 @@ impl FfiClientFactory {
         // Create policy machine
         let module = Compiler::new(&policy_ast)
             .ffi_modules(ffi_schema)
+            .flavors(&FLAVORS)
             .compile()?;
         let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
@@ -162,7 +158,6 @@ impl ClientFactory for FfiClientFactory {
         // Configure FFIs
         let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
             Arc::from(DeviceFfi::new(bundle.device_id)),
-            Arc::from(EnvelopeFfi),
             Arc::from(PerspectiveFfi),
             Arc::from(IdamFfi::new(store)),
         ];
@@ -1388,7 +1383,6 @@ fn should_create_clients_with_args() {
 
     let ffi_schema: &[ModuleSchema<'static>] = &[
         DeviceFfi::SCHEMA,
-        EnvelopeFfi::SCHEMA,
         PerspectiveFfi::SCHEMA,
         IdamFfi::<Store>::SCHEMA,
     ];
@@ -1397,6 +1391,7 @@ fn should_create_clients_with_args() {
     // Create policy machine
     let module = Compiler::new(&policy_ast)
         .ffi_modules(ffi_schema)
+        .flavors(&FLAVORS)
         .compile()
         .unwrap();
     let machine = Machine::from_module(module).expect("should be able to load compiled module");
@@ -1439,7 +1434,6 @@ fn should_create_clients_with_args() {
             // Configure FFIs
             let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
                 Arc::from(DeviceFfi::new(bundle.device_id)),
-                Arc::from(EnvelopeFfi),
                 Arc::from(PerspectiveFfi),
                 Arc::from(IdamFfi::new(store)),
             ];
@@ -1511,7 +1505,6 @@ fn should_create_clients_with_args() {
             // Configure FFIs
             let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
                 Arc::from(DeviceFfi::new(bundle.device_id)),
-                Arc::from(EnvelopeFfi),
                 Arc::from(PerspectiveFfi),
                 Arc::from(IdamFfi::new(store)),
             ];

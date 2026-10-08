@@ -10,9 +10,7 @@ command signing/verification, and application-level facts.
 ## Imports
 
 ```policy
-use crypto
 use device
-use envelope
 use idam
 use perspective
 ```
@@ -89,7 +87,7 @@ command Init with BaseInit {
     }
 
     policy {
-        let author_id = envelope::author_id(envelope)
+        let author_id = envelope.author_id
         check author_id == idam::derive_device_id(this.owner_keys.ident_key) else test_fail("not authorized")
 
         let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
@@ -144,7 +142,7 @@ command AddDevice with Base {
     }
 
     policy {
-        let author_id = envelope::author_id(envelope)
+        let author_id = envelope.author_id
         let owner = query Owner[] or recall reject()
         check author_id == owner.device_id else test_fail("not authorized")
 

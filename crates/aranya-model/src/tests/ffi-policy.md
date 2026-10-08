@@ -19,8 +19,6 @@ delivered through syncs and should be transmitted via some other mechanism.
 use idam
 use perspective
 use device
-use crypto
-use envelope
 
 base command(init) BaseInit {
     fields {
@@ -155,7 +153,7 @@ command AddDeviceKeys with BaseSelfSigned {
     }
 
     policy {
-        let author = envelope::author_id(envelope)
+        let author = envelope.author_id
         let device_id = idam::derive_device_id(this.ident_pk)
         check author == device_id else test_fail("author must be device")
 

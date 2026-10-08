@@ -1,0 +1,41 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "1",
+    labels: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Known",
+            items: [
+                Field {
+                    name: "field",
+                    ty: Int,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
+    globals: {
+        "known": Struct(
+            ConstStruct {
+                name: "Known",
+                fields: {
+                    "field": Int(
+                        42,
+                    ),
+                },
+            },
+        ),
+        "x": Int(
+            42,
+        ),
+    },
+    ..
+}
+---
+    exit panic

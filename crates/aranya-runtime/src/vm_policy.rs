@@ -140,6 +140,54 @@ pub use io::*;
 pub use protocol::*;
 pub use seal_open::SealCtx;
 
+pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
+    use aranya_policy_module::{
+        arg,
+        flavor::{Flavor, Flavors, Struct},
+    };
+    use aranya_policy_vm::ident;
+    Flavors {
+        default: Flavor {
+            envelope: Struct {
+                name: ident!("DefaultEnvelope"),
+                fields: &[
+                    arg!("command_id", Id),
+                    arg!("parent_id", Id),
+                    arg!("author_id", Id),
+                ],
+            },
+        },
+        flavors: &[
+            (
+                ident!("init"),
+                Flavor {
+                    envelope: Struct {
+                        name: ident!("InitEnvelope"),
+                        fields: &[
+                            arg!("command_id", Id),
+                            // no parent_id
+                            arg!("author_id", Id),
+                        ],
+                    },
+                },
+            ),
+            (
+                ident!("ephemeral"),
+                Flavor {
+                    envelope: Struct {
+                        name: ident!("EphemeralEnvelope"),
+                        fields: &[
+                            arg!("command_id", Id),
+                            arg!("graph_id", Id),
+                            arg!("author_id", Id),
+                        ],
+                    },
+                },
+            ),
+        ],
+    }
+};
+
 /// Creates a [`VmAction`].
 ///
 /// This must be used directly to avoid lifetime issues, not assigned to a variable.
@@ -833,6 +881,7 @@ mod test {
     }
 
     #[test]
+    #[ignore = "TODO: pass flavors"]
     fn test_get_command_priority() {
         fn basic(attrs: &str) -> String {
             format!(

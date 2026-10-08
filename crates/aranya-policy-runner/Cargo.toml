@@ -20,7 +20,6 @@ bench = false
 aranya-afc-util = { version = "0.26.0", path = "../aranya-afc-util" }
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", features = ["fs-keystore", "memstore"] }
 aranya-device-ffi = { version = "0.24.0", path = "../aranya-device-ffi" }
-aranya-envelope-ffi = { version = "0.24.0", path = "../aranya-envelope-ffi" }
 aranya-idam-ffi = { version = "0.24.0", path = "../aranya-idam-ffi" }
 aranya-perspective-ffi = { version = "0.24.0", path = "../aranya-perspective-ffi" }
 aranya-policy-compiler = { version = "0.25.0", path = "../aranya-policy-compiler" }
