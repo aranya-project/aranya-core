@@ -342,7 +342,6 @@ impl TestPolicyStore {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
         let policy = VmPolicy::new(machine, eng, vec![]).expect("Could not load policy");
 
-        #[expect(clippy::arc_with_non_send_sync, reason = "TODO: make keys thread safe")]
         let seal_ctx = Arc::new(SealCtx {
             author: DeviceId::random(Rng),
             key: SigningKey::new(Rng),
