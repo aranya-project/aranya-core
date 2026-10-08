@@ -6,14 +6,14 @@ Module {
     version: "1",
     labels: {
         <get_key 'MyBasic1'>: 10,
-        <policy 'MyBasic1'>: 43,
+        <policy 'MyBasic1'>: 42,
         <get_key 'MyBasic2'>: 10,
-        <policy 'MyBasic2'>: 46,
+        <policy 'MyBasic2'>: 44,
         <get_key 'MyInit'>: 1,
         <policy 'MyInit'>: 40,
-        <action 'my_basic_1'>: 55,
-        <action 'my_basic_2'>: 58,
-        <action 'my_init'>: 49,
+        <action 'my_basic_1'>: 52,
+        <action 'my_basic_2'>: 55,
+        <action 'my_init'>: 46,
     },
     action_defs: [
         ActionDef {
@@ -184,15 +184,12 @@ Module {
     return
     exit panic
 <policy 'MyInit'>:
-    def 'envelope'
     def 'this'
     exit panic
 <policy 'MyBasic1'>:
-    def 'envelope'
     def 'this'
     exit panic
 <policy 'MyBasic2'>:
-    def 'envelope'
     def 'this'
     exit panic
 <action 'my_init'>:

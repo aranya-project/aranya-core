@@ -6,9 +6,9 @@ Module {
     version: "1",
     labels: {
         <policy 'Cmd'>: 1,
-        <recall 'Cmd_bar'>: 11,
-        <recall 'Cmd_baz'>: 14,
-        <recall 'Cmd_foo'>: 8,
+        <recall 'Cmd_bar'>: 9,
+        <recall 'Cmd_baz'>: 11,
+        <recall 'Cmd_foo'>: 7,
     },
     action_defs: [],
     command_defs: [
@@ -33,7 +33,6 @@ Module {
 ---
     exit panic
 <policy 'Cmd'>:
-    def 'envelope'
     def 'this'
     meta: finish enabled
     block
@@ -41,14 +40,11 @@ Module {
     exit normal
     exit panic
 <recall 'Cmd_foo'>:
-    def 'envelope'
     def 'this'
     exit check
 <recall 'Cmd_bar'>:
-    def 'envelope'
     def 'this'
     exit check
 <recall 'Cmd_baz'>:
-    def 'envelope'
     def 'this'
     exit check

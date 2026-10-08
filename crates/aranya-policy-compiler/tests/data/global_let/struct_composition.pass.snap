@@ -87,7 +87,6 @@ Module {
 ---
     exit panic
 <policy 'Bar'>:
-    def 'envelope'
     def 'this'
     meta: finish enabled
     block
