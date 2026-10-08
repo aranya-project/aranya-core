@@ -19,7 +19,7 @@ use envelope
 
 fact Key[]=>{key bytes}
 
-base command BaseInit {
+base command(init) BaseInit {
     fields {
         key bytes
     }
@@ -76,16 +76,12 @@ effect Success {
 }
 
 // The `init` action takes a nonce variable and passes it to the Init command.
-action init(nonce int, key bytes) {
+action(init) init(nonce int, key bytes) {
     publish Init { key, nonce }
 }
 
 // `Init` is a command that initializes a graph.
 command Init with BaseInit {
-    attributes {
-        init: true,
-    }
-
     // Local variables for command
     fields {
         nonce int

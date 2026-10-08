@@ -22,7 +22,7 @@ use device
 use crypto
 use envelope
 
-base command BaseInit {
+base command(init) BaseInit {
     fields {
         sign_pk bytes,
     }
@@ -126,15 +126,11 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
     })
 }
 
-action init(nonce int, sign_pk bytes) {
+action(init) init(nonce int, sign_pk bytes) {
     publish Init { nonce, sign_pk }
 }
 
 command Init with BaseInit {
-    attributes {
-        init: true,
-    }
-
     fields {
         nonce int,
     }

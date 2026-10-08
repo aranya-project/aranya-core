@@ -24,7 +24,7 @@ policy-version: 2
 ---
 
 ```policy
-base command BaseInit {
+base command(init) BaseInit {
     fields {
         key bytes
     }
@@ -66,9 +66,6 @@ effect OutOfRange {
 }
 
 command Init with BaseInit {
-    attributes {
-        init: true,
-    }
     fields {
         nonce int,
     }
@@ -79,7 +76,7 @@ command Init with BaseInit {
     }
 }
 
-action init(nonce int, key bytes) {
+action(init) init(nonce int, key bytes) {
     publish Init {
         key: key,
         nonce: nonce,
