@@ -2526,6 +2526,7 @@ test_vectors! {
     stress_hello_hub_noops,
     stress_no_sync_braid,
     stress_delete_noop_churn,
+    sync_stall_regression_821,
 }
 
 #[cfg(test)]
