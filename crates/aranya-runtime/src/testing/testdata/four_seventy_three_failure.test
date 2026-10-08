@@ -1,44 +1,34 @@
 [
   {
     "AddClient": {
-      "id": 0
+      "client": 0
     }
   },
   {
     "AddClient": {
-      "id": 1
+      "client": 1
     }
   },
   {
     "AddClient": {
-      "id": 2
+      "client": 2
     }
   },
   {
     "NewGraph": {
-      "client": 0,
-      "id": 0,
-      "policy": 0
+      "client": 0
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 1,
-      "from": 0,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
+      "from": 0
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 2,
-      "from": 0,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
+      "from": 0
     }
   },
   {
@@ -49,1054 +39,764 @@
   {
     "ActionSet": {
       "client": 1,
-      "graph": 0,
       "key": 0,
-      "value": 6,
-      "repeat": 1
+      "value": 6
     }
   },
   {
     "ActionSet": {
       "client": 1,
-      "graph": 0,
       "key": 0,
-      "value": 4,
-      "repeat": 1
+      "value": 4
     }
   },
   {
     "ActionSet": {
       "client": 2,
-      "graph": 0,
       "key": 0,
-      "value": 2,
-      "repeat": 1
+      "value": 2
     }
   },
   {
     "ActionSet": {
       "client": 1,
-      "graph": 0,
       "key": 0,
-      "value": 4,
-      "repeat": 1
+      "value": 4
     }
   },
   {
     "Sync": {
-      "graph": 0,
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 5
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 7
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 8
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 5
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 8
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 7
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 8
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 8
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 7
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 6
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 7
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 6
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 6
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 5
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 8
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 6
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 7
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 6
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 7
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 6
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 1
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 6
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 1
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "Sync": {
       "client": 1,
       "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 5,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 7,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 8,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 5,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 8,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 0,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 7,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 0,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 3,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 8,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 8,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 7,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 6,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 3,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 0,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 1,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 3,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 3,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 7,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 6,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 6,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 5,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 0,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 8,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 6,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 7,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 6,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 7,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 6,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 0,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 1,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 3,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 4,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 0,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 3,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 6,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 9,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 0,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 1,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 1,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
-      "max_syncs": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 2,
-      "graph": 0,
-      "key": 0,
-      "value": 2,
-      "repeat": 1
-    }
-  },
-  {
-    "ActionSet": {
-      "client": 1,
-      "graph": 0,
-      "key": 0,
-      "value": 3,
-      "repeat": 1
-    }
-  },
-  {
-    "Sync": {
-      "graph": 0,
-      "client": 1,
-      "from": 2,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 2,
       "from": 1,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 1,
       "from": 2,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 2,
       "from": 1,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 1,
       "from": 2,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 2,
       "from": 1,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 1,
       "from": 2,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 2,
       "from": 1,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 1,
       "from": 2,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 2,
       "from": 1,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
@@ -1104,37 +804,27 @@
     "CompareGraphs": {
       "clienta": 1,
       "clientb": 2,
-      "graph": 0,
       "equal": true
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 0,
       "from": 1,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 1,
       "from": 0,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 2,
       "from": 0,
-      "must_send": null,
-      "must_receive": null,
       "max_syncs": 100
     }
   },
@@ -1142,7 +832,6 @@
     "CompareGraphs": {
       "clienta": 0,
       "clientb": 1,
-      "graph": 0,
       "equal": true
     }
   },
@@ -1150,7 +839,6 @@
     "CompareGraphs": {
       "clienta": 0,
       "clientb": 2,
-      "graph": 0,
       "equal": true
     }
   },
