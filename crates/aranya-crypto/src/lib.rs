@@ -41,6 +41,7 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![cfg_attr(not(all(test, feature = "trng")), deny(unsafe_code))]
 #![warn(missing_docs)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod afc;
 pub mod apq;

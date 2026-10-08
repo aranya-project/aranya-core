@@ -1,15 +1,12 @@
 [
   {
     "SetupClientsAndGraph": {
-      "clients": 2,
-      "graph": 0,
-      "policy": 0
+      "clients": 2
     }
   },
   {
     "MaxCut": {
       "client": 0,
-      "graph": 0,
       "max_cut": 0
     }
   },
@@ -19,16 +16,13 @@
   {
     "ActionSet": {
       "client": 0,
-      "graph": 0,
       "key": 0,
-      "value": 1,
-      "repeat": 1
+      "value": 1
     }
   },
   {
     "MaxCut": {
       "client": 0,
-      "graph": 0,
       "max_cut": 1
     }
   },
@@ -38,16 +32,13 @@
   {
     "ActionSet": {
       "client": 1,
-      "graph": 0,
       "key": 0,
-      "value": 2,
-      "repeat": 1
+      "value": 2
     }
   },
   {
     "MaxCut": {
       "client": 1,
-      "graph": 0,
       "max_cut": 1
     }
   },
@@ -57,16 +48,13 @@
   {
     "ActionSet": {
       "client": 1,
-      "graph": 0,
       "key": 0,
-      "value": 3,
-      "repeat": 1
+      "value": 3
     }
   },
   {
     "MaxCut": {
       "client": 1,
-      "graph": 0,
       "max_cut": 2
     }
   },
@@ -81,17 +69,13 @@
   },
   {
     "Sync": {
-      "graph": 0,
       "client": 1,
-      "from": 0,
-      "must_receive": null,
-      "max_syncs": 1
+      "from": 0
     }
   },
   {
     "MaxCut": {
       "client": 1,
-      "graph": 0,
       "max_cut": 2
     }
   }
