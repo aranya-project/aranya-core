@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <policy 'Cmd'>: 1,
-        <recall 'Cmd_handle'>: 5,
+        <recall 'Cmd_handle'>: 7,
     },
     action_defs: [],
     command_defs: [
@@ -23,6 +23,10 @@ Module {
             name: "Cmd",
             items: [],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -31,10 +35,13 @@ Module {
 ---
     exit panic
 <policy 'Cmd'>:
+    def 'envelope'
     def 'this'
     get 'this'
+    get 'envelope'
     recall <recall 'Cmd_handle'>
     exit panic
 <recall 'Cmd_handle'>:
+    def 'envelope'
     def 'this'
     exit check

@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <policy 'Bar'>: 1,
-        <action 'convert'>: 7,
+        <action 'convert'>: 8,
     },
     action_defs: [
         ActionDef {
@@ -61,6 +61,10 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -69,6 +73,7 @@ Module {
 ---
     exit panic
 <policy 'Bar'>:
+    def 'envelope'
     def 'this'
     meta: finish enabled
     block

@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <policy 'Cmd'>: 1,
-        <action 'test'>: 7,
+        <action 'test'>: 8,
     },
     action_defs: [
         ActionDef {
@@ -30,6 +30,10 @@ Module {
             name: "Cmd",
             items: [],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -38,6 +42,7 @@ Module {
 ---
     exit panic
 <policy 'Cmd'>:
+    def 'envelope'
     def 'this'
     meta: finish enabled
     block

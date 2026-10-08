@@ -22,6 +22,10 @@ Module {
             name: "Cmd",
             items: [],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -30,6 +34,7 @@ Module {
 ---
     exit panic
 <policy 'Cmd'>:
+    def 'envelope'
     def 'this'
     meta: finish enabled
     block

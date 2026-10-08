@@ -224,8 +224,6 @@ struct CompileState<'a> {
     ffi_modules: &'a [ModuleSchema<'a>],
     /// Configuration
     config: Config<'a>,
-    // TODO: generalize
-    has_envelope: BTreeMap<Ident, bool>,
 }
 
 struct BaseCommand {
@@ -1252,9 +1250,7 @@ impl<'a> CompileState<'a> {
         }
         // Recall blocks take `this` and `envelope` as trailing parameters.
         self.append_instruction(Instruction::Get(ident!("this")));
-        if recall.has_envelope {
-            self.append_instruction(Instruction::Get(ident!("envelope")));
-        }
+        self.append_instruction(Instruction::Get(ident!("envelope")));
 
         let recall_label = Label::new(
             self.command_recall_name(&recall.command_name, &recall.recall_name)?,
@@ -1471,18 +1467,11 @@ impl<'a> CompileState<'a> {
             )?;
         }
 
-        let flavor_def = match (&self.config.flavors, &cmd_flavor) {
-            (None, None) => None,
-            (None, Some(_)) => {
-                // TODO: real error.
-                return Err(self.err(UnknownError(
-                    "flavor specified but none provided".into(),
-                    None,
-                )));
-            }
-            (Some(flavors), None) => Some(&flavors.default),
-            (Some(flavors), Some(cmd_flavor)) => Some(
-                flavors
+        let flavor_def = match &cmd_flavor {
+            None => Some(&self.config.flavors.default),
+            Some(cmd_flavor) => Some(
+                self.config
+                    .flavors
                     .flavors
                     .iter()
                     .find(|&(name, _)| *name == cmd_flavor.inner)
@@ -1495,9 +1484,6 @@ impl<'a> CompileState<'a> {
                     })?,
             ),
         };
-
-        self.has_envelope
-            .insert(command.identifier.clone(), flavor_def.is_some());
 
         self.compile_command_policy(command, flavor_def)?;
         self.compile_command_recall(command, flavor_def)?;
@@ -2010,23 +1996,22 @@ impl<'a> CompileState<'a> {
 
         // TODO: Do properly
         {
-            if let Some(flavors) = self.config.flavors {
-                let envelopes = iter::once(&flavors.default.envelope)
-                    .chain(flavors.flavors.iter().map(|(_, flavor)| &flavor.envelope));
-                for envelope in envelopes {
-                    let fields = envelope
-                        .fields
-                        .iter()
-                        .map(|field| FieldDefinition {
-                            identifier: field.name.clone().nowhere(),
-                            field_type: VType::from(&field.vtype),
-                        })
-                        .collect();
-                    self.m
-                        .interface
-                        .struct_defs
-                        .insert(envelope.name.clone().nowhere(), fields);
-                }
+            let flavors = self.config.flavors;
+            let envelopes = iter::once(&flavors.default.envelope)
+                .chain(flavors.flavors.iter().map(|(_, flavor)| &flavor.envelope));
+            for envelope in envelopes {
+                let fields = envelope
+                    .fields
+                    .iter()
+                    .map(|field| FieldDefinition {
+                        identifier: field.name.clone().nowhere(),
+                        field_type: VType::from(&field.vtype),
+                    })
+                    .collect();
+                self.m
+                    .interface
+                    .struct_defs
+                    .insert(envelope.name.clone().nowhere(), fields);
             }
         }
 
@@ -2357,7 +2342,7 @@ enum Scope {
 
 #[derive(Copy, Clone)]
 struct Config<'a> {
-    flavors: Option<&'a Flavors<'a>>,
+    flavors: &'a Flavors<'a>,
     ffi_modules: &'a [ModuleSchema<'a>],
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
@@ -2367,10 +2352,20 @@ struct Config<'a> {
     allow_baseless: bool,
 }
 
+static DEFAULT_FLAVORS: Flavors<'static> = Flavors {
+    default: Flavor {
+        envelope: ffi::Struct {
+            name: ident!("NullEnvelope"),
+            fields: &[],
+        },
+    },
+    flavors: &[],
+};
+
 impl Config<'_> {
     fn new() -> Self {
         Self {
-            flavors: None,
+            flavors: &DEFAULT_FLAVORS,
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
@@ -2397,7 +2392,7 @@ impl<'a> Compiler<'a> {
     /// Sets the flavors.
     #[must_use]
     pub fn flavors(mut self, flavors: &'a Flavors<'a>) -> Self {
-        self.config.flavors = Some(flavors);
+        self.config.flavors = flavors;
         self
     }
 
@@ -2457,7 +2452,6 @@ impl<'a> Compiler<'a> {
             identifier_types: IdentifierTypeStack::new(self.config.is_debug),
             config: self.config,
             ffi_modules: self.config.ffi_modules,
-            has_envelope: BTreeMap::new(),
         }
     }
 }
