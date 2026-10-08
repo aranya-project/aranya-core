@@ -2106,7 +2106,6 @@ fn get_pratt_parser() -> PrattParser<Rule> {
         .op(Op::prefix(Rule::not))
         .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
         .op(Op::postfix(Rule::dot))
-        // `?` binds tighter than `.` so that `f(x)?.field` is `(f(x)?).field`.
         .op(Op::postfix(Rule::try_op))
 }
 
