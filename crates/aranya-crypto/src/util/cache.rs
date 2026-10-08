@@ -200,7 +200,7 @@ mod test {
     }
 
     #[test]
-    fn test_concurrent_clone() {
+    fn it_creates_empty_cell_when_cloned_during_initialization() {
         let cell = CacheCell::<i32>::new();
         let b1 = Barrier::new(2);
         let b2 = Barrier::new(2);
@@ -228,18 +228,21 @@ mod test {
     }
 
     #[test]
-    fn test_does_not_drop_empty() {
+    fn it_does_not_drop_contents_when_uninitialized() {
+        /// Panics when dropped.
         struct Fragile;
         impl Drop for Fragile {
             fn drop(&mut self) {
                 panic!("Dropped Fragile");
             }
         }
+        // Dropping unitialized cell should not drop `Fragile`.
         drop(CacheCell::<Fragile>::new());
     }
 
     #[test]
-    fn test_drop_count() {
+    fn it_drops_value_exactly_when_expected() {
+        /// Create a helper type to count the number of drops.
         #[derive(Clone)]
         struct Counter<'a>(&'a AtomicUsize);
         impl Drop for Counter<'_> {
@@ -248,26 +251,50 @@ mod test {
             }
         }
         let count = AtomicUsize::new(0);
+
         let cell = CacheCell::<Counter<'_>>::new();
+
         let val = cell.get_or_init(|| Counter(&count));
-        assert_eq!(count.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            count.load(Ordering::Relaxed),
+            0,
+            "initializing cell should not cause any drops"
+        );
+
         drop(val);
-        assert_eq!(count.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            count.load(Ordering::Relaxed),
+            1,
+            "dropping cloned out value from init should increase drop count"
+        );
+
         drop(cell);
-        assert_eq!(count.load(Ordering::Relaxed), 2);
+        assert_eq!(
+            count.load(Ordering::Relaxed),
+            2,
+            "dropping cell should increase drop count"
+        );
     }
 
+    /// Check that `CacheCell` is `Send` and `Sync` under appropriate conditions.
+    ///
+    /// This test will fail to compile if not met.
     #[test]
-    fn test_send_sync() {
+    fn it_is_thread_safe() {
+        // These require the provided type to be `Send` or `Sync` respectively.
         fn is_send<T: Send>() {}
         fn is_sync<T: Sync>() {}
-        fn cache_cell_is_send<T: Send>() {
+
+        // These two functions check thread safety of `CachceCell<T>` for all `T` with some precondition.
+        fn cache_cell_is_send_when_value_is_send<T: Send>() {
             is_send::<CacheCell<T>>();
         }
-        fn cache_cell_is_sync<T: Send + Sync>() {
+        fn cache_cell_is_sync_when_value_is_send_and_sync<T: Send + Sync>() {
             is_sync::<CacheCell<T>>();
         }
-        cache_cell_is_send::<core::cell::Cell<()>>();
-        cache_cell_is_sync::<()>();
+
+        // Check thread safety of specific cells. Should be redundant with the definitions above.
+        cache_cell_is_send_when_value_is_send::<core::cell::Cell<()>>();
+        cache_cell_is_sync_when_value_is_send_and_sync::<()>();
     }
 }
