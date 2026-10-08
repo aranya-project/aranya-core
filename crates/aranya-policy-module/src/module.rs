@@ -15,8 +15,7 @@ pub use io::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CodeMap, ConstValue, Field, Instruction, Label, Persistence, TypeKind,
-    automap::autokey_by_name, interface,
+    CodeMap, ConstValue, Field, Instruction, Label, TypeKind, automap::autokey_by_name, interface,
 };
 
 /// Identifies a [`Module`].
@@ -200,8 +199,8 @@ impl From<ModuleV1> for ModuleV0 {
 pub struct ActionDef {
     /// The name of the action.
     pub name: Identifier,
-    /// The persistence of the action.
-    pub persistence: Persistence,
+    /// The flavor of the action.
+    pub flavor: Option<Identifier>,
     /// The parameters of the action.
     pub params: Vec<Field>,
     /// action return type: result or unit
@@ -222,7 +221,7 @@ impl From<interface::ActionDefinition> for ActionDef {
     fn from(value: interface::ActionDefinition) -> Self {
         Self {
             name: value.name.inner,
-            persistence: value.persistence.into(),
+            flavor: value.flavor.map(|f| f.inner),
             params: value.params.into_iter().map(ast::Param::into).collect(),
             result_type: value.return_type.inner.into(),
         }
@@ -244,8 +243,8 @@ impl From<interface::ActionDefinition> for ActionDef {
 pub struct CommandDef {
     /// The name of the command.
     pub name: Identifier,
-    /// The persistence of the command.
-    pub persistence: Persistence,
+    /// The flavor of the command.
+    pub flavor: Option<Identifier>,
     /// The attributes of the command.
     pub attributes: Vec<Attribute>,
     /// The fields of the command.
@@ -258,7 +257,7 @@ impl From<interface::CommandDefinition> for CommandDef {
     fn from(value: interface::CommandDefinition) -> Self {
         Self {
             name: value.name.inner,
-            persistence: value.persistence.into(),
+            flavor: value.flavor.map(|f| f.inner),
             attributes: value.attributes.into_iter().map(Attribute::from).collect(),
             fields: value.fields.into_iter().map(Field::from).collect(),
         }

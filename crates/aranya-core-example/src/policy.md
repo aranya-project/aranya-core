@@ -121,6 +121,15 @@ base command Base {
         }
     }
 }
+
+base command(ephemeral) BaseEphemeral {
+    get_key {
+        return match query DeviceSignPubKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
 ```
 
 ## AddDevice Command
@@ -209,7 +218,7 @@ command IncrementCounter with Base {
 ## Ephemeral Query
 
 ```policy
-ephemeral command GetCounter with Base {
+command GetCounter with BaseEphemeral {
     fields {
         name int,
     }
@@ -242,7 +251,7 @@ action increment_counter(name int, amount int) {
     publish IncrementCounter { name, amount }
 }
 
-ephemeral action get_counter(name int) {
+action(ephemeral) get_counter(name int) {
     publish GetCounter { name }
 }
 ```

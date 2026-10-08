@@ -84,7 +84,7 @@ Policy {
     ],
     actions: [
         ActionDefinition {
-            persistence: Persistent,
+            flavor: None,
             identifier: "StartGame" @ 601..610,
             arguments: [
                 Param {
@@ -133,7 +133,7 @@ Policy {
             span: 594..759,
         },
         ActionDefinition {
-            persistence: Persistent,
+            flavor: None,
             identifier: "MakeMove" @ 1456..1464,
             arguments: [
                 Param {
@@ -293,7 +293,6 @@ Policy {
     enums: [],
     commands: [
         CommandDefinition {
-            persistence: Persistent,
             base: None,
             attributes: [],
             identifier: "Start" @ 826..831,
@@ -452,7 +451,6 @@ Policy {
             span: 818..1447,
         },
         CommandDefinition {
-            persistence: Persistent,
             base: None,
             attributes: [],
             identifier: "Move" @ 1937..1941,
@@ -832,7 +830,6 @@ Policy {
             span: 1929..4227,
         },
         CommandDefinition {
-            persistence: Persistent,
             base: None,
             attributes: [],
             identifier: "Move2" @ 5619..5624,

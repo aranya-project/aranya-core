@@ -11,7 +11,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "test",
-            persistence: Persistent,
+            flavor: None,
             params: [],
             result_type: Unit,
         },
@@ -19,7 +19,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "Cmd",
-            persistence: Persistent,
+            flavor: None,
             attributes: [],
             fields: [],
         },

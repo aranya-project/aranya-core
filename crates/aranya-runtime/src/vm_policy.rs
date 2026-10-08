@@ -117,7 +117,7 @@ use core::fmt;
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, Persistence, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
+    MachineStack, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
     ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
@@ -231,16 +231,19 @@ fn get_command_priorities(
     let mut priority_map = BTreeMap::new();
     for def in machine.command_defs.iter() {
         let attrs = PriorityAttrs::load(def.name.as_str(), def)?;
-        match def.persistence {
-            Persistence::Persistent => {
+        match def.flavor.as_ref().map(Identifier::as_str) {
+            None => {
                 priority_map.insert(def.name.clone(), get_command_priority(&def.name, &attrs)?);
             }
-            Persistence::Ephemeral => {
+            Some("ephemeral") => {
                 if attrs != PriorityAttrs::default() {
                     return Err(AttributeError(
                         "ephemeral command must not have priority".into(),
                     ));
                 }
+            }
+            Some(other) => {
+                todo!("handle {other} command");
             }
         }
     }
@@ -550,19 +553,21 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             signature: Cow::Borrowed(signature),
         };
 
-        match (placement, &def.persistence) {
-            (CommandPlacement::OnGraphAtOrigin, Persistence::Persistent) => {}
-            (CommandPlacement::OnGraphInBraid, Persistence::Persistent) => {}
-            (CommandPlacement::OffGraph, Persistence::Ephemeral) => {}
-            (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral) => {
+        let def_is_ephemeral = def.flavor.as_ref().is_some_and(|x| x == "ephemeral");
+
+        match (placement, def_is_ephemeral) {
+            (CommandPlacement::OnGraphAtOrigin, false) => {}
+            (CommandPlacement::OnGraphInBraid, false) => {}
+            (CommandPlacement::OffGraph, true) => {}
+            (CommandPlacement::OnGraphAtOrigin, true) => {
                 error!("cannot evaluate ephemeral command on-graph");
                 return Err(PolicyError::InternalError);
             }
-            (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral) => {
+            (CommandPlacement::OnGraphInBraid, true) => {
                 error!("cannot evaluate ephemeral command in braid");
                 return Err(PolicyError::InternalError);
             }
-            (CommandPlacement::OffGraph, Persistence::Persistent) => {
+            (CommandPlacement::OffGraph, false) => {
                 error!("cannot evaluate persistent command off-graph");
                 return Err(PolicyError::InternalError);
             }
@@ -620,14 +625,16 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::InternalError
         })?;
 
-        match (action_placement, &def.persistence) {
-            (ActionPlacement::OnGraph, Persistence::Persistent) => {}
-            (ActionPlacement::OffGraph, Persistence::Ephemeral) => {}
-            (ActionPlacement::OnGraph, Persistence::Ephemeral) => {
+        let def_is_ephemeral = def.flavor.as_ref().is_some_and(|x| x == "ephemeral");
+
+        match (action_placement, def_is_ephemeral) {
+            (ActionPlacement::OnGraph, false) => {}
+            (ActionPlacement::OffGraph, true) => {}
+            (ActionPlacement::OnGraph, true) => {
                 error!("cannot call ephemeral action on-graph");
                 return Err(PolicyError::InternalError);
             }
-            (ActionPlacement::OffGraph, Persistence::Persistent) => {
+            (ActionPlacement::OffGraph, false) => {
                 error!("cannot call persistent action off-graph");
                 return Err(PolicyError::InternalError);
             }
