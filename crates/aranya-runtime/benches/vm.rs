@@ -6,11 +6,13 @@ use aranya_runtime::{
     storage::linear::testing::MemStorageProvider,
     testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
     vm_action, vm_effect,
+    vm_policy::FLAVORS,
 };
 
 fn benchmark_1() {
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
     let module = Compiler::new(&policy)
+        .flavors(&FLAVORS)
         .debug(true)
         .compile()
         .expect("should compile");
@@ -55,7 +57,7 @@ fn benchmark_map() {
 policy-version: 2
 ---
 ```policy
-        base command BaseInit {
+        base command(init) BaseInit {
             fields { key bytes }
             get_key { return Some(this.key) }
         }
@@ -74,9 +76,6 @@ policy-version: 2
         fact F[i int]=>{ value string }
 
         command Init with BaseInit {
-            attributes {
-                init: true,
-            }
             policy {
                 finish {
                     create Key[]=>{key: this.key}
@@ -84,7 +83,7 @@ policy-version: 2
             }
         }
 
-        action init(key bytes) {
+        action(init) init(key bytes) {
             publish Init { key: key }
         }
 
@@ -128,7 +127,10 @@ policy-version: 2
     "#;
 
     let policy = parse_policy_document(test).expect("should parse");
-    let module = Compiler::new(&policy).compile().expect("should compile");
+    let module = Compiler::new(&policy)
+        .flavors(&FLAVORS)
+        .compile()
+        .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let key = policy_store.verifying_key();
     let provider = MemStorageProvider::default();

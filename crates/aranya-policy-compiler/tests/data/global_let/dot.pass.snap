@@ -10,30 +10,31 @@ Module {
     fact_defs: [],
     struct_defs: [
         StructDef {
-            name: "Bar",
+            name: "Known",
             items: [
                 Field {
-                    name: "a",
+                    name: "field",
                     ty: Int,
-                },
-            ],
-        },
-        StructDef {
-            name: "Foo",
-            items: [
-                Field {
-                    name: "a",
-                    ty: Int,
-                },
-                Field {
-                    name: "b",
-                    ty: String,
                 },
             ],
         },
     ],
     enum_defs: [],
-    globals: {},
+    globals: {
+        "known": Struct(
+            ConstStruct {
+                name: "Known",
+                fields: {
+                    "field": Int(
+                        42,
+                    ),
+                },
+            },
+        ),
+        "x": Int(
+            42,
+        ),
+    },
     ..
 }
 ---

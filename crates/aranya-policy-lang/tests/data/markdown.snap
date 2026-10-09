@@ -16,7 +16,7 @@ Policy {
     ],
     actions: [
         ActionDefinition {
-            persistence: Persistent,
+            flavor: None,
             identifier: "foo" @ 125..128,
             arguments: [],
             return_type: Unit @ 0..0,

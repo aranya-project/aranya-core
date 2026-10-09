@@ -11,7 +11,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "can_fail",
-            persistence: Persistent,
+            flavor: None,
             params: [],
             result_type: Result(
                 ResultTypeKind {
@@ -22,7 +22,7 @@ Module {
         },
         ActionDef {
             name: "foo",
-            persistence: Persistent,
+            flavor: None,
             params: [],
             result_type: Result(
                 ResultTypeKind {

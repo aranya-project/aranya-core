@@ -22,6 +22,7 @@ use aranya_policy_module::{
     CodeMap, ConstStruct, ConstValue, ExitReason, Instruction, Label, LabelType, Meta, Module,
     Target, WrapType,
     ffi::{self, ModuleSchema},
+    flavor::{Flavor, Flavors},
     interface,
     named::NamedMap,
 };
@@ -126,7 +127,7 @@ macro_rules! typekind {
 }
 
 mod param {
-    use aranya_policy_ast::WithSpanExt as _;
+    use aranya_policy_ast::{Identifier, WithSpanExt as _};
 
     use super::{Ident, Param, TypeKind, ident};
 
@@ -137,10 +138,10 @@ mod param {
         }
     }
 
-    pub fn envelope() -> Param {
+    pub fn envelope(name: Identifier) -> Param {
         Param {
             name: ident!("envelope").nowhere(),
-            ty: TypeKind::Struct(ident!("Envelope").nowhere()).nowhere(),
+            ty: TypeKind::Struct(name.nowhere()).nowhere(),
         }
     }
 
@@ -205,8 +206,8 @@ struct CompileState<'a> {
     wp: usize,
     /// A counter used to generate temporary labels
     c: usize,
-    /// Address of get key functions for base commands
-    base_get_keys: BTreeMap<Ident, usize>,
+    /// Base command information
+    base_commands: NamedMap<BaseCommand>,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
     function_signatures: BTreeMap<Ident, FunctionSignature>,
@@ -222,7 +223,18 @@ struct CompileState<'a> {
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
     /// Configuration
-    config: Config,
+    config: Config<'a>,
+}
+
+struct BaseCommand {
+    name: Ident,
+    get_key_address: usize,
+    flavor: Option<Ident>,
+}
+impl aranya_policy_module::named::Named for BaseCommand {
+    fn name(&self) -> &Ident {
+        &self.name
+    }
 }
 
 impl<'a> CompileState<'a> {
@@ -309,10 +321,10 @@ impl<'a> CompileState<'a> {
     }
 
     /// Insert a struct definition while preventing duplicates of the struct fields.
-    pub fn define_struct<'s>(
+    pub fn define_struct(
         &mut self,
         identifier: Ident,
-        items: impl IntoIterator<Item = &'s StructItem<FieldDefinition>>,
+        items: impl IntoIterator<Item = StructItem<FieldDefinition>>,
     ) -> Result<(), CompileError> {
         // Add explicitly-defined fields and those from struct insertions
         let mut field_definitions = Vec::new();
@@ -329,7 +341,7 @@ impl<'a> CompileState<'a> {
                         )));
                     }
 
-                    field_definitions.push(field.clone());
+                    field_definitions.push(field);
                 }
                 StructItem::StructRef(field_type_ident) => {
                     let other = self
@@ -1252,10 +1264,16 @@ impl<'a> CompileState<'a> {
     fn compile_command_policy(
         &mut self,
         command: &ast::CommandDefinition,
+        flavor_def: &Flavor<'_>,
     ) -> Result<(), CompileError> {
+        let params = [
+            param::this(command.identifier.clone()),
+            param::envelope(flavor_def.envelope.name.clone()),
+        ];
+
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.compile_function_like(
-            &[param::this(command.identifier.clone()), param::envelope()],
+            &params,
             None,
             Span::empty(),
             &command.policy,
@@ -1290,7 +1308,13 @@ impl<'a> CompileState<'a> {
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
+        flavor_def: &Flavor<'_>,
     ) -> Result<(), CompileError> {
+        let base_params = [
+            param::this(command.identifier.clone()),
+            param::envelope(flavor_def.envelope.name.clone()),
+        ];
+
         let mut named_blocks: HashSet<WithSpan<Identifier>> = HashSet::new();
 
         // Compile each recall block
@@ -1309,7 +1333,7 @@ impl<'a> CompileState<'a> {
                 .arguments
                 .iter()
                 .cloned()
-                .chain([param::this(command.identifier.clone()), param::envelope()])
+                .chain(base_params.iter().cloned())
                 .collect::<Vec<_>>();
 
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
@@ -1389,7 +1413,7 @@ impl<'a> CompileState<'a> {
             span: base_command.span,
         };
 
-        let addr = self.wp;
+        let get_key_address = self.wp;
         self.enter_statement_context(StatementContext::PureFunction(fn_def));
         self.compile_function_like(
             params,
@@ -1400,8 +1424,18 @@ impl<'a> CompileState<'a> {
         )?;
         self.exit_statement_context();
 
-        self.base_get_keys
-            .insert(base_command.identifier.clone(), addr);
+        self.base_commands
+            .insert(BaseCommand {
+                name: base_command.identifier.clone(),
+                get_key_address,
+                flavor: base_command.flavor.clone(),
+            })
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    base_command.identifier.clone(),
+                    e.existing,
+                ))
+            })?;
 
         Ok(())
     }
@@ -1420,21 +1454,39 @@ impl<'a> CompileState<'a> {
             }));
         }
 
+        let mut cmd_flavor = None;
         if let Some(base) = &command.base {
-            let addr = self
-                .base_get_keys
+            let base = self
+                .base_commands
                 .get(base)
-                .copied()
                 .ok_or_else(|| NotDefined(format!("unknown base class {base}"), base.span))
                 .map_err(|e| self.err(e))?;
+            cmd_flavor.clone_from(&base.flavor);
             self.define_label(
                 Label::new(command.identifier.inner.clone(), LabelType::GetKey),
-                addr,
+                base.get_key_address,
             )?;
         }
 
-        self.compile_command_policy(command)?;
-        self.compile_command_recall(command)?;
+        let flavor_def = match &cmd_flavor {
+            None => &self.config.flavors.default,
+            Some(cmd_flavor) => self
+                .config
+                .flavors
+                .flavors
+                .iter()
+                .find(|&(name, _)| *name == cmd_flavor.inner)
+                .map(|(_, flavor)| flavor)
+                .ok_or_else(|| {
+                    self.err(NotDefined(
+                        format!("unknown flavor {cmd_flavor}"),
+                        cmd_flavor.span,
+                    ))
+                })?,
+        };
+
+        self.compile_command_policy(command, flavor_def)?;
+        self.compile_command_recall(command, flavor_def)?;
 
         // attributes
         let mut attributes = NamedMap::new();
@@ -1460,7 +1512,7 @@ impl<'a> CompileState<'a> {
             .command_defs
             .insert(interface::CommandDefinition {
                 name: command.identifier.clone(),
-                persistence: command.persistence.clone(),
+                flavor: cmd_flavor,
                 attributes: attributes.iter().cloned().collect(),
                 fields: fields
                     .iter()
@@ -1872,7 +1924,10 @@ impl<'a> CompileState<'a> {
         for utype in self.sorted_type_definitions()? {
             match utype {
                 UserType::Struct(struct_def) => {
-                    self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
+                    self.define_struct(
+                        struct_def.identifier.clone(),
+                        struct_def.items.iter().cloned(),
+                    )?;
                 }
                 UserType::Effect(effect) => {
                     let fields: Vec<StructItem<FieldDefinition>> = effect
@@ -1886,18 +1941,21 @@ impl<'a> CompileState<'a> {
                             StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                         })
                         .collect();
-                    self.define_struct(effect.identifier.clone(), &fields)?;
+                    self.define_struct(effect.identifier.clone(), fields.iter().cloned())?;
                     self.m.interface.effects.insert(effect.identifier.clone());
                 }
                 UserType::Fact(fact) => {
                     let fields: Vec<StructItem<FieldDefinition>> =
                         fact.fields().cloned().map(StructItem::Field).collect();
 
-                    self.define_struct(fact.identifier.clone(), &fields)?;
+                    self.define_struct(fact.identifier.clone(), fields.iter().cloned())?;
                     self.define_fact(fact)?;
                 }
                 UserType::BaseCommand(base_command) => {
-                    self.define_struct(base_command.identifier.clone(), &base_command.fields)?;
+                    self.define_struct(
+                        base_command.identifier.clone(),
+                        base_command.fields.iter().cloned(),
+                    )?;
                 }
                 UserType::Command(command) => {
                     let base = command
@@ -1906,7 +1964,7 @@ impl<'a> CompileState<'a> {
                         .map(|b| StructItem::StructRef(b.clone()));
                     self.define_struct(
                         command.identifier.clone(),
-                        command.fields.iter().chain(base.as_ref()),
+                        command.fields.iter().cloned().chain(base),
                     )?;
                 }
                 UserType::FFIStruct(s) => {
@@ -1920,7 +1978,7 @@ impl<'a> CompileState<'a> {
                             })
                         })
                         .collect();
-                    self.define_struct(s.name.clone().nowhere(), &fields)?;
+                    self.define_struct(s.name.clone().nowhere(), fields.iter().cloned())?;
                 }
             }
         }
@@ -1938,9 +1996,55 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn is_default_flavor_envelope_used(&self) -> bool {
+        self.policy
+            .base_commands
+            .iter()
+            .any(|bc| bc.flavor.is_none())
+            || self.policy.commands.iter().any(|cmd| cmd.base.is_none())
+    }
+
+    fn is_flavor_used(&self, name: &str) -> bool {
+        self.policy
+            .base_commands
+            .iter()
+            .any(|bc| bc.flavor.as_ref().is_some_and(|f| f.inner == *name))
+    }
+
+    fn define_envelope(
+        &mut self,
+        envelope: &aranya_policy_module::flavor::Struct<'_>,
+    ) -> Result<(), CompileError> {
+        // TODO(jdygert): Allow defining twice with same fields?
+        let name = envelope.name.clone().nowhere();
+        let fields = envelope.fields.iter().map(|field| {
+            StructItem::Field(FieldDefinition {
+                identifier: field.name.clone().nowhere(),
+                field_type: VType::from(&field.vtype),
+            })
+        });
+        self.define_struct(name, fields)
+    }
+
+    fn define_envelopes(&mut self) -> Result<(), CompileError> {
+        if self.is_default_flavor_envelope_used() {
+            self.define_envelope(&self.config.flavors.default.envelope)?;
+        }
+
+        for (flavor_name, flavor) in self.config.flavors.flavors {
+            if self.is_flavor_used(flavor_name.as_str()) {
+                self.define_envelope(&flavor.envelope)?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Compile a policy into instructions inside the given Machine.
     pub fn compile(&mut self) -> Result<(), CompileError> {
         self.define_interfaces()?;
+
+        self.define_envelopes()?;
 
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -2268,7 +2372,9 @@ enum Scope {
 }
 
 #[derive(Copy, Clone)]
-struct Config {
+struct Config<'a> {
+    flavors: &'a Flavors<'a>,
+    ffi_modules: &'a [ModuleSchema<'a>],
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
@@ -2277,9 +2383,21 @@ struct Config {
     allow_baseless: bool,
 }
 
-impl Config {
+static DEFAULT_FLAVORS: Flavors<'static> = Flavors {
+    default: Flavor {
+        envelope: ffi::Struct {
+            name: ident!("NullEnvelope"),
+            fields: &[],
+        },
+    },
+    flavors: &[],
+};
+
+impl Config<'_> {
     fn new() -> Self {
         Self {
+            flavors: &DEFAULT_FLAVORS,
+            ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
             allow_baseless: false,
@@ -2290,8 +2408,7 @@ impl Config {
 /// A builder for creating an instance of [`Module`]
 pub struct Compiler<'a> {
     policy: &'a AstPolicy,
-    ffi_modules: &'a [ModuleSchema<'a>],
-    config: Config,
+    config: Config<'a>,
 }
 
 impl<'a> Compiler<'a> {
@@ -2299,15 +2416,21 @@ impl<'a> Compiler<'a> {
     pub fn new(policy: &'a AstPolicy) -> Self {
         Self {
             policy,
-            ffi_modules: &[],
             config: Config::new(),
         }
+    }
+
+    /// Sets the flavors.
+    #[must_use]
+    pub fn flavors(mut self, flavors: &'a Flavors<'a>) -> Self {
+        self.config.flavors = flavors;
+        self
     }
 
     /// Sets the FFI modules
     #[must_use]
     pub fn ffi_modules(mut self, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
-        self.ffi_modules = ffi_modules;
+        self.config.ffi_modules = ffi_modules;
         self
     }
 
@@ -2346,20 +2469,20 @@ impl<'a> Compiler<'a> {
 
     fn set_up_compile_state(&self) -> CompileState<'_> {
         let codemap = CodeMap::new(&self.policy.text);
-        let machine = CompileTarget::new(codemap, self.ffi_modules);
+        let machine = CompileTarget::new(codemap, self.config.ffi_modules);
         CompileState {
             policy: self.policy,
             m: machine,
             wp: 0,
             c: 0,
-            base_get_keys: BTreeMap::new(),
+            base_commands: NamedMap::new(),
             function_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(self.config.is_debug),
-            ffi_modules: self.ffi_modules,
             config: self.config,
+            ffi_modules: self.config.ffi_modules,
         }
     }
 }

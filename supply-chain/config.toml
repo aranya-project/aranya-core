@@ -55,9 +55,6 @@ audit-as-crates-io = false
 [policy.aranya-device-ffi]
 audit-as-crates-io = false
 
-[policy.aranya-envelope-ffi]
-audit-as-crates-io = false
-
 [policy.aranya-fast-channels]
 audit-as-crates-io = false
 

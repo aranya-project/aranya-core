@@ -5,13 +5,16 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'Cmd'>: 1,
-        <action 'test'>: 8,
+        <get_key 'Cmd'>: 1,
+        <policy 'Cmd'>: 8,
+        <action 'test'>: 15,
     },
     action_defs: [
         ActionDef {
             name: "test",
-            persistence: Ephemeral,
+            flavor: Some(
+                "ephemeral",
+            ),
             params: [],
             result_type: Unit,
         },
@@ -19,7 +22,9 @@ Module {
     command_defs: [
         CommandDef {
             name: "Cmd",
-            persistence: Ephemeral,
+            flavor: Some(
+                "ephemeral",
+            ),
             attributes: [],
             fields: [],
         },
@@ -30,12 +35,28 @@ Module {
             name: "Cmd",
             items: [],
         },
+        StructDef {
+            name: "Ephemeral",
+            items: [],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+<get_key 'Cmd'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'Cmd'>:
     def 'envelope'
