@@ -179,6 +179,15 @@ fn parse_try_operator_precedence() {
         panic!("expected FunctionCall, got {:?}", operand.inner);
     };
 
+    // `x.y?` should parse as `(x.y)?`, i.e. `Try(Dot(x, y))`.
+    let expr = crate::lang::parse_expression("x.y?").expect("parse failed");
+    let ExprKind::Try(operand) = expr.inner else {
+        panic!("expected Try, got {:?}", expr.inner);
+    };
+    let ExprKind::Dot(_, _) = operand.inner else {
+        panic!("expected Dot, got {:?}", operand.inner);
+    };
+
     // `?` binds tighter than prefix `!`: `!x?` is `!(x?)`.
     let expr = crate::lang::parse_expression("!x?").expect("parse failed");
     let ExprKind::Not(inner) = expr.inner else {
