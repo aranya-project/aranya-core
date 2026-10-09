@@ -992,7 +992,7 @@ impl CompileState<'_> {
                 let inner = self.lower_expression(e)?;
                 let TypeKind::Result(call_result) = &inner.vtype.inner else {
                     let err = InvalidType::new(
-                        format!("result[T, {fn_err}]"),
+                        format!("result[_, {fn_err}]"),
                         None,
                         inner.vtype.to_string(),
                         inner.span,
@@ -1003,9 +1003,9 @@ impl CompileState<'_> {
                 // returned error type doesn't match enclosing return type
                 if !call_result.err.fits_type(&fn_err) {
                     let err = InvalidType::new(
-                        fn_err.to_string(),
+                        format!("result[_, {fn_err}]"),
                         Some(fn_return_span),
-                        call_result.err.to_string(),
+                        format!("result[_, {}]", call_result.err),
                         inner.span,
                     );
                     return Err(self.err(err));
