@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -16,11 +15,11 @@ Module {
             params: [
                 Field {
                     name: "n",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "s",
-                    ty: String,
+                    vtype: String,
                 },
             ],
             result_type: Unit,
