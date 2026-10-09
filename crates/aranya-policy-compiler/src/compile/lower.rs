@@ -990,7 +990,7 @@ impl CompileState<'_> {
                 let (fn_err, fn_return_span) = self.try_error_type(expression.span)?;
 
                 let inner = self.lower_expression(e)?;
-                let TypeKind::Result(call_result) = &inner.vtype.inner else {
+                let TypeKind::Result(result) = &inner.vtype.inner else {
                     let err = InvalidType::new(
                         format!("result[_, {fn_err}]"),
                         None,
@@ -1001,17 +1001,17 @@ impl CompileState<'_> {
                 };
 
                 // returned error type doesn't match enclosing return type
-                if !call_result.err.fits_type(&fn_err) {
+                if !result.err.fits_type(&fn_err) {
                     let err = InvalidType::new(
                         format!("result[_, {fn_err}]"),
                         Some(fn_return_span),
-                        format!("result[_, {}]", call_result.err),
+                        format!("result[_, {}]", result.err),
                         inner.span,
                     );
                     return Err(self.err(err));
                 }
 
-                let vtype = call_result.ok.clone();
+                let vtype = result.ok.clone();
                 thir::Expression {
                     kind: thir::ExprKind::Try(Box::new(inner)),
                     vtype,
