@@ -21,9 +21,9 @@ use perspective
 
 ```policy
 struct PublicKeys {
-    ident_key bytes,
-    sign_key bytes,
-    enc_key bytes,
+    ident_key: bytes,
+    sign_key: bytes,
+    enc_key: bytes,
 }
 ```
 
@@ -31,39 +31,39 @@ struct PublicKeys {
 
 ```policy
 // Signing public key for seal/open verification.
-fact DeviceSignPubKey[device_id id]=>{key_id id, key bytes}
+fact DeviceSignPubKey[device_id: id]=>{key_id: id, key: bytes}
 
 // Singleton: tracks the team owner's device ID.
-fact Owner[]=>{device_id id}
+fact Owner[]=>{device_id: id}
 
 // Application data: a named counter.
-fact Counter[name int]=>{value int}
+fact Counter[name: int]=>{value: int}
 ```
 
 ## Effects
 
 ```policy
 effect Initialized {
-    device_id id,
+    device_id: id,
 }
 
 effect DeviceAdded {
-    device_id id,
+    device_id: id,
 }
 
 effect CounterSet {
-    name int,
-    value int,
+    name: int,
+    value: int,
 }
 
 effect CounterIncremented {
-    name int,
-    value int,
+    name: int,
+    value: int,
 }
 
 effect CounterValue {
-    name int,
-    value int,
+    name: int,
+    value: int,
 }
 ```
 
@@ -76,7 +76,7 @@ yet, seal/open inline the crypto using keys from the command fields.
 ```policy
 base command BaseInit {
     fields {
-        owner_keys struct PublicKeys,
+        owner_keys: struct PublicKeys,
     }
     get_key {
         return Some(this.owner_keys.sign_key)
@@ -89,7 +89,7 @@ command Init with BaseInit {
     }
 
     fields {
-        nonce int,
+        nonce: int,
     }
 
     policy {
@@ -135,7 +135,7 @@ command AddDevice with Base {
     }
 
     fields {
-        device_keys struct PublicKeys,
+        device_keys: struct PublicKeys,
     }
 
     policy {
@@ -170,8 +170,8 @@ command SetCounter with Base {
     }
 
     fields {
-        name int,
-        value int,
+        name: int,
+        value: int,
     }
 
     policy {
@@ -188,8 +188,8 @@ command IncrementCounter with Base {
     }
 
     fields {
-        name int,
-        amount int,
+        name: int,
+        amount: int,
     }
 
     policy {
@@ -211,7 +211,7 @@ command IncrementCounter with Base {
 ```policy
 ephemeral command GetCounter with Base {
     fields {
-        name int,
+        name: int,
     }
 
     policy {
@@ -226,23 +226,23 @@ ephemeral command GetCounter with Base {
 ## Actions
 
 ```policy
-action init(owner_keys struct PublicKeys, nonce int) {
+action init(owner_keys: struct PublicKeys, nonce: int) {
     publish Init { owner_keys, nonce }
 }
 
-action add_device(device_keys struct PublicKeys) {
+action add_device(device_keys: struct PublicKeys) {
     publish AddDevice { device_keys }
 }
 
-action set_counter(name int, value int) {
+action set_counter(name: int, value: int) {
     publish SetCounter { name, value }
 }
 
-action increment_counter(name int, amount int) {
+action increment_counter(name: int, amount: int) {
     publish IncrementCounter { name, amount }
 }
 
-ephemeral action get_counter(name int) {
+ephemeral action get_counter(name: int) {
     publish GetCounter { name }
 }
 ```

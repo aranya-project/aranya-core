@@ -1,5 +1,5 @@
 struct CommonStruct {
-    n int,
+    n: int,
 }
 
 enum CommonEnum {
@@ -8,20 +8,20 @@ enum CommonEnum {
 }
 
 struct Input {
-    x int,
-    y bool,
-    z string,
-    w struct CommonStruct,
-    v enum CommonEnum,
+    x: int,
+    y: bool,
+    z: string,
+    w: struct CommonStruct,
+    v: enum CommonEnum,
 }
 
 struct Output {
-    x int,
-    y bool,
-    w struct CommonStruct,
-    v enum CommonEnum,
+    x: int,
+    y: bool,
+    w: struct CommonStruct,
+    v: enum CommonEnum,
 }
 
-function convert(input struct Input) struct Output {
+function convert(input: struct Input) struct Output {
     return input substruct Output
 }

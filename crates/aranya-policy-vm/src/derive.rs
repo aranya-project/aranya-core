@@ -91,12 +91,12 @@
 ///     module = "crypto",
 ///     def = r#"
 /// struct S0 {
-///     a int,
-///     b bytes,
-///     c string,
+///     a: int,
+///     b: bytes,
+///     c: string,
 /// }
 /// struct S1 {
-///     x struct S0,
+///     x: struct S0,
 /// }
 /// "#
 /// )]
@@ -104,7 +104,7 @@
 ///     /// By default, the function's name is the same as it
 ///     /// exists in Rust. This will be `calc::add2` in the
 ///     /// `FfiModule`'s schema.
-///     #[ffi_export(def = "function add2(x int, y int) int")]
+///     #[ffi_export(def = "function add2(x: int, y: int) int")]
 ///     fn add2<E: Engine>(
 ///         _ctx: &CommandContext,
 ///         _eng: &E,
@@ -116,7 +116,7 @@
 ///
 ///     /// `name` can be used to rename functions. This will be
 ///     /// `calc::divide` in the `FfiModule`'s schema.
-///     #[ffi_export(def = "function quo(x int, y int) int")]
+///     #[ffi_export(def = "function quo(x: int, y: int) int")]
 ///     fn quo<E: Engine>(
 ///         _ctx: &CommandContext,
 ///         _eng: &E,
@@ -126,7 +126,7 @@
 ///         x.checked_div(y).ok_or(DivideByZero)
 ///     }
 ///
-///     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
+///     #[ffi_export(def = "function custom_def(a: int, b: bytes) bool")]
 ///     fn custom_def<E: Engine>(
 ///         _ctx: &CommandContext,
 ///         _eng: &E,
@@ -136,7 +136,7 @@
 ///         Ok(true)
 ///     }
 ///
-///     #[ffi_export(def = "function struct_fn(x struct S0) struct S1")]
+///     #[ffi_export(def = "function struct_fn(x: struct S0) struct S1")]
 ///     fn struct_fn<E: Engine>(_ctx: &CommandContext, _eng: &E, x: S0) -> Result<S1, Infallible> {
 ///         Ok(S1 { x })
 ///     }

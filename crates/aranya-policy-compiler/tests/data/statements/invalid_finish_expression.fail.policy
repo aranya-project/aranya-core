@@ -1,4 +1,4 @@
-fact Foo[]=>{x int}
+fact Foo[]=>{x: int}
 command Test {
     policy {
         finish {

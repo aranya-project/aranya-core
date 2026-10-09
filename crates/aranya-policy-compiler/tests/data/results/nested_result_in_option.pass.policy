@@ -1,5 +1,5 @@
 enum Error { Fail }
-function bar(n int) option[result[int, enum Error]] {
+function bar(n: int) option[result[int, enum Error]] {
     if n > 0 {
         return Some(Ok(42))
     } else if n == 0 {

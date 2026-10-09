@@ -198,14 +198,14 @@ mod ffi {
         def = r#"
 struct Envelope {
     // The parent command ID.
-    parent_id id,
+    parent_id: id,
     // The author's device ID.
-    author_id id,
+    author_id: id,
     // Uniquely identifies the command.
-    command_id id,
+    command_id: id,
     // The signature over the command and its contextual
     // bindings.
-    signature bytes,
+    signature: bytes,
 }
 
 // This exists only for FFI contract testing purposes
@@ -217,7 +217,7 @@ enum TestEnum {
 "#
     )]
     impl TestFfiEnvelope {
-        #[ffi_export(def = "function do_seal(payload bytes) struct Envelope")]
+        #[ffi_export(def = "function do_seal(payload: bytes) struct Envelope")]
         fn seal<CE>(
             &self,
             _ctx: &CommandContext,
@@ -227,7 +227,9 @@ enum TestEnum {
             unimplemented!()
         }
 
-        #[ffi_export(def = "function do_open(payload bytes, envelope_input struct Envelope) unit")]
+        #[ffi_export(
+            def = "function do_open(payload: bytes, envelope_input: struct Envelope) unit"
+        )]
         fn open<CE>(
             &self,
             _ctx: &CommandContext,

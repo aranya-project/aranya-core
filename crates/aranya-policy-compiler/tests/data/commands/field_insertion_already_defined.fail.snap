@@ -4,8 +4,8 @@ expression: error
 ---
 error: the name `a` is defined multiple times
   |
-2 | struct Bar { a int }
+2 | struct Bar { a: int }
   |              - previous defintion here
 ...
-6 |         a bool // Duplicate field `a`
+6 |         a: bool // Duplicate field `a`
   |         ^ re-defined here

@@ -1,11 +1,11 @@
 struct Foo {
-    a int,
-    b string,
+    a: int,
+    b: string,
 }
 command Bar {
     fields {
-        a int,
-        b string,
+        a: int,
+        b: string,
     }
     policy {
         finish {}

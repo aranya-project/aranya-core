@@ -3,23 +3,23 @@ policy-version: 2
 ---
 
 ```policy
-fact Players[gameID id]=>{x id, o id}
-fact NextPlayer[gameID id]=>{p string}
-fact Field[gameID id, x int, y int]=>{p string}
-fact GameOver[gameID id]=>{}
+fact Players[gameID: id]=>{x: id, o: id}
+fact NextPlayer[gameID: id]=>{p: string}
+fact Field[gameID: id, x: int, y: int]=>{p: string}
+fact GameOver[gameID: id]=>{}
 
 // Regular functions can only contain data processing statements, must
 // have a return type, and must return a value
-function bounds(v int) bool {
+function bounds(v: int) bool {
     return v >= 0 && v <= 2
 }
 // finish functions can only be used in finish blocks and can only contain
 // statements valid in finish blocks
-finish function set_next_player(gameID id, to_input string) {
+finish function set_next_player(gameID: id, to_input: string) {
     update NextPlayer[gameID] to {p: to_input}
 }
 
-action StartGame(profileX id, profileO id) {
+action StartGame(profileX: id, profileO: id) {
     let start_command = Start{
         ProfileX: profileX,
         ProfileO: profileO,
@@ -28,15 +28,15 @@ action StartGame(profileX id, profileO id) {
 }
 
 effect GameStart {
-    gameID id,
-    x id,
-    o id,
+    gameID: id,
+    x: id,
+    o: id,
 }
 
 command Start {
     fields {
-        ProfileX id,
-        ProfileO id,
+        ProfileX: id,
+        ProfileO: id,
     }
     policy {
         check ProfileX != ProfileO else test_fail("Profiles must be different")
@@ -56,7 +56,7 @@ command Start {
     }
 }
 
-action MakeMove(gameID id, x int, y int) {
+action MakeMove(gameID: id, x: int, y: int) {
     let move_command = Move {
         gameID,
         X: x,
@@ -66,27 +66,27 @@ action MakeMove(gameID id, x int, y int) {
 }
 
 effect GameUpdate {
-    gameID id,
-    player id,
+    gameID: id,
+    player: id,
     // the "dynamic" keyword is an annotation used to indicate to the consumer
     // that this value is not based on static event data and may change.
-    p      string dynamic,
-    X      int,
-    Y      int,
+    p:      string dynamic,
+    X:      int,
+    Y:      int,
 }
 
 effect GameOver {
-    gameID id,
-    winner id,
-    p string,
+    gameID: id,
+    winner: id,
+    p: string,
 }
 
 command Move {
     // phase 0: command field definition
     fields {
-        gameID id,
-        X int,
-        Y int,
+        gameID: id,
+        X: int,
+        Y: int,
     }
     policy {
         // phase 1: variable definition/checks
@@ -138,7 +138,7 @@ command Move {
     }
 }
 
-function game_over(gameID id, x int, y int, p string) bool {
+function game_over(gameID: id, x: int, y: int, p: string) bool {
     let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID, x: 0, y: 0]=>{p: ?} }
     let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID, x: 1, y: 0]=>{p: ?} }
     let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID, x: 2, y: 0]=>{p: ?} }
@@ -160,9 +160,9 @@ function game_over(gameID id, x int, y int, p string) bool {
 
 command Move2 {
     fields {
-        gameID id,
-        X int,
-        Y int,
+        gameID: id,
+        X: int,
+        Y: int,
     }
     policy {
         let player = envelope::author_id(envelope)

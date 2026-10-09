@@ -1,4 +1,4 @@
-function f(n int) bool {
+function f(n: int) bool {
     match n {
         0 => {
             :true

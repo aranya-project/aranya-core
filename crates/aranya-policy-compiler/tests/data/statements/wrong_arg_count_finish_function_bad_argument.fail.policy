@@ -1,14 +1,14 @@
 effect Result {
-    x int
+    x: int
 }
 
-finish function f(x int) {
+finish function f(x: int) {
     emit Result { x }
 }
 
 command Foo {
     fields {
-        x int,
+        x: int,
     }
 
 

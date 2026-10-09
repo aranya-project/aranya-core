@@ -51,8 +51,8 @@ impl<S: KeyStore> Ffi<S> {
     module = "afc",
     def = r#"
 struct AfcUniChannel {
-    peer_encap bytes,
-    key_id id,
+    peer_encap: bytes,
+    key_id: id,
 }
 "#
 )]
@@ -61,12 +61,12 @@ impl<S: KeyStore> Ffi<S> {
     /// Creates a unidirectional channel.
     #[ffi_export(def = r#"
 function create_uni_channel(
-    parent_cmd_id id,
-    author_enc_key_id id,
-    their_pk bytes,
-    seal_id id,
-    open_id id,
-    label_id id,
+    parent_cmd_id: id,
+    author_enc_key_id: id,
+    their_pk: bytes,
+    seal_id: id,
+    open_id: id,
+    label_id: id,
 ) struct AfcUniChannel
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(

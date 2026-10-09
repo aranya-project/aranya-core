@@ -7,5 +7,5 @@ error: invalid type: string
 4 |         recall handle("not an int")
   |                       ^^^^^^^^^^^^ expected `int` but found `string`
 5 |     }
-6 |     recall handle(x int) {
-  |                     --- expected because of this
+6 |     recall handle(x: int) {
+  |                      --- expected because of this

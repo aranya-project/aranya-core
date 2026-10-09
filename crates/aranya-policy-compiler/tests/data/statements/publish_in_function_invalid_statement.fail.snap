@@ -4,7 +4,7 @@ expression: error
 ---
 error: invalid statement
   |
-1 |   function foo(x int) int {
+1 |   function foo(x: int) int {
 2 | /     publish Bar{}
 3 | | }
   | |_^ statement not allowed in pure function context

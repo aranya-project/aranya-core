@@ -20,7 +20,7 @@ use idam
 
 ```policy
 // A device has an ID and a key. The key is used for signing commands.
-fact Device[dev id]=>{key bytes}
+fact Device[dev: id]=>{key: bytes}
 ```
 
 ## Team Creation
@@ -30,12 +30,12 @@ power than any other user, as there are no privilege levels in this policy, but 
 the first device in the team. See `init.run`.
 
 ```policy
-action init(owner_key bytes) {
+action init(owner_key: bytes) {
     publish Init { owner_key }
 }
 
 effect TeamCreated {
-    owner_dev id,
+    owner_dev: id,
 }
 
 command Init {
@@ -45,7 +45,7 @@ command Init {
     }
 
     fields {
-        owner_key bytes,
+        owner_key: bytes,
     }
 
     policy {
@@ -66,12 +66,12 @@ Adding a user is a fairly simple operation of adding their key to the `Device` f
 ID is the id of this command. See `init.run`.
 
 ```policy
-action add_user(new_user_key bytes) {
+action add_user(new_user_key: bytes) {
     publish AddUser { new_user_key }
 }
 
 effect UserAdded {
-    dev id,
+    dev: id,
 }
 
 command AddUser {
@@ -81,7 +81,7 @@ command AddUser {
     }
 
     fields {
-        new_user_key bytes,
+        new_user_key: bytes,
     }
 
     policy {
@@ -106,7 +106,7 @@ the command. You probably wouldn't want to do this in a real policy, but it is u
 testing. See `add_raw_device.run`.
 
 ```policy
-action add_raw_device(device_id id, device_key bytes) {
+action add_raw_device(device_id: id, device_key: bytes) {
     publish AddDevice { device_id, device_key }
 }
 
@@ -116,8 +116,8 @@ command AddDevice {
     }
 
     fields {
-        device_id id,
-        device_key bytes,
+        device_id: id,
+        device_key: bytes,
     }
 
     policy {
@@ -139,17 +139,17 @@ This simply fetches the keys from the `Device` fact, or reports that the device 
 `get_raw_device.run` and `get_raw_device_not_found.run`.
 
 ```policy
-action get_raw_device(device_id id) {
+action get_raw_device(device_id: id) {
     publish GetDevice { device_id }
 }
 
 effect DeviceInfo {
-    device_id id,
-    device_key bytes,
+    device_id: id,
+    device_key: bytes,
 }
 
 effect DeviceNotFound {
-    device_id id,
+    device_id: id,
 }
 
 command GetDevice {
@@ -158,7 +158,7 @@ command GetDevice {
     }
 
     fields {
-        device_id id,
+        device_id: id,
     }
 
     policy {
@@ -190,7 +190,7 @@ of using a raw command struct in `hello.run`.
 
 ```policy
 effect Message {
-    msg string,
+    msg: string,
 }
 
 command Hello {
@@ -199,7 +199,7 @@ command Hello {
     }
 
     fields {
-        msg string,
+        msg: string,
     }
 
     policy {

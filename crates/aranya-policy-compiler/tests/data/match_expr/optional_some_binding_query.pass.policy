@@ -1,4 +1,4 @@
-fact Foo[i int]=>{x int}
+fact Foo[i: int]=>{x: int}
 
 action test() {
     let n = match query Foo[i: 1] {

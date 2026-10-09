@@ -13,61 +13,61 @@ Policy {
             arguments: [
                 Param {
                     name: "n" @ 11..12,
-                    ty: Int @ 13..16,
+                    ty: Int @ 14..17,
                 },
             ],
             return_type: Unit @ 0..0,
             statements: [
                 Let(
                     LetStatement {
-                        identifier: "x" @ 28..29,
+                        identifier: "x" @ 29..30,
                         expression: Match(
                             MatchExpression {
                                 scrutinee: Identifier(
-                                    "n" @ 38..39,
-                                ) @ 38..39,
+                                    "n" @ 39..40,
+                                ) @ 39..40,
                                 arms: [
                                     MatchExpressionArm {
                                         pattern: Values(
                                             [
                                                 Int(
-                                                    0 @ 50..51,
-                                                ) @ 50..51,
+                                                    0 @ 51..52,
+                                                ) @ 51..52,
                                             ],
                                         ),
                                         expression: Block(
                                             [
                                                 Let(
                                                     LetStatement {
-                                                        identifier: "x" @ 73..74,
+                                                        identifier: "x" @ 74..75,
                                                         expression: Bool(
                                                             true,
-                                                        ) @ 77..81,
+                                                        ) @ 78..82,
                                                     },
-                                                ) @ 69..94,
+                                                ) @ 70..95,
                                             ],
                                             Identifier(
-                                                "x" @ 96..97,
-                                            ) @ 96..97,
-                                        ) @ 55..107,
-                                        span: 50..116,
+                                                "x" @ 97..98,
+                                            ) @ 97..98,
+                                        ) @ 56..108,
+                                        span: 51..117,
                                     },
                                     MatchExpressionArm {
                                         pattern: Default(
-                                            116..117,
+                                            117..118,
                                         ),
                                         expression: Bool(
                                             false,
-                                        ) @ 121..126,
-                                        span: 116..131,
+                                        ) @ 122..127,
+                                        span: 117..132,
                                     },
                                 ],
                             },
-                        ) @ 32..132,
+                        ) @ 33..133,
                     },
-                ) @ 24..133,
+                ) @ 25..134,
             ],
-            span: 0..134,
+            span: 0..135,
         },
     ],
     effects: [],
@@ -78,5 +78,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action foo(n int) {\n    let x = match n {\n        0 => {\n            let x = true\n            : x\n        }\n        _ => false\n    }\n}\n",
+    text: "action foo(n: int) {\n    let x = match n {\n        0 => {\n            let x = true\n            : x\n        }\n        _ => false\n    }\n}\n",
 }

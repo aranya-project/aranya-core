@@ -7,16 +7,16 @@ FunctionDecl {
     arguments: [
         Param {
             name: "x" @ 13..14,
-            ty: Int @ 15..18,
+            ty: Int @ 16..19,
         },
         Param {
-            name: "y" @ 20..21,
+            name: "y" @ 21..22,
             ty: Struct(
-                "bar" @ 29..32,
-            ) @ 22..32,
+                "bar" @ 31..34,
+            ) @ 24..34,
         },
     ],
     return_type: Some(
-        Bool @ 34..38,
+        Bool @ 36..40,
     ),
 }

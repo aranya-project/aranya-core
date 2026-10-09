@@ -15,26 +15,26 @@ Policy {
                 Field(
                     FieldDefinition {
                         identifier: "x" @ 13..14,
-                        field_type: Int @ 15..18,
+                        field_type: Int @ 16..19,
                     },
                 ),
             ],
-            span: 0..20,
+            span: 0..21,
         },
         StructDefinition {
-            identifier: "Bar" @ 29..32,
+            identifier: "Bar" @ 30..33,
             items: [
                 StructRef(
-                    "Foo" @ 40..43,
+                    "Foo" @ 41..44,
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "y" @ 49..50,
-                        field_type: Int @ 51..54,
+                        identifier: "y" @ 50..51,
+                        field_type: Int @ 53..56,
                     },
                 ),
             ],
-            span: 22..56,
+            span: 23..58,
         },
     ],
     enums: [],
@@ -43,5 +43,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "struct Foo { x int }\n\nstruct Bar {\n    +Foo,\n    y int\n}\n",
+    text: "struct Foo { x: int }\n\nstruct Bar {\n    +Foo,\n    y: int\n}\n",
 }

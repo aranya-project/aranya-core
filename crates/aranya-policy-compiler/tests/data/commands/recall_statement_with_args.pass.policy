@@ -1,8 +1,8 @@
 command Cmd {
-    fields { x int }
+    fields { x: int }
     policy {
         recall handle(this.x)
     }
-    recall handle(x int) {
+    recall handle(x: int) {
     }
 }

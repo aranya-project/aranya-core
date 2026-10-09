@@ -24,7 +24,7 @@ use envelope
 
 base command BaseInit {
     fields {
-        sign_pk bytes,
+        sign_pk: bytes,
     }
     get_key {
         return Some(this.sign_pk)
@@ -33,7 +33,7 @@ base command BaseInit {
 
 base command BaseSelfSigned {
     fields {
-        sign_pk bytes,
+        sign_pk: bytes,
     }
     get_key {
         return Some(this.sign_pk)
@@ -58,52 +58,52 @@ base command Ephemeral {
     }
 }
 
-fact Stuff[a int]=>{x int}
+fact Stuff[a: int]=>{x: int}
 
 effect StuffHappened {
-    a int,
-    x int,
+    a: int,
+    x: int,
 }
 
 // `Message` is one of the facts we will interact with in the ephemeral sessions.
-fact Message[msg string]=>{value string}
+fact Message[msg: string]=>{value: string}
 
 // `Greeting` is an effect we will emit from the `CreateGreeting` command.
 effect Greeting {
-    key string,
-    value string,
+    key: string,
+    value: string,
 }
 
 // `Success` is a simple effect we can emit to our test to indicate that a command
 // has succeeded.
 effect Success {
-    value bool,
+    value: bool,
 }
 
 // A device's public SigningKey.
-fact DeviceSignKey[device_id id]=>{key_id id, key bytes}
+fact DeviceSignKey[device_id: id]=>{key_id: id, key: bytes}
 
 // A device's public IdentityKey.
 //
 // NB: `key_id` is also the DeviceId.
-fact DeviceIdentKey[device_id id]=>{key bytes}
+fact DeviceIdentKey[device_id: id]=>{key: bytes}
 
 // A device's set of public DeviceKeys
 struct DeviceKeyBundle {
-    device_id id,
-    ident_pk bytes,
-    sign_pk bytes,
+    device_id: id,
+    ident_pk: bytes,
+    sign_pk: bytes,
 }
 
 // Data needed to add a new device to the team.
 struct NewDevice {
-    device_id id,
-    ident_pk bytes,
-    sign_pk_id id,
-    sign_pk bytes,
+    device_id: id,
+    ident_pk: bytes,
+    sign_pk_id: id,
+    sign_pk: bytes,
 }
 
-// Returns the role string.
+// Returns the role: string.
 function Role_Device() string {
     return "Role::Device"
 }
@@ -111,7 +111,7 @@ function Role_Device() string {
 // Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the DeviceId.)
-function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[struct NewDevice, unit] {
+function authorized_device_key_ids(device_keys: struct DeviceKeyBundle) result[struct NewDevice, unit] {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
     check got_device_id == device_keys.device_id else return Err(Unit)
@@ -126,7 +126,7 @@ function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[st
     })
 }
 
-action init(nonce int, sign_pk bytes) {
+action init(nonce: int, sign_pk: bytes) {
     publish Init { nonce, sign_pk }
 }
 
@@ -136,7 +136,7 @@ command Init with BaseInit {
     }
 
     fields {
-        nonce int,
+        nonce: int,
     }
 
     policy {
@@ -145,7 +145,7 @@ command Init with BaseInit {
     }
 }
 
-action add_device_keys(ident_pk bytes, sign_pk bytes) {
+action add_device_keys(ident_pk: bytes, sign_pk: bytes) {
     publish AddDeviceKeys { ident_pk, sign_pk }
 }
 
@@ -155,7 +155,7 @@ command AddDeviceKeys with BaseSelfSigned {
     }
 
     fields {
-        ident_pk bytes,
+        ident_pk: bytes,
     }
 
     policy {
@@ -182,7 +182,7 @@ command AddDeviceKeys with BaseSelfSigned {
     recall reject() {}
 }
 
-action create_action(v int) {
+action create_action(v: int) {
     publish Create{
         key_a: 1,
         value: v,
@@ -196,8 +196,8 @@ command Create with Base {
 
     // Local variables for command
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -208,7 +208,7 @@ command Create with Base {
     }
 }
 
-action increment(v int) {
+action increment(v: int) {
     publish Increment{
         key_a: 1,
         value: v,
@@ -221,8 +221,8 @@ command Increment with Base {
     }
 
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -237,7 +237,7 @@ command Increment with Base {
     }
 }
 
-action decrement(v int) {
+action decrement(v: int) {
     publish Decrement{
         key_a: 1,
         value: v,
@@ -250,8 +250,8 @@ command Decrement with Base {
     }
 
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -266,7 +266,7 @@ command Decrement with Base {
 }
 
 // The `create_greeting` action calls the command `CreateGreeting`.
-ephemeral action create_greeting(key string, value string) {
+ephemeral action create_greeting(key: string, value: string) {
     publish CreateGreeting { key, value }
 }
 
@@ -274,8 +274,8 @@ ephemeral action create_greeting(key string, value string) {
 // the lifetime of the session it was called in.
 ephemeral command CreateGreeting with Ephemeral {
     fields {
-        key string,
-        value string,
+        key: string,
+        value: string,
     }
 
     policy {
@@ -307,8 +307,8 @@ ephemeral action verify_hellos() {
 // and VerifyGreeting checks it's contents.
 ephemeral command VerifyGreeting with Ephemeral {
     fields {
-        key string,
-        value string,
+        key: string,
+        value: string,
     }
 
     // A command can write to a temporary session fact that will be available

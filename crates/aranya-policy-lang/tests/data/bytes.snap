@@ -18,23 +18,23 @@ Policy {
             arguments: [
                 Param {
                     name: "x" @ 13..14,
-                    ty: Bytes @ 15..20,
+                    ty: Bytes @ 16..21,
                 },
             ],
-            return_type: Bytes @ 22..27,
+            return_type: Bytes @ 23..28,
             statements: [
                 Return(
                     ReturnStatement {
                         expression: Identifier(
-                            "x" @ 41..42,
-                        ) @ 41..42,
+                            "x" @ 42..43,
+                        ) @ 42..43,
                     },
-                ) @ 34..43,
+                ) @ 35..44,
             ],
-            span: 0..44,
+            span: 0..45,
         },
     ],
     finish_functions: [],
     global_lets: [],
-    text: "function foo(x bytes) bytes {\n    return x\n}\n",
+    text: "function foo(x: bytes) bytes {\n    return x\n}\n",
 }

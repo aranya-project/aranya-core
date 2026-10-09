@@ -26,14 +26,14 @@ policy-version: 2
 ```policy
 base command BaseInit {
     fields {
-        key bytes
+        key: bytes
     }
     get_key {
         return Some(this.key)
     }
 }
 
-fact Key[]=>{key bytes}
+fact Key[]=>{key: bytes}
 
 base command Base {
     get_key {
@@ -53,16 +53,16 @@ base command BaseEphemeral {
     }
 }
 
-fact Stuff[x int]=>{y int}
+fact Stuff[x: int]=>{y: int}
 
 effect StuffHappened {
-    x int,
-    y int,
+    x: int,
+    y: int,
 }
 
 effect OutOfRange {
-    value int,
-    increment int,
+    value: int,
+    increment: int,
 }
 
 command Init with BaseInit {
@@ -70,7 +70,7 @@ command Init with BaseInit {
         init: true,
     }
     fields {
-        nonce int,
+        nonce: int,
     }
     policy {
         finish {
@@ -79,7 +79,7 @@ command Init with BaseInit {
     }
 }
 
-action init(nonce int, key bytes) {
+action init(nonce: int, key: bytes) {
     publish Init {
         key: key,
         nonce: nonce,
@@ -91,8 +91,8 @@ command Create with Base {
         priority: 0,
     }
     fields {
-        key int,
-        value int,
+        key: int,
+        value: int,
     }
     policy {
         finish {
@@ -102,7 +102,7 @@ command Create with Base {
     }
 }
 
-action create_action(v int) {
+action create_action(v: int) {
     publish Create{
         key: 1,
         value: v,
@@ -114,8 +114,8 @@ command Increment with Base {
         priority: 0,
     }
     fields {
-        key int,
-        amount int,
+        key: int,
+        amount: int,
     }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
@@ -145,7 +145,7 @@ action increment() {
     }
 }
 
-ephemeral action try_result(fail bool) result[unit, string] {
+ephemeral action try_result(fail: bool) result[unit, string] {
     if fail {
         return Err("boom")
     }
@@ -154,8 +154,8 @@ ephemeral action try_result(fail bool) result[unit, string] {
 
 ephemeral command IncrementEphemeral with BaseEphemeral {
     fields {
-        key int,
-        amount int,
+        key: int,
+        amount: int,
     }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
@@ -186,7 +186,7 @@ ephemeral action increment_ephemeral() {
 }
 
 
-ephemeral action incrementFour(n int) result[unit, string] {
+ephemeral action incrementFour(n: int) result[unit, string] {
     check n == 4 else return Err("n must be 4")
     publish IncrementEphemeral {
         key: 1,
@@ -195,7 +195,7 @@ ephemeral action incrementFour(n int) result[unit, string] {
     return Ok(Unit)
 }
 
-ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
+ephemeral action lookup(k: int, v: int, expected: bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
         true => { check f is Some else return Err("expected Some") }
@@ -209,7 +209,7 @@ command Invalidate with Base {
         priority: 1
     }
     fields {
-        key int
+        key: int
     }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()

@@ -1,7 +1,7 @@
 struct Baz {
-    y int,
+    y: int,
 }
-action foo(x bool) {
+action foo(x: bool) {
     let new_struct = x substruct Baz
     publish new_struct
 }
