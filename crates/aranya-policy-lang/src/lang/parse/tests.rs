@@ -163,6 +163,44 @@ fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
     Ok(())
 }
 
+#[test]
+fn parse_try_operator_precedence() {
+    use aranya_policy_ast::ExprKind;
+
+    // Postfix ops apply left to right: `f(x)?.field` is `(f(x)?).field`.
+    let expr = crate::lang::parse_expression("f(x)?.field").expect("parse failed");
+    let ExprKind::Dot(lhs, _) = expr.inner else {
+        panic!("expected Dot, got {:?}", expr.inner);
+    };
+    let ExprKind::Try(operand) = lhs.inner else {
+        panic!("expected Try, got {:?}", lhs.inner);
+    };
+    let ExprKind::FunctionCall(_) = operand.inner else {
+        panic!("expected FunctionCall, got {:?}", operand.inner);
+    };
+
+    // `x.y?` should parse as `(x.y)?`, i.e. `Try(Dot(x, y))`.
+    let expr = crate::lang::parse_expression("x.y?").expect("parse failed");
+    let ExprKind::Try(operand) = expr.inner else {
+        panic!("expected Try, got {:?}", expr.inner);
+    };
+    let ExprKind::Dot(_, _) = operand.inner else {
+        panic!("expected Dot, got {:?}", operand.inner);
+    };
+
+    // `?` binds tighter than prefix `!`: `!x?` is `!(x?)`.
+    let expr = crate::lang::parse_expression("!x?").expect("parse failed");
+    let ExprKind::Not(inner) = expr.inner else {
+        panic!("expected Not, got {:?}", expr.inner);
+    };
+    let ExprKind::Try(operand) = inner.inner else {
+        panic!("expected Try, got {:?}", inner.inner);
+    };
+    let ExprKind::Identifier(_) = operand.inner else {
+        panic!("expected Identifier, got {:?}", operand.inner);
+    };
+}
+
 struct ErrorInput {
     description: String,
     input: String,

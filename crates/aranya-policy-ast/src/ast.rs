@@ -646,6 +646,8 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
+    /// `expr?` — unwrap a `result[T, E]`, propagating `Err` to the caller.
+    Try(Box<Expression>),
 }
 
 impl ExprKind {
@@ -770,9 +772,9 @@ impl ExprKind {
             }
 
             // Single expression variants
-            (Self::Return(a), Self::Return(b)) | (Self::Not(a), Self::Not(b)) => {
-                a.inner.matches(&b.inner)
-            }
+            (Self::Return(a), Self::Return(b))
+            | (Self::Not(a), Self::Not(b))
+            | (Self::Try(a), Self::Try(b)) => a.inner.matches(&b.inner),
 
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))
