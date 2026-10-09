@@ -184,12 +184,14 @@ where
         let label_id = chan.label_id;
 
         let result = f(&mut key, label_id);
-        if likely!(result.is_ok()) {
+        if result.is_ok() {
             // Encryption was successful (it usually is), so
             // update the cache.
             cache.idx = idx;
             cache.generation = generation;
             cache.key = key;
+        } else {
+            core::hint::cold_path();
         }
         Ok(result)
     }

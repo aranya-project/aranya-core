@@ -85,7 +85,6 @@ unsafe_debug = [
 # Other features.
 
 allocator_api = ["alloc"]
-core_intrinsics = []
 
 
 [dependencies]
@@ -146,5 +145,4 @@ denylist = [
 	"unsafe_debug",
 
 	"allocator_api",
-	"core_intrinsics",
 ]
