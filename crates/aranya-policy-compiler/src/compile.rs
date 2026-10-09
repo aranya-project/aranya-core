@@ -1264,13 +1264,12 @@ impl<'a> CompileState<'a> {
     fn compile_command_policy(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: Option<&Flavor<'_>>,
+        flavor_def: &Flavor<'_>,
     ) -> Result<(), CompileError> {
-        let envelope = flavor_def.map(|def| param::envelope(def.envelope.name.clone()));
-
-        let mut params = Vec::with_capacity(2);
-        params.push(param::this(command.identifier.clone()));
-        params.extend(envelope);
+        let params = [
+            param::this(command.identifier.clone()),
+            param::envelope(flavor_def.envelope.name.clone()),
+        ];
 
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.compile_function_like(
@@ -1309,9 +1308,12 @@ impl<'a> CompileState<'a> {
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: Option<&Flavor<'_>>,
+        flavor_def: &Flavor<'_>,
     ) -> Result<(), CompileError> {
-        let envelope = flavor_def.map(|def| param::envelope(def.envelope.name.clone()));
+        let base_params = [
+            param::this(command.identifier.clone()),
+            param::envelope(flavor_def.envelope.name.clone()),
+        ];
 
         let mut named_blocks: HashSet<WithSpan<Identifier>> = HashSet::new();
 
@@ -1331,8 +1333,7 @@ impl<'a> CompileState<'a> {
                 .arguments
                 .iter()
                 .cloned()
-                .chain(iter::once(param::this(command.identifier.clone())))
-                .chain(envelope.clone())
+                .chain(base_params.iter().cloned())
                 .collect::<Vec<_>>();
 
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
@@ -1468,21 +1469,20 @@ impl<'a> CompileState<'a> {
         }
 
         let flavor_def = match &cmd_flavor {
-            None => Some(&self.config.flavors.default),
-            Some(cmd_flavor) => Some(
-                self.config
-                    .flavors
-                    .flavors
-                    .iter()
-                    .find(|&(name, _)| *name == cmd_flavor.inner)
-                    .map(|(_, flavor)| flavor)
-                    .ok_or_else(|| {
-                        self.err(NotDefined(
-                            format!("unknown flavor {cmd_flavor}"),
-                            cmd_flavor.span,
-                        ))
-                    })?,
-            ),
+            None => &self.config.flavors.default,
+            Some(cmd_flavor) => self
+                .config
+                .flavors
+                .flavors
+                .iter()
+                .find(|&(name, _)| *name == cmd_flavor.inner)
+                .map(|(_, flavor)| flavor)
+                .ok_or_else(|| {
+                    self.err(NotDefined(
+                        format!("unknown flavor {cmd_flavor}"),
+                        cmd_flavor.span,
+                    ))
+                })?,
         };
 
         self.compile_command_policy(command, flavor_def)?;

@@ -184,6 +184,20 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
                     },
                 },
             ),
+            (
+                ident!("finalize"),
+                Flavor {
+                    envelope: Struct {
+                        name: ident!("FinalizeEnvelope"),
+                        fields: &[
+                            arg!("command_id", Id),
+                            arg!("parent_id", Id),
+                            // TODO(jdygert): Make finalize certified.
+                            // Omit `author_id` so nothing relies on it.
+                        ],
+                    },
+                },
+            ),
         ],
     }
 };
@@ -881,7 +895,6 @@ mod test {
     }
 
     #[test]
-    #[ignore = "TODO: pass flavors"]
     fn test_get_command_priority() {
         fn basic(attrs: &str) -> String {
             format!(
@@ -914,7 +927,11 @@ mod test {
 
         fn process(policy: String) -> Result<VmPriority, AttributeError> {
             let ast = parse_policy_str(&policy, Version::V2).unwrap();
-            let module = Compiler::new(&ast).allow_baseless(true).compile().unwrap();
+            let module = Compiler::new(&ast)
+                .flavors(&FLAVORS)
+                .allow_baseless(true)
+                .compile()
+                .unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let def = machine.command_defs.get(&ident!("Test")).unwrap();
             get_command_priority(def)
