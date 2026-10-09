@@ -17,12 +17,7 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-    ],
+    struct_defs: [],
     enum_defs: [
         EnumDef {
             name: "Result",

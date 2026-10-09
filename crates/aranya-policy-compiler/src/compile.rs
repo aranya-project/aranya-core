@@ -1990,40 +1990,65 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn define_envelopes(&mut self) -> Result<(), CompileError> {
+        let flavors = self.config.flavors;
+
+        let envelopes = iter::chain(
+            // Default envelope, if used.
+            Some(&flavors.default.envelope).filter(|_| {
+                self.policy
+                    .base_commands
+                    .iter()
+                    .any(|bc| bc.flavor.is_none())
+                    || self.policy.commands.iter().any(|cmd| cmd.base.is_none())
+            }),
+            // Each named envelope, if used.
+            flavors
+                .flavors
+                .iter()
+                .filter(|(name, _)| {
+                    self.policy
+                        .base_commands
+                        .iter()
+                        .any(|bc| bc.flavor.as_ref().is_some_and(|f| f.inner == *name))
+                })
+                .map(|(_, flavor)| &flavor.envelope),
+        );
+
+        for envelope in envelopes {
+            let fields = envelope
+                .fields
+                .iter()
+                .map(|field| FieldDefinition {
+                    identifier: field.name.clone().nowhere(),
+                    field_type: VType::from(&field.vtype),
+                })
+                .collect();
+            match self
+                .m
+                .interface
+                .struct_defs
+                .entry(envelope.name.clone().nowhere())
+            {
+                Entry::Vacant(e) => {
+                    e.insert(fields);
+                }
+                Entry::Occupied(e) => {
+                    // TODO(jdygert): Allow defining twice with same fields?
+                    let old = e.key().clone();
+                    let new = envelope.name.clone().nowhere();
+                    return Err(self.err(AlreadyDefined::new(old, new)));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Compile a policy into instructions inside the given Machine.
     pub fn compile(&mut self) -> Result<(), CompileError> {
         self.define_interfaces()?;
 
-        // TODO: Do properly
-        {
-            let flavors = self.config.flavors;
-            let envelopes = iter::once(&flavors.default.envelope).chain(
-                flavors
-                    .flavors
-                    .iter()
-                    .filter(|(name, _)| {
-                        self.policy
-                            .base_commands
-                            .iter()
-                            .any(|bc| bc.flavor.as_ref().is_some_and(|f| f.inner == *name))
-                    })
-                    .map(|(_, flavor)| &flavor.envelope),
-            );
-            for envelope in envelopes {
-                let fields = envelope
-                    .fields
-                    .iter()
-                    .map(|field| FieldDefinition {
-                        identifier: field.name.clone().nowhere(),
-                        field_type: VType::from(&field.vtype),
-                    })
-                    .collect();
-                self.m
-                    .interface
-                    .struct_defs
-                    .insert(envelope.name.clone().nowhere(), fields);
-            }
-        }
+        self.define_envelopes()?;
 
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));

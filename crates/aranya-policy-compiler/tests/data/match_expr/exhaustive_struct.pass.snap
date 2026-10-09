@@ -40,10 +40,6 @@ Module {
                 },
             ],
         },
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
     ],
     enum_defs: [
         EnumDef {

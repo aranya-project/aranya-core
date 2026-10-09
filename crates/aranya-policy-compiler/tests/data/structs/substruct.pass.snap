@@ -50,10 +50,6 @@ Module {
             ],
         },
         StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
             name: "Output",
             items: [
                 Field {
