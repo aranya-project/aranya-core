@@ -26,8 +26,6 @@ use super::{
     le::{U32, U64},
     path::{Flag, Mode, Path},
 };
-#[allow(unused_imports)]
-use crate::features::*;
 use crate::{
     ChannelDirection, RemoveIfParams,
     errno::{Errno, errno},
@@ -992,14 +990,12 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Retrieves the channel and its index for a particular
@@ -1037,14 +1033,12 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter_mut()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter_mut()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Removes the [`ShmChan`] at `idx`, replacing it with
