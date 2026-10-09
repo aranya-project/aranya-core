@@ -407,7 +407,7 @@ base_command_definition = { "base" ~ "command" ~ identifier ~ "{" ~ base_command
 // function foo(a int) int { return a }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
 function_definition = { function_decl ~ statement_block }
-/// finish function foo(a int) { create F[]=>{} }
+/// finish function foo(a: int) { create F[]=>{} }
 finish_function_decl = { "finish" ~ "function" ~ identifier ~ function_arguments }
 finish_function_definition = { finish_function_decl ~ statement_block }
 // This let statement assigns a value to an identifier in a global scope
