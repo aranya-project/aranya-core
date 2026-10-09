@@ -86,7 +86,6 @@ unsafe_debug = [
 
 allocator_api = ["alloc"]
 core_intrinsics = []
-try_find = []
 
 
 [dependencies]
@@ -148,5 +147,4 @@ denylist = [
 
 	"allocator_api",
 	"core_intrinsics",
-	"try_find",
 ]

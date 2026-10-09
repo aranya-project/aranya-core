@@ -568,7 +568,7 @@ pub(super) struct SharedMem<CS> {
     /// ```
     ///
     /// It is a ZST and does not affect the memory layout.
-    sides: PhantomData<CS>,
+    sides: PhantomData<fn() -> CS>,
 }
 assert_ffi_safe!(SharedMem<aranya_crypto::default::DefaultEngine<aranya_crypto::Rng>>);
 
@@ -813,13 +813,27 @@ impl<CS> core::ops::DerefMut for LockedChanList<'_, CS> {
 #[derive_where(Debug)]
 pub(super) struct ChanListData<CS> {
     /// The current number of channels.
+    ///
+    /// Must be less than `isize::MAX`.
+    ///
+    /// NOTE(eric): It's possible for the reader and writer to
+    /// disagree on `isize::MAX`. This could cause one side to
+    /// see the shared memory as corrupted and bail. This is
+    /// incredibly unlikely in practice, though.
     pub(super) len: U64,
     /// The maximum number of channels.
+    ///
+    /// Must be less than `isize::MAX`.
+    ///
+    /// NOTE(eric): It's possible for the reader and writer to
+    /// disagree on `isize::MAX`. This could cause one side to
+    /// see the shared memory as corrupted and bail. This is
+    /// incredibly unlikely in practice, though.
     pub(super) cap: U64,
     /// This is actually `[ShmChan; cap]`.
     ///
     /// It is a ZST and does not affect the memory layout.
-    chans: PhantomData<CS>,
+    chans: PhantomData<fn() -> CS>,
 }
 assert_ffi_safe!(ChanListData<aranya_crypto::default::DefaultCipherSuite>);
 
@@ -832,16 +846,34 @@ const_assert!(
 impl<CS: CipherSuite> LockedChanList<'_, CS> {
     /// Performs basic sanity checking.
     #[track_caller]
-    fn check(&self) {
+    fn check(&self) -> Result<(), Corrupted> {
         debug_assert!(self.len <= self.cap);
+
+        if unlikely!(self.len > self.cap) {
+            Err(corrupted("`len` > `cap`"))
+        } else {
+            Ok(())
+        }
     }
 
+    /// Returns the number of channels.
+    ///
+    /// The result will always be in [0, `isize::MAX`].
     fn len(&self) -> Result<usize, Corrupted> {
-        usize::try_from(self.len).map_err(|_| corrupted("`len` is larger than `usize::MAX`"))
+        isize::try_from(self.len)
+            .map_err(|_| corrupted("`len` is larger than `isize::MAX`"))?
+            .try_into()
+            .map_err(|_| corrupted("`len` must fit in `usize`"))
     }
 
+    /// Returns the maximum number of channels.
+    ///
+    /// The result will always be in [0, `isize::MAX`].
     fn cap(&self) -> Result<usize, Corrupted> {
-        usize::try_from(self.cap).map_err(|_| corrupted("`cap` is larger than `usize::MAX`"))
+        isize::try_from(self.cap)
+            .map_err(|_| corrupted("`cap` is larger than `isize::MAX`"))?
+            .try_into()
+            .map_err(|_| corrupted("`cap` must fit in `usize`"))
     }
 
     /// Truncates the list.
@@ -852,28 +884,40 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
     /// Returns a slice of the channels.
     fn chans(&self) -> Result<&[ShmChan<CS>], Corrupted> {
-        self.check();
+        self.check()?;
 
         let ptr = ptr::addr_of!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY:
+        // - `ptr` is correctly aligned and non-null.
+        // - `self.len()` is in [0, `isize::MAX`].
+        // - We have to trust that `len` is a valid length for
+        //   `ptr`.
         Ok(unsafe { slice::from_raw_parts(ptr, self.len()?) })
     }
 
     /// Returns the in-use channels.
     pub fn chans_mut(&mut self) -> Result<&mut [ShmChan<CS>], Corrupted> {
-        self.check();
+        self.check()?;
 
         let ptr = ptr::addr_of_mut!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY:
+        // - `ptr` is correctly aligned and non-null.
+        // - `self.len()` is in [0, `isize::MAX`].
+        // - We have to trust that `len` is a valid length for
+        //   `ptr`.
         Ok(unsafe { slice::from_raw_parts_mut(ptr, self.len()?) })
     }
 
     /// Returns the trailing data.
     fn all_chans_mut(&mut self) -> Result<&mut [MaybeUninit<ShmChan<CS>>], Corrupted> {
-        self.check();
+        self.check()?;
 
         let ptr = ptr::addr_of_mut!(self.chans).cast::<MaybeUninit<ShmChan<CS>>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY:
+        // - `ptr` is correctly aligned and non-null.
+        // - `self.cap()` is in [0, `isize::MAX`].
+        // - We have to trust that `cap` is a valid length for
+        //   `ptr`.
         Ok(unsafe { slice::from_raw_parts_mut(ptr, self.cap()?) })
     }
 
@@ -883,7 +927,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
     /// uninitialized channels. It also returns an error if `idx`
     /// is out of range.
     pub fn raw_at(&mut self, idx: usize) -> Result<&mut MaybeUninit<ShmChan<CS>>, Corrupted> {
-        self.check();
+        self.check()?;
 
         self.all_chans_mut()?
             .get_mut(idx)
@@ -896,7 +940,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
     /// channels. It is not an error if `idx` is out of range.
     /// Instead, it returns `None`.
     pub fn get(&self, idx: usize) -> Result<Option<&ShmChan<CS>>, Corrupted> {
-        self.check();
+        self.check()?;
 
         Ok(self.chans()?.get(idx))
     }
@@ -907,7 +951,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
     /// channels. It is not an error if `idx` is out of range.
     /// Instead, it returns `None`.
     pub fn get_mut(&mut self, idx: usize) -> Result<Option<&mut ShmChan<CS>>, Corrupted> {
-        self.check();
+        self.check()?;
 
         Ok(self.chans_mut()?.get_mut(idx))
     }
@@ -917,7 +961,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
     where
         F: FnMut(RemoveIfParams) -> bool,
     {
-        self.check();
+        self.check()?;
 
         let mut updated = false;
         let mut idx = 0;
@@ -958,7 +1002,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
         hint: Option<Index>,
         op: Op,
     ) -> Result<bool, Error> {
-        self.check();
+        self.check()?;
 
         Ok(self.find(id, hint, op)?.is_some())
     }
@@ -992,20 +1036,19 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Retrieves the channel and its index for a particular
     /// channel.
     ///
     /// The channel must match the particular `op`.
+    #[inline(always)]
     pub(super) fn find_mut(
         &mut self,
         ch: LocalChannelId,
@@ -1021,9 +1064,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
                 // Hints are purely additive, so we purposefully
                 // ignore errors (e.g., Corrupted) while finding
                 // the channel.
-                .filter(|chan| {
-                    chan.id().is_ok_and(|got| got == ch) && chan.matches(op).is_ok_and(|ok| ok)
-                })
+                .filter(|chan| chan.id().ok() == Some(ch) && chan.matches(op).ok() == Some(true))
                 // Use ptr to work around early return borrow
                 // checker limitation
                 .map(|chan| -> *mut ShmChan<CS> { chan })
@@ -1037,20 +1078,18 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter_mut()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter_mut()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Removes the [`ShmChan`] at `idx`, replacing it with
     /// the last channel in the list.
     pub fn swap_remove(&mut self, idx: usize) -> Result<(), Corrupted> {
-        self.check();
+        self.check()?;
 
         let len = self.len()?;
         if unlikely!(len == 0) {
@@ -1071,20 +1110,19 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
     /// Returns an iterator over the list's channels.
     pub fn try_iter(&self) -> Result<slice::Iter<'_, ShmChan<CS>>, Corrupted> {
-        self.check();
+        self.check()?;
 
         Ok(self.chans()?.iter())
     }
 
     /// Returns an iterator over the list's channels.
     pub fn try_iter_mut(&mut self) -> Result<slice::IterMut<'_, ShmChan<CS>>, Corrupted> {
-        self.check();
+        self.check()?;
 
         Ok(self.chans_mut()?.iter_mut())
     }
 }
 
-// TODO: move into `tests.rs`
 #[cfg(test)]
 mod tests {
     use super::*;

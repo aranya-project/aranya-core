@@ -5,7 +5,7 @@ use aranya_crypto::{
     policy::LabelId,
     zeroize::Zeroize as _,
 };
-use buggy::BugExt as _;
+use buggy::{BugExt as _, bug};
 
 #[allow(unused_imports)]
 use crate::features::*;
@@ -48,11 +48,6 @@ impl<S: AfcState> Client<S> {
     /// The size in octets of `SealKey`'s auth overhead.
     const TAG_SIZE: usize = SealKey::<S::CipherSuite>::OVERHEAD;
 
-    #[cold]
-    fn unlikely<T>(v: T) -> T {
-        v
-    }
-
     /// Set up the seal context for the given channel.
     ///
     /// This must only be called once for any given channel ID. Failure to
@@ -73,6 +68,7 @@ impl<S: AfcState> Client<S> {
     /// The resulting ciphertext is written to `dst`, which must
     /// be at least `plaintext.len() + Client::OVERHEAD` bytes
     /// long.
+    #[inline]
     pub fn seal(
         &self,
         ctx: &mut S::SealCtx,
@@ -83,11 +79,21 @@ impl<S: AfcState> Client<S> {
         let ciphertext_len = plaintext
             .len()
             .checked_add(Self::OVERHEAD)
-            .ok_or_else(|| Self::unlikely(Error::InputTooLarge))?;
+            .ok_or(Error::InputTooLarge)?;
+
         // Limit `dst` to just the bytes that we're writing to.
-        let dst = dst
-            .get_mut(..ciphertext_len)
-            .ok_or_else(|| Self::unlikely(Error::BufferTooSmall))?;
+        let dst = dst.get_mut(..ciphertext_len).ok_or(Error::BufferTooSmall)?;
+
+        // Check the length of `dst` to get rid of a panicking
+        // branch created by the call to `dst.zeroize` at the end
+        // of the method. This is somewhat silly since it is UB
+        // for the length of a slice with non-ZST elements to be
+        // greater than `isize::MAX`. But the implementation of
+        // `Zeroize` for `[Z]` unconditionally asserts that the
+        // length of the slice is less than `isize::MAX`.
+        if dst.len() > isize::MAX as usize {
+            bug!("`dst.len()` greater than `isize::MAX`");
+        }
 
         // For performance reasons, we arrange the ciphertext
         // like so:
@@ -104,13 +110,13 @@ impl<S: AfcState> Client<S> {
         // be extra careful.
         .inspect_err(|_| {
             dst.zeroize();
-            Self::unlikely(());
         })
     }
 
     /// Encrypts and authenticates `data` for a channel.
     ///
     /// The resulting ciphertext is written in-place to `data`.
+    #[inline]
     pub fn seal_in_place<T: Buf>(
         &self,
         ctx: &mut S::SealCtx,
@@ -144,7 +150,6 @@ impl<S: AfcState> Client<S> {
         // failure, but it doesn't hurt to be extra careful.
         .inspect_err(|_| {
             data.zeroize();
-            Self::unlikely(());
         })
     }
 
@@ -189,6 +194,7 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
+    #[inline]
     pub fn open(
         &self,
         ctx: &mut S::OpenCtx,
@@ -249,6 +255,7 @@ impl<S: AfcState> Client<S> {
     ///
     /// It returns the cryptographically verified label and
     /// sequence number associated with the ciphertext.
+    #[inline]
     pub fn open_in_place<T: Buf>(
         &self,
         ctx: &mut S::OpenCtx,
