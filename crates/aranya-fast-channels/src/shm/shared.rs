@@ -1,6 +1,7 @@
 use core::{
     alloc::Layout,
     fmt,
+    hint::cold_path,
     marker::PhantomData,
     mem::{MaybeUninit, size_of},
     ptr, slice, str,
@@ -26,8 +27,6 @@ use super::{
     le::{U32, U64},
     path::{Flag, Mode, Path},
 };
-#[allow(unused_imports)]
-use crate::features::*;
 use crate::{
     ChannelDirection, RemoveIfParams,
     errno::{Errno, errno},
@@ -177,21 +176,21 @@ impl<CS: CipherSuite> State<CS> {
     /// Load the current `read_off` from `shm`.
     fn read_off(&self, shm: &SharedMem<CS>) -> Result<Offset, Corrupted> {
         let off = shm.read_off.load(Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid read offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid read offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Load the current `write_off` from `shm`.
     pub(super) fn write_off(&self, shm: &SharedMem<CS>) -> Result<Offset, Corrupted> {
         let off = shm.write_off.load(Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid write offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid write offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Swaps `write_off` for `read_off` and returns `read_off`.
@@ -201,11 +200,11 @@ impl<CS: CipherSuite> State<CS> {
         write_off: Offset,
     ) -> Result<Offset, Corrupted> {
         let off = shm.read_off.swap(write_off.into(), Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid write offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid write offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Reports whether `off` is a known valid offset.
@@ -479,11 +478,11 @@ impl<CS: CipherSuite> ShmChan<CS> {
         }
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_chan_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_chan_magic(magic));
         }
+        Ok(())
     }
 }
 
@@ -656,11 +655,11 @@ impl<CS: CipherSuite> SharedMem<CS> {
         debug_assert_eq!(self.version, Self::VERSION);
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_state_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_state_magic(magic));
         }
+        Ok(())
     }
 
     /// Returns the side corresponding with `off`.
@@ -756,11 +755,11 @@ impl<CS: CipherSuite> ChanList<CS> {
         debug_assert_eq!(self.magic, Self::MAGIC);
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_chanlist_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_chanlist_magic(magic));
         }
+        Ok(())
     }
 
     /// Creates a [`ChanList`] with space for at most
@@ -992,14 +991,12 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Retrieves the channel and its index for a particular
@@ -1037,14 +1034,12 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter_mut()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter_mut()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Removes the [`ShmChan`] at `idx`, replacing it with
@@ -1053,9 +1048,11 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
         self.check();
 
         let len = self.len()?;
-        if unlikely!(len == 0) {
+        if len == 0 {
+            cold_path();
             Err(corrupted("`swap_remove` called with len == 0"))
-        } else if unlikely!(idx >= len) {
+        } else if idx >= len {
+            cold_path();
             Err(corrupted("`ShmChan` index out of range"))
         } else {
             // No need to perform a swap if there is only one

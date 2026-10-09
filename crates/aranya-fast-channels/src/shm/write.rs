@@ -7,12 +7,10 @@ use aranya_crypto::{
 };
 
 use super::{
-    error::{Corrupted, Error, corrupted},
+    error::{Error, corrupted},
     path::{Flag, Mode, Path},
     shared::{ShmChan, State},
 };
-#[allow(unused_imports)]
-use crate::features::*;
 use crate::{
     RemoveIfParams,
     shm::shared::Op,
@@ -138,12 +136,8 @@ where
                 return Ok(());
             }
 
-            let idx = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, _)) => i,
+            let idx = match side.find_mut(id, None, Op::Any)? {
+                Some((_, idx)) => idx.0,
                 // The channel wasn't found.
                 None => return Ok(()),
             };
