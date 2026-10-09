@@ -181,7 +181,6 @@
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(feature = "allocator_api", feature(allocator_api))]
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![warn(
     clippy::alloc_instead_of_core,

@@ -1,7 +1,5 @@
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
-#[cfg(feature = "allocator_api")]
-use core::alloc::Allocator;
 use core::{
     fmt,
     ops::{Deref, DerefMut},
@@ -76,31 +74,7 @@ pub trait Buf: AsRef<[u8]> + Deref<Target = [u8]> + AsMut<[u8]> + DerefMut<Targe
     }
 }
 
-#[cfg(all(any(test, feature = "alloc"), feature = "allocator_api"))]
-impl<A: Allocator> Buf for Vec<u8, A> {
-    fn len(&self) -> usize {
-        Self::len(self)
-    }
-
-    fn split_at_mut(&mut self, mid: usize) -> (&mut [u8], &mut [u8]) {
-        self[..].split_at_mut(mid)
-    }
-
-    fn truncate(&mut self, len: usize) {
-        Self::truncate(self, len);
-    }
-
-    fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
-        Ok(Self::try_reserve_exact(self, additional)?)
-    }
-
-    fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError> {
-        Self::resize(self, new_len, value);
-        Ok(())
-    }
-}
-
-#[cfg(all(any(test, feature = "alloc"), not(feature = "allocator_api")))]
+#[cfg(any(test, feature = "alloc"))]
 impl Buf for Vec<u8> {
     fn len(&self) -> usize {
         Self::len(self)

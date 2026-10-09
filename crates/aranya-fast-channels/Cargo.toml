@@ -82,10 +82,6 @@ unsafe_debug = [
 	"dep:log",
 ]
 
-# Other features.
-
-allocator_api = ["alloc"]
-
 
 [dependencies]
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
@@ -143,6 +139,4 @@ denylist = [
 	"trng",
 
 	"unsafe_debug",
-
-	"allocator_api",
 ]
