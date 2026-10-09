@@ -819,6 +819,7 @@ fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'
             StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
                 for st in &mut paths {
                     let e = resolve(st, e);
+                    walk_blocks_in(st, &e, out);
                     collect_opaque(st, &e);
                 }
                 paths
@@ -832,7 +833,14 @@ fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'
                 }
                 Vec::new()
             }
-            StmtKind::Recall(_) => Vec::new(),
+            StmtKind::Recall(r) => {
+                for st in &paths {
+                    for arg in &r.arguments {
+                        walk_blocks_in(st, arg, out);
+                    }
+                }
+                Vec::new()
+            }
             StmtKind::ActionCall(_) | StmtKind::FunctionCall(_) => paths,
             // Mutations only appear inside finish contexts, which are
             // handled by `analyze_finish`.
@@ -882,6 +890,7 @@ fn walk_match<'a>(m: &MatchStatement, paths: Paths<'a>, out: &mut Out) -> Paths<
         let scrutinee = resolve(&st, &m.expression);
         // The scrutinee runs before any arm.
         let mut earlier_false = call_facts(&mut st, &scrutinee, out);
+        walk_blocks_in(&st, &scrutinee, out);
         for (arm, arm_paths) in m.arms.iter().zip(&mut entering) {
             let (when_true, when_false, bound) = arm_cond(&mut st, &scrutinee, &arm.pattern, out);
             let mut branch = st.clone();
@@ -1116,14 +1125,15 @@ fn mark_arm_exits(e: &Expression, sites: &mut BTreeSet<Span>) {
 /// copy of `st` that knows `know`, on which terminal `e` runs.
 fn terminal_branch<'a>(st: &PathState<'a>, know: Know, e: &Expression, out: &mut Out) {
     mark_arm_exits(e, &mut out.modeled_returns);
-    // `recall`, `todo()`, and `test_fail()` have nothing to walk.
+    // `recall`, `todo()`, and `test_fail()` have nothing to walk, unless a
+    // block in a `recall`'s arguments holds a `finish`.
     let walkable = matches!(
         e.kind,
         ExprKind::Return(_)
             | ExprKind::Block(..)
             | ExprKind::Match(..)
             | ExprKind::InternalFunction(InternalFunction::If(..))
-    );
+    ) || holds_finish(e);
     if !walkable {
         return;
     }
@@ -1136,7 +1146,8 @@ fn terminal_branch<'a>(st: &PathState<'a>, know: Know, e: &Expression, out: &mut
 /// Run `e`, which never produces a value, on the path `st`: the `else`
 /// of a `check`, the right side of an `or`, or an arm of type `Never`. A
 /// `return` there is an exit, and the statements of a block there are
-/// walked, since they can hold a `finish` or a `return`.
+/// walked, since they can hold a `finish` or a `return`. So is a block
+/// elsewhere in `e` that holds a `finish`, as in a `recall`'s arguments.
 fn run_terminal<'a>(st: &mut PathState<'a>, e: &Expression, out: &mut Out) {
     if let ExprKind::Return(value) = &e.kind {
         // Only functions have `return`. Exits recorded for a command
@@ -1146,10 +1157,63 @@ fn run_terminal<'a>(st: &mut PathState<'a>, e: &Expression, out: &mut Out) {
         return;
     }
     let e = resolve(st, e);
-    branch_cond(st, &e, out, &mut |st, e, _| {
+    let walked = branch_cond(st, &e, out, &mut |st, e, _| {
         collect_opaque(st, e);
         (nothing(), nothing())
     });
+    if walked.is_none() {
+        walk_blocks_in(st, &e, out);
+    }
+}
+
+/// Walk each `if`, `match`, or block in `expr` that holds a `finish`, for
+/// an `expr` the path evaluates without walking what is inside it, so the
+/// mutations there are checked. Each is walked as a branch, every arm
+/// under its condition, on a copy of the path. The copy doesn't know what
+/// the path learns inside `expr` before reaching it, which can only leave
+/// more to prove. Walking one walks those inside it, so only the outermost
+/// are walked here.
+fn walk_blocks_in<'a>(st: &PathState<'a>, expr: &Expression, out: &mut Out) {
+    if !holds_finish(expr) {
+        return;
+    }
+    let mut outermost: Vec<&Expression> = Vec::new();
+    visit_expr(expr, &mut |node| {
+        if let Some(e) = node.expr()
+            && matches!(
+                e.kind,
+                ExprKind::Block(..)
+                    | ExprKind::Match(..)
+                    | ExprKind::InternalFunction(InternalFunction::If(..))
+            )
+            && !outermost.iter().any(|o| within(e.span, o.span))
+            && holds_finish(e)
+        {
+            outermost.push(e);
+        }
+    });
+    for e in outermost {
+        let e = resolve(st, e);
+        let mut copy = st.clone();
+        branch_cond(&mut copy, &e, out, &mut |st, v, out| {
+            walk_blocks_in(st, v, out);
+            (nothing(), nothing())
+        });
+    }
+}
+
+/// Whether a block in `expr` holds a `finish`.
+fn holds_finish(expr: &Expression) -> bool {
+    let mut found = false;
+    visit_expr(expr, &mut |node| {
+        found |= matches!(node, Node::Stmt(s) if matches!(s.kind, StmtKind::Finish(_)));
+    });
+    found
+}
+
+/// Whether `inner` lies within `outer`.
+fn within(inner: Span, outer: Span) -> bool {
+    (outer.start() <= inner.start()) & (inner.end() <= outer.end())
 }
 
 /// The span of every `return` in a function body, wherever it appears.
@@ -1305,6 +1369,7 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -
         }
         ExprKind::InternalFunction(InternalFunction::Exists(fact)) => {
             let calls = call_facts(st, expr, out);
+            walk_blocks_in(st, expr, out);
             let pat = pattern_raw(fact, st);
             with_calls(
                 calls,
@@ -1316,12 +1381,14 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -
         }
         ExprKind::InternalFunction(InternalFunction::FactCount(ty, n, fact)) => {
             let calls = call_facts(st, expr, out);
+            walk_blocks_in(st, expr, out);
             let known = count_cond(st, expr, ty, n.inner, fact);
             with_calls(calls, known)
         }
         ExprKind::Is(inner, some) => cond_is(st, inner, *some, out),
         ExprKind::FunctionCall(fc) => {
             let args = args_facts(st, fc, out);
+            walk_blocks_in(st, expr, out);
             let known = through_call(st, fc, expr.span, out, &mut |st, ret, out| {
                 cond_resolved(st, ret, out)
             });
@@ -1329,6 +1396,7 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -
         }
         ExprKind::Equal(a, b) | ExprKind::NotEqual(a, b) => {
             let calls = call_facts(st, expr, out);
+            walk_blocks_in(st, expr, out);
             collect_opaque(st, expr);
             let a = linked(st, a.as_ref().clone());
             let b = linked(st, b.as_ref().clone());
@@ -1342,6 +1410,7 @@ fn cond_resolved<'a>(st: &mut PathState<'a>, expr: &Expression, out: &mut Out) -
         }
         _ => {
             let calls = call_facts(st, expr, out);
+            walk_blocks_in(st, expr, out);
             collect_opaque(st, expr);
             (calls.clone(), calls)
         }
@@ -1416,6 +1485,7 @@ fn cond_is<'a>(
     let (when_some, when_none) = match &expr.kind {
         ExprKind::InternalFunction(InternalFunction::Query(fact)) => {
             let calls = call_facts(st, expr, out);
+            walk_blocks_in(st, expr, out);
             let pat = pattern_raw(fact, st);
             with_calls(
                 calls,
@@ -1426,9 +1496,13 @@ fn cond_is<'a>(
             )
         }
         ExprKind::Optional(None) => (None, nothing()),
-        ExprKind::Optional(Some(_)) => (nothing(), None),
+        ExprKind::Optional(Some(_)) => {
+            walk_blocks_in(st, expr, out);
+            (nothing(), None)
+        }
         ExprKind::FunctionCall(fc) => {
             let args = args_facts(st, fc, out);
+            walk_blocks_in(st, expr, out);
             let known = through_call(st, fc, expr.span, out, &mut |st, ret, out| {
                 cond_is(st, ret, true, out)
             });
@@ -1436,6 +1510,7 @@ fn cond_is<'a>(
         }
         _ => {
             let calls = call_facts(st, expr, out);
+            walk_blocks_in(st, expr, out);
             collect_opaque(st, expr);
             (calls.clone(), calls)
         }
@@ -1617,6 +1692,7 @@ fn branch_cond<'a>(
         ExprKind::Match(m) => {
             // The scrutinee runs before any arm.
             let mut earlier_false = call_facts(st, &m.scrutinee, out);
+            walk_blocks_in(st, &m.scrutinee, out);
             for arm in &m.arms {
                 let (at, af, bound) = arm_cond(st, &m.scrutinee, &arm.pattern, out);
                 let know = both(at, earlier_false.clone());
@@ -2419,6 +2495,7 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out) -
     // knows what holds when some arm produced it.
     if let Some((produced, _)) = branch_cond(st, &value, out, &mut |st, e, out| {
         let calls = call_facts(st, e, out);
+        walk_blocks_in(st, e, out);
         collect_opaque(st, e);
         (calls.clone(), calls)
     }) {
@@ -2431,6 +2508,7 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out) -
         return st.assume(know);
     }
     let calls = call_facts(st, &value, out);
+    walk_blocks_in(st, &value, out);
     collect_opaque(st, &value);
     st.assume(calls)
 }
@@ -2908,17 +2986,25 @@ fn rewrite_parts(expr: &mut Expression, sub: &Subst<'_>, binders: &mut Vec<Ident
         ExprKind::Recall(c) => c.arguments.iter_mut().all(|e| rewrite(e, sub, binders)),
         // A field read from a struct literal is that field's value. The
         // typed tree lists every field of a literal, including those
-        // taken from a struct it was composed from.
+        // taken from a struct it was composed from. The literal still
+        // builds its other fields, so when one of them holds a `finish`,
+        // the read is kept whole for the walk to find it.
         ExprKind::Dot(base, field) => {
             if !rewrite(base, sub, binders) {
                 return false;
             }
             let value = match &base.kind {
-                ExprKind::NamedStruct(s) => s
-                    .fields
-                    .iter()
-                    .find(|(name, _)| name.inner == field.inner)
-                    .map(|(_, value)| value.clone()),
+                ExprKind::NamedStruct(s)
+                    if !s
+                        .fields
+                        .iter()
+                        .any(|(name, value)| name.inner != field.inner && holds_finish(value)) =>
+                {
+                    s.fields
+                        .iter()
+                        .find(|(name, _)| name.inner == field.inner)
+                        .map(|(_, value)| value.clone())
+                }
                 _ => None,
             };
             if let Some(value) = value {

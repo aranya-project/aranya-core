@@ -35,6 +35,28 @@ let result = vm.call_action("my_action", &args)?;
 println!("Action result: {:?}", result);
 ```
 
+### Checking Fact Mutations
+
+The compiler can check that no `create`, `update`, or `delete` in a
+policy can raise a runtime exception, such as creating a fact that
+already exists. It reports what it can't prove as warnings. See
+[the design doc](https://github.com/aranya-project/aranya-core/blob/main/docs/policy-obligation-analysis.md).
+
+```rust
+use aranya_policy_compiler::Compiler;
+use aranya_policy_lang::lang::parse_policy_document;
+
+let policy_str = std::fs::read_to_string("policy.md")?;
+let policy = parse_policy_document(&policy_str)?;
+
+// Compiles the policy and runs the analysis. `compile()` doesn't run
+// it. Add `.ffi_modules(...)` if the policy uses FFI modules.
+let (module, warnings) = Compiler::new(&policy).compile_with_diagnostics()?;
+for warning in &warnings {
+    eprintln!("{}", warning.render(&policy.text));
+}
+```
+
 ### As a Command-Line Tool
 
 The crate also provides a command-line interface through the `policy-compiler` binary:
@@ -48,4 +70,10 @@ policy-compiler input.md --no-validate
 
 # Compile with FFI stubbing for testing
 policy-compiler input.md --stub-ffi
+
+# Check fact mutations, and fail if there are any warnings
+policy-compiler input.md --stub-ffi --no-validate --check-obligations --deny-warnings
 ```
+
+`--stub-ffi` is needed if the policy uses FFI modules, and
+`--no-validate` works around a separate issue in the validation step.

@@ -1,7 +1,13 @@
 //! Attacks on `if`, `match`, and block expressions: arms are joined by
 //! intersection, and nothing from an arm's scope escapes.
 
+use aranya_policy_ast::{Version, ident};
+use aranya_policy_lang::lang::parse_policy_str;
+use aranya_policy_module::ffi::{self, ModuleSchema};
+use rstest::rstest;
+
 use super::{MEMBER, command, warnings_for, with_defs};
+use crate::Compiler;
 
 #[test]
 fn attack_if_condition_facts_do_not_survive_arms() {
@@ -309,4 +315,172 @@ fn control_checked_finish_inside_check_else_block() {
         "#,
     ));
     assert_eq!(warnings, vec![], "expected no warnings");
+}
+
+/// Definitions for the positions a block can sit in below.
+const NESTED_DEFS: &str = r#"
+    struct Pair { a int, b int }
+
+    function same(x int) int {
+        return x
+    }
+
+    function maybe(u int) option[int] {
+        if u > 1 {
+            return Some(u)
+        }
+        return None
+    }
+
+    function always(x int) bool {
+        return true
+    }
+
+    function one_of(x int) option[int] {
+        return Some(1)
+    }
+"#;
+
+/// `statement` with `FINISH` replaced by a `finish` that creates
+/// `Owner[]`, followed by a `finish` that ends the block.
+fn nested(statement: &str) -> String {
+    let finish = "finish { create Owner[]=>{user: this.user} }";
+    format!("{}\nfinish {{}}", statement.replace("FINISH", finish))
+}
+
+/// A block that creates `Owner[]` before producing a value, nested in each
+/// position an expression can hold one. Most of these positions are
+/// evaluated without being interpreted, but the block's `finish` still
+/// runs, so its `create` must be checked. Each case's control checks
+/// first that `Owner[]` is absent, which must prove it: the block runs on
+/// a path that knows what the path knew before the expression.
+#[rstest]
+#[case::call_argument("let n = same({ FINISH :0 })")]
+#[case::struct_field("let p = Pair { a: { FINISH :0 }, b: 1 }")]
+#[case::struct_field_before_a_block("let p = Pair { a: { FINISH :0 }, b: { let z = 1 :z } }")]
+#[case::struct_field_after_a_block("let p = Pair { a: { let z = 1 :z }, b: { FINISH :0 } }")]
+#[case::left_of_equal("check { FINISH :0 } == this.user else recall failed()")]
+#[case::right_of_equal("check this.user == { FINISH :0 } else recall failed()")]
+#[case::compared("check { FINISH :0 } > 0 else recall failed()")]
+#[case::some("let n = Some({ FINISH :0 })")]
+#[case::key_in_exists("check !exists Account[user: { FINISH :0 }] else recall failed()")]
+#[case::key_in_query("let a = query Account[user: { FINISH :0 }]")]
+#[case::key_in_count("check at_least 1 Account[user: { FINISH :0 }] else recall failed()")]
+#[case::key_in_query_or_recall("let a = query Account[user: { FINISH :0 }] or recall failed()")]
+#[case::call_condition("check always({ FINISH :0 }) else recall failed()")]
+#[case::call_or_recall("let n = one_of({ FINISH :0 }) or recall failed()")]
+#[case::branch_in_argument("let n = same(if this.user > 0 { :same({ FINISH :0 }) } else { :1 })")]
+#[case::struct_field_read("check Pair { a: 1, b: { FINISH :0 } }.a == 1 else recall failed()")]
+#[case::match_statement_scrutinee("match { FINISH :0 } { 0 => { let x = 1 } _ => { let y = 2 } }")]
+#[case::match_expression_scrutinee("let n = match { FINISH :0 } { 0 => 1 _ => 2 }")]
+#[case::arm_value("let n = if this.user > 0 { :Some({ FINISH :0 }) } else { :None }")]
+#[case::left_of_or("let n = Some({ FINISH :0 }) or 1")]
+#[case::right_of_or("let n = maybe(this.user) or { FINISH :0 }")]
+#[case::left_of_terminal_or("let n = Some({ FINISH :0 }) or todo()")]
+#[case::debug_assert("debug_assert({ FINISH :true })")]
+fn attack_finish_inside_nested_block(#[case] statement: &str) {
+    let warnings = warnings_for(&with_defs(NESTED_DEFS, &nested(statement)));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("`Owner[]` does not exist"));
+
+    let checked = format!(
+        "check !exists Owner[] else recall failed()\n{}",
+        nested(statement)
+    );
+    let warnings = warnings_for(&with_defs(NESTED_DEFS, &checked));
+    assert_eq!(warnings, vec![], "expected no warnings when checked");
+}
+
+/// A policy whose command has a recall block that takes an argument, with
+/// `statement` as its policy block, as in [`nested`].
+fn with_recall_argument(statement: &str) -> String {
+    format!(
+        r#"
+        fact Owner[]=>{{user int}}
+
+        command Foo {{
+            fields {{ user int }}
+            policy {{
+                {}
+            }}
+            recall failed() {{ finish {{}} }}
+            recall failed_with(n int) {{ finish {{}} }}
+        }}
+        "#,
+        nested(statement)
+    )
+}
+
+/// A block in a `recall`'s arguments runs before the recall, `finish` and
+/// all, whether the `recall` is a `check`'s `else` or a statement.
+#[rstest]
+#[case::check_else("check this.user > 0 else recall failed_with({ FINISH :0 })")]
+#[case::statement("if this.user > 0 { recall failed_with({ FINISH :0 }) }")]
+fn attack_finish_inside_recall_argument(#[case] statement: &str) {
+    let warnings = warnings_for(&with_recall_argument(statement));
+    assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
+    assert!(warnings[0].message.contains("`Owner[]` does not exist"));
+
+    let checked = format!("check !exists Owner[] else recall failed()\n{statement}");
+    let warnings = warnings_for(&with_recall_argument(&checked));
+    assert_eq!(warnings, vec![], "expected no warnings when checked");
+}
+
+#[test]
+fn control_finish_inside_nested_arm_knows_its_condition() {
+    // The `if` in the argument is walked as a branch, so the block in its
+    // arm runs knowing `Owner[]` is absent there.
+    let body = nested("let n = same(if !exists Owner[] { :same({ FINISH :0 }) } else { :1 })");
+    assert_eq!(warnings_for(&with_defs(NESTED_DEFS, &body)), vec![]);
+}
+
+/// A module with a function returning an option, which the analysis
+/// evaluates without interpreting it.
+const FFI: &[ModuleSchema<'static>] = &[ModuleSchema {
+    name: ident!("test"),
+    functions: &[ffi::Func {
+        name: ident!("maybe_int"),
+        args: &[ffi::Arg {
+            name: ident!("x"),
+            vtype: ffi::Type::Int,
+        }],
+        return_type: ffi::Type::Optional(&ffi::Type::Int),
+    }],
+    structs: &[],
+    enums: &[],
+}];
+
+#[test]
+fn attack_finish_inside_ffi_argument() {
+    // The call's arguments run before it, `finish` and all.
+    let warnings = |statement: &str| {
+        let text = format!("use test\n{}", with_defs("", &nested(statement)));
+        let policy = parse_policy_str(&text, Version::V2).expect("parse");
+        let (_module, warnings) = Compiler::new(&policy)
+            .ffi_modules(FFI)
+            .debug(true)
+            .allow_baseless(true)
+            .compile_with_diagnostics()
+            .expect("compile");
+        warnings
+    };
+    let statement = "let n = test::maybe_int({ FINISH :0 }) or recall failed()";
+    let found = warnings(statement);
+    assert_eq!(found.len(), 1, "warnings: {found:?}");
+    assert!(found[0].message.contains("`Owner[]` does not exist"));
+
+    let checked = format!("check !exists Owner[] else recall failed()\n{statement}");
+    assert_eq!(
+        warnings(&checked),
+        vec![],
+        "expected no warnings when checked"
+    );
+}
+
+#[test]
+fn attack_finish_inside_sibling_blocks() {
+    // Walking one block doesn't stand in for walking the one beside it.
+    let body = nested("let p = Pair { a: { FINISH :0 }, b: { FINISH :1 } }");
+    let warnings = warnings_for(&with_defs(NESTED_DEFS, &body));
+    assert_eq!(warnings.len(), 2, "warnings: {warnings:?}");
 }

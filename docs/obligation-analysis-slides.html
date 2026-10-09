@@ -89,7 +89,7 @@
     <li>It's a new check in the policy compiler for fact mutations that can fail at runtime.</li>
     <li>It checks every <code>create</code>, <code>update</code> and <code>delete</code>, including those inside finish functions.</li>
     <li>It also catches the same fact being changed twice in one <code>finish</code> block.</li>
-    <li>It's opt-in with <code>--check-obligations</code>, and it only produces warnings.</li>
+    <li>It's opt-in with <code>--check-obligations</code>. It produces warnings, and <code>--deny-warnings</code> makes any of them fail the build.</li>
   </ul>
 </section>
 
@@ -99,19 +99,19 @@
     <div>
       <p class="label ok">Working</p>
       <ul>
-        <li>All five fact-mutation invariants are checked on every path.</li>
-        <li>Mutations inside finish functions are checked at each call.</li>
-        <li>Init commands are understood to start with no facts.</li>
-        <li><code>if</code> and <code>match</code>, as statements or expressions, and helper functions provide proof.</li>
-        <li>Keys read from query results provide proof for the fact they came from.</li>
+        <li>All five fact-mutation invariants are checked on every path, including inside finish functions.</li>
+        <li>Checks, queries, <code>if</code> and <code>match</code>, helper functions, init commands, and values known equal or different all provide proof.</li>
+        <li>Warnings name each call on the way to the mutation.</li>
+        <li><code>--deny-warnings</code> makes any warning fail the build.</li>
+        <li>On Aranya's daemon policy, all 9 warnings are false positives, and explicit checks clear them.</li>
       </ul>
     </div>
     <div>
       <p class="label warn">Not yet</p>
       <ul>
-        <li>Creating two facts of one name with different literal keys in an init command still warns.</li>
+        <li>Relationships between facts can't be declared in the schema yet, so they need explicit checks.</li>
+        <li>A reviewed warning can't be marked as accepted.</li>
         <li>The runtime still lets some of these errors through silently.</li>
-        <li>There's no PR yet.</li>
       </ul>
     </div>
   </div>
@@ -262,6 +262,19 @@ create Grant[user: u, perm: 3]=&gt;{}  <span class="obs">// proven</span></code>
 </section>
 
 <section class="slide">
+  <h2>What else counts as proof</h2>
+  <table>
+    <tr><th>Proof</th><th>Example</th></tr>
+    <tr><td>A helper's checks, wherever its call always runs</td><td><code>let ok = can_open(this.user)</code><br><code>check ok else ...</code></td></tr>
+    <tr><td>A key read back from a query</td><td><code>let a = query Account[user: this.user] or ...</code><br><code>delete Account[user: a.user]</code></td></tr>
+    <tr><td>Values checked equal</td><td><code>check this.user == this.other else ...</code><br>Proving <code>Account[user: this.user]</code> exists also proves <code>Account[user: this.other]</code> exists.</td></tr>
+    <tr><td>Values checked unequal, or different literals</td><td><code>check this.a != this.b else ...</code><br>After checking that neither account exists, creating both is proven, since they can't be the same fact.</td></tr>
+    <tr><td>Fields of a struct literal</td><td><code>open_with(Info { user: this.user })</code><br>The caller's check of <code>Account[user: this.user]</code> proves the function's <code>create Account[user: info.user]</code>.</td></tr>
+    <tr><td>Values read from the stored fact</td><td><code>let c = query Counter[name: n] or ...</code><br><code>update Counter[name: n]=&gt;{value: c.value} to {..}</code></td></tr>
+  </table>
+</section>
+
+<section class="slide">
   <h2>Following finish functions</h2>
   <p>A call to a finish function is followed into its body. Its parameters are replaced by the caller's arguments, so a check in the command proves a mutation inside the function.</p>
 <pre><code>finish function open_account(u int) {
@@ -277,7 +290,7 @@ command Open with Base {
     }
     ...
 }</code></pre>
-  <p>A warning inside a function points back to each call that reached it.</p>
+  <p>A warning inside a function names each call that reached it, such as "<code>Open</code> calls <code>open_account</code> here". Calls through other functions are listed from the mutation back to the command.</p>
 </section>
 
 <section class="slide">
@@ -318,12 +331,25 @@ command Open with Base {
 </section>
 
 <section class="slide">
+  <h2>Results on Aranya's daemon policy</h2>
+  <ul>
+    <li>The daemon policy is ported to the current syntax as a test. The production policy is unchanged.</li>
+    <li>It raises 9 warnings, and none is a real bug. It first raised 14; fixing gaps in the analysis removed 5.</li>
+    <li>The 9 rely on what the policy never states: that no fact can already use a key built from the command's own ID, or that one fact implies another, such as a <code>Device</code> implying its key facts.</li>
+    <li>On a copy of the policy, 14 explicit checks clear all 9.</li>
+    <li>Each of 19 injected bugs raises a warning.</li>
+    <li>The analysis adds about 11 ms to a debug build of the policy, and 2 ms in release.</li>
+  </ul>
+</section>
+
+<section class="slide">
   <h2>Try it</h2>
-  <p>The work is on the <code>execption-finder</code> branch. This command reproduces the warning:</p>
-<pre><code>git checkout execption-finder
-cargo run -p aranya-policy-compiler --bin policy-compiler -- \
+  <p>This command reproduces the warning on the core example policy:</p>
+<pre><code>cargo run -p aranya-policy-compiler --bin policy-compiler -- \
     --check-obligations --stub-ffi --no-validate \
     crates/aranya-core-example/src/policy.md</code></pre>
+  <p>Add <code>--deny-warnings</code> to make any warning fail the build, for CI.</p>
+  <p class="sub"><code>--stub-ffi</code> is needed because the compiler binary loads no FFI modules. <code>--no-validate</code> works around a separate issue in the binary's validation step.</p>
 </section>
 
 <div class="footer">

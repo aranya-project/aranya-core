@@ -10,11 +10,10 @@ use aranya_policy_module::{Instruction, Meta, ModuleData, ModuleV0};
 use super::{MEMBER, command, with_defs};
 use crate::Compiler;
 
-/// Does the policy parse and compile?
+/// Does the policy compile? It must parse, so that a rejection is the
+/// compiler's rather than a syntax error.
 fn compiles(text: &str) -> bool {
-    let Ok(policy) = parse_policy_str(text, Version::V2) else {
-        return false;
-    };
+    let policy = parse_policy_str(text, Version::V2).expect("the policy should parse");
     Compiler::new(&policy)
         .debug(true)
         .allow_baseless(true)
@@ -73,7 +72,32 @@ fn function_call_in_finish_expression_is_rejected() {
 fn query_in_finish_expression_is_rejected() {
     assert!(!compiles(&command(
         r#"
-        finish { create Account[user: 1]=>{balance: unwrap query Account[user: 2]} }
+        finish { create Account[user: 1]=>{balance: count_up_to 1 Account[user: 2]} }
+        "#,
+    )));
+}
+
+#[test]
+fn finish_in_a_pure_function_is_rejected() {
+    // Function summaries never check mutations, and the blocks nested in
+    // expressions are searched for a `finish` only in command blocks.
+    assert!(!compiles(&with_defs(
+        r#"
+        function f() int {
+            let x = { finish {} :1 }
+            return x
+        }
+        "#,
+        "finish {}",
+    )));
+}
+
+#[test]
+fn block_in_finish_expression_is_rejected() {
+    // A finish block's expressions are never searched for nested blocks.
+    assert!(!compiles(&command(
+        r#"
+        finish { create Account[user: { :1 }]=>{balance: 0} }
         "#,
     )));
 }

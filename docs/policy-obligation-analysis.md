@@ -12,8 +12,8 @@ The policy language distinguishes two kinds of terminating errors (see
 [Errors](/policy-book/reference/errors.md)):
 
 - **Rejections** are anticipated failures. A `check` whose expression
-  is false, or coalescing a `None` with `or`, produces one deliberately.
-  They are part of normal operation.
+  is false produces one deliberately, and so does `e or recall r()`
+  when `e` is `None`. They are part of normal operation.
 - **Runtime exceptions** are violations of execution invariants that
   the policy author did not anticipate. Policy code cannot detect or
   recover from them, they do not run `recall` blocks, and they surface
@@ -89,9 +89,11 @@ on the same path cannot be proven.
 
 An **observation** is knowledge about the fact database established by
 executing a statement and continuing past it. A `check`'s `else`
-expression and an `or`'s right-hand side must be terminal
-(`Never`-typed), so continuing past them means the check passed or the
-query found a fact.
+expression must be terminal (`Never`-typed), so continuing past a
+`check` means it passed. An `or`'s right-hand side may instead be a
+default value of the left side's type. Only when it is terminal, as in
+`e or recall r()`, does continuing past the `or` mean `e` was `Some`,
+so only then is it an observation.
 
 ```policy
 check !exists Account[user: this.user] else recall already_enrolled()
@@ -132,13 +134,15 @@ a path:
 - Mutations *require* a state (their obligation) and *set* the state to
   their postcondition.
 
+TODO: This paragraph needs a rewrite
 This is a strongest-postcondition analysis flowing forward along each
 control-flow path. The policy language has no general loops (`map` is
 the only iteration construct, and it is only allowed in actions), and
 `finish` blocks terminate execution, so the analysis can follow each
-path separately. Paths that reach the same state are merged, which
-loses nothing. Only past a limit on the number of paths are different
-states joined, as in a usual dataflow analysis. See
+path separately. Paths that know the same facts are merged, losing
+only what some of them knew about which values are equal or differ.
+Only past a limit on the number of paths are paths that know different
+facts joined, as in a usual dataflow analysis. See
 [Merging and joining paths](#merging-and-joining-paths).
 
 ### The finish-block touched set
@@ -150,12 +154,14 @@ touched by the current `finish` block, including mutations inside the
 finish functions it calls. A second mutation whose key *may equal* an
 already-touched key is flagged.
 
+TODO: correct but confusing
 The conservative direction flips here. To discharge an obligation, the
 analysis must *prove* two keys equal. To flag a double manipulation, it
 must *fail to prove them distinct*. The touched set itself only flags
 keys written the same way or known equal, as described under
 [Values known equal](#values-known-equal).
 
+TODO: Confusing
 The rest comes from what a mutation forgets, described under
 [Invalidation](#invalidation). An `update` or `delete` forgets that any
 fact it may be exists, and after a `create` or `update`, absence holds
@@ -166,6 +172,7 @@ only where the first mutation's postcondition satisfies the second's
 precondition: `create` then `delete`, `update` then `delete`, or
 `delete` then `create`, with keys known to be the same.
 
+TODO: Confusing
 That makes keeping knowledge across a mutation a soundness question,
 not just a precision one. Knowledge about a fact that may be the
 mutated one can be kept only while a second mutation of it still can't
@@ -181,14 +188,16 @@ must have init priority, and a command with a parent must not (see
 `aranya-runtime/src/vm_policy.rs` and the priority check in
 `aranya-runtime/src/storage/linear/mod.rs`).
 
+TODO: Confusing bug correct
 So in an init command's `policy` and `recall` blocks, every fact starts
 known not to exist. After a `create` or `update`, that holds only for
 facts that provably differ from the one mutated, as described under
 [Invalidation](#invalidation), and a call the analysis cannot follow
 drops it entirely. So an init command can create `F[k: 1]` and then
-`F[k: 2]`, but creating `F[k: x]` after `F[k: 1]` warns. An `update`
-or `delete` of a fact that cannot exist yet gets a note that names the
-init command and says the mutation always fails in it.
+`F[k: 2]`, but creating `F[k: x]` after `F[k: 1]` warns unless
+`x != 1` was checked. An `update` or `delete` of a fact that cannot
+exist yet gets a note that names the init command and says the
+mutation always fails in it.
 
 ## Observation sources
 
@@ -347,9 +356,21 @@ else { :false }` proves `F[k]` exists: the `else` arm can't be true.
 
 An arm without a value still runs. A `return` in it is an exit of the
 enclosing function, and a block in it is walked, so a `finish` there is
-checked. The same holds for the `else` of a `check` and the right side
-of an `or`: when they are blocks, `if`s, or `match`es, they are walked
-on the path where they run.
+checked. The same holds for the `else` of a `check` and the terminal
+right side of an `or`: when they are blocks, `if`s, or `match`es, they
+are walked on the path where they run.
+
+A block can also sit where the analysis evaluates an expression without
+interpreting it, such as a call's arguments, a struct field, either
+side of `==`, a fact key, `Some(..)`, a `match` scrutinee, either side
+of an `or` with a default, a `recall`'s arguments, or a `debug_assert`.
+Its `finish` still runs. So each `if`, `match`, or block there that
+holds a `finish` is walked as a branch, on a copy of the path that
+knows what the path knew before the expression. The copy misses what
+the path learns inside the expression before reaching the block, which
+can only leave more to prove. A field read from a struct literal is
+kept whole when another of the literal's fields holds a `finish`, so
+the walk still sees it.
 
 A block's statements are walked exactly like a policy block, forking at
 nested `if` and `match` statements and ending at a failing `check` or a
@@ -417,12 +438,12 @@ an existence that can't be proven.
 Any expression that touches a fact but that the extractor cannot
 interpret is **opaque**. Examples are fact reads inside comparisons,
 `count_up_to`, calls that can't be followed, and blocks with more paths
-than the exit limit. The
-analysis learns nothing from an opaque expression, but it records the
-name and span of each fact read in it, including reads in the
-statements of a block inside it. When an obligation for the same fact
-name cannot be proven, those spans are listed in the warning, so the
-author sees which expression the analysis gave up on.
+than the exit limit. The analysis learns nothing from an opaque
+expression, but it records the name and span of each fact read in it,
+including reads in the statements of a block inside it. When an
+obligation for the same fact name cannot be proven, those spans are
+listed in the warning, so the author sees which expression the
+analysis gave up on.
 
 A condition that touches a fact but proves nothing about it is recorded
 the same way. For example, `!exists F[k] || ok` proves nothing about
@@ -506,7 +527,8 @@ fact database between an observation and an obligation:
   What the path knows about a fact that provably differs from `F[k]`
   is kept. It differs when it is another fact, or has a key where both
   give different literals or values the path knows differ, from a
-  checked `!=` or a failed `==`. Of what it knows about one that may be `F[k]`:
+  checked `!=` or a failed `==`. Of what it knows about one that may
+  be `F[k]`:
   - a `create` keeps everything. Creating a fact removes none, and if a
     fact the path knew existed was the one created, the `create` raised
     an exception, which its own obligation covers;
@@ -533,10 +555,10 @@ fact database between an observation and an obligation:
   [Finish functions](#finish-functions).
 - Binding a name again, with a `let` or a `match` arm, forgets every
   fact, substitution, query binding, and key link that mentioned the
-  earlier binding. A name can be reused once the block that bound it ends, but
-  the walk carries a branch's state into the statements after it, where
-  a fact written in terms of the old name would silently mean the new
-  one.
+  earlier binding. A name can be reused once the block that bound it
+  ends, but the walk carries a branch's state into the statements
+  after it, where a fact written in terms of the old name would
+  silently mean the new one.
 
 Observations established in the `policy` block survive into `finish`
 blocks unchanged. No fact mutation can occur between them, because the
@@ -548,14 +570,16 @@ The analysis lives in `crates/aranya-policy-compiler/src/obligation.rs`
 and runs on the typed syntax tree (`aranya_policy_ast::thir`) during
 compilation. The typed tree is the right level: fact literals are
 explicit structured values, types are resolved, and branch polarity is
-syntactically evident, since `check` and `or` failure arms are
-`Never`-typed.
+syntactically evident: a `check`'s failure arm is `Never`-typed, and
+an `or`'s right side has type `Never` exactly when it ends the command.
 
+Under `Compiler::compile_with_diagnostics()`,
 `CompileState::compile_statements` in `compile.rs` calls the analysis
 right after a block is lowered:
 
 - For a command `policy` or `recall` block, it runs the analysis,
-  passing whether the command is an init command.
+  passing the command's name, for notes, and whether it is an init
+  command.
 - For a finish function body, it records the lowered statements and
   parameter names. Finish functions are compiled before commands, so
   every body is recorded before any command that calls it is analyzed.
@@ -724,9 +748,9 @@ bindings, and init knowledge. That covers two cases:
 
 The policy language forbids recursion, but the compiler does not
 currently reject it ([#607], [#751]). Recursive pure functions and
-mutually recursive finish functions compile today. The call-stack guard keeps the analysis
-terminating. Once the compiler rejects recursion, the recursion warning
-becomes unreachable.
+mutually recursive finish functions compile today. The call-stack
+guard keeps the analysis terminating. Once the compiler rejects
+recursion, the recursion warning becomes unreachable.
 
 [#607]: https://github.com/aranya-project/aranya-core/issues/607
 [#751]: https://github.com/aranya-project/aranya-core/issues/751
@@ -1019,8 +1043,12 @@ target:
   weakened by `||` or a `_ => true` default, `if` arms querying
   different keys, a `match` binding of another query, a block binding
   the outer `let`'s own name, block-scoped names in a condition block,
-  a nested `return` in an `if` arm, and a `finish` inside an arm
-  without a value, a `check`'s `else`, or an `or`'s right side.
+  a nested `return` in an `if` arm, a `finish` inside an arm without a
+  value, a `check`'s `else`, or an `or`'s right side, and a `finish`
+  inside a block in each place an expression can hold one: call,
+  `recall`, and FFI arguments, struct fields, either side of `==` and
+  `or`, fact keys, `Some(..)`, `match` scrutinees, `debug_assert`, an
+  `if` inside an argument, and two blocks side by side.
 
 Branch coverage of `obligation.rs` is complete: `cargo llvm-cov
 --branch` reports every branch side taken. The tests that closed the
@@ -1029,19 +1057,22 @@ their own: the `||` join and its deduplication in `conditions.rs`,
 impossible paths and note merging in `paths.rs` and `branches.rs`,
 mutual recursion and `test_fail` terminals in `pure_functions.rs`,
 strict substitution failing inside each expression form in
-`strict_substitution.rs`, literal
-`Some` and `Ok` arms in `branches.rs`, the binding rules and the
-rebinding visitor in `bound_keys.rs`, the key-matching forms in
-`mutations.rs`, and the visitor corners in `expressions.rs`. Branches
-that no valid policy could take, such as a `return` outside a function
-or a call to an undefined finish function, were removed from the code
-rather than left untested.
+`strict_substitution.rs`, literal `Some` and `Ok` arms in
+`branches.rs`, the binding rules and the rebinding visitor in
+`bound_keys.rs`, the key-matching forms in `mutations.rs`, and the
+visitor corners in `expressions.rs`. Branches that no valid policy
+could take, such as a `return` outside a function or a call to an
+undefined finish function, were removed from the code rather than left
+untested.
 
 `assumptions.rs` guards what the analysis assumes the compiler
-enforces: no shadowing, keys as schema-order prefixes, no calls or
-queries in finish expressions, `map` only in actions, and the
-accepted and rejected `match` arm forms. A language change that breaks
-one fails there rather than silently unsounding the analysis.
+enforces: no shadowing, keys as schema-order prefixes, no calls,
+queries, or blocks in finish expressions, no `finish` in a pure
+function, `map` only in actions, and the accepted and rejected `match`
+arm forms. A language change that breaks one fails there rather than
+silently unsounding the analysis. Each guard's policy must parse, so a
+rejection is the compiler's. One guard had used syntax the language no
+longer has, and passed only because its policy failed to parse.
 
 Each attack that defends a single rule was checked by disabling that
 rule and confirming the attack fails: the value-filter rule, `Ok`/`Err`
@@ -1049,10 +1080,12 @@ forgetting, finish-function parameter substitution, block-scoped
 substitution, `or return` exits, the arm-local fact filter, a
 mutation forgetting other keys of its fact, the return census, the
 statement-level and arm exits it counts on paths that can't run,
-walking arms without a value and terminal blocks, the arm-name filter on what an arm proves, capture refusal, the
-`get_key` guard, and the partial-update check. Attacks on `map` could not
-be written because `map` is only allowed in actions, which cannot
-mutate facts.
+walking arms without a value and terminal blocks, the arm-name filter
+on what an arm proves, capture refusal, the `get_key` guard, the
+partial-update check, each place a nested block holding a `finish` is
+walked, the search for the outermost such block, and keeping a struct
+field read whole. Attacks on `map` could not be written because `map`
+is only allowed in actions, which cannot mutate facts.
 
 The campaign found three false negatives, all fixed:
 
@@ -1096,6 +1129,14 @@ one design error before it landed. Keeping a fact's existence after an
 `update` of a fact that may be the same one would have proven a second
 mutation of it. That is an exception the touched set misses for keys
 written differently, and dropping the existence is what flags it.
+
+Checking a claim in this document on 2026-10-09 found the rest of the
+`finish` kind. A `finish` in a block anywhere the analysis evaluated an
+expression without interpreting it, such as a call's argument, a struct
+field, a fact key, or the default of an `or`, was never checked.
+Reading a field from a struct literal could also drop another field's
+block before the walk saw it. Both are fixed, and each place is pinned
+by an attack and a control.
 
 Every test asserts something the rule it names can change. A test
 whose result would be the same with the rule broken, such as "no
@@ -1245,6 +1286,7 @@ ties to them only in debug builds.
   run cleanly on real policies such as the daemon policy, then promote
   warnings to errors. The daemon policy raises 9 false positives
   today. [The daemon policy](#the-daemon-policy) lists their causes.
+  Until then, the binary's `--deny-warnings` lets CI fail on them.
 - **Declared invariants, after the current work is delivered:** state
   relationships between facts in the schema, such as a `Device`
   implying its three key facts, or a key that must refer to an existing
@@ -1257,6 +1299,10 @@ ties to them only in debug builds.
   command's ID before that command runs. Until then, explicit checks
   state these relationships, as described under
   [Relationships the analysis can't see](#relationships-the-analysis-cant-see).
+- **Accepting reviewed warnings:** a way to mark a warning someone has
+  reviewed as accepted where it is raised, for teams that would rather
+  not add an explicit check. Declared invariants should remove most of
+  the need for it.
 - **New obligation kinds:** the framework is not fact-specific.
   Candidates include every `policy` block reaching a `finish` on some
   path, and envelope-author checks before privileged mutations.
