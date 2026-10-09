@@ -321,10 +321,10 @@ impl<'a> CompileState<'a> {
     }
 
     /// Insert a struct definition while preventing duplicates of the struct fields.
-    pub fn define_struct<'s>(
+    pub fn define_struct(
         &mut self,
         identifier: Ident,
-        items: impl IntoIterator<Item = &'s StructItem<FieldDefinition>>,
+        items: impl IntoIterator<Item = StructItem<FieldDefinition>>,
     ) -> Result<(), CompileError> {
         // Add explicitly-defined fields and those from struct insertions
         let mut field_definitions = Vec::new();
@@ -341,7 +341,7 @@ impl<'a> CompileState<'a> {
                         )));
                     }
 
-                    field_definitions.push(field.clone());
+                    field_definitions.push(field);
                 }
                 StructItem::StructRef(field_type_ident) => {
                     let other = self
@@ -1924,7 +1924,10 @@ impl<'a> CompileState<'a> {
         for utype in self.sorted_type_definitions()? {
             match utype {
                 UserType::Struct(struct_def) => {
-                    self.define_struct(struct_def.identifier.clone(), &struct_def.items)?;
+                    self.define_struct(
+                        struct_def.identifier.clone(),
+                        struct_def.items.iter().cloned(),
+                    )?;
                 }
                 UserType::Effect(effect) => {
                     let fields: Vec<StructItem<FieldDefinition>> = effect
@@ -1938,18 +1941,21 @@ impl<'a> CompileState<'a> {
                             StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                         })
                         .collect();
-                    self.define_struct(effect.identifier.clone(), &fields)?;
+                    self.define_struct(effect.identifier.clone(), fields.iter().cloned())?;
                     self.m.interface.effects.insert(effect.identifier.clone());
                 }
                 UserType::Fact(fact) => {
                     let fields: Vec<StructItem<FieldDefinition>> =
                         fact.fields().cloned().map(StructItem::Field).collect();
 
-                    self.define_struct(fact.identifier.clone(), &fields)?;
+                    self.define_struct(fact.identifier.clone(), fields.iter().cloned())?;
                     self.define_fact(fact)?;
                 }
                 UserType::BaseCommand(base_command) => {
-                    self.define_struct(base_command.identifier.clone(), &base_command.fields)?;
+                    self.define_struct(
+                        base_command.identifier.clone(),
+                        base_command.fields.iter().cloned(),
+                    )?;
                 }
                 UserType::Command(command) => {
                     let base = command
@@ -1958,7 +1964,7 @@ impl<'a> CompileState<'a> {
                         .map(|b| StructItem::StructRef(b.clone()));
                     self.define_struct(
                         command.identifier.clone(),
-                        command.fields.iter().chain(base.as_ref()),
+                        command.fields.iter().cloned().chain(base),
                     )?;
                 }
                 UserType::FFIStruct(s) => {
@@ -1972,7 +1978,7 @@ impl<'a> CompileState<'a> {
                             })
                         })
                         .collect();
-                    self.define_struct(s.name.clone().nowhere(), &fields)?;
+                    self.define_struct(s.name.clone().nowhere(), fields.iter().cloned())?;
                 }
             }
         }
@@ -1990,57 +1996,47 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn is_default_flavor_envelope_used(&self) -> bool {
+        self.policy
+            .base_commands
+            .iter()
+            .any(|bc| bc.flavor.is_none())
+            || self.policy.commands.iter().any(|cmd| cmd.base.is_none())
+    }
+
+    fn is_flavor_used(&self, name: &str) -> bool {
+        self.policy
+            .base_commands
+            .iter()
+            .any(|bc| bc.flavor.as_ref().is_some_and(|f| f.inner == *name))
+    }
+
+    fn define_envelope(
+        &mut self,
+        envelope: &aranya_policy_module::flavor::Struct<'_>,
+    ) -> Result<(), CompileError> {
+        // TODO(jdygert): Allow defining twice with same fields?
+        let name = envelope.name.clone().nowhere();
+        let fields = envelope.fields.iter().map(|field| {
+            StructItem::Field(FieldDefinition {
+                identifier: field.name.clone().nowhere(),
+                field_type: VType::from(&field.vtype),
+            })
+        });
+        self.define_struct(name, fields)
+    }
+
     fn define_envelopes(&mut self) -> Result<(), CompileError> {
-        let flavors = self.config.flavors;
+        if self.is_default_flavor_envelope_used() {
+            self.define_envelope(&self.config.flavors.default.envelope)?;
+        }
 
-        let envelopes = iter::chain(
-            // Default envelope, if used.
-            Some(&flavors.default.envelope).filter(|_| {
-                self.policy
-                    .base_commands
-                    .iter()
-                    .any(|bc| bc.flavor.is_none())
-                    || self.policy.commands.iter().any(|cmd| cmd.base.is_none())
-            }),
-            // Each named envelope, if used.
-            flavors
-                .flavors
-                .iter()
-                .filter(|(name, _)| {
-                    self.policy
-                        .base_commands
-                        .iter()
-                        .any(|bc| bc.flavor.as_ref().is_some_and(|f| f.inner == *name))
-                })
-                .map(|(_, flavor)| &flavor.envelope),
-        );
-
-        for envelope in envelopes {
-            let fields = envelope
-                .fields
-                .iter()
-                .map(|field| FieldDefinition {
-                    identifier: field.name.clone().nowhere(),
-                    field_type: VType::from(&field.vtype),
-                })
-                .collect();
-            match self
-                .m
-                .interface
-                .struct_defs
-                .entry(envelope.name.clone().nowhere())
-            {
-                Entry::Vacant(e) => {
-                    e.insert(fields);
-                }
-                Entry::Occupied(e) => {
-                    // TODO(jdygert): Allow defining twice with same fields?
-                    let old = e.key().clone();
-                    let new = envelope.name.clone().nowhere();
-                    return Err(self.err(AlreadyDefined::new(old, new)));
-                }
+        for (flavor_name, flavor) in self.config.flavors.flavors {
+            if self.is_flavor_used(flavor_name.as_str()) {
+                self.define_envelope(&flavor.envelope)?;
             }
         }
+
         Ok(())
     }
 
