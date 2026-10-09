@@ -1,9 +1,9 @@
 // This is not a valid policy. It is just meant to exercise
 // every feature of the parser.
 /* block comment */
-fact F[v string]=>{x int, y bool}
+fact F[v: string]=>{x: int, y: bool}
 
-action add2(x int, y int) {
+action add2(x: int, y: int) {
     let obj = Add {
         count: x,
     }
@@ -11,13 +11,13 @@ action add2(x int, y int) {
 }
 
 effect Added {
-    x int dynamic,
-    y int,
+    x: int dynamic,
+    y: int,
 }
 
 command Add {
     fields {
-        count int
+        count: int
     }
     policy {
         let envelope_id = envelope::command_id(envelope)
@@ -68,14 +68,14 @@ command Add {
     }
 }
 
-function positive(v option[int]) bool {
+function positive(v: option[int]) bool {
     return match v {
         Some(x) => x > 0
         None => test_fail()
     }
 }
 
-finish function next(x int) {
+finish function next(x: int) {
     create Next[]=>{}
 }
 
@@ -84,7 +84,7 @@ finish function next(x int) {
 
 ephemeral command C {
     fields {
-        x int
+        x: int
     }
     policy {}
 }

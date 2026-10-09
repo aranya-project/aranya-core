@@ -2,7 +2,7 @@
 action infallible() {}
 
 // A result-typed action must return Ok(unit)/Err(e) on every path.
-action can_fail(x int) result[unit, string] {
+action can_fail(x: int) result[unit, string] {
     if x > 0 {
         return Ok(Unit)
     }

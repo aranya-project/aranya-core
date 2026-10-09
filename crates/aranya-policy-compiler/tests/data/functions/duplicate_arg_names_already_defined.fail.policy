@@ -1,4 +1,4 @@
-function f(x int, x int) int {
+function f(x: int, x: int) int {
     return 1
 }
 

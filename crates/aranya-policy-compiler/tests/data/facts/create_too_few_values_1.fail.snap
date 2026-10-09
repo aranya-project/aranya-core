@@ -4,8 +4,8 @@ expression: error
 ---
 error: fact literal does not match definition: The number of Fact values don't match the definition
   |
-1 | fact Device[device_id int]=>{name string, email string}
-  | ------------------------------------------------------- definition has 2 values but the expression has 1 values
+1 | fact Device[device_id: int]=>{name: string, email: string}
+  | ---------------------------------------------------------- definition has 2 values but the expression has 1 values
 ...
 4 |     create Device[device_id:1]=>{name: "bob"}
   |                                  ^^^^^^^^^^^ The number of Fact values don't match the definition

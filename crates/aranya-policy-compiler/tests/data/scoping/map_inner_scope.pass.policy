@@ -1,4 +1,4 @@
-fact Pet[name string]=>{age int}
+fact Pet[name: string]=>{age: int}
 action pets() {
     let n = 42
     map Pet[name:?] as p {

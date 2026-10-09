@@ -1,4 +1,4 @@
-function foo(c int) int {
+function foo(c: int) int {
     let x = match c {
         0 => 0
         1 => 1

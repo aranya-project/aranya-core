@@ -59,7 +59,7 @@ impl<'o, KS> TestingFfi<'o, KS> {
 
 #[ffi(module = "testing")]
 impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
-    #[ffi_export(def = "function random_bytes(n int) bytes")]
+    #[ffi_export(def = "function random_bytes(n: int) bytes")]
     pub fn random_bytes<E: Engine>(
         &self,
         _ctx: &CommandContext,
@@ -116,7 +116,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         })
     }
 
-    #[ffi_export(def = "function bytes_from_hex(hex_str string) bytes")]
+    #[ffi_export(def = "function bytes_from_hex(hex_str: string) bytes")]
     pub fn bytes_from_hex<E: Engine>(
         &self,
         _ctx: &CommandContext,
@@ -146,7 +146,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         Ok(bytes)
     }
 
-    #[ffi_export(def = "function id_from_base58(b58_str string) id")]
+    #[ffi_export(def = "function id_from_base58(b58_str: string) id")]
     pub fn id_from_base58<E: Engine>(
         &self,
         _ctx: &CommandContext,

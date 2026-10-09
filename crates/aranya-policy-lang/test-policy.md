@@ -3,13 +3,13 @@ policy-version: 2
 ---
 ```policy
 struct Foo {
-    a int,
-    b string,
+    a: int,
+    b: string,
 }
 
 struct Bar {
-    b string,
-    a int,
+    b: string,
+    a: int,
 }
 
 function convert() struct Bar {

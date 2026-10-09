@@ -55,14 +55,14 @@ policy-version: 2
 
 #[test]
 fn parse_ffi_decl() {
-    let text = "function foo(x int, y struct bar) bool";
+    let text = "function foo(x: int, y: struct bar) bool";
     let decl = lang::parse_ffi_decl(text).expect("parse");
     insta::assert_debug_snapshot!(decl);
 }
 
 #[test]
 fn parse_ffi_decl_error() {
-    let text = "function foo(x optional optional int, y struct bar) bool";
+    let text = "function foo(x: optional optional int, y: struct bar) bool";
     let err = lang::parse_ffi_decl(text).unwrap_err();
     insta::assert_snapshot!(err);
 }
@@ -71,8 +71,8 @@ fn parse_ffi_decl_error() {
 fn parse_ffi_structs_enums() {
     let text = r#"
         struct A {
-            x int,
-            y bool
+            x: int,
+            y: bool
         }
 
         struct B {}
@@ -88,8 +88,8 @@ fn parse_ffi_structs_enums() {
 fn parse_ffi_structs_enums_error() {
     let text = r#"
         struct A {
-            x int,
-            y optional optional bool
+            x: int,
+            y: optional optional bool
         }
 
         struct B {}

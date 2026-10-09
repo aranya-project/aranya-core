@@ -1,9 +1,9 @@
-struct Bar { a int }
-struct Baz { +Bar, b string }
+struct Bar { a: int }
+struct Baz { +Bar, b: string }
 command Foo {
     fields {
         +Baz,
-        c bool
+        c: bool
     }
     policy {
         finish {}

@@ -1,7 +1,7 @@
 struct Foo {
-    inner int
+    inner: int
 }
 
-function get_inner(f struct Foo) int {
+function get_inner(f: struct Foo) int {
     return f.1
 }

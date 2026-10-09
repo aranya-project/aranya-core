@@ -12,58 +12,58 @@ Policy {
             key: [
                 FieldDefinition {
                     identifier: "i" @ 9..10,
-                    field_type: Int @ 11..14,
+                    field_type: Int @ 12..15,
                 },
             ],
             value: [
                 FieldDefinition {
-                    identifier: "n" @ 18..19,
-                    field_type: Int @ 20..23,
+                    identifier: "n" @ 19..20,
+                    field_type: Int @ 22..25,
                 },
             ],
-            span: 0..24,
+            span: 0..26,
         },
     ],
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "foo" @ 32..35,
+            identifier: "foo" @ 34..37,
             arguments: [],
             return_type: Unit @ 0..0,
             statements: [
                 Map(
                     MapStatement {
                         fact: FactLiteral {
-                            identifier: "Foo" @ 48..51,
+                            identifier: "Foo" @ 50..53,
                             key_fields: [
                                 (
-                                    "i" @ 52..53,
+                                    "i" @ 54..55,
                                     Expression(
                                         Int(
-                                            1 @ 54..55,
-                                        ) @ 54..55,
+                                            1 @ 56..57,
+                                        ) @ 56..57,
                                     ),
                                 ),
                             ],
                             value_fields: None,
                         },
-                        identifier: "f" @ 60..61,
+                        identifier: "f" @ 62..63,
                         statements: [
                             FunctionCall(
                                 FunctionCall {
-                                    identifier: "process" @ 72..79,
+                                    identifier: "process" @ 74..81,
                                     arguments: [
                                         Identifier(
-                                            "f" @ 80..81,
-                                        ) @ 80..81,
+                                            "f" @ 82..83,
+                                        ) @ 82..83,
                                     ],
                                 },
-                            ) @ 72..82,
+                            ) @ 74..84,
                         ],
                     },
-                ) @ 44..88,
+                ) @ 46..90,
             ],
-            span: 25..90,
+            span: 27..92,
         },
     ],
     effects: [],
@@ -74,5 +74,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "fact Foo[i int]=>{n int}\naction foo() {\n    map Foo[i:1] as f {\n        process(f)\n    }\n}\n",
+    text: "fact Foo[i: int]=>{n: int}\naction foo() {\n    map Foo[i:1] as f {\n        process(f)\n    }\n}\n",
 }

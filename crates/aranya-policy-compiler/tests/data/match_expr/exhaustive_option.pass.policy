@@ -1,4 +1,4 @@
-action f(maybe_bool option[bool]) {
+action f(maybe_bool: option[bool]) {
     let x = match maybe_bool {
         None => 0
         Some(true) => 1

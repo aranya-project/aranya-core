@@ -37,18 +37,18 @@ impl<K> Ffi<K> {
 // A GroupKey as stored in the fact database.
 struct StoredGroupKey {
     // Uniquely identifies the GroupKey.
-    key_id id,
+    key_id: id,
     // The wrapped GroupKey.
-    wrapped bytes,
+    wrapped: bytes,
 }
 
 // An encrypted GroupKey.
 struct SealedGroupKey {
     // The encapsulated secret key needed to decrypt
     // `ciphertext`.
-    encap bytes,
+    encap: bytes,
     // The encrypted GroupKey.
-    ciphertext bytes,
+    ciphertext: bytes,
 }
 "#
 )]
@@ -58,7 +58,7 @@ impl<K: KeyStore> Ffi<K> {
     #[ffi_export(def = r#"
 function derive_enc_key_id(
     // The encoded `EncryptionPublicKey`.
-    enc_pk bytes,
+    enc_pk: bytes,
 ) id
 "#)]
     pub(crate) fn derive_enc_key_id<E: Engine>(
@@ -75,7 +75,7 @@ function derive_enc_key_id(
     #[ffi_export(def = r#"
 function derive_sign_key_id(
     // The encoded `VerifyingKey`.
-    sign_pk bytes,
+    sign_pk: bytes,
 ) id
 "#)]
     pub(crate) fn derive_sign_key_id<E: Engine>(
@@ -92,7 +92,7 @@ function derive_sign_key_id(
     #[ffi_export(def = r#"
 function derive_device_id(
     // The encoded `IdentityVerifyingKey`.
-    ident_pk bytes,
+    ident_pk: bytes,
 ) id
 "#)]
     pub(crate) fn derive_device_id<E: Engine>(
@@ -126,9 +126,9 @@ function generate_group_key() struct StoredGroupKey
     /// Encrypts the [`GroupKey`] for another device.
     #[ffi_export(def = r#"
 function seal_group_key(
-    wrapped_group_key bytes,
-    peer_enc_pk bytes,
-    group_id id,
+    wrapped_group_key: bytes,
+    peer_enc_pk: bytes,
+    group_id: id,
 ) struct SealedGroupKey
 "#)]
     pub(crate) fn seal_group_key<E: Engine>(
@@ -154,9 +154,9 @@ function seal_group_key(
     /// Decrypts a [`GroupKey`] received from another device.
     #[ffi_export(def = r#"
 function open_group_key(
-    sealed_group_key struct SealedGroupKey,
-    our_enc_sk_id id,
-    group_id id,
+    sealed_group_key: struct SealedGroupKey,
+    our_enc_sk_id: id,
+    group_id: id,
 ) struct StoredGroupKey
 "#)]
     pub(crate) fn open_group_key<E: Engine>(
@@ -194,12 +194,12 @@ function open_group_key(
     /// Encrypt a message using the [`GroupKey`].
     #[ffi_export(def = r#"
 function encrypt_message(
-    plaintext bytes,
-    wrapped_group_key bytes,
-    our_sign_sk_id id,
+    plaintext: bytes,
+    wrapped_group_key: bytes,
+    our_sign_sk_id: id,
     // Name of the command that will carry the
     // encrypted message.
-    label string,
+    label: string,
 ) bytes
 "#)]
     pub(crate) fn encrypt_message<E: Engine>(
@@ -253,10 +253,10 @@ function encrypt_message(
     /// Encrypt a message using the [`GroupKey`].
     #[ffi_export(def = r#"
 function decrypt_message(
-    parent_id id,
-    ciphertext bytes,
-    wrapped_group_key bytes,
-    author_sign_pk bytes,
+    parent_id: id,
+    ciphertext: bytes,
+    wrapped_group_key: bytes,
+    author_sign_pk: bytes,
 ) bytes
 "#)]
     pub(crate) fn decrypt_message<E: Engine>(
@@ -295,8 +295,8 @@ function decrypt_message(
     /// Calculates the next change ID.
     #[ffi_export(def = r#"
 function compute_change_id(
-    new_cmd_id id,
-    current_change_id id,
+    new_cmd_id: id,
+    current_change_id: id,
 ) id
 "#)]
     pub(crate) fn compute_change_id<E: Engine>(
@@ -316,8 +316,8 @@ function compute_change_id(
     /// Computes the ID of a role.
     #[ffi_export(def = r#"
 function label_id(
-    cmd_id id,
-    name string,
+    cmd_id: id,
+    name: string,
 ) id
 "#)]
     pub(crate) fn label_id<E: Engine>(

@@ -1,4 +1,4 @@
-action f(n int) {
+action f(n: int) {
     let x = match n {
         0 => todo()
         1 => 1

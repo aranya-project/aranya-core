@@ -1,7 +1,7 @@
 command Foo {
     fields {
-        a int,
-        a string
+        a: int,
+        a: string
     }
     policy {
         finish {}

@@ -174,10 +174,10 @@ struct ErrorInput {
 fn parse_errors() -> Result<(), ParseError> {
     let cases = vec![ErrorInput {
         description: String::from("Invalid function body"),
-        input: r#"function foo(x int) bool { invalid }"#.to_string(),
+        input: r#"function foo(x: int) bool { invalid }"#.to_string(),
         error_message: String::from(
-            " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
-                |                            ^---\n  |\n  = expected function_call, \
+            " --> 1:29\n  |\n1 | function foo(x: int) bool { invalid }\n  \
+                |                             ^---\n  |\n  = expected function_call, \
                 action_call, publish_statement, let_statement, check_statement, match_statement, \
                 if_statement, finish_statement, map_statement, create_statement, update_statement, \
                 delete_statement, emit_statement, return_statement, recall_statement, or debug_assert",
@@ -288,7 +288,7 @@ fn test_result_literal() -> Result<(), ParseError> {
 #[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
-    let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
+    let mut pairs = PolicyParser::parse(Rule::field_definition, "bar: int")?;
 
     let tokens: Vec<Pair<'_, Rule>> = pairs.next().unwrap().into_inner().collect();
     assert_eq!(tokens[0].as_rule(), Rule::identifier);
@@ -302,7 +302,7 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_fact() -> Result<(), PestError<Rule>> {
     let src = r#"
-        fact Foo[a int] => {b id, c string}
+        fact Foo[a: int] => {b: id, c: string}
     "#
     .trim();
 
@@ -317,7 +317,7 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
-        action init(owner id) {
+        action init(owner: id) {
             publish Init{
                 Owner: owner
             }
@@ -336,7 +336,7 @@ fn parse_action() -> Result<(), PestError<Rule>> {
 fn parse_effect() -> Result<(), PestError<Rule>> {
     let src = r#"
         effect Foo {
-            owner id dynamic,
+            owner: id dynamic,
         }
     "#
     .trim();
@@ -353,7 +353,7 @@ fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
         command Foo {
             fields {
-                owner id,
+                owner: id,
             }
             policy {
                 finish {
@@ -374,7 +374,7 @@ fn parse_command() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_function() -> Result<(), PestError<Rule>> {
     let src = r#"
-    function foo(x int) bool {
+    function foo(x: int) bool {
         return true
     }
     "#

@@ -3,6 +3,6 @@ command Cmd {
     policy {
         recall handle("not an int")
     }
-    recall handle(x int) {
+    recall handle(x: int) {
     }
 }

@@ -56,11 +56,11 @@ policy-version: 2
 ---
 ```policy
         base command BaseInit {
-            fields { key bytes }
+            fields { key: bytes }
             get_key { return Some(this.key) }
         }
 
-        fact Key[]=>{key bytes}
+        fact Key[]=>{key: bytes}
 
         base command Base {
             get_key {
@@ -71,7 +71,7 @@ policy-version: 2
             }
         }
 
-        fact F[i int]=>{ value string }
+        fact F[i: int]=>{ value: string }
 
         command Init with BaseInit {
             attributes {
@@ -84,11 +84,11 @@ policy-version: 2
             }
         }
 
-        action init(key bytes) {
+        action init(key: bytes) {
             publish Init { key: key }
         }
 
-        action insert(i int, value string) {
+        action insert(i: int, value: string) {
             publish Insert { i:i, value: value }
         }
 
@@ -97,8 +97,8 @@ policy-version: 2
                 priority: 10,
             }
             fields {
-                i int,
-                value string
+                i: int,
+                value: string
             }
             policy {
                 finish {
@@ -117,7 +117,7 @@ policy-version: 2
             attributes {
                 priority: 5,
             }
-            fields { i int }
+            fields { i: int }
             policy {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }

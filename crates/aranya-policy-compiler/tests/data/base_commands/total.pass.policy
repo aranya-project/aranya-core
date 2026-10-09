@@ -1,8 +1,8 @@
-fact Key[dev id]=>{key bytes}
+fact Key[dev: id]=>{key: bytes}
 
 base command MyInitBase {
     fields {
-        key bytes
+        key: bytes
     }
     get_key {
         return Some(this.key)
@@ -30,7 +30,7 @@ command MyBasic2 with MyBasicBase {
     policy {}
 }
 
-action my_init(key bytes) {
+action my_init(key: bytes) {
     publish MyInit { key: key }
 }
 

@@ -1,4 +1,4 @@
-fact Foo[x int]=>{y bool}
+fact Foo[x: int]=>{y: bool}
 command MangleFoo {
     policy {
         finish {

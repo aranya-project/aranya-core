@@ -320,20 +320,20 @@ mod test {
             }
 
             struct Complex {
-                m_int int,
-                m_bool bool,
-                m_string string,
-                m_id id,
-                m_some option[int],
-                m_none option[int],
-                m_ok result[int, string],
-                m_err result[int, string],
-                m_enum enum Answer,
-                m_struct struct Simple,
+                m_int: int,
+                m_bool: bool,
+                m_string: string,
+                m_id: id,
+                m_some: option[int],
+                m_none: option[int],
+                m_ok: result[int, string],
+                m_err: result[int, string],
+                m_enum: enum Answer,
+                m_struct: struct Simple,
             }
 
             struct Simple {
-                m_int int,
+                m_int: int,
             }
         "#;
 

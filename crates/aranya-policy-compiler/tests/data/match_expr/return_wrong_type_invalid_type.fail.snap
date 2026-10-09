@@ -4,8 +4,8 @@ expression: error
 ---
 error: invalid type: string
   |
-1 | function f(n int) int {
-  |                   --- expected because of this
+1 | function f(n: int) int {
+  |                    --- expected because of this
 ...
 4 |         _ => return "wrong"
   |                     ^^^^^^^ expected `int` but found `string`

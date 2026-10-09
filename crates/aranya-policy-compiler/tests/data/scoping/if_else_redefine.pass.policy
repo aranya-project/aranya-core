@@ -1,4 +1,4 @@
-function f(y int) bool {
+function f(y: int) bool {
     if y == 0 {
         let x = 3
     }

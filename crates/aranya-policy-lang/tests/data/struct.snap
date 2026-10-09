@@ -15,11 +15,11 @@ Policy {
                 Field(
                     FieldDefinition {
                         identifier: "x" @ 17..18,
-                        field_type: Int @ 19..22,
+                        field_type: Int @ 20..23,
                     },
                 ),
             ],
-            span: 0..24,
+            span: 0..25,
         },
     ],
     enums: [],
@@ -27,49 +27,49 @@ Policy {
     base_commands: [],
     functions: [
         FunctionDefinition {
-            identifier: "convert" @ 35..42,
+            identifier: "convert" @ 36..43,
             arguments: [
                 Param {
-                    name: "foo" @ 43..46,
+                    name: "foo" @ 44..47,
                     ty: Struct(
-                        "Foo" @ 54..57,
-                    ) @ 47..57,
+                        "Foo" @ 56..59,
+                    ) @ 49..59,
                 },
             ],
             return_type: Struct(
-                "Bar" @ 66..69,
-            ) @ 59..69,
+                "Bar" @ 68..71,
+            ) @ 61..71,
             statements: [
                 Return(
                     ReturnStatement {
                         expression: NamedStruct(
                             NamedStruct {
-                                identifier: "Bar" @ 83..86,
+                                identifier: "Bar" @ 85..88,
                                 fields: [
                                     (
-                                        "y" @ 89..90,
+                                        "y" @ 91..92,
                                         Dot(
                                             Identifier(
-                                                "foo" @ 92..95,
-                                            ) @ 92..95,
-                                            "x" @ 96..97,
-                                        ) @ 92..97,
+                                                "foo" @ 94..97,
+                                            ) @ 94..97,
+                                            "x" @ 98..99,
+                                        ) @ 94..99,
                                     ),
                                 ],
                                 sources: [
-                                    "baz" @ 102..105,
-                                    "thud" @ 110..114,
+                                    "baz" @ 104..107,
+                                    "thud" @ 112..116,
                                 ],
-                                span: 83..116,
+                                span: 85..118,
                             },
-                        ) @ 83..116,
+                        ) @ 85..118,
                     },
-                ) @ 76..117,
+                ) @ 78..119,
             ],
-            span: 26..118,
+            span: 27..120,
         },
     ],
     finish_functions: [],
     global_lets: [],
-    text: "struct Foo {\n    x int\n}\n\nfunction convert(foo struct Foo) struct Bar {\n    return Bar { y: foo.x, ...baz, ...thud }\n}\n",
+    text: "struct Foo {\n    x: int\n}\n\nfunction convert(foo: struct Foo) struct Bar {\n    return Bar { y: foo.x, ...baz, ...thud }\n}\n",
 }

@@ -4,7 +4,7 @@ expression: error
 ---
 error: the name `i` is defined multiple times
   |
-1 | fact F[i int, i string] => {a string}
-  |        -      ^ re-defined here
+1 | fact F[i: int, i: string] => {a: string}
+  |        -       ^ re-defined here
   |        |
   |        previous defintion here
