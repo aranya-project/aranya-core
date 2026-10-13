@@ -49,6 +49,7 @@ pub(super) fn open_with_key<CS: CipherSuite>(
     command_struct: &Struct,
     payload: &[u8],
     envelope: &Envelope<'_>,
+    is_ephemeral: bool,
 ) -> Result<(), OpenError> {
     let signature =
         Signature::<CS>::from_bytes(&envelope.signature).map_err(OpenError::BadSignature)?;
@@ -61,7 +62,7 @@ pub(super) fn open_with_key<CS: CipherSuite>(
         },
         &signature,
     )?;
-    if id != envelope.command_id {
+    if !is_ephemeral && id != envelope.command_id {
         return Err(OpenError::IdMismatch);
     }
 
