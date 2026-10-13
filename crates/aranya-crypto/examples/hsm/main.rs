@@ -104,7 +104,7 @@ impl RawSecretWrap<Self> for HsmEngine {
             RawSecret::Decap(sk) => RawSecretBytes::Decap(sk.try_export_secret()?),
             RawSecret::Mac(sk) => RawSecretBytes::Mac(sk.try_export_secret()?),
             RawSecret::Prk(sk) => RawSecretBytes::Prk(sk),
-            RawSecret::Seed(sk) => RawSecretBytes::Seed(sk.into()),
+            RawSecret::Seed(sk) => RawSecretBytes::Seed(sk),
             // Signing keys are stored inside the HSM.
             RawSecret::Signing(sk) => return Ok(WrappedKey::internal(sk.0)),
         };

@@ -16,7 +16,6 @@ use spideroak_crypto::{
     rust,
     signer::Signer,
     typenum::U64,
-    zeroize::ZeroizeOnDrop,
 };
 
 use crate::{
