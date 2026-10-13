@@ -1975,11 +1975,7 @@ impl CompileState<'_> {
                 // this parses as a bare function call, so say what's missing
                 // rather than just rejecting the statement.
                 (StmtKind::FunctionCall(f), StatementContext::Action(_))
-                    if self
-                        .policy
-                        .actions
-                        .iter()
-                        .any(|a| a.identifier == f.identifier.inner) =>
+                    if self.policy.actions.iter().any(|a| a.name == f.name.inner) =>
                 {
                     let note = "actions must be called with the `action` keyword";
                     let call = Expression {
