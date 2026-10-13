@@ -2467,11 +2467,7 @@ fn test_result() -> anyhow::Result<()> {
         }
 
         function try(succeed bool) result[int, enum Error] {
-            // error propagation is done explicilty, until we have `?` operator
-            return match try_return(succeed) {
-                Ok(n) => Ok(n)
-                _ => Err(Error::Fail)
-            }
+            return Ok(try_return(succeed)?)
         }
 
         function try_return(succeed bool) result[int, enum Error] {
