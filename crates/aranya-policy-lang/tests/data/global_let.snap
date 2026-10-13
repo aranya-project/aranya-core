@@ -9,22 +9,22 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "foo" @ 32..35,
-            arguments: [],
+            name: "foo" @ 32..35,
+            parameters: [],
             return_type: Result(
                 ResultTypeKind {
                     ok: Unit @ 45..49,
                     err: Unit @ 51..55,
                 },
             ) @ 38..56,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "a" @ 67..68,
-                        expression: Coalesce(
+                        name: "a" @ 67..68,
+                        value: Coalesce(
                             FunctionCall(
                                 FunctionCall {
-                                    identifier: "add" @ 71..74,
+                                    name: "add" @ 71..74,
                                     arguments: [
                                         Identifier(
                                             "x" @ 75..76,
@@ -45,8 +45,8 @@ Policy {
                 ) @ 63..105,
                 Let(
                     LetStatement {
-                        identifier: "c" @ 109..110,
-                        expression: Not(
+                        name: "c" @ 109..110,
+                        value: Not(
                             Identifier(
                                 "z" @ 114..115,
                             ) @ 114..115,
@@ -56,7 +56,7 @@ Policy {
                 Emit(
                     NamedStruct(
                         NamedStruct {
-                            identifier: "Bar" @ 125..128,
+                            name: "Bar" @ 125..128,
                             fields: [
                                 (
                                     "a" @ 131..132,
@@ -78,7 +78,7 @@ Policy {
                 ) @ 120..142,
                 Return(
                     ReturnStatement {
-                        expression: Ok(
+                        value: Ok(
                             Unit @ 152..156,
                         ) @ 149..157,
                     },
@@ -96,15 +96,15 @@ Policy {
     finish_functions: [],
     global_lets: [
         GlobalLetStatement {
-            identifier: "x" @ 4..5,
-            expression: Int(
+            name: "x" @ 4..5,
+            value: Int(
                 42 @ 8..10,
             ) @ 8..10,
             span: 0..11,
         },
         GlobalLetStatement {
-            identifier: "z" @ 15..16,
-            expression: Bool(
+            name: "z" @ 15..16,
+            value: Bool(
                 true,
             ) @ 19..23,
             span: 11..25,

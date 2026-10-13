@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -20,16 +19,16 @@ Module {
     fact_defs: [
         FactDef {
             name: "Pet",
-            key: [
+            keys: [
                 Field {
                     name: "name",
-                    ty: String,
+                    vtype: String,
                 },
             ],
-            value: [
+            values: [
                 Field {
                     name: "age",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             immutable: false,
@@ -41,11 +40,11 @@ Module {
             items: [
                 Field {
                     name: "name",
-                    ty: String,
+                    vtype: String,
                 },
                 Field {
                     name: "age",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },

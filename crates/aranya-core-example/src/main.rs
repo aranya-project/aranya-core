@@ -6,7 +6,7 @@
 //! The FFI/compiler/VM crates are needed for one-time policy compilation
 //! and FFI module wiring.
 
-use std::fs;
+use std::{fs, sync::Arc};
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
@@ -169,11 +169,11 @@ fn compile_policy(seal_ctx: VmSealCtx<CE>, eng: CE, store: MemStore) -> Result<V
 
     let machine = Machine::from_module(module).context("create machine")?;
 
-    let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
-        Box::from(DeviceFfi::new(seal_ctx.author)),
-        Box::from(EnvelopeFfi),
-        Box::from(IdamFfi::new(store)),
-        Box::from(PerspectiveFfi),
+    let ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>> = vec![
+        Arc::from(DeviceFfi::new(seal_ctx.author)),
+        Arc::from(EnvelopeFfi),
+        Arc::from(IdamFfi::new(store)),
+        Arc::from(PerspectiveFfi),
     ];
 
     let policy = VmPolicy::new(machine, eng, ffis).context("create VmPolicy")?;

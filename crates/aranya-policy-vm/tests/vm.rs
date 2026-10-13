@@ -144,7 +144,7 @@ fn test_structs() -> anyhow::Result<()> {
             name: ident!("Bar"),
             items: vec![Field {
                 name: ident!("x"),
-                ty: aranya_policy_module::TypeKind::Int,
+                vtype: aranya_policy_module::TypeKind::Int,
             }]
         })
     );

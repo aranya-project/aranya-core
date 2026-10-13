@@ -9,17 +9,17 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "test" @ 7..11,
-            arguments: [],
+            name: "test" @ 7..11,
+            parameters: [],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "x" @ 24..25,
-                        expression: InternalFunction(
+                        name: "x" @ 24..25,
+                        value: InternalFunction(
                             Query(
                                 FactLiteral {
-                                    identifier: "A" @ 34..35,
+                                    name: "A" @ 34..35,
                                     key_fields: [
                                         (
                                             "i" @ 36..37,
