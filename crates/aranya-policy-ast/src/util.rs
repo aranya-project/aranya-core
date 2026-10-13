@@ -3,12 +3,12 @@ use crate::{ExprKind, Expression, FactDefinition, FieldDefinition, Identifier, T
 impl FactDefinition {
     /// Get a key field by name
     pub fn get_key_field(&self, name: &Identifier) -> Option<&FieldDefinition> {
-        self.key.iter().find(|fd| fd.identifier == *name)
+        self.keys.iter().find(|fd| fd.name == *name)
     }
 
     /// Get a value field by name
     pub fn get_value_field(&self, name: &Identifier) -> Option<&FieldDefinition> {
-        self.value.iter().find(|fd| fd.identifier == *name)
+        self.values.iter().find(|fd| fd.name == *name)
     }
 }
 
@@ -16,7 +16,7 @@ impl FieldDefinition {
     /// Is this a hashable type?
     pub fn is_hashable(&self) -> bool {
         matches!(
-            &self.field_type.inner,
+            &self.vtype.inner,
             TypeKind::Int | TypeKind::Bool | TypeKind::String | TypeKind::Id | TypeKind::Enum(_)
         )
     }

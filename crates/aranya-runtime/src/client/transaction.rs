@@ -1,5 +1,5 @@
 use alloc::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, VecDeque, btree_map::Entry},
     vec::Vec,
 };
 use core::{marker::PhantomData, mem};
@@ -494,8 +494,36 @@ where
 
     sink.begin();
 
+    // TODO: LRU and no-alloc.
+    // Note that this will be at most the graph width and we already
+    // hold that many segments in memory during `braiding::braid`.
+    let mut segment_cache = BTreeMap::new();
+
     while let Some(location) = iter.next().transpose()? {
-        let segment = storage.get_segment(location)?;
+        // Get the segment from the cache or load it. If `location` is the head of the segment, we
+        // won't need it afterward so we remove it from the cache if present and just hold it in
+        // `temporary_segment` to be used this one time.
+        let temporary_segment;
+        let segment = match segment_cache.entry(location.segment) {
+            Entry::Vacant(e) => {
+                let segment = storage.get_segment(location)?;
+                if location.max_cut == segment.longest_max_cut()? {
+                    temporary_segment = segment;
+                    &temporary_segment
+                } else {
+                    e.insert(segment)
+                }
+            }
+            Entry::Occupied(e) => {
+                if location.max_cut == e.get().longest_max_cut()? {
+                    temporary_segment = e.remove();
+                    &temporary_segment
+                } else {
+                    e.into_mut()
+                }
+            }
+        };
+
         let command = segment
             .get_command(location)
             .assume("braid only contains existing commands")?;

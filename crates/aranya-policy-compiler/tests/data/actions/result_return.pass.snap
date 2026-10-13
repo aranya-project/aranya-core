@@ -21,7 +21,7 @@ Module {
             params: [
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             result_type: Result(

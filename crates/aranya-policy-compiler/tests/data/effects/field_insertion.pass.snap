@@ -14,7 +14,7 @@ Module {
             items: [
                 Field {
                     name: "b",
-                    ty: Bool,
+                    vtype: Bool,
                 },
             ],
         },
@@ -23,15 +23,15 @@ Module {
             items: [
                 Field {
                     name: "i",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Bool,
+                    vtype: Bool,
                 },
                 Field {
                     name: "s",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },
@@ -40,11 +40,11 @@ Module {
             items: [
                 Field {
                     name: "b",
-                    ty: Bool,
+                    vtype: Bool,
                 },
                 Field {
                     name: "s",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },

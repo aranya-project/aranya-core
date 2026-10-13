@@ -14,7 +14,7 @@ Module {
             params: [
                 Field {
                     name: "maybe_bool",
-                    ty: Optional(
+                    vtype: Optional(
                         Bool,
                     ),
                 },

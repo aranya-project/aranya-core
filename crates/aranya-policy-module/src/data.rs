@@ -334,14 +334,14 @@ pub struct Field {
     /// The name of the parameter.
     pub name: Identifier,
     /// The type of the parameter.
-    pub ty: TypeKind,
+    pub vtype: TypeKind,
 }
 
 impl From<ast::Param> for Field {
     fn from(value: ast::Param) -> Self {
         Self {
             name: value.name.inner,
-            ty: value.ty.inner.into(),
+            vtype: value.vtype.inner.into(),
         }
     }
 }
@@ -349,8 +349,8 @@ impl From<ast::Param> for Field {
 impl From<ast::FieldDefinition> for Field {
     fn from(value: ast::FieldDefinition) -> Self {
         Self {
-            name: value.identifier.inner,
-            ty: value.field_type.inner.into(),
+            name: value.name.inner,
+            vtype: value.vtype.inner.into(),
         }
     }
 }

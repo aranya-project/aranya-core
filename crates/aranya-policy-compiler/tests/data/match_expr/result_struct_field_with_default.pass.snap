@@ -16,7 +16,7 @@ Module {
             items: [
                 Field {
                     name: "r",
-                    ty: Result(
+                    vtype: Result(
                         ResultTypeKind {
                             ok: Int,
                             err: String,

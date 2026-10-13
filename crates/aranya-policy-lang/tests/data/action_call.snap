@@ -9,21 +9,21 @@ Policy {
     actions: [
         ActionDefinition {
             flavor: None,
-            identifier: "ping" @ 7..11,
-            arguments: [],
+            name: "ping" @ 7..11,
+            parameters: [],
             return_type: Unit @ 0..0,
-            statements: [],
+            body: [],
             span: 0..16,
         },
         ActionDefinition {
             flavor: None,
-            identifier: "pong" @ 24..28,
-            arguments: [],
+            name: "pong" @ 24..28,
+            parameters: [],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 ActionCall(
                     FunctionCall {
-                        identifier: "ping" @ 44..48,
+                        name: "ping" @ 44..48,
                         arguments: [],
                     },
                 ) @ 37..50,

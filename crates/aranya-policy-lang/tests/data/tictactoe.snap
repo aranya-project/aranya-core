@@ -8,102 +8,102 @@ Policy {
     facts: [
         FactDefinition {
             immutable: false,
-            identifier: "Players" @ 42..49,
-            key: [
+            name: "Players" @ 42..49,
+            keys: [
                 FieldDefinition {
-                    identifier: "gameID" @ 50..56,
-                    field_type: Id @ 57..59,
+                    name: "gameID" @ 50..56,
+                    vtype: Id @ 57..59,
                 },
             ],
-            value: [
+            values: [
                 FieldDefinition {
-                    identifier: "x" @ 63..64,
-                    field_type: Id @ 65..67,
+                    name: "x" @ 63..64,
+                    vtype: Id @ 65..67,
                 },
                 FieldDefinition {
-                    identifier: "o" @ 69..70,
-                    field_type: Id @ 71..73,
+                    name: "o" @ 69..70,
+                    vtype: Id @ 71..73,
                 },
             ],
             span: 37..74,
         },
         FactDefinition {
             immutable: false,
-            identifier: "NextPlayer" @ 80..90,
-            key: [
+            name: "NextPlayer" @ 80..90,
+            keys: [
                 FieldDefinition {
-                    identifier: "gameID" @ 91..97,
-                    field_type: Id @ 98..100,
+                    name: "gameID" @ 91..97,
+                    vtype: Id @ 98..100,
                 },
             ],
-            value: [
+            values: [
                 FieldDefinition {
-                    identifier: "p" @ 104..105,
-                    field_type: String @ 106..112,
+                    name: "p" @ 104..105,
+                    vtype: String @ 106..112,
                 },
             ],
             span: 75..113,
         },
         FactDefinition {
             immutable: false,
-            identifier: "Field" @ 119..124,
-            key: [
+            name: "Field" @ 119..124,
+            keys: [
                 FieldDefinition {
-                    identifier: "gameID" @ 125..131,
-                    field_type: Id @ 132..134,
+                    name: "gameID" @ 125..131,
+                    vtype: Id @ 132..134,
                 },
                 FieldDefinition {
-                    identifier: "x" @ 136..137,
-                    field_type: Int @ 138..141,
+                    name: "x" @ 136..137,
+                    vtype: Int @ 138..141,
                 },
                 FieldDefinition {
-                    identifier: "y" @ 143..144,
-                    field_type: Int @ 145..148,
+                    name: "y" @ 143..144,
+                    vtype: Int @ 145..148,
                 },
             ],
-            value: [
+            values: [
                 FieldDefinition {
-                    identifier: "p" @ 152..153,
-                    field_type: String @ 154..160,
+                    name: "p" @ 152..153,
+                    vtype: String @ 154..160,
                 },
             ],
             span: 114..161,
         },
         FactDefinition {
             immutable: false,
-            identifier: "GameOver" @ 167..175,
-            key: [
+            name: "GameOver" @ 167..175,
+            keys: [
                 FieldDefinition {
-                    identifier: "gameID" @ 176..182,
-                    field_type: Id @ 183..185,
+                    name: "gameID" @ 176..182,
+                    vtype: Id @ 183..185,
                 },
             ],
-            value: [],
+            values: [],
             span: 162..190,
         },
     ],
     actions: [
         ActionDefinition {
             flavor: None,
-            identifier: "StartGame" @ 601..610,
-            arguments: [
+            name: "StartGame" @ 601..610,
+            parameters: [
                 Param {
                     name: "profileX" @ 611..619,
-                    ty: Id @ 620..622,
+                    vtype: Id @ 620..622,
                 },
                 Param {
                     name: "profileO" @ 624..632,
-                    ty: Id @ 633..635,
+                    vtype: Id @ 633..635,
                 },
             ],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "start_command" @ 647..660,
-                        expression: NamedStruct(
+                        name: "start_command" @ 647..660,
+                        value: NamedStruct(
                             NamedStruct {
-                                identifier: "Start" @ 663..668,
+                                name: "Start" @ 663..668,
                                 fields: [
                                     (
                                         "ProfileX" @ 678..686,
@@ -134,29 +134,29 @@ Policy {
         },
         ActionDefinition {
             flavor: None,
-            identifier: "MakeMove" @ 1314..1322,
-            arguments: [
+            name: "MakeMove" @ 1314..1322,
+            parameters: [
                 Param {
                     name: "gameID" @ 1323..1329,
-                    ty: Id @ 1330..1332,
+                    vtype: Id @ 1330..1332,
                 },
                 Param {
                     name: "x" @ 1334..1335,
-                    ty: Int @ 1336..1339,
+                    vtype: Int @ 1336..1339,
                 },
                 Param {
                     name: "y" @ 1341..1342,
-                    ty: Int @ 1343..1346,
+                    vtype: Int @ 1343..1346,
                 },
             ],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "move_command" @ 1358..1370,
-                        expression: NamedStruct(
+                        name: "move_command" @ 1358..1370,
+                        value: NamedStruct(
                             NamedStruct {
-                                identifier: "Move" @ 1373..1377,
+                                name: "Move" @ 1373..1377,
                                 fields: [
                                     (
                                         "gameID" @ 1388..1394,
@@ -194,26 +194,26 @@ Policy {
     ],
     effects: [
         EffectDefinition {
-            identifier: "GameStart" @ 768..777,
+            name: "GameStart" @ 768..777,
             items: [
                 Field(
                     EffectFieldDefinition {
-                        identifier: "gameID" @ 784..790,
-                        field_type: Id @ 791..793,
+                        name: "gameID" @ 784..790,
+                        vtype: Id @ 791..793,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "x" @ 799..800,
-                        field_type: Id @ 801..803,
+                        name: "x" @ 799..800,
+                        vtype: Id @ 801..803,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "o" @ 809..810,
-                        field_type: Id @ 811..813,
+                        name: "o" @ 809..810,
+                        vtype: Id @ 811..813,
                         dynamic: false,
                     },
                 ),
@@ -221,40 +221,40 @@ Policy {
             span: 761..816,
         },
         EffectDefinition {
-            identifier: "GameUpdate" @ 1465..1475,
+            name: "GameUpdate" @ 1465..1475,
             items: [
                 Field(
                     EffectFieldDefinition {
-                        identifier: "gameID" @ 1482..1488,
-                        field_type: Id @ 1489..1491,
+                        name: "gameID" @ 1482..1488,
+                        vtype: Id @ 1489..1491,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "player" @ 1497..1503,
-                        field_type: Id @ 1504..1506,
+                        name: "player" @ 1497..1503,
+                        vtype: Id @ 1504..1506,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "p" @ 1664..1665,
-                        field_type: String @ 1671..1677,
+                        name: "p" @ 1664..1665,
+                        vtype: String @ 1671..1677,
                         dynamic: true,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "X" @ 1691..1692,
-                        field_type: Int @ 1698..1701,
+                        name: "X" @ 1691..1692,
+                        vtype: Int @ 1698..1701,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "Y" @ 1707..1708,
-                        field_type: Int @ 1714..1717,
+                        name: "Y" @ 1707..1708,
+                        vtype: Int @ 1714..1717,
                         dynamic: false,
                     },
                 ),
@@ -262,26 +262,26 @@ Policy {
             span: 1458..1720,
         },
         EffectDefinition {
-            identifier: "GameOver" @ 1729..1737,
+            name: "GameOver" @ 1729..1737,
             items: [
                 Field(
                     EffectFieldDefinition {
-                        identifier: "gameID" @ 1744..1750,
-                        field_type: Id @ 1751..1753,
+                        name: "gameID" @ 1744..1750,
+                        vtype: Id @ 1751..1753,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "winner" @ 1759..1765,
-                        field_type: Id @ 1766..1768,
+                        name: "winner" @ 1759..1765,
+                        vtype: Id @ 1766..1768,
                         dynamic: false,
                     },
                 ),
                 Field(
                     EffectFieldDefinition {
-                        identifier: "p" @ 1774..1775,
-                        field_type: String @ 1776..1782,
+                        name: "p" @ 1774..1775,
+                        vtype: String @ 1776..1782,
                         dynamic: false,
                     },
                 ),
@@ -295,25 +295,25 @@ Policy {
         CommandDefinition {
             base: None,
             attributes: [],
-            identifier: "Start" @ 826..831,
+            name: "Start" @ 826..831,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "ProfileX" @ 855..863,
-                        field_type: Id @ 864..866,
+                        name: "ProfileX" @ 855..863,
+                        vtype: Id @ 864..866,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "ProfileO" @ 876..884,
-                        field_type: Id @ 885..887,
+                        name: "ProfileO" @ 876..884,
+                        vtype: Id @ 885..887,
                     },
                 ),
             ],
             policy: [
                 Check(
                     CheckStatement {
-                        expression: NotEqual(
+                        condition: NotEqual(
                             Identifier(
                                 "ProfileX" @ 922..930,
                             ) @ 922..930,
@@ -333,8 +333,8 @@ Policy {
                 ) @ 916..996,
                 Let(
                     LetStatement {
-                        identifier: "gameID" @ 1000..1006,
-                        expression: Dot(
+                        name: "gameID" @ 1000..1006,
+                        value: Dot(
                             Identifier(
                                 "envelope" @ 1009..1017,
                             ) @ 1009..1017,
@@ -347,7 +347,7 @@ Policy {
                         Create(
                             CreateStatement {
                                 fact: FactLiteral {
-                                    identifier: "PlayerProfile" @ 1065..1078,
+                                    name: "PlayerProfile" @ 1065..1078,
                                     key_fields: [
                                         (
                                             "gameID" @ 1079..1085,
@@ -384,7 +384,7 @@ Policy {
                         Create(
                             CreateStatement {
                                 fact: FactLiteral {
-                                    identifier: "NextPlayer" @ 1134..1144,
+                                    name: "NextPlayer" @ 1134..1144,
                                     key_fields: [
                                         (
                                             "gameID" @ 1145..1151,
@@ -413,7 +413,7 @@ Policy {
                         Emit(
                             NamedStruct(
                                 NamedStruct {
-                                    identifier: "GameStart" @ 1181..1190,
+                                    name: "GameStart" @ 1181..1190,
                                     fields: [
                                         (
                                             "gameID" @ 1208..1214,
@@ -448,32 +448,32 @@ Policy {
         CommandDefinition {
             base: None,
             attributes: [],
-            identifier: "Move" @ 1795..1799,
+            name: "Move" @ 1795..1799,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "gameID" @ 1864..1870,
-                        field_type: Id @ 1871..1873,
+                        name: "gameID" @ 1864..1870,
+                        vtype: Id @ 1871..1873,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "X" @ 1883..1884,
-                        field_type: Int @ 1885..1888,
+                        name: "X" @ 1883..1884,
+                        vtype: Int @ 1885..1888,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "Y" @ 1898..1899,
-                        field_type: Int @ 1900..1903,
+                        name: "Y" @ 1898..1899,
+                        vtype: Int @ 1900..1903,
                     },
                 ),
             ],
             policy: [
                 Let(
                     LetStatement {
-                        identifier: "player" @ 2144..2150,
-                        expression: Dot(
+                        name: "player" @ 2144..2150,
+                        value: Dot(
                             Identifier(
                                 "envelope" @ 2153..2161,
                             ) @ 2153..2161,
@@ -483,12 +483,12 @@ Policy {
                 ) @ 2140..2545,
                 Let(
                     LetStatement {
-                        identifier: "res" @ 2549..2552,
-                        expression: Coalesce(
+                        name: "res" @ 2549..2552,
+                        value: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "PlayerProfile" @ 2561..2574,
+                                        name: "PlayerProfile" @ 2561..2574,
                                         key_fields: [
                                             (
                                                 "gameID" @ 2575..2581,
@@ -529,8 +529,8 @@ Policy {
                 ) @ 2545..2620,
                 Let(
                     LetStatement {
-                        identifier: "playerX" @ 2624..2631,
-                        expression: Dot(
+                        name: "playerX" @ 2624..2631,
+                        value: Dot(
                             Identifier(
                                 "res" @ 2634..2637,
                             ) @ 2634..2637,
@@ -540,8 +540,8 @@ Policy {
                 ) @ 2620..2648,
                 Let(
                     LetStatement {
-                        identifier: "playerO" @ 2652..2659,
-                        expression: Dot(
+                        name: "playerO" @ 2652..2659,
+                        value: Dot(
                             Identifier(
                                 "res" @ 2662..2665,
                             ) @ 2662..2665,
@@ -551,12 +551,12 @@ Policy {
                 ) @ 2648..2676,
                 Let(
                     LetStatement {
-                        identifier: "p" @ 2680..2681,
-                        expression: Coalesce(
+                        name: "p" @ 2680..2681,
+                        value: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "NextPlayer" @ 2690..2700,
+                                        name: "NextPlayer" @ 2690..2700,
                                         key_fields: [
                                             (
                                                 "gameID" @ 2701..2707,
@@ -591,8 +591,8 @@ Policy {
                 ) @ 2676..2852,
                 Let(
                     LetStatement {
-                        identifier: "nextp" @ 2856..2861,
-                        expression: InternalFunction(
+                        name: "nextp" @ 2856..2861,
+                        value: InternalFunction(
                             If(
                                 Equal(
                                     Identifier(
@@ -620,7 +620,7 @@ Policy {
                 ) @ 2852..3141,
                 Check(
                     CheckStatement {
-                        expression: Or(
+                        condition: Or(
                             And(
                                 Equal(
                                     Identifier(
@@ -670,9 +670,9 @@ Policy {
                 ) @ 3141..3315,
                 Check(
                     CheckStatement {
-                        expression: FunctionCall(
+                        condition: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 3321..3327,
+                                name: "bounds" @ 3321..3327,
                                 arguments: [
                                     Identifier(
                                         "X" @ 3328..3329,
@@ -692,9 +692,9 @@ Policy {
                 ) @ 3315..3373,
                 Check(
                     CheckStatement {
-                        expression: FunctionCall(
+                        condition: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 3379..3385,
+                                name: "bounds" @ 3379..3385,
                                 arguments: [
                                     Identifier(
                                         "Y" @ 3386..3387,
@@ -717,7 +717,7 @@ Policy {
                         Create(
                             CreateStatement {
                                 fact: FactLiteral {
-                                    identifier: "Field" @ 3662..3667,
+                                    name: "Field" @ 3662..3667,
                                     key_fields: [
                                         (
                                             "gameID" @ 3668..3674,
@@ -761,7 +761,7 @@ Policy {
                         ) @ 3655..3692,
                         FunctionCall(
                             FunctionCall {
-                                identifier: "set_next_player" @ 3705..3720,
+                                name: "set_next_player" @ 3705..3720,
                                 arguments: [
                                     Identifier(
                                         "gameID" @ 3721..3727,
@@ -775,7 +775,7 @@ Policy {
                         Emit(
                             NamedStruct(
                                 NamedStruct {
-                                    identifier: "GameUpdate" @ 3754..3764,
+                                    name: "GameUpdate" @ 3754..3764,
                                     fields: [
                                         (
                                             "gameID" @ 3782..3788,
@@ -822,32 +822,32 @@ Policy {
         CommandDefinition {
             base: None,
             attributes: [],
-            identifier: "Move2" @ 5294..5299,
+            name: "Move2" @ 5294..5299,
             fields: [
                 Field(
                     FieldDefinition {
-                        identifier: "gameID" @ 5323..5329,
-                        field_type: Id @ 5330..5332,
+                        name: "gameID" @ 5323..5329,
+                        vtype: Id @ 5330..5332,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "X" @ 5342..5343,
-                        field_type: Int @ 5344..5347,
+                        name: "X" @ 5342..5343,
+                        vtype: Int @ 5344..5347,
                     },
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "Y" @ 5357..5358,
-                        field_type: Int @ 5359..5362,
+                        name: "Y" @ 5357..5358,
+                        vtype: Int @ 5359..5362,
                     },
                 ),
             ],
             policy: [
                 Let(
                     LetStatement {
-                        identifier: "player" @ 5395..5401,
-                        expression: Dot(
+                        name: "player" @ 5395..5401,
+                        value: Dot(
                             Identifier(
                                 "envelope" @ 5404..5412,
                             ) @ 5404..5412,
@@ -857,12 +857,12 @@ Policy {
                 ) @ 5391..5431,
                 Let(
                     LetStatement {
-                        identifier: "players" @ 5435..5442,
-                        expression: Coalesce(
+                        name: "players" @ 5435..5442,
+                        value: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "PlayerProfile" @ 5451..5464,
+                                        name: "PlayerProfile" @ 5451..5464,
                                         key_fields: [
                                             (
                                                 "gameID" @ 5465..5471,
@@ -903,12 +903,12 @@ Policy {
                 ) @ 5431..5510,
                 Let(
                     LetStatement {
-                        identifier: "p" @ 5514..5515,
-                        expression: Coalesce(
+                        name: "p" @ 5514..5515,
+                        value: Coalesce(
                             InternalFunction(
                                 Query(
                                     FactLiteral {
-                                        identifier: "NextPlayer" @ 5524..5534,
+                                        name: "NextPlayer" @ 5524..5534,
                                         key_fields: [
                                             (
                                                 "gameID" @ 5535..5541,
@@ -943,8 +943,8 @@ Policy {
                 ) @ 5510..5574,
                 Let(
                     LetStatement {
-                        identifier: "nextp" @ 5578..5583,
-                        expression: InternalFunction(
+                        name: "nextp" @ 5578..5583,
+                        value: InternalFunction(
                             If(
                                 Equal(
                                     Identifier(
@@ -972,11 +972,11 @@ Policy {
                 ) @ 5574..5630,
                 Check(
                     CheckStatement {
-                        expression: Not(
+                        condition: Not(
                             InternalFunction(
                                 Exists(
                                     FactLiteral {
-                                        identifier: "GameOver" @ 5644..5652,
+                                        name: "GameOver" @ 5644..5652,
                                         key_fields: [
                                             (
                                                 "gameID" @ 5653..5659,
@@ -1006,9 +1006,9 @@ Policy {
                 ) @ 5630..5704,
                 Check(
                     CheckStatement {
-                        expression: FunctionCall(
+                        condition: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 5710..5716,
+                                name: "bounds" @ 5710..5716,
                                 arguments: [
                                     Identifier(
                                         "X" @ 5717..5718,
@@ -1028,9 +1028,9 @@ Policy {
                 ) @ 5704..5756,
                 Check(
                     CheckStatement {
-                        expression: FunctionCall(
+                        condition: FunctionCall(
                             FunctionCall {
-                                identifier: "bounds" @ 5762..5768,
+                                name: "bounds" @ 5762..5768,
                                 arguments: [
                                     Identifier(
                                         "Y" @ 5769..5770,
@@ -1050,7 +1050,7 @@ Policy {
                 ) @ 5756..5808,
                 Check(
                     CheckStatement {
-                        expression: Or(
+                        condition: Or(
                             And(
                                 Equal(
                                     Identifier(
@@ -1106,9 +1106,9 @@ Policy {
                 ) @ 5808..5936,
                 Match(
                     MatchStatement {
-                        expression: FunctionCall(
+                        scrutinee: FunctionCall(
                             FunctionCall {
-                                identifier: "game_over" @ 5942..5951,
+                                name: "game_over" @ 5942..5951,
                                 arguments: [
                                     Identifier(
                                         "gameID" @ 5952..5958,
@@ -1134,13 +1134,13 @@ Policy {
                                         ) @ 5983..5987,
                                     ],
                                 ),
-                                statements: [
+                                body: [
                                     Finish(
                                         [
                                             Create(
                                                 CreateStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "Field" @ 6045..6050,
+                                                        name: "Field" @ 6045..6050,
                                                         key_fields: [
                                                             (
                                                                 "gameID" @ 6051..6057,
@@ -1185,7 +1185,7 @@ Policy {
                                             Delete(
                                                 DeleteStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "NextPlayer" @ 6103..6113,
+                                                        name: "NextPlayer" @ 6103..6113,
                                                         key_fields: [
                                                             (
                                                                 "gameID" @ 6114..6120,
@@ -1214,7 +1214,7 @@ Policy {
                                             Create(
                                                 CreateStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "GameOver" @ 6154..6162,
+                                                        name: "GameOver" @ 6154..6162,
                                                         key_fields: [
                                                             (
                                                                 "gameID" @ 6163..6169,
@@ -1234,7 +1234,7 @@ Policy {
                                             Emit(
                                                 NamedStruct(
                                                     NamedStruct {
-                                                        identifier: "GameOver" @ 6200..6208,
+                                                        name: "GameOver" @ 6200..6208,
                                                         fields: [
                                                             (
                                                                 "gameID" @ 6234..6240,
@@ -1272,13 +1272,13 @@ Policy {
                                         ) @ 6375..6380,
                                     ],
                                 ),
-                                statements: [
+                                body: [
                                     Finish(
                                         [
                                             Create(
                                                 CreateStatement {
                                                     fact: FactLiteral {
-                                                        identifier: "Field" @ 6438..6443,
+                                                        name: "Field" @ 6438..6443,
                                                         key_fields: [
                                                             (
                                                                 "gameID" @ 6444..6450,
@@ -1322,7 +1322,7 @@ Policy {
                                             ) @ 6431..6468,
                                             FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "set_next_player" @ 6489..6504,
+                                                    name: "set_next_player" @ 6489..6504,
                                                     arguments: [
                                                         Identifier(
                                                             "gameID" @ 6505..6511,
@@ -1336,7 +1336,7 @@ Policy {
                                             Emit(
                                                 NamedStruct(
                                                     NamedStruct {
-                                                        identifier: "GameUpdate" @ 6542..6552,
+                                                        name: "GameUpdate" @ 6542..6552,
                                                         fields: [
                                                             (
                                                                 "gameID" @ 6578..6584,
@@ -1389,18 +1389,18 @@ Policy {
     base_commands: [],
     functions: [
         FunctionDefinition {
-            identifier: "bounds" @ 319..325,
-            arguments: [
+            name: "bounds" @ 319..325,
+            parameters: [
                 Param {
                     name: "v" @ 326..327,
-                    ty: Int @ 328..331,
+                    vtype: Int @ 328..331,
                 },
             ],
             return_type: Bool @ 333..337,
-            statements: [
+            body: [
                 Return(
                     ReturnStatement {
-                        expression: And(
+                        value: And(
                             GreaterThanOrEqual(
                                 Identifier(
                                     "v" @ 351..352,
@@ -1424,31 +1424,31 @@ Policy {
             span: 310..369,
         },
         FunctionDefinition {
-            identifier: "game_over" @ 3913..3922,
-            arguments: [
+            name: "game_over" @ 3913..3922,
+            parameters: [
                 Param {
                     name: "gameID" @ 3923..3929,
-                    ty: Id @ 3930..3932,
+                    vtype: Id @ 3930..3932,
                 },
                 Param {
                     name: "x" @ 3934..3935,
-                    ty: Int @ 3936..3939,
+                    vtype: Int @ 3936..3939,
                 },
                 Param {
                     name: "y" @ 3941..3942,
-                    ty: Int @ 3943..3946,
+                    vtype: Int @ 3943..3946,
                 },
                 Param {
                     name: "p" @ 3948..3949,
-                    ty: String @ 3950..3956,
+                    vtype: String @ 3950..3956,
                 },
             ],
             return_type: Bool @ 3958..3962,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "f00" @ 3973..3976,
-                        expression: InternalFunction(
+                        name: "f00" @ 3973..3976,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -1483,7 +1483,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4026..4031,
+                                                name: "Field" @ 4026..4031,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4032..4038,
@@ -1530,8 +1530,8 @@ Policy {
                 ) @ 3969..4066,
                 Let(
                     LetStatement {
-                        identifier: "f10" @ 4070..4073,
-                        expression: InternalFunction(
+                        name: "f10" @ 4070..4073,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -1566,7 +1566,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4123..4128,
+                                                name: "Field" @ 4123..4128,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4129..4135,
@@ -1613,8 +1613,8 @@ Policy {
                 ) @ 4066..4163,
                 Let(
                     LetStatement {
-                        identifier: "f20" @ 4167..4170,
-                        expression: InternalFunction(
+                        name: "f20" @ 4167..4170,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -1649,7 +1649,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4220..4225,
+                                                name: "Field" @ 4220..4225,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4226..4232,
@@ -1696,8 +1696,8 @@ Policy {
                 ) @ 4163..4260,
                 Let(
                     LetStatement {
-                        identifier: "f01" @ 4264..4267,
-                        expression: InternalFunction(
+                        name: "f01" @ 4264..4267,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -1732,7 +1732,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4317..4322,
+                                                name: "Field" @ 4317..4322,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4323..4329,
@@ -1779,8 +1779,8 @@ Policy {
                 ) @ 4260..4357,
                 Let(
                     LetStatement {
-                        identifier: "f11" @ 4361..4364,
-                        expression: InternalFunction(
+                        name: "f11" @ 4361..4364,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -1815,7 +1815,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4414..4419,
+                                                name: "Field" @ 4414..4419,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4420..4426,
@@ -1862,8 +1862,8 @@ Policy {
                 ) @ 4357..4454,
                 Let(
                     LetStatement {
-                        identifier: "f21" @ 4458..4461,
-                        expression: InternalFunction(
+                        name: "f21" @ 4458..4461,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -1898,7 +1898,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4511..4516,
+                                                name: "Field" @ 4511..4516,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4517..4523,
@@ -1945,8 +1945,8 @@ Policy {
                 ) @ 4454..4551,
                 Let(
                     LetStatement {
-                        identifier: "f02" @ 4555..4558,
-                        expression: InternalFunction(
+                        name: "f02" @ 4555..4558,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -1981,7 +1981,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4608..4613,
+                                                name: "Field" @ 4608..4613,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4614..4620,
@@ -2028,8 +2028,8 @@ Policy {
                 ) @ 4551..4648,
                 Let(
                     LetStatement {
-                        identifier: "f12" @ 4652..4655,
-                        expression: InternalFunction(
+                        name: "f12" @ 4652..4655,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -2064,7 +2064,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4705..4710,
+                                                name: "Field" @ 4705..4710,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4711..4717,
@@ -2111,8 +2111,8 @@ Policy {
                 ) @ 4648..4745,
                 Let(
                     LetStatement {
-                        identifier: "f22" @ 4749..4752,
-                        expression: InternalFunction(
+                        name: "f22" @ 4749..4752,
+                        value: InternalFunction(
                             If(
                                 And(
                                     Equal(
@@ -2147,7 +2147,7 @@ Policy {
                                     InternalFunction(
                                         Query(
                                             FactLiteral {
-                                                identifier: "Field" @ 4802..4807,
+                                                name: "Field" @ 4802..4807,
                                                 key_fields: [
                                                     (
                                                         "gameID" @ 4808..4814,
@@ -2194,7 +2194,7 @@ Policy {
                 ) @ 4745..4842,
                 Return(
                     ReturnStatement {
-                        expression: Or(
+                        value: Or(
                             Or(
                                 Or(
                                     Or(
@@ -2424,22 +2424,22 @@ Policy {
     ],
     finish_functions: [
         FinishFunctionDefinition {
-            identifier: "set_next_player" @ 498..513,
-            arguments: [
+            name: "set_next_player" @ 498..513,
+            parameters: [
                 Param {
                     name: "gameID" @ 514..520,
-                    ty: Id @ 521..523,
+                    vtype: Id @ 521..523,
                 },
                 Param {
                     name: "to_input" @ 525..533,
-                    ty: String @ 534..540,
+                    vtype: String @ 534..540,
                 },
             ],
-            statements: [
+            body: [
                 Update(
                     UpdateStatement {
                         fact: FactLiteral {
-                            identifier: "NextPlayer" @ 555..565,
+                            name: "NextPlayer" @ 555..565,
                             key_fields: [
                                 (
                                     "gameID" @ 566..572,

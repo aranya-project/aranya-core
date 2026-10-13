@@ -14,7 +14,7 @@ Module {
             items: [
                 Field {
                     name: "field",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },

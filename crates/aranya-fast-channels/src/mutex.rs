@@ -139,18 +139,19 @@ impl<T: ?Sized> Mutex<T> {
     ))]
     fn sys_lock(&self) {
         loop {
-            if likely!(
-                self.key
-                    .compare_exchange(
-                        Self::MUTEX_UNLOCKED,
-                        Self::MUTEX_LOCKED,
-                        Ordering::SeqCst,
-                        Ordering::SeqCst,
-                    )
-                    .is_ok()
-            ) {
+            if self
+                .key
+                .compare_exchange(
+                    Self::MUTEX_UNLOCKED,
+                    Self::MUTEX_LOCKED,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                )
+                .is_ok()
+            {
                 return;
             }
+            core::hint::cold_path();
             core::hint::spin_loop();
         }
     }
@@ -181,18 +182,19 @@ impl<T: ?Sized> Mutex<T> {
         loop {
             for _ in 0..PASSIVE_SPIN {
                 while self.key.load(Ordering::Relaxed) == Self::MUTEX_UNLOCKED {
-                    if likely!(
-                        self.key
-                            .compare_exchange(
-                                Self::MUTEX_UNLOCKED,
-                                wait,
-                                Ordering::SeqCst,
-                                Ordering::SeqCst,
-                            )
-                            .is_ok()
-                    ) {
+                    if self
+                        .key
+                        .compare_exchange(
+                            Self::MUTEX_UNLOCKED,
+                            wait,
+                            Ordering::SeqCst,
+                            Ordering::SeqCst,
+                        )
+                        .is_ok()
+                    {
                         return;
                     }
+                    core::hint::cold_path();
                     // SAFETY: FFI call, no invariants.
                     unsafe { libc::sched_yield() };
                 }

@@ -24,7 +24,7 @@ Module {
             params: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
             result_type: Unit,
@@ -52,7 +52,7 @@ Module {
             fields: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
@@ -72,16 +72,16 @@ Module {
     fact_defs: [
         FactDef {
             name: "Key",
-            key: [
+            keys: [
                 Field {
                     name: "dev",
-                    ty: Id,
+                    vtype: Id,
                 },
             ],
-            value: [
+            values: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
             immutable: false,
@@ -93,7 +93,7 @@ Module {
             items: [
                 Field {
                     name: "test_field",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },
@@ -102,11 +102,11 @@ Module {
             items: [
                 Field {
                     name: "dev",
-                    ty: Id,
+                    vtype: Id,
                 },
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
@@ -127,7 +127,7 @@ Module {
             items: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
@@ -136,7 +136,7 @@ Module {
             items: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
