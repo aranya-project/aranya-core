@@ -22,7 +22,7 @@ macro_rules! little_endian {
                 /// Checked addition.
                 #[allow(dead_code, reason = "not all methods are used for all types")]
                 pub const fn checked_add(self, rhs: $type) -> Option<Self> {
-                    match self.into().checked_add(rhs) {
+                    match self.get().checked_add(rhs) {
                         Some(val) => Some(Self::new(val)),
                         None => None,
                     }
@@ -31,7 +31,7 @@ macro_rules! little_endian {
                 /// Checked subtraction.
                 #[allow(dead_code, reason = "not all methods are used for all types")]
                 pub const fn checked_sub(self, rhs: $type) -> Option<Self> {
-                    match self.into().checked_sub(rhs) {
+                    match self.get().checked_sub(rhs) {
                         Some(val) => Some(Self::new(val)),
                         None => None,
                     }
@@ -40,7 +40,7 @@ macro_rules! little_endian {
                 /// Wrapping subtraction.
                 #[allow(dead_code, reason = "not all methods are used for all types")]
                 pub const fn wrapping_sub(self, rhs: $type) -> Self {
-                    Self::new(self.into().wrapping_sub(rhs))
+                    Self::new(self.get().wrapping_sub(rhs))
                 }
             }
 

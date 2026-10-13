@@ -5,6 +5,7 @@ use aranya_crypto::{
     afc::{RawOpenKey, RawSealKey},
     policy::LabelId,
 };
+use buggy::BugExt as _;
 
 use super::{
     error::{Error, corrupted},

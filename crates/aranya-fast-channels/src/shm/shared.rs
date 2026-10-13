@@ -738,7 +738,7 @@ impl<CS: CipherSuite> ChanList<CS> {
                     reason = "Layout::size() is in [0, isize::MAX], so * 2 cannot overflow"
                 )]
                 let double_size = layout.size() * 2;
-                (double_size > page_size) && page_size.is_multiple_of(layout.align());
+                (double_size > page_size) && page_size.is_multiple_of(layout.align())
             };
             (page_size, page_aligned)
         } else {
