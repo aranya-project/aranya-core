@@ -157,9 +157,8 @@
 //! // Have device2 decrypt the data from device1.
 //! let (label_from_open, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     // Create the ctx to pass in.
-//!     let mut ctx = afc_client_b.setup_open_ctx(client_b_channel_id)?;
-//!     let (label_id, seq) = afc_client_b.open(&mut ctx, &mut dst[..], &ciphertext[..])?;
+//!     let (label_id, seq) =
+//!         afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
 //!     (label_id, seq, dst)
 //! };
 //!

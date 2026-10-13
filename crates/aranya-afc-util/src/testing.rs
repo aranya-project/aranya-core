@@ -264,13 +264,9 @@ impl<T: TestImpl> Device<T> {
         let (plaintext, got_seq) = {
             let (opener, chan_id) = opener;
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
-            let mut open_ctx = opener
-                .afc_client
-                .setup_open_ctx(chan_id)
-                .expect("can set up ctx");
             let (_, seq) = opener
                 .afc_client
-                .open(&mut open_ctx, &mut dst[..], &ciphertext[..])
+                .open(chan_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({chan_id}, ...): {err}"));
             (dst, seq)
         };
