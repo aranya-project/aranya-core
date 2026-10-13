@@ -10,27 +10,27 @@ Policy {
     effects: [],
     structs: [
         StructDefinition {
-            identifier: "Foo" @ 7..10,
+            name: "Foo" @ 7..10,
             items: [
                 Field(
                     FieldDefinition {
-                        identifier: "x" @ 13..14,
-                        field_type: Int @ 16..19,
+                        name: "x" @ 13..14,
+                        vtype: Int @ 16..19,
                     },
                 ),
             ],
             span: 0..21,
         },
         StructDefinition {
-            identifier: "Bar" @ 30..33,
+            name: "Bar" @ 30..33,
             items: [
                 StructRef(
                     "Foo" @ 41..44,
                 ),
                 Field(
                     FieldDefinition {
-                        identifier: "y" @ 50..51,
-                        field_type: Int @ 53..56,
+                        name: "y" @ 50..51,
+                        vtype: Int @ 53..56,
                     },
                 ),
             ],

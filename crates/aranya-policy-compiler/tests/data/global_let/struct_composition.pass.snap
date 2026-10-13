@@ -44,11 +44,11 @@ Module {
             items: [
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "y",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },

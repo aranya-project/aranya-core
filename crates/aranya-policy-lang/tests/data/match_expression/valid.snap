@@ -9,19 +9,19 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "foo" @ 7..10,
-            arguments: [
+            name: "foo" @ 7..10,
+            parameters: [
                 Param {
                     name: "n" @ 11..12,
-                    ty: Int @ 14..17,
+                    vtype: Int @ 14..17,
                 },
             ],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "x" @ 29..30,
-                        expression: Match(
+                        name: "x" @ 29..30,
+                        value: Match(
                             MatchExpression {
                                 scrutinee: Identifier(
                                     "n" @ 39..40,
@@ -35,12 +35,12 @@ Policy {
                                                 ) @ 51..52,
                                             ],
                                         ),
-                                        expression: Block(
+                                        body: Block(
                                             [
                                                 Let(
                                                     LetStatement {
-                                                        identifier: "x" @ 74..75,
-                                                        expression: Bool(
+                                                        name: "x" @ 74..75,
+                                                        value: Bool(
                                                             true,
                                                         ) @ 78..82,
                                                     },
@@ -56,7 +56,7 @@ Policy {
                                         pattern: Default(
                                             117..118,
                                         ),
-                                        expression: Bool(
+                                        body: Bool(
                                             false,
                                         ) @ 122..127,
                                         span: 117..132,

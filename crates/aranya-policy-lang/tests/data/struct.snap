@@ -10,12 +10,12 @@ Policy {
     effects: [],
     structs: [
         StructDefinition {
-            identifier: "Foo" @ 7..10,
+            name: "Foo" @ 7..10,
             items: [
                 Field(
                     FieldDefinition {
-                        identifier: "x" @ 17..18,
-                        field_type: Int @ 20..23,
+                        name: "x" @ 17..18,
+                        vtype: Int @ 20..23,
                     },
                 ),
             ],
@@ -27,11 +27,11 @@ Policy {
     base_commands: [],
     functions: [
         FunctionDefinition {
-            identifier: "convert" @ 36..43,
-            arguments: [
+            name: "convert" @ 36..43,
+            parameters: [
                 Param {
                     name: "foo" @ 44..47,
-                    ty: Struct(
+                    vtype: Struct(
                         "Foo" @ 56..59,
                     ) @ 49..59,
                 },
@@ -39,12 +39,12 @@ Policy {
             return_type: Struct(
                 "Bar" @ 68..71,
             ) @ 61..71,
-            statements: [
+            body: [
                 Return(
                     ReturnStatement {
-                        expression: NamedStruct(
+                        value: NamedStruct(
                             NamedStruct {
-                                identifier: "Bar" @ 85..88,
+                                name: "Bar" @ 85..88,
                                 fields: [
                                     (
                                         "y" @ 91..92,

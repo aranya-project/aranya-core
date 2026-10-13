@@ -14,18 +14,18 @@ Policy {
     base_commands: [],
     functions: [
         FunctionDefinition {
-            identifier: "foo" @ 9..12,
-            arguments: [
+            name: "foo" @ 9..12,
+            parameters: [
                 Param {
                     name: "x" @ 13..14,
-                    ty: Bytes @ 16..21,
+                    vtype: Bytes @ 16..21,
                 },
             ],
             return_type: Bytes @ 23..28,
-            statements: [
+            body: [
                 Return(
                     ReturnStatement {
-                        expression: Identifier(
+                        value: Identifier(
                             "x" @ 42..43,
                         ) @ 42..43,
                     },

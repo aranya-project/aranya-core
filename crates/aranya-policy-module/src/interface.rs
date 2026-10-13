@@ -36,9 +36,9 @@ named!(ActionDefinition);
 impl From<ast::ActionDefinition> for ActionDefinition {
     fn from(value: ast::ActionDefinition) -> Self {
         Self {
-            name: value.identifier,
+            name: value.name,
             persistence: value.persistence,
-            params: value.arguments,
+            params: value.parameters,
             return_type: value.return_type,
         }
     }

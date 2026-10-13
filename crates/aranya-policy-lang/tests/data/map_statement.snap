@@ -8,17 +8,17 @@ Policy {
     facts: [
         FactDefinition {
             immutable: false,
-            identifier: "Foo" @ 5..8,
-            key: [
+            name: "Foo" @ 5..8,
+            keys: [
                 FieldDefinition {
-                    identifier: "i" @ 9..10,
-                    field_type: Int @ 12..15,
+                    name: "i" @ 9..10,
+                    vtype: Int @ 12..15,
                 },
             ],
-            value: [
+            values: [
                 FieldDefinition {
-                    identifier: "n" @ 19..20,
-                    field_type: Int @ 22..25,
+                    name: "n" @ 19..20,
+                    vtype: Int @ 22..25,
                 },
             ],
             span: 0..26,
@@ -27,14 +27,14 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "foo" @ 34..37,
-            arguments: [],
+            name: "foo" @ 34..37,
+            parameters: [],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 Map(
                     MapStatement {
                         fact: FactLiteral {
-                            identifier: "Foo" @ 50..53,
+                            name: "Foo" @ 50..53,
                             key_fields: [
                                 (
                                     "i" @ 54..55,
@@ -48,10 +48,10 @@ Policy {
                             value_fields: None,
                         },
                         identifier: "f" @ 62..63,
-                        statements: [
+                        body: [
                             FunctionCall(
                                 FunctionCall {
-                                    identifier: "process" @ 74..81,
+                                    name: "process" @ 74..81,
                                     arguments: [
                                         Identifier(
                                             "f" @ 82..83,

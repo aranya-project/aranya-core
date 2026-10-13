@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -21,11 +20,11 @@ Module {
     fact_defs: [
         FactDef {
             name: "Owner",
-            key: [],
-            value: [
+            keys: [],
+            values: [
                 Field {
                     name: "device_id",
-                    ty: Id,
+                    vtype: Id,
                 },
             ],
             immutable: false,
@@ -41,7 +40,7 @@ Module {
             items: [
                 Field {
                     name: "payload",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
@@ -50,7 +49,7 @@ Module {
             items: [
                 Field {
                     name: "device_id",
-                    ty: Id,
+                    vtype: Id,
                 },
             ],
         },

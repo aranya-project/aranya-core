@@ -22,6 +22,11 @@ criteria = "safe-to-deploy"
 delta = "1.10.1 -> 1.11.1"
 notes = "Code updates align with release notes. Replaced instances of unchecked arithmetic. New tests added to verify fixes."
 
+[[audits.chacha20]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.10.1 -> 0.10.2"
+
 [[audits.deranged]]
 who = "Steve Sweetney <ssweetney@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -282,6 +287,11 @@ delta = "2.4.0 -> 2.5.0"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.3.19 -> 0.3.20"
+
+[[audits.wnaf]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.14.0 -> 0.14.1"
 
 [[audits.zerocopy]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
