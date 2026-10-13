@@ -222,8 +222,6 @@ enum Ciphertext<CS: CipherSuite> {
     Signing(Array<u8, <<CS::Signer as Signer>::SigningKey as SecretKey>::Size>),
 }
 
-impl<CS: CipherSuite> ZeroizeOnDrop for Ciphertext<CS> {}
-
 impl<CS: CipherSuite> Ciphertext<CS> {
     const fn name(&self) -> &'static str {
         self.alg_id().name()
