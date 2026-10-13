@@ -35,33 +35,6 @@ fn parse_negative_number() -> Result<(), PestError<Rule>> {
 
 #[test]
 #[allow(clippy::result_large_err)]
-fn parse_atom_string() -> Result<(), PestError<Rule>> {
-    // basic string
-    let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::string_literal);
-
-    // empty string
-    let mut pair = PolicyParser::parse(Rule::atom, r#""""#)?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::string_literal);
-
-    // escapes
-    let mut pair = PolicyParser::parse(Rule::atom, r#""\n\xf7\\""#)?;
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::string_literal);
-
-    // invalid escapes
-    let cases = vec![r#""\b""#, r#""\xfg""#, r#""\x""#, r#""\""#];
-    for c in cases {
-        let result = PolicyParser::parse(Rule::atom, c);
-        assert!(result.is_err());
-    }
-    Ok(())
-}
-
-#[test]
-#[allow(clippy::result_large_err)]
 fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     // bare call
     let mut pair = PolicyParser::parse(Rule::atom, r#"call()"#)?;
@@ -116,16 +89,13 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 fn parse_expression() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(
         Rule::expression,
-        r#"unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
+        r#"call(add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
     )?;
 
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
 
     let mut pair = token.into_inner();
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::unwrap);
-
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::function_call);
 
@@ -136,7 +106,7 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "unwrap add(3, 7)");
+    assert_eq!(token.as_str(), "add(3, 7)");
 
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::expression);
@@ -150,17 +120,46 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-fn parse_expression_pratt() -> Result<(), ParseError> {
-    let source = r#"
-        unwrap call(unwrap add(3, 7), saturating_sub(0, b), "foo\x7b")
-    "#
-    .trim();
-    let mut pairs = PolicyParser::parse(Rule::expression, source)?;
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, source.len());
-    let expr_pair = pairs.next().unwrap();
-    let expr_parsed = p.parse_expression(expr_pair)?;
-    insta::assert_debug_snapshot!(expr_parsed);
+#[allow(clippy::result_large_err)]
+fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
+    // Word boundary: `order` should parse as a single identifier, not `or der`.
+    // There should be no coalesce operator in the expression.
+    let mut pairs = PolicyParser::parse(Rule::expression, "x order")?;
+    let token = pairs.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::expression);
+    assert_eq!(token.as_str().trim(), "x");
+    assert!(
+        !token.into_inner().any(|p| p.as_rule() == Rule::coalesce),
+        "Unexpected coalesce operator in expression",
+    );
+
+    // Word boundary: don't split at `_`.
+    let mut pairs = PolicyParser::parse(Rule::expression, "or_thing")?;
+    let token = pairs.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::expression);
+    assert_eq!(token.as_str(), "or_thing");
+
+    // `or` can be followed by a non-whitespace, non-identifier character.
+    let mut pairs = PolicyParser::parse(Rule::expression, "x or(y)")?;
+    let token = pairs.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::expression);
+    let inner: Vec<_> = token
+        .into_inner()
+        .map(|p| (p.as_rule(), p.as_str().to_string()))
+        .collect();
+    assert_eq!(inner[1].0, Rule::coalesce);
+
+    // Right-associativity: `a or b or c` should produce `Coalesce(a, Coalesce(b, c))`, not `Coalesce(Coalesce(a, b), c)`.
+    use aranya_policy_ast::ExprKind;
+    let expr = crate::lang::parse_expression("a or b or c").expect("parse failed");
+    let ExprKind::Coalesce(outer_lhs, outer_rhs) = expr.inner else {
+        panic!("expected outer Coalesce");
+    };
+    // Outer left side is `a` (single identifier)
+    assert!(matches!(outer_lhs.inner, ExprKind::Identifier(_)));
+    // Outer right side is `Coalesce(b, c)`
+    assert!(matches!(outer_rhs.inner, ExprKind::Coalesce(_, _)));
+
     Ok(())
 }
 
@@ -181,7 +180,7 @@ fn parse_errors() -> Result<(), ParseError> {
                 |                            ^---\n  |\n  = expected function_call, \
                 action_call, publish_statement, let_statement, check_statement, match_statement, \
                 if_statement, finish_statement, map_statement, create_statement, update_statement, \
-                delete_statement, emit_statement, return_statement, or debug_assert",
+                delete_statement, emit_statement, return_statement, recall_statement, or debug_assert",
         ),
         rule: Rule::top_level_statement,
     }];
@@ -194,58 +193,17 @@ fn parse_errors() -> Result<(), ParseError> {
     Ok(())
 }
 
-#[test]
-fn parse_expression_errors() -> Result<(), ParseError> {
-    let cases = vec![
-        ErrorInput {
-            description: String::from("Integer overflow"),
-            input: r#"18446744073709551617"#.to_string(),
-            error_message: String::from(
-                "Invalid number: line 1 column 1: number too large to fit in target type",
-            ),
-            rule: Rule::expression,
-        },
-        ErrorInput {
-            description: String::from("Integer overflow line 2"),
-            input: r#"call(
-                18446744073709551617
-            )"#
-            .to_string(),
-            error_message: String::from(
-                "Invalid number: line 2 column 17: number too large to fit in target type",
-            ),
-            rule: Rule::expression,
-        },
-        ErrorInput {
-            description: String::from("Invalid string escape"),
-            input: r#""\\""#.to_string(),
-            error_message: String::from("Invalid string: line 1 column 1: invalid escape: \\"),
-            rule: Rule::expression,
-        },
-    ];
+/// Helper for testing complex type parsing.
+fn parse_vtype(text: &str) -> Result<VType, ParseError> {
     let pratt = get_pratt_parser();
-    for case in cases {
-        let p = ChunkParser::new(0, &pratt, case.input.len());
-        let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
-        let expr_pair = pairs.next().unwrap();
-        match p.parse_expression(expr_pair.clone()) {
-            Ok(parsed) => panic!("{}: {:?} - {expr_pair:?}", case.description, parsed),
-            Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
-        }
-    }
-    Ok(())
+    let p = ChunkParser::new(0, &pratt, text.len());
+    let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
+    let pair = pairs.next().unwrap();
+    p.parse_type(pair)
 }
 
 #[test]
 fn parse_optional() {
-    fn parse_vtype(text: &str) -> Result<VType, ParseError> {
-        let pratt = get_pratt_parser();
-        let p = ChunkParser::new(0, &pratt, text.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
-        let pair = pairs.next().unwrap();
-        p.parse_type(pair)
-    }
-
     let optional_types = &[
         // (case, is valid)
         ("optional string", true),
@@ -269,6 +227,62 @@ fn parse_optional() {
         let r = parse_vtype(case);
         assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
     }
+}
+
+#[test]
+fn parse_result() {
+    let result_types = &[
+        // (case, is valid)
+        ("result[int, string]", true),
+        ("result[bytes, bool]", true),
+        ("result[struct Foo, string]", true),
+        ("result[int, enum Error]", true),
+        ("result[result[int, string], bool]", true), // nested result is allowed by grammar. not sure we want it
+        ("result[int]", false),                      // missing error type
+        ("result[, string]", false),                 // missing ok type
+        ("result[blargh, string]", false),           // invalid ok type
+        ("result[int, blargh]", false),              // invalid error type
+    ];
+    for (case, is_valid) in result_types {
+        let r = parse_vtype(case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    }
+}
+
+/// Nested option/result should only accept bracket form.
+#[test]
+fn parse_option_result() {
+    let result_types = &[
+        // (case, is valid)
+        ("result[option[int], string]", true),
+        ("result[int, option[string]]", true),
+        ("result[option[int], option[string]]", true),
+        ("option[result[int, string]]", true),
+        ("result[optional int, string]", false),
+        ("result[int, optional string]", false),
+        ("optional result[int, string]", false),
+    ];
+    for (case, is_valid) in result_types {
+        let r = parse_vtype(case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    }
+}
+
+#[test]
+fn test_result_literal() -> Result<(), ParseError> {
+    let cases = [
+        "Ok(42)",
+        "Ok(true)",
+        "Ok(get_value())",
+        "Ok(Foo {})",
+        "Err(\"error message\")",
+        "Err(Error::NotFound)",
+    ];
+    for src in cases {
+        let r = PolicyParser::parse(Rule::result_literal, src);
+        assert!(r.is_ok(), "Failed to parse result literal: {}", src);
+    }
+    Ok(())
 }
 
 #[test]
@@ -341,8 +355,6 @@ fn parse_command() -> Result<(), PestError<Rule>> {
             fields {
                 owner id,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Foo[]=>{}

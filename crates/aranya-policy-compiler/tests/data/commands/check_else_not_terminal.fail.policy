@@ -1,0 +1,7 @@
+command Cmd {
+    fields {}
+    policy {
+        check true else 0
+        finish {}
+    }
+}

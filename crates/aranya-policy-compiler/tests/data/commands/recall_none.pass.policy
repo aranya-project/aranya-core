@@ -1,0 +1,6 @@
+command Cmd {
+    fields {}
+    policy {
+        finish {}
+    }
+}

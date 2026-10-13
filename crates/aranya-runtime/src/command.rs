@@ -1,12 +1,23 @@
 pub use aranya_crypto::policy::CmdId;
 use buggy::{Bug, BugExt as _};
-use serde::{Deserialize, Serialize};
 
 use crate::{MaxCut, Prior};
 
 /// Identify how the client will sort the associated [`Command`].
 // Note: Order of variants affects derived Ord: Merge is least and Init is greatest.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 pub enum Priority {
     /// Indicates two branches in the parent graph have been merged at this
     /// command. A command with this priority must have two parents,
@@ -31,10 +42,6 @@ pub enum Priority {
 /// policy will also emit effects once a command is verified,
 /// which are sent to the client.
 pub trait Command {
-    /// Return this command's [`Priority`], determining how this event is
-    /// ordered amongst others it does not have a causal relationship with.
-    fn priority(&self) -> Priority;
-
     /// Uniquely identifies the serialized command.
     fn id(&self) -> CmdId;
 
@@ -47,34 +54,9 @@ pub trait Command {
 
     /// Return this command's serialized data.
     fn bytes(&self) -> &[u8];
-
-    /// Return this command's max cut. Max cut is the maximum distance to the init command.
-    fn max_cut(&self) -> Result<MaxCut, Bug> {
-        match self.parent() {
-            Prior::None => Ok(MaxCut(0)),
-            Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
-            Prior::Merge(l, r) => Ok(l
-                .max_cut
-                .max(r.max_cut)
-                .checked_add(1)
-                .assume("must not overflow")?),
-        }
-    }
-
-    /// Return this command's address.
-    fn address(&self) -> Result<Address, Bug> {
-        Ok(Address {
-            id: self.id(),
-            max_cut: self.max_cut()?,
-        })
-    }
 }
 
 impl<C: Command> Command for &C {
-    fn priority(&self) -> Priority {
-        (*self).priority()
-    }
-
     fn id(&self) -> CmdId {
         (*self).id()
     }
@@ -90,40 +72,66 @@ impl<C: Command> Command for &C {
     fn bytes(&self) -> &[u8] {
         (*self).bytes()
     }
+}
 
+pub trait CommandExt: Command {
+    /// Return this command's max cut.
+    ///
+    /// Max cut is the maximum distance to the init command.
+    fn max_cut(&self) -> Result<MaxCut, Bug>;
+
+    /// Return this command's address.
+    fn address(&self) -> Result<Address, Bug>;
+}
+
+impl<C: Command> CommandExt for C {
     fn max_cut(&self) -> Result<MaxCut, Bug> {
-        (*self).max_cut()
+        match self.parent() {
+            Prior::None => Ok(MaxCut::new(0)),
+            Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
+            Prior::Merge(l, r) => Ok(l
+                .max_cut
+                .max(r.max_cut)
+                .checked_add(1)
+                .assume("must not overflow")?),
+        }
     }
 
     fn address(&self) -> Result<Address, Bug> {
-        (*self).address()
+        Ok(Address {
+            id: self.id(),
+            max_cut: self.max_cut()?,
+        })
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Ord, PartialEq, PartialOrd, Eq)]
 /// An address contains all of the information needed to find a command in
 /// another graph.
 ///
 /// The command id identifies the command you're searching for and the
 /// max_cut allows that command to be found efficiently.
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(C)]
 pub struct Address {
     pub id: CmdId,
     pub max_cut: MaxCut,
-}
-
-impl Prior<Address> {
-    /// Returns the max cut for the command that is after this prior.
-    pub fn next_max_cut(&self) -> Result<MaxCut, Bug> {
-        Ok(match self {
-            Self::None => MaxCut(1),
-            Self::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
-            Self::Merge(l, r) => l
-                .max_cut
-                .max(r.max_cut)
-                .checked_add(1)
-                .assume("must not overflow")?,
-        })
-    }
 }
 
 #[cfg(test)]

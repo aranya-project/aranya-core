@@ -1,25 +1,28 @@
-use alloc::vec;
-
 use buggy::{BugExt as _, bug};
-use heapless::{Deque, Vec};
+use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
-    SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PollIncoming,
+    SEGMENT_BUFFER_MAX, SyncError,
+    requester::SyncRequestMessage,
+    wire::{COMMAND_META_SERIALIZED_UPPER_BOUND, CommandMeta, SyncType},
 };
 use crate::{
-    StorageError, SyncType,
-    command::{Address, CmdId, Command as _},
+    LocatedAddress, Prior, StorageError,
+    command::{Address, CmdId, Command},
     storage::{
-        GraphId, Location, Segment as _, Storage, StorageProvider, TraversalBuffer,
+        GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
         TraversalBuffers,
     },
 };
 
+/// The maximum number of heads that will be stored for a peer.
+const PEER_HEAD_MAX: usize = 10;
+
 #[derive(Default, Debug)]
 pub struct PeerCache {
-    heads: Vec<Address, { PEER_HEAD_MAX }>,
+    heads: Vec<LocatedAddress, { PEER_HEAD_MAX }>,
 }
 
 impl PeerCache {
@@ -27,57 +30,66 @@ impl PeerCache {
         Self { heads: Vec::new() }
     }
 
-    pub fn heads(&self) -> &[Address] {
+    pub fn heads(&self) -> &[LocatedAddress] {
         &self.heads
     }
 
+    /// Record that the peer holds `addr`. The location is derived here from
+    /// committed storage (`get_location` traverses from committed heads
+    /// only), so a command that is not committed on this node is silently
+    /// ignored and can never enter the cache.
     pub fn add_command<S>(
         &mut self,
         storage: &S,
-        command: Address,
-        cmd_loc: Location,
-        buffers: &mut TraversalBuffer,
+        addr: Address,
+        buffer: &mut TraversalBuffer,
     ) -> Result<(), StorageError>
     where
         S: Storage,
     {
+        let Some(loc) = storage.get_location(addr, buffer)? else {
+            return Ok(());
+        };
+        let new = LocatedAddress {
+            id: addr.id,
+            segment: loc.segment,
+            max_cut: addr.max_cut,
+        };
+
         let mut add_command = true;
 
-        let mut retain_head = |request_head: &Address, new_head: Location| {
-            let new_head_seg = storage.get_segment(new_head)?;
-            let req_head_loc = storage
-                .get_location(*request_head, buffers)?
-                .assume("location must exist")?;
-            let req_head_seg = storage.get_segment(req_head_loc)?;
-            if request_head.id
-                == new_head_seg
-                    .get_command(new_head)
-                    .assume("location must exist")?
-                    .address()?
-                    .id
-            {
+        let mut retain_head = |old: &LocatedAddress| -> Result<bool, StorageError> {
+            if old.id == new.id || storage.is_ancestor(new.location(), old.location(), buffer)? {
+                // Don't add this command, keep existing command
                 add_command = false;
+                return Ok(true);
             }
-            // If the new head is an ancestor of the request head, don't add it
-            if (new_head.same_segment(req_head_loc) && new_head.max_cut <= req_head_loc.max_cut)
-                || storage.is_ancestor(new_head, &req_head_seg, buffers)?
-            {
-                add_command = false;
+            if storage.is_ancestor(old.location(), new.location(), buffer)? {
+                // Remove existing head.
+                return Ok(false);
             }
-            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg, buffers)?)
+            // Just keep existing head.
+            Ok(true)
         };
-        self.heads
-            .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
-        if add_command && !self.heads.is_full() {
-            self.heads
-                .push(command)
-                .ok()
-                .assume("command locations should not be full")?;
+        self.heads.retain(|h| retain_head(h).unwrap_or(false));
+        if add_command {
+            // TODO(jdygert): Replace an old head when full?
+            self.heads.push(new).ok();
         }
 
         Ok(())
     }
 }
+
+/// An upper bound on the size of serialized [`SyncResponseMessage::SyncResponse`].
+const SYNC_RESPONSE_SERIALIZED_UPPER_BOUND: usize = {
+    let tag = 1;
+    let session_id = size_of::<u128>() + 1; // varint
+    let response_index = size_of::<u64>() + 1; // varint
+    let command_length = COMMAND_RESPONSE_MAX.ilog2().div_ceil(8) as usize + 1; // varint
+    let commands = command_length + COMMAND_RESPONSE_MAX * COMMAND_META_SERIALIZED_UPPER_BOUND; // sizeof(n) + n * sizeof(meta)
+    tag + session_id + response_index + commands
+};
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
@@ -87,7 +99,7 @@ impl PeerCache {
 /// Messages sent from the responder to the requester.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum SyncResponseMessage {
+pub(crate) enum SyncResponseMessage {
     /// Sent in response to a `SyncRequest`
     SyncResponse {
         /// A random-value produced by a cryptographically secure RNG.
@@ -132,7 +144,7 @@ pub enum SyncResponseMessage {
 }
 
 impl SyncResponseMessage {
-    pub fn session_id(&self) -> u128 {
+    pub(crate) fn session_id(&self) -> u128 {
         match self {
             Self::SyncResponse { session_id, .. } => *session_id,
             Self::SyncEnd { session_id, .. } => *session_id,
@@ -153,7 +165,7 @@ enum SyncResponderState {
     Stopped,
 }
 
-pub struct SyncResponder<'a> {
+pub struct SyncResponder {
     session_id: Option<u128>,
     graph_id: Option<GraphId>,
     state: SyncResponderState,
@@ -162,12 +174,79 @@ pub struct SyncResponder<'a> {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
-    buffers: &'a mut TraversalBuffers,
 }
 
-impl<'a> SyncResponder<'a> {
+impl Default for SyncResponder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Insert `loc` into a bounded vec that keeps the lowest `max_cut`
+/// entries. If full, replaces the highest `max_cut` entry when the
+/// new one is lower.
+fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
+    if v.push(loc).is_err() {
+        // Full — find the entry with the highest max_cut.
+        let (max_idx, _) = v
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, l)| l.max_cut)
+            .expect("non-empty");
+        if loc.max_cut < v[max_idx].max_cut {
+            v[max_idx] = loc;
+        }
+    }
+}
+
+/// Walk backwards from `head` along the skip list, taking any skip entry
+/// that stays at or above `target`, until the next step would drop below
+/// `target`. Returns the segment we stopped at — the entry point for the
+/// per-round traversal in `find_needed_segments`.
+fn skip_jump<S: Storage>(
+    storage: &S,
+    head: Location,
+    target: MaxCut,
+) -> Result<Location, StorageError> {
+    if head.max_cut <= target {
+        return Ok(head);
+    }
+    let mut current = head;
+    loop {
+        let seg = storage.get_segment(current)?;
+
+        // Smallest skip entry at or above target (and below current).
+        let best = seg
+            .skip_list()
+            .iter()
+            .copied()
+            .filter(|s| s.max_cut >= target && s.max_cut < current.max_cut)
+            .min_by_key(|s| s.max_cut);
+        if let Some(skip) = best {
+            current = skip;
+            continue;
+        }
+
+        // No useful skip. If any prior would drop below target, stop here.
+        let prior_below = match seg.prior() {
+            Prior::Single(p) => p.max_cut < target,
+            Prior::Merge(a, b) => a.max_cut < target || b.max_cut < target,
+            Prior::None => true,
+        };
+        if prior_below {
+            return Ok(current);
+        }
+
+        match seg.prior() {
+            Prior::Single(p) => current = p,
+            _ => return Ok(current),
+        }
+    }
+}
+
+impl SyncResponder {
     /// Create a new [`SyncResponder`].
-    pub fn new(buffers: &'a mut TraversalBuffers) -> Self {
+    pub const fn new() -> Self {
         Self {
             session_id: None,
             graph_id: None,
@@ -177,7 +256,6 @@ impl<'a> SyncResponder<'a> {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
-            buffers,
         }
     }
 
@@ -197,6 +275,7 @@ impl<'a> SyncResponder<'a> {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         response_cache: &mut PeerCache,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
@@ -220,19 +299,10 @@ impl<'a> SyncResponder<'a> {
 
                 self.state = S::Send;
                 for command in &self.has {
-                    // We only need to check commands that are a part of our graph.
-                    if let Some(cmd_loc) =
-                        storage.get_location(*command, &mut self.buffers.primary)?
-                    {
-                        response_cache.add_command(
-                            storage,
-                            *command,
-                            cmd_loc,
-                            &mut self.buffers.primary,
-                        )?;
-                    }
+                    // Commands not in our graph are ignored by the cache.
+                    response_cache.add_command(storage, *command, &mut buffers.primary)?;
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
+                self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
 
                 self.get_next(target, provider)?
             }
@@ -249,8 +319,38 @@ impl<'a> SyncResponder<'a> {
         Ok(length)
     }
 
-    /// Receive a sync message. Updates the responders state for later polling.
-    pub fn receive(&mut self, message: SyncRequestMessage) -> Result<(), SyncError> {
+    /// Receive a sync poll. Updates the responder's state for later polling.
+    pub fn receive(&mut self, poll: PollIncoming) -> Result<(), SyncError> {
+        self.dispatch(poll.message)
+    }
+
+    /// Begin a new session in-process, without going through the wire.
+    ///
+    /// Used by transports that need to push out an unsolicited update to a
+    /// subscribed peer: instead of round-tripping a `SyncRequest` through the
+    /// network, the transport seeds the responder directly with the heads it
+    /// already knows about.
+    pub fn start_session(
+        &mut self,
+        session_id: u128,
+        graph_id: GraphId,
+        max_bytes: u64,
+        heads: impl IntoIterator<Item = Address>,
+    ) -> Result<(), SyncError> {
+        let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
+        heads
+            .into_iter()
+            .try_for_each(|head| commands.push(head).ok())
+            .ok_or(SyncError::CommandOverflow)?;
+        self.dispatch(SyncRequestMessage::SyncRequest {
+            session_id,
+            graph_id,
+            max_bytes,
+            commands,
+        })
+    }
+
+    fn dispatch(&mut self, message: SyncRequestMessage) -> Result<(), SyncError> {
         if self.session_id.is_none() {
             self.session_id = Some(message.session_id());
         }
@@ -273,11 +373,12 @@ impl<'a> SyncResponder<'a> {
                 self.next_send = 0;
                 return Ok(());
             }
-            SyncRequestMessage::RequestMissing { .. } => {
-                todo!()
-            }
-            SyncRequestMessage::SyncResume { .. } => {
-                todo!()
+            // Neither of these is implemented yet, and a peer can send either
+            // at any point in a session. Reset the session and report the
+            // error.
+            SyncRequestMessage::RequestMissing { .. } | SyncRequestMessage::SyncResume { .. } => {
+                self.state = SyncResponderState::Reset;
+                return Err(SyncError::UnsupportedRequest);
             }
             SyncRequestMessage::EndSession { .. } => {
                 self.state = SyncResponderState::Stopped;
@@ -295,122 +396,171 @@ impl<'a> SyncResponder<'a> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
-    /// This (probably) returns a Vec of segment addresses where the head of each segment is
-    /// not the ancestor of any samples we have been sent. If that is longer than
-    /// SEGMENT_BUFFER_MAX, it contains the oldest segment heads where that holds.
+    /// Returns segments (or partial segments) that the peer doesn't have.
+    ///
+    /// Uses a single backward traversal with coverage propagation to
+    /// eliminate all `is_ancestor()` calls. See
+    /// `aranya-docs/docs/find-needed-segments-optimization.md`.
     fn find_needed_segments(
         commands: &[Address],
         storage: &impl Storage,
         buffers: &mut TraversalBuffers,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        let mut have_locations = vec::Vec::new(); //BUG: not constant size
+        // Resolve command addresses to locations. Use buffers.primary as
+        // scratch for each get_location call (it gets cleared before main loop).
+        if commands.len() > COMMAND_SAMPLE_MAX {
+            bug!(
+                "commands length {} exceeds COMMAND_SAMPLE_MAX",
+                commands.len()
+            );
+        }
+        let mut have_locations: Vec<Location, COMMAND_SAMPLE_MAX> = Vec::new();
         for &addr in commands {
-            // Note: We could use things we don't have as a hint to
-            // know we should perform a sync request.
-            if let Some(location) = storage.get_location(addr, &mut buffers.secondary)? {
-                have_locations.push(location);
+            if let Some(location) = storage.get_location(addr, &mut buffers.primary)? {
+                let _ = have_locations.push(location);
             }
         }
 
-        // Filter out locations that are ancestors of other locations in the list.
-        // If location A is an ancestor of location B, we only need to keep B since
-        // having B implies having A and all its ancestors.
-        // Iterate backwards so we can safely remove items
-        for i in (0..have_locations.len()).rev() {
-            let location_a = have_locations[i];
-            let mut is_ancestor_of_other = false;
-            for &location_b in &have_locations {
-                if location_a != location_b {
-                    let segment_b = storage.get_segment(location_b)?;
-                    if location_a.same_segment(location_b)
-                        && location_a.max_cut <= location_b.max_cut
-                        || storage.is_ancestor(location_a, &segment_b, &mut buffers.secondary)?
-                    {
-                        is_ancestor_of_other = true;
-                        break;
-                    }
-                }
-            }
-            if is_ancestor_of_other {
-                have_locations.remove(i);
-            }
+        // Sort descending by max_cut so we can discard from the front as we
+        // descend through the graph.
+        have_locations.sort_by_key(|loc| core::cmp::Reverse(loc.max_cut));
+
+        // Index into have_locations: everything before this has max_cut above
+        // the current segment's longest_max_cut and can be skipped.
+        let mut have_cursor: usize = 0;
+
+        // heads queue: segments to process, popped by highest max_cut.
+        let heads = buffers.primary.get();
+
+        // Jump from each head toward highest_have + SEGMENT_BUFFER_MAX before
+        // starting the main traversal, so per-round cost is O(log n) instead
+        // of O(n). The graph may be multi-head (lazy merges), so seed the
+        // traversal from every head.
+        let highest_have = have_locations
+            .first()
+            .map(|l| l.max_cut)
+            .unwrap_or(MaxCut::new(0));
+        let skip_target = highest_have
+            .checked_add(SEGMENT_BUFFER_MAX as u64)
+            .assume("skip target overflow")?;
+        for head in storage.get_heads()?.iter() {
+            let start = skip_jump(storage, head.location(), skip_target)?;
+            heads.push(start)?;
         }
 
-        let queue = buffers.primary.get();
-        queue.push(storage.get_head()?)?;
+        // pending queue: segments tentatively needed by the peer.
+        let pending = buffers.secondary.get();
 
-        let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
+        // Accumulate needed segments, keeping only the SEGMENT_BUFFER_MAX
+        // entries with the lowest max_cut (ancestors first). When full,
+        // the highest max_cut entry is replaced if the new one is lower.
+        let mut collected: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
+        let mut prev_max_cut: Option<MaxCut> = None;
 
-        while let Some(head) = queue.pop() {
-            // Check if the current segment head is an ancestor of any location in have_locations.
-            // If so, stop traversing backward from this point since the requester already has
-            // this command and all its ancestors.
-            let mut is_have_ancestor = false;
-            for &have_location in &have_locations {
-                let have_segment = storage.get_segment(have_location)?;
-                if storage.is_ancestor(head, &have_segment, &mut buffers.secondary)? {
-                    is_have_ancestor = true;
-                    break;
-                }
-            }
-            if is_have_ancestor {
-                continue;
+        while let Some((head, covered)) = heads.pop_covered()? {
+            // Flush pending entries whose shortest_max_cut (stored as max_cut)
+            // is above the just-popped entry's longest_max_cut. No future
+            // have_location can reach them since we process in descending order.
+            if prev_max_cut != Some(head.max_cut) {
+                pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
+                prev_max_cut = Some(head.max_cut);
             }
 
             let segment = storage.get_segment(head)?;
 
-            // If the requester has any commands in this segment, send from the next command
-            if let Some(latest_loc) = have_locations
-                .iter()
-                .filter(|&&location| location.same_segment(head))
-                .max_by_key(|&&location| location.max_cut)
-            {
-                let next_max_cut = latest_loc
-                    .max_cut
-                    .checked_add(1)
-                    .assume("command + 1 mustn't overflow")?;
-                let next_location = Location {
-                    max_cut: next_max_cut,
-                    segment: head.segment,
-                };
-
-                let head_loc = segment.head_location()?;
-                if next_location.max_cut > head_loc.max_cut {
-                    continue;
+            if covered {
+                // Case 1: Covered — the peer has this segment up to
+                // head.max_cut. Update pending to reflect partial or full
+                // coverage so we don't send what the peer already has.
+                let longest = segment.longest_max_cut()?;
+                pending.cover_up_to(head.segment, head.max_cut, longest)?;
+                // Propagate coverage to priors so they'll be processed as
+                // covered if not yet visited.
+                for prior in segment.prior() {
+                    heads.push_covered(prior, true)?;
                 }
-                if result.is_full() {
-                    result.pop_back();
+                // Early termination: if all remaining heads are covered, stop.
+                // Every remaining path leads to segments the peer already has.
+                if heads.all_covered() && !heads.is_empty() {
+                    break;
                 }
-                result
-                    .push_front(next_location)
-                    .ok()
-                    .assume("too many segments")?;
                 continue;
             }
 
-            if result.is_full() {
-                result.pop_back();
+            // Advance have_cursor past locations with max_cut above this
+            // segment's longest_max_cut — they've already been passed.
+            let longest = segment.longest_max_cut()?;
+            while have_locations
+                .get(have_cursor)
+                .is_some_and(|h| h.max_cut > longest)
+            {
+                have_cursor = have_cursor
+                    .checked_add(1)
+                    .assume("index must not overflow")?;
             }
 
-            for prior in segment.prior() {
-                queue.push(prior)?;
+            // Look for a have_location in this segment: same SegmentIndex
+            // with max_cut within shortest_max_cut..=longest_max_cut.
+            let shortest = segment.shortest_max_cut();
+            let mut best_have: Option<(usize, Location)> = None;
+            for scan in have_cursor..have_locations.len() {
+                let hloc = have_locations[scan];
+                if hloc.max_cut < shortest {
+                    break; // rest are even lower, can't be in this segment
+                }
+                if hloc.segment == head.segment {
+                    best_have = Some((scan, hloc));
+                    break; // sorted in descending order, so first match is the highest max_cut
+                }
             }
 
-            let location = segment.first_location();
-            result
-                .push_front(location)
-                .ok()
-                .assume("too many segments")?;
-        }
-        let mut r: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
-        for l in result {
-            r.push(l).ok().assume("too many segments")?;
-        }
-        // Order segments to ensure that a segment isn't received before its
-        // ancestor segments.
-        r.sort();
+            if let Some((_idx, hloc)) = best_have {
+                // Case 2: Contains a have_location. Push priors as
+                // covered — the peer has at least part of this segment,
+                // so its priors are reachable.
+                for prior in segment.prior() {
+                    heads.push_covered(prior, true)?;
+                }
 
-        Ok(r)
+                // If the peer doesn't have the whole segment (have_location
+                // is not at the segment head), add a partial entry to pending
+                // starting from the command after the highest have_location.
+                if hloc.max_cut < longest {
+                    let next_max_cut = hloc
+                        .max_cut
+                        .checked_add(1)
+                        .assume("command + 1 mustn't overflow")?;
+                    let partial_loc = Location {
+                        max_cut: next_max_cut,
+                        segment: head.segment,
+                    };
+                    pending.push(partial_loc)?;
+                }
+                // else: peer has the entire segment, nothing to send.
+            } else {
+                // Case 3: Uncovered, no have_location. Add to pending and
+                // continue traversal through priors.
+                pending.push(segment.first_location())?;
+                for prior in segment.prior() {
+                    heads.push(prior)?;
+                }
+            }
+
+            // Early termination: if all remaining heads are covered, stop.
+            // Every remaining path leads to segments the peer already has.
+            if heads.all_covered() && !heads.is_empty() {
+                break;
+            }
+        }
+
+        // Flush remaining uncovered pending segments. Covered entries
+        // are discarded — the peer already has them.
+        pending.drain_all(|loc| push_bounded(&mut collected, loc));
+
+        // Sort to ensure causal order (parents before children).
+        collected.sort();
+
+        Ok(collected)
     }
 
     fn get_next(
@@ -436,20 +586,23 @@ impl<'a> SyncResponder<'a> {
             response_index: self.message_index as u64,
             commands,
         };
-        self.message_index = self
-            .message_index
-            .checked_add(1)
-            .assume("message_index overflow")?;
-        self.next_send = next_send;
 
         let length = Self::write(target, message)?;
         let total_length = length
             .checked_add(command_data.len())
             .assume("length + command_data_length mustn't overflow")?;
-        target
+        // Don't advance the session until the whole message fits, so the
+        // caller can retry with a larger buffer without losing commands.
+        let data_target = target
             .get_mut(length..total_length)
-            .assume("sync message fits in target")?
-            .copy_from_slice(&command_data);
+            .ok_or(SyncError::BufferTooSmall)?;
+        data_target.copy_from_slice(&command_data);
+
+        self.message_index = self
+            .message_index
+            .checked_add(1)
+            .assume("message_index overflow")?;
+        self.next_send = next_send;
         Ok(total_length)
     }
 
@@ -459,11 +612,14 @@ impl<'a> SyncResponder<'a> {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
+        buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let Some(graph_id) = self.graph_id else {
+            // `push` is public; calling it before a sync request set the
+            // graph id is a usage error, not a bug.
             self.state = S::Reset;
-            bug!("poll called before graph_id was set");
+            return Err(SyncError::NotReady);
         };
 
         let storage = match provider.get_storage(graph_id) {
@@ -473,7 +629,7 @@ impl<'a> SyncResponder<'a> {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage, self.buffers)?;
+        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {
@@ -483,22 +639,25 @@ impl<'a> SyncResponder<'a> {
                     response_index: self.message_index as u64,
                     commands,
                 },
-                graph_id: self.graph_id.assume("graph id must exist")?,
+                graph_id,
             };
-            self.message_index = self
-                .message_index
-                .checked_add(1)
-                .assume("message_index increment overflow")?;
-            self.next_send = next_send;
 
             length = Self::write_sync_type(target, message)?;
             let total_length = length
                 .checked_add(command_data.len())
                 .assume("length + command_data_length mustn't overflow")?;
-            target
+            // Don't advance the session until the whole message fits, so the
+            // caller can retry with a larger buffer without losing commands.
+            let data_target = target
                 .get_mut(length..total_length)
-                .assume("sync message fits in target")?
-                .copy_from_slice(&command_data);
+                .ok_or(SyncError::BufferTooSmall)?;
+            data_target.copy_from_slice(&command_data);
+
+            self.message_index = self
+                .message_index
+                .checked_add(1)
+                .assume("message_index increment overflow")?;
+            self.next_send = next_send;
             length = total_length;
         }
         Ok(length)
@@ -510,7 +669,7 @@ impl<'a> SyncResponder<'a> {
     ) -> Result<
         (
             Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
-            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
+            Vec<u8, COMMAND_DATA_BUF_SIZE>,
             usize,
         ),
         SyncError,
@@ -527,65 +686,269 @@ impl<'a> SyncResponder<'a> {
             }
         };
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
-        let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
+        let mut command_data: Vec<u8, COMMAND_DATA_BUF_SIZE> = Vec::new();
         let mut index = self.next_send;
         for i in self.next_send..self.to_send.len() {
             if commands.is_full() {
                 break;
             }
-            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
-            let Some(&location) = self.to_send.get(i) else {
+            let Some(location) = self.to_send.get_mut(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
             };
 
             let segment = storage
-                .get_segment(location)
+                .get_segment(*location)
                 .inspect_err(|_| self.state = SyncResponderState::Reset)?;
 
-            let found = segment.get_from(location);
+            let found = segment.get_from(*location);
 
+            let mut sent: usize = 0;
             for command in &found {
-                let mut policy_length = 0;
-
-                if let Some(policy) = command.policy() {
-                    policy_length = policy.len();
-                    command_data
-                        .extend_from_slice(policy)
-                        .ok()
-                        .assume("command_data is too large")?;
-                }
-
-                let bytes = command.bytes();
-                command_data
-                    .extend_from_slice(bytes)
-                    .ok()
-                    .assume("command_data is too large")?;
-
-                let max_cut = command.max_cut()?;
-                let meta = CommandMeta {
-                    id: command.id(),
-                    priority: command.priority(),
-                    parent: command.parent(),
-                    policy_length: policy_length as u32,
-                    length: bytes.len() as u32,
-                    max_cut,
-                };
-
-                // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
-                commands
-                    .push(meta)
-                    .ok()
-                    .assume("too many commands in segment")?;
                 if commands.is_full() {
                     break;
                 }
+
+                let Ok(meta) = add_command_data(&mut command_data, command) else {
+                    break;
+                };
+
+                commands.push(meta).ok().assume("commands is not full")?;
+                sent = sent.checked_add(1).assume("sent + 1 mustn't overflow")?;
             }
+
+            if sent < found.len() {
+                // The response filled up partway through this segment.
+                // Point this entry at the first unsent command so the next
+                // response resumes inside the segment; a command's location
+                // within a segment advances one max_cut per command.
+                let resume_max_cut = location
+                    .max_cut
+                    .checked_add(sent as u64)
+                    .assume("max_cut + sent mustn't overflow")?;
+                location.max_cut = resume_max_cut;
+                index = i;
+                break;
+            }
+
+            index = i.checked_add(1).assume("index + 1 mustn't overflow")?;
         }
         Ok((commands, command_data, index))
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {
         Ok(self.session_id.assume("session id is set")?)
+    }
+}
+
+/// Atomically add both the command policy and bytes.
+fn add_command_data(
+    buf: &mut Vec<u8, COMMAND_DATA_BUF_SIZE>,
+    cmd: &impl Command,
+) -> Result<CommandMeta, ()> {
+    let before = buf.len();
+
+    if let Some(policy) = cmd.policy() {
+        buf.extend_from_slice(policy)?;
+    }
+
+    buf.extend_from_slice(cmd.bytes()).inspect_err(|()| {
+        buf.truncate(before);
+    })?;
+
+    Ok(CommandMeta {
+        id: cmd.id(),
+        parent: cmd.parent(),
+        policy_length: cmd.policy().unwrap_or_default().len() as u32,
+        length: cmd.bytes().len() as u32,
+    })
+}
+
+/// Size of the buffer for storing the command data.
+///
+/// This is smaller than the max sync message size to account for the serialized
+/// `SyncResponseMessage::SyncResponse` to ensure the response will always fit
+/// within a supplied buffer of size `MAX_SYNC_MESSAGE_SIZE`.
+const COMMAND_DATA_BUF_SIZE: usize = MAX_SYNC_MESSAGE_SIZE - SYNC_RESPONSE_SERIALIZED_UPPER_BOUND;
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::arithmetic_side_effects)]
+
+    use aranya_crypto::Rng;
+
+    use super::*;
+    use crate::{
+        ClientState, RuntimeBuffers, mem_spill,
+        storage::linear::testing::MemStorageProvider,
+        sync::{MAX_SYNC_MESSAGE_SIZE, SyncIncoming, SyncRequester},
+        testing::protocol::{TestActions, TestPolicyStore, TestSink},
+    };
+
+    type TestClient = ClientState<TestPolicyStore, MemStorageProvider>;
+
+    fn new_client() -> TestClient {
+        ClientState::new(TestPolicyStore::new(), MemStorageProvider::default())
+    }
+
+    fn new_sink() -> TestSink {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        sink
+    }
+
+    /// Runs one complete sync session from `source` (responder side) to
+    /// `dest` (requester side), reusing a single `SyncResponder` and polling
+    /// it repeatedly until it reports `SyncEnd`, exactly like a production
+    /// transport's poll loop. Returns the number of new commands `dest`
+    /// accepted.
+    fn run_full_session(
+        source: &mut TestClient,
+        dest: &mut TestClient,
+        graph_id: GraphId,
+    ) -> usize {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        let req_cache = PeerCache::new();
+        let mut resp_cache = PeerCache::new();
+
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut responder = SyncResponder::new();
+
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _sent) = requester
+            .poll(
+                &mut buffer,
+                dest.provider(),
+                &req_cache.session_heads(),
+                &mut rt_buffers.traversal.primary,
+            )
+            .expect("requester poll");
+
+        match SyncIncoming::decode(&buffer[..len]).expect("decode") {
+            SyncIncoming::Poll(poll) => responder.receive(poll).expect("responder receive"),
+            _ => panic!("expected a poll message"),
+        }
+
+        let mut trx = dest.transaction(graph_id);
+        let mut received = 0;
+        let mut rounds = 0;
+        while responder.ready() {
+            rounds += 1;
+            assert!(rounds <= 64, "sync session did not terminate");
+            let len = responder
+                .poll(
+                    &mut buffer,
+                    source.provider(),
+                    &mut resp_cache,
+                    &mut rt_buffers.traversal,
+                )
+                .expect("responder poll");
+            if len == 0 {
+                break;
+            }
+            let Some(cmds) = requester
+                .receive(&buffer[..len])
+                .expect("requester receive")
+            else {
+                // SyncEnd: the responder claims the session is complete.
+                break;
+            };
+            received += dest
+                .add_commands(&mut trx, &mut sink, &cmds, &mut rt_buffers, mem_spill)
+                .expect("add_commands");
+        }
+        dest.commit(trx, &mut sink, &mut rt_buffers, mem_spill)
+            .expect("commit");
+        received
+    }
+
+    /// Builds a client whose graph is `2 * stage` commands arranged so a
+    /// *second* client that syncs from it holds exactly two `stage`-command
+    /// segments (the receiver batches each session's contiguous commands
+    /// into one segment). Returns the second client.
+    fn client_with_two_segments(stage: u64) -> (TestClient, GraphId) {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        let mut a = new_client();
+        let graph_id = a
+            .new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)
+            .expect("new_graph");
+        // Stage 1: init + (stage - 1) actions = `stage` commands.
+        for i in 1..stage {
+            a.action(
+                graph_id,
+                &mut sink,
+                TestActions::SetValue(i, i),
+                &mut rt_buffers,
+                mem_spill,
+            )
+            .expect("action");
+        }
+        let mut b = new_client();
+        run_full_session(&mut a, &mut b, graph_id);
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            a.head_address(graph_id).expect("a head"),
+            "stage 1 sync must fully transfer (below response limit)"
+        );
+
+        // Stage 2: `stage` more commands, transferred in a second session so
+        // they land in a second segment on `b`.
+        for i in stage..(2 * stage) {
+            a.action(
+                graph_id,
+                &mut sink,
+                TestActions::SetValue(i, i),
+                &mut rt_buffers,
+                mem_spill,
+            )
+            .expect("action");
+        }
+        run_full_session(&mut a, &mut b, graph_id);
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            a.head_address(graph_id).expect("a head"),
+            "stage 2 sync must fully transfer (below response limit)"
+        );
+
+        (b, graph_id)
+    }
+
+    /// Harness soundness check: with two 40-command segments (80 total,
+    /// under `COMMAND_RESPONSE_MAX`), a full session transfers everything.
+    #[test]
+    fn multi_round_session_below_response_max_converges() {
+        let (mut b, graph_id) = client_with_two_segments(40);
+        let mut c = new_client();
+        let received = run_full_session(&mut b, &mut c, graph_id);
+        assert_eq!(received, 80);
+        assert_eq!(
+            c.head_address(graph_id).expect("c head"),
+            b.head_address(graph_id).expect("b head"),
+        );
+    }
+
+    /// Reproduces S1: `get_commands` advances `next_send` past a segment
+    /// *before* copying its commands, so when `COMMAND_RESPONSE_MAX` fills
+    /// mid-segment the rest of that segment is never sent for the remainder
+    /// of the session, which nonetheless ends with a clean
+    /// `SyncEnd { remaining: false }`.
+    ///
+    /// Layout: two 60-command segments (120 commands). Round 1 sends 100
+    /// commands (all of segment 1 + 40 of segment 2) but records both
+    /// segments as fully sent; round 2 emits `SyncEnd`, silently dropping
+    /// the last 20 commands.
+    #[test]
+    fn multi_round_session_drops_tail_of_straddling_segment() {
+        let (mut b, graph_id) = client_with_two_segments(60);
+        let mut c = new_client();
+        let received = run_full_session(&mut b, &mut c, graph_id);
+        assert_eq!(
+            c.head_address(graph_id).expect("c head"),
+            b.head_address(graph_id).expect("b head"),
+            "session ended with SyncEnd but receiver is missing commands \
+             (received {received} of 120)",
+        );
     }
 }

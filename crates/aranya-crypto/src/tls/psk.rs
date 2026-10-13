@@ -1,4 +1,4 @@
-use core::{cell::OnceCell, fmt, marker::PhantomData};
+use core::{fmt, marker::PhantomData};
 
 use buggy::{Bug, BugExt as _};
 use derive_where::derive_where;
@@ -15,15 +15,15 @@ use crate::{
     Csprng, Random,
     aranya::{Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::{CipherSuite, CipherSuiteExt as _},
+    ctutils::{Choice, CtEq},
     engine::unwrapped,
     error::Error,
-    generic_array::GenericArray,
     hpke::{self, Mode},
+    hybrid_array::Array,
     id::{IdError, Identified, custom_id},
     policy::{GroupId, PolicyId},
-    subtle::{Choice, ConstantTimeEq},
     tls::{self, CipherSuiteId},
-    util,
+    util::{self, CacheCell},
     zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
 
@@ -51,7 +51,7 @@ pub struct PskSeed<CS: CipherSuite> {
     // (a) the constructor becomes fallible, and (b) that doesn't
     // play well with `unwrapped!`. Instead, just cache the
     // result.
-    id: OnceCell<Result<PskSeedId, Bug>>,
+    id: CacheCell<Result<PskSeedId, Bug>>,
     _marker: PhantomData<CS>,
 }
 
@@ -88,38 +88,36 @@ impl<CS: CipherSuite> PskSeed<CS> {
     fn from_prk(prk: Prk<CS>) -> Self {
         Self {
             prk,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
             _marker: PhantomData,
         }
     }
 
     /// Attempts to compute the PSK seed ID.
-    fn try_id(&self) -> Result<&PskSeedId, &Bug> {
-        self.id
-            .get_or_init(|| {
-                // KDFs have the property that their output does
-                // not reaveal anything about the secret input.
-                // Specifically, an attacker with knowledge of
-                // the structure of the secret and with the
-                // ability to perform arbitrary queries should
-                // not be able to distinguish the KDF's output
-                // from a random bitstring with a probability
-                // greater than 50%. (See [hkdf], definition 7.)
-                //
-                // This means that so long as we have proper
-                // domain separation, we can use the KDF to
-                // generate the ID from the secret itself.
-                //
-                // The docs for `CipherSuite::Kdf` state that it
-                // should be able to expand at least 64 octets.
-                // IDs are 32 octets, so this should never fail.
-                //
-                // [hkdf]: https://eprint.iacr.org/2010/264.pdf]
-                let id = CS::labeled_expand(SEED_DOMAIN, &self.prk, b"id", [])
-                    .assume("should be able to generate PSK seed ID")?;
-                Ok(PskSeedId::from_bytes(id))
-            })
-            .as_ref()
+    fn try_id(&self) -> Result<PskSeedId, Bug> {
+        self.id.get_or_init(|| {
+            // KDFs have the property that their output does
+            // not reaveal anything about the secret input.
+            // Specifically, an attacker with knowledge of
+            // the structure of the secret and with the
+            // ability to perform arbitrary queries should
+            // not be able to distinguish the KDF's output
+            // from a random bitstring with a probability
+            // greater than 50%. (See [hkdf], definition 7.)
+            //
+            // This means that so long as we have proper
+            // domain separation, we can use the KDF to
+            // generate the ID from the secret itself.
+            //
+            // The docs for `CipherSuite::Kdf` state that it
+            // should be able to expand at least 64 octets.
+            // IDs are 32 octets, so this should never fail.
+            //
+            // [hkdf]: https://eprint.iacr.org/2010/264.pdf]
+            let id = CS::labeled_expand(SEED_DOMAIN, &self.prk, b"id", [])
+                .assume("should be able to generate PSK seed ID")?;
+            Ok(PskSeedId::from_bytes(id))
+        })
     }
 
     /// Generates one PSK for each of the provided cipher suites.
@@ -144,7 +142,7 @@ impl<CS: CipherSuite> PskSeed<CS> {
     {
         suites.into_iter().map(move |suite| {
             let id = ImportedIdentity {
-                external_identity: *self.try_id().map_err(Bug::clone)?,
+                external_identity: self.try_id()?,
                 context: PskCtx { group, policy },
                 target_protocol: tls::Version::Tls13,
                 target_kdf: suite,
@@ -180,12 +178,11 @@ impl<CS: CipherSuite> Identified for PskSeed<CS> {
 
     #[inline]
     fn id(&self) -> Result<Self::Id, IdError> {
-        let id = self.try_id().map_err(Bug::clone)?;
-        Ok(*id)
+        Ok(self.try_id()?)
     }
 }
 
-impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
+impl<CS: CipherSuite> CtEq for PskSeed<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         // `self.id` is derived from `self.prk`, so ignore it.
@@ -307,7 +304,7 @@ struct Info {
 #[derive_where(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedPskSeed<CS: CipherSuite> {
     // NB: These are only `pub(crate)` for testing purposes.
-    pub(crate) ciphertext: GenericArray<u8, <<CS as CipherSuite>::Kdf as Kdf>::PrkSize>,
+    pub(crate) ciphertext: Array<u8, <<CS as CipherSuite>::Kdf as Kdf>::PrkSize>,
     pub(crate) tag: Tag<CS::Aead>,
 }
 
@@ -355,7 +352,7 @@ impl<CS> Drop for Psk<CS> {
     }
 }
 
-impl<CS> ConstantTimeEq for Psk<CS> {
+impl<CS> CtEq for Psk<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         // Both `self.secret` and `self.id` are derived from the
@@ -373,7 +370,7 @@ impl<CS> ConstantTimeEq for Psk<CS> {
 ///
 /// `PskId` is not a secret, so it can be freely compared with
 /// [`PartialEq`]. However, doing so may leak knowledge about
-/// which PSKs are present. In general, prefer [`ConstantTimeEq`]
+/// which PSKs are present. In general, prefer [`CtEq`]
 /// to [`PartialEq`].
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct PskId(ImportedIdentity);
@@ -401,7 +398,7 @@ impl PskId {
     }
 }
 
-impl ConstantTimeEq for PskId {
+impl CtEq for PskId {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.as_bytes().ct_eq(other.as_bytes())
@@ -411,5 +408,36 @@ impl ConstantTimeEq for PskId {
 impl fmt::Display for PskId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Hex::new(self.as_bytes()).fmt(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Rng, default::DefaultCipherSuite};
+
+    type CS = DefaultCipherSuite;
+
+    /// Exercises both the happy path and the "same
+    /// `EncryptionKey`" error path of
+    /// [`EncryptionKey::seal_psk_seed`].
+    #[test]
+    fn test_seal_psk_seed_same_key() {
+        let group = GroupId::default();
+        let sk1 = EncryptionKey::<CS>::new(Rng);
+        let sk2 = EncryptionKey::<CS>::new(Rng);
+        let pk2 = sk2.public().expect("encryption public key should be valid");
+        let seed = PskSeed::<CS>::new(Rng, &group);
+
+        // Happy path: sealing for a different peer key succeeds.
+        sk1.seal_psk_seed(Rng, &seed, &pk2, &group)
+            .expect("`seal_psk_seed` should succeed for a different peer key");
+
+        // Error path: sealing for our own public key is rejected.
+        let pk1 = sk1.public().expect("encryption public key should be valid");
+        let err = sk1
+            .seal_psk_seed(Rng, &seed, &pk1, &group)
+            .expect_err("`seal_psk_seed` should reject sealing to ourselves");
+        assert!(matches!(err, Error::InvalidArgument(_)), "got {err:?}");
     }
 }

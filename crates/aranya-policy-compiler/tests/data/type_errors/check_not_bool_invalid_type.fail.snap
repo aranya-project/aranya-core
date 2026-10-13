@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: int
+  |
+3 |         check 0 else test_fail("should fail")
+  |               ^ expected `bool` but found `int`

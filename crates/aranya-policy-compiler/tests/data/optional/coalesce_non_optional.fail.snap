@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: int
+  |
+2 |     return 42 or 0
+  |            ^^ expected `optional` but found `int`

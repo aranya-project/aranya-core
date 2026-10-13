@@ -1,0 +1,7 @@
+action foo() {
+    match None {
+        Some(42) => {}
+        Some("foo") => {}
+        _ => {}
+    }
+}

@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid expression
+  |
+3 |         saturating_add(0, 1)=> {}
+  |         ^^^^^^^^^^^^^^^^^^^^ match pattern must be a literal expression

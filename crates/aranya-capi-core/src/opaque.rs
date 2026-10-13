@@ -155,6 +155,8 @@ where
 {
     // SAFETY: `*Opaque<_, _, T>` is a valid `*T`
     unsafe {
-        &mut *ptr::from_mut::<MaybeUninit<Opaque<SIZE, ALIGN, T>>>(out).cast::<MaybeUninit<T>>()
+        ptr::from_mut::<MaybeUninit<Opaque<SIZE, ALIGN, T>>>(out)
+            .cast::<MaybeUninit<T>>()
+            .as_mut_unchecked()
     }
 }

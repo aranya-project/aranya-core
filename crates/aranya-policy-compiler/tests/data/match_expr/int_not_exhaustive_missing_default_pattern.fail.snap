@@ -1,0 +1,13 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: Missing default pattern in `match` statement/expression
+  |
+2 |       let x = match c {
+  |  _____________^
+3 | |         0 => 0
+4 | |         1 => 1
+5 | |         2 => 2
+6 | |     }
+  | |_____^

@@ -24,7 +24,7 @@ use aranya_fast_channels::{
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, OpenCtx, Path, SealCtx},
 };
-use criterion::{BenchmarkId, Criterion, Throughput, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 pub struct NoopAead;
 
@@ -236,12 +236,11 @@ bench_impl!(bench_noop, NoopAead, HkdfSha256);
 
 bench_impl!(bench_aes256gcm_hkdfsha256, Aes256Gcm, HkdfSha256);
 
-fn benches() {
-    let mut c = Criterion::default().warm_up_time(Duration::from_secs(1));
-
-    bench_noop(&mut c);
-
-    bench_aes256gcm_hkdfsha256(&mut c);
-}
-
+criterion_group!(
+    name = benches;
+    config = Criterion::default().warm_up_time(Duration::from_secs(1));
+    targets =
+        bench_noop,
+        bench_aes256gcm_hkdfsha256,
+);
 criterion_main!(benches);

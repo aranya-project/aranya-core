@@ -3,24 +3,25 @@
 //! A [`PolicyStore`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+pub use aranya_crypto::PolicyId;
 use buggy::Bug;
-use serde::{Deserialize, Serialize};
 
 use crate::{
-    Address,
-    command::{CmdId, Command},
+    Address, MAX_COMMAND_LENGTH,
+    command::{CmdId, Command, Priority},
     storage::{FactPerspective, Perspective},
 };
 
 /// An error returned by a runtime policy store or policy.
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PolicyError {
     #[error("read error")]
     Read,
     #[error("write error")]
     Write,
-    #[error("check error")]
-    Check,
+    #[error("operation was rejected by the policy")]
+    Rejected,
     #[error("panic")]
     Panic,
     #[error("internal error")]
@@ -32,15 +33,6 @@ pub enum PolicyError {
 impl From<core::convert::Infallible> for PolicyError {
     fn from(error: core::convert::Infallible) -> Self {
         match error {}
-    }
-}
-
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PolicyId(usize);
-
-impl PolicyId {
-    pub fn new(id: usize) -> Self {
-        Self(id)
     }
 }
 
@@ -63,6 +55,9 @@ pub trait PolicyStore {
     ///
     /// * `policy` - Byte slice representing a [`PolicyId`].
     fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError>;
+
+    // TODO: Pass into actions instead?
+    fn seal_ctx(&self, id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
@@ -102,6 +97,15 @@ impl MergeIds {
             Ordering::Greater => Some(Self { left: b, right: a }),
         }
     }
+
+    /// Create [`MergeIds`] from two [`Address`]s which must already be ordered.
+    pub fn from_ordered(left: Address, right: Address) -> Option<Self> {
+        if left < right {
+            Some(Self { left, right })
+        } else {
+            None
+        }
+    }
 }
 
 impl From<MergeIds> for (CmdId, CmdId) {
@@ -122,6 +126,7 @@ impl From<MergeIds> for (Address, Address) {
 /// as a result.
 pub trait Policy {
     type Action<'a>;
+    type SealCtx;
     type Effect;
     type Command<'a>: Command;
 
@@ -132,13 +137,19 @@ pub trait Policy {
     /// Evaluate a command at the given perspective. If the command is accepted, effects may
     /// be emitted to the sink and facts may be written to the perspective. Returns an error
     /// for a rejected command.
+    ///
+    /// On success, returns the command's [`Priority`], derived from the
+    /// command's body. The runtime persists this value and uses it as the
+    /// braid strand-ordering key, so it must be a pure function of the
+    /// command data: every peer evaluating the same command must derive the
+    /// same priority.
     fn call_rule(
         &self,
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
-    ) -> Result<(), PolicyError>;
+    ) -> Result<Priority, PolicyError>;
 
     /// Process an action checking each published command against the policy and emitting
     /// effects to the sink. All published commands are handled transactionally where if any
@@ -149,6 +160,7 @@ pub trait Policy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: ActionPlacement,
+        seal_ctx: &Self::SealCtx,
     ) -> Result<(), PolicyError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
@@ -158,6 +170,21 @@ pub trait Policy {
         target: &'a mut [u8],
         ids: MergeIds,
     ) -> Result<Self::Command<'a>, PolicyError>;
+
+    /// Validate a merge command.
+    fn validate_merge(&self, command: &impl Command) -> Result<(), PolicyError> {
+        let ids = match command.parent() {
+            crate::Prior::Merge(left, right) => MergeIds::from_ordered(left, right),
+            _ => None,
+        }
+        .ok_or(PolicyError::Panic)?;
+        let id = self.merge(&mut [0u8; MAX_COMMAND_LENGTH], ids)?.id();
+        if command.id() == id {
+            Ok(())
+        } else {
+            Err(PolicyError::Panic)
+        }
+    }
 }
 
 /// Describes the placement when calling an action.
@@ -178,4 +205,86 @@ pub enum CommandPlacement {
     OnGraphInBraid,
     /// The command is being evaluated off-graph in an ephemeral session.
     OffGraph,
+}
+
+mod impls {
+    use alloc::boxed::Box;
+
+    use super::{PolicyError, PolicyId, PolicyStore, Sink};
+
+    impl<PS: PolicyStore> PolicyStore for &mut PS {
+        type Policy = PS::Policy;
+        type Effect = PS::Effect;
+
+        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+            PS::add_policy(self, policy)
+        }
+
+        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+            PS::get_policy(self, id)
+        }
+
+        fn seal_ctx(
+            &self,
+            id: PolicyId,
+        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyError> {
+            PS::seal_ctx(self, id)
+        }
+    }
+
+    impl<PS: PolicyStore> PolicyStore for Box<PS> {
+        type Policy = PS::Policy;
+        type Effect = PS::Effect;
+
+        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+            PS::add_policy(self, policy)
+        }
+
+        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+            PS::get_policy(self, id)
+        }
+
+        fn seal_ctx(
+            &self,
+            id: PolicyId,
+        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyError> {
+            PS::seal_ctx(self, id)
+        }
+    }
+
+    impl<S: Sink<Eff>, Eff> Sink<Eff> for &mut S {
+        fn begin(&mut self) {
+            S::begin(self);
+        }
+
+        fn consume(&mut self, effect: Eff) {
+            S::consume(self, effect);
+        }
+
+        fn rollback(&mut self) {
+            S::rollback(self);
+        }
+
+        fn commit(&mut self) {
+            S::commit(self);
+        }
+    }
+
+    impl<S: Sink<Eff>, Eff> Sink<Eff> for Box<S> {
+        fn begin(&mut self) {
+            S::begin(self);
+        }
+
+        fn consume(&mut self, effect: Eff) {
+            S::consume(self, effect);
+        }
+
+        fn rollback(&mut self) {
+            S::rollback(self);
+        }
+
+        fn commit(&mut self) {
+            S::commit(self);
+        }
+    }
 }

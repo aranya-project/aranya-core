@@ -1,0 +1,5 @@
+fact Device[device_id int]=>{name string, email string}
+
+finish function too_few() {
+    create Device[device_id:1]
+}

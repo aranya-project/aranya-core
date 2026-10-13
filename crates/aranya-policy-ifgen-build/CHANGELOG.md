@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.17.0...aranya-policy-ifgen-build-v0.18.0) - 2026-08-25
+
+### Other
+
+- Remove vm span dependency ([#726](https://github.com/aranya-project/aranya-core/pull/726))
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.16.0...aranya-policy-ifgen-build-v0.17.0) - 2026-07-09
+
+### Other
+
+- add unit type ([#669](https://github.com/aranya-project/aranya-core/pull/669))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.15.0...aranya-policy-ifgen-build-v0.16.0) - 2026-05-22
+
+### Other
+
+- ifgen build flag for import ([#673](https://github.com/aranya-project/aranya-core/pull/673))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.14.0...aranya-policy-ifgen-build-v0.15.0) - 2026-03-31
+
+### Other
+
+- updated the following local packages: aranya-policy-lang, aranya-policy-module, aranya-policy-compiler
+
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.13.0...aranya-policy-ifgen-build-v0.14.0) - 2026-03-17
+
+### Other
+
+- generate constants for globals ([#593](https://github.com/aranya-project/aranya-core/pull/593))
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+
 ## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-build-v0.12.1...aranya-policy-ifgen-build-v0.13.0) - 2026-02-17
 
 ### Other

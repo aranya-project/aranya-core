@@ -94,7 +94,9 @@ fn bench_expand<K: Kdf>(c: &mut Criterion, name: &str) {
 }
 
 fn benches() {
-    let mut c = Criterion::default().warm_up_time(Duration::from_secs(1));
+    let mut c = Criterion::default()
+        .warm_up_time(Duration::from_secs(1))
+        .configure_from_args();
 
     bench_expand::<HkdfSha256>(&mut c, "HKDF-SHA256");
 }

@@ -1,0 +1,3 @@
+function baz(x option[struct UndefinedStruct]) bool {
+    return true
+}

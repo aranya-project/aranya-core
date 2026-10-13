@@ -1,0 +1,4 @@
+function pets() int {
+    map Pet[name:?]=>{} as p {}
+    return 0
+}

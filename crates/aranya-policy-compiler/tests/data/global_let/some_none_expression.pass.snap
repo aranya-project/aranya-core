@@ -1,0 +1,26 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 229
+expression: module
+---
+Module {
+    version: "1",
+    labels: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
+    globals: {
+        "global": Option(
+            Some(
+                Option(
+                    None,
+                ),
+            ),
+        ),
+    },
+    ..
+}
+---
+    exit panic

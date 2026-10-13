@@ -1,0 +1,111 @@
+//! Postcard-shaped wire types for the sync protocol.
+//!
+//! These are kept `pub(crate)` so the on-wire layout can evolve without
+//! breaking consumers of `aranya-runtime::sync`. The public dispatch surface
+//! is in [`super`] (`SyncIncoming`, `SyncHello`, `SyncHeads`,
+//! `SubscribeResponse`).
+
+use core::time::Duration;
+
+use heapless::Vec;
+use serde::{Deserialize, Serialize};
+
+use super::{COMMAND_SAMPLE_MAX, requester::SyncRequestMessage};
+use crate::{Address, GraphId, Prior, command::CmdId};
+
+/// The sync hello message types for subscription-based notifications.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) enum SyncHelloType {
+    /// Subscribe to receive hello notifications from this peer
+    Subscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
+        /// Delay between notifications when graph changes (rate limiting)
+        graph_change_delay: Duration,
+        /// How long the subscription should last
+        duration: Duration,
+        /// Schedule-based hello sending delay.
+        /// Send hello every `schedule_delay` duration regardless of graph changes.
+        schedule_delay: Duration,
+    },
+    /// Unsubscribe from hello notifications
+    Unsubscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
+    },
+    /// Notification message sent to subscribers
+    Hello {
+        /// Specifies the graph.
+        graph_id: GraphId,
+        /// The current head of the sender's graph
+        head: Address,
+    },
+}
+
+/// The sync type to dispatch.
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum SyncType {
+    /// This will include a sync request and be
+    /// immediately responded to with a sync response.
+    Poll {
+        /// The sync request message.
+        request: SyncRequestMessage,
+    },
+    /// Subscribes the peer to receive push syncs from this peer. Calling this
+    /// again will update remain_open and max_bytes for this peer.
+    Subscribe {
+        /// The number of seconds the sync request will remain open.
+        remain_open: u64,
+        /// The maximum number of bytes that should be sent.
+        max_bytes: u64,
+        /// A sample of the peer's graph. This will be used to update the
+        /// known heads for the peer.
+        commands: Vec<Address, COMMAND_SAMPLE_MAX>,
+        /// The graph this request is for.
+        graph_id: GraphId,
+    },
+    /// Removes any open subsciptions for the peer. If there is no subscription
+    /// this will be a noop.
+    Unsubscribe {
+        /// Specifies the graph.
+        graph_id: GraphId,
+    },
+    /// This will only be sent to peers who have an open subscription.
+    /// Contains any new commands that come after the peer's known heads.
+    Push {
+        /// A message containing commands that the pusher believes the peer
+        /// does not have.
+        message: super::responder::SyncResponseMessage,
+        /// The graph this push is for.
+        graph_id: GraphId,
+    },
+    /// Sync hello message for subscription-based notifications.
+    Hello(SyncHelloType),
+}
+
+/// The result of attempting to subscribe.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) enum SubscribeResult {
+    Success,
+    TooManySubscriptions,
+}
+
+/// An upper bound on the size of serialized [`CommandMeta`].
+pub(super) const COMMAND_META_SERIALIZED_UPPER_BOUND: usize = {
+    let id = 1 + size_of::<CmdId>(); // length + bytes
+    let max_cut = size_of::<u64>() + 1; // varint
+    let address = id + max_cut;
+    let parent = 1 + 2 * address; // tag + two addresses
+    let length = size_of::<u32>() + 1; // varint
+    id + parent + length + length
+};
+
+/// Represents high-level data of a command.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct CommandMeta {
+    pub(crate) id: CmdId,
+    pub(crate) parent: Prior<Address>,
+    pub(crate) policy_length: u32,
+    pub(crate) length: u32,
+}

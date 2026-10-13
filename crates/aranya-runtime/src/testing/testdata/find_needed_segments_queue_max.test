@@ -1,27 +1,128 @@
 [
-  { "IgnoreExpectations": { "ignore": true } },
-
-  { "AddClient": { "id": 0 } },
-  { "AddClient": { "id": 1 } },
-  { "AddClient": { "id": 2 } },
-  { "AddClient": { "id": 3 } },
-
-  { "NewGraph": { "client": 0, "id": 0, "policy": 0 } },
-
-  { "Sync": { "graph": 0, "client": 1, "from": 0 } },
-  { "Sync": { "graph": 0, "client": 2, "from": 0 } },
-  { "Sync": { "graph": 0, "client": 3, "from": 0 } },
-
-  { "ActionSet": { "client": 1, "graph": 0, "key": 1, "value": 0 } },
-  { "ActionSet": { "client": 0, "graph": 0, "key": 0, "value": 0 } },
-  { "ActionSet": { "client": 3, "graph": 0, "key": 3, "value": 0 } },
-  { "Sync": { "graph": 0, "client": 3, "from": 1 } },
-  { "ActionSet": { "client": 2, "graph": 0, "key": 2, "value": 0 } },
-  { "ActionSet": { "client": 1, "graph": 0, "key": 1, "value": 0 } },
-  { "Sync": { "graph": 0, "client": 2, "from": 1 } },
-  { "Sync": { "graph": 0, "client": 0, "from": 3 } },
-  { "ActionSet": { "client": 3, "graph": 0, "key": 3, "value": 0 } },
-  { "Sync": { "graph": 0, "client": 2, "from": 3 } },
-  { "Sync": { "graph": 0, "client": 2, "from": 0 } },
-  { "Sync": { "graph": 0, "client": 0, "from": 2 } }
+  {
+    "IgnoreExpectations": {
+      "ignore": true
+    }
+  },
+  {
+    "AddClient": {
+      "client": 0
+    }
+  },
+  {
+    "AddClient": {
+      "client": 1
+    }
+  },
+  {
+    "AddClient": {
+      "client": 2
+    }
+  },
+  {
+    "AddClient": {
+      "client": 3
+    }
+  },
+  {
+    "NewGraph": {
+      "client": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 3,
+      "from": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 1,
+      "value": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 0,
+      "key": 0,
+      "value": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 3,
+      "key": 3,
+      "value": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 3,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 2,
+      "value": 0
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 1,
+      "value": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "Sync": {
+      "client": 0,
+      "from": 3
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 3,
+      "key": 3,
+      "value": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 3
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 0,
+      "from": 2
+    }
+  }
 ]

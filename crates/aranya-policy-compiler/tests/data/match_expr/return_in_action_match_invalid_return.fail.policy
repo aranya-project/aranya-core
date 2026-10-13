@@ -1,0 +1,6 @@
+action f() {
+    let x = match 0 {
+        0 => 1
+        _ => return 2
+    }
+}

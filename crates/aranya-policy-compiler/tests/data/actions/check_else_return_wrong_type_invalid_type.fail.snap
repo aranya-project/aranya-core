@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: int
+  |
+2 | action f() result[unit, string] {
+  |            -------------------- expected because of this
+3 |     check false else return 5
+  |                             ^ expected `result[unit, string]` but found `int`

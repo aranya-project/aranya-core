@@ -1,0 +1,58 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <action 'f'>: 1,
+    },
+    action_defs: [
+        ActionDef {
+            name: "f",
+            persistence: Persistent,
+            params: [
+                Field {
+                    name: "n",
+                    vtype: Int,
+                },
+            ],
+            result_type: Unit,
+        },
+    ],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<action 'f'>:
+    def 'n'
+    get 'n'
+    dup
+    const 0
+    eq
+    branch 8
+    jump 13
+<8>:
+    block
+    pop
+    const false
+    end
+    jump 18
+<13>:
+    block
+    pop
+    const true
+    end
+    jump 18
+<18>:
+    def 'b'
+    get 'b'
+    branch 22
+    exit panic
+<22>:
+    return

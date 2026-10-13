@@ -1,0 +1,5 @@
+function foo() int {
+    if true {}
+    else { let y = 0 }
+    return y
+}

@@ -5,15 +5,12 @@ use aranya_crypto::{
     afc::{RawOpenKey, RawSealKey},
     policy::LabelId,
 };
-use buggy::BugExt as _;
 
 use super::{
-    error::{Corrupted, Error, corrupted},
+    error::{Error, corrupted},
     path::{Flag, Mode, Path},
     shared::{ShmChan, State},
 };
-#[allow(unused_imports)]
-use crate::features::*;
 use crate::{
     RemoveIfParams,
     shm::shared::Op,
@@ -75,7 +72,7 @@ where
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
             // of borrowing rules.
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
+            let mut side = self.inner.shm().side(off)?.lock();
 
             if side.len >= side.cap {
                 // We're out of space.
@@ -105,7 +102,7 @@ where
             // Swap the pointers: the reader will now see the
             // updated list.
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
+            let mut side = self.inner.shm().side(off)?.lock();
 
             ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, peer_id, &keys, &self.rng);
 
@@ -134,17 +131,13 @@ where
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
             // borrowing rules.
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
+            let mut side = self.inner.shm().side(off)?.lock();
             if side.len == 0 {
                 return Ok(());
             }
 
-            let idx = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, _)) => i,
+            let idx = match side.find_mut(id, None, Op::Any)? {
+                Some((_, idx)) => idx.0,
                 // The channel wasn't found.
                 None => return Ok(()),
             };
@@ -166,7 +159,7 @@ where
             // Swap the pointers: the reader will now see the
             // updated list.
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
-            let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
+            let mut side = self.inner.shm().side(off)?.lock();
 
             // As a precaution, update the generation before we
             // do anything else.
@@ -193,7 +186,7 @@ where
 
         let write_off = {
             let off = self.inner.write_off(shm)?;
-            shm.side(off)?.lock().assume("poisoned")?.clear();
+            shm.side(off)?.lock().clear();
             off
         };
 
@@ -201,7 +194,7 @@ where
             // Swap the pointers: the reader will now see the
             // updated list.
             let off = self.inner.swap_offsets(shm, write_off)?;
-            shm.side(off)?.lock().assume("poisoned")?.clear();
+            shm.side(off)?.lock().clear();
             off
         };
 
@@ -217,7 +210,7 @@ where
             let off = self.inner.write_off(shm)?;
             // Load state after loading the write offset because
             // borrowing rules.
-            let mut side = shm.side(off)?.lock().assume("poisoned")?;
+            let mut side = shm.side(off)?.lock();
             if side.len == 0 {
                 return Ok(());
             }
@@ -229,7 +222,7 @@ where
             // Swap the pointers: the reader will now see the
             // updated list.
             let off = self.inner.swap_offsets(shm, write_off)?;
-            let mut side = shm.side(off)?.lock().assume("poisoned")?;
+            let mut side = shm.side(off)?.lock();
 
             // It's only possible to get here if `side.len > 0`.
             debug_assert!(side.len > 0);
@@ -245,8 +238,7 @@ where
     }
 
     fn exists(&self, id: LocalChannelId) -> Result<bool, Self::Error> {
-        let mutex = self.inner.load_write_list()?;
-        let list = mutex.lock().assume("poisoned")?;
+        let list = self.inner.load_write_list()?.lock();
         list.exists(id, None, Op::Any)
     }
 }

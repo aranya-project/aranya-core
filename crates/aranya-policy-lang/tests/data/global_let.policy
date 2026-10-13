@@ -1,11 +1,9 @@
 let x = 42
 let z = true
 
-action foo() {
-    let a = unwrap add(x, 1)
+action foo() result[unit, unit] {
+    let a = add(x, 1) or return Err(Unit)
     let c = !z
-    emit Bar {
-        a: a,
-        c: c,
-    }
+    emit Bar { a, c }
+    return Ok(Unit)
 }

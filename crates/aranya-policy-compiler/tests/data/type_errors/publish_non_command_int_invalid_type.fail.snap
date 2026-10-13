@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: int
+  |
+2 |     publish 3
+  |             ^ expected `struct T` but found `int`

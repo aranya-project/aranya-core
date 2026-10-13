@@ -1,0 +1,7 @@
+function f() int { return 3 }
+command A {
+    attributes { i: f() }
+    policy {
+        finish {}
+    }
+}

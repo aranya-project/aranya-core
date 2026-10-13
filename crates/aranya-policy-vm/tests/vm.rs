@@ -6,16 +6,30 @@ mod bits;
 use std::{collections::BTreeMap, iter};
 
 use aranya_crypto::{BaseId, DeviceId, policy::CmdId};
-use aranya_policy_ast::{self as ast, Version};
+use aranya_policy_ast::Version;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
-    MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext, PolicyContext,
-    RunState, SealContext, Stack as _, Struct, Value, ident, text,
+    ActionContext, CommandContext, ConstStruct, ConstValue, ExitReason, FactValue, Field,
+    Identifier, KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineStack, Module,
+    PolicyContext, RunState, Stack as _, Struct, StructDef, Value, ident, text,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
+
+// Helper function which parses and compiles policy expecting success.
+#[track_caller]
+fn compile(text: &str) -> Machine {
+    let text = text.trim_start_matches('\n');
+    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .debug(true)
+        .allow_baseless(true)
+        .compile()
+        .unwrap();
+    Machine::from_module(module).unwrap()
+}
 
 fn dummy_ctx_action(name: Identifier) -> CommandContext {
     CommandContext::Action(ActionContext {
@@ -24,28 +38,8 @@ fn dummy_ctx_action(name: Identifier) -> CommandContext {
     })
 }
 
-fn dummy_ctx_seal(name: Identifier) -> CommandContext {
-    CommandContext::Seal(SealContext {
-        name,
-        head_id: CmdId::default(),
-    })
-}
-
-fn dummy_ctx_open(name: Identifier) -> CommandContext {
-    CommandContext::Open(OpenContext { name })
-}
-
 fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     CommandContext::Policy(PolicyContext {
-        name,
-        id: CmdId::default(),
-        author: DeviceId::default(),
-        version: BaseId::default(),
-    })
-}
-
-fn dummy_ctx_recall(name: Identifier) -> CommandContext {
-    CommandContext::Recall(PolicyContext {
         name,
         id: CmdId::default(),
         author: DeviceId::default(),
@@ -81,23 +75,17 @@ fn test_bytes() -> anyhow::Result<()> {
                 id_field id,
                 x bytes,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         action foo(id_input id, x bytes) {
-            publish Foo{id_field: id_input, x: x}
+            publish Foo{id_field: id_input, x}
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     {
         let name = ident!("foo");
         let ctx = dummy_ctx_action(name.clone());
@@ -135,41 +123,30 @@ fn test_structs() -> anyhow::Result<()> {
                 id_field id,
                 bar struct Bar,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         action foo(id_input id, x int) {
             publish Foo{
                 id_field: id_input,
-                bar: Bar {
-                    x: x
-                },
+                bar: Bar { x },
             }
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     assert_eq!(
-        machine.struct_defs.get("Bar"),
-        Some(&vec![ast::FieldDefinition {
-            identifier: ast::Ident {
+        machine.struct_defs.get(&ident!("Bar")),
+        Some(&StructDef {
+            name: ident!("Bar"),
+            items: vec![Field {
                 name: ident!("x"),
-                span: ast::Span::new(34, 35)
-            },
-            field_type: ast::VType {
-                kind: ast::TypeKind::Int,
-                span: ast::Span::new(36, 39)
-            }
-        }])
+                vtype: aranya_policy_module::TypeKind::Int,
+            }]
+        })
     );
 
     {
@@ -196,17 +173,12 @@ fn test_structs() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Basic entry points - action, policy, seal, open (TODO: recall)
+// Basic entry points - action, policy (TODO: recall)
 
 #[test]
 fn test_action() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
-
     let name = ident!("foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(TEST_POLICY_1);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -221,11 +193,8 @@ fn test_action() -> anyhow::Result<()> {
 
 #[test]
 fn test_action_wrong_args() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
-
     let name = ident!("foo");
-    let module = Compiler::new(&policy).compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_1);
     let ctx = dummy_ctx_action(name.clone());
 
     // wrong number of args
@@ -268,9 +237,7 @@ fn test_action_wrong_args() -> anyhow::Result<()> {
 
 #[test]
 fn test_action_call_action() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1, Version::V2).expect("should parse");
-    let module = Compiler::new(&policy).compile().expect("should compile");
-    let machine = Machine::from_module(module).expect("should create machine");
+    let machine = compile(TEST_POLICY_1);
     let mut io = TestIO::new();
     let mut published = Vec::new();
 
@@ -291,14 +258,37 @@ fn test_action_call_action() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_command_policy() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
+fn test_action_call_expression() -> anyhow::Result<()> {
+    // An action call is an expression, so `outer` can propagate `inner`'s result.
+    let machine = compile(
+        r#"
+        action inner() result[unit, string] {
+            return Err("inner fail")
+        }
 
+        action outer() result[unit, string] {
+            return action inner()
+        }
+    "#,
+    );
+
+    let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(ident!("outer"));
+    let mut rs = machine.create_run_state(&mut io, ctx);
+    rs.call_action(ident!("outer"), iter::empty::<Value>())?
+        .success();
+    assert_eq!(
+        rs.stack.pop_value()?,
+        Value::Result(Err(Box::new(Value::String(text!("inner fail")))))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_command_policy() -> anyhow::Result<()> {
     let name = ident!("Foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_1);
     let ctx = dummy_ctx_policy(name.clone());
     let mut io = TestIO::new();
 
@@ -320,14 +310,9 @@ fn test_command_policy() -> anyhow::Result<()> {
 
 #[test]
 fn test_command_invalid_this() {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2).expect("should parse");
+    let mut machine = compile(TEST_POLICY_1);
 
     let name = ident!("Foo");
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()
-        .expect("should compile");
-    let mut machine = Machine::from_module(module).expect("should create machine");
     let ctx = dummy_ctx_policy(name.clone());
 
     // invalid field count
@@ -392,12 +377,7 @@ fn test_command_invalid_this() {
 
 #[test]
 fn test_fact_create_delete() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V2)?;
-
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_2);
     let mut io = TestIO::new();
 
     // We have to scope the RunState so that it and its mutable
@@ -431,12 +411,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
 
 #[test]
 fn test_fact_query() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V2)?;
-
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(TEST_POLICY_2);
     let mut io = TestIO::new();
 
     {
@@ -465,12 +440,7 @@ fn test_fact_query() -> anyhow::Result<()> {
 #[test]
 fn test_invalid_update() -> anyhow::Result<()> {
     fn run(initial_value: i64) -> anyhow::Result<ExitReason> {
-        let policy = parse_policy_str(POLICY_TEST_UPDATE.trim(), Version::V2)?;
-
-        let module = Compiler::new(&policy)
-            .ffi_modules(TestIO::FFI_SCHEMAS)
-            .compile()?;
-        let mut machine = Machine::from_module(module)?;
+        let mut machine = compile(POLICY_TEST_UPDATE);
         let mut io = TestIO::new();
 
         let exit = {
@@ -517,8 +487,6 @@ fn test_fact_exists() -> anyhow::Result<()> {
 
     command setup {
         fields {}
-        seal { return todo() }
-        open { return todo() }
         policy {
             finish {
                 create Foo[] => {x: 3}
@@ -528,30 +496,25 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
 
     action testExists() {
-        check exists Foo[] => {x: 3}
-        check exists Foo[]
-        check exists Bar[i: 1] => {s: "abc", b: Bool::True}
+        check exists Foo[] => {x: 3} else test_fail()
+        check exists Foo[] else test_fail()
+        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail()
 
-        check exists Foo[] => {x: ?}
-        check exists Bar[i: ?] => {s: ?, b: Bool::True}
+        check exists Foo[] => {x: ?} else test_fail()
+        check exists Bar[i: ?] => {s: ?, b: Bool::True} else test_fail()
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:Bool::True}
-        check !exists Bar[i:1] => {s:"", b:Bool::True}
-        check !exists Bar[i: ?]=>{s: "ab", b: ?}
+        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else test_fail()
+        check !exists Bar[i:1] => {s:"", b:Bool::True} else test_fail()
+        check !exists Bar[i: ?]=>{s: "ab", b: ?} else test_fail()
     }
     "#;
 
-    let policy = parse_policy_str(text.trim(), Version::V2)?;
-
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     {
         let name = ident!("setup");
         let ctx = dummy_ctx_policy(name.clone());
@@ -577,8 +540,6 @@ fn test_counting() -> anyhow::Result<()> {
         fact Foo[i int]=>{}
 
         command Setup {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Foo[i:1]=>{}
@@ -589,62 +550,49 @@ fn test_counting() -> anyhow::Result<()> {
         }
 
         command TestUpTo {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
-                check count_one == 1
+                check count_one == 1 else test_fail()
                 let count_two = count_up_to 2 Foo[i:?]
-                check count_two == 2
+                check count_two == 2 else test_fail()
                 let count_all = count_up_to 10 Foo[i:?]
-                check count_all == 3
+                check count_all == 3 else test_fail()
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
-                check count_max == 3
+                check count_max == 3 else test_fail()
                 finish {}
             }
         }
 
         command TestAtLeast {
-            seal { return todo() }
-            open { return todo() }
             policy {
-                check at_least 1 Foo[i:?]
-                check at_least 3 Foo[i:?]
-                check at_least 4 Foo[i:?] == false
+                check at_least 1 Foo[i:?] else test_fail()
+                check at_least 3 Foo[i:?] else test_fail()
+                check at_least 4 Foo[i:?] == false else test_fail()
                 finish {}
             }
         }
 
         command TestAtMost {
-            seal { return todo() }
-            open { return todo() }
             policy {
-                check at_most 1 Foo[i:?] == false
-                check at_most 3 Foo[i:?]
-                check at_most 4 Foo[i:?]
+                check at_most 1 Foo[i:?] == false else test_fail()
+                check at_most 3 Foo[i:?] else test_fail()
+                check at_most 4 Foo[i:?] else test_fail()
                 finish {}
             }
         }
 
         command TestExactly {
-            seal { return todo() }
-            open { return todo() }
             policy {
-                check exactly 1 Foo[i:?] == false
-                check exactly 3 Foo[i:?]
-                check exactly 4 Foo[i:?] == false
+                check exactly 1 Foo[i:?] == false else test_fail()
+                check exactly 3 Foo[i:?] else test_fail()
+                check exactly 4 Foo[i:?] == false else test_fail()
                 finish {}
             }
         }
     "#;
 
-    let policy = parse_policy_str(text.trim(), Version::V2)?;
-
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let name = ident!("Setup");
@@ -709,7 +657,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
         // This tests the implicitly defined struct as a return type
         function get_foo(a int) struct Foo {
-            let foo = unwrap query Foo[a: a]=>{b: ?}
+            let foo = query Foo[a]=>{b: ?} or test_fail()
 
             return foo
         }
@@ -721,8 +669,6 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 x int,
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
                 finish {
@@ -737,24 +683,18 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 a int
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
                 let x = get_foo(this.a)
                 finish {
-                    emit Result { x: x }
+                    emit Result { x }
                 }
             }
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     let a = Value::Int(1);
 
@@ -813,8 +753,6 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         command Setup {
             fields {}
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Foo[i: 1, j: 1]=>{x: 1, s: "a"}
@@ -824,36 +762,34 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Foo[i: 1, j: ?]
-            check f.x == 1
-            let f2 = unwrap query Foo[i: ?, j: ?]
-            check f2.x == 1
-            let f3 = unwrap query Foo[i:2, j:?]
-            check f3.x == 3
+            let f = query Foo[i: 1, j: ?] or test_fail()
+            check f.x == 1 else test_fail()
+            let f2 = query Foo[i: ?, j: ?] or test_fail()
+            check f2.x == 1 else test_fail()
+            let f3 = query Foo[i:2, j:?] or test_fail()
+            check f3.x == 3 else test_fail()
 
             // bind value
-            let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
-            check f4.x == 3
+            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or test_fail()
+            check f4.x == 3 else test_fail()
             // bind key and value
-            let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
-            check f5.x == 3
+            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or test_fail()
+            check f5.x == 3 else test_fail()
         }
 
         action test_nonexistent() {
-            let f = unwrap query Foo[i:?, j:?]
+            let f = query Foo[i:?, j:?] or test_fail()
         }
 
         action test_exists() {
-            check exists Foo[i:1, j:?]
-            check exists Foo[i:-1, j:?] == false
-            check !exists Foo[i:1, j:?] => {x:-1, s:?}
+            check exists Foo[i:1, j:?] else test_fail()
+            check exists Foo[i:-1, j:?] == false else test_fail()
+            check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail()
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let cmd_name = ident!("Setup");
@@ -895,8 +831,6 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
         command Setup {
             fields {}
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create Bar[i: Foo::A] => {x: Foo::A}
@@ -906,15 +840,13 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Bar[i:Foo::A] => {x: ?}
-            check f.x == Foo::A
+            let f = query Bar[i:Foo::A] => {x: ?} or test_fail()
+            check f.x == Foo::A else test_fail()
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let cmd_name = ident!("Setup");
@@ -944,20 +876,16 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
 #[test]
 fn test_not_operator() -> anyhow::Result<()> {
-    let policy = parse_policy_str(
-        r#"
+    let text = r#"
         action test() {
-            check !false
+            check !false else test_fail()
         }
-    "#,
-        Version::V2,
-    )?;
+    "#;
 
     let name = ident!("test");
     let ctx = dummy_ctx_action(name.clone());
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
     rs.call_action(name, iter::empty::<Value>())?.success();
 
@@ -969,48 +897,24 @@ fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
             if x == true {
-                check true == false
+                check false else test_fail()
             }
         }
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
-    let result = rs.call_action(name, [true])?;
-    assert_eq!(result, ExitReason::Check);
+    let result = rs.call_action(name.clone(), [true])?;
+    assert_eq!(result, ExitReason::Panic);
+    assert!(rs.stack.is_empty());
 
-    Ok(())
-}
-
-#[test]
-fn test_if_false() -> anyhow::Result<()> {
-    let text = r#"
-        action foo(x bool) {
-            if x == true {
-                check true == false
-            }
-        }
-    "#;
-
-    let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
-    let mut io = TestIO::new();
-    let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-    let mut rs = machine.create_run_state(&mut io, ctx);
-
-    rs.call_action(name, [false])?.success();
+    let result = rs.call_action(name, [false])?;
+    assert_eq!(result, ExitReason::Normal);
+    assert!(rs.stack.is_empty());
 
     Ok(())
 }
@@ -1022,35 +926,29 @@ fn test_if_branches() -> anyhow::Result<()> {
             fields {
                 s string
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         action foo(x int) {
             if x == 0 {
-                check true
+                check true else test_fail()
                 publish Result { s: "0" }
-                check true
+                check true else test_fail()
             } else if x == 1 {
                 publish Result { s: "1" }
             } else if x == 2 {
-                check true
+                check true else test_fail()
                 publish Result { s: "2" }
             } else {
                 publish Result { s: "3" }
-                check true
+                check true else test_fail()
             }
         }
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     for i in 0i64..4 {
         let mut io = TestIO::new();
@@ -1069,12 +967,10 @@ fn test_if_branches() -> anyhow::Result<()> {
 #[test]
 fn test_match_first() -> anyhow::Result<()> {
     let name = ident!("foo");
-    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_MATCH);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     call_action(&mut rs, &mut published, name, [5])?.success();
@@ -1088,9 +984,7 @@ fn test_match_first() -> anyhow::Result<()> {
 #[test]
 fn test_match_second() -> anyhow::Result<()> {
     let name = ident!("foo");
-    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_MATCH);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1107,9 +1001,7 @@ fn test_match_second() -> anyhow::Result<()> {
 #[test]
 fn test_match_default_2() -> anyhow::Result<()> {
     let name = ident!("foo");
-    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_MATCH);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
 
@@ -1130,26 +1022,22 @@ fn test_match_alternation() -> anyhow::Result<()> {
             fields {
                 x int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         action foo(x int) {
             match x {
                 0 | 1 => {
-                    check false
+                    check false else test_fail()
                 }
                 5 | 6 | 7 => {
-                    publish Result { x: x }
+                    publish Result { x }
                 }
                 _ => {}
             }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let action_name = ident!("foo");
@@ -1169,15 +1057,13 @@ fn test_match_default() -> anyhow::Result<()> {
             fields {
                 x int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         action foo(x int) {
             match x {
                 5 => {
-                    publish Result { x: x }
+                    publish Result { x }
                 }
                 _ => {
                     publish Result { x: 0 }
@@ -1186,9 +1072,7 @@ fn test_match_default() -> anyhow::Result<()> {
         }
     "#;
     let name = ident!("foo");
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1205,7 +1089,7 @@ fn test_match_default() -> anyhow::Result<()> {
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
         action foo(val int) {
-            check val == bar()
+            check val == bar() else test_fail()
         }
 
         function bar() int {
@@ -1216,10 +1100,8 @@ fn test_match_return() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let name = ident!("foo");
     let ctx = dummy_ctx_action(name.clone());
     let mut rs = machine.create_run_state(&mut io, ctx);
@@ -1233,8 +1115,6 @@ fn test_match_expression() -> anyhow::Result<()> {
     let text = r#"
         command F {
             fields { x int }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
         action foo(x int) {
@@ -1245,11 +1125,7 @@ fn test_match_expression() -> anyhow::Result<()> {
             publish F { x: y }
         }
     "#;
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let name = ident!("foo");
@@ -1265,11 +1141,44 @@ fn test_match_expression() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_match_optional_binding() -> anyhow::Result<()> {
+    let text = r#"
+        command F {
+            fields { x int }
+            policy {}
+        }
+        action foo(o option[int]) {
+            let y = match o {
+                Some(n) => n
+                None => 0
+            }
+            publish F { x: y }
+        }
+    "#;
+    let machine = compile(text);
+    let mut io = TestIO::new();
+    let mut published = Vec::new();
+    let name = ident!("foo");
+
+    // None arm
+    let mut rs = machine.create_run_state(&mut io, dummy_ctx_action(name.clone()));
+    call_action(&mut rs, &mut published, name.clone(), [Value::NONE])?.success();
+    assert_eq!(published, [vm_struct!(F { x: 0 })],);
+    published.clear();
+    drop(rs);
+
+    // Some(n) binding arm
+    let mut rs = machine.create_run_state(&mut io, dummy_ctx_action(name.clone()));
+    call_action(&mut rs, &mut published, name, [Some(42)])?.success();
+    assert_eq!(published, [vm_struct!(F { x: 42 })],);
+
+    Ok(())
+}
+
+#[test]
 fn test_is_some_statement() -> anyhow::Result<()> {
     let name = ident!("check_none");
-    let policy = parse_policy_str(POLICY_IS, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_IS);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1287,9 +1196,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 #[test]
 fn test_is_none_statement() -> anyhow::Result<()> {
     let name = ident!("check_none");
-    let policy = parse_policy_str(POLICY_IS, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(POLICY_IS);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let ctx = dummy_ctx_action(name.clone());
@@ -1309,21 +1216,17 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
         if x {
-            check x
+            check x else test_fail()
         }
         if !y {
-            check !y
+            check !y else test_fail()
         }
     }
     "#;
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     let mut rs = machine.create_run_state(&mut io, ctx);
     rs.call_action(name, [true, false])?.success();
@@ -1338,13 +1241,11 @@ fn test_pure_function() -> anyhow::Result<()> {
             fields {
                 x int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         function f(x int) int {
-            return unwrap add(x, 1)
+            return add(x, 1) or test_fail()
         }
 
         action foo(x int) {
@@ -1352,13 +1253,9 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     {
         let name = ident!("foo");
@@ -1380,7 +1277,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
 
         finish function f(x int) {
-            emit Result { x: x }
+            emit Result { x }
         }
 
         command Foo {
@@ -1388,8 +1285,6 @@ fn test_finish_function() -> anyhow::Result<()> {
                 x int,
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
                 finish {
@@ -1399,12 +1294,8 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let mut machine = compile(text);
 
     {
         let name = ident!("Foo");
@@ -1427,151 +1318,163 @@ fn test_finish_function() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_serialize_deserialize() -> anyhow::Result<()> {
-    let text = r#"
-        struct Envelope {
-            payload bytes
-        }
-
-        command Foo {
-            fields {
-                a int,
-                b string,
-            }
-
-            seal {
-                return Envelope {
-                    payload: serialize(this)
+fn test_check_errors() -> anyhow::Result<()> {
+    let cases = [
+        r#"command Foo {
+                fields {}
+                policy {
+                    check false else recall default()
                 }
-            }
-            open {
-                // Don't access payload this way. See below.
-                return deserialize(envelope.payload)
-            }
+                recall default() {
+                }
+            }"#,
+        r#"command Foo {
+                fields {}
+                policy {
+                    check false else recall bar()
+                }
+                recall bar() {
+                }
+            }"#,
+    ];
 
-            policy {
-                finish {}
-            }
-        }
-    "#;
-
-    let this_struct = Struct::new(
-        ident!("Foo"),
-        [
-            KVPair::new(ident!("a"), Value::Int(1)),
-            KVPair::new(ident!("b"), Value::String(text!("foo"))),
-        ],
-    );
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-
-    let name = ident!("Foo");
-    let this_bytes: Vec<u8> = {
-        let ctx = dummy_ctx_seal(name.clone());
+    for input in cases {
+        let mut io = TestIO::new();
+        let machine = compile(input);
+        let name = ident!("Foo");
+        let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_seal(this_struct.clone())?.success();
-        let result = rs.consume_return()?;
-        let mut envelope: Struct = result.try_into()?;
-        let payload = envelope
-            .fields
-            .remove("payload")
-            .expect("envelope has no payload");
-        payload.try_into()?
-    };
+        let self_struct = Struct {
+            name: name.clone(),
+            fields: BTreeMap::new(),
+        };
+        let result = rs.call_command_policy(self_struct, dummy_envelope())?;
 
-    {
-        let ctx = dummy_ctx_open(name.clone());
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        // call_open expects an envelope struct, so we smuggle the bytes
-        // in through a field. The payload would normally be accessed
-        // through an FFI module.
-        let envelope = Struct::new(
-            ident!("Env"),
-            [KVPair::new(ident!("payload"), Value::Bytes(this_bytes))],
-        );
-        rs.call_open(name, envelope)?.success();
-        let result = rs.consume_return()?;
-        let got_this: Struct = result.try_into()?;
-        assert_eq!(got_this, this_struct);
+        assert_eq!(result, ExitReason::Check);
     }
-
     Ok(())
 }
 
 #[test]
-fn test_check_unwrap() -> anyhow::Result<()> {
+fn test_coalesce_or() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i int]=>{x int}
 
         command Setup {
             fields {}
-
-            seal {
-                return todo()
-            }
-            open {
-                return todo()
-            }
-
             policy {
                 finish {
-                    create Foo[i: 1]=>{x: 1}
+                    create Foo[i: 1]=>{x: 42}
                 }
             }
         }
 
-        action test_existing() {
-            let f = check_unwrap query Foo[i: 1]
-            check f.x == 1
+        action test_some_or() {
+            let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
+            check f.x == 42 else test_fail()
         }
 
-        action test_nonexistent() {
-            let f = check_unwrap query Foo[i: 0]
-            check false // would exit(panic), but check_unwrap should exit(check) first
+        action test_none_or() {
+            let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
+            check f.x == 99 else test_fail()
+        }
+
+        action test_chain() {
+            let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
+            check f.x == 77 else test_fail()
+        }
+
+        action test_chain_first_some() {
+            let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
+            check f.x == 42 else test_fail()
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
+    // Setup: create the fact
     {
         let cmd_name = ident!("Setup");
         let this_data = Struct {
             name: cmd_name.clone(),
             fields: [].into(),
         };
-
         let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, ctx);
         rs.call_command_policy(this_data, dummy_envelope())?
             .success();
     }
 
+    // Test: Some(v) or default → v
     {
-        let action_name = ident!("test_existing");
+        let action_name = ident!("test_some_or");
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         rs.call_action(action_name, iter::empty::<Value>())?
             .success();
     }
 
+    // Test: None or default → default
     {
-        let action_name = ident!("test_nonexistent");
+        let action_name = ident!("test_none_or");
         let ctx = dummy_ctx_action(action_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
-        let status = rs.call_action(action_name, iter::empty::<Value>())?;
-        assert_eq!(status, ExitReason::Check);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
     }
 
+    // Test: None or None or default → default (chain)
+    {
+        let action_name = ident!("test_chain");
+        let ctx = dummy_ctx_action(action_name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    // Test: Some(v) or None or default → v (first match wins)
+    {
+        let action_name = ident!("test_chain_first_some");
+        let ctx = dummy_ctx_action(action_name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_nested_optionals() -> anyhow::Result<()> {
+    // One check per action so a failure points at the specific case.
+    let checks = [
+        "Some(None) != None",
+        "Some(None) == Some(None)",
+        "Some(None) is Some",
+        "Some(Some(5)) is Some",
+        "Some(Some(5)) == Some(Some(5))",
+        "Some(Some(5)) != Some(Some(1))",
+    ];
+
+    let actions = checks
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("action c{i}() {{ check {c} else test_fail(\"check failed\") }}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let machine = compile(&actions);
+
+    for (i, c) in checks.iter().enumerate() {
+        let mut io = TestIO::new();
+        let name: Identifier = format!("c{i}").try_into().expect("valid ident");
+        let ctx = dummy_ctx_action(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let exit = rs
+            .call_action(name, iter::empty::<Value>())
+            .unwrap_or_else(|e| panic!("check {i} `{c}` errored: {e}"));
+        assert_eq!(exit, ExitReason::Normal, "check {i} `{c}` failed: {exit:?}");
+    }
     Ok(())
 }
 
@@ -1582,64 +1485,46 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             payload bytes
         }
 
+        effect Recalled {}
+
         command Foo {
             fields {
                 test bytes
             }
-            seal { return todo() }
-            open { return todo() }
 
             policy {
-                check envelope.payload == this.test
-                finish {}
+                check false else recall default()
             }
 
-            recall {
-                check envelope.payload == this.test
-                finish {}
+            recall default() {
+                check envelope.payload == this.test else test_fail("invalid envelope")
+                finish {
+                    emit Recalled {}
+                }
             }
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let test_data = "thing".as_bytes().to_vec();
 
-    {
-        let name = ident!("Foo");
-        let ctx = dummy_ctx_policy(name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(
-            Struct::new(
-                ident!("Foo"),
-                [KVPair::new(ident!("test"), test_data.clone().into())],
-            ),
-            Struct::new(
-                ident!("Envelope"),
-                [KVPair::new(ident!("payload"), test_data.clone().into())],
-            ),
-        )?
-        .success();
-    }
-
-    {
-        let name = ident!("Foo");
-        let ctx = dummy_ctx_recall(name);
-        let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_recall(
-            Struct::new(
-                ident!("Foo"),
-                [KVPair::new(ident!("test"), test_data.clone().into())],
-            ),
-            Struct::new(
-                ident!("Envelope"),
-                [KVPair::new(ident!("payload"), test_data.into())],
-            ),
-        )?
-        .success();
-    }
+    let name = ident!("Foo");
+    let ctx = dummy_ctx_policy(name);
+    let mut rs = machine.create_run_state(&mut io, ctx);
+    let result = rs.call_command_policy(
+        Struct::new(
+            ident!("Foo"),
+            [KVPair::new(ident!("test"), test_data.clone().into())],
+        ),
+        Struct::new(
+            ident!("Envelope"),
+            [KVPair::new(ident!("payload"), test_data.into())],
+        ),
+    )?;
+    assert_eq!(result, ExitReason::Check);
+    // Recall body ran with `envelope` and `this` in scope, reached `finish`.
+    assert_eq!(io.effect_stack[0].0, ident!("Recalled"));
 
     Ok(())
 }
@@ -1746,55 +1631,44 @@ fn test_global_let_statements() -> anyhow::Result<()> {
                 c bool,
                 d struct Bar,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         action foo() {
-            let a = unwrap add(x, 1)
+            let a = add(x, 1) or test_fail()
             let b = y
             let c = !z
-            publish Result {
-                a: a,
-                b: b,
-                c: c,
-                d: d,
-            }
+            publish Result { a, b, c, d }
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     // Check if the global variables are defined correctly in the machine
     assert_eq!(machine.globals, {
         BTreeMap::from([
             (
                 ident!("d"),
-                Value::Struct(Struct {
+                ConstValue::Struct(ConstStruct {
                     name: ident!("Bar"),
                     fields: BTreeMap::from([
                         (
                             ident!("a"),
-                            Value::Struct(Struct {
+                            ConstValue::Struct(ConstStruct {
                                 name: ident!("Far"),
-                                fields: BTreeMap::from([(ident!("a"), Value::Int(3))]),
+                                fields: BTreeMap::from([(ident!("a"), ConstValue::Int(3))]),
                             }),
                         ),
-                        (ident!("b"), Value::String(text!("y"))),
-                        (ident!("c"), Value::Bool(false)),
+                        (ident!("b"), ConstValue::String(text!("y"))),
+                        (ident!("c"), ConstValue::Bool(false)),
                     ]),
                 }),
             ),
-            (ident!("x"), Value::Int(42)),
-            (ident!("y"), Value::String(text!("hello world"))),
-            (ident!("z"), Value::Bool(true)),
+            (ident!("x"), ConstValue::Int(42)),
+            (ident!("y"), ConstValue::String(text!("hello world"))),
+            (ident!("z"), ConstValue::Bool(true)),
         ])
     });
 
@@ -1829,8 +1703,6 @@ fn test_enum_reference() -> anyhow::Result<()> {
             fields {
                 a string
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
@@ -1852,9 +1724,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
 
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let name = ident!("test");
@@ -1900,9 +1770,7 @@ where
 
 #[test]
 fn test_enum_parse() -> anyhow::Result<()> {
-    let policy = parse_policy_str("enum Drink { Water, Coffee }", Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile("enum Drink { Water, Coffee }");
 
     assert_eq!(
         machine.parse_enum("Drink").unwrap_err().err_type,
@@ -1910,7 +1778,7 @@ fn test_enum_parse() -> anyhow::Result<()> {
     );
     assert_eq!(
         machine.parse_enum("Drink::").unwrap_err().err_type,
-        MachineErrorType::NotDefined("no value `` in enum `Drink`".to_owned())
+        MachineErrorType::NotDefined("Bad enum variant: identifier must not be empty".to_owned())
     );
     assert_eq!(
         machine.parse_enum("Coffee").unwrap_err().err_type,
@@ -1949,12 +1817,10 @@ command Set {
 fields {
     a int,
 }
-seal { return todo() }
-open { return todo() }
 policy {
     let x = this.a
     finish {
-        create Foo[]=>{x: x}
+        create Foo[]=>{x}
         emit Update{value: x}
     }
 }
@@ -1962,8 +1828,6 @@ policy {
 
 command Clear {
 fields {}
-seal { return todo() }
-open { return todo() }
 policy {
     finish {
         delete Foo[]
@@ -1973,24 +1837,25 @@ policy {
 
 command Increment {
 fields {}
-seal { return todo() }
-open { return todo() }
 policy {
-    let r = unwrap query Foo[]=>{x: ?}
-    let new_x = unwrap add(r.x, 1)
+    let r = query Foo[]=>{x: ?} or test_fail()
+    let new_x = add(r.x, 1) or test_fail()
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
         emit Update{value: new_x}
     }
 }
 }
-"#
-        .trim(),
+"#,
         Version::V2,
     )
     .unwrap();
 
-    let want = Compiler::new(&policy).compile().unwrap();
+    let want = Compiler::new(&policy)
+        .debug(true)
+        .allow_baseless(true)
+        .compile()
+        .unwrap();
     let machine = Machine::from_module(want.clone());
 
     let data = {
@@ -2012,8 +1877,6 @@ fn test_map() -> anyhow::Result<()> {
         }
 
         command Setup {
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     create F[i:1]=>{n:1}
@@ -2027,8 +1890,6 @@ fn test_map() -> anyhow::Result<()> {
             fields {
                 value int
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {
                     emit Result {
@@ -2045,11 +1906,7 @@ fn test_map() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut io = TestIO::new();
     let mut published = Vec::new();
 
@@ -2106,8 +1963,6 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
                 maybe_int option[int],
                 name string,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {
                 finish {}
             }
@@ -2118,13 +1973,9 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
 
     let cases = [
         (
@@ -2196,8 +2047,6 @@ fn test_block_expression() -> anyhow::Result<()> {
                 x int
             }
 
-            seal { return todo() }
-            open { return todo() }
 
             policy {
             }
@@ -2212,19 +2061,14 @@ fn test_block_expression() -> anyhow::Result<()> {
             }
 
             publish TestCommand {
-                x: x
+                x
             }
         }
-    "#
-    .trim();
+    "#;
 
-    let policy = parse_policy_str(policy_text, Version::V2)?;
     let mut io = TestIO::new();
     let mut published = Vec::new();
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_text);
     let name = ident!("test");
     let args: [Value; 0] = [];
     let ctx = dummy_ctx_action(name.clone());
@@ -2245,8 +2089,6 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
                 x int,
                 y bool,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
         struct Bar {
@@ -2258,9 +2100,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
             publish source substruct Foo
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let action_name = ident!("baz");
@@ -2295,8 +2135,6 @@ fn test_struct_composition() -> anyhow::Result<()> {
                 y bool,
                 z string,
             }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
         struct Bar {
@@ -2305,12 +2143,10 @@ fn test_struct_composition() -> anyhow::Result<()> {
             z string,
         }
         action baz(source struct Bar, x int) {
-            publish Foo { x: x, ...source }
+            publish Foo { x, ...source }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy_str);
     let mut io = TestIO::new();
     let mut published = Vec::new();
     let action_name = ident!("baz");
@@ -2351,10 +2187,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 #[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
-        let module = Compiler::new(&policy).compile().expect("compile");
-        let machine = Machine::from_module(module).expect("machine");
+        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2379,37 +2212,48 @@ fn test_boolean_operators() {
 #[test]
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
-        let module = Compiler::new(&policy)
-            .debug(true)
-            .compile()
-            .expect("compile");
-        let machine = Machine::from_module(module).expect("machine");
+        let machine = compile(&format!(
+            "action f() result[unit, int] {{ check {expr} else return Err(0) return Ok(Unit) }}"
+        ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
 
-        let exit = rs
-            .call_action(ident!("f"), iter::empty::<Value>())
-            .expect("action runs");
-        assert!(rs.stack.is_empty());
-        exit
+        rs.call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs")
     }
 
-    assert_eq!(run("true && todo()"), ExitReason::Panic);
-    assert_eq!(run("false && todo()"), ExitReason::Check);
-    assert_eq!(run("true || todo()"), ExitReason::Normal);
-    assert_eq!(run("false || todo()"), ExitReason::Panic);
+    // `todo()` panics if it runs. A failing `check` runs its `else return Err(..)`,
+    // exiting `Normal`. So `Panic` means `todo()` evaluated; `Normal` means it did
+    // not (the check either passed, or failed and returned Err).
+    assert_eq!(run("true && todo()"), ExitReason::Panic); // todo runs in &&
+    assert_eq!(run("false && todo()"), ExitReason::Normal); // && short-circuits → check fails → return Err
+    assert_eq!(run("true || todo()"), ExitReason::Normal); // || short-circuits, check passes
+    assert_eq!(run("false || todo()"), ExitReason::Panic); // todo runs in ||
+}
+
+#[test]
+fn test_test_fail() {
+    fn run(cond: &str) -> ExitReason {
+        let machine = compile(&format!("action f() {{ check {cond} else test_fail() }}"));
+        let mut io = TestIO::new();
+        let ctx = dummy_ctx_action(ident!("f"));
+        let mut rs = machine.create_run_state(&mut io, ctx);
+
+        rs.call_action(ident!("f"), iter::empty::<Value>())
+            .expect("action runs")
+    }
+
+    // Passing check should continue
+    assert_eq!(run("true"), ExitReason::Normal);
+    // Failing check should panic
+    assert_eq!(run("false"), ExitReason::Panic);
 }
 
 #[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
-        let policy = parse_policy_str(&format!("action f() {{ check {expr} }}"), Version::V2)
-            .expect("parse");
-        let module = Compiler::new(&policy).compile().expect("compile");
-        let machine = Machine::from_module(module).expect("machine");
+        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2438,13 +2282,11 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 
         command Bar {
             fields { x int, y string }
-            seal { return todo() }
-            open { return todo() }
             policy {}
         }
 
         function new_foo(x int, y string) struct Foo {
-            return Foo { y:y, x: x }
+            return Foo { y, x }
         }
 
         action test() {
@@ -2456,9 +2298,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
         }
         "#;
 
-    let policy = parse_policy_str(policy, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(policy);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2504,31 +2344,30 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check true
+            check true else test_fail()
             // before
-            check false
+            check false else test_fail()
             // after
-            check true
+            check true else test_fail()
         }
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     let result = rs.call_action(name, iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Check);
+    assert_eq!(result, ExitReason::Panic);
+    assert!(rs.stack.is_empty());
 
     let source = rs.source_location().expect("could not get source location");
     assert_eq!(
         source,
         concat!(
-            "at row 5 col 13:\n",
-            "\tcheck false\n",
+            "at row 4 col 13:\n",
+            "\tcheck false else test_fail()\n",
             "            // after\n",
             "            "
         )
@@ -2538,10 +2377,10 @@ fn test_source_lookup() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_return_expr() -> anyhow::Result<()> {
+fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar()
+            check 42 == bar() else test_fail()
         }
 
         function bar() int {
@@ -2558,11 +2397,9 @@ fn test_return_expr() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
@@ -2575,7 +2412,7 @@ fn test_return_expr() -> anyhow::Result<()> {
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
         action foo() {
-            check 42 == bar()
+            check 42 == bar() else test_fail()
         }
 
         function bar() int {
@@ -2592,15 +2429,314 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
     "#;
 
     let name = ident!("foo");
-    let policy = parse_policy_str(text, Version::V2)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name.clone());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
+    let machine = compile(text);
     let mut rs = machine.create_run_state(&mut io, ctx);
 
     rs.call_action(name, iter::empty::<Value>())?.success();
     assert!(rs.stack.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn test_result() -> anyhow::Result<()> {
+    let text = r#"
+        enum Error {
+            Fail
+        }
+
+        effect Result {
+            r result[int, enum Error]
+        }
+
+        command DoWork {
+            fields {
+                succeed bool
+            }
+            policy {
+                let e = match try(this.succeed) {
+                    Ok(v) => Result { r: Ok(v) }
+                    Err(e) => Result { r: Err(e) }
+                }
+                finish {
+                    emit e
+                }
+            }
+        }
+
+        function try(succeed bool) result[int, enum Error] {
+            // error propagation is done explicilty, until we have `?` operator
+            return match try_return(succeed) {
+                Ok(n) => Ok(n)
+                _ => Err(Error::Fail)
+            }
+        }
+
+        function try_return(succeed bool) result[int, enum Error] {
+            let r = match succeed {
+                true => Ok(42)
+                false => return Err(Error::Fail) // early return from match
+            }
+            return r
+        }
+    "#;
+
+    let mut io = TestIO::new();
+    let machine = compile(text);
+
+    // Test with succeed=true, should emit Ok(42)
+    {
+        let name = ident!("DoWork");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(true))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[0],
+            (
+                ident!("Result"),
+                vec![KVPair::new(
+                    ident!("r"),
+                    Value::Result(Ok(Box::new(Value::Int(42))))
+                ),]
+            )
+        );
+    }
+
+    // Test with succeed=false, should emit Err(Err::Fail)
+    {
+        let name = ident!("DoWork");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(false))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[1],
+            (
+                ident!("Result"),
+                vec![KVPair::new(
+                    ident!("r"),
+                    Value::Result(Err(Box::new(Value::Enum(ident!("Error"), 0))))
+                ),]
+            )
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_match_patterns() -> anyhow::Result<()> {
+    let text: &str = r#"
+        effect Result {
+            n int
+        }
+
+        command DoMatch {
+            fields {
+                n int
+            }
+            policy {
+                let r = Ok(this.n)
+                let out = match r {
+                    Ok(5) => Result { n: 5 }
+                    Ok(6) => Result { n: 6 }
+                    Err(e) => Result { n: -1 }
+                    _ => Result { n: 0 }
+                }
+                finish {
+                    emit out
+                }
+            }
+        }
+    "#;
+
+    let mut io = TestIO::new();
+    let machine = compile(text);
+
+    // n=5 should take the Ok(5) branch.
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(5))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[0],
+            (
+                ident!("Result"),
+                vec![KVPair::new(ident!("n"), Value::Int(5))]
+            )
+        );
+    }
+
+    // n=6 should take the Ok(6) branch.
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(6))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[1],
+            (
+                ident!("Result"),
+                vec![KVPair::new(ident!("n"), Value::Int(6))]
+            )
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_unit() -> anyhow::Result<()> {
+    let text = r#"
+        enum Error {
+            Fail,
+        }
+
+        effect Yes {
+            n int,
+        }
+
+        effect No {
+            err enum Error,
+        }
+
+        function verify(n int) result[unit, enum Error] {
+            return if n == 42 {
+                : Ok(Unit)
+            } else {
+                : Err(Error::Fail)
+            }
+        }
+
+        command DoMatch {
+            fields {
+                n int
+            }
+            policy {
+                match verify(this.n) {
+                    Ok(Unit) => {
+                        finish {
+                            emit Yes {
+                                n: this.n,
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        finish {
+                            emit No {
+                                err: e,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    "#;
+
+    let mut io = TestIO::new();
+    let machine = compile(text);
+
+    // n=42 should emit Yes
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(42))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[0],
+            (
+                ident!("Yes"),
+                vec![KVPair::new(ident!("n"), Value::Int(42))]
+            )
+        );
+    }
+
+    // n=99 should emit No
+    {
+        let name = ident!("DoMatch");
+        let ctx = dummy_ctx_policy(name.clone());
+        let mut rs = machine.create_run_state(&mut io, ctx);
+        let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(99))]);
+        rs.call_command_policy(this_data, dummy_envelope())?
+            .success();
+        assert_eq!(
+            io.effect_stack[1],
+            (
+                ident!("No"),
+                vec![KVPair::new(ident!("err"), Value::Enum(ident!("Error"), 0))]
+            )
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_recall_with_args() -> anyhow::Result<()> {
+    let text = r#"
+        effect MyError {
+            x int,
+            y string
+        }
+
+        command Foo {
+            fields {
+                x int,
+                y string
+            }
+            policy {
+                check false else recall test(1, "oops")
+            }
+            recall test(a int, b string) {
+                finish {
+                    emit MyError { x: a, y: b }
+                }
+            }
+        }
+    "#;
+
+    let machine = compile(text);
+    let mut io = TestIO::new();
+
+    let name = ident!("Foo");
+    let this_data = Struct::new(
+        name.clone(),
+        [
+            KVPair::new(ident!("x"), Value::from(42)),
+            KVPair::new(ident!("y"), Value::from(text!("hello"))),
+        ],
+    );
+    let envelope = dummy_envelope();
+
+    // Exec command
+    let ctx = dummy_ctx_policy(name);
+    let mut rs = machine.create_run_state(&mut io, ctx);
+    let result = rs.call_command_policy(this_data, envelope)?;
+    assert_eq!(result, ExitReason::Check);
+
+    // Effect should be emitted from the inline recall body with the supplied args.
+    assert_eq!(
+        io.effect_stack[0],
+        (
+            ident!("MyError"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(1)),
+                KVPair::new(ident!("y"), Value::String(text!("oops"))),
+            ]
+        )
+    );
 
     Ok(())
 }

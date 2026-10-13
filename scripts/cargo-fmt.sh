@@ -21,4 +21,4 @@ while IFS=' =' read -r key value; do
     rustfmt_args+=(--config "$key=${value//\"/}")
 done < "$base/rustfmt.toml"
 
-exec cargo fmt ${cargo_args[@]+"${cargo_args[@]}"} -- ${rustfmt_args[@]+"${rustfmt_args[@]}"}
+exec cargo fmt ${cargo_args[@]+"${cargo_args[@]}"} -- --config-path /dev/null ${rustfmt_args[@]+"${rustfmt_args[@]}"}

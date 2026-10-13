@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: result[never, int]
+  |
+1 | function f() result[int, string] { return Err(1) }
+  |              -------------------          ^^^^^^ expected `result[int, string]` but found `result[never, int]`
+  |              |
+  |              expected because of this

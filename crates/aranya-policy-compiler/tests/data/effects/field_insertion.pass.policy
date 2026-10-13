@@ -1,0 +1,3 @@
+struct Bar { b bool }
+effect Foo { +Bar, s string }
+effect Baz { i int, +Foo }

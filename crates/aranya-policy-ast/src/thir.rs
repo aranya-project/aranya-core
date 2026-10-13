@@ -4,7 +4,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{FactCountType, Ident, Span, Spanned, Text, VType, span::spanned};
+use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType, span::spanned};
 
 spanned! {
 /// A fact and its key/value field values.
@@ -13,7 +13,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
 pub struct FactLiteral {
     /// the fact's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the fields of the fact key
     pub key_fields: Vec<(Ident, Expression)>,
     /// values for the fields of the fact value, which can be absent
@@ -28,10 +28,23 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionCall {
     /// the function's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
+}
+
+spanned! {
+    /// Call to a command's recall block.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct RecallCall {
+        /// the command being recalled
+        pub command_name: Ident,
+        /// the name of the recall block
+        pub recall_name: Ident,
+        /// recall arguments
+        pub arguments: Vec<Expression>,
+    }
 }
 
 spanned! {
@@ -39,7 +52,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
@@ -51,7 +64,7 @@ pub struct NamedStruct {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumReference {
     /// enum name
-    pub identifier: Ident,
+    pub enumeration: Ident,
     /// variant value
     pub value: i64,
 }
@@ -65,15 +78,13 @@ pub enum InternalFunction {
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
     // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
-    /// Serialize function
-    Serialize(Box<Expression>),
-    /// Deserialize function
-    Deserialize(Box<Expression>),
     /// Not yet implemented panic
     Todo(Span),
+    /// Panics with an optional message, for expressing test expectations
+    TestFail(Option<Text>, Span),
 }
 
 impl Spanned for InternalFunction {
@@ -83,8 +94,8 @@ impl Spanned for InternalFunction {
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
             Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
-            Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
             Self::Todo(span) => *span,
+            Self::TestFail(_, span) => *span,
         }
     }
 }
@@ -97,7 +108,7 @@ pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Ident,
     /// the function's name
-    pub identifier: Ident,
+    pub function: Ident,
     /// The module and procedure ID.
     ///
     /// This is `None` if `stub_ffi` is enabled.
@@ -126,8 +137,10 @@ impl Spanned for Expression {
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    /// A unit literal
+    Unit,
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal
@@ -142,8 +155,12 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// Calls an action, evaluating to the action's return value.
+    ActionCall(FunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
+    /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
+    Recall(RecallCall),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -152,6 +169,8 @@ pub enum ExprKind {
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
+    /// `expr or expr` — optional coalescing
+    Coalesce(Box<Expression>, Box<Expression>),
     /// expr.expr`
     Dot(Box<Expression>, Ident),
     /// `expr` == `expr`
@@ -168,10 +187,6 @@ pub enum ExprKind {
     LessThanOrEqual(Box<Expression>, Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
-    /// `unwrap expr`
-    Unwrap(Box<Expression>),
-    /// Similar to Unwrap, but exits with a Check, instead of a Panic
-    CheckUnwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
@@ -182,6 +197,10 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
+    /// Result Ok variant
+    Ok(Box<Expression>),
+    /// Result Err variant
+    Err(Box<Expression>),
 }
 
 spanned! {
@@ -189,9 +208,9 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LetStatement {
     /// The variable's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// The variable's value
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 
@@ -200,7 +219,9 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckStatement {
     /// The boolean expression being checked
-    pub expression: Expression,
+    pub condition: Expression,
+    /// Expression to evaluate if the check fails.
+    pub else_expression: Expression,
 }
 }
 
@@ -210,6 +231,7 @@ pub enum MatchPattern {
     /// No values, default case
     Default(Span),
     /// List of values to match
+    /// Can include Ok(x) and Err(e) for Result matching.
     Values(Vec<Expression>),
 }
 
@@ -231,7 +253,7 @@ pub struct MatchArm {
     // exhaustive range checks.
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -242,7 +264,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchStatement {
     /// The value to match against
-    pub expression: Expression,
+    pub scrutinee: Expression,
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
 }
@@ -265,7 +287,7 @@ pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
     /// Expression
-    pub expression: Expression,
+    pub body: Expression,
     /// The source location of this match arm
     pub span: Span,
 }
@@ -296,7 +318,7 @@ pub struct MapStatement {
     /// Identifier of container struct
     pub identifier: Ident,
     /// Statements to execute for each fact
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -336,7 +358,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReturnStatement {
     /// The value to return
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 
@@ -374,7 +396,7 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Calls an action
+    /// Calls an non-returning action. For returning actions, see [`ExprKind::ActionCall`].
     ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
@@ -391,4 +413,6 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// A `recall name(args)` statement. Valid only in `policy` blocks.
+    Recall(RecallCall),
 }

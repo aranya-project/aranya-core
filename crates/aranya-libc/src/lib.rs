@@ -2,6 +2,7 @@
 //!
 //! # Operating System Support
 //!
+//! - Android
 //! - Linux
 //! - MacOS
 //! - VxWorks 6.9

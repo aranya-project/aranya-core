@@ -1,0 +1,12 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: struct `Bar` must be a subset of struct `Foo`
+  |
+4 |     let new_foo = Foo {
+5 |         y: true,
+6 |         ...b
+  |            ^ type `Bar`
+7 |     }
+  |

@@ -11,7 +11,7 @@ Policy {
     structs: [],
     enums: [
         EnumDefinition {
-            identifier: "Color" @ 5..10,
+            name: "Color" @ 5..10,
             variants: [
                 "Red" @ 17..20,
                 "Green" @ 26..31,
@@ -21,6 +21,7 @@ Policy {
         },
     ],
     commands: [],
+    base_commands: [],
     functions: [],
     finish_functions: [],
     global_lets: [],

@@ -1,0 +1,3 @@
+action foo(n int) {
+    let n = n
+}

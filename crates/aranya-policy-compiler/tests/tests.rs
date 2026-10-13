@@ -1,0 +1,244 @@
+#![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
+
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    path::{Path, PathBuf},
+};
+
+use aranya_policy_ast::{Version, ident};
+use aranya_policy_compiler::{CompileError, Compiler};
+use aranya_policy_lang::lang::parse_policy_str;
+use aranya_policy_module::{
+    Instruction, Label, Module, ModuleData,
+    ffi::{self, ModuleSchema},
+};
+
+const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
+    ModuleSchema {
+        name: ident!("test"),
+        functions: &[ffi::Func {
+            name: ident!("doit"),
+            args: &[ffi::Arg {
+                name: ident!("x"),
+                vtype: ffi::Type::Int,
+            }],
+            return_type: ffi::Type::Bool,
+        }],
+        structs: &[],
+        enums: &[],
+    },
+    ModuleSchema {
+        name: ident!("cyclic_types"),
+        functions: &[],
+        structs: &[
+            ffi::Struct {
+                name: ident!("FFIFoo"),
+                fields: &[ffi::Arg {
+                    name: ident!("bar"),
+                    vtype: ffi::Type::Struct(ident!("FFIBar")),
+                }],
+            },
+            ffi::Struct {
+                name: ident!("FFIBar"),
+                fields: &[ffi::Arg {
+                    name: ident!("foo"),
+                    vtype: ffi::Type::Struct(ident!("FFIFoo")),
+                }],
+            },
+        ],
+        enums: &[],
+    },
+];
+
+#[track_caller]
+fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
+    let policy = parse_policy_str(text, Version::V2).unwrap();
+    Compiler::new(&policy)
+        .ffi_modules(TEST_SCHEMAS)
+        .debug(is_debug)
+        .allow_baseless(true)
+        .compile()
+}
+
+// Helper function which parses and compiles policy expecting success.
+#[track_caller]
+fn compile_pass(text: &str, allow_unused: bool) -> Module {
+    compile(text, allow_unused).unwrap()
+}
+
+// Helper function which parses and compiles policy expecting compile failure.
+#[track_caller]
+fn compile_fail(text: &str, allow_unused: bool) -> CompileError {
+    match compile(text, allow_unused) {
+        Ok(_) => panic!("policy compilation should have failed - src: {text}"),
+        Err(err) => err,
+    }
+}
+
+/// Wraps [`aranya_policy_module::Module`] to provide a Debug impl
+/// that only prints data worth viewing.
+struct ModuleSnapshotWrapper(Module);
+
+impl fmt::Debug for ModuleSnapshotWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (
+            version,
+            labels,
+            action_defs,
+            command_defs,
+            fact_defs,
+            struct_defs,
+            enum_defs,
+            globals,
+        ) = match &self.0.data {
+            ModuleData::V0(m) => (
+                "0",
+                &m.labels,
+                &m.action_defs,
+                &m.command_defs,
+                &m.fact_defs,
+                &m.struct_defs,
+                &m.enum_defs,
+                &m.globals,
+            ),
+            ModuleData::V1(m) => (
+                "1",
+                &m.program.labels,
+                &m.contract.actions,
+                &m.contract.commands,
+                &m.contract.facts,
+                &m.contract.structs,
+                &m.contract.enums,
+                &m.program.globals,
+            ),
+        };
+
+        f.debug_struct("Module")
+            .field("version", &version)
+            .field("labels", labels)
+            .field("action_defs", action_defs)
+            .field("command_defs", command_defs)
+            .field("fact_defs", fact_defs)
+            .field("struct_defs", struct_defs)
+            .field("enum_defs", enum_defs)
+            .field("globals", globals)
+            .finish_non_exhaustive()?;
+
+        writeln!(f, "\n---")?;
+
+        write_instructions(&self.0, f)?;
+
+        Ok(())
+    }
+}
+
+fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    let (progmem, m_labels) = match &m.data {
+        ModuleData::V0(m) => (&m.progmem, &m.labels),
+        ModuleData::V1(m) => (&m.program.progmem, &m.program.labels),
+    };
+
+    let mut labels: HashMap<usize, Vec<&Label>> = HashMap::new();
+    let mut targets: HashSet<usize> = HashSet::new();
+
+    for (label, &addr) in m_labels {
+        labels.entry(addr).or_default().push(label);
+    }
+
+    for ins in progmem {
+        if let Instruction::Branch(t) | Instruction::Jump(t) = ins {
+            let addr = t.resolved().expect("unresolved target");
+            targets.insert(addr);
+        }
+    }
+
+    for (i, ins) in progmem.iter().enumerate() {
+        if let Some(label_vec) = labels.get(&i) {
+            for label in label_vec {
+                writeln!(f, "{label:?}:")?;
+            }
+        }
+        if targets.contains(&i) {
+            writeln!(f, "<{i}>:")?;
+        }
+
+        writeln!(
+            f,
+            "    {}",
+            core::fmt::from_fn(|f| {
+                match ins {
+                    // Show target label for calls.
+                    Instruction::Call(t) => {
+                        let label = labels
+                            .get(&t.resolved().expect("unresolved target"))
+                            .expect("missing target label")
+                            .first()
+                            .unwrap();
+                        write!(f, "call {label:?}")
+                    }
+                    Instruction::Recall(t) => {
+                        let label = labels
+                            .get(&t.resolved().expect("unresolved target"))
+                            .expect("missing target label")
+                            .first()
+                            .unwrap();
+                        write!(f, "recall {label:?}")
+                    }
+                    // Fall back to display impl.
+                    _ => write!(f, "{ins}"),
+                }
+            })
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Compiles every fixture except those under `data/unused`, which get their own
+/// test below, and snapshots the resulting module or error.
+#[rstest::rstest]
+fn test_policy(
+    #[files("tests/data/**/*.policy")]
+    #[exclude("unused/")]
+    src: PathBuf,
+) {
+    check_policy_fixture(&src, true);
+}
+
+/// Fixtures that exercise unused-variable detection. We need to disable debug mode in order to capture the errors.
+#[rstest::rstest]
+fn test_unused_policy(#[files("tests/data/unused/*.policy")] src: PathBuf) {
+    check_policy_fixture(&src, false);
+}
+
+#[track_caller]
+fn check_policy_fixture(src: &Path, allow_unused: bool) {
+    let base = src.parent().expect("can't get parent");
+    let name = src
+        .file_stem()
+        .expect("can't get filename stem")
+        .to_str()
+        .expect("filename not utf8");
+    let text = std::fs::read_to_string(src).expect("could not read source file");
+
+    if name.ends_with(".pass") {
+        let module = ModuleSnapshotWrapper(compile_pass(&text, allow_unused));
+
+        insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
+            insta::assert_debug_snapshot!(name, module);
+        });
+    } else if name.ends_with(".fail") {
+        let error = compile_fail(&text, allow_unused);
+
+        insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
+            insta::assert_snapshot!(name, error);
+        });
+    } else {
+        panic!(
+            "Test file '{}', must end in '.pass.policy' or '.fail.policy'.",
+            src.display()
+        );
+    }
+}

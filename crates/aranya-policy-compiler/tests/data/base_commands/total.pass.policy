@@ -1,0 +1,43 @@
+fact Key[dev id]=>{key bytes}
+
+base command MyInitBase {
+    fields {
+        key bytes
+    }
+    get_key {
+        return Some(this.key)
+    }
+}
+
+base command MyBasicBase {
+    get_key {
+        return match query Key[dev: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+command MyInit with MyInitBase {
+    policy {}
+}
+
+command MyBasic1 with MyBasicBase {
+    policy {}
+}
+
+command MyBasic2 with MyBasicBase {
+    policy {}
+}
+
+action my_init(key bytes) {
+    publish MyInit { key: key }
+}
+
+action my_basic_1() {
+    publish MyBasic1 { }
+}
+
+action my_basic_2() {
+    publish MyBasic2 { }
+}

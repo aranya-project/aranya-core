@@ -3,6 +3,7 @@
 #![cfg(any(test, feature = "testing"))]
 #![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 
+pub mod braid;
 pub mod dsl;
 pub mod protocol;
 pub mod vm;
@@ -17,7 +18,7 @@ use crate::CmdId;
 /// Derives a [`CmdId`] from some data.
 pub fn hash_for_testing_only(data: &[u8]) -> CmdId {
     use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash as _, rust::Sha256};
-    Sha256::hash(data).into_array().into_array().into()
+    Sha256::hash(data).into_array().0.into()
 }
 
 pub fn short_b58(id: CmdId) -> String {

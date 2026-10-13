@@ -6,15 +6,15 @@
 #![cfg(feature = "apq")]
 #![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
-use core::{cell::OnceCell, fmt, iter, ops::Add, result::Result};
+use core::{fmt, iter, ops::Add, result::Result};
 
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
 use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
     csprng::{Csprng, Random},
-    generic_array::{ArrayLength, GenericArray},
     hex::ToHex as _,
+    hybrid_array::{Array, ArraySize},
     import::{Import, ImportError},
     kem::DecapKey as _,
     keys::PublicKey as _,
@@ -34,6 +34,7 @@ use crate::{
     hpke::{self, Mode},
     id::{IdError, custom_id},
     misc::{ciphertext, kem_key, signing_key},
+    util::CacheCell,
 };
 
 /// A sender's identity.
@@ -135,7 +136,7 @@ pub struct TopicKey<CS: CipherSuite> {
     // large and we have to handle two pieces of key material.
     key: <CS::Aead as Aead>::Key,
     seed: [u8; 64],
-    id: OnceCell<Result<TopicKeyId, IdError>>,
+    id: CacheCell<Result<TopicKeyId, IdError>>,
 }
 
 impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
@@ -150,7 +151,7 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
         Self {
             key: self.key.clone(),
             seed: self.seed,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
         }
     }
 }
@@ -166,27 +167,25 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> Result<TopicKeyId, IdError> {
-        self.id
-            .get_or_init(|| {
-                // prk = LabeledExtract(
-                //     "TopicKeyId-v1",
-                //     {0}^n,
-                //     "prk",
-                //     seed,
-                // )
-                // TopicKey = LabeledExpand(
-                //     "TopicKeyId-v1",
-                //     prk,
-                //     "id",
-                //     {0}^0,
-                // )
-                const DOMAIN: &[u8] = b"TopicKeyId-v1";
-                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
-                CS::labeled_expand(DOMAIN, &prk, b"id", [])
-                    .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(TopicKeyId::from_bytes)
-            })
-            .clone()
+        self.id.get_or_init(|| {
+            // prk = LabeledExtract(
+            //     "TopicKeyId-v1",
+            //     {0}^n,
+            //     "prk",
+            //     seed,
+            // )
+            // TopicKey = LabeledExpand(
+            //     "TopicKeyId-v1",
+            //     prk,
+            //     "id",
+            //     {0}^0,
+            // )
+            const DOMAIN: &[u8] = b"TopicKeyId-v1";
+            let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
+            CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                .map_err(|_| IdError::new("unable to expand PRK"))
+                .map(TopicKeyId::from_bytes)
+        })
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -330,7 +329,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         Ok(Self {
             key,
             seed,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
         })
     }
 
@@ -523,7 +522,7 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
     ) -> Result<TopicKey<CS>, Error>
     where
         <CS::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
+        Sum<<CS::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // ad = concat(
         //     "TopicKeyRotation-v1",
@@ -629,7 +628,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ) -> Result<(Encap<CS>, EncryptedTopicKey<CS>), Error>
     where
         <CS::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
+        Sum<<CS::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // ad = concat(
         //     "TopicKeyRotation-v1",
@@ -651,7 +650,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         // )
         let (enc, mut ctx) =
             hpke::setup_send::<CS, _>(rng, Mode::Auth(&sk.sk), &self.pk, [ad.as_bytes()])?;
-        let mut dst = GenericArray::default();
+        let mut dst = Array::default();
         ctx.seal(&mut dst, &key.seed, ad.as_bytes())?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))
     }
@@ -659,10 +658,12 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
 
 #[cfg(test)]
 mod tests {
-    use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust, signer::Signer};
+    #![allow(clippy::arithmetic_side_effects)]
+
+    use spideroak_crypto::{ed25519::Ed25519, kem::Kem, rust, signer::Signer};
 
     use super::*;
-    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+    use crate::{Rng, default::DhKemP256HkdfSha256, test_util::TestCs};
 
     type CS = TestCs<
         rust::Aes256Gcm,
@@ -744,5 +745,73 @@ mod tests {
 
             assert_eq!(got_id, expected, "test case #{i}");
         }
+    }
+
+    fn sender() -> (SenderPublicKey<CS>, SenderVerifyingKey<CS>) {
+        let enc = SenderSecretKey::<CS>::new(Rng)
+            .public()
+            .expect("sender encryption key should be valid");
+        let sign = SenderSigningKey::<CS>::new(Rng)
+            .public()
+            .expect("sender signing key should be valid");
+        (enc, sign)
+    }
+
+    /// Exercises both the happy path and the "`dst` too small"
+    /// error path of [`TopicKey::seal_message`].
+    #[test]
+    fn test_seal_message_dst_too_small() {
+        let topic = Topic::new("SomeTopic");
+        let version = Version::new(1);
+        let (enc, sign) = sender();
+        let ident = Sender {
+            enc_key: &enc,
+            sign_key: &sign,
+        };
+        let key = TopicKey::<CS>::new(Rng, version, &topic).expect("should create `TopicKey`");
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        // Happy path: `dst` is large enough.
+        let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal_message(Rng, &mut dst, MESSAGE, version, &topic, &ident)
+            .expect("`seal_message` should succeed");
+
+        // Error path: `dst` is shorter than `overhead()`.
+        let mut small = [0u8; 1];
+        let err = key
+            .seal_message(Rng, &mut small, MESSAGE, version, &topic, &ident)
+            .expect_err("`seal_message` should fail when `dst` is too small");
+        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+    }
+
+    /// Exercises both the happy path and the "`ciphertext` too
+    /// short" error path of [`TopicKey::open_message`].
+    #[test]
+    fn test_open_message_ciphertext_too_short() {
+        let topic = Topic::new("SomeTopic");
+        let version = Version::new(1);
+        let (enc, sign) = sender();
+        let ident = Sender {
+            enc_key: &enc,
+            sign_key: &sign,
+        };
+        let key = TopicKey::<CS>::new(Rng, version, &topic).expect("should create `TopicKey`");
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        let mut ciphertext = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal_message(Rng, &mut ciphertext, MESSAGE, version, &topic, &ident)
+            .expect("`seal_message` should succeed");
+
+        // Happy path: decrypt the full ciphertext.
+        let mut plaintext = vec![0u8; ciphertext.len() - key.overhead()];
+        key.open_message(&mut plaintext, &ciphertext, version, &topic, &ident)
+            .expect("`open_message` should succeed");
+        assert_eq!(plaintext, MESSAGE);
+
+        // Error path: `ciphertext` is shorter than `overhead()`.
+        let err = key
+            .open_message(&mut plaintext, b"short", version, &topic, &ident)
+            .expect_err("`open_message` should fail when `ciphertext` is too short");
+        assert!(matches!(err, Error::Open(_)), "got {err:?}");
     }
 }

@@ -1,0 +1,6 @@
+action f(n int) {
+    let x = match n {
+        0 => None
+        _ => Some(0)
+    }
+}

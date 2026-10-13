@@ -1,0 +1,44 @@
+[
+  {
+    "AddClient": {
+      "client": 0
+    }
+  },
+  {
+    "AddClient": {
+      "client": 1
+    }
+  },
+  {
+    "NewGraph": {
+      "client": 0
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": true
+    }
+  },
+  {
+    "IngestPoisonThenSet": {
+      "client": 0,
+      "poison_key": 9,
+      "poison_value": 99,
+      "key": 2,
+      "value": 20
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 0
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": true
+    }
+  }
+]

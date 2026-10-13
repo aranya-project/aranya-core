@@ -1,68 +1,67 @@
 use std::{
     collections::{HashMap, hash_map},
     fmt::{self, Display},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
-use aranya_policy_ast::{self as ast, FactLiteral, Identifier, NamedStruct, TypeKind, VType};
+use aranya_policy_ast::{
+    self as ast, FactLiteral, Ident, Identifier, NamedStruct, ResultTypeKind, Span, Spanned as _,
+    TypeKind, VType,
+};
 use aranya_policy_module::ffi;
+use indexmap::IndexMap;
+use tracing::warn;
 
-use crate::{CompileError, CompileErrorType, compile::CompileState};
-
-/// Could not unify a pair of types.
-pub struct TypeUnifyError {
-    /// The left type which could not be unified
-    pub left: VType,
-    /// The right type which could not be unified
-    pub right: VType,
-    /// Context message for the cause of the unify error.
-    pub ctx: &'static str,
-}
-
-impl Display for TypeUnifyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { left, right, ctx } = self;
-        write!(f, "{ctx}: {left} != {right}")
-    }
-}
-
-// TODO: Remove and force callers to make better error.
-impl From<TypeUnifyError> for CompileErrorType {
-    fn from(err: TypeUnifyError) -> Self {
-        Self::InvalidType(err.to_string())
-    }
-}
+use crate::{
+    CompileError,
+    compile::{
+        CompileState,
+        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable, rendering::Error as _},
+    },
+};
 
 pub(crate) enum UserType<'a> {
     Struct(&'a ast::StructDefinition),
     Fact(&'a ast::FactDefinition),
     Effect(&'a ast::EffectDefinition),
+    BaseCommand(&'a ast::BaseCommandDefinition),
     Command(&'a ast::CommandDefinition),
     FFIStruct(&'a ffi::Struct<'a>),
 }
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
 /// scope" is the one on the top of the stack.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct IdentifierTypeStack {
-    globals: HashMap<Identifier, VType>,
-    locals: Vec<Vec<HashMap<Identifier, VType>>>,
+    globals: HashMap<Ident, VType>,
+    locals: Vec<Vec<IndexMap<Ident, Local>>>,
+    /// When set, don't error on unused vars
+    allow_unused: bool,
+}
+
+#[derive(Debug)]
+struct Local {
+    vtype: VType,
+    used: AtomicBool,
 }
 
 impl IdentifierTypeStack {
     /// Create a new `IdentifierTypeStack`
-    pub fn new() -> Self {
+    pub fn new(allow_unused: bool) -> Self {
         Self {
             globals: HashMap::new(),
-            locals: vec![vec![HashMap::new()]],
+            locals: vec![vec![IndexMap::new()]],
+            allow_unused,
         }
     }
 
     /// Add an identifier-type mapping to the global variables
     #[allow(clippy::result_large_err)]
-    pub fn add_global(&mut self, name: Identifier, value: VType) -> Result<(), CompileErrorType> {
-        match self.globals.entry(name) {
+    pub fn add_global(&mut self, name: Ident, value: VType) -> Result<(), AlreadyDefined> {
+        match self.globals.entry(name.clone()) {
             hash_map::Entry::Occupied(o) => {
-                Err(CompileErrorType::AlreadyDefined(o.key().to_string()))
+                let existing_global = o.key().clone();
+                Err(AlreadyDefined::new(existing_global, name))
             }
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
@@ -73,23 +72,26 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
-    pub fn add(&mut self, ident: Identifier, value: VType) -> Result<(), CompileErrorType> {
-        if self.globals.contains_key(&ident) {
-            return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
+    pub fn add(&mut self, ident: Ident, vtype: VType) -> Result<(), AlreadyDefined> {
+        if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
+            return Err(AlreadyDefined::new(existing_global.clone(), ident));
         }
         let locals = self.locals.last_mut().expect("no function scope");
         for prev in locals.iter().rev() {
-            if prev.contains_key(&ident) {
-                return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
+            if let Some((existing_var, _)) = prev.get_key_value(&ident) {
+                return Err(AlreadyDefined::new(ident, existing_var.clone()));
             }
         }
         let block = locals.last_mut().expect("no block scope");
         match block.entry(ident) {
-            hash_map::Entry::Occupied(_) => {
+            indexmap::map::Entry::Occupied(_) => {
                 unreachable!();
             }
-            hash_map::Entry::Vacant(e) => {
-                e.insert(value);
+            indexmap::map::Entry::Vacant(e) => {
+                e.insert(Local {
+                    vtype,
+                    used: AtomicBool::new(false),
+                });
             }
         }
         Ok(())
@@ -98,29 +100,33 @@ impl IdentifierTypeStack {
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
     #[allow(clippy::result_large_err)]
-    pub fn get(&self, name: &Identifier) -> Result<VType, CompileErrorType> {
+    pub fn get(&self, name: &Identifier) -> Result<VType, IdentNotDefined> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
-                    return Ok(v.clone());
+                    v.used.store(true, Ordering::Relaxed);
+                    return Ok(v.vtype.clone());
                 }
             }
         }
         if let Some(v) = self.globals.get(name) {
             return Ok(v.clone());
         }
-        Err(CompileErrorType::NotDefined(name.to_string()))
+        Err(IdentNotDefined)
     }
 
     /// Push a new, empty scope on top of the type stack.
     pub fn enter_function(&mut self) {
-        self.locals.push(vec![HashMap::new()]);
+        self.locals.push(vec![IndexMap::new()]);
     }
 
     /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
     /// stack, as this indicates a mistake in the compiler.
-    pub fn exit_function(&mut self) {
-        self.locals.pop().expect("no function scope");
+    pub fn exit_function(&mut self) -> Result<(), UnusedVariable> {
+        let unused = self.exit_block();
+        let locals = self.locals.pop().expect("no function scope");
+        assert!(locals.is_empty());
+        unused
     }
 
     /// Enter a new block scope.
@@ -128,16 +134,44 @@ impl IdentifierTypeStack {
         self.locals
             .last_mut()
             .expect("no function scope")
-            .push(HashMap::new());
+            .push(IndexMap::new());
     }
 
-    /// Exit the current block scope.
-    pub fn exit_block(&mut self) {
-        self.locals
+    /// Exit the current block scope, reporting any bindings in it that was never
+    /// read.
+    pub fn exit_block(&mut self) -> Result<(), UnusedVariable> {
+        let scope = self
+            .locals
             .last_mut()
             .expect("no function scope")
             .pop()
             .expect("no block scope");
+
+        let unused: Vec<Ident> = scope
+            .into_iter()
+            .filter(|(_, local)| !local.used.load(Ordering::Relaxed))
+            .map(|(name, _)| name)
+            // Skip compiler-synthesized vars (like this, envelope, payload).
+            .filter(|name| !name.span().is_empty())
+            .collect();
+
+        if !unused.is_empty() {
+            let err = UnusedVariable { names: unused };
+            if self.allow_unused {
+                warn!("{}", err.description());
+            } else {
+                return Err(err);
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(crate) struct IdentNotDefined;
+
+impl Display for IdentNotDefined {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("identifier not found")
     }
 }
 
@@ -147,22 +181,19 @@ impl IdentifierTypeStack {
 /// Otherwise, it will keep its value the type kind matches the target,
 /// or error out otherwise.
 #[allow(clippy::result_large_err)]
-pub fn check_type(
-    ty: VType,
-    target_type: VType,
-    errmsg: &'static str,
-) -> Result<VType, TypeUnifyError> {
-    match ty.kind {
+pub fn check_type(vtype: VType, target_type: VType) -> Result<VType, InvalidType> {
+    match vtype.inner {
         TypeKind::Never => Ok(target_type),
         _ => {
-            if ty.fits_type(&target_type) {
-                Ok(ty)
+            if vtype.fits_type(&target_type) {
+                Ok(vtype)
             } else {
-                Err(TypeUnifyError {
-                    left: ty,
-                    right: target_type,
-                    ctx: errmsg,
-                })
+                Err(InvalidType::new(
+                    target_type.to_string(),
+                    Some(target_type.span()),
+                    vtype.to_string(),
+                    vtype.span,
+                ))
             }
         }
     }
@@ -173,7 +204,7 @@ pub struct DisplayType<'a>(pub &'a VType);
 
 impl Display for DisplayType<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0.kind {
+        match &self.0.inner {
             TypeKind::String => f.write_str("string"),
             TypeKind::Bytes => f.write_str("bytes"),
             TypeKind::Int => f.write_str("int"),
@@ -183,6 +214,15 @@ impl Display for DisplayType<'_> {
             TypeKind::Enum(id) => write!(f, "enum {}", id),
             TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
             TypeKind::Never => write!(f, "never"),
+            TypeKind::Unit => write!(f, "unit"),
+            TypeKind::Result(result_type) => {
+                write!(
+                    f,
+                    "result[{}, {}]",
+                    DisplayType(&result_type.ok),
+                    DisplayType(&result_type.err)
+                )
+            }
         }
     }
 }
@@ -190,57 +230,62 @@ impl Display for DisplayType<'_> {
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {
-        if self.m.struct_defs.contains_key(&s.identifier.name) {
+        if self.m.interface.struct_defs.contains_key(&s.name.inner) {
             Ok(VType {
-                kind: TypeKind::Struct(s.identifier.clone()),
-                span: s.identifier.span,
+                inner: TypeKind::Struct(s.name.clone()),
+                span: s.name.span,
             })
         } else {
-            Err(self.err(CompileErrorType::InvalidType(format!(
-                "Struct `{}` not defined",
-                s.identifier
-            ))))
+            let note = format!("struct `{}` not defined", s.name);
+            Err(self.err(NotDefined(note, s.name.span)))
         }
     }
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
     pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, CompileError> {
-        if self.m.fact_defs.contains_key(&f.identifier.name) {
+        if self.m.fact_defs.contains_key(&f.name.inner) {
             Ok(VType {
-                kind: TypeKind::Struct(f.identifier.clone()),
-                span: f.identifier.span,
+                inner: TypeKind::Struct(f.name.clone()),
+                span: f.name.span,
             })
         } else {
-            Err(self.err(CompileErrorType::InvalidType(format!(
-                "Fact `{}` not defined",
-                f.identifier
-            ))))
+            let note = format!("fact `{}` not defined", f.name);
+            Err(self.err(NotDefined(note, f.name.span)))
         }
     }
 }
 
 #[allow(clippy::result_large_err)]
-pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, TypeUnifyError> {
-    match (&left.kind, &right.kind) {
+pub(super) fn unify_pair(left: VType, right: VType) -> Result<VType, InvalidType> {
+    match (&left.inner, &right.inner) {
         (_, TypeKind::Never) => Ok(left),
         (TypeKind::Never, _) => Ok(right),
         (TypeKind::Optional(left), TypeKind::Optional(right)) => {
             let inner = unify_pair(left.as_ref().clone(), right.as_ref().clone())?;
             Ok(VType {
-                kind: TypeKind::Optional(Box::new(inner)),
-                span: aranya_policy_ast::Span::empty(), // TODO
+                inner: TypeKind::Optional(Box::new(inner)),
+                span: Span::empty(), // TODO
+            })
+        }
+        (TypeKind::Result(left_result), TypeKind::Result(right_result)) => {
+            let ok = unify_pair(left_result.ok.clone(), right_result.ok.clone())?;
+            let err = unify_pair(left_result.err.clone(), right_result.err.clone())?;
+            Ok(VType {
+                inner: TypeKind::Result(Box::new(ResultTypeKind { ok, err })),
+                span: Span::empty(), // TODO
             })
         }
         (_, _) => {
             if left.matches(&right) {
                 Ok(left)
             } else {
-                Err(TypeUnifyError {
-                    left,
-                    right,
-                    ctx: "type mismatch",
-                })
+                Err(InvalidType::new(
+                    left.to_string(),
+                    Some(left.span()),
+                    right.to_string(),
+                    right.span(),
+                ))
             }
         }
     }
@@ -253,12 +298,9 @@ pub(super) fn unify_pair_as(
     left_type: VType,
     right_type: VType,
     target_type: VType,
-    errmsg: &'static str,
-) -> Result<VType, CompileErrorType> {
-    Ok(unify_pair(
-        check_type(left_type, target_type.clone(), errmsg)
-            .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
-        check_type(right_type, target_type, errmsg)
-            .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
-    )?)
+) -> Result<VType, InvalidType> {
+    unify_pair(
+        check_type(left_type, target_type.clone())?,
+        check_type(right_type, target_type)?,
+    )
 }

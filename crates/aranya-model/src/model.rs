@@ -2,22 +2,27 @@
 //!
 //! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
 
-extern crate alloc;
-use alloc::{collections::BTreeMap, vec::Vec};
-use core::{cell::RefCell, fmt::Debug, mem};
-use std::{collections::btree_map::Entry, marker::PhantomData};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, btree_map::Entry},
+    fmt::Debug,
+    marker::PhantomData,
+    mem,
+    sync::Arc,
+    vec::Vec,
+};
 
 use anyhow::Result;
-use aranya_crypto::Rng;
+use aranya_crypto::{Engine, Rng};
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
-    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, StorageProvider, SyncError,
-    SyncRequester, TraversalBuffers,
+    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
+    StorageProvider, SyncError, SyncRequester, TraversalBuffers, mem_spill,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
-    vm_policy::{VmEffect, VmPolicy, VmPolicyError},
+    vm_policy::{SealCtx, VmEffect, VmPolicy, VmPolicyError},
 };
 use derive_where::derive_where;
 
@@ -29,35 +34,37 @@ pub type ModelEffect = VmEffect;
 /// Model policy store.
 ///
 /// Holds the [`VmPolicy`] model policy store methods.
-pub struct ModelPolicyStore<CE> {
+pub struct ModelPolicyStore<CE: Engine> {
     policy: VmPolicy<CE>,
+    seal_ctx: Option<Arc<SealCtx<CE>>>,
 }
 
-impl<CE> ModelPolicyStore<CE>
-where
-    CE: aranya_crypto::Engine,
-{
+impl<CE: Engine> ModelPolicyStore<CE> {
     /// Creates a new [`ModelPolicyStore`] instance with a [`VmPolicy`].
-    pub fn new(policy: VmPolicy<CE>) -> Self {
-        Self { policy }
+    pub fn new(policy: VmPolicy<CE>, seal_ctx: Option<Arc<SealCtx<CE>>>) -> Self {
+        Self { policy, seal_ctx }
     }
 }
 
-impl<CE> PolicyStore for ModelPolicyStore<CE>
-where
-    CE: aranya_crypto::Engine,
-{
+impl<CE: Engine> PolicyStore for ModelPolicyStore<CE> {
     type Policy = VmPolicy<CE>;
     type Effect = ModelEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
         // TODO: (Scott) Implement once `add_policy` method is implemented in the policy_vm
         // For now return dummy PolicyId
-        Ok(PolicyId::new(policy[0] as usize))
+        Ok(PolicyId::default())
     }
 
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
+    }
+
+    fn seal_ctx(
+        &self,
+        _id: PolicyId,
+    ) -> std::result::Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        self.seal_ctx.as_deref().ok_or(PolicyError::Panic)
     }
 }
 
@@ -308,6 +315,8 @@ pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     /// Each client holds a `PeerCache` for each client and graph combination.
     pub client_graph_peer_cache: ClientGraphPeerCache,
     client_factory: CF,
+    buffers: TraversalBuffers,
+    rt_buffers: RuntimeBuffers<<CF::StorageProvider as StorageProvider>::Segment>,
     _ph: PhantomData<(CID, GID)>,
 }
 
@@ -322,6 +331,8 @@ where
             graph_ids: BTreeMap::default(),
             client_graph_peer_cache: BTreeMap::default(),
             client_factory,
+            buffers: TraversalBuffers::new(),
+            rt_buffers: RuntimeBuffers::new(),
             _ph: PhantomData,
         }
     }
@@ -450,7 +461,13 @@ where
 
         let mut sink = VecSink::new();
 
-        state.action(*graph_id, &mut sink, action)?;
+        state.action(
+            *graph_id,
+            &mut sink,
+            action,
+            &mut self.rt_buffers,
+            mem_spill,
+        )?;
 
         Ok(sink.effects)
     }
@@ -480,7 +497,7 @@ where
             .entry((graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
             .or_default();
 
-        let mut request_cache = self
+        let request_cache = self
             .client_graph_peer_cache
             .get(&(graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
             .ok_or(ModelError::ClientNotFound)?
@@ -506,8 +523,7 @@ where
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
-        let mut buffers = TraversalBuffers::new();
-        let mut request_syncer = SyncRequester::new(*graph_id, Rng, &mut buffers);
+        let mut request_syncer = SyncRequester::new(*graph_id, Rng);
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*graph_id);
@@ -515,10 +531,12 @@ where
         while request_syncer.ready() {
             if request_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+                let session = request_trx.session_heads(&request_cache);
                 let (len, _) = request_syncer.poll(
                     &mut buffer,
                     request_state.provider(),
-                    &mut request_cache,
+                    &session,
+                    &mut self.buffers.primary,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -527,18 +545,25 @@ where
                     &mut target,
                     response_state.provider(),
                     &mut response_cache,
+                    &mut self.buffers,
                 )?;
                 if len == 0 {
                     break;
                 }
 
                 if let Some(cmds) = request_syncer.receive(&target[..len])? {
-                    request_state.add_commands(&mut request_trx, &mut sink, &cmds)?;
+                    request_state.add_commands(
+                        &mut request_trx,
+                        &mut sink,
+                        &cmds,
+                        &mut self.rt_buffers,
+                        mem_spill,
+                    )?;
                 }
             }
         }
 
-        request_state.commit(&mut request_trx, &mut sink)?;
+        request_state.commit(request_trx, &mut sink, &mut self.rt_buffers, mem_spill)?;
 
         Ok(())
     }

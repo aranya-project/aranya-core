@@ -1,13 +1,11 @@
-extern crate alloc;
-
 use alloc::{borrow::ToOwned as _, string::String};
 use core::{convert::Infallible, fmt};
 
 use aranya_policy_ast::Identifier;
-use aranya_policy_module::{CodeMap, Label, ValueConversionError};
+use aranya_policy_module::{CodeMap, Label};
 use buggy::Bug;
 
-use crate::io::MachineIOError;
+use crate::{ValueConversionError, io::MachineIOError};
 
 /// Possible machine errors.
 // TODO(chip): These should be elaborated with additional data, and/or
@@ -91,6 +89,12 @@ pub enum MachineErrorType {
     /// Context mismatch
     #[error("Attempted call with invalid context")]
     ContextMismatch,
+    /// Serialize error
+    #[error("failed to serialize value")]
+    Serialize(#[from] crate::serialize::SerializeError),
+    /// Deserialize error
+    #[error("failed to deserialize value")]
+    Deserialize(#[from] crate::serialize::DeserializeError),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(Bug),

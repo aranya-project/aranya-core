@@ -41,6 +41,7 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![cfg_attr(not(all(test, feature = "trng")), deny(unsafe_code))]
 #![warn(missing_docs)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod afc;
 pub mod apq;
@@ -73,19 +74,15 @@ pub use keystore::{KeyStore, KeyStoreExt};
 // These were already exported in the root of the crate, so keep
 // them even though `policy` is a public module now.
 pub use policy::{Cmd, CmdId, PolicyId, merge_cmd_id};
-#[doc(no_inline)]
-#[cfg(feature = "bearssl")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
-pub use spideroak_crypto::bearssl;
 /// Constant time cryptographic operations.
 #[doc(inline)]
-pub use spideroak_crypto::subtle;
+pub use spideroak_crypto::ctutils;
 #[doc(inline)]
 pub use spideroak_crypto::{
     csprng::{Csprng, Random},
     zeroize,
 };
-pub use spideroak_crypto::{generic_array, typenum};
+pub use spideroak_crypto::{hybrid_array, typenum};
 
 /// Dangerous cryptography.
 pub mod dangerous {

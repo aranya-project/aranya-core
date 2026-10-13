@@ -1,0 +1,9 @@
+command Foo {
+    fields {
+        a int,
+        a string
+    }
+    policy {
+        finish {}
+    }
+}

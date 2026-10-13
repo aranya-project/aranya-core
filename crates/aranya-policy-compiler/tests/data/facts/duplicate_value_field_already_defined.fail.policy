@@ -1,0 +1,1 @@
+fact F[i int] => {a int, a bool}

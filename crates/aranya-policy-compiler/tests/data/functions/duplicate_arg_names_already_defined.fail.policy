@@ -1,0 +1,7 @@
+function f(x int, x int) int {
+    return 1
+}
+
+function g() int {
+    return f(1, 2)
+}

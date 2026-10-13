@@ -26,10 +26,8 @@ impl Analyzer for FinishAnalyzer {
             Instruction::Meta(Meta::Finish(s)) => {
                 self.finish = *s;
             }
-            Instruction::Exit(ExitReason::Normal) => {
-                if !self.finish {
-                    return Ok(AnalyzerStatus::fail("Exit without Finish"));
-                }
+            Instruction::Exit(ExitReason::Normal) if !self.finish => {
+                return Ok(AnalyzerStatus::fail("Exit without Finish"));
             }
             _ => (),
         }

@@ -1,6 +1,16 @@
 
 # cargo-vet audits file
 
+[[audits.anyhow]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.0.100 -> 1.0.103"
+
+[[audits.bitflags]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.13.0 -> 2.13.1"
+
 [[audits.bytes]]
 who = "gknopf <gknopf@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -11,6 +21,11 @@ who = "Steve Sweetney <ssweetney@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "1.10.1 -> 1.11.1"
 notes = "Code updates align with release notes. Replaced instances of unchecked arithmetic. New tests added to verify fixes."
+
+[[audits.chacha20]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.10.1 -> 0.10.2"
 
 [[audits.deranged]]
 who = "Steve Sweetney <ssweetney@spideroak.com>"
@@ -41,6 +56,11 @@ version = "3.0.3"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.16.0 -> 0.16.1"
+
+[[audits.hashbrown]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.16.1 -> 0.17.1"
 
 [[audits.itertools]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
@@ -77,6 +97,27 @@ This update is mainly for the removal of items (traits and macros).
 Cargo.toml changes.
 """
 
+[[audits.pest_derive]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.7.15 -> 2.9.0"
+
+[[audits.pest_generator]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.7.15 -> 2.9.0"
+
+[[audits.pest_meta]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.7.15 -> 2.9.0"
+
+[[audits.postcard-core]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.1.0"
+notes = "No unsafe or IO. Just simple serialization helpers."
+
 [[audits.proc-macro-crate]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
@@ -92,10 +133,35 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.8.11 -> 0.8.13"
 
+[[audits.rkyv]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.13 -> 0.8.16"
+
+[[audits.rkyv]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.16 -> 0.8.17"
+
 [[audits.rkyv_derive]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.8.11 -> 0.8.13"
+
+[[audits.rkyv_derive]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.13 -> 0.8.16"
+
+[[audits.rkyv_derive]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.16 -> 0.8.17"
+
+[[audits.rkyv_impl]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.2.2"
 
 [[audits.rstest]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
@@ -122,6 +188,16 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 version = "1.0.177"
 
+[[audits.serial_test]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "3.2.0 -> 3.5.0"
+
+[[audits.serial_test_derive]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-run"
+delta = "3.2.0 -> 3.5.0"
+
 [[audits.sha3-utils]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -131,6 +207,16 @@ delta = "0.3.0 -> 0.5.0"
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.9.8 -> 0.10.0"
+
+[[audits.spin]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.10.0 -> 0.10.1"
+
+[[audits.spin]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.12.2 -> 0.12.3"
 
 [[audits.syn]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
@@ -202,6 +288,11 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.3.19 -> 0.3.20"
 
+[[audits.wnaf]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.14.0 -> 0.14.1"
+
 [[audits.zerocopy]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -211,6 +302,45 @@ delta = "0.7.35 -> 0.8.25"
 who = "Eric Lagergren <elagergren@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.7.35 -> 0.8.25"
+
+[[audits.zrip]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.8.7"
+notes = "Merely a container crate for zrip-core, zrip-encode, and zrip-decode"
+
+[[audits.zrip-core]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.10.0"
+notes = """
+Uses unsafe for unaligned data reads, but they are sufficiently checked. Unsafe
+can be turned off by using the 'paranoid' feature. No IO.
+"""
+
+[[audits.zrip-decode]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.8.6"
+notes = """
+Contains lots of unsafe array accesses that are manually bounds-checked.
+Properties of fast copy routines are verified by Kani proofs. All unsafe code
+can be swapped for conventional implementations by using the 'paranoid'
+feature. Implements a decoder using std::io::Read but does not itself access
+files.
+"""
+
+[[audits.zrip-encode]]
+who = "Chip Black <chip@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.8.6"
+notes = """
+Contains lots of unsafe array accesses that are manually bounds-checked.
+Properties of fast copy routines are verified by Kani proofs. All unsafe code
+can be swapped for conventional implementations by using the 'paranoid'
+feature. Implements an encoder using std::io::Write but does not itself access
+files.
+"""
 
 [[trusted.anstream]]
 criteria = "safe-to-deploy"
@@ -248,12 +378,6 @@ user-id = 293722 # aranya-project-bot
 start = "2024-10-16"
 end = "2025-12-19"
 
-[[trusted.aranya-bearssl-sys]]
-criteria = "safe-to-deploy"
-user-id = 293722 # aranya-project-bot
-start = "2024-10-15"
-end = "2025-12-19"
-
 [[trusted.aranya-capi-codegen]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
@@ -273,12 +397,6 @@ start = "2024-11-08"
 end = "2025-12-19"
 
 [[trusted.aranya-crypto]]
-criteria = "safe-to-deploy"
-user-id = 293722 # aranya-project-bot
-start = "2024-10-16"
-end = "2025-12-19"
-
-[[trusted.aranya-crypto-ffi]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2024-10-16"
@@ -404,11 +522,29 @@ user-id = 6743 # Ed Page (epage)
 start = "2023-04-13"
 end = "2026-11-19"
 
+[[trusted.ff]]
+criteria = "safe-to-deploy"
+user-id = 1244 # Sean Bowe (ebfull)
+start = "2019-10-08"
+end = "2027-08-18"
+
+[[trusted.group]]
+criteria = "safe-to-deploy"
+user-id = 1244 # Sean Bowe (ebfull)
+start = "2019-10-08"
+end = "2027-08-18"
+
 [[trusted.is_terminal_polyfill]]
 criteria = "safe-to-deploy"
 user-id = 6743 # Ed Page (epage)
 start = "2024-05-02"
 end = "2026-11-19"
+
+[[trusted.proc-macro2]]
+criteria = "safe-to-deploy"
+user-id = 3618 # David Tolnay (dtolnay)
+start = "2019-04-23"
+end = "2027-09-01"
 
 [[trusted.spideroak-base58]]
 criteria = "safe-to-deploy"
@@ -426,7 +562,7 @@ end = "2027-02-13"
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2025-01-23"
-end = "2026-01-23"
+end = "2027-08-18"
 
 [[trusted.toml_datetime]]
 criteria = "safe-to-deploy"

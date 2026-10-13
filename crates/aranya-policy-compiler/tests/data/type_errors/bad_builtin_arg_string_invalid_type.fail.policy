@@ -1,0 +1,3 @@
+function g() int {
+    return saturating_add("3", "4")
+}

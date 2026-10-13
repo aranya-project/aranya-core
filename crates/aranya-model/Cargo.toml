@@ -7,6 +7,12 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
+[lib]
+bench = false
+
 [dependencies]
 aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "fs-keystore"] }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
@@ -20,7 +26,6 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 aranya-crypto = { path = "../aranya-crypto", features = ["getrandom"] }
-aranya-crypto-ffi = { path = "../aranya-crypto-ffi" }
 aranya-device-ffi = { path = "../aranya-device-ffi" }
 aranya-envelope-ffi = { path = "../aranya-envelope-ffi" }
 aranya-idam-ffi = { path = "../aranya-idam-ffi" }
@@ -31,5 +36,5 @@ serde = { workspace = true, features = ["derive"] }
 tempfile = { version = "3.8.1" }
 test-log = { workspace = true }
 
-[lints]
-workspace = true
+[package.metadata.docs.rs]
+all-features = true

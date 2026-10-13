@@ -1,0 +1,14 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: struct `Bar` and struct `Thud` have at least 1 field with the same name
+  |
+5 |     let new_foo = Foo {
+6 |         y: true,
+7 |         ...b,
+  |            ^ type `Bar`
+8 |         ...t
+  |            - type `Thud`
+9 |     }
+  |

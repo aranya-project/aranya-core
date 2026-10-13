@@ -22,6 +22,42 @@ use device
 use crypto
 use envelope
 
+base command BaseInit {
+    fields {
+        sign_pk bytes,
+    }
+    get_key {
+        return Some(this.sign_pk)
+    }
+}
+
+base command BaseSelfSigned {
+    fields {
+        sign_pk bytes,
+    }
+    get_key {
+        return Some(this.sign_pk)
+    }
+}
+
+base command Base {
+    get_key {
+        return match query DeviceSignKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base command Ephemeral {
+    get_key {
+        return match query DeviceSignKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
 fact Stuff[a int]=>{x int}
 
 effect StuffHappened {
@@ -34,7 +70,8 @@ fact Message[msg string]=>{value string}
 
 // `Greeting` is an effect we will emit from the `CreateGreeting` command.
 effect Greeting {
-    msg string,
+    key string,
+    value string,
 }
 
 // `Success` is a simple effect we can emit to our test to indicate that a command
@@ -74,176 +111,57 @@ function Role_Device() string {
 // Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the DeviceId.)
-function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
+function authorized_device_key_ids(device_keys struct DeviceKeyBundle) result[struct NewDevice, unit] {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    check got_device_id == device_keys.device_id
+    check got_device_id == device_keys.device_id else return Err(Unit)
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
-    return NewDevice {
+    return Ok(NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
-        sign_pk_id: sign_pk_id,
+        sign_pk_id,
         sign_pk: device_keys.sign_pk,
-    }
-}
-
-// Seals a serialized basic command into an envelope, using the stored signing key for this device.
-function seal_basic_command(payload bytes) struct Envelope {
-    let parent_id = perspective::head_id()
-    let author_id = device::current_device_id()
-    let author_sign_sk_id = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
-    let signed = crypto::sign(
-        author_sign_sk_id.key_id,
-        payload,
-    )
-
-    return envelope::new(
-        parent_id,
-        author_id,
-        signed.command_id,
-        signed.signature,
-        payload,
-    )
-}
-
-// Opens a basic command from an envelope, using the author's stored signing key.
-function open_basic_command(envelope_input struct Envelope) bytes {
-    let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
-    let parent_id = envelope::parent_id(envelope_input)
-
-    let crypto_command = crypto::verify(
-        author_sign_pk.key,
-        parent_id,
-        envelope::payload(envelope_input),
-        envelope::command_id(envelope_input),
-        envelope::signature(envelope_input),
-    )
-    return crypto_command
+    })
 }
 
 action init(nonce int, sign_pk bytes) {
-    publish Init {
-        nonce: nonce,
-        sign_pk: sign_pk,
-    }
+    publish Init { nonce, sign_pk }
 }
 
-command Init {
+command Init with BaseInit {
     attributes {
         init: true,
     }
 
     fields {
         nonce int,
-        sign_pk bytes,
-    }
-
-    seal {
-        let parent_id = perspective::head_id()
-        let payload = serialize(this)
-        let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
-
-        let signed = crypto::sign(
-            author_sign_sk_id,
-            payload,
-        )
-
-        let author_id = device::current_device_id()
-
-        return envelope::new(
-            parent_id,
-            author_id,
-            signed.command_id,
-            signed.signature,
-            payload,
-        )
-    }
-
-    open {
-        let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
-        let payload = envelope::payload(envelope)
-        let cmd = deserialize(payload)
-        let author_sign_pk = cmd.sign_pk
-
-        let crypto_command = crypto::verify(
-            author_sign_pk,
-            parent_id,
-            payload,
-            envelope::command_id(envelope),
-            envelope::signature(envelope),
-        )
-        return deserialize(crypto_command)
     }
 
     policy {
-        check this.nonce > 0
+        check this.nonce > 0 else test_fail("nonce must be positive")
         finish {}
     }
-
 }
+
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
-    publish AddDeviceKeys {
-        ident_pk: ident_pk,
-        sign_pk: sign_pk,
-    }
+    publish AddDeviceKeys { ident_pk, sign_pk }
 }
 
-command AddDeviceKeys {
+command AddDeviceKeys with BaseSelfSigned {
     attributes {
         priority: 0,
     }
 
     fields {
         ident_pk bytes,
-        sign_pk bytes,
-    }
-
-    seal {
-        let parent_id = perspective::head_id()
-        let payload = serialize(this)
-        let author_sign_sk_id = idam::derive_sign_key_id(this.sign_pk)
-
-        let signed = crypto::sign(
-            author_sign_sk_id,
-            payload,
-        )
-
-        let author_id = device::current_device_id()
-
-        return envelope::new(
-            parent_id,
-            author_id,
-            signed.command_id,
-            signed.signature,
-            payload,
-        )
-    }
-
-    open {
-        let author_id = envelope::author_id(envelope)
-        let parent_id = envelope::parent_id(envelope)
-        let payload = envelope::payload(envelope)
-        let cmd = deserialize(payload)
-        let author_sign_pk = cmd.sign_pk
-
-        let crypto_command = crypto::verify(
-            author_sign_pk,
-            parent_id,
-            payload,
-            envelope::command_id(envelope),
-            envelope::signature(envelope),
-        )
-        return deserialize(crypto_command)
     }
 
     policy {
         let author = envelope::author_id(envelope)
         let device_id = idam::derive_device_id(this.ident_pk)
-        check author == device_id
+        check author == device_id else test_fail("author must be device")
 
         let device_keys = DeviceKeyBundle {
             device_id: author,
@@ -251,13 +169,17 @@ command AddDeviceKeys {
             sign_pk: this.sign_pk,
         }
 
-        let device = authorized_device_key_ids(device_keys)
+        let device = match authorized_device_key_ids(device_keys) {
+            Ok(d) => d
+            Err(e) => recall reject()
+        }
 
         finish {
             create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
             create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
         }
     }
+    recall reject() {}
 }
 
 action create_action(v int) {
@@ -267,7 +189,7 @@ action create_action(v int) {
     }
 }
 
-command Create {
+command Create with Base {
     attributes {
         priority: 0,
     }
@@ -277,9 +199,6 @@ command Create {
         key_a int,
         value int,
     }
-
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
 
     policy {
         finish {
@@ -296,7 +215,7 @@ action increment(v int) {
     }
 }
 
-command Increment {
+command Increment with Base {
     attributes {
         priority: 0,
     }
@@ -306,13 +225,10 @@ command Increment {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
-
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = add(stuff.x, this.value) or test_fail()
+        check new_x < 25 else test_fail("new_x out of range")
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -328,7 +244,7 @@ action decrement(v int) {
     }
 }
 
-command Decrement {
+command Decrement with Base {
     attributes {
         priority: 0,
     }
@@ -338,13 +254,9 @@ command Decrement {
         value int,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
-
-
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap sub(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = sub(stuff.x, this.value) or test_fail()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -353,42 +265,39 @@ command Decrement {
     }
 }
 
-// The `create_greeting` action calls the command `CreateGreeting`. Passing in
-// the hardcoded greeting key and the message value.
-ephemeral action create_greeting(v string) {
-    publish CreateGreeting {
-        key: "greeting",
-        value: v,
-    }
+// The `create_greeting` action calls the command `CreateGreeting`.
+ephemeral action create_greeting(key string, value string) {
+    publish CreateGreeting { key, value }
 }
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting {
+ephemeral command CreateGreeting with Ephemeral {
     fields {
         key string,
         value string,
     }
-
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
 
     policy {
         finish {
             // Write the Message fact to the session factDB
             create Message[msg: this.key]=>{value: this.value}
             // Return our value
-            emit Greeting{msg: this.value}
+            emit Greeting { key: this.key, value: this.value }
         }
     }
 }
 
-// The `verify_hello` action calls the command `VerifyGreeting` that will verify
-// the Message fact contains "hello".
-ephemeral action verify_hello() {
+// The `verify_hellos` action calls the command `VerifyGreeting` twice to verify
+// the messages.
+ephemeral action verify_hellos() {
     publish VerifyGreeting {
-        key: "greeting",
-        value: "hello",
+        key: "greeting1",
+        value: "hello1",
+    }
+    publish VerifyGreeting {
+        key: "greeting2",
+        value: "hello2",
     }
 }
 
@@ -396,26 +305,46 @@ ephemeral action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting {
+ephemeral command VerifyGreeting with Ephemeral {
     fields {
         key string,
         value string,
     }
 
-    seal { return seal_basic_command(serialize(this)) }
-    open { return deserialize(open_basic_command(envelope)) }
-
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value
+        check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}
         }
     }
 }
+
+action verify_no_hello() {
+    publish VerifyNoHello {}
+}
+
+// `VerifyNoHello` is a command that verifies that there are no greetings in
+// the factDB persisted to the graph.
+command VerifyNoHello with Base {
+    attributes {
+        priority: 0,
+    }
+
+    fields {}
+
+    policy {
+        check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")
+        finish {
+            emit Success{value: true}
+        }
+    }
+}
+```
+
 ```

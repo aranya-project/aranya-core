@@ -3,12 +3,12 @@ use crate::{ExprKind, Expression, FactDefinition, FieldDefinition, Identifier, T
 impl FactDefinition {
     /// Get a key field by name
     pub fn get_key_field(&self, name: &Identifier) -> Option<&FieldDefinition> {
-        self.key.iter().find(|fd| fd.identifier == *name)
+        self.keys.iter().find(|fd| fd.name == *name)
     }
 
     /// Get a value field by name
     pub fn get_value_field(&self, name: &Identifier) -> Option<&FieldDefinition> {
-        self.value.iter().find(|fd| fd.identifier == *name)
+        self.values.iter().find(|fd| fd.name == *name)
     }
 }
 
@@ -16,7 +16,7 @@ impl FieldDefinition {
     /// Is this a hashable type?
     pub fn is_hashable(&self) -> bool {
         matches!(
-            &self.field_type.kind,
+            &self.vtype.inner,
             TypeKind::Int | TypeKind::Bool | TypeKind::String | TypeKind::Id | TypeKind::Enum(_)
         )
     }
@@ -25,8 +25,9 @@ impl FieldDefinition {
 impl Expression {
     /// Is this a literal expression?
     pub fn is_literal(&self) -> bool {
-        match &self.kind {
-            ExprKind::Int(_)
+        match &self.inner {
+            ExprKind::Unit
+            | ExprKind::Int(_)
             | ExprKind::String(_)
             | ExprKind::Bool(_)
             | ExprKind::EnumReference(_) => true,
@@ -34,6 +35,8 @@ impl Expression {
                 Some(e) => e.is_literal(),
                 None => true,
             },
+            ExprKind::Ok(e) => e.is_literal(),
+            ExprKind::Err(e) => e.is_literal(),
             ExprKind::NamedStruct(s) => {
                 s.fields.iter().all(|(_, e)| e.is_literal()) && s.sources.is_empty()
             }

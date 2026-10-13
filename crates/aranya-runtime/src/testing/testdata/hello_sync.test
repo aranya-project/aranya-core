@@ -1,0 +1,62 @@
+[
+  {
+    "SetupClientsAndGraph": {
+      "clients": 3
+    }
+  },
+  {
+    "HelloSubscribe": {
+      "client": 1,
+      "peer": 0
+    }
+  },
+  {
+    "HelloSubscribe": {
+      "client": 2,
+      "peer": 0
+    }
+  },
+  {
+    "HelloSubscribe": {
+      "client": 0,
+      "peer": 1
+    }
+  },
+  {
+    "HelloSubscribe": {
+      "client": 0,
+      "peer": 2
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": true
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 42
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "equal": true
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": false
+    }
+  }
+]

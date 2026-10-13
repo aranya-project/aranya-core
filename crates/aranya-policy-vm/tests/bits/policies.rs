@@ -10,8 +10,6 @@ command Foo {
         a int,
         b int,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         let sum = saturating_add(this.a, this.b)
         finish {
@@ -46,12 +44,10 @@ command Set {
     fields {
         a int,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         let x = this.a
         finish {
-            create Foo[]=>{x: x}
+            create Foo[]=>{x}
             emit Update{value: x}
         }
     }
@@ -59,8 +55,6 @@ command Set {
 
 command Clear {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
         finish {
             delete Foo[]
@@ -70,11 +64,9 @@ command Clear {
 
 command Increment {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
-        let r = unwrap query Foo[]=>{x: ?}
-        let new_x = unwrap add(r.x, 1)
+        let r = query Foo[]=>{x: ?} or test_fail()
+        let new_x = add(r.x, 1) or test_fail()
         finish {
             update Foo[]=>{x: r.x} to {x: new_x}
             emit Update{value: new_x}
@@ -90,23 +82,19 @@ command Set {
     fields {
         a int,
     }
-    seal { return todo() }
-    open { return todo() }
     policy {
         let x = this.a
         finish {
-            create Foo[]=>{x: x}
+            create Foo[]=>{x}
         }
     }
 }
 
 command Increment {
     fields {}
-    seal { return todo() }
-    open { return todo() }
     policy {
-        let r = unwrap query Foo[]=>{x: ?}
-        let new_x = unwrap add(r.x, 1)
+        let r = query Foo[]=>{x: ?} or test_fail()
+        let new_x = add(r.x, 1) or test_fail()
         finish {
             update Foo[]=>{x: 0} to {x: new_x}
         }
@@ -119,18 +107,16 @@ pub const POLICY_MATCH: &str = r#"
         fields {
             x int
         }
-        seal { return todo() }
-        open { return todo() }
         policy {}
     }
 
     action foo(x int) {
         match x {
             5 => {
-                publish Result { x: x }
+                publish Result { x }
             }
             6 => {
-                publish Result { x: x }
+                publish Result { x }
             }
             _ => {
                 publish Result { x: saturating_add(1, x) }
@@ -144,22 +130,16 @@ pub const POLICY_IS: &str = r#"
         fields {
             x int
         }
-        seal { return todo() }
-        open { return todo() }
         policy {}
     }
     command Empty {
         fields { }
-        seal { return todo() }
-        open { return todo() }
         policy {}
     }
     action check_none(x option[int]) {
-        if x is None {
-            publish Empty { }
-        }
-        if x is Some {
-            publish Result { x: unwrap x }
+        match x {
+            None => { publish Empty { } }
+            Some(y) => { publish Result { x: y } }
         }
     }
 "#;
