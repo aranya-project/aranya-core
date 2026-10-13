@@ -145,3 +145,57 @@ impl Spill for MemSpill {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(feature = "testing")]
+    #[test]
+    fn test_mem_spill_roundtrip_and_overwrite() {
+        let mut spill = MemSpill::new().unwrap();
+
+        // First write grows the buffer.
+        spill.write_at(0, b"hello world").unwrap();
+        // Second write lands entirely within the existing buffer.
+        spill.write_at(0, b"HELLO").unwrap();
+
+        let mut buf = [0u8; 11];
+        spill.read_at(0, &mut buf).unwrap();
+        assert_eq!(&buf, b"HELLO world");
+
+        // Reading past the end fails.
+        let mut buf = [0u8; 4];
+        assert!(spill.read_at(100, &mut buf).is_err());
+    }
+
+    #[cfg(feature = "libc")]
+    #[test]
+    fn test_libc_spill_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut spill = LibcSpill::new(dir.path()).unwrap();
+
+        spill.write_at(0, b"hello world").unwrap();
+        let mut buf = [0u8; 11];
+        spill.read_at(0, &mut buf).unwrap();
+        assert_eq!(&buf, b"hello world");
+
+        // Write and read at a non-zero offset.
+        spill.write_at(1000, b"far").unwrap();
+        let mut buf = [0u8; 3];
+        spill.read_at(1000, &mut buf).unwrap();
+        assert_eq!(&buf, b"far");
+
+        // Reading past the end of the file fails.
+        let mut buf = [0u8; 1];
+        assert!(spill.read_at(1_000_000, &mut buf).is_err());
+    }
+
+    #[cfg(feature = "libc")]
+    #[test]
+    fn test_libc_spill_bad_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("does-not-exist");
+        assert!(LibcSpill::new(path.as_path()).is_err());
+    }
+}
