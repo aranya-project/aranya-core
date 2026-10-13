@@ -24,11 +24,11 @@ Module {
             fields: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },
@@ -40,11 +40,11 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },
@@ -53,11 +53,11 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },
