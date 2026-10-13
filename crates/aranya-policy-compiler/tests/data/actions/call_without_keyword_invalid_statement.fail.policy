@@ -1,0 +1,4 @@
+action bar() {}
+action foo() {
+    bar()
+}

@@ -1,0 +1,3 @@
+function f(x int) bool {
+    return saturating_add(x, "foo")
+}

@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.25.0...aranya-afc-util-v0.26.0) - 2026-08-25
+
+### Other
+
+- update Cargo.toml dependencies
+
+## [0.25.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.24.0...aranya-afc-util-v0.25.0) - 2026-07-09
+
+### Other
+
+- lender type for in-memory state ([#692](https://github.com/aranya-project/aranya-core/pull/692))
+
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.23.0...aranya-afc-util-v0.24.0) - 2026-05-22
+
+### Other
+
+- updated the following local packages: aranya-crypto, aranya-policy-vm, aranya-fast-channels
+
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.22.0...aranya-afc-util-v0.23.0) - 2026-03-31
+
+### Other
+
+- updated the following local packages: aranya-fast-channels, aranya-policy-vm
+
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.21.0...aranya-afc-util-v0.22.0) - 2026-03-17
+
+### Other
+
+- serialize only command values ([#606](https://github.com/aranya-project/aranya-core/pull/606))
+
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.20.0...aranya-afc-util-v0.21.0) - 2026-02-17
+
+### Other
+
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.19.0...aranya-afc-util-v0.20.0) - 2026-01-23
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-fast-channels
+
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.18.0...aranya-afc-util-v0.19.0) - 2026-01-06
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-crypto, aranya-fast-channels
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.17.0...aranya-afc-util-v0.18.0) - 2025-12-11
+
+### Other
+
+- Pass `OpenCtx` to client methods ([#485](https://github.com/aranya-project/aranya-core/pull/485))
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.16.0...aranya-afc-util-v0.17.0) - 2025-11-12
+
+### Other
+
+- add `SealCtx` to fix `Seq` tracking ([#480](https://github.com/aranya-project/aranya-core/pull/480))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.15.0...aranya-afc-util-v0.16.0) - 2025-11-05
+
+### Other
+
+- rename local channel ID ([#453](https://github.com/aranya-project/aranya-core/pull/453))
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-afc-util-v0.14.0...aranya-afc-util-v0.15.0) - 2025-10-16
 
 ### Other

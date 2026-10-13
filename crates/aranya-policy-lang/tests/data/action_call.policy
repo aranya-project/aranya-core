@@ -1,0 +1,4 @@
+action ping() {}
+action pong() {
+    action ping()
+}

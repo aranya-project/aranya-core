@@ -1,0 +1,16 @@
+struct Foo {
+    x int,
+    y int
+}
+
+let foo = Foo { x: 10, y: 20 }
+let foo2 = Foo { x: 1000, ...foo }
+
+command Bar {
+    attributes {
+        foo_attr: Foo { ...foo2 },
+    }
+    policy {
+        finish {}
+    }
+}

@@ -1,69 +1,66 @@
 extern crate alloc;
 
 use alloc::{borrow::ToOwned as _, boxed::Box, vec::Vec};
-use core::{
-    cell::RefCell,
-    ops::{Deref, DerefMut},
-};
+use core::ops::Deref;
 
 use aranya_crypto::{BaseId, policy::CmdId};
 use aranya_policy_vm::{
     CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, MachineStack,
     ast::{Identifier, Text},
-    ffi::FfiModule,
+    ffi::{FfiModule, ModuleSchema},
 };
-use buggy::BugExt as _;
-use spin::Mutex;
 use tracing::error;
 
 use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
 /// Object safe wrapper for [`FfiModule`].
-pub trait FfiCallable<E> {
+pub trait FfiCallable<CE> {
+    /// Access the module's schema
+    fn schema(&self) -> ModuleSchema<'static>;
+
     /// Invokes a function in the module.
     fn call(
         &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &CE,
     ) -> Result<(), MachineError>;
 }
 
-impl<FM, E> FfiCallable<E> for FM
+impl<FM, CE> FfiCallable<CE> for FM
 where
     FM: FfiModule,
-    E: aranya_crypto::Engine,
+    CE: aranya_crypto::Engine,
 {
+    fn schema(&self) -> ModuleSchema<'static> {
+        Self::SCHEMA
+    }
+
     fn call(
         &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext,
-        eng: &mut E,
+        eng: &CE,
     ) -> Result<(), MachineError> {
         FM::call(self, procedure, stack, ctx, eng).map_err(Into::into)
     }
 }
 
 /// Implements the `MachineIO` interface for [VmPolicy](super::VmPolicy).
-pub struct VmPolicyIO<'o, P, S, E, FFI> {
-    facts: &'o RefCell<&'o mut P>,
-    sink: &'o RefCell<&'o mut S>,
-    engine: &'o Mutex<E>,
-    ffis: &'o [FFI],
+pub struct VmPolicyIO<'o, P, S, CE, FFI> {
+    pub facts: &'o mut P,
+    pub sink: &'o mut S,
+    pub engine: &'o CE,
+    pub ffis: &'o [FFI],
 }
 
-impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
+impl<'o, P, S, CE, FFI> VmPolicyIO<'o, P, S, CE, FFI> {
     /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
-    /// [`crate::engine::Sink`].
-    pub fn new(
-        facts: &'o RefCell<&'o mut P>,
-        sink: &'o RefCell<&'o mut S>,
-        engine: &'o Mutex<E>,
-        ffis: &'o [FFI],
-    ) -> Self {
+    /// [`crate::policy::Sink`].
+    pub fn new(facts: &'o mut P, sink: &'o mut S, engine: &'o CE, ffis: &'o [FFI]) -> Self {
         VmPolicyIO {
             facts,
             sink,
@@ -73,13 +70,12 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     }
 }
 
-impl<P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'_, P, S, E, FFI>
+impl<P, S, CE, FFI> MachineIO<MachineStack> for VmPolicyIO<'_, P, S, CE, FFI>
 where
     P: FactPerspective,
     S: Sink<VmEffect>,
-    E: aranya_crypto::Engine,
-    FFI: DerefMut,
-    <FFI as Deref>::Target: FfiCallable<E>,
+    CE: aranya_crypto::Engine,
+    FFI: Deref<Target: FfiCallable<CE>>,
 {
     type QueryIterator = VmFactCursor<P>;
 
@@ -92,9 +88,11 @@ where
         let keys = ser_keys(key);
         let value = ser_values(value)?;
         self.facts
-            .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .insert(name.as_str().to_owned(), keys, value);
+            .insert(name.as_str().to_owned(), keys, value)
+            .map_err(|err| {
+                tracing::error!(?err);
+                MachineIOError::Internal
+            })?;
         Ok(())
     }
 
@@ -105,9 +103,12 @@ where
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
         self.facts
-            .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .delete(name.as_str().to_owned(), keys);
+            .delete(name.as_str().to_owned(), keys)
+            .map_err(|err| {
+                tracing::error!(?err);
+                MachineIOError::Internal
+            })?;
+
         Ok(())
     }
 
@@ -117,15 +118,10 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let keys = ser_keys(key);
-        let iter = self
-            .facts
-            .try_borrow_mut()
-            .assume("should be able to borrow facts")?
-            .query_prefix(name.as_str(), &keys)
-            .map_err(|e| {
-                error!("query failed: {e}");
-                MachineIOError::Internal
-            })?;
+        let iter = self.facts.query_prefix(name.as_str(), &keys).map_err(|e| {
+            error!("query failed: {e}");
+            MachineIOError::Internal
+        })?;
         Ok(VmFactCursor { iter })
     }
 
@@ -137,15 +133,12 @@ where
         recalled: bool,
     ) {
         let fields: Vec<_> = fields.into_iter().collect();
-        self.sink
-            .try_borrow_mut()
-            .expect("should be able to borrow sink")
-            .consume(VmEffect {
-                name,
-                fields,
-                command,
-                recalled,
-            });
+        self.sink.consume(VmEffect {
+            name,
+            fields,
+            command,
+            recalled,
+        });
     }
 
     fn call(
@@ -155,13 +148,10 @@ where
         stack: &mut MachineStack,
         ctx: &CommandContext,
     ) -> Result<(), MachineError> {
-        let sink = &mut self.engine.lock();
-        self.ffis.get(module).map_or(
-            Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
-                module,
-            ))),
-            |ffi| ffi.call(procedure, stack, ctx, sink),
-        )
+        self.ffis
+            .get(module)
+            .ok_or(MachineErrorType::FfiModuleNotDefined(module))?
+            .call(procedure, stack, ctx, self.engine)
     }
 }
 
@@ -210,9 +200,9 @@ impl KeyType {
 ///
 /// This preserves the ordering for two facts with the same identifier and value type.
 /// This is important for the ordering of fact iteration in prefix queries.
-fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
-    let identifier = identifier.as_str();
-    let identifier_len = (identifier.len() as u64).to_be_bytes();
+fn ser_key(FactKey { name, value }: &FactKey) -> Box<[u8]> {
+    let name = name.as_str();
+    let name_len = (name.len() as u64).to_be_bytes();
 
     let int_bytes;
     let bytes;
@@ -236,8 +226,8 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
     };
 
     [
-        identifier_len.as_slice(),
-        identifier.as_bytes(),
+        name_len.as_slice(),
+        name.as_bytes(),
         &[tag as u8],
         value_bytes,
     ]
@@ -247,17 +237,17 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
 
 /// Deserializes a key serialized by [`ser_key`].
 fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
-    let (&identifier_len, bytes) = bytes
+    let (&name_len, bytes) = bytes
         .split_first_chunk()
         .ok_or("missing identifier length")?;
-    let identifier_len =
-        usize::try_from(u64::from_be_bytes(identifier_len)).map_err(|_| "identifier too long")?;
+    let name_len =
+        usize::try_from(u64::from_be_bytes(name_len)).map_err(|_| "identifier too long")?;
 
-    if identifier_len > bytes.len() {
+    if name_len > bytes.len() {
         return Err("identifier too short");
     }
-    let (identifier, bytes) = bytes.split_at(identifier_len);
-    let identifier: Identifier = core::str::from_utf8(identifier)
+    let (name, bytes) = bytes.split_at(name_len);
+    let name: Identifier = core::str::from_utf8(name)
         .map_err(|_| "identifier not utf8")?
         .parse()
         .map_err(|_| "invalid identifier")?;
@@ -298,7 +288,7 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         }
     };
 
-    Ok(FactKey { identifier, value })
+    Ok(FactKey { name, value })
 }
 
 fn ser_values(value: impl IntoIterator<Item = FactValue>) -> Result<Box<[u8]>, MachineIOError> {
@@ -310,7 +300,7 @@ fn ser_values(value: impl IntoIterator<Item = FactValue>) -> Result<Box<[u8]>, M
     Ok(bytes.into())
 }
 
-fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
+pub(super) fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
     postcard::from_bytes(&value).map_err(|e| {
         error!("could not deserialize values: {e}");
         MachineIOError::Internal
@@ -358,66 +348,66 @@ mod test {
         // These ord tests ensure the encoded values compare the same as the original values.
 
         #[test]
-        fn test_int_ord(identifier: Identifier, v1: i64, v2: i64) {
+        fn test_int_ord(name: Identifier, v1: i64, v2: i64) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Int(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Int(v2),
             });
             assert_eq!(v1.cmp(&v2), b1.cmp(&b2),  "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_bool_ord(identifier: Identifier, v1: bool, v2: bool) {
+        fn test_bool_ord(name: Identifier, v1: bool, v2: bool) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Bool(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Bool(v2),
             });
             assert_eq!(v1.cmp(&v2), b1.cmp(&b2),  "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_string_ord(identifier: Identifier, v1: Text, v2: Text) {
+        fn test_string_ord(name: Identifier, v1: Text, v2: Text) {
             let cmp = v1.cmp(&v2);
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::String(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::String(v2),
             });
             assert_eq!(cmp, b1.cmp(&b2), "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_id_ord(identifier: Identifier, v1: BaseId, v2: BaseId) {
+        fn test_id_ord(name: Identifier, v1: BaseId, v2: BaseId) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Id(v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Id(v2),
             });
             assert_eq!(v1.cmp(&v2), b1.cmp(&b2),  "{b1:?} <=> {b2:?}");
         }
 
         #[test]
-        fn test_enum_ord(identifier: Identifier, id1: Identifier, id2: Identifier, v1: i64, v2: i64) {
+        fn test_enum_ord(name: Identifier, id1: Identifier, id2: Identifier, v1: i64, v2: i64) {
             let b1 = ser_key(&FactKey {
-                identifier: identifier.clone(),
+                name: name.clone(),
                 value: HashableValue::Enum(id1.clone(), v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier,
+                name,
                 value: HashableValue::Enum(id2.clone(), v2),
             });
 

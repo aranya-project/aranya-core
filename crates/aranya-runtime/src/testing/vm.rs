@@ -1,22 +1,21 @@
 //! VM tests.
 
 extern crate alloc;
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
-use aranya_crypto::{DeviceId, Rng, default::DefaultEngine, id::IdExt as _};
+use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value, ast::ident};
 use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
-    ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
-    VmEffect, VmEffectData, VmPolicy, VmPolicyError,
-    engine::{Engine, EngineError, PolicyId, Sink},
-    ser_keys,
-    storage::{Query as _, Storage as _, StorageProvider, memory::MemStorageProvider},
+    ClientError, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
+    RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError, mem_spill,
+    policy::{PolicyError, PolicyId, PolicyStore, Sink},
+    storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::testing::TestFfiEnvelope,
+    vm_policy::{SealCtx, ser_keys},
 };
 
 /// The policy used by these tests.
@@ -25,7 +24,34 @@ policy-version: 2
 ---
 
 ```policy
-use envelope
+base command BaseInit {
+    fields {
+        key bytes
+    }
+    get_key {
+        return Some(this.key)
+    }
+}
+
+fact Key[]=>{key bytes}
+
+base command Base {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base command BaseEphemeral {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
 
 fact Stuff[x int]=>{y int}
 
@@ -39,27 +65,28 @@ effect OutOfRange {
     increment int,
 }
 
-command Init {
+command Init with BaseInit {
     attributes {
         init: true,
     }
     fields {
         nonce int,
     }
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
     policy {
-        finish {}
+        finish {
+            create Key[]=>{key: this.key}
+        }
     }
 }
 
-action init(nonce int) {
+action init(nonce int, key bytes) {
     publish Init {
+        key: key,
         nonce: nonce,
     }
 }
 
-command Create {
+command Create with Base {
     attributes {
         priority: 0,
     }
@@ -67,8 +94,6 @@ command Create {
         key int,
         value int,
     }
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
@@ -84,7 +109,7 @@ action create_action(v int) {
     }
 }
 
-command Increment {
+command Increment with Base {
     attributes {
         priority: 0,
     }
@@ -92,20 +117,18 @@ command Increment {
         key int,
         amount int,
     }
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
     policy {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
-        check stuff.y > 0
-        let new_y = unwrap add(stuff.y, this.amount)
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
+        check stuff.y > 0 else recall default()
+        let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
         }
     }
 
-    recall {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+    recall default() {
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
                 value: stuff.y,
@@ -122,25 +145,30 @@ action increment() {
     }
 }
 
-ephemeral command IncrementEphemeral {
+ephemeral action try_result(fail bool) result[unit, string] {
+    if fail {
+        return Err("boom")
+    }
+    return Ok(Unit)
+}
+
+ephemeral command IncrementEphemeral with BaseEphemeral {
     fields {
         key int,
         amount int,
     }
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
     policy {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
-        check stuff.y > 0
-        let new_y = unwrap add(stuff.y, this.amount)
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
+        check stuff.y > 0 else recall default()
+        let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
         }
     }
 
-    recall {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+    recall default() {
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
                 value: stuff.y,
@@ -158,33 +186,33 @@ ephemeral action increment_ephemeral() {
 }
 
 
-ephemeral action incrementFour(n int) {
-    check n == 4
+ephemeral action incrementFour(n int) result[unit, string] {
+    check n == 4 else return Err("n must be 4")
     publish IncrementEphemeral {
         key: 1,
         amount: n,
     }
+    return Ok(Unit)
 }
 
-ephemeral action lookup(k int, v int, expected bool) {
+ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
-        true => { check f is Some }
-        false => { check f is None }
+        true => { check f is Some else return Err("expected Some") }
+        false => { check f is None else return Err("expected None") }
     }
+    return Ok(Unit)
 }
 
-command Invalidate {
+command Invalidate with Base {
     attributes {
         priority: 1
     }
     fields {
         key int
     }
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
     policy {
-        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         let newval = -1  // hack around negative number parse bug; see #869
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: newval}
@@ -301,38 +329,66 @@ impl Sink<VmEffect> for VecSink {
 }
 
 /// Used by the VM tests.
-pub struct TestEngine {
-    policy: VmPolicy<DefaultEngine<Rng>>,
+pub struct TestPolicyStore {
+    policy: VmPolicy<DefaultEngine>,
+    seal_ctx: Arc<SealCtx<DefaultEngine>>,
 }
 
-impl TestEngine {
-    /// Creates a `TestEngine` from a [`Module`].
+impl TestPolicyStore {
+    /// Creates a `TestPolicyStore` from a [`Module`].
     pub fn from_module(module: Module) -> Self {
         let machine = Machine::from_module(module).expect("could not load compiled module");
 
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        let policy = VmPolicy::new(
-            machine,
-            eng,
-            vec![Box::from(TestFfiEnvelope {
-                device: DeviceId::random(&mut Rng),
-            })],
+        let policy = VmPolicy::new(machine, eng, vec![]).expect("Could not load policy");
+
+        let seal_ctx = Arc::new(SealCtx {
+            author: DeviceId::random(Rng),
+            key: SigningKey::new(Rng),
+        });
+
+        Self { policy, seal_ctx }
+    }
+
+    pub fn seal_ctx(&self) -> Arc<SealCtx<DefaultEngine>> {
+        Arc::clone(&self.seal_ctx)
+    }
+
+    #[must_use]
+    pub fn with_seal_ctx(mut self, seal_ctx: Arc<SealCtx<DefaultEngine>>) -> Self {
+        self.seal_ctx = seal_ctx;
+        self
+    }
+
+    pub fn verifying_key(&self) -> Vec<u8> {
+        postcard::to_allocvec(
+            &self
+                .seal_ctx
+                .key
+                .public()
+                .expect("can compute verifying key"),
         )
-        .expect("Could not load policy");
-        Self { policy }
+        .expect("can serialize verifying key")
     }
 }
 
-impl Engine for TestEngine {
+impl PolicyStore for TestPolicyStore {
     type Policy = VmPolicy<DefaultEngine<Rng>>;
     type Effect = VmEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
-        Ok(PolicyId::new(policy[0] as usize))
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
+    }
+
+    fn seal_ctx(
+        &self,
+        _id: PolicyId,
+    ) -> Result<&<Self::Policy as crate::Policy>::SealCtx, PolicyError> {
+        Ok(&self.seal_ctx)
     }
 }
 
@@ -340,59 +396,71 @@ impl Engine for TestEngine {
 /// the Policy VM to execute Policy. Hopefully the comments will
 /// make this useful for adaptation into a proper implementation.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
-    // TestEngine implements the Engine interface. It defines the core types that implement
-    // the Engine itself, one of which is the Policy implementation. This particular Engine
+pub fn test_vmpolicy(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    // TestPolicyStore implements the PolicyStore interface. It defines the core types that implement
+    // the PolicyStore itself, one of which is the Policy implementation. This particular PolicyStore
     // implementation parses a policy document to create a VMPolicy instance which it owns.
     // But there is no requirement that it should do this, and in the future, it is
     // expected that the VM will consume compiled policy code to eliminate the need for the
     // parser/compiler to work in constrained environments.
 
+    let key = policy_store.verifying_key();
+
     // We're using MemStorageProvider as our storage interface.
-    let provider = MemStorageProvider::new();
-    // ClientState contains the engine and the storage provider. It is the main interface
+    let provider = MemStorageProvider::default();
+    // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
-    let mut cs = ClientState::new(engine, provider);
+    let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
     // TestSink implements the Sink interface to consume Effects. TestSink is borrowed from
     // the tests in protocol.rs. Here we
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an ID referencing the
-    // storage for the graph.
-    let storage_id = cs
-        .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
+    // Create a new graph. This builds an Init event and returns an ID referencing the graph.
+    let graph_id = cs
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    // Create and execute an action in the policy. The action type is defined by the Engine
+    // Create and execute an action in the policy. The action type is defined by the policy store
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
     // to the action call in policy language.
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(create_action(3)),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(storage_id, &mut sink, vm_action!(increment()))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(increment()),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
 
     // Everything past this point is validation that the facts exist and were created
     // correctly. Direct access to the storage provider should not be necessary in normal
     // operation.
 
-    // Get the storage provider and get the storage associated with our storage ID to peek
+    // Get the storage provider and get the storage associated with our graph ID to peek
     // into its graph.
-    let storage = cs.provider().get_storage(storage_id)?;
-    // Find the head Location.
-    let head = storage.get_head()?;
+    let storage = cs.provider().get_storage(graph_id)?;
 
     // Serialize the keys of the fact we created/updated in the previous actions.
     let fact_name = "Stuff";
@@ -400,10 +468,10 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // This is the value part of the fact that we expect to retrieve.
     let expected_value = vec![KVPair::new(ident!("y"), Value::Int(4))];
-    // Get a perspective for the head ID we got earlier. It should contain the facts we
-    // seek.
-    let perspective = storage.get_fact_perspective(head).expect("perspective");
-    // Query the perspective using our key.
+    // Read the merged fact cache for the current head set. It should contain the
+    // facts we seek.
+    let perspective = storage.fact_cache().expect("fact cache");
+    // Query the merged facts using our key.
     let result = perspective
         .query(fact_name, &fact_keys)
         .expect("query")
@@ -416,20 +484,69 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
     Ok(())
 }
 
-/// Test creating a fact.
+/// Tests that a result-typed action surfaces success and failure to the caller.
 ///
-/// The [`TestEngine`] must be instantiated with
-/// [`TEST_POLICY_1`].
-pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
-    let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+/// The [`TestPolicyStore`] must be instantiated with [`TEST_POLICY_1`].
+pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let key = policy_store.verifying_key();
+    let provider = MemStorageProvider::default();
+    let mut cs = ClientState::new(policy_store, provider);
 
     let graph = cs
-        .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut NullSink)
         .expect("could not create graph");
 
-    cs.action(graph, &mut NullSink, vm_action!(create_action(1)))
-        .expect("can create");
+    // `try_result` is ephemeral, so run it in a session.
+    let mut session = cs.session(graph).expect("should be able to create session");
+
+    // `return Ok(unit)` => the action succeeds.
+    session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            vm_action!(try_result(false)),
+        )
+        .expect("Ok action should succeed");
+
+    let err = session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            vm_action!(try_result(true)),
+        )
+        .expect_err("Err action should fail");
+    assert!(
+        matches!(&err, ClientError::PolicyError(_)),
+        "expected PolicyError, got {err:?}"
+    );
+
+    Ok(())
+}
+
+/// Test creating a fact.
+///
+/// The [`TestPolicyStore`] must be instantiated with
+/// [`TEST_POLICY_1`].
+pub fn test_query_fact_value(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let key = policy_store.verifying_key();
+    let provider = MemStorageProvider::default();
+    let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
+
+    let graph = cs
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut NullSink)
+        .expect("could not create graph");
+
+    cs.action(
+        graph,
+        &mut NullSink,
+        vm_action!(create_action(1)),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("can create");
 
     let mut session = cs.session(graph).expect("should be able to create session");
 
@@ -457,42 +574,55 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
 /// Test ephemeral Aranya session.
 /// See `https://github.com/aranya-project/aranya-docs/blob/main/src/Aranya-Sessions-note.md`.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
-    let provider = MemStorageProvider::new();
-    let mut cs = ClientState::new(engine, provider);
+pub fn test_aranya_session(policy_store: TestPolicyStore) -> Result<(), VmPolicyError> {
+    let key = policy_store.verifying_key();
+    let provider = MemStorageProvider::default();
+    let mut cs = ClientState::new(policy_store, provider);
+    let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an ID referencing the
-    // storage for the graph.
-    let storage_id = cs
-        .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
+    // Create a new graph. This builds an Init event and returns an ID referencing the graph.
+    let graph_id = cs
+        .new_graph(&[0u8], vm_action!(init(0, key)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
-    // Create and execute an action in the policy. The action type is defined by the Engine
+    // Create and execute an action in the policy. The action type is defined by the policy store
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
     // to the action call in policy language.
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(create_action(3)),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(storage_id, &mut sink, vm_action!(increment()))
-        .expect("could not call action");
+    cs.action(
+        graph_id,
+        &mut sink,
+        vm_action!(increment()),
+        &mut buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
 
     {
         let msgs = {
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             let mut msg_sink = MsgSink::new();
 
             // increment
@@ -527,7 +657,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 9 }));
 
             // Receive the increment commands
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
                     .receive(&cs, &mut sink, msg)
@@ -539,15 +669,21 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
         sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
 
         // Call the increment action
-        cs.action(storage_id, &mut sink, vm_action!(increment()))
-            .expect("could not call action");
+        cs.action(
+            graph_id,
+            &mut sink,
+            vm_action!(increment()),
+            &mut buffers,
+            mem_spill,
+        )
+        .expect("could not call action");
 
         {
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 6 }));
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 10 }));
 
             // Receive the increment commands
-            let mut session = cs.session(storage_id).expect("failed to create session");
+            let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
                     .receive(&cs, &mut sink, msg)
@@ -558,14 +694,13 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Verify that the graph was not affected by the ephemeral commands.
 
-    let storage = cs.provider().get_storage(storage_id)?;
-    let head = storage.get_head()?;
+    let storage = cs.provider().get_storage(graph_id)?;
 
     let fact_name = "Stuff";
     let fact_keys = ser_keys([FactKey::new(ident!("x"), HashableValue::Int(1))]);
 
     let expected_value = vec![KVPair::new(ident!("y"), Value::Int(5))];
-    let perspective = storage.get_fact_perspective(head).expect("perspective");
+    let perspective = storage.fact_cache().expect("fact cache");
     let result = perspective
         .query(fact_name, &fact_keys)
         .expect("query")
@@ -576,78 +711,105 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     Ok(())
 }
 
-/// Syncs the first client at `storage_id` to the second client.
-fn test_sync<E, P, S>(
-    storage_id: GraphId,
-    cs1: &mut ClientState<E, P>,
-    cs2: &mut ClientState<E, P>,
+/// Syncs the first client at `graph_id` to the second client.
+fn test_sync<PS, P, S>(
+    graph_id: GraphId,
+    cs1: &mut ClientState<PS, P>,
+    cs2: &mut ClientState<PS, P>,
     sink: &mut S,
+    rt_buffers: &mut RuntimeBuffers<P::Segment>,
 ) where
     P: StorageProvider,
-    E: Engine,
-    S: Sink<<E>::Effect>,
+    PS: PolicyStore,
+    S: Sink<<PS>::Effect>,
 {
-    let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(storage_id, &mut rng, ());
+    let mut sync_requester = SyncRequester::new(graph_id, Rng);
 
-    let mut req_transaction = cs1.transaction(storage_id);
+    let mut req_transaction = cs1.transaction(graph_id);
+    let request_cache = PeerCache::new();
 
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = sync_requester
-            .poll(&mut buffer, cs2.provider(), &mut PeerCache::new())
+            .poll(
+                &mut buffer,
+                cs2.provider(),
+                &req_transaction.session_heads(&request_cache),
+                &mut rt_buffers.traversal.primary,
+            )
             .expect("sync req->res");
 
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = dispatch::<()>(
+        let len = dispatch(
             &buffer[..len],
             &mut target,
             cs1.provider(),
             &mut PeerCache::new(),
+            &mut rt_buffers.traversal,
         )
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds)
+            cs2.add_commands(&mut req_transaction, sink, &cmds, rt_buffers, mem_spill)
                 .expect("add commands");
         }
     }
 
-    cs2.commit(&mut req_transaction, sink).expect("commit");
+    cs2.commit(req_transaction, sink, rt_buffers, mem_spill)
+        .expect("commit");
 }
 
 /// Tests the command ID and recall status in emitted `VmEffect`s.
 ///
-/// The [`TestEngine`] must be instantiated with
+/// The [`TestPolicyStore`] must be instantiated with
 /// [`TEST_POLICY_1`].
-pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(), VmPolicyError> {
+pub fn test_effect_metadata(
+    policy_store_1: TestPolicyStore,
+    policy_store_2: TestPolicyStore,
+) -> Result<(), VmPolicyError> {
+    let key = policy_store_1.verifying_key();
+
+    let mut rt_buffers = RuntimeBuffers::<_>::new();
+
     // create client 1 and initialize it with a nonce of 1
-    let provider = MemStorageProvider::new();
-    let mut cs1 = ClientState::new(engine, provider);
+    let provider = MemStorageProvider::default();
+    let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
-    let storage_id = cs1
-        .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
+    let graph_id = cs1
+        .new_graph(&[0u8], vm_action!(init(1, key)), &mut sink)
         .expect("could not create graph");
 
     // Create a new counter with a value of 1
-    cs1.action(storage_id, &mut sink, vm_action!(create_action(1)))
-        .expect("could not call action");
+    cs1.action(
+        graph_id,
+        &mut sink,
+        vm_action!(create_action(1)),
+        &mut rt_buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     assert_ne!(sink.last().command, CmdId::default());
     assert!(!sink.last().recalled);
     sink.clear();
 
     // create client 2 and sync it with client 1
-    let provider = MemStorageProvider::new();
-    let mut cs2 = ClientState::new(engine2, provider);
-    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    let provider = MemStorageProvider::default();
+    let mut cs2 = ClientState::new(policy_store_2, provider);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut rt_buffers);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();
 
     // At this point, clients are fully synced. Client 2 adds an Increment command, which
     // brings the counter to 2 from their perspective.
-    cs2.action(storage_id, &mut sink, vm_action!(increment()))
-        .expect("could not call action");
+    cs2.action(
+        graph_id,
+        &mut sink,
+        vm_action!(increment()),
+        &mut rt_buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 2 }));
     let increment_cmd_id = sink.last().command;
     sink.clear();
@@ -655,15 +817,21 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     // MEANWHILE, IN A PARALLEL UNIVERSE - client 1 adds the Invalidate command, which sets
     // the counter value to a negative number. This will cause the check to fail in the
     // Increment command, preventing any further use of this counter.
-    cs1.action(storage_id, &mut sink, vm_action!(invalidate()))
-        .expect("could not call action");
+    cs1.action(
+        graph_id,
+        &mut sink,
+        vm_action!(invalidate()),
+        &mut rt_buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: -1 }));
     sink.clear();
 
     // Sync client 1 to client 2. Should produce a recall because `Invalidate` is
     // prioritized before `Increment`. Now that the counter value is starting with `-1`, the
     // check will fail, and recall will be executed. This produces an OutOfRange effect.
-    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut rt_buffers);
     assert_eq!(
         sink.last(),
         &vm_effect!(OutOfRange {

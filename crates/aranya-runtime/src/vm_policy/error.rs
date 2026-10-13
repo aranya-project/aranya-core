@@ -1,23 +1,30 @@
 use alloc::{format, string::String};
 
-use crate::{engine::EngineError, storage::StorageError};
+use aranya_policy_vm::ContractValidationError;
 
-#[derive(Debug, thiserror::Error)]
+use crate::{policy::PolicyError, storage::StorageError};
+
 /// Errors that can occur because of creation or use of VmPolicy.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum VmPolicyError {
     /// An error happened while deserializing a command struct. Stores an interior
     /// [postcard::Error].
     #[error("deserialize error: {0}")]
     Deserialization(#[from] postcard::Error),
-    /// An error happened while executing policy. Stores an interior [EngineError].
-    #[error("engine error: {0}")]
-    EngineError(#[from] EngineError),
+    /// An error happened while executing policy. Stores an interior [PolicyError].
+    #[error("policy error: {0}")]
+    PolicyError(#[from] PolicyError),
     /// An error happened at the storage layer. Stores an interior [StorageError].
     #[error("storage error: {0}")]
     StorageError(#[from] StorageError),
     /// An error happened when parsing command attributes.
     #[error("atribute error: {0}")]
     Attribute(#[from] AttributeError),
+    /// The Machine contract does not match the VM's expectations.
+    #[error("contract mismatch")]
+    // TODO(chip): Add more information about what has mismatched
+    ContractValidation(#[from] ContractValidationError),
     /// Some other happened and we don't know what it is.
     #[error("unknown error")]
     Unknown,

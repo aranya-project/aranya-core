@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
     io::{Read as _, stdin},
@@ -10,7 +9,7 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactKey, FactKeyList, FactValue, FactValueList,
-    Identifier, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
+    Identifier, KVPair, Label, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
     MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
 use clap::{ArgGroup, Parser, ValueEnum};
@@ -242,7 +241,7 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("Compilation failed: {e}");
         }
     };
-    let io = RefCell::new(MachExpIO::new());
+    let mut io = MachExpIO::new();
 
     let mode = if args.exec {
         Mode::Exec
@@ -266,7 +265,7 @@ fn main() -> anyhow::Result<()> {
                     name: action.clone(),
                     head_id: CmdId::default(),
                 });
-                rs = machine.create_run_state(&io, ctx);
+                rs = machine.create_run_state(&mut io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
                 rs.setup_action(action, call_args)?;
             } else if let Some(command) = args.command {
@@ -276,7 +275,7 @@ fn main() -> anyhow::Result<()> {
                     author: DeviceId::default(),
                     version: BaseId::default(),
                 });
-                rs = machine.create_run_state(&io, ctx);
+                rs = machine.create_run_state(&mut io, ctx);
                 let fields: BTreeMap<Identifier, Value> = args
                     .args
                     .into_iter()
@@ -289,10 +288,10 @@ fn main() -> anyhow::Result<()> {
                     })
                     .collect();
                 let this_data = Struct {
-                    name: command,
+                    name: command.clone(),
                     fields,
                 };
-                rs.setup_command(LabelType::CommandPolicy, this_data)?;
+                rs.setup_command(Label::new(command, LabelType::CommandPolicy), this_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }
@@ -313,7 +312,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             println!("Facts:");
-            for ((name, k), v) in &io.borrow().facts {
+            for ((name, k), v) in &io.facts {
                 print!("  {}[", name);
                 for e in k {
                     print!("{}", e);
@@ -326,7 +325,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             println!("Effects:");
-            for (name, fields) in &io.borrow().effects {
+            for (name, fields) in &io.effects {
                 println!("  {} {{", name);
                 for f in fields {
                     println!("    {}", f);

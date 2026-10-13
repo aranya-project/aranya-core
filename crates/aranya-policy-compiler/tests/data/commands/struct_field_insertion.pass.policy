@@ -1,0 +1,11 @@
+struct Bar { a int }
+struct Baz { +Bar, b string }
+command Foo {
+    fields {
+        +Baz,
+        c bool
+    }
+    policy {
+        finish {}
+    }
+}

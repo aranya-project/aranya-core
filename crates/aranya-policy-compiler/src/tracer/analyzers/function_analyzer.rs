@@ -24,11 +24,9 @@ impl Analyzer for FunctionAnalyzer {
     ) -> Result<AnalyzerStatus, TraceError> {
         match i {
             Instruction::Return => self.have_return = true,
-            Instruction::Exit(_) => {
-                if !self.have_return {
-                    // Branches without returns are potential errors; it depends on whether there is a return following the branch.
-                    return Ok(AnalyzerStatus::Failed("no return".to_string()));
-                }
+            Instruction::Exit(_) if !self.have_return => {
+                // Branches without returns are potential errors; it depends on whether there is a return following the branch.
+                return Ok(AnalyzerStatus::Failed("no return".to_string()));
             }
             _ => (),
         }

@@ -8,7 +8,6 @@ use core::{
 };
 
 use buggy::BugExt as _;
-use cfg_if::cfg_if;
 use derive_where::derive_where;
 use libc::{
     MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR, off_t,
@@ -23,10 +22,11 @@ use crate::errno::{Errno, errno};
 
 // On macOS (and probably other BSDs), shm_open is variadic so
 // its other arguments are interpreted as c_int.
-cfg_if! {
-    if #[cfg(target_os = "macos")] {
+cfg_select! {
+    target_os = "macos" => {
         type ModeT = c_int;
-    } else {
+    }
+    _ => {
         type ModeT = libc::mode_t;
     }
 }
@@ -70,6 +70,11 @@ pub(super) struct Mapping<T> {
 // pointers. But since it does not have any thread affinity, we
 // can safely make it Send.
 unsafe impl<T: Send> Send for Mapping<T> {}
+
+// SAFETY: `Mapping` is !Sync by default because it contains raw
+// pointers. But since it does not have any thread affinity, we
+// can safely make it Sync.
+unsafe impl<T: Sync> Sync for Mapping<T> {}
 
 impl<T> Drop for Mapping<T> {
     fn drop(&mut self) {
@@ -117,16 +122,16 @@ impl<T> Mapping<T> {
 
     fn try_mmap(fd: Fd, prot: c_int, layout: Layout) -> Result<Self, Error> {
         const ADDR: *mut c_void = ptr::null_mut::<c_void>();
-        cfg_if! {
-            if #[cfg(target_os = "macos")] {
-                const FLAGS: c_int = libc::MAP_SHARED | libc::MAP_HASSEMAPHORE;
-            } else if #[cfg(target_os = "linux")] {
-                const FLAGS: c_int =
-                    libc::MAP_SHARED | libc::MAP_SHARED_VALIDATE | libc::MAP_NORESERVE | libc::MAP_POPULATE;
-            } else {
-                const FLAGS: c_int = libc::MAP_SHARED;
+        const FLAGS: c_int = cfg_select! {
+            target_os = "macos" => libc::MAP_SHARED | libc::MAP_HASSEMAPHORE,
+            target_os = "linux" => {
+                libc::MAP_SHARED
+                    | libc::MAP_SHARED_VALIDATE
+                    | libc::MAP_NORESERVE
+                    | libc::MAP_POPULATE
             }
-        }
+            _ => libc::MAP_SHARED,
+        };
 
         // SAFETY: FFI call, no invariants.
         match unsafe { libc::mmap(ADDR, layout.size(), prot, FLAGS, fd.0, 0) } {

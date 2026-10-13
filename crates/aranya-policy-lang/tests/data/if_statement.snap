@@ -1,0 +1,229 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            name: "test" @ 7..11,
+            parameters: [
+                Param {
+                    name: "n" @ 12..13,
+                    vtype: Int @ 14..17,
+                },
+            ],
+            return_type: Unit @ 0..0,
+            body: [
+                If(
+                    IfStatement {
+                        branches: [
+                            (
+                                Bool(
+                                    false,
+                                ) @ 28..33,
+                                [
+                                    Check(
+                                        CheckStatement {
+                                            condition: Int(
+                                                1 @ 50..51,
+                                            ) @ 50..51,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    Some(
+                                                        "check 1",
+                                                    ),
+                                                    57..77,
+                                                ),
+                                            ) @ 57..77,
+                                        },
+                                    ) @ 44..82,
+                                ],
+                            ),
+                        ],
+                        fallback: None,
+                    },
+                ) @ 25..89,
+                If(
+                    IfStatement {
+                        branches: [
+                            (
+                                Bool(
+                                    false,
+                                ) @ 92..97,
+                                [
+                                    Check(
+                                        CheckStatement {
+                                            condition: Int(
+                                                1 @ 114..115,
+                                            ) @ 114..115,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    Some(
+                                                        "check 2",
+                                                    ),
+                                                    121..141,
+                                                ),
+                                            ) @ 121..141,
+                                        },
+                                    ) @ 108..146,
+                                ],
+                            ),
+                        ],
+                        fallback: Some(
+                            [
+                                Check(
+                                    CheckStatement {
+                                        condition: Int(
+                                            2 @ 169..170,
+                                        ) @ 169..170,
+                                        else_expression: InternalFunction(
+                                            TestFail(
+                                                Some(
+                                                    "check 3",
+                                                ),
+                                                176..196,
+                                            ),
+                                        ) @ 176..196,
+                                    },
+                                ) @ 163..201,
+                            ],
+                        ),
+                    },
+                ) @ 89..202,
+                If(
+                    IfStatement {
+                        branches: [
+                            (
+                                Bool(
+                                    false,
+                                ) @ 211..216,
+                                [
+                                    Check(
+                                        CheckStatement {
+                                            condition: Int(
+                                                1 @ 233..234,
+                                            ) @ 233..234,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    Some(
+                                                        "check 4",
+                                                    ),
+                                                    240..260,
+                                                ),
+                                            ) @ 240..260,
+                                        },
+                                    ) @ 227..269,
+                                    Let(
+                                        LetStatement {
+                                            name: "c" @ 273..274,
+                                            value: FunctionCall(
+                                                FunctionCall {
+                                                    name: "add" @ 277..280,
+                                                    arguments: [
+                                                        Int(
+                                                            1 @ 281..282,
+                                                        ) @ 281..282,
+                                                        Int(
+                                                            1 @ 284..285,
+                                                        ) @ 284..285,
+                                                    ],
+                                                },
+                                            ) @ 277..286,
+                                        },
+                                    ) @ 269..291,
+                                ],
+                            ),
+                            (
+                                Equal(
+                                    Identifier(
+                                        "n" @ 301..302,
+                                    ) @ 301..302,
+                                    Int(
+                                        2 @ 306..307,
+                                    ) @ 306..307,
+                                ) @ 301..307,
+                                [
+                                    Check(
+                                        CheckStatement {
+                                            condition: Int(
+                                                3 @ 324..325,
+                                            ) @ 324..325,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    Some(
+                                                        "check 5",
+                                                    ),
+                                                    331..351,
+                                                ),
+                                            ) @ 331..351,
+                                        },
+                                    ) @ 318..356,
+                                ],
+                            ),
+                            (
+                                Equal(
+                                    Identifier(
+                                        "n" @ 366..367,
+                                    ) @ 366..367,
+                                    Int(
+                                        4 @ 371..372,
+                                    ) @ 371..372,
+                                ) @ 366..372,
+                                [
+                                    Check(
+                                        CheckStatement {
+                                            condition: Int(
+                                                5 @ 389..390,
+                                            ) @ 389..390,
+                                            else_expression: InternalFunction(
+                                                TestFail(
+                                                    Some(
+                                                        "check 6",
+                                                    ),
+                                                    396..416,
+                                                ),
+                                            ) @ 396..416,
+                                        },
+                                    ) @ 383..421,
+                                ],
+                            ),
+                        ],
+                        fallback: Some(
+                            [
+                                Check(
+                                    CheckStatement {
+                                        condition: Int(
+                                            6 @ 444..445,
+                                        ) @ 444..445,
+                                        else_expression: InternalFunction(
+                                            TestFail(
+                                                Some(
+                                                    "check 7",
+                                                ),
+                                                451..471,
+                                            ),
+                                        ) @ 451..471,
+                                    },
+                                ) @ 438..476,
+                            ],
+                        ),
+                    },
+                ) @ 208..477,
+            ],
+            span: 0..479,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    base_commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "action test(n int) {\n    if false {\n        check 1 else test_fail(\"check 1\")\n    }\n\n    if false {\n        check 1 else test_fail(\"check 2\")\n    } else {\n        check 2 else test_fail(\"check 3\")\n    }\n\n    if false {\n        check 1 else test_fail(\"check 4\")\n        let c = add(1, 1)\n    } else if n == 2 {\n        check 3 else test_fail(\"check 5\")\n    } else if n == 4 {\n        check 5 else test_fail(\"check 6\")\n    } else {\n        check 6 else test_fail(\"check 7\")\n    }\n}\n",
+}

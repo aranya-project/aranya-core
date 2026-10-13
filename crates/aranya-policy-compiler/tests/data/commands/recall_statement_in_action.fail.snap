@@ -1,0 +1,11 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid statement
+  |
+1 | action act() {
+2 |     recall handle()
+  |     ^^^^^^^^^^^^^^^ statement not allowed in action context
+3 | }
+  |

@@ -1,0 +1,6 @@
+struct Foo { x int }
+
+struct Bar {
+    +Foo,
+    y int
+}

@@ -3,14 +3,14 @@ use alloc::vec;
 use aranya_crypto::Csprng;
 use buggy::BugExt as _;
 use heapless::Vec;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX,
-    SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PushIncoming, REQUEST_MISSING_MAX, SessionHeads,
+    SyncCommand, SyncError, responder::SyncResponseMessage, wire::SyncType,
 };
 use crate::{
-    Address, Command as _, GraphId, Location,
+    Address, GraphId, LocatedAddress, Location, TraversalBuffer,
     storage::{Segment as _, Storage as _, StorageError, StorageProvider},
 };
 
@@ -22,13 +22,13 @@ use crate::{
 /// Messages sent from the requester to the responder.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum SyncRequestMessage {
+pub(crate) enum SyncRequestMessage {
     /// Initiate a new Sync
     SyncRequest {
         /// A new random value produced by a cryptographically secure RNG.
         session_id: u128,
         /// Specifies the graph to be synced.
-        storage_id: GraphId,
+        graph_id: GraphId,
         /// Specifies the maximum number of bytes worth of commands that
         /// the requester wishes to receive.
         max_bytes: u64,
@@ -69,7 +69,7 @@ pub enum SyncRequestMessage {
 }
 
 impl SyncRequestMessage {
-    pub fn session_id(&self) -> u128 {
+    pub(crate) fn session_id(&self) -> u128 {
         match self {
             Self::SyncRequest { session_id, .. } => *session_id,
             Self::RequestMissing { session_id, .. } => *session_id,
@@ -99,18 +99,17 @@ enum SyncRequesterState {
     Reset,
 }
 
-pub struct SyncRequester<A> {
+pub struct SyncRequester {
     session_id: u128,
-    storage_id: GraphId,
+    graph_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
     next_message_index: u64,
-    server_address: A,
 }
 
-impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
+impl SyncRequester {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R, server_address: A) -> Self {
+    pub fn new<R: Csprng>(graph_id: GraphId, rng: R) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -118,29 +117,22 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
 
         Self {
             session_id,
-            storage_id,
+            graph_id,
             state: SyncRequesterState::New,
             max_bytes: 0,
             next_message_index: 0,
-            server_address,
         }
     }
 
     /// Create a new [`SyncRequester`] for an existing session.
-    pub fn new_session_id(storage_id: GraphId, session_id: u128, server_address: A) -> Self {
+    pub fn new_session_id(graph_id: GraphId, session_id: u128) -> Self {
         Self {
             session_id,
-            storage_id,
+            graph_id,
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
             next_message_index: 0,
-            server_address,
         }
-    }
-
-    /// Returns the server address.
-    pub fn server_addr(&self) -> A {
-        self.server_address.clone()
     }
 
     /// Returns true if [`Self::poll`] would produce a message.
@@ -154,11 +146,19 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
 
     /// Write a sync message in to the target buffer. Returns the number
     /// of bytes written and the number of commands sent in the sample.
+    ///
+    /// `heads` is the frontier to advertise: [`PeerCache::session_heads`]
+    /// when no transaction is open, or `Transaction::session_heads` to also
+    /// advertise an open transaction's uncommitted frontier so progressive
+    /// fetch advances across exchanges before commit.
+    ///
+    /// [`PeerCache::session_heads`]: super::PeerCache::session_heads
     pub fn poll(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &SessionHeads<'_>,
+        buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
         let result = match self.state {
@@ -167,7 +167,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
             }
             S::New => {
                 self.state = S::Start;
-                self.start(self.max_bytes, target, provider, heads)?
+                self.start(self.max_bytes, target, provider, heads, buffer)?
             }
             S::Resync => self.resume(self.max_bytes, target)?,
             S::Reset => {
@@ -180,22 +180,31 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
     }
 
     /// Receive a sync message. Returns parsed sync commands.
-    pub fn receive<'a>(
+    pub fn receive<'data>(
         &mut self,
-        data: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
-        let (message, remaining): (SyncResponseMessage, &'a [u8]) =
+        data: &'data [u8],
+    ) -> Result<Option<Vec<SyncCommand<'data>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        let (message, remaining): (SyncResponseMessage, &'data [u8]) =
             postcard::take_from_bytes(data)?;
 
         self.get_sync_commands(message, remaining)
     }
 
+    /// Apply a push received via [`SyncIncoming::Push`](super::SyncIncoming::Push).
+    /// Returns parsed sync commands borrowed from the original push payload.
+    pub fn receive_push<'data>(
+        &mut self,
+        push: PushIncoming<'data>,
+    ) -> Result<Option<Vec<SyncCommand<'data>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        self.get_sync_commands(push.message, push.command_data)
+    }
+
     /// Extract SyncCommands from a SyncResponseMessage and remaining bytes.
-    pub fn get_sync_commands<'a>(
+    fn get_sync_commands<'data>(
         &mut self,
         message: SyncResponseMessage,
-        remaining: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
+        remaining: &'data [u8],
+    ) -> Result<Option<Vec<SyncCommand<'data>, COMMAND_RESPONSE_MAX>>, SyncError> {
         if message.session_id() != self.session_id {
             return Err(SyncError::SessionMismatch);
         }
@@ -233,27 +242,27 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                         false => {
                             let end = start
                                 .checked_add(policy_len)
-                                .assume("start + policy_len mustn't overflow")?;
-                            let policy = &remaining[start..end];
+                                .ok_or(SyncError::MalformedResponse)?;
+                            let policy = remaining
+                                .get(start..end)
+                                .ok_or(SyncError::MalformedResponse)?;
                             start = end;
                             Some(policy)
                         }
                     };
 
                     let len = meta.length as usize;
-                    let end = start
-                        .checked_add(len)
-                        .assume("start + len mustn't overflow")?;
-                    let payload = &remaining[start..end];
+                    let end = start.checked_add(len).ok_or(SyncError::MalformedResponse)?;
+                    let payload = remaining
+                        .get(start..end)
+                        .ok_or(SyncError::MalformedResponse)?;
                     start = end;
 
                     let command = SyncCommand {
                         id: meta.id,
-                        priority: meta.priority,
                         parent: meta.parent,
                         policy,
                         data: payload,
-                        max_cut: meta.max_cut,
                     };
 
                     result
@@ -301,7 +310,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         Ok(result)
     }
 
-    fn write(target: &mut [u8], msg: SyncType<A>) -> Result<usize, SyncError> {
+    fn write(target: &mut [u8], msg: SyncType) -> Result<usize, SyncError> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
@@ -313,7 +322,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                     request: SyncRequestMessage::EndSession {
                         session_id: self.session_id,
                     },
-                    address: self.server_address.clone(),
                 },
             )?,
             0,
@@ -328,75 +336,104 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
             return Err(SyncError::SessionState);
         }
 
+        // `SyncResume` identifies the last response received; if no response
+        // has ever been received, the session cannot be resumed.
+        let Some(response_index) = self.next_message_index.checked_sub(1) else {
+            self.state = SyncRequesterState::Reset;
+            return Err(SyncError::MissingSyncResponse);
+        };
+
         self.state = SyncRequesterState::Waiting;
         let message = SyncType::Poll {
             request: SyncRequestMessage::SyncResume {
                 session_id: self.session_id,
-                response_index: self
-                    .next_message_index
-                    .checked_sub(1)
-                    .assume("next_index must be positive")?,
+                response_index,
                 max_bytes,
             },
-            address: self.server_address.clone(),
         };
 
         Ok((Self::write(target, message)?, 0))
     }
 
     fn get_commands(
-        &self,
+        &mut self,
         provider: &mut impl StorageProvider,
-        peer_cache: &mut PeerCache,
+        heads: &SessionHeads<'_>,
+        buffer: &mut TraversalBuffer,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
-        match provider.get_storage(self.storage_id) {
+        match provider.get_storage(self.graph_id) {
             Err(StorageError::NoSuchStorage) => (),
             Err(err) => {
                 return Err(SyncError::Storage(err));
             }
             Ok(storage) => {
-                let mut command_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
-                for address in peer_cache.heads() {
-                    command_locations
-                        .push(
-                            storage
-                                .get_location(*address)?
-                                .assume("location must exist")?,
-                        )
-                        .ok()
-                        .assume("command locations should not be full")?;
+                // Session heads first: an open transaction's frontier is the
+                // freshest statement of what we hold.
+                let mut cache_locations: vec::Vec<Location> = vec::Vec::new();
+                let session_heads: vec::Vec<LocatedAddress> = heads.session_iter().collect();
+                for head in &session_heads {
+                    cache_locations.push(head.location());
                     if commands.len() < COMMAND_SAMPLE_MAX {
                         commands
-                            .push(*address)
+                            .push(head.address())
                             .map_err(|_| SyncError::CommandOverflow)?;
                     }
                 }
-                let head = storage.get_head()?;
+                'cache: for head in heads.cache_heads() {
+                    // Skip cache entries the session frontier supersedes.
+                    for session_head in &session_heads {
+                        if head.id == session_head.id
+                            || storage.is_ancestor(
+                                head.location(),
+                                session_head.location(),
+                                buffer,
+                            )?
+                        {
+                            continue 'cache;
+                        }
+                    }
+                    cache_locations.push(head.location());
+                    if commands.len() < COMMAND_SAMPLE_MAX {
+                        commands
+                            .push(head.address())
+                            .map_err(|_| SyncError::CommandOverflow)?;
+                    }
+                }
+                // Start traversal from every graph head and work backwards
+                // until we hit a PeerCache head. The graph may be multi-head
+                // (lazy merges), so seed from all heads.
+                let mut current: vec::Vec<Location> = storage
+                    .get_heads()?
+                    .iter()
+                    .map(LocatedAddress::location)
+                    .collect();
 
-                let mut current = vec![head];
-
-                // Here we just get the first command from the most reaseant
-                // COMMAND_SAMPLE_MAX segments in the graph. This is probbly
+                // Here we just get the first command from the most recent
+                // COMMAND_SAMPLE_MAX segments in the graph. This is probably
                 // not the best strategy as if you are far enough ahead of
                 // the other client they will just send you everything they have.
                 while commands.len() < COMMAND_SAMPLE_MAX && !current.is_empty() {
                     let mut next = vec::Vec::new(); //BUG not constant memory
 
                     'current: for &location in &current {
-                        let segment = storage.get_segment(location)?;
-
-                        let head = segment.head()?;
-                        let head_address = head.address()?;
-                        for loc in &command_locations {
-                            if loc.segment == location.segment {
+                        // Check if we've hit a PeerCache head - if so, stop traversing this path
+                        for &peer_cache_loc in &cache_locations {
+                            // If this is the same location as a PeerCache head, we've hit it
+                            if location == peer_cache_loc {
+                                continue 'current;
+                            }
+                            // If the current location is an ancestor of a PeerCache head,
+                            // we've passed the PeerCache head, so stop traversing this path
+                            if storage.is_ancestor(location, peer_cache_loc, buffer)? {
                                 continue 'current;
                             }
                         }
-                        // TODO(chip): check that this is not an ancestor of a head in the PeerCache
+
+                        let segment = storage.get_segment(location)?;
                         commands
-                            .push(head_address)
+                            .push(segment.head_address()?)
                             .map_err(|_| SyncError::CommandOverflow)?;
                         next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {
@@ -408,6 +445,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
                 }
             }
         }
+
         Ok(commands)
     }
 
@@ -416,17 +454,17 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &SessionHeads<'_>,
         remain_open: u64,
         max_bytes: u64,
+        buffer: &mut TraversalBuffer,
     ) -> Result<usize, SyncError> {
-        let commands = self.get_commands(provider, heads)?;
+        let commands = self.get_commands(provider, heads, buffer)?;
         let message = SyncType::Subscribe {
             remain_open,
             max_bytes,
             commands,
-            address: self.server_address.clone(),
-            storage_id: self.storage_id,
+            graph_id: self.graph_id,
         };
 
         Self::write(target, message)
@@ -435,7 +473,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
     /// Writes an Unsubscribe message to target.
     pub fn unsubscribe(&mut self, target: &mut [u8]) -> Result<usize, SyncError> {
         let message = SyncType::Unsubscribe {
-            address: self.server_address.clone(),
+            graph_id: self.graph_id,
         };
 
         Self::write(target, message)
@@ -446,7 +484,8 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        heads: &SessionHeads<'_>,
+        buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,
@@ -459,17 +498,16 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let command_sample = self.get_commands(provider, heads)?;
+        let command_sample = self.get_commands(provider, heads, buffer)?;
 
         let sent = command_sample.len();
         let message = SyncType::Poll {
             request: SyncRequestMessage::SyncRequest {
                 session_id: self.session_id,
-                storage_id: self.storage_id,
+                graph_id: self.graph_id,
                 max_bytes,
                 commands: command_sample,
             },
-            address: self.server_address.clone(),
         };
 
         Ok((Self::write(target, message)?, sent))

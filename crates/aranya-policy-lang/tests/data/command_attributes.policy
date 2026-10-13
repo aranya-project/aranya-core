@@ -1,0 +1,6 @@
+command Foo {
+    attributes {
+        priority: "high",
+    }
+    policy {}
+}

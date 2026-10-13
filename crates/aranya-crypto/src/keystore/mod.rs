@@ -128,18 +128,18 @@ impl Display for ErrorKind {
 /// An extension trait.
 pub trait KeyStoreExt: KeyStore {
     /// Wraps and inserts the key.
-    fn insert_key<E, K>(&mut self, eng: &mut E, key: K) -> Result<K::Id, Self::Error>
+    fn insert_key<E, K>(&mut self, eng: &E, key: K) -> Result<K::Id, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
@@ -147,7 +147,7 @@ pub trait KeyStoreExt: KeyStore {
 
 impl<T: KeyStore> KeyStoreExt for T {
     /// Wraps and inserts the key.
-    fn insert_key<E, K>(&mut self, eng: &mut E, key: K) -> Result<K::Id, Self::Error>
+    fn insert_key<E, K>(&mut self, eng: &E, key: K) -> Result<K::Id, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
@@ -159,7 +159,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     }
 
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
@@ -175,7 +175,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     }
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
@@ -188,5 +188,55 @@ impl<T: KeyStore> KeyStoreExt for T {
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(all(test, feature = "memstore"))]
+mod tests {
+    use crate::{
+        Rng,
+        aranya::EncryptionKey,
+        default::{DefaultCipherSuite, DefaultEngine},
+        keystore::{KeyStoreExt as _, memstore::MemStore},
+    };
+
+    type CS = DefaultCipherSuite;
+    type Key = EncryptionKey<CS>;
+
+    /// Exercises both the `Some` (present) and `None` (absent)
+    /// arms of [`KeyStoreExt::get_key`] and
+    /// [`KeyStoreExt::remove_key`].
+    #[test]
+    fn test_get_remove_key_present_and_absent() {
+        let (eng, _) = DefaultEngine::<Rng, CS>::from_entropy(Rng);
+        let mut store = MemStore::new();
+
+        let id = store
+            .insert_key(&eng, Key::new(&eng))
+            .expect("should be able to insert key");
+
+        // Present: `get_key` takes the `Some` arm.
+        let got = store
+            .get_key::<_, Key>(&eng, id)
+            .expect("`get_key` should not fail");
+        assert!(got.is_some(), "stored key should be found");
+
+        // Present: `remove_key` takes the `Some` arm.
+        let removed = store
+            .remove_key::<_, Key>(&eng, id)
+            .expect("`remove_key` should not fail");
+        assert!(removed.is_some(), "stored key should be removed");
+
+        // Absent: `get_key` takes the `None` arm.
+        let got = store
+            .get_key::<_, Key>(&eng, id)
+            .expect("`get_key` should not fail");
+        assert!(got.is_none(), "removed key should be gone");
+
+        // Absent: `remove_key` takes the `None` arm.
+        let removed = store
+            .remove_key::<_, Key>(&eng, id)
+            .expect("`remove_key` should not fail");
+        assert!(removed.is_none(), "removed key should stay gone");
     }
 }

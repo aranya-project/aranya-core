@@ -1,0 +1,10 @@
+// Globals cannot depend on other global variables
+let x = 42
+
+struct Far {
+    a int,
+}
+
+let e = Far {
+    a: x
+}

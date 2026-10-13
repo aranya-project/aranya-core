@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.19.3...aranya-fast-channels-v0.20.0) - 2026-08-25
+
+### Other
+
+- update crypto dependencies ([#762](https://github.com/aranya-project/aranya-core/pull/762))
+
+## [0.19.3](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.19.2...aranya-fast-channels-v0.19.3) - 2026-07-09
+
+### Other
+
+- address crossbeam-epoch and scc ([#721](https://github.com/aranya-project/aranya-core/pull/721))
+- lender type for in-memory state ([#692](https://github.com/aranya-project/aranya-core/pull/692))
+
+## [0.19.2](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.19.1...aranya-fast-channels-v0.19.2) - 2026-05-22
+
+### Other
+
+- updated the following local packages: aranya-crypto
+
+## [0.19.1](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.19.0...aranya-fast-channels-v0.19.1) - 2026-03-31
+
+### Other
+
+- Change QUIC syncer to TCP syncer ([#629](https://github.com/aranya-project/aranya-core/pull/629))
+
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.18.0...aranya-fast-channels-v0.19.0) - 2026-03-17
+
+### Other
+
+- updated the following local packages: aranya-crypto
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.17.2...aranya-fast-channels-v0.18.0) - 2026-02-17
+
+### Other
+
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+
+## [0.17.2](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.17.1...aranya-fast-channels-v0.17.2) - 2026-01-23
+
+### Other
+
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+
+## [0.17.1](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.17.0...aranya-fast-channels-v0.17.1) - 2026-01-06
+
+### Other
+
+- updated the following local packages: aranya-crypto
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.16.0...aranya-fast-channels-v0.17.0) - 2025-12-11
+
+### Other
+
+- clean up dev profile and some feature sets ([#507](https://github.com/aranya-project/aranya-core/pull/507))
+- Pass `OpenCtx` to client methods ([#485](https://github.com/aranya-project/aranya-core/pull/485))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.15.0...aranya-fast-channels-v0.16.0) - 2025-11-12
+
+### Other
+
+- add `SealCtx` to fix `Seq` tracking ([#480](https://github.com/aranya-project/aranya-core/pull/480))
+
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.14.0...aranya-fast-channels-v0.15.0) - 2025-11-05
+
+### Other
+
+- Add channel direction to `RemoveIfParams` ([#466](https://github.com/aranya-project/aranya-core/pull/466))
+- rename local channel ID ([#453](https://github.com/aranya-project/aranya-core/pull/453))
+
 ## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.13.0...aranya-fast-channels-v0.14.0) - 2025-10-16
 
 ### Other

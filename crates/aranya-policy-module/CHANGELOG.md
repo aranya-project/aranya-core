@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.22.0...aranya-policy-module-v0.23.0) - 2026-08-25
+
+### Other
+
+- Remove vm span dependency ([#726](https://github.com/aranya-project/aranya-core/pull/726))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.21.0...aranya-policy-module-v0.22.0) - 2026-07-09
+
+### Other
+
+- Close #648: Invoke recall blocks directly from policy, without roundtrip to runtime. ([#700](https://github.com/aranya-project/aranya-core/pull/700))
+- add unit type ([#669](https://github.com/aranya-project/aranya-core/pull/669))
+
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.20.0...aranya-policy-module-v0.21.0) - 2026-05-22
+
+### Other
+
+- 641 multiple recalls ([#642](https://github.com/aranya-project/aranya-core/pull/642))
+- Improve error messages ([#632](https://github.com/aranya-project/aranya-core/pull/632))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.19.0...aranya-policy-module-v0.20.0) - 2026-03-31
+
+### Other
+
+- clean up snapshot formatting ([#635](https://github.com/aranya-project/aranya-core/pull/635))
+
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.18.1...aranya-policy-module-v0.19.0) - 2026-03-17
+
+### Other
+
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+- make `ConstValue::vtype` infallible ([#602](https://github.com/aranya-project/aranya-core/pull/602))
+- split off `ConstValue` and move `Value` to the vm ([#584](https://github.com/aranya-project/aranya-core/pull/584))
+
+## [0.18.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.18.0...aranya-policy-module-v0.18.1) - 2026-02-17
+
+### Other
+
+- updated the following local packages: aranya-policy-ast
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.17.0...aranya-policy-module-v0.18.0) - 2026-01-23
+
+### Other
+
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.16.0...aranya-policy-module-v0.17.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.15.0...aranya-policy-module-v0.16.0) - 2025-12-11
+
+### Other
+
+- allow nested option ([#502](https://github.com/aranya-project/aranya-core/pull/502))
+- remove `Typeish` and `NullableVType` ([#486](https://github.com/aranya-project/aranya-core/pull/486))
+
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.14.0...aranya-policy-module-v0.15.0) - 2025-11-05
+
+### Other
+
+- fix code map ([#472](https://github.com/aranya-project/aranya-core/pull/472))
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+- Close #420: Replace infix arithmetic operators with checked and saturating internal functions. ([#435](https://github.com/aranya-project/aranya-core/pull/435))
+
 ## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.13.0...aranya-policy-module-v0.14.0) - 2025-10-16
 
 ### Other

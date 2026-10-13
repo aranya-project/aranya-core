@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: fact literal does not match definition: leading bind values not allowed
+  |
+3 |     check exists Foo[x: ?, y: 42] => {} else test_fail()
+  |                         ^ leading bind values not allowed

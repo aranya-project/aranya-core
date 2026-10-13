@@ -6,8 +6,8 @@ use core::{
 use aranya_crypto::{
     CipherSuite, DeviceId,
     afc::{OpenKey, SealKey},
+    ctutils::CtEq,
     policy::LabelId,
-    subtle::ConstantTimeEq,
 };
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
@@ -19,13 +19,31 @@ pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
 
+    /// Associated seal channel context.
+    ///
+    /// This state must be maintaned for as long as you use a given channel.
+    type SealCtx;
+
+    /// Associated seal channel context.
+    ///
+    /// This state must be maintaned for as long as you use a given channel.
+    type OpenCtx;
+
+    /// Sets up the seal context for a given channel.
+    ///
+    /// This must only be called once for any `id`.
+    fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error>;
+
+    /// Sets up the open context for a given channel.
+    fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error>;
+
     /// Invokes `f` with the channel's encryption key.
-    fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
     /// Invokes `f` with the channel's decryption key.
-    fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+    fn open<F, T>(&self, ctx: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>;
 
@@ -41,15 +59,23 @@ pub struct RemoveIfParams {
     pub label_id: LabelId,
     /// The device ID of the peer associated with this channel
     pub peer_id: DeviceId,
+    /// Describes the direction that data flows in the channel.
+    pub direction: ChannelDirection,
 }
 
 impl RemoveIfParams {
     /// Create a new [RemoveIfParams].
-    pub fn new(local_channel_id: LocalChannelId, label_id: LabelId, peer_id: DeviceId) -> Self {
+    pub fn new(
+        local_channel_id: LocalChannelId,
+        label_id: LabelId,
+        peer_id: DeviceId,
+        direction: ChannelDirection,
+    ) -> Self {
         Self {
             local_channel_id,
             label_id,
             peer_id,
+            direction,
         }
     }
 }
@@ -197,6 +223,14 @@ impl<S, O> Directed<S, O> {
             Self::SealOnly { .. } => None,
         }
     }
+
+    /// Returns the corresponding [ChannelDirection].
+    pub fn direction(&self) -> ChannelDirection {
+        match self {
+            Self::SealOnly { .. } => ChannelDirection::Seal,
+            Self::OpenOnly { .. } => ChannelDirection::Open,
+        }
+    }
 }
 
 impl<S, O> Directed<&S, &O> {
@@ -238,8 +272,8 @@ impl<S, O> Directed<S, O> {
 
 impl<S, O> Eq for Directed<S, O>
 where
-    S: ConstantTimeEq,
-    O: ConstantTimeEq,
+    S: CtEq,
+    O: CtEq,
 {
 }
 
@@ -247,8 +281,8 @@ where
 // comparisons are in constant time.
 impl<S, O> PartialEq for Directed<S, O>
 where
-    S: ConstantTimeEq,
-    O: ConstantTimeEq,
+    S: CtEq,
+    O: CtEq,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -271,6 +305,15 @@ impl<S, O> Debug for Directed<S, O> {
             Self::OpenOnly { .. } => f.write_str("OpenOnly { .. }"),
         }
     }
+}
+
+/// Describes the flow of data for an AFC channel.
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ChannelDirection {
+    /// See [`Directed::SealOnly`].
+    Seal,
+    /// See [`Directed::OpenOnly`].
+    Open,
 }
 
 #[cfg(test)]
@@ -313,15 +356,25 @@ mod test {
         CS: CipherSuite,
     {
         type CipherSuite = CS;
+        type SealCtx = <memory::State<CS> as AfcState>::SealCtx;
+        type OpenCtx = <memory::State<CS> as AfcState>::OpenCtx;
 
-        fn seal<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn setup_seal_ctx(&self, id: LocalChannelId) -> Result<Self::SealCtx, Error> {
+            self.state.setup_seal_ctx(id)
+        }
+
+        fn setup_open_ctx(&self, id: LocalChannelId) -> Result<Self::OpenCtx, Error> {
+            self.state.setup_open_ctx(id)
+        }
+
+        fn seal<F, T>(&self, ctx: &mut Self::SealCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&mut SealKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {
-            self.state.seal(id, f)
+            self.state.seal(ctx, f)
         }
 
-        fn open<F, T>(&self, id: LocalChannelId, f: F) -> Result<Result<T, Error>, Error>
+        fn open<F, T>(&self, id: &mut Self::OpenCtx, f: F) -> Result<Result<T, Error>, Error>
         where
             F: FnOnce(&OpenKey<Self::CipherSuite>, LabelId) -> Result<T, Error>,
         {

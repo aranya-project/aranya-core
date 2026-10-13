@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Syntax error
+  |
+1 | use one, two
+  |        ^ expected EOI, ephemeral_modifier, immutable_modifier, use_definition, effect_definition, struct_definition, enum_definition, base_command_definition, function_decl, finish_function_decl, or global_let_statement

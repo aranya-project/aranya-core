@@ -1,0 +1,34 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [
+        FactDefinition {
+            immutable: false,
+            name: "A" @ 5..6,
+            keys: [],
+            values: [],
+            span: 0..12,
+        },
+        FactDefinition {
+            immutable: true,
+            name: "B" @ 28..29,
+            keys: [],
+            values: [],
+            span: 13..35,
+        },
+    ],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    base_commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "fact A[]=>{}\nimmutable fact B[]=>{}\n",
+}

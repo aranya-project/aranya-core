@@ -3,7 +3,7 @@
 //!
 //! ## Creating a `VmPolicy` instance
 //!
-//! To use `VmPolicy` in your [`Engine`](super::Engine), you need to provide a Policy VM
+//! To use `VmPolicy` in your [`PolicyStore`](super::PolicyStore), you need to provide a Policy VM
 //! [`Machine`], a [`aranya_crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine
 //! will be created by either compiling a policy document (see
 //! [`parse_policy_document()`](../../policy_lang/lang/fn.parse_policy_document.html) and
@@ -27,7 +27,7 @@
 //! let (eng, _) = DefaultEngine::from_entropy(Rng);
 //! // Create a list of FFI module implementations
 //! let ffi_modules = vec![Box::from(TestFfiEnvelope {
-//!     device: DeviceId::random(&mut Rng),
+//!     device: DeviceId::random(Rng),
 //! })];
 //! // And finally, create the VmPolicy
 //! let policy = VmPolicy::new(machine, eng, ffi_modules).unwrap();
@@ -61,34 +61,30 @@
 //!     fields {
 //!         nonce int,
 //!     }
-//!     seal { ... }
-//!     open { ... }
 //!     policy {
 //!         finish {}
 //!     }
 //! }
 //!
 //! action init(nonce int) {
-//!     publish Init {
-//!         nonce: nonce,
-//!     }
+//!     publish Init { nonce }
 //! }
 //! ```
 //!
 //! This is an example of initializing a graph with `new_graph()`:
 //!
 //! ```ignore
-//! let engine = MyEngine::new();
+//! let policy_store = MyPolicyStore::new();
 //! let provider = MyStorageProvider::new();
-//! let mut cs = ClientState::new(engine, provider);
+//! let mut cs = ClientState::new(policy_store, provider);
 //! let mut sink = MySink::new();
 //!
-//! let storage_id = cs
+//! let graph_id = cs
 //!     .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
 //!     .expect("could not create graph");
 //! ```
 //!
-//! Because the ID of this initial command is also the storage ID of the resulting graph,
+//! Because the ID of this initial command is also the ID of the resulting graph,
 //! some data within the command must be present to ensure that multiple initial commands
 //! create distinct IDs for each graph. If no other suitable data exists, it is good
 //! practice to add a nonce field that is distinct for each graph.
@@ -116,34 +112,33 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
-use core::{borrow::Borrow as _, cell::RefCell, fmt};
+use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
+use core::fmt;
 
-use aranya_crypto::BaseId;
 use aranya_policy_vm::{
-    ActionContext, CommandContext, CommandDef, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, OpenContext, PolicyContext, RunState, Stack as _, Struct, Value,
-    ast::{Identifier, Persistence},
+    ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
+    MachineStack, Persistence, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
+    ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
-use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
-    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, Perspective, Prior,
-    Priority,
+    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, NullSink, Perspective,
+    Prior, Priority,
     command::{CmdId, Command},
-    engine::{EngineError, NullSink, Policy, Sink},
+    policy::{Policy, PolicyError, Sink},
 };
 
 mod error;
 mod io;
 mod protocol;
-pub mod testing;
+mod seal_open;
 
 pub use error::*;
 pub use io::*;
 pub use protocol::*;
+pub use seal_open::SealCtx;
 
 /// Creates a [`VmAction`].
 ///
@@ -154,7 +149,7 @@ pub use protocol::*;
 /// ```ignore
 /// let x = 42;
 /// let y = text!("asdf");
-/// client.action(storage_id, sink, vm_action!(foobar(x, y)))
+/// client.action(graph_id, sink, vm_action!(foobar(x, y)))
 /// ```
 #[macro_export]
 macro_rules! vm_action {
@@ -177,7 +172,7 @@ macro_rules! vm_action {
 /// let val = 3;
 /// sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: val }));
 ///
-/// client.action(storage_id, sink, vm_action!(create(val)))
+/// client.action(graph_id, sink, vm_action!(create(val)))
 /// ```
 #[macro_export]
 macro_rules! vm_effect {
@@ -192,24 +187,29 @@ macro_rules! vm_effect {
 }
 
 /// A [Policy] implementation that uses the Policy VM.
-pub struct VmPolicy<E> {
+pub struct VmPolicy<CE> {
     machine: Machine,
-    engine: Mutex<E>,
-    ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
+    engine: CE,
+    ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
 }
 
-impl<E> VmPolicy<E> {
+impl<CE> VmPolicy<CE> {
     /// Create a new `VmPolicy` from a [Machine]
     pub fn new(
         machine: Machine,
-        engine: E,
-        ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
+        engine: CE,
+        ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
+        if let Some(module_ffis) = &machine.ffis {
+            ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;
+        } else {
+            tracing::warn!("Module does not have contract; cannot validate FFI");
+        }
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
-            engine: Mutex::new(engine),
+            engine,
             ffis,
             priority_map,
         })
@@ -230,13 +230,12 @@ fn get_command_priorities(
 ) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
     let mut priority_map = BTreeMap::new();
     for def in machine.command_defs.iter() {
-        let name = &def.name.name;
-        let attrs = PriorityAttrs::load(name.as_str(), def)?;
+        let attrs = PriorityAttrs::load(def.name.as_str(), def)?;
         match def.persistence {
             Persistence::Persistent => {
-                priority_map.insert(name.clone(), get_command_priority(name, &attrs)?);
+                priority_map.insert(def.name.clone(), get_command_priority(&def.name, &attrs)?);
             }
-            Persistence::Ephemeral { .. } => {
+            Persistence::Ephemeral => {
                 if attrs != PriorityAttrs::default() {
                     return Err(AttributeError(
                         "ephemeral command must not have priority".into(),
@@ -259,9 +258,10 @@ impl PriorityAttrs {
     fn load(name: &str, def: &CommandDef) -> Result<Self, AttributeError> {
         let attrs = &def.attributes;
         let init = attrs
-            .get("init")
+            .iter()
+            .find(|a| a.name == "init")
             .map(|attr| match attr.value {
-                Value::Bool(b) => Ok(b),
+                ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
                     name,
                     "finalize",
@@ -272,9 +272,10 @@ impl PriorityAttrs {
             .transpose()?
             == Some(true);
         let finalize = attrs
-            .get("finalize")
+            .iter()
+            .find(|a| a.name == "finalize")
             .map(|attr| match attr.value {
-                Value::Bool(b) => Ok(b),
+                ConstValue::Bool(b) => Ok(b),
                 _ => Err(AttributeError::type_mismatch(
                     name,
                     "finalize",
@@ -285,9 +286,10 @@ impl PriorityAttrs {
             .transpose()?
             == Some(true);
         let priority: Option<u32> = attrs
-            .get("priority")
+            .iter()
+            .find(|a| a.name == "priority")
             .map(|attr| match attr.value {
-                Value::Int(b) => b.try_into().map_err(|_| {
+                ConstValue::Int(b) => b.try_into().map_err(|_| {
                     AttributeError::int_range(name, "priority", u32::MIN.into(), u32::MAX.into())
                 }),
                 _ => Err(AttributeError::type_mismatch(
@@ -331,7 +333,7 @@ fn get_command_priority(
     }
 }
 
-impl<E: aranya_crypto::Engine> VmPolicy<E> {
+impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all, fields(name = name.as_str()))]
     fn evaluate_rule<'a, P>(
@@ -342,124 +344,85 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: CommandContext,
-        placement: CommandPlacement,
-    ) -> Result<(), EngineError>
+    ) -> Result<(), PolicyError>
     where
         P: FactPerspective,
     {
-        let facts = RefCell::new(facts);
-        let sink = RefCell::new(sink);
-        let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
-        let mut rs = self.machine.create_run_state(&io, ctx);
+        let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
+        let mut rs = self.machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, fields);
-        match rs.call_command_policy(this_data.clone(), envelope.clone().into()) {
+        match rs.call_command_policy(this_data, envelope.into()) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
-
-                    match placement {
-                        CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
-                            // Immediate check failure.
-                            return Err(EngineError::Check);
-                        }
-                        CommandPlacement::OnGraphInBraid => {
-                            // Perform recall.
-                        }
-                    }
-
-                    // Construct a new recall context from the policy context
-                    let CommandContext::Policy(policy_ctx) = rs.get_context() else {
-                        error!(
-                            "Non-policy context while evaluating rule: {:?}",
-                            rs.get_context()
-                        );
-                        return Err(EngineError::InternalError);
-                    };
-                    let recall_ctx = CommandContext::Recall(policy_ctx.clone());
-                    rs.set_context(recall_ctx);
-                    self.recall_internal(&mut rs, this_data, envelope)
+                    info!("Check: {}", self.source_location(&rs));
+                    Err(PolicyError::Rejected)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Panic)
+                    Err(PolicyError::Panic)
                 }
             },
             Err(e) => {
                 error!("\n{e}");
-                Err(EngineError::InternalError)
+                Err(PolicyError::InternalError)
             }
         }
     }
 
-    fn recall_internal<M>(
+    #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
+    fn seal_command(
         &self,
-        rs: &mut RunState<'_, M>,
-        this_data: Struct,
-        envelope: Envelope<'_>,
-    ) -> Result<(), EngineError>
-    where
-        M: MachineIO<MachineStack>,
-    {
-        match rs.call_command_recall(this_data, envelope.into()) {
-            Ok(ExitReason::Normal) => Err(EngineError::Check),
-            Ok(ExitReason::Yield) => bug!("unexpected yield"),
-            Ok(ExitReason::Check) => {
-                info!("Recall failed: {}", self.source_location(rs));
-                Err(EngineError::Check)
-            }
-            Ok(ExitReason::Panic) | Err(_) => {
-                info!("Recall panicked: {}", self.source_location(rs));
-                Err(EngineError::Panic)
-            }
-        }
+        command_struct: &Struct,
+        parent_id: CmdId,
+        seal_ctx: &SealCtx<CE>,
+    ) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
+        let payload = self.machine.serialize_struct(command_struct).map_err(|e| {
+            error!(error = %e, "cannot serialize command");
+            PolicyError::Write
+        })?;
+
+        let envelope = seal_open::seal_with_key(
+            &seal_ctx.key,
+            command_struct,
+            &payload,
+            seal_ctx.author,
+            parent_id,
+        )
+        .map_err(|e| {
+            error!(error = %e, "could not seal command");
+            PolicyError::Panic
+        })?;
+
+        Ok((payload, envelope))
     }
 
-    #[instrument(skip_all, fields(name = name.as_str()))]
-    fn open_command<P>(
+    #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
+    fn open_command(
         &self,
-        name: Identifier,
-        envelope: Envelope<'_>,
-        facts: &mut P,
-    ) -> Result<Struct, EngineError>
-    where
-        P: FactPerspective,
-    {
-        let facts = RefCell::new(facts);
+        command_struct: &Struct,
+        payload: &[u8],
+        envelope: &Envelope<'_>,
+        facts: &mut impl FactPerspective,
+    ) -> Result<(), PolicyError> {
         let mut sink = NullSink;
-        let sink2 = RefCell::new(&mut sink);
-        let io = RefCell::new(VmPolicyIO::new(&facts, &sink2, &self.engine, &self.ffis));
-        let ctx = CommandContext::Open(OpenContext { name: name.clone() });
-        let mut rs = self.machine.create_run_state(&io, ctx);
-        let status = rs.call_open(name, envelope.into());
-        match status {
-            Ok(reason) => match reason {
-                ExitReason::Normal => {
-                    let v = rs.consume_return().map_err(|e| {
-                        error!("Could not pull envelope from stack: {e}");
-                        EngineError::InternalError
-                    })?;
-                    Ok(v.try_into().map_err(|e| {
-                        error!("Envelope is not a struct: {e}");
-                        EngineError::InternalError
-                    })?)
-                }
-                ExitReason::Yield => bug!("unexpected yield"),
-                ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
-                    Err(EngineError::Check)
-                }
-                ExitReason::Panic => {
-                    info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Check)
-                }
-            },
-            Err(e) => {
-                error!("\n{e}");
-                Err(EngineError::InternalError)
-            }
-        }
+        let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
+
+        let (_, value) = self
+            .machine
+            .call_get_key(command_struct.clone(), envelope.author_id, &mut io)
+            .map_err(|_| PolicyError::Panic)?;
+
+        let key_bytes = value.ok_or(PolicyError::Panic)?;
+        let key: aranya_crypto::VerifyingKey<CE::CS> =
+            postcard::from_bytes(&key_bytes).map_err(|_| {
+                tracing::warn!("could not deserialize open key");
+                PolicyError::Panic
+            })?;
+
+        seal_open::open_with_key(key, command_struct, payload, envelope)
+            .map_err(|_| PolicyError::Panic)
     }
 }
 
@@ -531,15 +494,16 @@ impl From<VmPriority> for Priority {
     }
 }
 
-impl<E> VmPolicy<E> {
+impl<CE> VmPolicy<CE> {
     fn get_command_priority(&self, name: &Identifier) -> VmPriority {
-        debug_assert!(self.machine.command_defs.contains(name));
+        debug_assert!(self.machine.command_defs.contains_key(name));
         self.priority_map.get(name).copied().unwrap_or_default()
     }
 }
 
-impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
+impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     type Action<'a> = VmAction<'a>;
+    type SealCtx = SealCtx<CE>;
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;
 
@@ -555,7 +519,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
         placement: CommandPlacement,
-    ) -> Result<(), EngineError> {
+    ) -> Result<Priority, PolicyError> {
         let parent_id = match command.parent() {
             Prior::None => CmdId::default(),
             Prior::Single(parent) => parent.id,
@@ -565,55 +529,65 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let VmProtocolData {
             author_id,
             kind,
-            serialized_fields,
+            serialized_fields: payload,
             signature,
         } = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
-            EngineError::Read
+            PolicyError::Read
         })?;
 
-        let expected_priority = self.get_command_priority(&kind).into();
-        if command.priority() != expected_priority {
-            error!(
-                "Expected priority {:?}, got {:?}",
-                expected_priority,
-                command.priority()
-            );
-            bug!("Command has invalid priority");
-        }
+        let priority = self.get_command_priority(&kind).into();
 
         let def = self.machine.command_defs.get(&kind).ok_or_else(|| {
             error!("unknown command {kind}");
-            EngineError::InternalError
+            PolicyError::InternalError
         })?;
 
         let envelope = Envelope {
             parent_id,
             author_id,
             command_id: command.id(),
-            payload: Cow::Borrowed(serialized_fields),
             signature: Cow::Borrowed(signature),
         };
 
         match (placement, &def.persistence) {
             (CommandPlacement::OnGraphAtOrigin, Persistence::Persistent) => {}
             (CommandPlacement::OnGraphInBraid, Persistence::Persistent) => {}
-            (CommandPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
-            (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral(_)) => {
+            (CommandPlacement::OffGraph, Persistence::Ephemeral) => {}
+            (CommandPlacement::OnGraphAtOrigin, Persistence::Ephemeral) => {
                 error!("cannot evaluate ephemeral command on-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
-            (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral(_)) => {
+            (CommandPlacement::OnGraphInBraid, Persistence::Ephemeral) => {
                 error!("cannot evaluate ephemeral command in braid");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
             (CommandPlacement::OffGraph, Persistence::Persistent) => {
                 error!("cannot evaluate persistent command off-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
         }
 
-        let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
+        let command_struct = self
+            .machine
+            .deserialize_struct(kind.clone(), payload)
+            .map_err(|e| {
+                error!(
+                    error = %e,
+                    "could not deserialize command during braid"
+                );
+                PolicyError::Read
+            })?;
+
+        match placement {
+            CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
+                self.open_command(&command_struct, payload, &envelope, facts)?;
+            }
+            CommandPlacement::OnGraphInBraid => {
+                // Bypass real open and just deserialize.
+            }
+        }
+
         let fields: Vec<KVPair> = command_struct
             .fields
             .into_iter()
@@ -623,19 +597,11 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             name: kind.clone(),
             id: command.id(),
             author: author_id,
-            version: BaseId::default(),
+            version: aranya_crypto::BaseId::default(),
         });
-        self.evaluate_rule(
-            kind,
-            fields.as_slice(),
-            envelope,
-            facts,
-            sink,
-            ctx,
-            placement,
-        )?;
+        self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx)?;
 
-        Ok(())
+        Ok(priority)
     }
 
     #[instrument(skip_all, fields(name = action.name.as_str()))]
@@ -645,25 +611,25 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
         action_placement: ActionPlacement,
-    ) -> Result<(), EngineError> {
+        seal_ctx: &SealCtx<CE>,
+    ) -> Result<(), PolicyError> {
         let VmAction { name, args } = action;
 
-        let def = self
-            .machine
-            .action_defs
-            .get(&name)
-            .ok_or(EngineError::InternalError)?;
+        let def = self.machine.action_defs.get(&name).ok_or_else(|| {
+            error!("action not found");
+            PolicyError::InternalError
+        })?;
 
         match (action_placement, &def.persistence) {
             (ActionPlacement::OnGraph, Persistence::Persistent) => {}
-            (ActionPlacement::OffGraph, Persistence::Ephemeral(_)) => {}
-            (ActionPlacement::OnGraph, Persistence::Ephemeral(_)) => {
+            (ActionPlacement::OffGraph, Persistence::Ephemeral) => {}
+            (ActionPlacement::OnGraph, Persistence::Ephemeral) => {
                 error!("cannot call ephemeral action on-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
             (ActionPlacement::OffGraph, Persistence::Persistent) => {
                 error!("cannot call persistent action off-graph");
-                return Err(EngineError::InternalError);
+                return Err(PolicyError::InternalError);
             }
         }
 
@@ -674,98 +640,98 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         };
         // FIXME(chip): This is kind of wrong, but it avoids having to
         // plumb `Option<CmdId>` into the VM and FFI
-        let ctx_parent = parent.unwrap_or_default();
-        let facts = Rc::new(RefCell::new(facts));
-        let sink = Rc::new(RefCell::new(sink));
-        let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
+        let ctx_parent = parent.map(|a| a.id).unwrap_or_default();
+        let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
         let ctx = CommandContext::Action(ActionContext {
             name: name.clone(),
-            head_id: ctx_parent.id,
+            head_id: ctx_parent,
         });
         let command_placement = match action_placement {
             ActionPlacement::OnGraph => CommandPlacement::OnGraphAtOrigin,
             ActionPlacement::OffGraph => CommandPlacement::OffGraph,
         };
         {
-            let mut rs = self.machine.create_run_state(&io, ctx);
+            let mut rs = self.machine.create_run_state(&mut io, ctx);
             let mut exit_reason = match args {
                 Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
                 Cow::Owned(args) => rs.call_action(name, args),
             }
             .map_err(|e| {
                 error!("\n{e}");
-                EngineError::InternalError
+                PolicyError::InternalError
             })?;
             loop {
                 match exit_reason {
                     ExitReason::Normal => {
-                        // Action completed
+                        // Action completed. A fallible action leaves its return
+                        // value on the stack; an infallible action leaves nothing.
+                        if def.is_fallible() {
+                            let value = rs.stack.pop_value().map_err(|e| {
+                                error!("expected action result value: {e}");
+                                PolicyError::InternalError
+                            })?;
+                            // `Err(payload)` => the action failed;
+                            // anything else (`Ok`/placeholder success) succeeds.
+                            if let Value::Result(Err(payload)) = value {
+                                info!(
+                                    "action returned Err {}: {}",
+                                    self.source_location(&rs),
+                                    payload,
+                                );
+                                return Err(PolicyError::Rejected);
+                            }
+                        }
                         break;
                     }
                     ExitReason::Yield => {
                         // Command was published.
                         let command_struct: Struct = rs.stack.pop().map_err(|e| {
                             error!("should have command struct: {e}");
-                            EngineError::InternalError
+                            PolicyError::InternalError
                         })?;
+
                         let command_name = command_struct.name.clone();
-
-                        let seal_ctx = rs.get_context().seal_from_action(command_name.clone())?;
-                        let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
-                        match rs_seal.call_seal(command_struct).map_err(|e| {
-                            error!("Cannot seal command: {}", e);
-                            EngineError::Panic
-                        })? {
-                            ExitReason::Normal => (),
-                            r @ (ExitReason::Yield | ExitReason::Check | ExitReason::Panic) => {
-                                error!("Could not seal command: {}", r);
-                                return Err(EngineError::Panic);
-                            }
-                        }
-
-                        // Grab sealed envelope from stack
-                        let envelope_struct: Struct = rs_seal.stack.pop().map_err(|e| {
-                            error!("Expected a sealed envelope {e}");
-                            EngineError::InternalError
-                        })?;
-                        let envelope = Envelope::try_from(envelope_struct).map_err(|e| {
-                            error!("Malformed envelope: {e}");
-                            EngineError::InternalError
-                        })?;
 
                         // The parent of a basic command should be the command that was added to the perspective on the previous
                         // iteration of the loop
-                        let parent = RefCell::borrow_mut(Rc::borrow(&facts)).head_address()?;
+                        let parent = rs.io.facts.head_address()?;
+
                         let priority = self.get_command_priority(&command_name).into();
 
+                        let parent_id;
                         let policy;
                         match parent {
                             Prior::None => {
+                                parent_id = CmdId::default();
                                 // TODO(chip): where does the policy value come from?
-                                policy = Some(0u64.to_le_bytes());
+                                policy = Some(&[0u8; 8][..]);
                                 if !matches!(priority, Priority::Init) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
-                                    return Err(EngineError::InternalError);
+                                    return Err(PolicyError::InternalError);
                                 }
                             }
-                            Prior::Single(_) => {
+                            Prior::Single(p) => {
+                                parent_id = p.id;
                                 policy = None;
                                 if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
-                                    return Err(EngineError::InternalError);
+                                    return Err(PolicyError::InternalError);
                                 }
                             }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
-                        };
+                        }
+
+                        let (payload, envelope) =
+                            self.seal_command(&command_struct, parent_id, seal_ctx)?;
 
                         let data = VmProtocolData {
                             author_id: envelope.author_id,
                             kind: command_name.clone(),
-                            serialized_fields: &envelope.payload,
+                            serialized_fields: &payload,
                             signature: &envelope.signature,
                         };
 
@@ -774,41 +740,41 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
                         let new_command = VmProtocol {
                             id: envelope.command_id,
-                            priority,
                             parent,
                             policy,
                             data: &wrapped,
                         };
 
-                        self.call_rule(
-                            &new_command,
-                            *RefCell::borrow_mut(Rc::borrow(&facts)),
-                            *RefCell::borrow_mut(Rc::borrow(&sink)),
-                            command_placement,
-                        )?;
-                        RefCell::borrow_mut(Rc::borrow(&facts))
-                            .add_command(&new_command)
+                        self.call_rule(&new_command, rs.io.facts, rs.io.sink, command_placement)?;
+                        rs.io
+                            .facts
+                            .add_command(&new_command, priority)
                             .map_err(|e| {
                                 error!("{e}");
-                                EngineError::Write
+                                PolicyError::Write
                             })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        rs.update_context_with_new_head(new_command.id())?;
+                        let new_head = match rs.io.facts.head_address()? {
+                            Prior::Single(addr) => addr.id,
+                            _ => bug!("expected single head after adding command"),
+                        };
+                        rs.update_context_with_new_head(new_head)?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {
                             error!("{e}");
-                            EngineError::InternalError
+                            PolicyError::InternalError
                         })?;
                     }
                     ExitReason::Check => {
+                        // Can't recall outside a command context
                         info!("Check {}", self.source_location(&rs));
-                        return Err(EngineError::Check);
+                        return Err(PolicyError::Rejected);
                     }
                     ExitReason::Panic => {
                         info!("Panicked {}", self.source_location(&rs));
-                        return Err(EngineError::Panic);
+                        return Err(PolicyError::Panic);
                     }
                 }
             }
@@ -821,12 +787,11 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         &self,
         _target: &'a mut [u8],
         ids: MergeIds,
-    ) -> Result<Self::Command<'a>, EngineError> {
+    ) -> Result<Self::Command<'a>, PolicyError> {
         let (left, right): (Address, Address) = ids.into();
-        let id = aranya_crypto::merge_cmd_id::<E::CS>(left.id, right.id);
+        let id = aranya_crypto::merge_cmd_id::<CE::CS>(left.id, right.id);
         Ok(VmProtocol {
             id,
-            priority: Priority::Merge,
             parent: Prior::Merge(left, right),
             policy: None,
             data: &[],
@@ -878,15 +843,11 @@ mod test {
         let cases = [
             r#"command Test {
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
             r#"command Test {
                 attributes {}
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
             r#"command Test {
@@ -895,17 +856,13 @@ mod test {
                     finalize: false,
                 }
                 fields {}
-                seal { return todo() }
-                open { return todo() }
                 policy {}
             }"#,
         ];
 
         for case in cases {
-            let ast = parse_policy_str(case, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-            let module = Compiler::new(&ast)
-                .compile()
-                .unwrap_or_else(|e| panic!("{e}"));
+            let ast = parse_policy_str(case, Version::V2).unwrap();
+            let module = Compiler::new(&ast).allow_baseless(true).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let err = get_command_priorities(&machine).expect_err("should fail");
             assert_eq!(
@@ -925,16 +882,12 @@ mod test {
                         {attrs}
                     }}
                     fields {{ }}
-                    seal {{ return todo() }}
-                    open {{ return todo() }}
                     policy {{ }}
                 }}
                 "#
             );
-            let ast = parse_policy_str(&policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
-            let module = Compiler::new(&ast)
-                .compile()
-                .unwrap_or_else(|e| panic!("{e}"));
+            let ast = parse_policy_str(&policy, Version::V2).unwrap();
+            let module = Compiler::new(&ast).allow_baseless(true).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let priorities = get_command_priorities(&machine)?;
             Ok(*priorities.get("Test").expect("priorities are mandatory"))

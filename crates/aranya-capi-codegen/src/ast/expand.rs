@@ -62,7 +62,7 @@ impl Ast {
             doc,
             derives,
             no_ext_error,
-            mut opaque,
+            opaque,
             builds,
             attrs,
             vis,
@@ -71,9 +71,6 @@ impl Ast {
             semi_token,
             ..
         } = alias;
-        if let Some(o) = &mut opaque {
-            o.generated = true;
-        }
         let strukt = Struct {
             doc,
             derives,
@@ -460,8 +457,9 @@ impl Ast {
             .attrs
             .iter()
             .filter(|attr| {
+                let path = attr.path();
                 // TODO(eric): other attrs?
-                attr.path().is_ident("cfg")
+                path.is_ident("cfg") || path.is_ident("deprecated")
             })
             .chain(std::iter::once(&ctype_attr))
             .collect::<Vec<_>>();
@@ -701,6 +699,7 @@ impl Ast {
                     #[allow(clippy::match_single_binding)]
                     #[allow(clippy::semicolon_if_nothing_returned)]
                     #[allow(unused_braces)]
+                    #[allow(deprecated)]
                     match #unsafety { #orig(#(#args),*) } {
                         #[allow(clippy::useless_conversion)]
                         #[allow(clippy::unit_arg)]
@@ -1682,7 +1681,9 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
                 <#inner as #capi::InitDefault>::init_default(
                     // SAFETY: TODO
                     unsafe {
-                        &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out).cast::<::core::mem::MaybeUninit<#inner>>()
+                        ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                            .cast::<::core::mem::MaybeUninit<#inner>>()
+                            .as_mut_unchecked()
                     }
                 );
             }

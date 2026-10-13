@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.8.1...aranya-capi-core-v0.8.2) - 2026-08-25
+
+### Other
+
+- updated the following local packages: aranya-libc
+
+## [0.8.1](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.8.0...aranya-capi-core-v0.8.1) - 2026-03-17
+
+### Other
+
+- updated the following local packages: aranya-capi-macro
+
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.7.1...aranya-capi-core-v0.8.0) - 2026-02-17
+
+### Other
+
+- updated the following local packages: aranya-capi-macro
+
+## [0.7.1](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.7.0...aranya-capi-core-v0.7.1) - 2026-01-23
+
+### Other
+
+- updated the following local packages: aranya-capi-macro
+
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.6.0...aranya-capi-core-v0.7.0) - 2025-12-11
+
+### Other
+
+- updated the following local packages: aranya-capi-macro
+
 ## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.5.0...aranya-capi-core-v0.6.0) - 2025-10-16
 
 ### Other

@@ -1,22 +1,21 @@
-extern crate alloc;
-
 use alloc::{
+    boxed::Box,
     collections::BTreeMap,
     string::{String, ToString as _},
     vec,
     vec::Vec,
 };
 use core::{
-    cell::RefCell,
     fmt::{self, Display},
+    str::FromStr as _,
 };
 
-use aranya_crypto::policy::CmdId;
-use aranya_policy_ast::{self as ast, Identifier, ident};
+use aranya_crypto::{DeviceId, policy::CmdId};
+use aranya_policy_ast::{Identifier, ident};
 use aranya_policy_module::{
-    ActionDef, CodeMap, CommandDef, ExitReason, Fact, FactKey, FactValue, HashableValue,
-    Instruction, KVPair, Label, LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut,
-    UnsupportedVersion, Value, ValueConversionError, named::NamedMap,
+    ActionDef, CodeMap, CommandDef, ConstValue, EnumDef, ExitReason, FactDef, FfiContract,
+    Instruction, Label, LabelType, Module, ModuleData, StructDef, Target, UnsupportedVersion,
+    WrapType, automap::AutoMap,
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
@@ -24,7 +23,8 @@ use heapless::Vec as HVec;
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
-    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
+    ActionContext, CommandContext, Fact, FactKey, FactValue, HashableValue, KVPair, PolicyContext,
+    Struct, TryAsMut, Value, ValueConversionError,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
@@ -35,40 +35,29 @@ const STACK_SIZE: usize = 100;
 
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
-fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
-    if fact.name != schema.identifier.name {
+fn validate_fact_schema(fact: &Fact, schema: &FactDef) -> bool {
+    if fact.name != schema.name {
         return false;
     }
 
     for key in &fact.keys {
-        let Some(key_value) = schema
-            .key
-            .iter()
-            .find(|k| k.identifier.name == key.identifier)
-        else {
+        let Some(key_value) = schema.keys.iter().find(|k| k.name == key.name) else {
             return false;
         };
 
-        if !key.value.vtype().matches(&key_value.field_type.kind) {
+        if !key.value.fits_type(&key_value.vtype) {
             return false;
         }
     }
 
     for value in &fact.values {
         // Ensure named value exists in schema
-        let Some(schema_value) = schema
-            .value
-            .iter()
-            .find(|v| v.identifier.name == value.identifier)
-        else {
+        let Some(schema_value) = schema.values.iter().find(|v| v.name == value.name) else {
             return false;
         };
 
         // Ensure fact value type matches schema
-        let Some(value_type) = value.value.vtype() else {
-            return false;
-        };
-        if !value_type.matches(&schema_value.field_type.kind) {
+        if !value.value.fits_type(&schema_value.vtype) {
             return false;
         }
     }
@@ -76,7 +65,9 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
 }
 
 /// Compares a fact to the given keys and values.
-/// NOTE that Bind keys/values are not included in the fact literal (see compile_fact_literal), so we only compare key/value pairs with exact values.
+///
+/// Bind keys/values are not included in the fact literal (see lower_fact_literal), so we only
+/// compare key/value pairs with exact values.
 ///
 /// Returns true if all given keys and values match the fact.
 fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
@@ -85,7 +76,7 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
     }
 
     for qv in &query.values {
-        if let Some(v) = values.iter().find(|v| v.identifier == qv.identifier) {
+        if let Some(v) = values.iter().find(|v| v.name == qv.name) {
             // value found, but types don't match
             if v.value != qv.value {
                 return false;
@@ -133,19 +124,21 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: NamedMap<ActionDef>,
+    pub action_defs: AutoMap<ActionDef>,
     /// Command definitions
-    pub command_defs: NamedMap<CommandDef>,
+    pub command_defs: AutoMap<CommandDef>,
     /// Fact schemas
-    pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
+    pub fact_defs: AutoMap<FactDef>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: AutoMap<StructDef>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
+    pub enum_defs: AutoMap<EnumDef>,
+    /// FFI definitions (used only for validation)
+    pub ffis: Option<Vec<FfiContract>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
 }
 
 impl Machine {
@@ -157,11 +150,12 @@ impl Machine {
         Self {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
-            action_defs: NamedMap::new(),
-            command_defs: NamedMap::new(),
-            fact_defs: BTreeMap::new(),
-            struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            action_defs: AutoMap::new(),
+            command_defs: AutoMap::new(),
+            fact_defs: AutoMap::new(),
+            struct_defs: AutoMap::new(),
+            enum_defs: AutoMap::new(),
+            ffis: None,
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -172,11 +166,12 @@ impl Machine {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
-            action_defs: NamedMap::new(),
-            command_defs: NamedMap::new(),
-            fact_defs: BTreeMap::new(),
-            struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            action_defs: AutoMap::new(),
+            command_defs: AutoMap::new(),
+            fact_defs: AutoMap::new(),
+            struct_defs: AutoMap::new(),
+            enum_defs: AutoMap::new(),
+            ffis: None,
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -188,30 +183,26 @@ impl Machine {
             ModuleData::V0(m) => Ok(Self {
                 progmem: m.progmem.into(),
                 labels: m.labels,
-                action_defs: m.action_defs,
-                command_defs: m.command_defs,
-                fact_defs: m.fact_defs,
-                struct_defs: m.struct_defs,
-                enum_defs: m.enum_defs,
+                action_defs: m.action_defs.into_iter().collect(),
+                command_defs: m.command_defs.into_iter().collect(),
+                fact_defs: m.fact_defs.into_iter().collect(),
+                struct_defs: m.struct_defs.into_iter().collect(),
+                enum_defs: m.enum_defs.into_iter().collect(),
                 codemap: m.codemap,
                 globals: m.globals,
+                ffis: None,
             }),
-        }
-    }
-
-    /// Converts the `Machine` into a `Module`.
-    pub fn into_module(self) -> Module {
-        Module {
-            data: ModuleData::V0(ModuleV0 {
-                progmem: self.progmem.into_boxed_slice(),
-                labels: self.labels,
-                action_defs: self.action_defs,
-                command_defs: self.command_defs,
-                fact_defs: self.fact_defs,
-                struct_defs: self.struct_defs,
-                enum_defs: self.enum_defs,
-                codemap: self.codemap,
-                globals: self.globals,
+            ModuleData::V1(m) => Ok(Self {
+                progmem: m.program.progmem.into(),
+                labels: m.program.labels,
+                action_defs: m.contract.actions.into_iter().collect(),
+                command_defs: m.contract.commands.into_iter().collect(),
+                fact_defs: m.contract.facts.into_iter().collect(),
+                struct_defs: m.contract.structs.into_iter().collect(),
+                enum_defs: m.contract.enums.into_iter().collect(),
+                codemap: m.program.codemap,
+                globals: m.program.globals,
+                ffis: Some(m.contract.ffis),
             }),
         }
     }
@@ -225,24 +216,29 @@ impl Machine {
                 "invalid enum reference",
             )));
         };
+        let name_ident = Identifier::from_str(name)
+            .map_err(|e| MachineErrorType::NotDefined(alloc::format!("Bad enum name: {e}")))?;
+        let variant_ident = Identifier::from_str(variant)
+            .map_err(|e| MachineErrorType::NotDefined(alloc::format!("Bad enum variant: {e}")))?;
 
-        let (name, variants) = self
+        let EnumDef { name, variants } = self
             .enum_defs
-            .get_key_value(name)
+            .get(&name_ident)
             .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
-        let int_value = variants.get(variant).ok_or_else(|| {
-            MachineErrorType::NotDefined(alloc::format!("no value `{variant}` in enum `{name}`"))
-        })?;
+        let (_, int_value) = variants
+            .iter()
+            .find(|(name, _)| *name == variant_ident)
+            .ok_or_else(|| {
+                MachineErrorType::NotDefined(alloc::format!(
+                    "no value `{variant}` in enum `{name}`"
+                ))
+            })?;
 
         Ok(Value::Enum(name.clone(), *int_value))
     }
 
     /// Create a RunState associated with this Machine.
-    pub fn create_run_state<'a, M>(
-        &'a self,
-        io: &'a RefCell<M>,
-        ctx: CommandContext,
-    ) -> RunState<'a, M>
+    pub fn create_run_state<'a, M>(&'a self, io: &'a mut M, ctx: CommandContext) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
     {
@@ -254,7 +250,7 @@ impl Machine {
         &mut self,
         name: Identifier,
         args: Args,
-        io: &'_ RefCell<M>,
+        io: &mut M,
         ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
@@ -266,12 +262,28 @@ impl Machine {
         rs.call_action(name, args)
     }
 
+    /// Call a `get_key` block.
+    pub fn call_get_key<M>(
+        &self,
+        this_data: Struct,
+        author_id: DeviceId,
+        io: &mut M,
+    ) -> Result<(ExitReason, Option<Vec<u8>>), MachineError>
+    where
+        M: MachineIO<MachineStack>,
+    {
+        let mut rs = self.create_run_state(io, CommandContext::Pure);
+        let status = rs.call_get_key(this_data, author_id)?;
+        let key = rs.stack.pop::<Option<Vec<u8>>>().ok().flatten();
+        Ok((status, key))
+    }
+
     /// Call a command
     pub fn call_command_policy<M>(
         &mut self,
         this_data: Struct,
         envelope: Struct,
-        io: &'_ RefCell<M>,
+        io: &mut M,
         ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
@@ -280,25 +292,56 @@ impl Machine {
         let mut rs = self.create_run_state(io, ctx);
         rs.call_command_policy(this_data, envelope)
     }
+
+    /// Serialize a [`Struct`] to be deserialized with [`Self::deserialize_struct`].
+    pub fn serialize_struct(
+        &self,
+        s: &Struct,
+    ) -> Result<Vec<u8>, crate::serialize::SerializeError> {
+        crate::serialize::serialize_struct(&self.struct_defs, s)
+    }
+
+    /// Deserialize a [`Struct`] which was serialized with [`Self::serialize_struct`].
+    pub fn deserialize_struct(
+        &self,
+        name: Identifier,
+        bytes: &[u8],
+    ) -> Result<Struct, crate::serialize::DeserializeError> {
+        crate::serialize::deserialize_struct(&self.struct_defs, &self.enum_defs, name, bytes)
+    }
 }
 
 impl Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Program memory:")?;
         for (addr, instr) in self.progmem.iter().enumerate() {
-            writeln!(f, "  {:4}  {}", addr, instr)?;
+            writeln!(f, "  {addr:4}  {instr}")?;
         }
         writeln!(f, "Labels:")?;
         for (k, v) in &self.labels {
-            writeln!(f, "  {}: {:?}", k, v)?;
+            writeln!(f, "  {k}: {v}")?;
         }
         writeln!(f, "Fact definitions:")?;
-        for (k, v) in &self.fact_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+        for FactDef {
+            name,
+            keys,
+            values,
+            immutable,
+        } in self.fact_defs.iter()
+        {
+            writeln!(
+                f,
+                "  {name}: {keys:?} => {values:?}{}",
+                if *immutable { " (immutable)" } else { "" }
+            )?;
         }
         writeln!(f, "Struct definitions:")?;
-        for (k, v) in &self.struct_defs {
-            writeln!(f, "  {}: {:?}", k, v)?;
+        for StructDef { name, items } in self.struct_defs.iter() {
+            writeln!(f, "  {name}: {items:?}")?;
+        }
+        writeln!(f, "Global name definitions:")?;
+        for (k, v) in &self.globals {
+            writeln!(f, "  {k}: {v}")?;
         }
         Ok(())
     }
@@ -317,12 +360,12 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     scope: ScopeManager<'a>,
     /// The stack
     pub stack: MachineStack,
-    /// The call state stack - stores return addresses
+    /// The call state stack - stores return addresses and stack depths
     call_state: Vec<usize>,
     /// The program counter
     pc: usize,
     /// I/O callbacks
-    io: &'a RefCell<M>,
+    pub io: &'a mut M,
     /// Execution Context (actually used for more than Commands)
     ctx: CommandContext,
     // Cursors for `QueryStart` results
@@ -336,12 +379,12 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> Self {
+    pub fn new(machine: &'a Machine, io: &'a mut M, ctx: CommandContext) -> Self {
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
             stack: MachineStack(HVec::new()),
-            call_state: vec![],
+            call_state: Vec::new(),
             pc: 0,
             io,
             ctx,
@@ -410,6 +453,11 @@ where
         self.pc
     }
 
+    /// Access the scope manager to read or change defined variables.
+    pub fn scope(&self) -> &ScopeManager<'_> {
+        &self.scope
+    }
+
     /// Internal wrapper around [Stack::push] that translates
     /// [StackError] into [MachineError] with location information.
     fn ipush<V>(&mut self, value: V) -> Result<(), MachineError>
@@ -451,6 +499,13 @@ where
             .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
     }
 
+    fn ipeek_value(&mut self) -> Result<&mut Value, MachineError> {
+        let pc = self.pc;
+        self.stack
+            .peek_value()
+            .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
+    }
+
     /// Validate a struct against defined schema.
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
@@ -465,16 +520,16 @@ where
                 // Check for struct fields that do not exist in the
                 // definition.
                 for f in &s.fields {
-                    if !fields.iter().any(|v| &v.identifier.name == f.0) {
+                    if !fields.items.iter().any(|v| &v.name == f.0) {
                         return Err(mk_err());
                     }
                 }
                 // Ensure all defined fields exist and have the same
                 // types.
-                for f in fields {
-                    match s.fields.get(&f.identifier.name) {
+                for f in &fields.items {
+                    match s.fields.get(&f.name) {
                         Some(v) => {
-                            if !v.fits_type(&f.field_type) {
+                            if !v.fits_type(&f.vtype) {
                                 return Err(mk_err());
                             }
                         }
@@ -504,7 +559,37 @@ where
         let instruction = self.machine.progmem[self.pc()].clone();
 
         match instruction {
+            Instruction::SaveSP => {
+                self.call_state.push(self.stack.len());
+            }
+            Instruction::RestoreSP => {
+                let saved_sp = self.call_state.pop().ok_or_else(|| {
+                    self.err(MachineErrorType::BadState("no saved stack pointer"))
+                })?;
+                match self
+                    .stack
+                    .len()
+                    .cmp(&saved_sp.checked_add(1).assume("stack size < isize::MAX")?)
+                {
+                    core::cmp::Ordering::Less => {
+                        return Err(self.err(MachineErrorType::BadState(
+                            "callable has consumed too many stack values",
+                        )));
+                    }
+                    core::cmp::Ordering::Equal => {}
+                    core::cmp::Ordering::Greater => {
+                        let v = self.stack.pop_value()?;
+                        while self.stack.len() > saved_sp {
+                            self.stack.pop_value()?;
+                        }
+                        self.stack.push_value(v)?;
+                    }
+                }
+            }
             Instruction::Const(v) => {
+                self.ipush(v)?;
+            }
+            Instruction::Identifier(v) => {
                 self.ipush(v)?;
             }
             Instruction::Def(key) => {
@@ -516,7 +601,7 @@ where
                 self.ipush(value)?;
             }
             Instruction::Dup => {
-                let v = self.stack.peek_value()?.clone();
+                let v = self.ipeek_value()?.clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
@@ -551,13 +636,34 @@ where
                     }
                 }
             }
-            Instruction::Next => todo!(),
-            Instruction::Last => todo!(),
             Instruction::Call(t) => match t {
                 Target::Unresolved(label) => {
                     return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                 }
                 Target::Resolved(n) => {
+                    self.scope.enter_function();
+                    // Store the current PC. The PC will be incremented after return,
+                    // so there's no need to increment here.
+                    self.call_state.push(self.pc);
+                    self.pc = n;
+                    return Ok(MachineStatus::Executing);
+                }
+            },
+            Instruction::Recall(t) => match t {
+                Target::Unresolved(label) => {
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
+                }
+                Target::Resolved(n) => {
+                    // Switch from policy to recall context so effects emitted by the
+                    // recall block are marked as recalled.
+                    let CommandContext::Policy(c) = &self.ctx else {
+                        return Err(
+                            self.err(MachineErrorType::BadState("recall: wrong command context"))
+                        );
+                    };
+                    let c = c.clone();
+                    self.ctx = CommandContext::Recall(c);
+
                     self.scope.enter_function();
                     // Store the current PC. The PC will be incremented after return,
                     // so there's no need to increment here.
@@ -578,10 +684,7 @@ where
                 self.scope.exit_function().map_err(|e| self.err(e))?;
             }
             Instruction::ExtCall(module, proc) => {
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .call(module, proc, &mut self.stack, &self.ctx)?;
+                self.io.call(module, proc, &mut self.stack, &self.ctx)?;
             }
             Instruction::Exit(reason) => return Ok(MachineStatus::Exited(reason)),
             Instruction::Add | Instruction::Sub => {
@@ -593,10 +696,7 @@ where
                     _ => unreachable!(),
                 };
                 // Checked operations return Optional<Int>
-                match r {
-                    Some(value) => self.ipush(value)?,
-                    None => self.ipush(Value::None)?,
-                }
+                self.ipush(r)?;
             }
             Instruction::SaturatingAdd | Instruction::SaturatingSub => {
                 let b: i64 = self.ipop()?;
@@ -676,10 +776,7 @@ where
                     .struct_defs
                     .get(&s.name)
                     .ok_or_else(|| self.err(MachineErrorType::InvalidSchema(s.name.clone())))?;
-                if !struct_def_fields
-                    .iter()
-                    .any(|f| f.identifier.name == field_name)
-                {
+                if !struct_def_fields.items.iter().any(|f| f.name == field_name) {
                     return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
                 s.fields.insert(field_name, value);
@@ -712,13 +809,14 @@ where
 
                 for (field_name, field_val) in field_name_value_pairs {
                     let Some(field_defn) = struct_def_fields
+                        .items
                         .iter()
-                        .find(|f| f.identifier.name == field_name)
+                        .find(|f| f.name == field_name)
                     else {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     };
 
-                    if !field_val.fits_type(&field_defn.field_type) {
+                    if !field_val.fits_type(&field_defn.vtype) {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     }
 
@@ -751,27 +849,17 @@ where
             }
             Instruction::Create => {
                 let f: Fact = self.ipop()?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_insert(f.name, f.keys, f.values)?;
+                self.io.fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
                 let f: Fact = self.ipop()?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_delete(f.name, f.keys)?;
+                self.io.fact_delete(f.name, f.keys)?;
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
                 let mut fact_from: Fact = self.ipop()?;
                 let mut replaced_fact = {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(fact_from.name.clone(), fact_from.keys)?;
+                    let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
                     iter.next().ok_or_else(|| {
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
@@ -780,24 +868,18 @@ where
                 if !fact_from.values.is_empty() {
                     let replaced_fact_values = &mut replaced_fact.1;
 
-                    replaced_fact_values
-                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                    replaced_fact_values.sort_unstable_by(|v1, v2| v1.name.cmp(&v2.name));
                     fact_from
                         .values
-                        .sort_unstable_by(|v1, v2| v1.identifier.cmp(&v2.identifier));
+                        .sort_unstable_by(|v1, v2| v1.name.cmp(&v2.name));
 
                     if replaced_fact_values.as_slice() != fact_from.values.as_slice() {
                         return Err(self.err(MachineErrorType::InvalidFact(fact_from.name.clone())));
                     }
                 }
 
+                self.io.fact_delete(fact_from.name, replaced_fact.0)?;
                 self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .fact_delete(fact_from.name, replaced_fact.0)?;
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
             Instruction::Emit => {
@@ -813,10 +895,7 @@ where
                         );
                     }
                 };
-                self.io
-                    .try_borrow_mut()
-                    .assume("should be able to borrow io")?
-                    .effect(s.name, fields, command, recall);
+                self.io.effect(s.name, fields, command, recall);
             }
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
@@ -825,11 +904,7 @@ where
                 self.validate_fact_literal(&qf)?;
 
                 let result = {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(qf.name.clone(), qf.keys.clone())?;
+                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
                     // Find the first match, or the first error
                     iter.find_map(|r| match r {
                         Ok(f) => {
@@ -842,17 +917,13 @@ where
                         Err(e) => Some(Err(e)),
                     })
                 };
-                match result {
-                    Some(r) => {
-                        let f = r?;
-                        let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut f.0.into_iter().map(Into::into).collect());
-                        fields.append(&mut f.1.into_iter().map(Into::into).collect());
-                        let s = Struct::new(qf.name, fields);
-                        self.ipush(s)?;
-                    }
-                    None => self.ipush(Value::None)?,
-                }
+                let maybe_fact = result.transpose()?.map(|f| {
+                    let mut fields: Vec<KVPair> = vec![];
+                    fields.append(&mut f.0.into_iter().map(Into::into).collect());
+                    fields.append(&mut f.1.into_iter().map(Into::into).collect());
+                    Struct::new(qf.name, fields)
+                });
+                self.ipush(maybe_fact)?;
             }
             Instruction::FactCount(limit) => {
                 let fact: Fact = self.ipop()?;
@@ -860,11 +931,7 @@ where
 
                 let mut count = 0;
                 {
-                    let mut iter = self
-                        .io
-                        .try_borrow()
-                        .assume("should be able to borrow io")?
-                        .fact_query(fact.name.clone(), fact.keys.clone())?;
+                    let mut iter = self.io.fact_query(fact.name.clone(), fact.keys.clone())?;
 
                     while count < limit {
                         let Some(r) = iter.next() else { break };
@@ -886,11 +953,7 @@ where
             Instruction::QueryStart => {
                 let fact: Fact = self.ipop()?;
                 self.validate_fact_literal(&fact)?;
-                let iter = self
-                    .io
-                    .try_borrow()
-                    .assume("should be able to borrow io")?
-                    .fact_query(fact.name, fact.keys)?;
+                let iter = self.io.fact_query(fact.name, fact.keys)?;
                 self.query_iter_stack.push(iter);
             }
             Instruction::QueryNext(ident) => {
@@ -920,59 +983,42 @@ where
                     }
                 }
             }
-            Instruction::Serialize => {
-                let CommandContext::Seal(SealContext { name, .. }) = &self.ctx else {
-                    return Err(self.err(MachineErrorType::BadState(
-                        "Serialize: expected seal context",
-                    )));
-                };
-                let name = name.clone();
-
-                let command_struct: Struct = self.ipop()?;
-                if command_struct.name != name {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::BadState(
-                            "Serialize: context name doesn't match command name",
-                        ),
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                }
-                let bytes = postcard::to_allocvec(&command_struct).map_err(|_| {
-                    self.err(MachineErrorType::Unknown(String::from(
-                        "could not serialize command Struct",
-                    )))
-                })?;
-                self.ipush(bytes)?;
-            }
-            Instruction::Deserialize => {
-                let CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::InvalidInstruction,
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                };
-                let name = name.clone();
-
-                let bytes: Vec<u8> = self.ipop()?;
-                let s: Struct = postcard::from_bytes(&bytes).map_err(|_| {
-                    MachineError::from_position(
-                        MachineErrorType::Unknown(String::from("could not deserialize Struct")),
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    )
-                })?;
-                if name != s.name.as_str() {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::InvalidInstruction,
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                }
-                self.ipush(s)?;
-            }
             Instruction::Meta(_m) => {}
+            Instruction::Wrap(wrap_type) => {
+                // Replace top of stack with wrapped value
+                let value = self.ipop_value()?;
+                let wrapped = match wrap_type {
+                    WrapType::Ok => Value::Result(Ok(Box::new(value))),
+                    WrapType::Err => Value::Result(Err(Box::new(value))),
+                    WrapType::Some => Value::Option(Some(Box::new(value))),
+                };
+                self.ipush(wrapped)?;
+            }
+            Instruction::Is(wrap_type) => {
+                let value = self.ipop_value()?;
+                let is_type = match wrap_type {
+                    WrapType::Some => matches!(value, Value::Option(Some(_))),
+                    WrapType::Ok => matches!(value, Value::Result(Ok(_))),
+                    WrapType::Err => matches!(value, Value::Result(Err(_))),
+                };
+                self.ipush(Value::Bool(is_type))?;
+            }
+            Instruction::Unwrap(wrap_type) => {
+                let value = self.ipop_value()?;
+                let inner = match (wrap_type, value) {
+                    (WrapType::Ok, Value::Result(Ok(inner))) => *inner,
+                    (WrapType::Err, Value::Result(Err(inner))) => *inner,
+                    (WrapType::Some, Value::Option(Some(inner))) => *inner,
+                    (want, got) => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            want.to_string(),
+                            got.type_name(),
+                            "unwrap type mismatch",
+                        )));
+                    }
+                };
+                self.ipush(inner)?;
+            }
             Instruction::Cast(identifier) => {
                 let value = self.ipop_value()?;
                 match value {
@@ -987,12 +1033,12 @@ where
                             })?;
 
                         // Check that all required fields exist and have matching types
-                        for field in rhs_struct {
-                            let field_name = &field.identifier;
-                            let field_type = &field.field_type;
+                        for field in &rhs_struct.items {
+                            let field_name = &field.name;
+                            let field_type = &field.vtype;
 
                             // Check if the source struct has this field
-                            let value = s.fields.get(&field_name.name).ok_or_else(|| {
+                            let value = s.fields.get(field_name).ok_or_else(|| {
                                 self.err(MachineErrorType::Unknown(alloc::format!(
                                     "cannot cast to `struct {}`: missing field `{}`",
                                     identifier,
@@ -1036,12 +1082,10 @@ where
     pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
             #[cfg(feature = "bench")]
+            if let Some(instruction) = self.machine.progmem.get(self.pc())
+                && let Some(name) = instruction.to_string().split_whitespace().next()
             {
-                if let Some(instruction) = self.machine.progmem.get(self.pc()) {
-                    if let Some(name) = instruction.to_string().split_whitespace().next() {
-                        self.stopwatch.start(name);
-                    }
-                }
+                self.stopwatch.start(name);
             }
 
             let result = self
@@ -1073,30 +1117,24 @@ where
     }
 
     /// Set up machine state for a command policy call
-    pub fn setup_command(
-        &mut self,
-        label_type: LabelType,
-        this_data: Struct,
-    ) -> Result<(), MachineError> {
-        let name = this_data.name.clone();
-
+    pub fn setup_command(&mut self, label: Label, this_data: Struct) -> Result<(), MachineError> {
         #[cfg(feature = "bench")]
         self.stopwatch
-            .start(format!("setup_command: {}", name).as_str());
+            .start(format!("setup_command: {}", label.name).as_str());
 
-        self.setup_function(&Label::new(name.clone(), label_type))?;
+        self.setup_function(&label)?;
 
         // Verify 'this' arg matches command's fields
         let command_def = self
             .machine
             .command_defs
-            .get(&name)
-            .ok_or_else(|| self.err(MachineErrorType::NotDefined(name.to_string())))?;
+            .get(&this_data.name)
+            .ok_or_else(|| self.err(MachineErrorType::NotDefined(label.name.to_string())))?;
 
         if this_data.fields.len() != command_def.fields.len() {
             return Err(self.err(MachineErrorType::Unknown(alloc::format!(
                 "command `{}` expects {} field(s), but `this` contains {}",
-                name,
+                label.name,
                 command_def.fields.len(),
                 this_data.fields.len()
             ))));
@@ -1104,9 +1142,10 @@ where
         for (name, value) in &this_data.fields {
             let expected_type = &command_def
                 .fields
-                .get(name)
+                .iter()
+                .find(|f| &f.name == name)
                 .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?
-                .ty;
+                .vtype;
 
             if !value.fits_type(expected_type) {
                 return Err(self.err(MachineErrorType::invalid_type(
@@ -1116,14 +1155,28 @@ where
                 )));
             }
         }
-        self.scope
-            .set(ident!("this"), Value::Struct(this_data))
-            .map_err(|e| self.err(e))?;
+
+        self.ipush(this_data)?;
 
         #[cfg(feature = "bench")]
         self.stopwatch.stop();
 
         Ok(())
+    }
+
+    /// Call a `get_key` block.
+    pub fn call_get_key(
+        &mut self,
+        this_data: Struct,
+        author_id: DeviceId,
+    ) -> Result<ExitReason, MachineError> {
+        if !matches!(&self.ctx, CommandContext::Pure) {
+            return Err(MachineErrorType::ContextMismatch.into());
+        }
+        self.setup_function(&Label::new(this_data.name.clone(), LabelType::GetKey))?;
+        self.ipush(this_data)?;
+        self.ipush(author_id)?;
+        self.run()
     }
 
     /// Call a command policy loaded into the VM by name. Accepts a
@@ -1139,24 +1192,10 @@ where
         {
             return Err(MachineErrorType::ContextMismatch.into());
         }
-        self.setup_command(LabelType::CommandPolicy, this_data)?;
-        self.ipush(envelope)?;
-        self.run()
-    }
-
-    /// Call a command policy loaded into the VM by name. Accepts a
-    /// `Struct` containing the Command's data. Returns a Vec of effect
-    /// structs or a MachineError.
-    pub fn call_command_recall(
-        &mut self,
-        this_data: Struct,
-        envelope: Struct,
-    ) -> Result<ExitReason, MachineError> {
-        if !matches!(&self.ctx, CommandContext::Recall(PolicyContext{name: ctx_name,..}) if *ctx_name == this_data.name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_command(LabelType::CommandRecall, this_data)?;
+        self.setup_command(
+            Label::new(this_data.name.clone(), LabelType::CommandPolicy),
+            this_data,
+        )?;
         self.ipush(envelope)?;
         self.run()
     }
@@ -1197,9 +1236,9 @@ where
             )));
         }
         for (arg, param) in args.iter().zip(action_def.params.iter()) {
-            if !arg.fits_type(&param.ty) {
+            if !arg.fits_type(&param.vtype) {
                 return Err(MachineError::new(MachineErrorType::invalid_type(
-                    param.ty.to_string(),
+                    param.vtype.to_string(),
                     arg.type_name(),
                     "invalid function argument",
                 )));
@@ -1237,39 +1276,6 @@ where
             return Err(MachineErrorType::ContextMismatch.into());
         }
         self.setup_action(name, args)?;
-        self.run()
-    }
-
-    /// Call the seal block on this command to produce an envelope. The
-    /// seal block is given an implicit parameter `this` and should
-    /// return an opaque envelope struct on the stack.
-    pub fn call_seal(&mut self, this_data: Struct) -> Result<ExitReason, MachineError> {
-        let name = this_data.name.clone();
-        if !matches!(&self.ctx, CommandContext::Seal(SealContext{name: ctx_name,..}) if *ctx_name == name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
-
-        // Seal/Open pushes the argument and defines it itself, because
-        // it calls through a function stub. So we just push `this_data`
-        // onto the stack.
-        self.ipush(this_data)?;
-        self.run()
-    }
-
-    /// Call the open block on an envelope struct to produce a command struct.
-    pub fn call_open(
-        &mut self,
-        name: Identifier,
-        envelope: Struct,
-    ) -> Result<ExitReason, MachineError> {
-        if !matches!(&self.ctx, CommandContext::Open(OpenContext{name: ctx_name,..}) if *ctx_name == name)
-        {
-            return Err(MachineErrorType::ContextMismatch.into());
-        }
-        self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
-        self.ipush(envelope)?;
         self.run()
     }
 
@@ -1330,6 +1336,11 @@ impl MachineStack {
     /// Turn a Stack into a Vec of Values.
     pub fn into_vec(self) -> Vec<Value> {
         self.0.into_iter().collect()
+    }
+
+    /// Get a reference to the stack as a slice.
+    pub fn as_slice(&self) -> &[Value] {
+        &self.0
     }
 }
 

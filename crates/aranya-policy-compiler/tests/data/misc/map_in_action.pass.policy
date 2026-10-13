@@ -1,0 +1,6 @@
+fact Pet[name string]=>{age int}
+action pets() {
+    map Pet[name:?] as p {
+        let age = p.age
+    }
+}

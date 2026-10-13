@@ -1,0 +1,96 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <policy 'Bar'>: 1,
+    },
+    action_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "Bar",
+            persistence: Persistent,
+            attributes: [
+                Attribute {
+                    name: "foo_attr",
+                    value: Struct(
+                        ConstStruct {
+                            name: "Foo",
+                            fields: {
+                                "x": Int(
+                                    1000,
+                                ),
+                                "y": Int(
+                                    20,
+                                ),
+                            },
+                        },
+                    ),
+                },
+            ],
+            fields: [],
+        },
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "x",
+                    vtype: Int,
+                },
+                Field {
+                    name: "y",
+                    vtype: Int,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
+    globals: {
+        "foo": Struct(
+            ConstStruct {
+                name: "Foo",
+                fields: {
+                    "x": Int(
+                        10,
+                    ),
+                    "y": Int(
+                        20,
+                    ),
+                },
+            },
+        ),
+        "foo2": Struct(
+            ConstStruct {
+                name: "Foo",
+                fields: {
+                    "x": Int(
+                        1000,
+                    ),
+                    "y": Int(
+                        20,
+                    ),
+                },
+            },
+        ),
+    },
+    ..
+}
+---
+    exit panic
+<policy 'Bar'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic

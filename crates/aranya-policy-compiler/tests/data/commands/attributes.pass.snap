@@ -1,0 +1,73 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <policy 'A'>: 1,
+    },
+    action_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "A",
+            persistence: Persistent,
+            attributes: [
+                Attribute {
+                    name: "i",
+                    value: Int(
+                        5,
+                    ),
+                },
+                Attribute {
+                    name: "s",
+                    value: String(
+                        "abc",
+                    ),
+                },
+                Attribute {
+                    name: "priority",
+                    value: Enum(
+                        "Priority",
+                        1,
+                    ),
+                },
+            ],
+            fields: [],
+        },
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "A",
+            items: [],
+        },
+    ],
+    enum_defs: [
+        EnumDef {
+            name: "Priority",
+            variants: [
+                (
+                    "Low",
+                    0,
+                ),
+                (
+                    "High",
+                    1,
+                ),
+            ],
+        },
+    ],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<policy 'A'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic

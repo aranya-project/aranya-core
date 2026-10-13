@@ -1,0 +1,10 @@
+command Cmd {
+    fields {}
+    policy {
+        finish {}
+    }
+    recall foo() {
+    }
+    recall foo() {
+    }
+}

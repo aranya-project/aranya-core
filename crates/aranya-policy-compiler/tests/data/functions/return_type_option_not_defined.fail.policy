@@ -1,0 +1,3 @@
+function f() option[struct Foo] {
+    return Some(Foo {})
+}

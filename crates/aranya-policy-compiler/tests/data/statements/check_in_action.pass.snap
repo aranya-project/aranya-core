@@ -1,0 +1,38 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 229
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <fn 'test_check'>: 1,
+    },
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'test_check'>:
+    save SP
+    const true
+    branch 7
+    const 0
+    restore SP
+    return
+<7>:
+    const false
+    branch 12
+    const 0
+    restore SP
+    return
+<12>:
+    const 1
+    restore SP
+    return
+    exit panic

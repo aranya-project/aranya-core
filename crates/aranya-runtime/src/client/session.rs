@@ -5,7 +5,6 @@
 //! Design doc: [Aranya Sessions](https://github.com/aranya-project/aranya-docs/blob/main/src/Aranya-Sessions-note.md)
 
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, btree_map},
     string::String,
     sync::Arc,
@@ -13,24 +12,20 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{Bug, BugExt as _, bug};
-use serde::{Deserialize, Serialize};
-use tracing::warn;
+use buggy::{Bug, bug};
 use yoke::{Yoke, Yokeable};
 
 use crate::{
-    Address, Checkpoint, ClientError, ClientState, CmdId, Command, Engine, Fact, FactPerspective,
-    GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut,
-    Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
-    engine::{ActionPlacement, CommandPlacement},
+    Address, Bytes, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective,
+    GraphId, Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority,
+    Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
+    policy::{ActionPlacement, CommandPlacement},
 };
 
-type Bytes = Box<[u8]>;
-
 /// Ephemeral session used to handle/generate off-graph commands.
-pub struct Session<SP: StorageProvider, E> {
-    /// The ID of the associated storage.
-    storage_id: GraphId,
+pub struct Session<SP: StorageProvider, PS> {
+    /// The ID of the associated graph.
+    graph_id: GraphId,
     /// The policy ID for the session.
     policy_id: PolicyId,
 
@@ -41,55 +36,57 @@ pub struct Session<SP: StorageProvider, E> {
     /// The current facts of the session, relative to `base_facts`.
     current_facts: Arc<BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>>,
 
-    /// Tag for associated engine.
-    _engine: PhantomData<E>,
-
-    head: Address,
+    /// Tag for associated policy store.
+    _policy_store: PhantomData<PS>,
 }
 
-struct SessionPerspective<'a, SP: StorageProvider, E, MS> {
-    session: &'a mut Session<SP, E>,
+struct SessionPerspective<'a, SP: StorageProvider, PS, MS> {
+    session: &'a mut Session<SP, PS>,
     message_sink: &'a mut MS,
 }
 
-impl<SP: StorageProvider, E> Session<SP, E> {
-    pub(super) fn new(provider: &mut SP, storage_id: GraphId) -> Result<Self, ClientError> {
-        let storage = provider.get_storage(storage_id)?;
-        let head_loc = storage.get_head()?;
-        let seg = storage.get_segment(head_loc)?;
-        let command = seg.get_command(head_loc).assume("location must exist")?;
+impl<SP: StorageProvider, PS> Session<SP, PS> {
+    pub(super) fn new(provider: &mut SP, graph_id: GraphId) -> Result<Self, ClientError> {
+        let storage = provider.get_storage(graph_id)?;
 
-        let base_facts = seg.facts()?;
+        // Seed base_facts from the persisted fact cache, which holds the braided
+        // merged perspective across ALL heads.  On a multi-head graph the old
+        // get_head() adapter returned an arbitrary single head (wrong); the fact
+        // cache is always correct regardless of head count.
+        let base_facts = storage.fact_cache()?;
 
-        let result = Self {
-            storage_id,
-            policy_id: seg.policy(),
+        // All heads share the same policy today; read it from any head segment.
+        let heads = storage.get_heads()?;
+        let any = heads.iter().next().ok_or(StorageError::NoSuchStorage)?;
+        let policy_id = storage.get_segment(any.location())?.policy();
+
+        Ok(Self {
+            graph_id,
+            policy_id,
             base_facts,
             fact_log: Vec::new(),
             current_facts: Arc::default(),
-            _engine: PhantomData,
-            head: command.address()?,
-        };
-
-        Ok(result)
+            _policy_store: PhantomData,
+        })
     }
 }
 
-impl<SP: StorageProvider, E: Engine> Session<SP, E> {
+impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     /// Evaluate an action on the ephemeral session and generate serialized
     /// commands, so another client can [`Session::receive`] them.
     pub fn action<ES, MS>(
         &mut self,
-        client: &ClientState<E, SP>,
+        client: &ClientState<PS, SP>,
         effect_sink: &mut ES,
         message_sink: &mut MS,
-        action: <E::Policy as Policy>::Action<'_>,
+        action: <PS::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError>
     where
-        ES: Sink<E::Effect>,
+        ES: Sink<PS::Effect>,
         MS: for<'b> Sink<&'b [u8]>,
     {
-        let policy = client.engine.get_policy(self.policy_id)?;
+        let policy = client.policy_store.get_policy(self.policy_id)?;
+        let seal_ctx = client.policy_store.seal_ctx(self.policy_id)?;
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
@@ -105,6 +102,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             &mut perspective,
             effect_sink,
             ActionPlacement::OffGraph,
+            seal_ctx,
         ) {
             Ok(()) => {
                 // Success, commit effects
@@ -127,19 +125,14 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
     /// same session.
     pub fn receive(
         &mut self,
-        client: &ClientState<E, SP>,
-        sink: &mut impl Sink<E::Effect>,
+        client: &ClientState<PS, SP>,
+        sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
-        let command: SessionCommand<'_> =
-            postcard::from_bytes(command_bytes).map_err(ClientError::SessionDeserialize)?;
+        let command = SessionCommand::deserialize(self.graph_id, command_bytes)
+            .ok_or(ClientError::SessionDeserialize)?;
 
-        if command.storage_id != self.storage_id {
-            warn!(%command.storage_id, %self.storage_id, "ephemeral commands must be run on the same graph");
-            return Err(ClientError::NotAuthorized);
-        }
-
-        let policy = client.engine.get_policy(self.policy_id)?;
+        let policy = client.policy_store.get_policy(self.policy_id)?;
 
         // Use a special perspective which doesn't check the head
         let mut perspective = SessionPerspective {
@@ -163,28 +156,34 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+/// Fake session parent value.
+///
+/// Since we don't track the parent for session commands, we pretend that they all have this same
+/// parent. This makes the existing sign/verify work as expected without supplying a true value.
+///
+/// By using the graph ID as the parent, the command signature will include it, binding this
+/// command to that graph.
+fn session_parent(graph_id: GraphId) -> Prior<Address> {
+    Prior::Single(Address {
+        id: CmdId::transmute(graph_id),
+        max_cut: MaxCut::new(0),
+    })
+}
+
 /// Used for serializing session commands
 struct SessionCommand<'a> {
-    storage_id: GraphId,
-    priority: u32, // Priority::Basic
+    graph_id: GraphId,
     id: CmdId,
-    parent: Address, // Prior::Single
-    #[serde(borrow)]
     data: &'a [u8],
 }
 
 impl Command for SessionCommand<'_> {
-    fn priority(&self) -> Priority {
-        Priority::Basic(self.priority)
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
 
     fn parent(&self) -> Prior<Address> {
-        Prior::Single(self.parent)
+        session_parent(self.graph_id)
     }
 
     fn policy(&self) -> Option<&[u8]> {
@@ -198,22 +197,30 @@ impl Command for SessionCommand<'_> {
 }
 
 impl<'sc> SessionCommand<'sc> {
-    fn from_cmd(storage_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
+    fn from_cmd(graph_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
-            bug!("session command should have no policy")
+            bug!("session command should have no policy");
+        }
+        if command.parent() != session_parent(graph_id) {
+            bug!("session command has bad parent");
         }
         Ok(SessionCommand {
-            storage_id,
-            priority: match command.priority() {
-                Priority::Basic(p) => p,
-                _ => bug!("wrong command type"),
-            },
+            graph_id,
             id: command.id(),
-            parent: match command.parent() {
-                Prior::Single(p) => p,
-                _ => bug!("wrong command type"),
-            },
             data: command.bytes(),
+        })
+    }
+
+    fn serialize(&self) -> Vec<u8> {
+        [self.id.as_bytes(), self.data].concat()
+    }
+
+    fn deserialize(graph_id: GraphId, bytes: &'sc [u8]) -> Option<Self> {
+        let (id, data) = bytes.split_first_chunk()?;
+        Some(Self {
+            graph_id,
+            id: CmdId::from_bytes(*id),
+            data,
         })
     }
 }
@@ -286,13 +293,13 @@ where
     }
 }
 
-impl<SP, E, MS> FactPerspective for SessionPerspective<'_, SP, E, MS> where SP: StorageProvider {}
+impl<SP, PS, MS> FactPerspective for SessionPerspective<'_, SP, PS, MS> where SP: StorageProvider {}
 
-impl<SP, E, MS> Query for SessionPerspective<'_, SP, E, MS>
+impl<SP, PS, MS> Query for SessionPerspective<'_, SP, PS, MS>
 where
     SP: StorageProvider,
 {
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError> {
         if let Some(slot) = self
             .session
             .current_facts
@@ -311,7 +318,7 @@ where
     fn query_prefix(
         &self,
         name: &str,
-        prefix: &[Box<[u8]>],
+        prefix: &[Bytes],
     ) -> Result<Self::QueryIterator, StorageError> {
         let prior = self.session.base_facts.query_prefix(name, prefix)?;
         let current = Yoke::<PrefixIter<'static>, _>::attach_to_cart(
@@ -337,8 +344,7 @@ struct PrefixIter<'map> {
 
 impl<'map> PrefixIter<'map> {
     fn new(map: &'map BTreeMap<Keys, Option<Bytes>>, prefix: Keys) -> Self {
-        let range =
-            map.range::<[Box<[u8]>], _>((Bound::Included(prefix.as_ref()), Bound::Unbounded));
+        let range = map.range::<[Bytes], _>((Bound::Included(prefix.as_ref()), Bound::Unbounded));
         Self { range, prefix }
     }
 }
@@ -382,8 +388,8 @@ where
     }
 }
 
-impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> {
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
+impl<SP: StorageProvider, PS, MS> QueryMut for SessionPerspective<'_, SP, PS, MS> {
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), Some(value.clone())));
@@ -391,9 +397,10 @@ impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> 
             .entry(name)
             .or_default()
             .insert(keys, Some(value));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), None));
@@ -401,10 +408,11 @@ impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> 
             .entry(name)
             .or_default()
             .insert(keys, None);
+        Ok(())
     }
 }
 
-impl<SP, E, MS> Perspective for SessionPerspective<'_, SP, E, MS>
+impl<SP, PS, MS> Perspective for SessionPerspective<'_, SP, PS, MS>
 where
     SP: StorageProvider,
     MS: for<'b> Sink<&'b [u8]>,
@@ -413,11 +421,18 @@ where
         self.session.policy_id
     }
 
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        let command = SessionCommand::from_cmd(self.session.storage_id, command)?;
-        self.session.head = command.address()?;
-        let bytes = postcard::to_allocvec(&command).assume("serialize session command")?;
-        self.message_sink.consume(&bytes);
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError> {
+        // Session commands are ephemeral and never braided, so the priority
+        // is not persisted.
+        if !matches!(priority, Priority::Basic(_)) {
+            bug!("session command has bad priority");
+        }
+        let command = SessionCommand::from_cmd(self.session.graph_id, command)?;
+        self.message_sink.consume(&command.serialize());
 
         Ok(0)
     }
@@ -429,11 +444,11 @@ where
     }
 
     fn head_address(&self) -> Result<Prior<Address>, Bug> {
-        Ok(Prior::Single(self.session.head))
+        Ok(session_parent(self.session.graph_id))
     }
 }
 
-impl<SP, E, MS> Revertable for SessionPerspective<'_, SP, E, MS>
+impl<SP, PS, MS> Revertable for SessionPerspective<'_, SP, PS, MS>
 where
     SP: StorageProvider,
 {
@@ -443,7 +458,7 @@ where
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
         if checkpoint.index == self.session.fact_log.len() {
             return Ok(());
         }
@@ -470,12 +485,290 @@ where
 
 #[cfg(test)]
 mod test {
+    use aranya_crypto::id::{Id, IdTag};
+    use buggy::BugExt as _;
+    use test_log::test;
+
     use super::*;
+    use crate::{
+        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MergeIds, Perspective, Policy,
+        PolicyStore, Priority, RuntimeBuffers, mem_spill,
+        policy::{ActionPlacement, CommandPlacement, NullSink, PolicyError, Sink},
+        storage::linear::testing::MemStorageProvider,
+        testing::{hash_for_testing_only, short_b58},
+    };
+
+    // -----------------------------------------------------------------------
+    // Minimal SeqPolicy infrastructure (mirrors transaction::test).
+    // SeqPolicy appends each command's short ID to a fact named "seq",
+    // giving a deterministic, braid-ordered sequence we can assert on.
+    // -----------------------------------------------------------------------
+
+    struct SeqPolicyStore;
+
+    struct SeqPolicy;
+
+    struct SeqCommand {
+        id: CmdId,
+        prior: Prior<Address>,
+        data: Box<str>,
+    }
+
+    impl PolicyStore for SeqPolicyStore {
+        type Policy = SeqPolicy;
+        type Effect = ();
+
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+            Ok(PolicyId::default())
+        }
+
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+            Ok(&SeqPolicy)
+        }
+
+        fn seal_ctx(
+            &self,
+            _id: PolicyId,
+        ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+            Ok(&())
+        }
+    }
+
+    impl Policy for SeqPolicy {
+        type Action<'a> = &'a str;
+        type SealCtx = ();
+        type Effect = ();
+        type Command<'a> = SeqCommand;
+
+        fn serial(&self) -> u32 {
+            0
+        }
+
+        fn call_rule(
+            &self,
+            command: &impl Command,
+            facts: &mut impl FactPerspective,
+            _sink: &mut impl Sink<Self::Effect>,
+            _placement: CommandPlacement,
+        ) -> Result<Priority, PolicyError> {
+            assert!(
+                !matches!(command.parent(), Prior::Merge { .. }),
+                "merges should not be evaluated"
+            );
+            let data = command.bytes();
+            if let Some(seq) = facts
+                .query("seq", &Keys::default())
+                .assume("can query")?
+                .as_deref()
+            {
+                facts
+                    .insert(
+                        "seq".into(),
+                        Keys::default(),
+                        [seq, b":", data].concat().into(),
+                    )
+                    .unwrap();
+            } else {
+                facts
+                    .insert("seq".into(), Keys::default(), data.into())
+                    .unwrap();
+            }
+            Ok(match command.parent() {
+                Prior::None => Priority::Init,
+                // Use the last byte of the ID as priority, just so we can
+                // properly see the effects of braiding.
+                Prior::Single(_) => {
+                    Priority::Basic(u32::from(*command.id().as_bytes().last().unwrap()))
+                }
+                Prior::Merge(..) => unreachable!(),
+            })
+        }
+
+        fn call_action(
+            &self,
+            _action: Self::Action<'_>,
+            _facts: &mut impl Perspective,
+            _sink: &mut impl Sink<Self::Effect>,
+            _placement: ActionPlacement,
+            _seal_ctx: &(),
+        ) -> Result<(), PolicyError> {
+            unimplemented!()
+        }
+
+        fn merge<'a>(
+            &self,
+            _target: &'a mut [u8],
+            ids: MergeIds,
+        ) -> Result<Self::Command<'a>, PolicyError> {
+            let (left, right): (Address, Address) = ids.into();
+            let parents = [*left.id.as_array(), *right.id.as_array()];
+            let id = hash_for_testing_only(parents.as_flattened());
+            Ok(SeqCommand::new(id, Prior::Merge(left, right)))
+        }
+    }
+
+    impl SeqCommand {
+        fn new(id: CmdId, prior: Prior<Address>) -> Self {
+            let data = short_b58(id).into_boxed_str();
+            Self { id, prior, data }
+        }
+    }
+
+    impl Command for SeqCommand {
+        fn id(&self) -> CmdId {
+            self.id
+        }
+
+        fn parent(&self) -> Prior<Address> {
+            self.prior
+        }
+
+        fn policy(&self) -> Option<&[u8]> {
+            match self.prior {
+                Prior::None => Some(b""),
+                _ => None,
+            }
+        }
+
+        fn bytes(&self) -> &[u8] {
+            self.data.as_bytes()
+        }
+    }
+
+    fn mkid<Tag: IdTag>(x: &str) -> Id<Tag> {
+        x.parse().unwrap()
+    }
+
+    /// Build a multi-head graph using a simple linear init + two divergent branches.
+    ///
+    /// Graph shape:
+    ///   "a" (init)
+    ///   "a" <- "b"   (branch 1)
+    ///   "a" <- "c"   (branch 2)
+    ///
+    /// After commit this yields two heads: "b" and "c".
+    fn build_two_head_graph() -> (ClientState<SeqPolicyStore, MemStorageProvider>, GraphId) {
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+
+        // The graph_id must equal the init command's id (by protocol).
+        let id_a: CmdId = mkid("a");
+        let graph_id = GraphId::transmute(id_a);
+
+        let id_b: CmdId = mkid("b");
+        let id_c: CmdId = mkid("c");
+
+        let mc0 = MaxCut::new(0);
+
+        let cmd_a = SeqCommand::new(id_a, Prior::None);
+        let cmd_b = SeqCommand::new(
+            id_b,
+            Prior::Single(Address {
+                id: id_a,
+                max_cut: mc0,
+            }),
+        );
+        let cmd_c = SeqCommand::new(
+            id_c,
+            Prior::Single(Address {
+                id: id_a,
+                max_cut: mc0,
+            }),
+        );
+
+        // Use the public Transaction type re-exported from crate root.
+        let mut trx = crate::Transaction::new(graph_id);
+        trx.add_commands(
+            &[cmd_a],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("add init");
+        trx.add_commands(
+            &[cmd_b],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("add b");
+        trx.add_commands(
+            &[cmd_c],
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("add c");
+        trx.commit(
+            &mut client.provider,
+            &mut client.policy_store,
+            &mut NullSink,
+            &mut buffers,
+            &mem_spill,
+        )
+        .expect("commit");
+
+        (client, graph_id)
+    }
+
+    /// Confirm that a `Session` opened on a multi-head graph:
+    /// 1. does NOT panic / does not rely on `get_head()`,
+    /// 2. has `base_facts` reflecting the fully braided merged perspective.
+    ///
+    /// Under the old code, `get_head()` triggers `debug_assert!(it.next().is_none(), ...)`
+    /// in debug builds on a multi-head graph and returns an arbitrary single head in release
+    /// builds, giving an incomplete `base_facts`.  The new code reads `storage.fact_cache()`
+    /// directly, which always reflects the braided state across all heads.
+    #[test]
+    fn session_base_facts_come_from_fact_cache_on_multi_head_graph() {
+        let (mut client, graph_id) = build_two_head_graph();
+
+        // Verify we really have a multi-head graph.
+        {
+            use crate::storage::{Storage as _, StorageProvider as _};
+            let storage = client.provider.get_storage(graph_id).unwrap();
+            assert!(
+                storage.get_heads().unwrap().len() > 1,
+                "expected multi-head graph, got single head"
+            );
+        }
+
+        // Opening a Session must succeed on a multi-head graph.
+        let session = client
+            .session(graph_id)
+            .expect("Session::new should succeed on a multi-head graph");
+
+        // SeqPolicy accumulates command ids into the "seq" fact.
+        // After braiding both branches the merged cache must contain
+        // short ids for both "b" and "c".
+        let seq_value = session
+            .base_facts
+            .query("seq", &[])
+            .expect("query seq fact")
+            .expect("seq fact must be present in merged base_facts");
+        let seq_str = std::str::from_utf8(&seq_value).expect("seq must be valid utf8");
+
+        let id_b: CmdId = mkid("b");
+        let id_c: CmdId = mkid("c");
+        assert!(
+            seq_str.contains(short_b58(id_b).as_str()),
+            "merged base_facts must include branch b; got: {seq_str}"
+        );
+        assert!(
+            seq_str.contains(short_b58(id_c).as_str()),
+            "merged base_facts must include branch c; got: {seq_str}"
+        );
+    }
 
     #[test]
+    #[allow(clippy::type_complexity)]
     fn test_query_iterator() {
-        #![allow(clippy::type_complexity)]
-
         let prior: Vec<Result<(&[&[u8]], &[u8]), _>> = vec![
             Ok((&[b"a"], b"a0")),
             Ok((&[b"c"], b"c0")),
@@ -483,11 +776,11 @@ mod test {
             Ok((&[b"f"], b"f0")),
             Err(StorageError::IoError),
         ];
-        let current: Vec<([Box<[u8]>; 1], Option<&[u8]>)> = vec![
-            ([Box::new(*b"a")], None),
-            ([Box::new(*b"b")], Some(b"b1")),
-            ([Box::new(*b"e")], None),
-            ([Box::new(*b"j")], None),
+        let current: Vec<([Bytes; 1], Option<&[u8]>)> = vec![
+            ([Bytes::from(*b"a")], None),
+            ([Bytes::from(*b"b")], Some(b"b1")),
+            ([Bytes::from(*b"e")], None),
+            ([Bytes::from(*b"j")], None),
         ];
         let merged: Vec<Result<(&[&[u8]], &[u8]), _>> = vec![
             Ok((&[b"b"], b"b1")),
@@ -506,7 +799,7 @@ mod test {
             }),
             current
                 .into_iter()
-                .map(|(k, v)| (k.into_iter().collect(), v.map(Box::from))),
+                .map(|(k, v)| (k.into_iter().collect(), v.map(Bytes::from))),
         )
         .collect();
         let want: Vec<_> = merged

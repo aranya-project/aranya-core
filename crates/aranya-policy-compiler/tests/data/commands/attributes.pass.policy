@@ -1,0 +1,11 @@
+enum Priority { Low, High }
+command A {
+    attributes {
+        i: 5,
+        s: "abc",
+        priority: Priority::High
+    }
+    policy {
+        finish {}
+    }
+}

@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid type: bool
+  |
+2 |     return Some(42) or true
+  |                 --     ^^^^ expected `int` but found `bool`
+  |                 |
+  |                 expected because of this

@@ -1,14 +1,29 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::once,
+};
 
-use aranya_policy_ast::{FieldDefinition, Persistence, TypeKind, VType};
-use aranya_policy_compiler::compile::target::CompileTarget;
+use aranya_policy_ast::{FieldDefinition, Identifier, Persistence, TypeKind, VType};
+use aranya_policy_compiler::PolicyInterface;
+use aranya_policy_module::ConstValue;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
-/// Generate rust source code from a policy [`CompileTarget`].
+/// Generate rust source code from a [`PolicyInterface`].
 #[allow(clippy::panic)]
-pub fn generate_code(target: &CompileTarget) -> String {
+pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> String {
     let reachable = collect_reachable_types(target);
+
+    let constants = target.globals.iter().filter_map(|(id, value)| {
+        let ty = constant_value_to_type(value)?;
+        let lit = constant_value_to_literal(value);
+        let doc = format!(" {id} constant.");
+        let name = mk_ident(id);
+        Some(quote! {
+            #[doc = #doc]
+            pub const #name: #ty = #lit;
+        })
+    });
 
     let structs = target
         .struct_defs
@@ -17,8 +32,8 @@ pub fn generate_code(target: &CompileTarget) -> String {
         .map(|(id, fields)| {
             let doc = format!(" {} policy struct.", id);
             let name = mk_ident(id);
-            let names = fields.iter().map(|f| mk_ident(&f.identifier.name));
-            let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+            let names = fields.iter().map(|f| mk_ident(&f.name.inner));
+            let types = fields.iter().map(|f| vtype_to_rtype(&f.vtype));
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -52,8 +67,8 @@ pub fn generate_code(target: &CompileTarget) -> String {
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
         let doc = format!(" {} policy effect.", s);
         let ident = mk_ident(s);
-        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier.name));
-        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+        let field_idents = fields.iter().map(|f| mk_ident(&f.name.inner));
+        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.vtype));
         quote! {
             #[doc = #doc]
             #[effect]
@@ -78,7 +93,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
     let persistent = syn::Ident::new("Persistent", Span::call_site());
     let ephemeral = syn::Ident::new("Ephemeral", Span::call_site());
 
-    let actions = {
+    let (persistent, ephemeral, actions) = {
         let mut persistent_actions = Vec::new();
         let mut ephemeral_actions = Vec::new();
         let structs = target
@@ -100,7 +115,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
                 let doc = format!(" {} policy action.", def.name);
                 let ident = mk_ident(def.name.as_str());
                 let argnames = def.params.iter().map(|arg| mk_ident(arg.name.as_str()));
-                let argtypes = def.params.iter().map(|arg| vtype_to_rtype(&arg.ty));
+                let argtypes = def.params.iter().map(|arg| vtype_to_rtype(&arg.vtype));
                 quote! {
                     #[doc = #doc]
                     #[action(interface = #interface)]
@@ -110,41 +125,73 @@ pub fn generate_code(target: &CompileTarget) -> String {
                 }
             })
             .collect::<Vec<_>>();
-        quote! {
-            #[actions(interface = #persistent)]
-            pub enum PersistentAction {
-                #( #persistent_actions(#persistent_actions) ),*
-            }
-            #[actions(interface = #ephemeral)]
-            pub enum EphemeralAction {
-                #( #ephemeral_actions(#ephemeral_actions) ),*
-            }
-            #( #structs )*
-        }
+
+        let mut out = TokenStream::new();
+
+        let pdef = if persistent_actions.is_empty() {
+            None
+        } else {
+            out.extend(once(quote! {
+                #[actions(interface = #persistent)]
+                pub enum PersistentAction {
+                    #( #persistent_actions(#persistent_actions) ),*
+                }
+            }));
+            Some(quote! {
+                #[derive(Debug)]
+                pub enum #persistent {}
+            })
+        };
+
+        let edef = if ephemeral_actions.is_empty() {
+            None
+        } else {
+            out.extend(once(quote! {
+                #[actions(interface = #ephemeral)]
+                pub enum EphemeralAction {
+                    #( #ephemeral_actions(#ephemeral_actions) ),*
+                }
+            }));
+            Some(quote! {
+                #[derive(Debug)]
+                pub enum #ephemeral {}
+            })
+        };
+
+        out.extend(structs);
+
+        (pdef, edef, out)
     };
+
+    let import_ifgen = ifgen.map(|path| {
+        quote! { use #path as aranya_policy_ifgen; }
+    });
 
     prettyplease::unparse(&syn::parse_quote! {
         //! This code is @generated by `policy-ifgen`. DO NOT EDIT.
+        #![cfg_attr(rustfmt, rustfmt::skip)]
         #![allow(clippy::duplicated_attributes)]
         #![allow(clippy::enum_variant_names)]
         #![allow(missing_docs)]
         #![allow(non_camel_case_types)]
         #![allow(non_snake_case)]
+        #![allow(non_upper_case_globals)]
         #![allow(unused_imports)]
 
         extern crate alloc;
 
         use alloc::vec::Vec;
 
+        #import_ifgen
         use aranya_policy_ifgen::{
             macros::{action, actions, effect, effects, value},
-            BaseId, ClientError, Value, Text,
+            text, BaseId, ClientError, Value, Text,
         };
 
-        #[derive(Debug)]
-        pub enum #persistent {}
-        #[derive(Debug)]
-        pub enum #ephemeral {}
+        #(#constants)*
+
+        #persistent
+        #ephemeral
 
         #(#structs)*
         #(#enums)*
@@ -159,18 +206,19 @@ pub fn generate_code(target: &CompileTarget) -> String {
 
 fn vtype_to_rtype(ty: &VType) -> TokenStream {
     use aranya_policy_ast::TypeKind;
-    match &ty.kind {
+    match &ty.inner {
+        TypeKind::Unit => quote! { () },
         TypeKind::String => quote! { Text },
         TypeKind::Bytes => quote! { Vec<u8> },
         TypeKind::Int => quote! { i64 },
         TypeKind::Bool => quote! { bool },
         TypeKind::Id => quote! { BaseId },
         TypeKind::Struct(st) => {
-            let ident = mk_ident(&st.name);
+            let ident = mk_ident(&st.inner);
             quote! { #ident }
         }
         TypeKind::Enum(st) => {
-            let ident = mk_ident(&st.name);
+            let ident = mk_ident(&st.inner);
             quote! { #ident }
         }
         TypeKind::Optional(opt) => {
@@ -179,29 +227,102 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
                 Option<#inner>
             }
         }
+        TypeKind::Never => unreachable!("cannot use never type in definitions"),
+        TypeKind::Result(result_type) => {
+            let ok_type = vtype_to_rtype(&result_type.ok);
+            let err_type = vtype_to_rtype(&result_type.err);
+            quote! {
+                Result<#ok_type, #err_type>
+            }
+        }
     }
 }
 
-/// Returns the name of all custom types reachable from actions or effects.
+fn constant_value_to_type(value: &ConstValue) -> Option<TokenStream> {
+    Some(match value {
+        ConstValue::Unit => quote!(()),
+        ConstValue::Int(_) => quote!(i64),
+        ConstValue::Bool(_) => quote!(bool),
+        ConstValue::String(_) => quote!(Text),
+        ConstValue::Struct(st) => {
+            let ident = mk_ident(&st.name);
+            quote!(#ident)
+        }
+        ConstValue::Enum(ident, _) => {
+            let ident = mk_ident(ident);
+            quote!(#ident)
+        }
+        ConstValue::Option(Some(value)) => {
+            let ty = constant_value_to_type(value)?;
+            quote!(Option<#ty>)
+        }
+        // `Option<!>` would probably work if/when `never_type` stabilizes.
+        // Any other choice would give us a type that probably isn't very
+        // useful since we can't just coerce it to some other `Option<T>`.
+        ConstValue::Option(None) => return None,
+        // Disallow for same logic as `Option(None)` above.
+        ConstValue::Result(_) => return None,
+    })
+}
+
+fn constant_value_to_literal(value: &ConstValue) -> TokenStream {
+    match value {
+        ConstValue::Unit => quote!(()),
+        ConstValue::Int(n) => quote!(#n),
+        ConstValue::Bool(b) => quote!(#b),
+        ConstValue::String(text) => {
+            let text = text.as_str();
+            quote!(text!(#text))
+        }
+        ConstValue::Struct(st) => {
+            let ident = mk_ident(&st.name);
+            let fields = st.fields.iter().map(|(k, v)| {
+                let ident = mk_ident(k);
+                let lit = constant_value_to_literal(v);
+                quote! {
+                    #ident: #lit
+                }
+            });
+            quote!(#ident { #(#fields),* })
+        }
+        ConstValue::Enum(ident, variant) => {
+            let ident = mk_ident(ident);
+            quote!(#ident::new(#variant).unwrap())
+        }
+        ConstValue::Option(None) => quote!(None),
+        ConstValue::Option(Some(value)) => {
+            let lit = constant_value_to_literal(value);
+            quote!(Some(#lit))
+        }
+        ConstValue::Result(Ok(value)) => {
+            let lit = constant_value_to_literal(value);
+            quote!(Ok(#lit))
+        }
+        ConstValue::Result(Err(value)) => {
+            let lit = constant_value_to_literal(value);
+            quote!(Err(#lit))
+        }
+    }
+}
+
+/// Returns the name of all custom types reachable from actions, effects, and globals.
 #[allow(clippy::panic)]
-fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
-    fn visit<'a>(
-        struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
-        found: &mut HashSet<&'a str>,
-        ty: &'a VType,
+fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
+    fn visit(
+        struct_defs: &HashMap<&str, &[FieldDefinition]>,
+        found: &mut HashSet<Identifier>,
+        ty: &TypeKind,
     ) {
-        match &ty.kind {
-            TypeKind::Struct(s) => {
-                if found.insert(s.as_str()) {
-                    for field in struct_defs[s.as_str()] {
-                        visit(struct_defs, found, &field.field_type);
-                    }
+        match ty {
+            TypeKind::Struct(s) if found.insert(s.inner.clone()) => {
+                for field in struct_defs[s.as_str()] {
+                    visit(struct_defs, found, &field.vtype.inner);
                 }
             }
             TypeKind::Enum(s) => {
-                found.insert(s.as_str());
+                found.insert(s.inner.clone());
             }
-            TypeKind::Optional(inner) => visit(struct_defs, found, inner),
+            TypeKind::Optional(inner) => visit(struct_defs, found, &inner.inner),
             _ => {}
         }
     }
@@ -215,8 +336,8 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
     let mut found = HashSet::new();
 
     for def in target.action_defs.iter() {
-        for param in def.params.iter() {
-            visit(&struct_defs, &mut found, &param.ty);
+        for param in &def.params {
+            visit(&struct_defs, &mut found, &param.vtype.inner);
         }
     }
 
@@ -226,8 +347,12 @@ fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
         for field in fields {
-            visit(&struct_defs, &mut found, &field.field_type);
+            visit(&struct_defs, &mut found, &field.vtype.inner);
         }
+    }
+
+    for (ident, value) in &target.globals {
+        visit(&struct_defs, &mut found, &value.vtype(ident.span));
     }
 
     found

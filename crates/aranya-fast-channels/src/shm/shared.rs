@@ -1,6 +1,7 @@
 use core::{
     alloc::Layout,
     fmt,
+    hint::cold_path,
     marker::PhantomData,
     mem::{MaybeUninit, size_of},
     ptr, slice, str,
@@ -9,16 +10,15 @@ use core::{
 
 use aranya_crypto::{
     CipherSuite, Csprng, DeviceId, Random,
-    afc::{RawOpenKey, RawSealKey, Seq},
-    dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
+    afc::{RawOpenKey, RawSealKey},
+    dangerous::spideroak_crypto::aead::Aead,
     policy::LabelId,
 };
 use buggy::{Bug, BugExt as _};
-use cfg_if::cfg_if;
 use derive_where::derive_where;
 
 use super::{
-    align::{CacheAligned, is_aligned_to, layout_repeat},
+    align::CacheAligned,
     error::{
         Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
         bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
@@ -27,20 +27,19 @@ use super::{
     le::{U32, U64},
     path::{Flag, Mode, Path},
 };
-#[allow(unused_imports)]
-use crate::features::*;
 use crate::{
-    RemoveIfParams,
+    ChannelDirection, RemoveIfParams,
     errno::{Errno, errno},
     mutex::Mutex,
     state::{Directed, LocalChannelId},
     util::{const_assert, debug},
 };
 
-cfg_if! {
-    if #[cfg(feature = "sdlib")] {
+cfg_select! {
+    feature = "sdlib" => {
         use super::sdlib::Mapping;
-    } else {
+    }
+    _ => {
         use super::posix::Mapping;
     }
 }
@@ -161,14 +160,14 @@ impl<CS: CipherSuite> State<CS> {
     }
 
     /// Loads the [`ChanList`] at the current `read_off`.
-    pub(super) fn load_read_list(&self) -> Result<&Mutex<ChanListData<CS>>, Corrupted> {
+    pub(super) fn load_read_list(&self) -> Result<&ChanList<CS>, Corrupted> {
         let shm = self.shm();
         let off = self.read_off(shm)?;
         shm.side(off)
     }
 
     /// Loads the [`ChanList`] at the current `write_off`.
-    pub(super) fn load_write_list(&self) -> Result<&Mutex<ChanListData<CS>>, Corrupted> {
+    pub(super) fn load_write_list(&self) -> Result<&ChanList<CS>, Corrupted> {
         let shm = self.shm();
         let off = self.write_off(shm)?;
         shm.side(off)
@@ -177,21 +176,21 @@ impl<CS: CipherSuite> State<CS> {
     /// Load the current `read_off` from `shm`.
     fn read_off(&self, shm: &SharedMem<CS>) -> Result<Offset, Corrupted> {
         let off = shm.read_off.load(Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid read offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid read offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Load the current `write_off` from `shm`.
     pub(super) fn write_off(&self, shm: &SharedMem<CS>) -> Result<Offset, Corrupted> {
         let off = shm.write_off.load(Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid write offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid write offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Swaps `write_off` for `read_off` and returns `read_off`.
@@ -201,11 +200,11 @@ impl<CS: CipherSuite> State<CS> {
         write_off: Offset,
     ) -> Result<Offset, Corrupted> {
         let off = shm.read_off.swap(write_off.into(), Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid write offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid write offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Reports whether `off` is a known valid offset.
@@ -219,7 +218,7 @@ impl<CS: CipherSuite> State<CS> {
         ch: LocalChannelId,
         hint: Option<Index>,
     ) -> Result<Option<(ShmChan<CS>, Index)>, Corrupted> {
-        let list = self.load_read_list()?.lock().assume("poisoned")?;
+        let list = self.load_read_list()?.lock();
         list.find(ch, hint, Op::Any)
             .map(|res| res.map(|(chan, idx)| ((*chan).clone(), idx)))
     }
@@ -335,6 +334,15 @@ impl PartialEq<Op> for ChanDirection {
     }
 }
 
+impl From<ChanDirection> for ChannelDirection {
+    fn from(value: ChanDirection) -> Self {
+        match value {
+            ChanDirection::SealOnly => Self::Seal,
+            ChanDirection::OpenOnly => Self::Open,
+        }
+    }
+}
+
 /// The in-memory representation of a channel.
 ///
 /// All integers are little endian.
@@ -347,8 +355,6 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     pub direction: U32,
     /// The channel's ID.
     pub local_channel_id: U64,
-    /// The current encryption sequence counter.
-    pub seq: U64,
     /// The channel's label.
     pub label_id: LabelId,
     /// The ID of the peer.
@@ -359,8 +365,6 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// The key/nonce used to decrypt data from the channel peer.
     #[derive_where(skip(Debug))]
     pub open_key: RawOpenKey<CS>,
-    /// Uniquely identifies `seal_key` and `open_key`.
-    pub key_id: KeyId,
 }
 assert_ffi_safe!(ShmChan<aranya_crypto::default::DefaultCipherSuite>);
 
@@ -382,7 +386,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
         label_id: LabelId,
         peer_id: DeviceId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
-        rng: &mut R,
+        rng: R,
     ) {
         // As a safety precaution, randomize keys that we don't
         // use. Leaving them unset (usually all zeros) is
@@ -399,25 +403,16 @@ impl<CS: CipherSuite> ShmChan<CS> {
         // decrypts and authenticates for the key. Randomizing
         // the key prevents an attacker from crafting such
         // a ciphertext.
-        let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(rng));
-        let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(rng));
-        let key_id = KeyId::new(&seal_key, &open_key);
+        let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(&rng));
+        let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(&rng));
         let chan = Self {
             magic: Self::MAGIC,
             direction: ChanDirection::from_directed(keys).to_u32().into(),
             local_channel_id: id.to_u64().into(),
-            // For the same reason that we randomize keys,
-            // manually exhaust the sequence number.
-            seq: if keys.seal().is_some() {
-                U64::new(0)
-            } else {
-                U64::MAX
-            },
             label_id,
             peer_id,
             seal_key,
             open_key,
-            key_id,
         };
         ptr.write(chan);
     }
@@ -470,23 +465,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
         ChanDirection::try_from_u32(self.direction.into()).ok_or(bad_chan_direction(self.direction))
     }
 
-    /// Returns the encryption sequence number.
-    pub fn seq(&self) -> Seq {
-        Seq::new(self.seq.into())
-    }
-
-    /// Updates the sequence number.
-    pub fn set_seq(&mut self, seq: Seq) {
-        debug_assert!(
-            seq.to_u64() > self.seq.into(),
-            "{} <= {}",
-            seq.to_u64(),
-            self.seq.into()
-        );
-
-        self.seq = seq.to_u64().into();
-    }
-
     /// Performs basic sanity checking.
     #[track_caller]
     fn check(&self) -> Result<(), Corrupted> {
@@ -500,11 +478,11 @@ impl<CS: CipherSuite> ShmChan<CS> {
         }
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_chan_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_chan_magic(magic));
         }
+        Ok(())
     }
 }
 
@@ -651,12 +629,11 @@ impl<CS: CipherSuite> SharedMem<CS> {
         let (layout, side_a) = layout.extend(list)?;
         let (mut layout, side_b) = layout.extend(list)?;
 
-        if page_aligned {
-            if let Some(page_size) = getpagesize()? {
-                if layout.size() < page_size {
-                    layout = layout.align_to(page_size)?;
-                }
-            }
+        if page_aligned
+            && let Some(page_size) = getpagesize()?
+            && layout.size() < page_size
+        {
+            layout = layout.align_to(page_size)?;
         }
 
         Ok(ShmLayout {
@@ -678,15 +655,15 @@ impl<CS: CipherSuite> SharedMem<CS> {
         debug_assert_eq!(self.version, Self::VERSION);
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_state_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_state_magic(magic));
         }
+        Ok(())
     }
 
     /// Returns the side corresponding with `off`.
-    pub fn side(&self, off: Offset) -> Result<&Mutex<ChanListData<CS>>, Corrupted> {
+    pub fn side(&self, off: Offset) -> Result<&ChanList<CS>, Corrupted> {
         self.check()?;
 
         // SAFETY: ptr is non-null, suitably aligned, and won't
@@ -694,10 +671,10 @@ impl<CS: CipherSuite> SharedMem<CS> {
         let list = unsafe {
             let ptr = ptr::from_ref::<Self>(self).byte_add(off.into());
             let ptr = ptr.cast::<ChanList<CS>>();
-            &*ptr
+            ptr.as_ref_unchecked()
         };
         list.check()?;
-        Ok(&list.data)
+        Ok(list)
     }
 }
 
@@ -722,15 +699,22 @@ impl<CS: CipherSuite> SharedMem<CS> {
     repr(C, align(32))
 )]
 #[derive_where(Debug)]
-struct ChanList<CS> {
+pub(super) struct ChanList<CS> {
     /// Identifies this memory as a [`ChanList`].
     ///
     /// Should be [`Self::MAGIC`].
     magic: U32,
+    /// The current generation.
+    ///
+    /// It is incremented each time the list is modified.
+    ///
+    /// This is held outside of the mutex so that the read side
+    /// can quickly check it with no locking required.
+    pub(super) generation: AtomicU32,
     /// The locked list data.
     data: Mutex<ChanListData<CS>>,
 }
-assert_ffi_safe!(ChanList<aranya_crypto::default::DefaultEngine<aranya_crypto::Rng>>);
+assert_ffi_safe!(ChanList<aranya_crypto::default::DefaultCipherSuite>);
 
 impl<CS: CipherSuite> ChanList<CS> {
     const MAGIC: U32 = U32::new(0x1b771244);
@@ -739,11 +723,10 @@ impl<CS: CipherSuite> ChanList<CS> {
     ///
     /// It reports whether it is page aligned.
     fn layout(max_chans: usize) -> Result<(Layout, bool), LayoutError> {
-        let chans = layout_repeat(ShmChan::<CS>::layout(), max_chans)?;
+        let chans = ShmChan::<CS>::layout().repeat(max_chans)?.0;
 
         // Extend by the size of the trailing data.
-        let layout = Layout::new::<Self>();
-        let (layout, _) = layout.extend(chans)?;
+        let layout = Layout::new::<Self>().extend(chans)?.0;
 
         // If the cumulative size of the two sides are going to
         // straddle multiple pages, align each to the page size.
@@ -755,7 +738,7 @@ impl<CS: CipherSuite> ChanList<CS> {
                     reason = "Layout::size() is in [0, isize::MAX], so * 2 cannot overflow"
                 )]
                 let double_size = layout.size() * 2;
-                (double_size > page_size) && is_aligned_to(page_size, layout.align())
+                (double_size > page_size) && page_size.is_multiple_of(layout.align());
             };
             (page_size, page_aligned)
         } else {
@@ -778,11 +761,11 @@ impl<CS: CipherSuite> ChanList<CS> {
         debug_assert_eq!(self.magic, Self::MAGIC);
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_chanlist_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_chanlist_magic(magic));
         }
+        Ok(())
     }
 
     /// Creates a [`ChanList`] with space for at most
@@ -790,13 +773,41 @@ impl<CS: CipherSuite> ChanList<CS> {
     fn new(max_chans: usize) -> Self {
         Self {
             magic: Self::MAGIC,
+            generation: AtomicU32::new(0),
             data: Mutex::new(ChanListData {
-                generation: AtomicU32::new(0),
                 len: U64::new(0),
                 cap: U64::new(max_chans as u64),
                 chans: PhantomData,
             }),
         }
+    }
+
+    pub(super) fn lock(&self) -> LockedChanList<'_, CS> {
+        LockedChanList {
+            generation: &self.generation,
+            data: self.data.lock().unwrap_or_else(|e| match e {}),
+        }
+    }
+}
+
+/// The [`LockedChanList`] is able to mutate channel data.
+///
+/// This is more than just a handle to [`ChanListData`] since
+/// we need to update the generation when we modify the list.
+pub(super) struct LockedChanList<'a, CS> {
+    pub(super) generation: &'a AtomicU32,
+    data: crate::mutex::MutexGuard<'a, ChanListData<CS>>,
+}
+
+impl<CS> core::ops::Deref for LockedChanList<'_, CS> {
+    type Target = ChanListData<CS>;
+    fn deref(&self) -> &Self::Target {
+        self.data.deref()
+    }
+}
+impl<CS> core::ops::DerefMut for LockedChanList<'_, CS> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.data.deref_mut()
     }
 }
 
@@ -806,26 +817,16 @@ impl<CS: CipherSuite> ChanList<CS> {
 #[repr(C, align(8))]
 #[derive_where(Debug)]
 pub(super) struct ChanListData<CS> {
-    /// The current generation.
-    ///
-    /// It is incremented each time the list is modified.
-    ///
-    /// It is atomic so that `ReadState` can safely read it even
-    /// while this struct is locked.
-    ///
-    /// Putting it as the first field significantly decreases the
-    /// size of the struct.
-    pub generation: AtomicU32,
     /// The current number of channels.
-    pub len: U64,
+    pub(super) len: U64,
     /// The maximum number of channels.
-    pub cap: U64,
+    pub(super) cap: U64,
     /// This is actually `[ShmChan; cap]`.
     ///
     /// It is a ZST and does not affect the memory layout.
     chans: PhantomData<CS>,
 }
-assert_ffi_safe!(ChanListData<aranya_crypto::default::DefaultEngine<aranya_crypto::Rng>>);
+assert_ffi_safe!(ChanListData<aranya_crypto::default::DefaultCipherSuite>);
 
 const_assert!(
     // `Mutex` is 8 bytes, so ensure that `Mutex<ChanListData>`
@@ -833,7 +834,7 @@ const_assert!(
     size_of::<Mutex<ChanListData<()>>>() == 8 + size_of::<ChanListData<()>>()
 );
 
-impl<CS: CipherSuite> ChanListData<CS> {
+impl<CS: CipherSuite> LockedChanList<'_, CS> {
     /// Performs basic sanity checking.
     #[track_caller]
     fn check(&self) {
@@ -932,7 +933,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let id = chan.id()?;
             let label_id = chan.label_id()?;
             let peer_id = chan.peer_id()?;
-            if !f(RemoveIfParams::new(id, label_id, peer_id)) {
+            let direction = chan.direction()?.into();
+            if !f(RemoveIfParams::new(id, label_id, peer_id, direction)) {
                 // Nope, try the next index.
                 // wrapping_add is safe here: if idx overflows, self.get() will return None, ending the loop
                 idx = idx.wrapping_add(1);
@@ -983,8 +985,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
         debug!("looking up {ch} with hint {hint:?} for {op}");
 
         // If the caller provided an index, use that.
-        if let Some(hint) = hint {
-            if let Some(chan) = self
+        if let Some(hint) = hint
+            && let Some(chan) = self
                 .get(hint.0)?
                 // Hints are purely additive, so we purposefully
                 // ignore errors (e.g., Corrupted) while finding
@@ -992,22 +994,19 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 .filter(|chan| {
                     chan.id().is_ok_and(|got| got == ch) && chan.matches(op).is_ok_and(|ok| ok)
                 })
-            {
-                debug!("used hint {hint:?} for {ch}");
-                return Ok(Some((chan, hint)));
-            }
+        {
+            debug!("used hint {hint:?} for {ch}");
+            return Ok(Some((chan, hint)));
         }
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Retrieves the channel and its index for a particular
@@ -1023,8 +1022,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
         debug!("looking up {ch} with hint {hint:?} for {op}");
 
         // If the caller provided an index, use that.
-        if let Some(hint) = hint {
-            if let Some(chan) = self
+        if let Some(hint) = hint
+            && let Some(chan) = self
                 .get_mut(hint.0)?
                 // Hints are purely additive, so we purposefully
                 // ignore errors (e.g., Corrupted) while finding
@@ -1035,25 +1034,22 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 // Use ptr to work around early return borrow
                 // checker limitation
                 .map(|chan| -> *mut ShmChan<CS> { chan })
-            {
-                debug!("used hint {hint:?} for {ch}");
-                // SAFETY: `chan` is borrowed from self then
-                // immediately returned. The lifetime of the
-                // returned value is tied to self.
-                return Ok(Some((unsafe { &mut *chan }, hint)));
-            }
+        {
+            debug!("used hint {hint:?} for {ch}");
+            // SAFETY: `chan` is borrowed from self then
+            // immediately returned. The lifetime of the
+            // returned value is tied to self.
+            return Ok(Some((unsafe { chan.as_mut_unchecked() }, hint)));
         }
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter_mut()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter_mut()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Removes the [`ShmChan`] at `idx`, replacing it with
@@ -1062,9 +1058,11 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         let len = self.len()?;
-        if unlikely!(len == 0) {
+        if len == 0 {
+            cold_path();
             Err(corrupted("`swap_remove` called with len == 0"))
-        } else if unlikely!(idx >= len) {
+        } else if idx >= len {
+            cold_path();
             Err(corrupted("`ShmChan` index out of range"))
         } else {
             // No need to perform a swap if there is only one
@@ -1091,29 +1089,6 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         Ok(self.chans_mut()?.iter_mut())
-    }
-}
-
-/// Uniquely identifies a [`RawSealKey`], [`RawOpenKey`] tuple.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(super) struct KeyId([u8; 16]);
-
-impl KeyId {
-    fn new<CS: CipherSuite>(seal: &RawSealKey<CS>, open: &RawOpenKey<CS>) -> Self {
-        let id = tuple_hash::<CS::Hash, _>([
-            seal.key.as_bytes(),
-            &seal.base_nonce,
-            open.key.as_bytes(),
-            &open.base_nonce,
-        ])
-        .into_array();
-        #[allow(
-            clippy::unwrap_used,
-            clippy::indexing_slicing,
-            reason = "The compiler proves that this does not panic."
-        )]
-        Self(id[..16].try_into().unwrap())
     }
 }
 

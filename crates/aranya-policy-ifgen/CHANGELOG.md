@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.24.0...aranya-policy-ifgen-v0.25.0) - 2026-08-25
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-runtime
+
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.23.0...aranya-policy-ifgen-v0.24.0) - 2026-07-09
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-runtime
+
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.22.0...aranya-policy-ifgen-v0.23.0) - 2026-05-22
+
+### Other
+
+- ifgen build flag for import ([#673](https://github.com/aranya-project/aranya-core/pull/673))
+
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.21.0...aranya-policy-ifgen-v0.22.0) - 2026-03-31
+
+### Other
+
+- updated the following local packages: aranya-runtime, aranya-policy-vm
+
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.20.0...aranya-policy-ifgen-v0.21.0) - 2026-03-17
+
+### Other
+
+- generate constants for globals ([#593](https://github.com/aranya-project/aranya-core/pull/593))
+
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.19.0...aranya-policy-ifgen-v0.20.0) - 2026-02-17
+
+### Other
+
+- Fix #447: Require policy block in command. ([#449](https://github.com/aranya-project/aranya-core/pull/449))
+
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.18.0...aranya-policy-ifgen-v0.19.0) - 2026-01-23
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-runtime
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.17.0...aranya-policy-ifgen-v0.18.0) - 2026-01-06
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-runtime
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.16.1...aranya-policy-ifgen-v0.17.0) - 2025-12-11
+
+### Other
+
+- add `compile_interface` ([#496](https://github.com/aranya-project/aranya-core/pull/496))
+
+## [0.16.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.16.0...aranya-policy-ifgen-v0.16.1) - 2025-11-12
+
+### Other
+
+- generate interior `rustfmt::skip` ([#457](https://github.com/aranya-project/aranya-core/pull/457))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.15.0...aranya-policy-ifgen-v0.16.0) - 2025-11-05
+
+### Other
+
+- add more effect conversions ([#456](https://github.com/aranya-project/aranya-core/pull/456))
+- actions as structs ([#350](https://github.com/aranya-project/aranya-core/pull/350))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.14.0...aranya-policy-ifgen-v0.15.0) - 2025-10-16
 
 ### Other

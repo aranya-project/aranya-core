@@ -1,5 +1,5 @@
 use core::{
-    alloc::{Layout, LayoutError},
+    alloc::Layout,
     mem::{align_of, size_of},
     ops::Deref,
     ptr::NonNull,
@@ -8,23 +8,6 @@ use core::{
 use derive_where::derive_where;
 
 use super::shared::assert_ffi_safe;
-
-/// Reports whether `v` is aligned to `align`.
-pub(super) fn is_aligned_to(v: usize, align: usize) -> bool {
-    assert!(align.is_power_of_two());
-    #[allow(
-        clippy::arithmetic_side_effects,
-        reason = "align is a power of two and therefore non-zero"
-    )]
-    {
-        v % align == 0
-    }
-}
-
-/// Reports whether `ptr` is aligned to `align`.
-fn is_aligned<T>(ptr: *const T) -> bool {
-    ptr.is_aligned()
-}
 
 /// A cache-aligned `T`.
 #[cfg_attr(
@@ -75,7 +58,7 @@ impl<T: Sized> Aligned<T> {
     /// it returns `None`.
     pub fn new(ptr: *mut T, layout: Layout) -> Option<Self> {
         // Fast path: ptr is suitably aligned.
-        if is_aligned(ptr) {
+        if ptr.is_aligned() {
             return Some(Self {
                 ptr: NonNull::new(ptr)?,
             });
@@ -114,19 +97,4 @@ impl<T> Aligned<T> {
     pub fn as_ptr(&self) -> *mut T {
         self.ptr.as_ptr()
     }
-}
-
-const fn layout_error() -> LayoutError {
-    match Layout::from_size_align(usize::MAX, 1) {
-        Err(err) => err,
-        _ => core::unreachable!(),
-    }
-}
-
-// See https://doc.rust-lang.org/core/alloc/struct.Layout.html#method.repeat
-pub(super) fn layout_repeat(layout: Layout, n: usize) -> Result<Layout, LayoutError> {
-    let padded_size = layout.pad_to_align().size();
-    let alloc_size = padded_size.checked_mul(n).ok_or(layout_error())?;
-
-    Layout::from_size_align(alloc_size, layout.align())
 }

@@ -1,31 +1,40 @@
+use core::{fmt, iter::DoubleEndedIterator};
+
 use buggy::Bug;
 
 use crate::{
-    Address, CmdId, Command, Engine, EngineError, GraphId, PeerCache, Perspective as _, Policy,
-    Sink, Storage as _, StorageError, StorageProvider, engine::ActionPlacement,
+    Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,
+    PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError, StorageProvider,
+    TraversalBuffer,
+    policy::ActionPlacement,
+    storage::{HeadSet, Spill},
 };
 
-mod braiding;
+pub(crate) mod braiding; // exposed for `buffers.rs` (StrandHeap)
+mod buffers;
+pub(crate) mod convergence_map; // exposed for `buffers.rs` (ConvergenceStorage)
 mod session;
 mod transaction;
+
+pub(crate) use buffers::BraidBuffer;
+pub use buffers::RuntimeBuffers;
 
 pub use self::{session::Session, transaction::Transaction};
 
 /// An error returned by the runtime client.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ClientError {
     #[error("no such parent: {0}")]
     NoSuchParent(CmdId),
-    #[error("engine error: {0}")]
-    EngineError(EngineError),
+    #[error("policy error: {0}")]
+    PolicyError(#[from] PolicyError),
     #[error("storage error: {0}")]
     StorageError(#[from] StorageError),
     #[error("init error")]
     InitError,
-    #[error("not authorized")]
-    NotAuthorized,
-    #[error("session deserialize error: {0}")]
-    SessionDeserialize(#[from] postcard::Error),
+    #[error("could not deserialize session command")]
+    SessionDeserialize,
     /// Attempted to braid two parallel finalize commands together.
     ///
     /// Policy must be designed such that two parallel finalize commands are never produced.
@@ -35,33 +44,38 @@ pub enum ClientError {
     /// split into two separate graph states which can never successfully sync.
     #[error("found parallel finalize commands during braid")]
     ParallelFinalize,
+    #[error("concurrent transaction usage")]
+    ConcurrentTransaction,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
 
-impl From<EngineError> for ClientError {
-    fn from(error: EngineError) -> Self {
-        match error {
-            EngineError::Check => Self::NotAuthorized,
-            _ => Self::EngineError(error),
-        }
-    }
-}
-
 /// Keeps track of client graph state.
 ///
-/// - `E` should be an implementation of [`Engine`].
+/// - `PS` should be an implementation of [`PolicyStore`].
 /// - `SP` should be an implementation of [`StorageProvider`].
-#[derive(Debug)]
-pub struct ClientState<E, SP> {
-    engine: E,
+pub struct ClientState<PS, SP> {
+    policy_store: PS,
     provider: SP,
 }
 
-impl<E, SP> ClientState<E, SP> {
+// Manual Debug impl to exclude `buffers` (large, not useful in debug output).
+impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClientState")
+            .field("policy_store", &self.policy_store)
+            .field("provider", &self.provider)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<PS, SP> ClientState<PS, SP> {
     /// Creates a `ClientState`.
-    pub const fn new(engine: E, provider: SP) -> Self {
-        Self { engine, provider }
+    pub const fn new(policy_store: PS, provider: SP) -> Self {
+        Self {
+            policy_store,
+            provider,
+        }
     }
 
     /// Provide access to the [`StorageProvider`].
@@ -70,28 +84,35 @@ impl<E, SP> ClientState<E, SP> {
     }
 }
 
-impl<E, SP> ClientState<E, SP>
+impl<PS, SP> ClientState<PS, SP>
 where
-    E: Engine,
+    PS: PolicyStore,
     SP: StorageProvider,
 {
     /// Create a new graph (AKA Team). This graph will start with the initial policy
-    /// provided which must be compatible with the engine E. The `payload` is the initial
+    /// provided which must be compatible with the policy store PS. The `payload` is the initial
     /// init message that will bootstrap the graph facts. Effects produced when processing
     /// the payload are emitted to the sink.
     pub fn new_graph(
         &mut self,
         policy_data: &[u8],
-        action: <E::Policy as Policy>::Action<'_>,
-        sink: &mut impl Sink<E::Effect>,
+        action: <PS::Policy as Policy>::Action<'_>,
+        sink: &mut impl Sink<PS::Effect>,
     ) -> Result<GraphId, ClientError> {
-        let policy_id = self.engine.add_policy(policy_data)?;
-        let policy = self.engine.get_policy(policy_id)?;
+        let policy_id = self.policy_store.add_policy(policy_data)?;
+        let policy = self.policy_store.get_policy(policy_id)?;
+        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
 
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
         policy
-            .call_action(action, &mut perspective, sink, ActionPlacement::OnGraph)
+            .call_action(
+                action,
+                &mut perspective,
+                sink,
+                ActionPlacement::OnGraph,
+                seal_ctx,
+            )
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
 
@@ -108,74 +129,189 @@ where
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
-    pub fn commit(
+    ///
+    /// `make_spill` is called whenever an internal braid or convergence map
+    /// needs byte-addressable overflow storage. It is typically
+    /// `|| LibcSpill::new(&dir)` for production callers or `MemSpill::new`
+    /// for tests.
+    ///
+    /// Returns whether any new commands were added.
+    pub fn commit<F, MS>(
         &mut self,
-        trx: &mut Transaction<SP, E>,
-        sink: &mut impl Sink<E::Effect>,
-    ) -> Result<(), ClientError> {
-        trx.commit(&mut self.provider, &mut self.engine, sink)?;
-        Ok(())
+        trx: Transaction<SP, PS>,
+        sink: &mut impl Sink<PS::Effect>,
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: MS,
+    ) -> Result<bool, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        trx.commit::<F, MS>(
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            buffers,
+            &make_spill,
+        )
     }
 
     /// Add commands to the transaction, writing the results to
     /// `sink`.
+    ///
+    /// `make_spill` is called whenever an internal braid or convergence map
+    /// needs byte-addressable overflow storage. See [`Self::commit`].
+    ///
     /// Returns the number of commands that were added.
-    pub fn add_commands(
+    pub fn add_commands<F, MS>(
         &mut self,
-        trx: &mut Transaction<SP, E>,
-        sink: &mut impl Sink<E::Effect>,
+        trx: &mut Transaction<SP, PS>,
+        sink: &mut impl Sink<PS::Effect>,
         commands: &[impl Command],
-    ) -> Result<usize, ClientError> {
-        let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
-        Ok(count)
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: MS,
+    ) -> Result<usize, ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        trx.add_commands::<F, MS>(
+            commands,
+            &mut self.provider,
+            &mut self.policy_store,
+            sink,
+            buffers,
+            &make_spill,
+        )
     }
 
-    pub fn update_heads(
+    pub fn update_heads<I>(
         &mut self,
-        storage_id: GraphId,
-        addrs: impl IntoIterator<Item = Address>,
+        graph_id: GraphId,
+        addrs: I,
         request_heads: &mut PeerCache,
-    ) -> Result<(), ClientError> {
-        let storage = self.provider.get_storage(storage_id)?;
-        for address in addrs {
-            if let Some(loc) = storage.get_location(address)? {
-                request_heads.add_command(storage, address, loc)?;
-            }
+        buffer: &mut TraversalBuffer,
+    ) -> Result<(), ClientError>
+    where
+        I: IntoIterator<Item = Address>,
+        I::IntoIter: DoubleEndedIterator,
+    {
+        let storage = self.provider.get_storage(graph_id)?;
+
+        // Commands in sync messages are always ancestor-first (lower max_cut to higher max_cut).
+        // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
+        // since if a command is an ancestor of one we've already added, we don't need to add it.
+        for address in addrs.into_iter().rev() {
+            request_heads.add_command(storage, address, buffer)?;
         }
+
         Ok(())
     }
 
     /// Returns the address of the head of the graph.
-    pub fn head_address(&mut self, storage_id: GraphId) -> Result<Address, ClientError> {
-        let storage = self.provider.get_storage(storage_id)?;
+    pub fn head_address(&mut self, graph_id: GraphId) -> Result<Address, ClientError> {
+        let storage = self.provider.get_storage(graph_id)?;
         let address = storage.get_head_address()?;
         Ok(address)
     }
 
-    /// Performs an `action`, writing the results to `sink`.
-    pub fn action(
-        &mut self,
-        storage_id: GraphId,
-        sink: &mut impl Sink<E::Effect>,
-        action: <E::Policy as Policy>::Action<'_>,
-    ) -> Result<(), ClientError> {
-        let storage = self.provider.get_storage(storage_id)?;
+    /// Returns the address to advertise in a sync hello notification.
+    ///
+    /// A single-head graph advertises its head. A multi-head graph advertises
+    /// the deterministic merge its head set would collapse to, computed
+    /// without writing anything to storage: a peer holding the same head set
+    /// computes the same address, and a peer that already collapsed these
+    /// heads (by committing a command on top) has this exact command in its
+    /// graph. See [`Self::should_sync_on_hello`] for the receiving side.
+    pub fn hello_head(&mut self, graph_id: GraphId) -> Result<Address, ClientError> {
+        let storage = &*self.provider.get_storage(graph_id)?;
+        let heads = storage.get_heads()?;
+        transaction::synthetic_head(storage, &self.policy_store, heads)
+    }
 
-        let head = storage.get_head()?;
+    /// Returns whether a hello notification advertising `head` warrants
+    /// syncing from that peer.
+    ///
+    /// No sync is needed if the advertised address matches this graph's own
+    /// [`Self::hello_head`] (both sides hold the same head set) or if the
+    /// command is already in the graph (this side is ahead). A peer that has
+    /// extended one of our heads advertises an address that fails both
+    /// checks, costing one sync that transfers nothing; that false positive
+    /// is accepted. A missing graph always warrants a sync.
+    pub fn should_sync_on_hello(
+        &mut self,
+        graph_id: GraphId,
+        head: Address,
+        buffer: &mut TraversalBuffer,
+    ) -> Result<bool, ClientError> {
+        match self.provider.get_storage(graph_id) {
+            Err(StorageError::NoSuchStorage) => return Ok(true),
+            Err(e) => return Err(e.into()),
+            Ok(_) => {}
+        }
+        if self.hello_head(graph_id)? == head {
+            return Ok(false);
+        }
+        let storage = self.provider.get_storage(graph_id)?;
+        Ok(storage.get_location(head, buffer)?.is_none())
+    }
+
+    /// Performs an `action`, writing the results to `sink`.
+    ///
+    /// `make_spill` is called whenever collapsing a multi-head graph needs
+    /// byte-addressable overflow storage for an internal braid. See
+    /// [`Self::commit`].
+    pub fn action<F, MS>(
+        &mut self,
+        graph_id: GraphId,
+        sink: &mut impl Sink<PS::Effect>,
+        action: <PS::Policy as Policy>::Action<'_>,
+        buffers: &mut RuntimeBuffers<SP::Segment>,
+        make_spill: MS,
+    ) -> Result<(), ClientError>
+    where
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        let storage = self.provider.get_storage(graph_id)?;
+
+        // A new command needs a single parent: collapse the head set, which may
+        // run a braid (hence the buffers and spill).
+        let heads = storage.get_heads()?.clone();
+        let head = transaction::collapse_heads::<_, PS, F, _>(
+            storage,
+            &mut self.policy_store,
+            heads,
+            buffers,
+            &make_spill,
+        )?;
 
         let mut perspective = storage.get_linear_perspective(head)?;
 
         let policy_id = perspective.policy();
-        let policy = self.engine.get_policy(policy_id)?;
+        let policy = self.policy_store.get_policy(policy_id)?;
+        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
 
         // No need to checkpoint the perspective since it is only for this action.
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(action, &mut perspective, sink, ActionPlacement::OnGraph) {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            sink,
+            ActionPlacement::OnGraph,
+            seal_ctx,
+        ) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
-                storage.commit(segment)?;
+                let new_head = LocatedAddress {
+                    id: segment.head_id(),
+                    segment: segment.index(),
+                    max_cut: segment.longest_max_cut()?,
+                };
+                let fact_cache = segment.facts()?;
+                storage.commit_heads(HeadSet::single(new_head), fact_cache)?;
                 sink.commit();
                 Ok(())
             }
@@ -187,29 +323,37 @@ where
     }
 }
 
-impl<E, SP> ClientState<E, SP>
+impl<PS, SP> ClientState<PS, SP>
 where
     SP: StorageProvider,
 {
     /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
-    pub fn transaction(&mut self, storage_id: GraphId) -> Transaction<SP, E> {
-        Transaction::new(storage_id)
+    pub fn transaction(&mut self, graph_id: GraphId) -> Transaction<SP, PS> {
+        Transaction::new(graph_id)
     }
 
     /// Create an ephemeral [`Session`] associated with this client.
-    pub fn session(&mut self, storage_id: GraphId) -> Result<Session<SP, E>, ClientError> {
-        Session::new(&mut self.provider, storage_id)
+    pub fn session(&mut self, graph_id: GraphId) -> Result<Session<SP, PS>, ClientError> {
+        Session::new(&mut self.provider, graph_id)
     }
 
     /// Checks if a command with the given address exists in the specified graph.
     ///
     /// Returns `true` if the command exists, `false` if it doesn't exist or the graph doesn't exist.
     /// This method is used to determine if we need to sync when a hello message is received.
-    pub fn command_exists(&mut self, storage_id: GraphId, address: Address) -> bool {
-        let Ok(storage) = self.provider.get_storage(storage_id) else {
+    pub fn command_exists(
+        &mut self,
+        graph_id: GraphId,
+        address: Address,
+        buffer: &mut TraversalBuffer,
+    ) -> bool {
+        let Ok(storage) = self.provider.get_storage(graph_id) else {
             // Graph doesn't exist
             return false;
         };
-        storage.get_location(address).unwrap_or(None).is_some()
+        storage
+            .get_location(address, buffer)
+            .unwrap_or(None)
+            .is_some()
     }
 }

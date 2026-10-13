@@ -6,29 +6,20 @@ use aranya_crypto::{
     id::IdExt as _,
     policy::CmdId,
 };
-use aranya_policy_vm::{
-    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
-};
+use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident};
 
 use crate::FfiDevice;
 
 #[test]
 fn test_current_device_id() {
-    let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
-    let device_id = DeviceId::random(&mut Rng);
+    let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
+    let device_id = DeviceId::random(Rng);
     let device = FfiDevice { id: device_id };
 
     let contexts = vec![
         CommandContext::Action(ActionContext {
             name: ident!("action"),
             head_id: CmdId::default(),
-        }),
-        CommandContext::Seal(SealContext {
-            name: ident!("seal"),
-            head_id: CmdId::default(),
-        }),
-        CommandContext::Open(OpenContext {
-            name: ident!("open"),
         }),
         CommandContext::Policy(PolicyContext {
             name: ident!("policy"),
@@ -46,7 +37,7 @@ fn test_current_device_id() {
 
     for context in contexts {
         let id = device
-            .current_device_id(&context, &mut eng)
+            .current_device_id(&context, &eng)
             .expect("Should have succeeded");
         assert_eq!(id, device_id);
     }

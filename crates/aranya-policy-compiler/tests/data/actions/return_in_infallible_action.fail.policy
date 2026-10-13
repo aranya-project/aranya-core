@@ -1,0 +1,4 @@
+// An infallible action (no result type) cannot return.
+action oops() {
+    return Ok(0)
+}

@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: err
+---
+error: Reserved identifier
+  |
+6 |     let int = 0
+  |         ^^^ found reserved identifier: `int`

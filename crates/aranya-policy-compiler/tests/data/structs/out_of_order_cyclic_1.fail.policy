@@ -1,0 +1,3 @@
+struct Fum { b struct Bar, f struct Foo }
+struct Bar { f struct Foo }
+struct Foo { fum struct Fum } // cycle

@@ -227,10 +227,10 @@ impl Type {
 #[instrument(skip_all, fields(path = %Trimmed(&ty)))]
 fn parse_type_path(ctx: &Ctx, ty: TypePath) -> Result<Type> {
     // Is this a scalar?
-    if let Some(ident) = ty.path.get_ident() {
-        if let Ok(ty) = Scalar::parse(ctx, ident) {
-            return Ok(Type::Scalar(ty));
-        }
+    if let Some(ident) = ty.path.get_ident()
+        && let Ok(ty) = Scalar::parse(ctx, ident)
+    {
+        return Ok(Type::Scalar(ty));
     }
     if CBytes::matches(&ty) {
         CBytes::parse(ctx, ty).map(Type::CBytes)

@@ -1,16 +1,14 @@
-extern crate alloc;
-
 use alloc::{collections::BTreeMap, string::ToString as _, vec, vec::Vec};
 
 use aranya_policy_ast::Identifier;
-use aranya_policy_module::Value;
+use aranya_policy_module::ConstValue;
 
-use crate::MachineErrorType;
+use crate::{MachineErrorType, Value};
 
 /// Manages value assignment.
 #[derive(Debug)]
 pub struct ScopeManager<'a> {
-    globals: &'a BTreeMap<Identifier, Value>,
+    globals: &'a BTreeMap<Identifier, ConstValue>,
     locals: Vec<Vec<BTreeMap<Identifier, Value>>>,
 }
 
@@ -18,7 +16,7 @@ impl<'a> ScopeManager<'a> {
     /// Create a new scope manager with the given global assignments.
     ///
     /// Globals are always reachable.
-    pub fn new(globals: &'a BTreeMap<Identifier, Value>) -> Self {
+    pub fn new(globals: &'a BTreeMap<Identifier, ConstValue>) -> Self {
         Self {
             globals,
             locals: vec![vec![BTreeMap::new()]],
@@ -73,7 +71,7 @@ impl<'a> ScopeManager<'a> {
             }
         }
         if let Some(v) = self.globals.get(key) {
-            return Ok(v.clone());
+            return Ok(v.clone().into());
         }
         Err(MachineErrorType::NotDefined(ident.to_string()))
     }
@@ -109,14 +107,8 @@ impl<'a> ScopeManager<'a> {
     }
 
     /// Returns an iterator of currently reachable local assignments.
-    pub fn locals(&self) -> impl Iterator<Item = (&str, &Value)> {
-        self.locals
-            .last()
-            .into_iter()
-            .flatten()
-            .rev()
-            .flatten()
-            .map(|(k, v)| (k.as_str(), v))
+    pub fn locals(&self) -> impl Iterator<Item = (&Identifier, &Value)> {
+        self.locals.last().into_iter().flatten().rev().flatten()
     }
 }
 
@@ -128,12 +120,12 @@ mod test {
 
     #[test]
     fn test_scope() {
-        let globals = BTreeMap::from([(ident!("g"), Value::Int(42))]);
+        let globals = BTreeMap::from([(ident!("g"), ConstValue::Int(42))]);
         let mut scope = ScopeManager::new(&globals);
 
         assert_eq!(scope.get(&ident!("g")), Ok(Value::Int(42)));
         assert_eq!(
-            scope.set(ident!("g"), Value::None),
+            scope.set(ident!("g"), Value::NONE),
             Err(MachineErrorType::AlreadyDefined(ident!("g")))
         );
 
@@ -152,10 +144,10 @@ mod test {
         assert_eq!(scope.get(&ident!("a2")), Ok(Value::Int(2)));
         assert_eq!(scope.get(&ident!("a3")), Ok(Value::Int(3)));
 
-        assert!(scope.set(ident!("g"), Value::None).is_err());
-        assert!(scope.set(ident!("a1"), Value::None).is_err());
-        assert!(scope.set(ident!("a2"), Value::None).is_err());
-        assert!(scope.set(ident!("a3"), Value::None).is_err());
+        assert!(scope.set(ident!("g"), Value::NONE).is_err());
+        assert!(scope.set(ident!("a1"), Value::NONE).is_err());
+        assert!(scope.set(ident!("a2"), Value::NONE).is_err());
+        assert!(scope.set(ident!("a3"), Value::NONE).is_err());
 
         scope.enter_function();
         scope.set(ident!("b4"), Value::Int(4)).unwrap();

@@ -1,4 +1,4 @@
-//! [`Engine`]/[`Policy`] test implementation.
+//! [`PolicyStore`]/[`Policy`] test implementation.
 use alloc::vec::Vec;
 
 use buggy::bug;
@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
 use crate::{
-    Address, CmdId, Command, Engine, EngineError, FactPerspective, Keys, MAX_COMMAND_LENGTH,
-    MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
+    Address, CmdId, Command, FactPerspective, Keys, MAX_COMMAND_LENGTH, MaxCut, MergeIds,
+    Perspective, Policy, PolicyError, PolicyId, PolicyStore, Prior, Priority, Sink, alloc,
     testing::hash_for_testing_only,
 };
 
@@ -32,10 +32,32 @@ pub struct WireBasic {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WireDelete {
+    pub parent: Address,
+    pub prority: u32,
+    pub key: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WireNoOp {
+    pub parent: Address,
+    pub prority: u32,
+    pub nonce: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum WireProtocol {
     Init(WireInit),
     Merge(WireMerge),
     Basic(WireBasic),
+    Delete(WireDelete),
+    NoOp(WireNoOp),
+    /// A command whose rule writes its payload fact and then fails.
+    ///
+    /// Models a write-then-fail rule (e.g. a VM policy `finish` block that
+    /// inserts a fact and then errors partway through): the runtime must
+    /// revert the write when it rejects the command.
+    Poison(WireBasic),
 }
 
 #[derive(Debug, Clone)]
@@ -45,15 +67,22 @@ pub struct TestProtocol<'a> {
     data: &'a [u8],
 }
 
-impl Command for TestProtocol<'_> {
+impl WireProtocol {
+    /// Derives a command's priority from its (id-covered) serialized body,
+    /// mirroring how a real policy derives priority from the command kind.
     fn priority(&self) -> Priority {
-        match &self.command {
-            WireProtocol::Init(_) => Priority::Init,
-            WireProtocol::Merge(_) => Priority::Merge,
-            WireProtocol::Basic(m) => Priority::Basic(m.prority),
+        match self {
+            Self::Init(_) => Priority::Init,
+            Self::Merge(_) => Priority::Merge,
+            Self::Basic(m) => Priority::Basic(m.prority),
+            Self::Delete(m) => Priority::Basic(m.prority),
+            Self::NoOp(m) => Priority::Basic(m.prority),
+            Self::Poison(m) => Priority::Basic(m.prority),
         }
     }
+}
 
+impl Command for TestProtocol<'_> {
     fn id(&self) -> CmdId {
         self.id
     }
@@ -63,6 +92,9 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Init(_) => Prior::None,
             WireProtocol::Basic(m) => Prior::Single(m.parent),
             WireProtocol::Merge(m) => Prior::Merge(m.left, m.right),
+            WireProtocol::Delete(m) => Prior::Single(m.parent),
+            WireProtocol::NoOp(m) => Prior::Single(m.parent),
+            WireProtocol::Poison(m) => Prior::Single(m.parent),
         }
     }
 
@@ -71,6 +103,9 @@ impl Command for TestProtocol<'_> {
             WireProtocol::Init(m) => Some(&m.policy_num),
             WireProtocol::Merge(_) => None,
             WireProtocol::Basic(_) => None,
+            WireProtocol::Delete(_) => None,
+            WireProtocol::NoOp(_) => None,
+            WireProtocol::Poison(_) => None,
         }
     }
 
@@ -79,11 +114,11 @@ impl Command for TestProtocol<'_> {
     }
 }
 
-pub struct TestEngine {
+pub struct TestPolicyStore {
     policy: TestPolicy,
 }
 
-impl TestEngine {
+impl TestPolicyStore {
     pub fn new() -> Self {
         Self {
             policy: TestPolicy::new(0),
@@ -91,22 +126,26 @@ impl TestEngine {
     }
 }
 
-impl Default for TestEngine {
+impl Default for TestPolicyStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Engine for TestEngine {
+impl PolicyStore for TestPolicyStore {
     type Policy = TestPolicy;
     type Effect = TestEffect;
 
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
-        Ok(PolicyId::new(policy[0] as usize))
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
         Ok(&self.policy)
+    }
+
+    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        Ok(&())
     }
 }
 
@@ -123,13 +162,19 @@ impl TestPolicy {
         &self,
         command: &WireBasic,
         facts: &mut impl FactPerspective,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), PolicyError> {
         let (group, count) = command.payload;
 
         let key = group.to_be_bytes();
         let value = count.to_be_bytes();
 
-        facts.insert("payload".into(), Keys::from_iter([key]), value.into());
+        // All facts must live under "payload": the DSL's fact-equality
+        // oracle (`collect_facts` in testing/dsl.rs) enumerates only this
+        // name, so a fact written under another name escapes comparison.
+        facts
+            .insert("payload".into(), Keys::from_iter([key]), value.into())
+            .map_err(|_| PolicyError::Write)?;
+
         Ok(())
     }
 
@@ -138,17 +183,32 @@ impl TestPolicy {
         policy_command: &WireProtocol,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<<Self as Policy>::Effect>,
-    ) -> Result<(), EngineError> {
-        if let WireProtocol::Basic(m) = &policy_command {
-            self.origin_check_message(m, facts)?;
-
-            sink.consume(TestEffect::Got(m.payload.1));
+    ) -> Result<(), PolicyError> {
+        match policy_command {
+            WireProtocol::Basic(m) => {
+                self.origin_check_message(m, facts)?;
+                sink.consume(TestEffect::Got(m.payload.1));
+            }
+            WireProtocol::Delete(m) => {
+                let key = m.key.to_be_bytes();
+                // Must stay under "payload"; see `origin_check_message`.
+                facts
+                    .delete("payload".into(), Keys::from_iter([key]))
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            WireProtocol::Poison(m) => {
+                // Write-then-fail: the fact write lands before the rule
+                // rejects, so the caller's revert must clear it.
+                self.origin_check_message(m, facts)?;
+                return Err(PolicyError::Rejected);
+            }
+            WireProtocol::Init(_) | WireProtocol::Merge(_) | WireProtocol::NoOp(_) => {}
         }
 
         Ok(())
     }
 
-    fn init<'a>(&self, target: &'a mut [u8], nonce: u64) -> Result<TestProtocol<'a>, EngineError> {
+    fn init<'a>(&self, target: &'a mut [u8], nonce: u64) -> Result<TestProtocol<'a>, PolicyError> {
         let message = WireInit {
             nonce: u128::from(nonce),
             policy_num: nonce.to_le_bytes(),
@@ -161,17 +221,16 @@ impl TestPolicy {
         Ok(TestProtocol { id, command, data })
     }
 
-    fn basic<'a>(
+    pub(crate) fn basic<'a>(
         &self,
         target: &'a mut [u8],
         parent: Address,
         payload: (u64, u64),
-    ) -> Result<TestProtocol<'a>, EngineError> {
-        let prority = 0; //BUG
-
+        priority: u32,
+    ) -> Result<TestProtocol<'a>, PolicyError> {
         let message = WireBasic {
             parent,
-            prority,
+            prority: priority,
             payload,
         };
 
@@ -181,12 +240,78 @@ impl TestPolicy {
 
         Ok(TestProtocol { id, command, data })
     }
+
+    /// Builds a [`WireProtocol::Poison`] command: its rule writes
+    /// `payload` under the `"payload"` fact name and then rejects.
+    ///
+    /// There is deliberately no [`TestActions`] variant for this: an action
+    /// whose rule fails never produces a command, so a poison command can
+    /// only arrive on the ingest path (as if from a peer).
+    pub(crate) fn poison<'a>(
+        &self,
+        target: &'a mut [u8],
+        parent: Address,
+        payload: (u64, u64),
+        priority: u32,
+    ) -> Result<TestProtocol<'a>, PolicyError> {
+        let message = WireBasic {
+            parent,
+            prority: priority,
+            payload,
+        };
+
+        let command = WireProtocol::Poison(message);
+        let data = write(target, &command)?;
+        let id = hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
+    }
+
+    fn delete<'a>(
+        &self,
+        target: &'a mut [u8],
+        parent: Address,
+        key: u64,
+        priority: u32,
+    ) -> Result<TestProtocol<'a>, PolicyError> {
+        let message = WireDelete {
+            parent,
+            prority: priority,
+            key,
+        };
+
+        let command = WireProtocol::Delete(message);
+        let data = write(target, &command)?;
+        let id = hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
+    }
+
+    fn noop<'a>(
+        &self,
+        target: &'a mut [u8],
+        parent: Address,
+        nonce: u64,
+        priority: u32,
+    ) -> Result<TestProtocol<'a>, PolicyError> {
+        let message = WireNoOp {
+            parent,
+            prority: priority,
+            nonce,
+        };
+
+        let command = WireProtocol::NoOp(message);
+        let data = write(target, &command)?;
+        let id = hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
+    }
 }
 
-fn write<'a>(target: &'a mut [u8], message: &WireProtocol) -> Result<&'a mut [u8], EngineError> {
+fn write<'a>(target: &'a mut [u8], message: &WireProtocol) -> Result<&'a mut [u8], PolicyError> {
     postcard::serialize_with_flavor(message, Slice::new(target))
         .inspect_err(|err| error!(?err))
-        .map_err(|_| EngineError::Write)
+        .map_err(|_| PolicyError::Write)
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -238,12 +363,19 @@ impl Sink<TestEffect> for TestSink {
         trace!(?effect, "consume");
         if !self.ignore_expect {
             assert!(!self.expect.is_empty(), "consumed {effect:?} while empty");
-            let expect = self.expect.remove(0);
-            trace!(consuming = ?effect, expected = ?expect, remainder = ?self.expect);
-            assert_eq!(
-                effect, expect,
-                "consumed {effect:?} while expecting {expect:?}"
+            // Match expectations as a multiset (content + count) rather than
+            // strict FIFO order: every expected effect must be produced exactly
+            // once, but the emit order is not asserted.
+            let pos = self.expect.iter().position(|e| *e == effect);
+            trace!(consuming = ?effect, expected = ?self.expect);
+            assert!(
+                pos.is_some(),
+                "consumed {effect:?} which is not among remaining expectations {:?}",
+                self.expect
             );
+            if let Some(i) = pos {
+                self.expect.remove(i);
+            }
         }
     }
 
@@ -260,11 +392,15 @@ impl Sink<TestEffect> for TestSink {
 pub enum TestActions {
     Init(u64),
     SetValue(u64, u64),
+    SetValuePriority(u64, u64, u32),
+    DeleteValue(u64, u32),
+    NoOp(u64, u32),
 }
 
 impl Policy for TestPolicy {
     type Effect = TestEffect;
     type Action<'a> = TestActions;
+    type SealCtx = ();
     type Command<'a> = TestProtocol<'a>;
 
     fn serial(&self) -> u32 {
@@ -276,19 +412,20 @@ impl Policy for TestPolicy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-        _placement: crate::engine::CommandPlacement,
-    ) -> Result<(), EngineError> {
+        _placement: crate::policy::CommandPlacement,
+    ) -> Result<Priority, PolicyError> {
         let policy_command: WireProtocol = postcard::from_bytes(command.bytes())
             .inspect_err(|err| error!(?err))
-            .map_err(|_| EngineError::Read)?;
-        self.call_rule_internal(&policy_command, facts, sink)
+            .map_err(|_| PolicyError::Read)?;
+        self.call_rule_internal(&policy_command, facts, sink)?;
+        Ok(policy_command.priority())
     }
 
     fn merge<'a>(
         &self,
         target: &'a mut [u8],
         ids: MergeIds,
-    ) -> Result<TestProtocol<'a>, EngineError> {
+    ) -> Result<TestProtocol<'a>, PolicyError> {
         let (left, right) = ids.into();
         let command = WireProtocol::Merge(WireMerge { left, right });
         let data = write(target, &command)?;
@@ -302,12 +439,13 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        _placement: crate::engine::ActionPlacement,
-    ) -> Result<(), EngineError> {
+        _placement: crate::policy::ActionPlacement,
+        _seal_ctx: &(),
+    ) -> Result<(), PolicyError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {
                 id: CmdId::default(),
-                max_cut: 0,
+                max_cut: MaxCut::new(0),
             },
             Prior::Single(id) => id,
             Prior::Merge(_, _) => bug!("cannot get merge command in call_action"),
@@ -321,22 +459,59 @@ impl Policy for TestPolicy {
                 self.call_rule_internal(&command.command, facts, sink)?;
 
                 facts
-                    .add_command(&command)
+                    .add_command(&command, command.command.priority())
                     .inspect_err(|err| error!(?err))
-                    .map_err(|_| EngineError::Write)?;
+                    .map_err(|_| PolicyError::Write)?;
             }
             TestActions::SetValue(key, value) => {
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
                 let payload = (key, value);
-                let command = self.basic(target, parent, payload)?;
+                let command = self.basic(target, parent, payload, 0)?;
 
                 self.call_rule_internal(&command.command, facts, sink)?;
 
                 facts
-                    .add_command(&command)
+                    .add_command(&command, command.command.priority())
                     .inspect_err(|err| error!(?err))
-                    .map_err(|_| EngineError::Write)?;
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            TestActions::SetValuePriority(key, value, priority) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let payload = (key, value);
+                let command = self.basic(target, parent, payload, priority)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts
+                    .add_command(&command, command.command.priority())
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            TestActions::DeleteValue(key, priority) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let command = self.delete(target, parent, key, priority)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts
+                    .add_command(&command, command.command.priority())
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| PolicyError::Write)?;
+            }
+            TestActions::NoOp(nonce, priority) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let command = self.noop(target, parent, nonce, priority)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts
+                    .add_command(&command, command.command.priority())
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| PolicyError::Write)?;
             }
         }
 

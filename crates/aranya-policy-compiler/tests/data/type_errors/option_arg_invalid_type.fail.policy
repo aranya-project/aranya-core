@@ -1,0 +1,6 @@
+function bar(x int) bool {
+    return false
+}
+function foo() bool {
+    return bar(Some(3))
+}

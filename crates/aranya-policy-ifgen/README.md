@@ -26,7 +26,6 @@ fn main() {
 ```rust
 // src/lib.rs
 
-#[rustfmt::skip]
 mod policy;
 
 impl aranya_policy_ifgen::Actor for MyActor { ... }

@@ -143,11 +143,11 @@ pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser<'_>) ->
             };
 
             // `#[unsafe(no_mangle)]`
-            if attr == "no_mangle" {
-                if let Some(v) = &mut parser.no_mangle {
-                    **v = Some(NoMangle(attr.span()));
-                    continue;
-                }
+            if attr == "no_mangle"
+                && let Some(v) = &mut parser.no_mangle
+            {
+                **v = Some(NoMangle(attr.span()));
+                continue;
             }
         }
 
@@ -263,10 +263,10 @@ enum DocAttr {
 fn parse_doc_attr(meta: &Meta) -> Result<DocAttr> {
     match meta {
         Meta::NameValue(meta) => {
-            if let Expr::Lit(expr) = &meta.value {
-                if let Lit::Str(lit) = &expr.lit {
-                    return Ok(DocAttr::Doc(lit.clone()));
-                }
+            if let Expr::Lit(expr) = &meta.value
+                && let Lit::Str(lit) = &expr.lit
+            {
+                return Ok(DocAttr::Doc(lit.clone()));
             }
         }
         Meta::List(meta) => {

@@ -1,0 +1,8 @@
+// A pure function always returns a value, so it has no statement form.
+function f() int {
+    return 1
+}
+
+action foo() {
+    f()
+}

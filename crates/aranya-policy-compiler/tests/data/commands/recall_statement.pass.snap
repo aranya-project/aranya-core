@@ -1,0 +1,43 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <policy 'Cmd'>: 1,
+        <recall 'Cmd_handle'>: 7,
+    },
+    action_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "Cmd",
+            persistence: Persistent,
+            attributes: [],
+            fields: [],
+        },
+    ],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Cmd",
+            items: [],
+        },
+    ],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<policy 'Cmd'>:
+    def 'envelope'
+    def 'this'
+    get 'this'
+    get 'envelope'
+    recall <recall 'Cmd_handle'>
+    exit panic
+<recall 'Cmd_handle'>:
+    def 'envelope'
+    def 'this'
+    exit check

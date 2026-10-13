@@ -15,6 +15,7 @@ workspace = true
 
 [lib]
 proc-macro = true
+bench = false
 
 
 [dependencies]
@@ -22,3 +23,7 @@ macro-string = { version = "0.1.4" }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
+
+
+[package.metadata.docs.rs]
+all-features = true

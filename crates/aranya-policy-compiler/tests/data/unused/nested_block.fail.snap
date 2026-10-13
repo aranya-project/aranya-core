@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unused variable(s): `y`
+  |
+5 |         let y = 2 // unused
+  |             ^ never used

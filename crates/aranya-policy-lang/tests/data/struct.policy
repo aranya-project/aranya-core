@@ -1,0 +1,7 @@
+struct Foo {
+    x int
+}
+
+function convert(foo struct Foo) struct Bar {
+    return Bar { y: foo.x, ...baz, ...thud }
+}

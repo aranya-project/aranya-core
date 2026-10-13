@@ -37,7 +37,7 @@ impl<S: KeyStore> Handler<S> {
     /// [`AranyaState`][aranya_fast_channels::AranyaState].
     pub fn uni_channel_created<E, SK, OK>(
         &mut self,
-        eng: &mut E,
+        eng: &E,
         effect: &UniChannelCreated<'_>,
     ) -> Result<UniKey<SK, OK>, Error>
     where
@@ -80,7 +80,7 @@ impl<S: KeyStore> Handler<S> {
     /// [`AranyaState`][aranya_fast_channels::AranyaState].
     pub fn uni_channel_received<E, SK, OK>(
         &mut self,
-        eng: &mut E,
+        eng: &E,
         effect: &UniChannelReceived<'_>,
     ) -> Result<UniKey<SK, OK>, Error>
     where

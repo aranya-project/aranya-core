@@ -1,7 +1,23 @@
-use serde::{Deserialize, Serialize};
-
 /// Refer to immediately prior commands in a graph, usually via `Prior<CmdId>` or `Prior<Location>`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+)]
+#[rkyv(as = Prior<T::Archived>)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(u8)]
 pub enum Prior<T> {
     /// No parents (init command)
     None,

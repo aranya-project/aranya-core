@@ -1,68 +1,97 @@
 //! Interface for syncing state between clients.
+//!
+//! Transports decode incoming bytes into a [`SyncIncoming`] and dispatch on
+//! its variants; the on-wire postcard layout is hidden behind that
+//! enumeration so it can evolve without breaking consumers.
+
+use core::time::Duration;
 
 use buggy::Bug;
+use heapless::Vec;
 use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{CmdId, Command, Priority},
-    storage::{MAX_COMMAND_LENGTH, StorageError},
+    command::{CmdId, Command},
+    storage::{GraphId, LocatedAddress, Location, MAX_COMMAND_LENGTH, StorageError},
+    util::mem_usage,
 };
 
-mod dispatcher;
 mod requester;
 mod responder;
+pub(crate) mod wire;
 
-pub use dispatcher::{SubscribeResult, SyncHelloType, SyncType};
-pub use requester::{SyncRequestMessage, SyncRequester};
-pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
+pub(crate) use requester::SyncRequestMessage;
+pub use requester::SyncRequester;
+use responder::SyncResponseMessage;
+pub use responder::{PeerCache, SyncResponder};
+use wire::{SubscribeResult, SyncHelloType, SyncType};
+
+/// The frontier a requester advertises during a sync session: committed
+/// commands the peer is known to have ([`PeerCache`]) plus, when a
+/// transaction is open, its uncommitted heads. Construct with
+/// [`PeerCache::session_heads`] or `Transaction::session_heads`. Borrowing
+/// the transaction keeps uncommitted heads from outliving it: `commit`
+/// consumes the transaction, so they can never be held across a commit or
+/// persisted.
+pub struct SessionHeads<'a> {
+    pub(crate) cache: &'a PeerCache,
+    pub(crate) session: Option<&'a alloc::collections::BTreeMap<CmdId, Location>>,
+}
+
+impl SessionHeads<'_> {
+    /// The open transaction's uncommitted frontier, if any.
+    pub(crate) fn session_iter(&self) -> impl Iterator<Item = LocatedAddress> + '_ {
+        self.session
+            .into_iter()
+            .flatten()
+            .map(|(id, loc)| LocatedAddress {
+                id: *id,
+                segment: loc.segment,
+                max_cut: loc.max_cut,
+            })
+    }
+
+    /// Committed commands the peer is known to have.
+    pub(crate) fn cache_heads(&self) -> &[LocatedAddress] {
+        self.cache.heads()
+    }
+}
+
+impl PeerCache {
+    /// The frontier to advertise to a sync peer when no transaction is open.
+    pub fn session_heads(&self) -> SessionHeads<'_> {
+        SessionHeads {
+            cache: self,
+            session: None,
+        }
+    }
+}
 
 // TODO: These should all be compile time parameters
 
-/// The maximum number of heads that will be stored for a peer.
-pub const PEER_HEAD_MAX: usize = 10;
-
 /// The maximum number of samples in a request
-const COMMAND_SAMPLE_MAX: usize = 100;
+const COMMAND_SAMPLE_MAX: usize = mem_usage(20, 100);
 
 /// The maximum number of missing segments that can be requested
 /// in a single message
-const REQUEST_MISSING_MAX: usize = 100;
+const REQUEST_MISSING_MAX: usize = mem_usage(1, 100);
 
 /// The maximum number of commands in a response
-pub const COMMAND_RESPONSE_MAX: usize = 100;
+pub const COMMAND_RESPONSE_MAX: usize = mem_usage(5, 100);
 
 /// The maximum number of segments which can be stored to send
-const SEGMENT_BUFFER_MAX: usize = 100;
+const SEGMENT_BUFFER_MAX: usize = mem_usage(10, 100);
 
 /// The maximum size of a sync message
 // TODO: Use postcard to calculate max size (which accounts for overhead)
 // https://docs.rs/postcard/latest/postcard/experimental/max_size/index.html
 pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RESPONSE_MAX;
 
-/// Represents high-level data of a command.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CommandMeta {
-    id: CmdId,
-    priority: Priority,
-    parent: Prior<Address>,
-    policy_length: u32,
-    length: u32,
-    max_cut: usize,
-}
-
-impl CommandMeta {
-    pub fn address(&self) -> Address {
-        Address {
-            id: self.id,
-            max_cut: self.max_cut,
-        }
-    }
-}
-
 /// An error returned by the syncer.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SyncError {
     #[error("sync session ID does not match")]
     SessionMismatch,
@@ -74,6 +103,12 @@ pub enum SyncError {
     NotReady,
     #[error("too many commands sent")]
     CommandOverflow,
+    #[error("target buffer too small for sync message")]
+    BufferTooSmall,
+    #[error("malformed sync response")]
+    MalformedResponse,
+    #[error("unsupported sync request")]
+    UnsupportedRequest,
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
     #[error("serialize error: {0}")]
@@ -85,19 +120,13 @@ pub enum SyncError {
 /// Sync command to be committed to graph.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
-    priority: Priority,
     id: CmdId,
     parent: Prior<Address>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
-    max_cut: usize,
 }
 
 impl<'a> Command for SyncCommand<'a> {
-    fn priority(&self) -> Priority {
-        self.priority.clone()
-    }
-
     fn id(&self) -> CmdId {
         self.id
     }
@@ -113,8 +142,378 @@ impl<'a> Command for SyncCommand<'a> {
     fn bytes(&self) -> &'a [u8] {
         self.data
     }
+}
 
-    fn max_cut(&self) -> Result<usize, Bug> {
-        Ok(self.max_cut)
+/// A decoded incoming sync message.
+///
+/// Transports decode the raw bytes received over the network with
+/// [`SyncIncoming::decode`] and then dispatch on the returned variant.
+/// The on-wire postcard layout is encapsulated by this enum and the
+/// associated helper types — consumers don't depend on the wire
+/// representation directly.
+#[allow(clippy::large_enum_variant)]
+pub enum SyncIncoming<'a> {
+    /// A sync poll. Hand to [`SyncResponder::receive`].
+    Poll(PollIncoming),
+    /// A subscription request from a peer.
+    Subscribe(SubscribeIncoming),
+    /// An unsubscribe request from a peer.
+    Unsubscribe(UnsubscribeIncoming),
+    /// A push from a subscribed peer. Hand to [`SyncRequester::receive_push`].
+    Push(PushIncoming<'a>),
+    /// A subscription-control hello message.
+    Hello(SyncHello),
+}
+
+impl<'a> SyncIncoming<'a> {
+    /// Decode an incoming sync message from raw bytes.
+    pub fn decode(data: &'a [u8]) -> Result<Self, SyncError> {
+        let (sync_type, remaining) = postcard::take_from_bytes::<SyncType>(data)?;
+        Ok(match sync_type {
+            SyncType::Poll { request } => Self::Poll(PollIncoming {
+                session_id: request.session_id(),
+                message: request,
+            }),
+            SyncType::Subscribe {
+                remain_open,
+                max_bytes,
+                commands,
+                graph_id,
+            } => Self::Subscribe(SubscribeIncoming {
+                graph_id,
+                remain_open,
+                max_bytes,
+                heads: SyncHeads { inner: commands },
+            }),
+            SyncType::Unsubscribe { graph_id } => {
+                Self::Unsubscribe(UnsubscribeIncoming { graph_id })
+            }
+            SyncType::Push { message, graph_id } => Self::Push(PushIncoming {
+                graph_id,
+                session_id: message.session_id(),
+                message,
+                command_data: remaining,
+            }),
+            SyncType::Hello(hello) => Self::Hello(hello.into()),
+        })
+    }
+}
+
+/// A peer's sample of known graph heads, carried in [`SyncIncoming::Subscribe`].
+pub struct SyncHeads {
+    inner: Vec<Address, COMMAND_SAMPLE_MAX>,
+}
+
+impl SyncHeads {
+    /// Returns the heads as a slice.
+    pub fn as_slice(&self) -> &[Address] {
+        &self.inner
+    }
+
+    /// Iterates over the heads.
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = Address> + ExactSizeIterator + '_ {
+        self.inner.iter().copied()
+    }
+}
+
+/// A subscription-control message: subscribe, unsubscribe, or hello.
+#[derive(Debug)]
+pub enum SyncHello {
+    /// Subscribe to receive hello notifications from this peer.
+    Subscribe(HelloSubscribe),
+    /// Unsubscribe from hello notifications.
+    Unsubscribe(HelloUnsubscribe),
+    /// Notification message sent to subscribers.
+    Hello(HelloNotification),
+}
+
+impl From<SyncHelloType> for SyncHello {
+    fn from(t: SyncHelloType) -> Self {
+        match t {
+            SyncHelloType::Subscribe {
+                graph_id,
+                graph_change_delay,
+                duration,
+                schedule_delay,
+            } => Self::Subscribe(HelloSubscribe {
+                graph_id,
+                graph_change_delay,
+                duration,
+                schedule_delay,
+            }),
+            SyncHelloType::Unsubscribe { graph_id } => {
+                Self::Unsubscribe(HelloUnsubscribe { graph_id })
+            }
+            SyncHelloType::Hello { graph_id, head } => {
+                Self::Hello(HelloNotification { graph_id, head })
+            }
+        }
+    }
+}
+
+/// An opaque container for a hello-protocol subscribe request.
+#[derive(Debug)]
+pub struct HelloSubscribe {
+    graph_id: GraphId,
+    graph_change_delay: Duration,
+    duration: Duration,
+    schedule_delay: Duration,
+}
+
+impl HelloSubscribe {
+    /// Returns the graph being subscribed to.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns the delay between notifications when the graph changes (rate limiting).
+    pub fn graph_change_delay(&self) -> Duration {
+        self.graph_change_delay
+    }
+
+    /// Returns how long the subscription should last.
+    pub fn duration(&self) -> Duration {
+        self.duration
+    }
+
+    /// Returns the schedule-based hello sending delay.
+    pub fn schedule_delay(&self) -> Duration {
+        self.schedule_delay
+    }
+}
+
+/// An opaque container for a hello-protocol unsubscribe request.
+#[derive(Debug)]
+pub struct HelloUnsubscribe {
+    graph_id: GraphId,
+}
+
+impl HelloUnsubscribe {
+    /// Returns the graph being unsubscribed from.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+}
+
+/// An opaque container for a hello notification sent to subscribers.
+#[derive(Debug)]
+pub struct HelloNotification {
+    graph_id: GraphId,
+    head: Address,
+}
+
+impl HelloNotification {
+    /// Returns the graph this notification is for.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns the current head of the sender's graph.
+    pub fn head(&self) -> Address {
+        self.head
+    }
+}
+
+/// An opaque container for a received poll message. Hand to
+/// [`SyncResponder::receive`] to update the responder's state.
+pub struct PollIncoming {
+    session_id: u128,
+    pub(crate) message: SyncRequestMessage,
+}
+
+impl PollIncoming {
+    /// Returns the sender's session identifier.
+    pub fn session_id(&self) -> u128 {
+        self.session_id
+    }
+}
+
+/// An opaque container for a received subscribe message.
+pub struct SubscribeIncoming {
+    graph_id: GraphId,
+    remain_open: u64,
+    max_bytes: u64,
+    heads: SyncHeads,
+}
+
+impl SubscribeIncoming {
+    /// Returns the graph being subscribed to.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns how long the subscription should remain open.
+    pub fn remain_open(&self) -> Duration {
+        Duration::from_secs(self.remain_open)
+    }
+
+    /// Returns the maximum number of bytes the responder may push.
+    pub fn max_bytes(&self) -> u64 {
+        self.max_bytes
+    }
+
+    /// Returns the peer's known graph heads.
+    pub fn heads(&self) -> &SyncHeads {
+        &self.heads
+    }
+}
+
+/// An opaque container for a received unsubscribe message.
+pub struct UnsubscribeIncoming {
+    graph_id: GraphId,
+}
+
+impl UnsubscribeIncoming {
+    /// Returns the graph being unsubscribed from.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+}
+
+/// An opaque container for a received push message. Hand to
+/// [`SyncRequester::receive_push`] to extract the contained commands.
+pub struct PushIncoming<'a> {
+    graph_id: GraphId,
+    session_id: u128,
+    pub(crate) message: SyncResponseMessage,
+    pub(crate) command_data: &'a [u8],
+}
+
+impl PushIncoming<'_> {
+    /// Returns the graph this push targets.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
+    /// Returns the sender's session identifier.
+    pub fn session_id(&self) -> u128 {
+        self.session_id
+    }
+}
+
+/// The result of a [`SyncIncoming::Subscribe`] dispatch, sent back to the
+/// requester so it knows whether the subscription was accepted.
+#[derive(Debug)]
+pub enum SubscribeResponse {
+    /// The subscription was accepted.
+    Success,
+    /// The responder is at its subscription limit.
+    TooManySubscriptions,
+}
+
+impl SubscribeResponse {
+    /// Encode into `target`. Returns the number of bytes written.
+    pub fn encode_to(self, target: &mut [u8]) -> Result<usize, SyncError> {
+        let inner = match self {
+            Self::Success => SubscribeResult::Success,
+            Self::TooManySubscriptions => SubscribeResult::TooManySubscriptions,
+        };
+        Ok(postcard::to_slice(&inner, target)?.len())
+    }
+
+    /// Decode from raw bytes.
+    pub fn decode(data: &[u8]) -> Result<Self, SyncError> {
+        let inner: SubscribeResult = postcard::from_bytes(data)?;
+        Ok(match inner {
+            SubscribeResult::Success => Self::Success,
+            SubscribeResult::TooManySubscriptions => Self::TooManySubscriptions,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn meta(policy_length: u32, length: u32) -> wire::CommandMeta {
+        wire::CommandMeta {
+            id: CmdId::default(),
+            parent: Prior::None,
+            policy_length,
+            length,
+        }
+    }
+
+    /// A peer that claims longer commands than it actually sent must not
+    /// panic the requester.
+    #[test]
+    fn truncated_sync_response_is_rejected() {
+        let session_id = 42;
+        let mut commands: Vec<wire::CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        // Claims 4 KiB of payload, but no command bytes follow the message.
+        commands.push(meta(0, 4096)).expect("push meta");
+        let message = SyncResponseMessage::SyncResponse {
+            session_id,
+            response_index: 0,
+            commands,
+        };
+        let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = postcard::to_slice(&message, &mut buf)
+            .expect("serialize")
+            .len();
+
+        let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
+        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+    }
+
+    /// Same, but the policy length is the one that overruns.
+    #[test]
+    fn truncated_policy_is_rejected() {
+        let session_id = 43;
+        let mut commands: Vec<wire::CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        commands.push(meta(4096, 0)).expect("push meta");
+        let message = SyncResponseMessage::SyncResponse {
+            session_id,
+            response_index: 0,
+            commands,
+        };
+        let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = postcard::to_slice(&message, &mut buf)
+            .expect("serialize")
+            .len();
+
+        let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
+        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+    }
+
+    fn poll_bytes(request: SyncRequestMessage, buf: &mut [u8]) -> usize {
+        postcard::to_slice(&SyncType::Poll { request }, buf)
+            .expect("serialize")
+            .len()
+    }
+
+    /// Unimplemented request messages must be rejected, not panic the
+    /// responder.
+    #[test]
+    fn unimplemented_requests_are_rejected() {
+        let session_id = 44;
+        let unsupported = [
+            SyncRequestMessage::RequestMissing {
+                session_id,
+                indexes: Vec::new(),
+            },
+            SyncRequestMessage::SyncResume {
+                session_id,
+                response_index: 0,
+                max_bytes: 0,
+            },
+        ];
+
+        for request in unsupported {
+            let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let len = poll_bytes(request, &mut buf);
+            let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buf[..len]).expect("decode")
+            else {
+                panic!("expected a poll");
+            };
+
+            let mut responder = SyncResponder::new();
+            let err = responder.receive(poll).expect_err("must not panic");
+            assert!(matches!(err, SyncError::UnsupportedRequest), "got {err:?}");
+            // The session is torn down, so the next poll sends `EndSession`.
+            assert!(responder.ready());
+        }
     }
 }

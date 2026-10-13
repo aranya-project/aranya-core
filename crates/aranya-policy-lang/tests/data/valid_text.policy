@@ -1,0 +1,7 @@
+let empty = ""
+let basic = "foo bar"
+let min = "\x01"
+let max = "\x7f"
+let newline = "\n"
+let slash = "\\"
+let quote = "\""

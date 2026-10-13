@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/aranya-project/aranya-core/compare/aranya-policy-text-v0.1.4...aranya-policy-text-v0.1.5) - 2026-08-25
+
+### Other
+
+- update Cargo.toml dependencies
+
+## [0.1.4](https://github.com/aranya-project/aranya-core/compare/aranya-policy-text-v0.1.3...aranya-policy-text-v0.1.4) - 2026-01-06
+
+### Other
+
+- update Cargo.toml dependencies
+
 ## [0.1.3](https://github.com/aranya-project/aranya-core/compare/aranya-policy-text-v0.1.2...aranya-policy-text-v0.1.3) - 2025-10-16
 
 ### Other

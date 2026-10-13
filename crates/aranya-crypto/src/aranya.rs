@@ -114,7 +114,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
-    /// let sk = IdentityKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = IdentityKey::<DefaultCipherSuite>::new(Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -194,7 +194,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
-    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -246,11 +246,11 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     policy::CmdId,
     /// };
     ///
-    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(Rng);
     ///
     /// let data = b"... some command data ...";
     /// let name = "AddDevice";
-    /// let parent_id = &CmdId::random(&mut Rng);
+    /// let parent_id = &CmdId::random(Rng);
     ///
     /// let good_cmd = Cmd {
     ///     data,
@@ -276,7 +276,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_id_cmd = Cmd {
     ///     data,
     ///     name,
-    ///     parent_id: &CmdId::random(&mut Rng),
+    ///     parent_id: &CmdId::random(Rng),
     /// };
     /// sk.public()
     ///     .expect("signing key should be valid")
@@ -286,7 +286,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_sig_cmd = Cmd {
     ///     data: b"different",
     ///     name: "signature",
-    ///     parent_id: &CmdId::random(&mut Rng),
+    ///     parent_id: &CmdId::random(Rng),
     /// };
     /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd).expect("should not fail");
     /// sk.public()
@@ -380,7 +380,7 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
     /// of the [`EncryptionPublicKey`].
     pub fn seal_group_key<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: R,
         key: &GroupKey<CS>,
         group: GroupId,
     ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {
@@ -480,12 +480,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::cell::OnceCell;
-
-    use spideroak_crypto::{ed25519::Ed25519, import::Import as _, kem::Kem, rust, signer::Signer};
+    use spideroak_crypto::{ed25519::Ed25519, kem::Kem, rust, signer::Signer};
 
     use super::*;
-    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs, util::CacheCell};
 
     type CS = TestCs<
         rust::Aes256Gcm,
@@ -514,7 +512,7 @@ mod tests {
                 .expect("should import signing key");
             let identity_key: IdentityKey<CS> = IdentityKey {
                 sk,
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             };
 
             let got_id = identity_key.id().expect("should compute ID");
@@ -542,7 +540,7 @@ mod tests {
                 .expect("should import signing key");
             let signing_key: SigningKey<CS> = SigningKey {
                 sk,
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             };
 
             let got_id = signing_key.id().expect("should compute ID");
@@ -570,7 +568,7 @@ mod tests {
                 .expect("should import decap key");
             let encryption_key: EncryptionKey<CS> = EncryptionKey {
                 sk,
-                id: OnceCell::new(),
+                id: CacheCell::new(),
             };
 
             let got_id = encryption_key.id().expect("should compute ID");

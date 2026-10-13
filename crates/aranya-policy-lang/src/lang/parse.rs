@@ -3,28 +3,28 @@ use std::{cell::RefCell, fmt};
 use aranya_policy_ast::{
     self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
-    ForeignFunctionCall, FunctionCall, Ident, IfStatement, InternalFunction, LetStatement,
-    MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement,
-    NamedStruct, Persistence, ReturnStatement, Statement, StmtKind, Text, TypeKind,
-    UpdateStatement, VType, Version, ident,
+    ForeignFunctionCall, FunctionCall, Ident, IfStatement, IntLiteral, InternalFunction,
+    LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
+    MatchStatement, NamedStruct, Param, Persistence, ResultTypeKind, ReturnStatement, Statement,
+    StmtKind, Text, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
     Parser as _, Span,
-    error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
 };
 use serde::{Deserialize, Serialize};
 
-mod error;
+pub mod error;
 mod markdown;
 
-pub use error::{ParseError, ParseErrorKind};
+use error::{ParseError, ParseErrorKind};
 pub use markdown::{ChunkOffset, parse_policy_document};
 
 mod keywords;
 use keywords::KEYWORDS;
+use tracing::warn;
 
 #[derive(pest_derive::Parser)]
 #[grammar = "lang/parse/policy.pest"]
@@ -34,45 +34,50 @@ type FieldsAndSources = (Vec<(Ident, Expression)>, Vec<Ident>);
 
 /// Captures the iterator over a Pair's contents, and the span
 /// information for error reporting.
-struct PairContext<'a> {
-    pairs: RefCell<Pairs<'a, Rule>>,
-    span: Span<'a>,
+struct PairContext<'i, 'p> {
+    pairs: RefCell<Pairs<'i, Rule>>,
+    span: Span<'i>,
+    to_ast_span: Box<dyn Fn(Span<'i>) -> Result<ast::Span, ParseError> + 'p>,
 }
 
-impl<'a> PairContext<'a> {
+impl<'i> PairContext<'i, '_> {
     fn location_error(&self) -> ParseError {
-        ParseError::new(
-            ParseErrorKind::Unknown,
-            format!("{:?}", &self.span),
-            Some(self.span),
-        )
+        match (self.to_ast_span)(self.span) {
+            Ok(span) => ParseError::new(
+                ParseErrorKind::Unknown,
+                format!("{:?}", self.span),
+                Some(span),
+            ),
+            Err(err) => err,
+        }
     }
 
     /// Returns the next token from the interior Pairs in case you want
     /// to manipulate it directly.
-    fn next(&self) -> Option<Pair<'_, Rule>> {
+    fn next(&self) -> Option<Pair<'i, Rule>> {
         self.pairs.borrow_mut().next()
     }
 
-    fn peek(&self) -> Option<Pair<'_, Rule>> {
+    fn peek(&self) -> Option<Pair<'i, Rule>> {
         self.pairs.borrow_mut().peek()
     }
 
     /// Consumes the next Pair out of this context and returns it.
     /// Errors if the next pair doesn't exist.
-    fn consume(&self) -> Result<Pair<'_, Rule>, ParseError> {
+    fn consume(&self) -> Result<Pair<'i, Rule>, ParseError> {
         self.next().ok_or_else(|| self.location_error())
     }
 
     /// Consumes the next Pair out of this context and returns it if
     /// it matches the given type. Otherwise returns an error.
-    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'_, Rule>, ParseError> {
+    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'i, Rule>, ParseError> {
         let token = self.consume()?;
         if token.as_rule() != rule {
+            let span = (self.to_ast_span)(token.as_span())?;
             return Err(ParseError::new(
                 ParseErrorKind::Unknown,
                 format!("Got wrong rule: {:?} expected {:?}", token.as_rule(), rule),
-                Some(token.as_span()),
+                Some(span),
             ));
         }
         Ok(token)
@@ -100,7 +105,7 @@ impl<'a> PairContext<'a> {
 
     /// Consumes the ParserContext and returns the inner Pairs.
     /// Destroys the span context.
-    fn into_inner(self) -> Pairs<'a, Rule> {
+    fn into_inner(self) -> Pairs<'i, Rule> {
         self.pairs.into_inner()
     }
 
@@ -110,65 +115,48 @@ impl<'a> PairContext<'a> {
         parser.parse_ident(token)
     }
 
-    fn consume_optional(&self, rule: Rule) -> Option<Pair<'_, Rule>> {
+    fn consume_optional(&self, rule: Rule) -> Option<Pair<'i, Rule>> {
         self.peek()
             .filter(|p| p.as_rule() == rule)
             .inspect(|_| _ = self.next())
     }
 }
 
-/// Helper function which consumes and returns an iterator over the
-/// children of a token. Makes the parsing process a little more
-/// self-documenting.
-fn descend(p: Pair<'_, Rule>) -> PairContext<'_> {
-    let span = p.as_span();
-    PairContext {
-        pairs: RefCell::new(p.into_inner()),
-        span,
-    }
-}
-
-/// Helper function which consumes and returns an iterator over
-/// a single token, rather than descending.
-fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
-    let span = p.as_span();
-    PairContext {
-        pairs: RefCell::new(Pairs::single(p)),
-        span,
-    }
-}
-
 /// Context information for partial parsing of a chunk of source
 #[derive(Clone)]
-struct ChunkParser<'a> {
+struct ChunkParser<'pratt> {
     offset: usize,
-    pratt: &'a PrattParser<Rule>,
+    pratt: &'pratt PrattParser<Rule>,
     source_len: usize,
 }
 
-impl ChunkParser<'_> {
-    pub fn new(offset: usize, pratt: &PrattParser<Rule>, source_len: usize) -> ChunkParser<'_> {
-        ChunkParser {
+impl<'pratt> ChunkParser<'pratt> {
+    pub fn new(offset: usize, pratt: &'pratt PrattParser<Rule>, source_len: usize) -> Self {
+        Self {
             offset,
             pratt,
             source_len,
         }
     }
+}
 
+impl ChunkParser<'_> {
     /// Convert a Pest span to an AST span with offset
     fn to_ast_span(&self, pest_span: Span<'_>) -> Result<ast::Span, ParseError> {
+        // TODO(Steve): Figure out the spans for the errors returned here?
+
         let start = pest_span.start().checked_add(self.offset).ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Unknown,
                 String::from("span start overflow"),
-                Some(pest_span),
+                None,
             )
         })?;
         let end = pest_span.end().checked_add(self.offset).ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Unknown,
                 String::from("span end overflow"),
-                Some(pest_span),
+                None,
             )
         })?;
 
@@ -180,7 +168,7 @@ impl ChunkParser<'_> {
                     "Span [{}, {}) exceeds source length {}",
                     start, end, self.source_len
                 ),
-                Some(pest_span),
+                None,
             ));
         }
 
@@ -197,75 +185,193 @@ impl ChunkParser<'_> {
         if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
-                identifier.to_string(),
-                Some(token.as_span()),
+                format!("found reserved identifier: `{identifier}`"),
+                Some(self.to_ast_span(token.as_span())?),
             ));
         }
 
         let name = identifier
             .parse()
-            .assume("grammar produces valid identifiers")?;
-        Ok(Ident { name, span })
+            .assume("grammar produces valid identifiers")
+            .map_err(|bug| {
+                self.to_ast_span(token.as_span()).map_or_else(
+                    |err| err,
+                    |span| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), Some(span)),
+                )
+            })?;
+        Ok(Ident { inner: name, span })
     }
 
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
-        let span = self.to_ast_span(token.as_span())?;
+        self.parse_type_inner(token, TypeStyle::Unknown, None)
+    }
+
+    fn parse_type_inner(
+        &self,
+        token: Pair<'_, Rule>,
+        style: TypeStyle,
+        outer_span: Option<Span<'_>>,
+    ) -> Result<VType, ParseError> {
+        let pest_span = token.as_span();
+        let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
+            Rule::unit_t => TypeKind::Unit,
             Rule::string_t => TypeKind::String,
             Rule::bytes_t => TypeKind::Bytes,
             Rule::int_t => TypeKind::Int,
             Rule::bool_t => TypeKind::Bool,
             Rule::id_t => TypeKind::Id,
             Rule::struct_t => {
-                let pc = descend(token);
+                let pc = self.descend(token);
                 let name = pc.consume_ident(self)?;
                 TypeKind::Struct(name)
             }
             Rule::enum_t => {
-                let pc = descend(token);
+                let pc = self.descend(token);
                 let name = pc.consume_ident(self)?;
                 TypeKind::Enum(name)
             }
             Rule::optional_t => {
+                let is_old = token.as_str().starts_with("optional");
+                if is_old {
+                    use std::sync::atomic::AtomicBool;
+                    static WARNED: AtomicBool = AtomicBool::new(false);
+                    if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                        warn!(
+                            "`optional T` is being replaced with `option[T]` soon. Consider replacing all uses now to avoid later breakage."
+                        );
+                    }
+                }
+
+                // Disallow mixing old and new optional syntax.
+                if style == TypeStyle::Old || (is_old && style == TypeStyle::New) {
+                    let outer_span = outer_span.assume("outer span was passed in")?;
+                    let outer_ast_span = self.to_ast_span(outer_span)?;
+                    return Err(ParseError::new(
+                        error::InvalidNestedOption {
+                            outer: outer_ast_span,
+                            inner: span,
+                        },
+                        String::from("Unable to use `optional T` for nested optional types."),
+                        Some(self.to_ast_span(outer_span)?),
+                    ));
+                }
+
+                let style = if is_old {
+                    TypeStyle::Old
+                } else {
+                    TypeStyle::New
+                };
                 let mut pairs = token.clone().into_inner();
                 let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no type following optional"),
-                        Some(token.as_span()),
+                    self.to_ast_span(token.as_span()).map_or_else(
+                        |err| err,
+                        |span| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no type following optional"),
+                                Some(span),
+                            )
+                        },
                     )
                 })?;
-                let inner_type = self.parse_type(token)?;
+                let inner_type = self.parse_type_inner(token, style, Some(pest_span))?;
+
+                // Disallow nested optionals for old syntax
+                if is_old && matches!(inner_type.inner, TypeKind::Optional(_)) {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidType,
+                        String::from("Cannot nest optional types with `optional T` syntax"),
+                        Some(self.to_ast_span(pest_span)?),
+                    ));
+                }
+
                 TypeKind::Optional(Box::new(inner_type))
+            }
+            Rule::result_t => {
+                if style == TypeStyle::Old {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidType,
+                        String::from(
+                            "Replace `optional T` with the new `option[T]` to use complex types",
+                        ),
+                        Some(self.to_ast_span(pest_span)?),
+                    ));
+                }
+
+                let mut pairs = token.clone().into_inner();
+                let ok_token = pairs.next().ok_or_else(|| {
+                    self.to_ast_span(token.as_span()).map_or_else(
+                        |err| err,
+                        |span| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no ok type following result"),
+                                Some(span),
+                            )
+                        },
+                    )
+                })?;
+                let ok_type = self.parse_type_inner(ok_token, TypeStyle::New, Some(pest_span))?;
+
+                let err_token = pairs.next().ok_or_else(|| {
+                    self.to_ast_span(token.as_span()).map_or_else(
+                        |err| err,
+                        |span| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no err type following result"),
+                                Some(span),
+                            )
+                        },
+                    )
+                })?;
+                let err_type = self.parse_type_inner(err_token, TypeStyle::New, Some(pest_span))?;
+
+                TypeKind::Result(Box::new(ResultTypeKind {
+                    ok: ok_type,
+                    err: err_type,
+                }))
             }
             _ => {
                 return Err(ParseError::new(
                     ParseErrorKind::InvalidType,
                     format!("{:?} {}", token.as_rule(), token.as_str().to_owned()),
-                    Some(token.as_span()),
+                    Some(self.to_ast_span(token.as_span())?),
                 ));
             }
         };
-        Ok(VType { kind, span })
+        Ok(VType { inner: kind, span })
     }
 
     /// Parse a Rule::field_definition token into a FieldDef.
     fn parse_field_definition(&self, field: Pair<'_, Rule>) -> Result<FieldDefinition, ParseError> {
-        let pc = descend(field);
-        let identifier = pc.consume_ident(self)?;
-        let field_type = self.parse_type(pc.pairs.borrow_mut().next().ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("missing type in field definition"),
-                Some(pc.span),
+        let pc = self.descend(field);
+        let name = pc.consume_ident(self)?;
+        let vtype = self.parse_type(pc.next().ok_or_else(|| {
+            self.to_ast_span(pc.span).map_or_else(
+                |err| err,
+                |span| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("missing type in field definition"),
+                        Some(span),
+                    )
+                },
             )
         })?)?;
 
-        Ok(FieldDefinition {
-            identifier,
-            field_type,
+        Ok(FieldDefinition { name, vtype })
+    }
+
+    /// Parse a Rule::field_definition token into a Param.
+    fn parse_parameter(&self, field: Pair<'_, Rule>) -> Result<Param, ParseError> {
+        let field = self.parse_field_definition(field)?;
+        Ok(Param {
+            name: field.name,
+            vtype: field.vtype,
         })
     }
 
@@ -273,17 +379,17 @@ impl ChunkParser<'_> {
         &self,
         field: Pair<'_, Rule>,
     ) -> Result<EffectFieldDefinition, ParseError> {
-        let pc = descend(field);
-        let identifier = pc.consume_ident(self)?;
-        let field_type = pc.consume_type(self)?;
+        let pc = self.descend(field);
+        let name = pc.consume_ident(self)?;
+        let vtype = pc.consume_type(self)?;
 
         let token = pc.next();
         // If there is another token, it has to be the "dynamic" marker
         let dynamic = token.is_some();
 
         Ok(EffectFieldDefinition {
-            identifier,
-            field_type,
+            name,
+            vtype,
             dynamic,
         })
     }
@@ -291,86 +397,159 @@ impl ChunkParser<'_> {
     /// Parse a Rule::string_literal into a String.
     ///
     /// Processes \\, \n, and \xNN escapes.
-    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<Text, ParseError> {
-        let src = string.as_str();
-        let it = &mut src.chars();
-        let mut out = String::new();
-        // consume the first quote character
-        if it.next() != Some('"') {
-            return Err(ParseError::new(
-                ParseErrorKind::InvalidString,
-                format!("bad string: {}", src),
-                Some(string.as_span()),
-            ));
-        }
-        while let Some(c) = it.next() {
-            match c {
-                '\\' => {
-                    if let Some(next) = it.next() {
-                        match next {
-                            'x' => {
-                                let s: String = it.take(2).collect();
-                                let v = u8::from_str_radix(&s, 16).map_err(|e| {
-                                    ParseError::new(
-                                        ParseErrorKind::InvalidNumber,
-                                        format!("{}: {}", s, e),
-                                        Some(string.as_span()),
-                                    )
-                                })?;
-                                out.push(v as char);
+    fn parse_string_literal(&self, string: Pair<'_, Rule>) -> Result<Text, ParseError> {
+        #![allow(
+            clippy::arithmetic_side_effects,
+            reason = "span calculations are all valid since they are subspans of the full string span"
+        )]
+
+        let contents = {
+            let full_str = string.as_str();
+            &full_str[1..full_str.len() - 1]
+        };
+
+        let content_span_start = {
+            let full_span = self.to_ast_span(string.as_span())?;
+            full_span.start() + 1
+        };
+
+        let mut it = contents.bytes().enumerate();
+        let mut out: Vec<u8> = Vec::new();
+        while let Some((idx0, byte0)) = it.next() {
+            let byte0_span_start = content_span_start + idx0;
+            match byte0 {
+                b'\\' => {
+                    let (idx1, byte1) = it.next().assume("byte must follow escape")?;
+                    match byte1 {
+                        b'x' => {
+                            let mut value = 0_u8;
+
+                            for nibble_idx in 0..2 {
+                                let Some((hex_idx, hex_byte)) = it.next() else {
+                                    let span = ast::Span::new(
+                                        byte0_span_start,
+                                        byte0_span_start + 2 + nibble_idx,
+                                    );
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::InvalidString,
+                                        String::from("hex character escape is too short"),
+                                        Some(span),
+                                    ));
+                                };
+                                let Some(nibble) = hex_char_to_nibble(hex_byte) else {
+                                    let nonhex_char_length = contents[hex_idx..]
+                                        .chars()
+                                        .next()
+                                        .assume("char is present")?
+                                        .len_utf8();
+                                    let start = content_span_start + hex_idx;
+                                    let span = ast::Span::new(start, start + nonhex_char_length);
+                                    return Err(ParseError::new(
+                                        ParseErrorKind::InvalidString,
+                                        String::from("invalid character in hex character escape"),
+                                        Some(span),
+                                    ));
+                                };
+                                value = value << 4 | nibble;
                             }
-                            'n' => {
-                                out.push('\n');
-                            }
-                            _ => {
+
+                            if !(0x01..=0x7F).contains(&value) {
+                                let span = ast::Span::new(byte0_span_start, byte0_span_start + 4);
                                 return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
-                                    format!("invalid escape: {}", next),
-                                    Some(string.as_span()),
+                                    String::from(
+                                        "hex character escape is out of range [0x01, 0x7F]",
+                                    ),
+                                    Some(span),
                                 ));
                             }
+                            out.push(value);
                         }
-                    } else {
-                        return Err(ParseError::new(
-                            ParseErrorKind::InvalidString,
-                            String::from("end of string while processing escape"),
-                            Some(string.as_span()),
-                        ));
+                        b'n' => {
+                            out.push(b'\n');
+                        }
+                        b'\\' => {
+                            out.push(b'\\');
+                        }
+                        b'"' => {
+                            out.push(b'"');
+                        }
+                        b'\n' => {
+                            let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidString,
+                                String::from("cannot end line with escape"),
+                                Some(span),
+                            ));
+                        }
+                        _ => {
+                            let bad_escape_char =
+                                contents[idx1..].chars().next().assume("char is present")?;
+                            let end = byte0_span_start + 1 + bad_escape_char.len_utf8();
+                            let span = ast::Span::new(byte0_span_start, end);
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidString,
+                                format!(
+                                    "unknown character escape: `{}`",
+                                    bad_escape_char.escape_default()
+                                ),
+                                Some(span),
+                            ));
+                        }
                     }
                 }
-                '"' => break,
-                _ => out.push(c),
+                b'\0' => {
+                    let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidString,
+                        String::from("string contains null byte"),
+                        Some(span),
+                    ));
+                }
+                b'"' => break,
+                _ => out.push(byte0),
             }
         }
 
-        out.try_into().map_err(|_| {
-            ParseError::new(
-                ParseErrorKind::InvalidString,
-                String::from("string contained nul byte"),
-                Some(string.as_span()),
-            )
-        })
+        Ok(str::from_utf8(&out)
+            .assume("valid utf8")?
+            .parse()
+            .assume("valid text")?)
+    }
+
+    /// Parse a match pattern from a match_arm_expression token.
+    fn parse_match_pattern(&self, token: Pair<'_, Rule>) -> Result<MatchPattern, ParseError> {
+        assert_eq!(token.as_rule(), Rule::match_arm_expression);
+
+        let values = token
+            .into_inner()
+            .map(|token| self.parse_expression(token.clone()))
+            .collect::<Result<Vec<Expression>, ParseError>>()?;
+
+        Ok(MatchPattern::Values(values))
     }
 
     fn parse_named_struct_literal(
         &self,
         named_struct: Pair<'_, Rule>,
     ) -> Result<NamedStruct, ParseError> {
-        let pc = descend(named_struct.clone());
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(named_struct.clone());
+        let name = pc.consume_ident(self)?;
+        let span = self.to_ast_span(named_struct.as_span())?;
 
         // key/expression pairs follow the identifier
         let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
         Ok(NamedStruct {
-            identifier,
+            name,
             fields,
             sources,
+            span,
         })
     }
 
     fn parse_function_call(&self, call: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
-        let pc = descend(call.clone());
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(call.clone());
+        let name = pc.consume_ident(self)?;
 
         // all following tokens are function arguments
         let mut arguments = vec![];
@@ -378,28 +557,31 @@ impl ChunkParser<'_> {
             let expr = self.parse_expression(arg)?;
             arguments.push(expr);
         }
-        Ok(FunctionCall {
-            identifier,
-            arguments,
-        })
+        Ok(FunctionCall { name, arguments })
+    }
+
+    /// Parses the inner `function_call` out of a `recall_statement` or
+    /// `recall_expression` rule. The body of both rules is identical.
+    fn parse_recall_call(&self, recall: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
+        let pc = self.descend(recall);
+        let fc_token = pc.consume_of_type(Rule::function_call)?;
+        self.parse_function_call(fc_token)
     }
 
     fn parse_foreign_function_call(
         &self,
         call: Pair<'_, Rule>,
     ) -> Result<ForeignFunctionCall, ParseError> {
-        let pc = descend(call.clone());
+        let pc = self.descend(call.clone());
         let module = pc.consume_ident(self)?;
         let function_call = pc.consume_of_type(Rule::function_call)?;
 
         let function = self.parse_function_call(function_call)?;
-        let identifier = function.identifier;
-        let arguments = function.arguments;
 
         Ok(ForeignFunctionCall {
             module,
-            identifier,
-            arguments,
+            function: function.name,
+            arguments: function.arguments,
         })
     }
 
@@ -416,25 +598,29 @@ impl ChunkParser<'_> {
     /// `A + B + C` => `Add(Add(A, B), C)`
     pub fn parse_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         assert_eq!(expr.as_rule(), Rule::expression);
+        let expr_span = self.to_ast_span(expr.as_span())?;
         let pairs = expr.into_inner();
 
         self.pratt
-            .map_primary(|primary| match primary.as_rule() {
+            .map_primary(|primary| {
+                let span = self.to_ast_span(primary.as_span())?;
+                match primary.as_rule() {
+                Rule::unit_literal => Ok(Expression { inner: ExprKind::Unit, span }),
                 Rule::int_literal => {
                     let n = primary.as_str().parse::<i64>().map_err(|e| {
+                        let message = e.to_string().replace("target type", "`int`");
+
                         ParseError::new(
                             ParseErrorKind::InvalidNumber,
-                            e.to_string(),
-                            Some(primary.as_span()),
+                            message,
+                            Some(span),
                         )
                     })?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind: ExprKind::Int(n), span})
+                    Ok(Expression{inner: ExprKind::Int(IntLiteral::new(n, span)), span})
                 }
                 Rule::string_literal => {
-                    let span = self.to_ast_span(primary.as_span())?;
-                    let s = Self::parse_string_literal(primary)?;
-                    Ok(Expression{kind: ExprKind::String(s), span})
+                    let s = self.parse_string_literal(primary)?;
+                    Ok(Expression{inner: ExprKind::String(s), span})
                 }
                 Rule::bool_literal => {
                     let mut pairs = primary.clone().into_inner();
@@ -442,22 +628,20 @@ impl ChunkParser<'_> {
                         ParseError::new(
                             ParseErrorKind::Unknown,
                             String::from("bad bool expression"),
-                            Some(primary.as_span()),
+                            Some(span),
                         )
                     })?;
                     match token.as_rule() {
                         Rule::btrue => {
-                            let span = self.to_ast_span(primary.as_span())?;
-                            Ok(Expression{kind:ExprKind::Bool(true), span})
+                            Ok(Expression{inner:ExprKind::Bool(true), span})
                         }
                         Rule::bfalse => {
-                            let span = self.to_ast_span(primary.as_span())?;
-                            Ok(Expression{kind:ExprKind::Bool(false), span})
+                            Ok(Expression{inner:ExprKind::Bool(false), span})
                         }
                         t => Err(ParseError::new(
                             ParseErrorKind::Unknown,
                             format!("impossible token: {:?}", t),
-                            Some(primary.as_span()),
+                            Some(span),
                         )),
                     }
                 }
@@ -467,10 +651,9 @@ impl ChunkParser<'_> {
                         ParseError::new(
                             ParseErrorKind::Unknown,
                             String::from("no token in optional literal"),
-                            Some(primary.as_span()),
+                            Some(span),
                         )
                     })?;
-                    let span = self.to_ast_span(primary.as_span())?;
                     let opt_expr = match token.as_rule() {
                         Rule::none => None,
                         Rule::some => {
@@ -478,7 +661,7 @@ impl ChunkParser<'_> {
                                 ParseError::new(
                                     ParseErrorKind::Unknown,
                                     String::from("bad Some expression"),
-                                    Some(primary.as_span()),
+                                    Some(span),
                                 )
                             })?;
                             let e = self.parse_expression(token)?;
@@ -488,64 +671,86 @@ impl ChunkParser<'_> {
                             return Err(ParseError::new(
                                 ParseErrorKind::Unknown,
                                 format!("invalid token in optional: {:?}", t),
-                                Some(primary.as_span()),
+                                Some(span),
                             ))
                         }
                     };
-                    Ok(Expression { kind: ExprKind::Optional(opt_expr), span })
+                    Ok(Expression { inner: ExprKind::Optional(opt_expr), span })
+                }
+                Rule::result_literal => {
+                    let token = primary.clone().into_inner().next().ok_or_else(|| {
+                        self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("no token in result literal"),
+                            Some(span),
+                        ))
+                    })?;
+                    match token.as_rule() {
+                        Rule::ok => {
+                            let span = self.to_ast_span(primary.as_span())?;
+                            let v = token.into_inner().next().ok_or_else(|| {
+                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("no value in Ok expression"),
+                                    Some(span),
+                                ))
+                            })?;
+                            let expr = self.parse_expression(v)?;
+                            Ok(Expression {
+                                inner: ExprKind::Ok(Box::new(expr)),
+                                span
+                            })
+                        }
+                        Rule::err => {
+                            let span = self.to_ast_span(primary.as_span())?;
+                            let v = token.into_inner().next().ok_or_else(|| {
+                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("no value in Err expression"),
+                                    Some(span),
+                                ))
+                            })?;
+                            let expr = self.parse_expression(v)?;
+                            Ok(Expression {
+                                inner: ExprKind::Err(Box::new(expr)),
+                                span,
+                            })
+                        }
+                        _ => Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("invalid token in result_literal: {:?}", token.as_rule()),
+                            Some(self.to_ast_span(primary.as_span())?),
+                        ))
+                    }
                 }
                 Rule::named_struct_literal => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     let ns = self.parse_named_struct_literal(primary)?;
-                    Ok(Expression { kind: ExprKind::NamedStruct(ns), span })
+                    Ok(Expression { inner: ExprKind::NamedStruct(ns), span })
                 }
                 Rule::function_call => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     let fc = self.parse_function_call(primary)?;
-                    Ok(Expression { kind: ExprKind::FunctionCall(fc), span })
+                    Ok(Expression { inner: ExprKind::FunctionCall(fc), span })
                 }
                 Rule::foreign_function_call => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     let ffc = self.parse_foreign_function_call(primary)?;
-                    Ok(Expression { kind: ExprKind::ForeignFunctionCall(ffc), span })
+                    Ok(Expression { inner: ExprKind::ForeignFunctionCall(ffc), span })
+                }
+                Rule::action_call => {
+                    let fc = self.parse_action_call(primary)?;
+                    Ok(Expression { inner: ExprKind::ActionCall(fc), span })
+                }
+                Rule::return_expression => {
+                    let pc = self.descend(primary);
+                    let expression = pc.consume_expression(self)?;
+                    Ok(Expression{inner:ExprKind::Return(Box::new(expression)),span})
+                }
+                Rule::recall_expression => {
+                    let fc = self.parse_recall_call(primary)?;
+                    Ok(Expression { inner: ExprKind::Recall(fc), span })
                 }
                 Rule::enum_reference => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     let er = self.parse_enum_reference(primary)?;
-                    Ok(Expression { kind: ExprKind::EnumReference(er), span })
-                }
-                Rule::add | Rule::saturating_add | Rule::sub | Rule::saturating_sub => {
-                    let rule = primary.as_rule();
-                    let rule_name = format!("{:?}", rule);
-                    let mut pairs = primary.clone().into_inner();
-                    let lhs = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            format!("`{}()` missing left argument", rule_name),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let rhs = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            format!("`{}()` missing right argument", rule_name),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let lhs_expr = self.parse_expression(lhs)?;
-                    let rhs_expr = self.parse_expression(rhs)?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    let internal_fn = match rule {
-                        Rule::add => InternalFunction::Add(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        Rule::saturating_add => InternalFunction::SaturatingAdd(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        Rule::sub => InternalFunction::Sub(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        Rule::saturating_sub => InternalFunction::SaturatingSub(Box::new(lhs_expr), Box::new(rhs_expr)),
-                        _ => unreachable!(),
-                    };
-                    Ok(Expression {
-                        kind: ExprKind::InternalFunction(internal_fn),
-                        span,
-                    })
+                    Ok(Expression { inner: ExprKind::EnumReference(er), span })
                 }
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
@@ -553,13 +758,12 @@ impl ChunkParser<'_> {
                         ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("query requires fact literal"),
-                            Some(primary.as_span()),
+                            Some(span),
                         )
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
-                    let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
-                        kind: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
                         span,
                     })
                 }
@@ -569,70 +773,34 @@ impl ChunkParser<'_> {
                         ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
                             String::from("exists requires fact literal"),
-                            Some(primary.as_span()),
+                            Some(span),
                         )
                     })?;
                     let fact_literal = self.parse_fact_literal(token)?;
-                    let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression{
-                        kind: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
                         span,
                     })
                 }
                 Rule::count_up_to => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     self.parse_counting_fn(primary, ast::FactCountType::UpTo(span))
                 },
                 Rule::at_least => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     self.parse_counting_fn(primary, ast::FactCountType::AtLeast(span))
                 },
                 Rule::at_most => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     self.parse_counting_fn(primary, ast::FactCountType::AtMost(span))
                 },
                 Rule::exactly => {
-                    let span = self.to_ast_span(primary.as_span())?;
                     self.parse_counting_fn(primary, ast::FactCountType::Exactly(span))
                 },
                 Rule::match_expression => self.parse_match_expression(primary),
                 Rule::if_expr => self.parse_if_expression(primary),
-                Rule::serialize => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("empty serialize function"),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let inner = self.parse_expression(token)?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression{kind:ExprKind::InternalFunction(
-                        InternalFunction::Serialize(Box::new(inner)),
-                    ), span})
-                }
-                Rule::deserialize => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("empty deserialize function"),
-                            Some(primary.as_span()),
-                        )
-                    })?;
-                    let inner = self.parse_expression(token)?;
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression {
-                        kind: ExprKind::InternalFunction(InternalFunction::Deserialize(Box::new(inner))),
-                        span,
-                    })
-                }
                 Rule::this => {
                     let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
-                        kind: ExprKind::Identifier(Ident {
-                            name: ident!("this"),
+                        inner: ExprKind::Identifier(Ident {
+                            inner: ident!("this"),
                             span,
                         }),
                         span,
@@ -641,15 +809,24 @@ impl ChunkParser<'_> {
                 Rule::todo => {
                     let span = self.to_ast_span(primary.as_span())?;
                     Ok(Expression {
-                        kind: ExprKind::InternalFunction(InternalFunction::Todo(span)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
+                        span,
+                    })
+                }
+                Rule::test_fail => {
+                    let span = self.to_ast_span(primary.as_span())?;
+                    let mut pairs = primary.into_inner();
+                    let msg = pairs.next().map(|t| self.parse_string_literal(t)).transpose()?;
+                    Ok(Expression {
+                        inner: ExprKind::InternalFunction(InternalFunction::TestFail(msg, span)),
                         span,
                     })
                 }
                 Rule::identifier => {
                     let span = self.to_ast_span(primary.as_span())?;
-                    let ident = remain(primary).consume_ident(self)?;
+                    let ident = self.remain(primary).consume_ident(self)?;
                     Ok(Expression {
-                        kind: ExprKind::Identifier(ident),
+                        inner: ExprKind::Identifier(ident),
                         span,
                     })
                 }
@@ -658,8 +835,9 @@ impl ChunkParser<'_> {
                 _ => Err(ParseError::new(
                     ParseErrorKind::Expression,
                     format!("bad atom: {:?}", primary.as_rule()),
-                    Some(primary.as_span()),
+                    Some(span),
                 )),
+            }
             })
             .map_prefix(|op, rhs| {
                 let rhs = rhs?;
@@ -668,68 +846,57 @@ impl ChunkParser<'_> {
 
                 let kind = match op.as_rule() {
                     Rule::not => ExprKind::Not(Box::new(rhs)),
-                    Rule::unwrap => ExprKind::Unwrap(Box::new(rhs)),
-                    Rule::check_unwrap => ExprKind::CheckUnwrap(Box::new(rhs)),
                     _ => {
                         return Err(ParseError::new(
                             ParseErrorKind::Expression,
                             format!("bad prefix: {:?}", op.as_rule()),
-                            Some(op.as_span()),
+                            Some(op_span),
                         ))
                     }
                 };
-                Ok(Expression{kind,span:combined_span})
+                Ok(Expression{inner: kind,span:combined_span})
             })
             .map_infix(|lhs, op, rhs| {
                 let lhs = lhs?;
                 let rhs = rhs?;
                 let combined_span = lhs.span.merge(rhs.span);
 
+                let op_span = self.to_ast_span(op.as_span())?;
                 let kind = match op.as_rule() {
+                    Rule::add => {
+                        return Err(ParseError::new(
+                            error::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
+                            String::from("found `+`"),
+                            Some(expr_span)
+                        ));
+                    }
+                    Rule::subtract => {
+                        return Err(ParseError::new(
+                            error::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
+                            String::from("found `-`"),
+                            Some(expr_span)
+                        ));
+                    }
                     Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
                     Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
+                    Rule::coalesce => ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
                     Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
                     Rule::not_equal => ExprKind::NotEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::greater_than => ExprKind::GreaterThan(Box::new(lhs), Box::new(rhs)),
                     Rule::less_than => ExprKind::LessThan(Box::new(lhs), Box::new(rhs)),
                     Rule::greater_than_or_equal => ExprKind::GreaterThanOrEqual(Box::new(lhs), Box::new(rhs)),
                     Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
-                    Rule::dot => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Dot(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
-                            ParseErrorKind::InvalidMember,
-                            format!("Expected identifier after dot, got {:?}", rhs.kind),
-                            Some(op.as_span()),
-                        ))
-                    },
-                    Rule::substruct => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Substruct(Box::new(lhs), s.clone()),
-                        _ => return Err(ParseError::new(
-                            ParseErrorKind::InvalidSubstruct,
-                            format!("Expression to the right of the substruct operator must be an identifier, got {:?}", rhs.kind),
-                            Some(op.as_span()),
-                        ))
-                    },
-                    Rule::cast => match &rhs.kind {
-                        ExprKind::Identifier(s) => ExprKind::Cast(Box::new(lhs), s.clone()),
-                        e => return Err(ParseError::new(
-                            ParseErrorKind::InvalidSubstruct,
-                            format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
-                            Some(op.as_span()),
-                        )),
-                    },
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad infix: {:?}", op.as_rule()),
-                        Some(op.as_span()),
+                        Some(op_span),
                     )),
                 };
-                Ok(Expression{ kind, span: combined_span })
+                Ok(Expression{ inner: kind, span: combined_span })
             })
             .map_postfix(|lhs, op| {
                 let lhs = lhs?;
-                let op_pest_span = op.as_span();
-                let op_span = self.to_ast_span(op_pest_span)?;
+                let op_span = self.to_ast_span( op.as_span())?;
                 let combined_span = lhs.span.merge(op_span);
 
                 let kind = match op.as_rule() {
@@ -739,89 +906,94 @@ impl ChunkParser<'_> {
                             ParseError::new(
                                 ParseErrorKind::InvalidFunctionCall,
                                 String::from("is requires some or none"),
-                                Some(op_pest_span),
+                                Some(op_span),
                             )
                         })?;
                         let some = match token.as_rule() {
                             Rule::some => true,
                             Rule::none => false,
-                            _ => return Err(ParseError::new(
-                                ParseErrorKind::Unknown,
-                                format!("not none or some after is: {:?}", token.as_rule()),
-                                Some(token.as_span()),
-                            ))
+                            _ => return Err(ParseError::new(ParseErrorKind::Bug, "The grammar requires that 'None' or 'Some' follow `is`. There should be an error from `PolicyParser::parse` if an unexpected rule is here.".to_owned(), None))
                         };
                         ExprKind::Is(Box::new(lhs), some)
                     }
+                    Rule::dot => {
+                        let pc = self.descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Dot(Box::new(lhs), s)
+                    },
+                    Rule::substruct => {
+                        let pc = self.descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Substruct(Box::new(lhs), s)
+                    },
+                    Rule::cast => {
+                        let pc = self.descend(op);
+                        let s = pc.consume_ident(self)?;
+                        ExprKind::Cast(Box::new(lhs), s)
+                    },
                     _ => return Err(ParseError::new(
                         ParseErrorKind::Expression,
                         format!("bad postfix: {:?}", op.as_rule()),
-                        Some(op_pest_span),
+                        Some(op_span),
                     )),
                 };
-                Ok(Expression{kind, span: combined_span})
+                Ok(Expression{inner: kind, span: combined_span})
             })
             .parse(pairs)
     }
 
     fn parse_block_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
-        let pc = descend(expr.clone());
+        let pc = self.descend(expr.clone());
         let statements = pc.consume()?.into_inner();
         let statement_list = self.parse_statement_list(statements)?;
         let inner_expr = pc.consume_expression(self)?;
         let span = self.to_ast_span(expr.as_span())?;
         let stmt_vec = statement_list;
         Ok(Expression {
-            kind: ExprKind::Block(stmt_vec, Box::new(inner_expr)),
+            inner: ExprKind::Block(stmt_vec, Box::new(inner_expr)),
             span,
         })
     }
 
     fn parse_match_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         let span = self.to_ast_span(expr.as_span())?;
-        let pc = descend(expr);
+        let pc = self.descend(expr);
         let scrutinee = pc.consume_expression(self)?;
 
         // All remaining tokens are match arms
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_expression_arm);
-            let pc = descend(arm.clone());
+            let pc = self.descend(arm.clone());
             let token = pc.consume()?;
 
-            let span = self.to_ast_span(token.as_span())?;
+            let pest_span = token.as_span();
+            let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| self.parse_expression(token.clone()))
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
-
-                    MatchPattern::Values(values)
-                }
+                Rule::match_arm_expression => self.parse_match_pattern(token)?,
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
-                        Some(token.as_span()),
+                        Some(self.to_ast_span(token.as_span())?),
                     ));
                 }
             };
 
             // Remaining tokens are policy statements
-            let expression = self.parse_expression(pc.consume()?)?;
+            let body = self.parse_expression(pc.consume()?)?;
 
             let arm_span = self.to_ast_span(arm.as_span())?;
             arms.push(MatchExpressionArm {
                 pattern,
-                expression,
+                body,
                 span: arm_span,
             });
         }
 
         Ok(Expression {
-            kind: ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
+            inner: ExprKind::Match(Box::new(MatchExpression { scrutinee, arms })),
             span,
         })
     }
@@ -832,42 +1004,47 @@ impl ChunkParser<'_> {
         cmp_type: ast::FactCountType,
     ) -> Result<Expression, ParseError> {
         let mut pairs = statement.clone().into_inner();
+        let span = self.to_ast_span(statement.as_span())?;
+
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
                 format!("{} requires count limit (int)", cmp_type),
-                Some(statement.as_span()),
+                Some(span),
             )
         })?;
-        let limit = token.as_str().parse::<i64>().map_err(|e| {
-            ParseError::new(
-                ParseErrorKind::InvalidNumber,
-                e.to_string(),
-                Some(statement.as_span()),
-            )
-        })?;
+        let token_span = self.to_ast_span(token.as_span())?;
+        let limit = token
+            .as_str()
+            .parse::<i64>()
+            .map(|int| IntLiteral::new(int, token_span))
+            .map_err(|e| {
+                let message = e.to_string().replace("target type", "`int`");
+                ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
+            })?;
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
                 format!("{} requires fact literal", cmp_type),
-                Some(statement.as_span()),
+                Some(span),
             )
         })?;
         let fact = self.parse_fact_literal(token)?;
-        let span = self.to_ast_span(statement.as_span())?;
         Ok(Expression {
-            kind: ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
+            inner: ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
             span,
         })
     }
 
     fn parse_if_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         let mut pairs = expr.clone().into_inner();
+        let span = self.to_ast_span(expr.as_span())?;
+
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires expression"),
-                Some(expr.as_span()),
+                Some(span),
             )
         })?;
         let condition = self.parse_expression(token)?;
@@ -876,7 +1053,7 @@ impl ChunkParser<'_> {
             ParseError::new(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires then case"),
-                Some(expr.as_span()),
+                Some(span),
             )
         })?;
         let then_expr = self.parse_block_expression(token)?;
@@ -885,14 +1062,13 @@ impl ChunkParser<'_> {
             ParseError::new(
                 ParseErrorKind::InvalidFunctionCall,
                 String::from("if requires else case"),
-                Some(expr.as_span()),
+                Some(span),
             )
         })?;
         let else_expr = self.parse_block_expression(token)?;
 
-        let span = self.to_ast_span(expr.as_span())?;
         Ok(Expression {
-            kind: ExprKind::InternalFunction(InternalFunction::If(
+            inner: ExprKind::InternalFunction(InternalFunction::If(
                 Box::new(condition),
                 Box::new(then_expr),
                 Box::new(else_expr),
@@ -909,11 +1085,17 @@ impl ChunkParser<'_> {
 
         for field in fields {
             let rule_kind = field.as_rule();
-            let pc = descend(field);
+            let pc = self.descend(field);
             match rule_kind {
                 Rule::struct_literal_field => {
                     let identifier = pc.consume_ident(self)?;
-                    let expression = pc.consume_expression(self)?;
+                    let expression = match pc.consume_optional(Rule::expression) {
+                        Some(token) => self.parse_expression(token)?,
+                        None => Expression {
+                            inner: ExprKind::Identifier(identifier.clone()),
+                            span: identifier.span,
+                        },
+                    };
                     field_expressions.push((identifier, expression));
                 }
                 Rule::struct_composition => {
@@ -934,18 +1116,23 @@ impl ChunkParser<'_> {
         let mut out = vec![];
 
         for field in fields {
-            let pc = descend(field);
+            let pc = self.descend(field);
             let identifier = pc.consume_ident(self)?;
 
-            let token = pc.consume()?;
-            let field = match token.as_rule() {
-                Rule::expression => FactField::Expression(self.parse_expression(token)?),
-                Rule::bind => FactField::Bind(self.to_ast_span(token.as_span())?),
-                _ => {
+            let field = match pc.next().map(|token| (token.as_rule(), token)) {
+                None => FactField::Expression(Expression {
+                    inner: ExprKind::Identifier(identifier.clone()),
+                    span: identifier.span,
+                }),
+                Some((Rule::expression, token)) => {
+                    FactField::Expression(self.parse_expression(token)?)
+                }
+                Some((Rule::bind, token)) => FactField::Bind(self.to_ast_span(token.as_span())?),
+                Some((_, token)) => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in fact field"),
-                        Some(token.as_span()),
+                        Some(self.to_ast_span(token.as_span())?),
                     ));
                 }
             };
@@ -958,7 +1145,7 @@ impl ChunkParser<'_> {
     fn parse_action_call(&self, item: Pair<'_, Rule>) -> Result<FunctionCall, ParseError> {
         assert_eq!(item.as_rule(), Rule::action_call);
 
-        let pc = descend(item);
+        let pc = self.descend(item);
         let fn_call = pc.consume()?;
         let action_call = self.parse_function_call(fn_call)?;
         Ok(action_call)
@@ -968,7 +1155,7 @@ impl ChunkParser<'_> {
     fn parse_publish_statement(&self, item: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         assert_eq!(item.as_rule(), Rule::publish_statement);
 
-        let pc = descend(item);
+        let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
 
         Ok(expression)
@@ -976,8 +1163,8 @@ impl ChunkParser<'_> {
 
     /// Parse a Rule::fact_literal into a FactLiteral.
     fn parse_fact_literal(&self, fact: Pair<'_, Rule>) -> Result<FactLiteral, ParseError> {
-        let pc = descend(fact.clone());
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(fact.clone());
+        let name = pc.consume_ident(self)?;
 
         let token = pc.consume_of_type(Rule::fact_literal_key)?;
         let key_fields = self.parse_fact_literal_fields(token.into_inner())?;
@@ -990,7 +1177,7 @@ impl ChunkParser<'_> {
         };
 
         Ok(FactLiteral {
-            identifier,
+            name,
             key_fields,
             value_fields,
         })
@@ -998,75 +1185,62 @@ impl ChunkParser<'_> {
 
     /// Parse a Rule::let_statement into a LetStatement.
     fn parse_let_statement(&self, item: Pair<'_, Rule>) -> Result<LetStatement, ParseError> {
-        let pc = descend(item);
-        let identifier = pc.consume_ident(self)?;
-        let expression = pc.consume_expression(self)?;
+        let pc = self.descend(item);
+        let name = pc.consume_ident(self)?;
+        let value = pc.consume_expression(self)?;
 
-        Ok(LetStatement {
-            identifier,
-            expression,
-        })
+        Ok(LetStatement { name, value })
     }
 
     /// Parse a Rule::check_statement into a CheckStatement.
     fn parse_check_statement(&self, item: Pair<'_, Rule>) -> Result<CheckStatement, ParseError> {
-        let pc = descend(item);
-        let token = pc.consume()?;
-        let expression = self.parse_expression(token)?;
-
-        Ok(CheckStatement { expression })
+        let pc = self.descend(item);
+        let condition = pc.consume_expression(self)?;
+        let else_expression = pc.consume_expression(self)?;
+        Ok(CheckStatement {
+            condition,
+            else_expression,
+        })
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
     fn parse_match_statement(&self, item: Pair<'_, Rule>) -> Result<MatchStatement, ParseError> {
-        let pc = descend(item);
-        let expression = pc.consume_expression(self)?;
+        let pc = self.descend(item);
+        let scrutinee = pc.consume_expression(self)?;
 
         // All remaining tokens are match arms
         let mut arms = vec![];
         for arm in pc.into_inner() {
             assert_eq!(arm.as_rule(), Rule::match_arm);
-            let pc = descend(arm.clone());
+            let pc = self.descend(arm.clone());
             let token = pc.consume()?;
 
-            let span = self.to_ast_span(token.as_span())?;
+            let pest_span = token.as_span();
+            let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => {
-                    let values = token
-                        .into_inner()
-                        .map(|token| {
-                            let expr = self.parse_expression(token.clone())?;
-                            Ok(expr)
-                        })
-                        .collect::<Result<Vec<Expression>, ParseError>>()?;
-
-                    MatchPattern::Values(values)
-                }
+                Rule::match_arm_expression => self.parse_match_pattern(token)?,
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
-                        Some(token.as_span()),
+                        Some(self.to_ast_span(token.as_span())?),
                     ));
                 }
             };
 
             // Remaining tokens are policy statements
-            let statements = self.parse_statement_list(pc.into_inner())?;
+            let body = self.parse_statement_list(pc.into_inner())?;
 
-            arms.push(MatchArm {
-                pattern,
-                statements,
-            });
+            arms.push(MatchArm { pattern, body });
         }
 
-        Ok(MatchStatement { expression, arms })
+        Ok(MatchStatement { scrutinee, arms })
     }
 
     /// Parse a rule::if_statement into a IfStatement
     fn parse_if_statement(&self, item: Pair<'_, Rule>) -> Result<IfStatement, ParseError> {
-        let pc = descend(item);
+        let pc = self.descend(item);
 
         let mut branches = Vec::new();
         let mut fallback = None;
@@ -1088,7 +1262,7 @@ impl ChunkParser<'_> {
 
     /// Parse a Rule::create_statement into a CreateStatement.
     fn parse_create_statement(&self, item: Pair<'_, Rule>) -> Result<CreateStatement, ParseError> {
-        let pc = descend(item);
+        let pc = self.descend(item);
         let fact = pc.consume_fact(self)?;
 
         Ok(CreateStatement { fact })
@@ -1098,7 +1272,7 @@ impl ChunkParser<'_> {
     fn parse_update_statement(&self, item: Pair<'_, Rule>) -> Result<UpdateStatement, ParseError> {
         assert_eq!(item.as_rule(), Rule::update_statement);
 
-        let pc = descend(item);
+        let pc = self.descend(item);
         let fact = pc.consume_fact(self)?;
 
         let token = pc.consume_of_type(Rule::fact_literal_value)?;
@@ -1109,7 +1283,7 @@ impl ChunkParser<'_> {
 
     /// Parse a Rule::delete_statement into a DeleteStatement.
     fn parse_delete_statement(&self, item: Pair<'_, Rule>) -> Result<DeleteStatement, ParseError> {
-        let pc = descend(item);
+        let pc = self.descend(item);
         let fact = pc.consume_fact(self)?;
 
         Ok(DeleteStatement { fact })
@@ -1119,25 +1293,17 @@ impl ChunkParser<'_> {
     fn parse_emit_statement(&self, item: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         assert_eq!(item.as_rule(), Rule::emit_statement);
 
-        let pc = descend(item);
+        let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
 
         Ok(expression)
-    }
-
-    /// Parse a Rule::return_statementinto a ReturnStatement.
-    fn parse_return_statement(&self, item: Pair<'_, Rule>) -> Result<ReturnStatement, ParseError> {
-        let pc = descend(item);
-        let expression = pc.consume_expression(self)?;
-
-        Ok(ReturnStatement { expression })
     }
 
     /// Parse a Rule::effect_statement into an DebugAssert.
     fn parse_debug_assert_statement(&self, item: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         assert_eq!(item.as_rule(), Rule::debug_assert);
 
-        let pc = descend(item);
+        let pc = self.descend(item);
         let expression = pc.consume_expression(self)?;
 
         Ok(expression)
@@ -1156,14 +1322,16 @@ impl ChunkParser<'_> {
             let span = self.to_ast_span(statement.as_span())?;
             let kind = match statement.as_rule() {
                 Rule::let_statement => StmtKind::Let(self.parse_let_statement(statement)?),
-                Rule::action_call => StmtKind::ActionCall(self.parse_action_call(statement)?),
+                Rule::action_call => {
+                    let fc = self.parse_action_call(statement)?;
+                    StmtKind::ActionCall(fc)
+                }
                 Rule::publish_statement => {
                     StmtKind::Publish(self.parse_publish_statement(statement)?)
                 }
                 Rule::check_statement => StmtKind::Check(self.parse_check_statement(statement)?),
                 Rule::match_statement => StmtKind::Match(self.parse_match_statement(statement)?),
                 Rule::if_statement => StmtKind::If(self.parse_if_statement(statement)?),
-                Rule::return_statement => StmtKind::Return(self.parse_return_statement(statement)?),
                 Rule::finish_statement => {
                     let pairs = statement.into_inner();
                     let finish_stmts = self.parse_statement_list(pairs)?;
@@ -1178,15 +1346,22 @@ impl ChunkParser<'_> {
                 Rule::debug_assert => {
                     StmtKind::DebugAssert(self.parse_debug_assert_statement(statement)?)
                 }
+                Rule::return_statement => {
+                    let pc = self.descend(statement);
+                    let inner_expr_token = pc.consume()?;
+                    let value = self.parse_expression(inner_expr_token)?;
+                    StmtKind::Return(ReturnStatement { value })
+                }
+                Rule::recall_statement => StmtKind::Recall(self.parse_recall_call(statement)?),
                 s => {
                     return Err(ParseError::new(
                         ParseErrorKind::InvalidStatement,
                         format!("found invalid rule `{:?}`", s),
-                        Some(statement.as_span()),
+                        Some(span),
                     ));
                 }
             };
-            statements.push(Statement { kind, span });
+            statements.push(Statement { inner: kind, span });
         }
 
         Ok(statements)
@@ -1194,21 +1369,21 @@ impl ChunkParser<'_> {
 
     fn parse_map_statement(&self, field: Pair<'_, Rule>) -> Result<MapStatement, ParseError> {
         assert_eq!(field.as_rule(), Rule::map_statement);
-        let pc = descend(field);
+        let pc = self.descend(field);
         let pair = pc.consume()?;
         let fact = self.parse_fact_literal(pair)?;
         let identifier = pc.consume_ident(self)?;
-        let statements = self.parse_statement_list(pc.into_inner())?;
+        let body = self.parse_statement_list(pc.into_inner())?;
 
         Ok(MapStatement {
             fact,
             identifier,
-            statements,
+            body,
         })
     }
 
     fn parse_use_definition(&self, field: Pair<'_, Rule>) -> Result<Ident, ParseError> {
-        let pc = descend(field);
+        let pc = self.descend(field);
         pc.consume_ident(self)
     }
 
@@ -1218,7 +1393,7 @@ impl ChunkParser<'_> {
         field: Pair<'_, Rule>,
     ) -> Result<ast::FactDefinition, ParseError> {
         let span = self.to_ast_span(field.as_span())?;
-        let pc = descend(field);
+        let pc = self.descend(field);
         let token = pc.consume()?;
 
         let (immutable, token) = if token.as_rule() == Rule::immutable_modifier {
@@ -1227,25 +1402,25 @@ impl ChunkParser<'_> {
             (false, token)
         };
 
-        let pc = descend(token);
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(token);
+        let name = pc.consume_ident(self)?;
         let token = pc.consume_of_type(Rule::fact_signature_key)?;
-        let mut key = vec![];
+        let mut keys = vec![];
         for field in token.into_inner() {
-            key.push(self.parse_field_definition(field)?);
+            keys.push(self.parse_field_definition(field)?);
         }
 
         let token = pc.consume_of_type(Rule::fact_signature_value)?;
-        let mut value = vec![];
+        let mut values = vec![];
         for field in token.into_inner() {
-            value.push(self.parse_field_definition(field)?);
+            values.push(self.parse_field_definition(field)?);
         }
 
         Ok(ast::FactDefinition {
             immutable,
-            identifier,
-            key,
-            value,
+            name,
+            keys,
+            values,
             span,
         })
     }
@@ -1258,27 +1433,46 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::action_definition);
 
         let span = self.to_ast_span(item.as_span())?;
-        let pc = descend(item);
+        let pc = self.descend(item);
         let persistence = match pc.consume_optional(Rule::ephemeral_modifier) {
             Some(pair) => Persistence::Ephemeral(self.to_ast_span(pair.as_span())?),
             None => Persistence::Persistent,
         };
-        let identifier = pc.consume_ident(self)?;
+        let name = pc.consume_ident(self)?;
         let token = pc.consume_of_type(Rule::function_arguments)?;
-        let mut arguments = vec![];
+        let mut parameters = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            parameters.push(self.parse_parameter(field)?);
         }
+
+        // Parse return type
+        let return_type = match pc.consume_optional(Rule::result_t) {
+            Some(pair) => {
+                let span = self.to_ast_span(pair.as_span())?;
+                let rt = self.descend(pair);
+                let ok = rt.consume_type(self)?;
+                let err = rt.consume_type(self)?;
+                VType {
+                    inner: TypeKind::Result(Box::new(ResultTypeKind { ok, err })),
+                    span,
+                }
+            }
+            None => VType {
+                inner: TypeKind::Unit,
+                span: ast::Span::empty(),
+            },
+        };
 
         // All remaining tokens are statements
         let list = pc.into_inner();
-        let statements = self.parse_statement_list(list)?;
+        let body = self.parse_statement_list(list)?;
 
         Ok(ast::ActionDefinition {
             persistence,
-            identifier,
-            arguments,
-            statements,
+            name,
+            parameters,
+            return_type,
+            body,
             span,
         })
     }
@@ -1291,8 +1485,8 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::effect_definition);
 
         let span = self.to_ast_span(item.as_span())?;
-        let pc = descend(item);
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(item);
+        let name = pc.consume_ident(self)?;
 
         // All remaining tokens are fields
         let mut items = vec![];
@@ -1302,24 +1496,20 @@ impl ChunkParser<'_> {
                     self.parse_effect_field_definition(field)?,
                 )),
                 Rule::field_insertion => {
-                    let ident = descend(field).consume_ident(self)?;
+                    let ident = self.descend(field).consume_ident(self)?;
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in effect definition"),
-                        Some(field.as_span()),
+                        Some(self.to_ast_span(field.as_span())?),
                     ));
                 }
             }
         }
 
-        Ok(ast::EffectDefinition {
-            identifier,
-            items,
-            span,
-        })
+        Ok(ast::EffectDefinition { name, items, span })
     }
 
     /// Parse a `Rule::struct_definition` into an [StructDefinition](ast::StructDefinition).
@@ -1330,8 +1520,8 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::struct_definition);
 
         let span = self.to_ast_span(item.as_span())?;
-        let pc = descend(item);
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(item);
+        let name = pc.consume_ident(self)?;
 
         // All remaining tokens are fields
         let mut items = vec![];
@@ -1341,40 +1531,36 @@ impl ChunkParser<'_> {
                     items.push(ast::StructItem::Field(self.parse_field_definition(field)?));
                 }
                 Rule::field_insertion => {
-                    let ident = descend(field).consume_ident(self)?;
+                    let ident = self.descend(field).consume_ident(self)?;
                     items.push(ast::StructItem::StructRef(ident));
                 }
                 _ => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in struct definition"),
-                        Some(field.as_span()),
+                        Some(self.to_ast_span(field.as_span())?),
                     ));
                 }
             }
         }
 
-        Ok(ast::StructDefinition {
-            identifier,
-            items,
-            span,
-        })
+        Ok(ast::StructDefinition { name, items, span })
     }
 
     fn parse_enum_definition(&self, item: Pair<'_, Rule>) -> Result<EnumDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_definition);
 
         let span = self.to_ast_span(item.as_span())?;
-        let pc = descend(item);
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(item);
+        let name = pc.consume_ident(self)?;
         let mut variants = Vec::new();
         for value in pc.into_inner() {
-            let value = remain(value).consume_ident(self)?;
+            let value = self.remain(value).consume_ident(self)?;
             variants.push(value);
         }
 
         Ok(EnumDefinition {
-            identifier,
+            name,
             variants,
             span,
         })
@@ -1383,11 +1569,14 @@ impl ChunkParser<'_> {
     fn parse_enum_reference(&self, item: Pair<'_, Rule>) -> Result<EnumReference, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_reference);
 
-        let pc = descend(item.clone());
-        let identifier = pc.consume_ident(self)?;
-        let value = pc.consume_ident(self)?;
+        let pc = self.descend(item.clone());
+        let enumeration = pc.consume_ident(self)?;
+        let variant = pc.consume_ident(self)?;
 
-        Ok(EnumReference { identifier, value })
+        Ok(EnumReference {
+            enumeration,
+            variant,
+        })
     }
 
     /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
@@ -1399,88 +1588,164 @@ impl ChunkParser<'_> {
 
         let span = self.to_ast_span(item.as_span())?;
 
-        let pc = descend(item);
+        let pc = self.descend(item);
         let persistence = match pc.consume_optional(Rule::ephemeral_modifier) {
             Some(pair) => Persistence::Ephemeral(self.to_ast_span(pair.as_span())?),
             None => Persistence::Persistent,
         };
-        let identifier = pc.consume_ident(self)?;
+        let name = pc.consume_ident(self)?;
 
-        let mut attributes = vec![];
-        let mut fields = vec![];
-        let mut policy = vec![];
-        let mut recall = vec![];
-        let mut seal = vec![];
-        let mut open = vec![];
-        for token in pc.into_inner() {
-            match token.as_rule() {
-                Rule::attributes_block => {
-                    let pairs = token.into_inner();
-                    for field in pairs {
-                        let pc = descend(field);
-                        let identifier = pc.consume_ident(self)?;
-                        let expr = pc.consume_expression(self)?;
-                        attributes.push((identifier, expr));
+        let base = pc
+            .consume_optional(Rule::base_usage)
+            .map(|token| self.descend(token).consume_ident(self))
+            .transpose()?;
+
+        // Consume blocks in order: attributes?, fields?, policy, recall?
+
+        // 1. Optional attributes block
+        let attributes = if let Some(token) = pc.consume_optional(Rule::attributes_block) {
+            let pairs = token.into_inner();
+            let mut attrs = vec![];
+            for field in pairs {
+                let field_pc = self.descend(field);
+                let ident = field_pc.consume_ident(self)?;
+                let expr = field_pc.consume_expression(self)?;
+                attrs.push((ident, expr));
+            }
+            attrs
+        } else {
+            vec![]
+        };
+
+        // 2. Optional fields block
+        let fields = if let Some(token) = pc.consume_optional(Rule::fields_block) {
+            let pairs = token.into_inner();
+            let mut field_list = vec![];
+            for field in pairs {
+                match field.as_rule() {
+                    Rule::field_definition => {
+                        field_list
+                            .push(ast::StructItem::Field(self.parse_field_definition(field)?));
                     }
-                }
-                Rule::fields_block => {
-                    let pairs = token.into_inner();
-                    for field in pairs {
-                        match field.as_rule() {
-                            Rule::field_definition => {
-                                fields.push(ast::StructItem::Field(
-                                    self.parse_field_definition(field)?,
-                                ));
-                            }
-                            Rule::field_insertion => {
-                                let ident = descend(field).consume_ident(self)?;
-                                fields.push(ast::StructItem::StructRef(ident));
-                            }
-                            _ => {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("invalid token in command definition"),
-                                    Some(field.as_span()),
-                                ));
-                            }
-                        }
+                    Rule::field_insertion => {
+                        let ident = self.descend(field).consume_ident(self)?;
+                        field_list.push(ast::StructItem::StructRef(ident));
                     }
-                }
-                Rule::policy_block => {
-                    let pairs = token.into_inner();
-                    policy = self.parse_statement_list(pairs)?;
-                }
-                Rule::recall_block => {
-                    let pairs = token.into_inner();
-                    recall = self.parse_statement_list(pairs)?;
-                }
-                Rule::seal_block => {
-                    let pairs = token.into_inner();
-                    seal = self.parse_statement_list(pairs)?;
-                }
-                Rule::open_block => {
-                    let pairs = token.into_inner();
-                    open = self.parse_statement_list(pairs)?;
-                }
-                t => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidStatement,
-                        format!("found {:?} in command definition", t),
-                        Some(token.as_span()),
-                    ));
+                    _ => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("invalid token in command definition"),
+                            Some(self.to_ast_span(field.as_span())?),
+                        ));
+                    }
                 }
             }
-        }
+            field_list
+        } else {
+            vec![]
+        };
+
+        // 5. Required policy block
+        let token = pc.consume_of_type(Rule::policy_block)?;
+        let policy = self.parse_statement_list(token.into_inner())?;
+
+        // 6. Optional recall blocks (zero or more)
+        let recalls = pc
+            .into_inner()
+            .map(|token| {
+                if token.as_rule() != Rule::recall_block {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!("expected recall block, found `{:?}`", token.as_rule()),
+                        Some(self.to_ast_span(token.as_span())?),
+                    ));
+                }
+
+                let recall_span = self.to_ast_span(token.as_span())?;
+                let recall_pc = self.descend(token);
+
+                // Parse name
+                let recall_name = self.parse_ident(recall_pc.consume_of_type(Rule::identifier)?)?;
+
+                // Parse parameters
+                let recall_parameters = recall_pc
+                    .consume_of_type(Rule::function_arguments)?
+                    .into_inner()
+                    .map(|field| self.parse_parameter(field))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                // Parse recall block statements
+                let body = self.parse_statement_list(recall_pc.into_inner())?;
+
+                Ok(ast::RecallBlockDefinition {
+                    name: recall_name,
+                    parameters: recall_parameters,
+                    body,
+                    span: recall_span,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ast::CommandDefinition {
             persistence,
+            base,
             attributes,
-            identifier,
+            name,
             fields,
-            seal,
-            open,
             policy,
-            recall,
+            recalls,
+            span,
+        })
+    }
+
+    /// Parse a [`Rule::base_command_definition`] into an [`ast::BaseCommandDefinition``].
+    fn parse_base_command_definition(
+        &self,
+        item: Pair<'_, Rule>,
+    ) -> Result<ast::BaseCommandDefinition, ParseError> {
+        assert_eq!(item.as_rule(), Rule::base_command_definition);
+
+        let span = self.to_ast_span(item.as_span())?;
+
+        let pc = self.descend(item);
+        let name = pc.consume_ident(self)?;
+
+        let fields = pc
+            .consume_optional(Rule::fields_block)
+            .map(|token| {
+                let pairs = token.into_inner();
+                let mut field_list = vec![];
+                for field in pairs {
+                    match field.as_rule() {
+                        Rule::field_definition => {
+                            field_list
+                                .push(ast::StructItem::Field(self.parse_field_definition(field)?));
+                        }
+                        Rule::field_insertion => {
+                            let ident = self.descend(field).consume_ident(self)?;
+                            field_list.push(ast::StructItem::StructRef(ident));
+                        }
+                        _ => {
+                            return Err(ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("invalid token in command definition"),
+                                Some(self.to_ast_span(field.as_span())?),
+                            ));
+                        }
+                    }
+                }
+                Ok(field_list)
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        let token = pc.consume_of_type(Rule::get_key_block)?;
+        let get_key = self.parse_statement_list(token.into_inner())?;
+
+        Ok(ast::BaseCommandDefinition {
+            name,
+            fields,
+            get_key,
             span,
         })
     }
@@ -1495,13 +1760,13 @@ impl ChunkParser<'_> {
             Rule::function_decl | Rule::finish_function_decl
         ));
 
-        let pc = descend(item);
-        let identifier = pc.consume_ident(self)?;
+        let pc = self.descend(item);
+        let name = pc.consume_ident(self)?;
 
         let token = pc.consume_of_type(Rule::function_arguments)?;
-        let mut arguments = vec![];
+        let mut parameters = vec![];
         for field in token.into_inner() {
-            arguments.push(self.parse_field_definition(field)?);
+            parameters.push(self.parse_parameter(field)?);
         }
 
         let return_type = if rule == Rule::function_decl {
@@ -1511,8 +1776,8 @@ impl ChunkParser<'_> {
         };
 
         Ok(ast::FunctionDecl {
-            identifier,
-            arguments,
+            name,
+            parameters,
             return_type,
         })
     }
@@ -1522,20 +1787,20 @@ impl ChunkParser<'_> {
         item: Pair<'_, Rule>,
     ) -> Result<ast::FunctionDefinition, ParseError> {
         let span = self.to_ast_span(item.as_span())?;
-        let pc = descend(item);
+        let pc = self.descend(item);
 
         let decl = pc.consume()?;
         let decl = self.parse_function_decl(decl)?;
         let return_type = decl.return_type.expect("impossible function definition");
 
         // All remaining tokens are function statements
-        let statements = self.parse_statement_list(pc.into_inner())?;
+        let body = self.parse_statement_list(pc.into_inner())?;
 
         Ok(ast::FunctionDefinition {
-            identifier: decl.identifier,
-            arguments: decl.arguments,
+            name: decl.name,
+            parameters: decl.parameters,
             return_type,
-            statements,
+            body,
             span,
         })
     }
@@ -1546,18 +1811,18 @@ impl ChunkParser<'_> {
         item: Pair<'_, Rule>,
     ) -> Result<ast::FinishFunctionDefinition, ParseError> {
         let span = self.to_ast_span(item.as_span())?;
-        let pc = descend(item);
+        let pc = self.descend(item);
 
         let decl = pc.consume()?;
         let decl = self.parse_function_decl(decl)?;
 
         // All remaining tokens are function statements
-        let statements = self.parse_statement_list(pc.into_inner())?;
+        let body = self.parse_statement_list(pc.into_inner())?;
 
         Ok(ast::FinishFunctionDefinition {
-            identifier: decl.identifier,
-            arguments: decl.arguments,
-            statements,
+            name: decl.name,
+            parameters: decl.parameters,
+            body,
             span,
         })
     }
@@ -1568,15 +1833,34 @@ impl ChunkParser<'_> {
         item: Pair<'_, Rule>,
     ) -> Result<ast::GlobalLetStatement, ParseError> {
         let span = self.to_ast_span(item.as_span())?;
-        let pc = descend(item);
-        let identifier = pc.consume_ident(self)?;
-        let expression = pc.consume_expression(self)?;
+        let pc = self.descend(item);
+        let name = pc.consume_ident(self)?;
+        let value = pc.consume_expression(self)?;
 
-        Ok(ast::GlobalLetStatement {
-            identifier,
-            expression,
+        Ok(ast::GlobalLetStatement { name, value, span })
+    }
+
+    /// Helper function which consumes and returns an iterator over the
+    /// children of a token. Makes the parsing process a little more
+    /// self-documenting.
+    fn descend<'this, 'i>(&'this self, p: Pair<'i, Rule>) -> PairContext<'i, 'this> {
+        let span = p.as_span();
+        PairContext {
+            pairs: RefCell::new(p.into_inner()),
             span,
-        })
+            to_ast_span: Box::new(|span| self.to_ast_span(span)),
+        }
+    }
+
+    /// Helper function which consumes and returns an iterator over
+    /// a single token, rather than descending.
+    fn remain<'this, 'i>(&'this self, p: Pair<'i, Rule>) -> PairContext<'i, 'this> {
+        let span = p.as_span();
+        PairContext {
+            pairs: RefCell::new(Pairs::single(p)),
+            span,
+            to_ast_span: Box::new(|span| self.to_ast_span(span)),
+        }
     }
 }
 
@@ -1603,51 +1887,6 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
     Ok(policy)
 }
 
-/// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
-/// in the source text.
-fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
-    let pos = match &mut e.location {
-        InputLocation::Pos(p) => {
-            *p = match p.checked_add(offset).assume("p + offset must not wrap") {
-                Ok(n) => n,
-                Err(bug) => return bug.into(),
-            };
-            *p
-        }
-        InputLocation::Span((s, e)) => {
-            *s = match s.checked_add(offset).assume("s + offset must not wrap") {
-                Ok(n) => n,
-                Err(bug) => return bug.into(),
-            };
-            *e = match e.checked_add(offset).assume("e + offset must not wrap") {
-                Ok(n) => n,
-                Err(bug) => return bug.into(),
-            };
-            *s
-        }
-    };
-
-    let line_col = match Span::new(text, pos, pos) {
-        Some(s) => s.start_pos().line_col(),
-        None => {
-            return ParseError::new(
-                ParseErrorKind::Unknown,
-                "error location error".to_string(),
-                None,
-            );
-        }
-    };
-
-    match &mut e.line_col {
-        LineColLocation::Pos(p) => *p = line_col,
-        // FIXME(chip): I'm not sure if any possible pest error uses the Span case here, so
-        // I am not adjusting the endpoint.
-        LineColLocation::Span(p, _) => *p = line_col,
-    }
-
-    e.into()
-}
-
 /// Parse more data into an existing [ast::Policy] object.
 fn parse_policy_chunk(
     data: &str,
@@ -1655,20 +1894,24 @@ fn parse_policy_chunk(
     start: ChunkOffset,
 ) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
-        return Err(ParseError::new(
-            ParseErrorKind::InvalidVersion {
+        let err = ParseError::new(
+            error::InvalidVersion {
                 found: policy.version.to_string(),
                 required: Version::V2,
             },
-            "please update `policy-version` to 2".to_string(),
+            Version::help_message(),
             None,
-        ));
+        );
+        return Err(err);
     }
-    let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))?;
+    let chunk = PolicyParser::parse(Rule::file, data).map_err(|e| {
+        ParseError::from(e)
+            .with_offset(start.byte)
+            .with_source(policy.text.clone())
+    })?;
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
-    parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.adjust_line_number(start.line))
+    parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.with_source(policy.text.clone()))
 }
 
 fn parse_policy_chunk_inner(
@@ -1685,6 +1928,9 @@ fn parse_policy_chunk_inner(
             Rule::struct_definition => policy.structs.push(p.parse_struct_definition(item)?),
             Rule::enum_definition => policy.enums.push(p.parse_enum_definition(item)?),
             Rule::command_definition => policy.commands.push(p.parse_command_definition(item)?),
+            Rule::base_command_definition => policy
+                .base_commands
+                .push(p.parse_base_command_definition(item)?),
             Rule::function_definition => policy.functions.push(p.parse_function_definition(item)?),
             Rule::finish_function_definition => policy
                 .finish_functions
@@ -1697,7 +1943,7 @@ fn parse_policy_chunk_inner(
                 return Err(ParseError::new(
                     ParseErrorKind::Unknown,
                     format!("Impossible rule: {:?}", item.as_rule()),
-                    Some(item.as_span()),
+                    Some(p.to_ast_span(item.as_span())?),
                 ));
             }
         }
@@ -1707,58 +1953,69 @@ fn parse_policy_chunk_inner(
 }
 
 pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
-    let mut pairs = PolicyParser::parse(Rule::expression, s)?;
+    fn inner(s: &str) -> Result<Expression, ParseError> {
+        let mut pairs = PolicyParser::parse(Rule::complete_expression, s)?;
 
-    let token = pairs.next().assume("has tokens")?;
+        let token = pairs
+            .next()
+            .assume("has tokens")
+            .map_err(|bug| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None))?;
 
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, s.len());
-    p.parse_expression(token)
+        let pratt = get_pratt_parser();
+        let p = ChunkParser::new(0, &pratt, s.len());
+        p.parse_expression(token)
+    }
+
+    inner(s).map_err(|e| e.with_source(s.to_string()))
 }
 
 /// Parse a function or finish function declaration for the FFI
 pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
-    let pratt = get_pratt_parser();
-    let parser = ChunkParser::new(0, &pratt, data.len());
+    fn inner(data: &str) -> Result<ast::FunctionDecl, ParseError> {
+        let pratt = get_pratt_parser();
+        let parser = ChunkParser::new(0, &pratt, data.len());
 
-    let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
-    let decl = def.next().ok_or_else(|| {
-        ParseError::new(
-            ParseErrorKind::Unknown,
-            String::from("Not a function declaration"),
-            None,
-        )
-    })?;
+        let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
+        let decl = def.next().ok_or_else(|| {
+            ParseError::new(
+                ParseErrorKind::Unknown,
+                String::from("Not a function declaration"),
+                None,
+            )
+        })?;
 
-    let rule = decl.as_rule();
+        let rule = decl.as_rule();
 
-    assert!(matches!(
-        rule,
-        Rule::function_decl | Rule::finish_function_decl
-    ));
+        assert!(matches!(
+            rule,
+            Rule::function_decl | Rule::finish_function_decl
+        ));
 
-    let pc = descend(decl.clone());
-    let identifier = pc.consume_ident(&parser)?;
+        let pc = parser.descend(decl.clone());
+        let name = pc.consume_ident(&parser)?;
 
-    let token = pc.consume_of_type(Rule::function_arguments)?;
-    let mut arguments = vec![];
-    for field in token.into_inner() {
-        arguments.push(parser.parse_field_definition(field)?);
+        let token = pc.consume_of_type(Rule::function_arguments)?;
+        let mut parameters = vec![];
+        for field in token.into_inner() {
+            parameters.push(parser.parse_parameter(field)?);
+        }
+
+        let return_type = if rule == Rule::function_decl {
+            Some(pc.consume_type(&parser)?)
+        } else {
+            None
+        };
+
+        let fn_decl = ast::FunctionDecl {
+            name,
+            parameters,
+            return_type,
+        };
+
+        Ok(fn_decl)
     }
 
-    let return_type = if rule == Rule::function_decl {
-        Some(pc.consume_type(&parser)?)
-    } else {
-        None
-    };
-
-    let fn_decl = ast::FunctionDecl {
-        identifier,
-        arguments,
-        return_type,
-    };
-
-    Ok(fn_decl)
+    inner(data).map_err(|e| e.with_source(data.to_string()))
 }
 
 /// A series of Struct or Enum definitions for the FFI
@@ -1770,25 +2027,29 @@ pub struct FfiTypes {
 
 /// Parse a series of type definitions for the FFI
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
-    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, data.len());
-    let mut structs = vec![];
-    let mut enums = vec![];
-    for s in def {
-        match s.as_rule() {
-            Rule::struct_definition => {
-                structs.push(p.parse_struct_definition(s)?);
+    fn inner(data: &str) -> Result<FfiTypes, ParseError> {
+        let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
+        let pratt = get_pratt_parser();
+        let p = ChunkParser::new(0, &pratt, data.len());
+        let mut structs = vec![];
+        let mut enums = vec![];
+        for s in def {
+            match s.as_rule() {
+                Rule::struct_definition => {
+                    structs.push(p.parse_struct_definition(s)?);
+                }
+                Rule::enum_definition => {
+                    enums.push(p.parse_enum_definition(s)?);
+                }
+                Rule::EOI => break,
+                _ => break,
             }
-            Rule::enum_definition => {
-                enums.push(p.parse_enum_definition(s)?);
-            }
-            Rule::EOI => break,
-            _ => break,
         }
+
+        Ok(FfiTypes { structs, enums })
     }
 
-    Ok(FfiTypes { structs, enums })
+    inner(data).map_err(|e| e.with_source(data.to_string()))
 }
 
 /// Creates the default pratt parser ruleset.
@@ -1799,13 +2060,15 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// |----------|----|
 /// | 1        | `.` |
 /// | 2        | `substruct`, `as` (infix) |
-/// | 3        | `!`, `unwrap`, `check_unwrap` |
+/// | 3        | `!` |
 /// | 4        | `%` |
 /// | 5        | `>`, `<`, `>=`, `<=`, `is` |
 /// | 6        | `==`, `!=` |
 /// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 8        | `or` (optional coalescing, right-associative) |
 fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
+        .op(Op::infix(Rule::coalesce, Assoc::Right))
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
         .op(Op::infix(Rule::equal, Assoc::Left) | Op::infix(Rule::not_equal, Assoc::Left))
         .op(Op::infix(Rule::greater_than, Assoc::Left)
@@ -1813,9 +2076,27 @@ fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::greater_than_or_equal, Assoc::Left)
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
-        .op(Op::prefix(Rule::not) | Op::prefix(Rule::unwrap) | Op::prefix(Rule::check_unwrap))
-        .op(Op::infix(Rule::substruct, Assoc::Left) | Op::infix(Rule::cast, Assoc::Left))
-        .op(Op::infix(Rule::dot, Assoc::Left))
+        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
+        .op(Op::prefix(Rule::not))
+        .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
+        .op(Op::postfix(Rule::dot))
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum TypeStyle {
+    Unknown,
+    Old,
+    New,
+}
+
+fn hex_char_to_nibble(ch: u8) -> Option<u8> {
+    #[allow(clippy::arithmetic_side_effects)]
+    Some(match ch {
+        b'0'..=b'9' => ch - b'0',
+        b'a'..=b'f' => ch - b'a' + 10,
+        b'A'..=b'F' => ch - b'A' + 10,
+        _ => return None,
+    })
 }
 
 #[cfg(test)]

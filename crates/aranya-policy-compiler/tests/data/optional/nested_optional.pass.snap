@@ -1,0 +1,40 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 229
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <action 'a'>: 8,
+        <fn 'f'>: 1,
+    },
+    action_defs: [
+        ActionDef {
+            name: "a",
+            persistence: Persistent,
+            params: [],
+            result_type: Unit,
+        },
+    ],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<fn 'f'>:
+    save SP
+    const 1
+    wrap some
+    wrap some
+    restore SP
+    return
+    exit panic
+<action 'a'>:
+    call <fn 'f'>
+    def 'x'
+    return

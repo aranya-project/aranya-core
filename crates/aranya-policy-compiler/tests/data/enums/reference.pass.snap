@@ -1,0 +1,78 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+assertion_line: 229
+expression: module
+---
+Module {
+    version: "1",
+    labels: {
+        <action 'test'>: 1,
+    },
+    action_defs: [
+        ActionDef {
+            name: "test",
+            persistence: Persistent,
+            params: [],
+            result_type: Unit,
+        },
+    ],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [],
+    enum_defs: [
+        EnumDef {
+            name: "Result",
+            variants: [
+                (
+                    "OK",
+                    0,
+                ),
+                (
+                    "Error",
+                    1,
+                ),
+            ],
+        },
+    ],
+    globals: {},
+    ..
+}
+---
+    exit panic
+<action 'test'>:
+    const Result::0
+    def 'ok'
+    get 'ok'
+    const Result::0
+    eq
+    branch 8
+    exit panic
+<8>:
+    get 'ok'
+    const Result::1
+    eq
+    not
+    branch 14
+    exit panic
+<14>:
+    get 'ok'
+    dup
+    const Result::0
+    eq
+    branch 23
+    dup
+    const Result::1
+    eq
+    branch 27
+<23>:
+    block
+    pop
+    end
+    jump 31
+<27>:
+    block
+    pop
+    end
+    jump 31
+<31>:
+    return

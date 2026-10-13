@@ -7,6 +7,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.24.0...aranya-runtime-v0.25.0) - 2026-08-25
+
+### Fixed
+
+- *(runtime)* clear pending fact writes in LinearPerspective::revert ([#760](https://github.com/aranya-project/aranya-core/pull/760))
+- *(runtime)* resume mid-segment when a sync response fills ([#752](https://github.com/aranya-project/aranya-core/pull/752))
+
+### Other
+
+- Address GenerateGraph review nits from #743 ([#763](https://github.com/aranya-project/aranya-core/pull/763))
+- update crypto dependencies ([#762](https://github.com/aranya-project/aranya-core/pull/762))
+- Fact db convergence ([#743](https://github.com/aranya-project/aranya-core/pull/743))
+- 707 remove unwrap ([#736](https://github.com/aranya-project/aranya-core/pull/736))
+- Optimize fsync ([#717](https://github.com/aranya-project/aranya-core/pull/717))
+- general bug! cleanup ([#747](https://github.com/aranya-project/aranya-core/pull/747))
+- Remove vm span dependency ([#726](https://github.com/aranya-project/aranya-core/pull/726))
+- derive max cut from parents always ([#742](https://github.com/aranya-project/aranya-core/pull/742))
+- Lazy merges ([#716](https://github.com/aranya-project/aranya-core/pull/716))
+- validate enum value on deserialization ([#748](https://github.com/aranya-project/aranya-core/pull/748))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- resolve two dos bugs ([#739](https://github.com/aranya-project/aranya-core/pull/739))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+- use alloc collections to remove limit ([#720](https://github.com/aranya-project/aranya-core/pull/720))
+
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.23.0...aranya-runtime-v0.24.0) - 2026-07-09
+
+### Other
+
+- fix convergence map braid drop ([#722](https://github.com/aranya-project/aranya-core/pull/722))
+- Close #648: Invoke recall blocks directly from policy, without roundtrip to runtime. ([#700](https://github.com/aranya-project/aranya-core/pull/700))
+- fix prior fact index skipping bug ([#713](https://github.com/aranya-project/aranya-core/pull/713))
+- improve skip list and find-needed-segments traversal ([#699](https://github.com/aranya-project/aranya-core/pull/699))
+- add hello-sync DSL and refine GenerateGraph schema ([#698](https://github.com/aranya-project/aranya-core/pull/698))
+- rkyv support changes ([#691](https://github.com/aranya-project/aranya-core/pull/691))
+
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.22.0...aranya-runtime-v0.23.0) - 2026-05-22
+
+### Other
+
+- Braid convergence ([#653](https://github.com/aranya-project/aranya-core/pull/653))
+- make error enums nonexhaustive ([#689](https://github.com/aranya-project/aranya-core/pull/689))
+- breaking changes for rkyv support with u64 ([#688](https://github.com/aranya-project/aranya-core/pull/688))
+- simplify ancestor checks and improve peer cache ([#594](https://github.com/aranya-project/aranya-core/pull/594))
+- 641 multiple recalls ([#642](https://github.com/aranya-project/aranya-core/pull/642))
+- hide wire format ([#675](https://github.com/aranya-project/aranya-core/pull/675))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+- reuse segments when finding LCA ([#663](https://github.com/aranya-project/aranya-core/pull/663))
+- forward `StorageProvider` and `PolicyStore` impls ([#659](https://github.com/aranya-project/aranya-core/pull/659))
+
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.21.0...aranya-runtime-v0.22.0) - 2026-03-31
+
+### Other
+
+- Find needed segments improvements ([#609](https://github.com/aranya-project/aranya-core/pull/609))
+- Change QUIC syncer to TCP syncer ([#629](https://github.com/aranya-project/aranya-core/pull/629))
+
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.20.0...aranya-runtime-v0.21.0) - 2026-03-17
+
+### Other
+
+- bind session commands to graph ([#615](https://github.com/aranya-project/aranya-core/pull/615))
+- remove unnecessary session command fields ([#614](https://github.com/aranya-project/aranya-core/pull/614))
+  - fix multi-comand ephemeral actions ([#616](https://github.com/aranya-project/aranya-core/pull/616))
+- pass traversal buffers to each method ([#596](https://github.com/aranya-project/aranya-core/pull/596))
+- remove traversal buffers from storage commit and prevent concurrent transactions ([#585](https://github.com/aranya-project/aranya-core/pull/585))
+- split off `ConstValue` and move `Value` to the vm ([#584](https://github.com/aranya-project/aranya-core/pull/584))
+- remove `many_clients` dsl test ([#586](https://github.com/aranya-project/aranya-core/pull/586))
+- Cache visited segments ([#522](https://github.com/aranya-project/aranya-core/pull/522))
+- remove `MemStorage` in favor of linear storage ([#567](https://github.com/aranya-project/aranya-core/pull/567))
+- *(storage)* remove old unused tests ([#575](https://github.com/aranya-project/aranya-core/pull/575))
+
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.19.0...aranya-runtime-v0.20.0) - 2026-02-17
+
+### Other
+
+- use shared rng and make engine shared ([#563](https://github.com/aranya-project/aranya-core/pull/563))
+- switch command index to max cut in `Location` ([#552](https://github.com/aranya-project/aranya-core/pull/552))
+- remove refcell usage for MachineIO ([#558](https://github.com/aranya-project/aranya-core/pull/558))
+
+## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.18.0...aranya-runtime-v0.19.0) - 2026-01-23
+
+### Other
+
+- rename `storage_id` to `graph_id` ([#546](https://github.com/aranya-project/aranya-core/pull/546))
+- add graph ID to more of protocol ([#543](https://github.com/aranya-project/aranya-core/pull/543))
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+- remove server address from protocol ([#541](https://github.com/aranya-project/aranya-core/pull/541))
+- rename policy engine to policy store ([#519](https://github.com/aranya-project/aranya-core/pull/519))
+
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.17.0...aranya-runtime-v0.18.0) - 2026-01-06
+
+### Other
+
+- Give a trace error when the action is not found ([#516](https://github.com/aranya-project/aranya-core/pull/516))
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.16.1...aranya-runtime-v0.17.0) - 2025-12-11
+
+### Other
+
+- 473 sync failures ([#511](https://github.com/aranya-project/aranya-core/pull/511))
+- Low mem ([#491](https://github.com/aranya-project/aranya-core/pull/491))
+
+## [0.16.1](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.16.0...aranya-runtime-v0.16.1) - 2025-11-12
+
+### Other
+
+- updated the following local packages: aranya-policy-vm
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.15.0...aranya-runtime-v0.16.0) - 2025-11-05
+
+### Other
+
+- Change hello subscription to use Duration types and add schedule_delay ([#461](https://github.com/aranya-project/aranya-core/pull/461))
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+- Close #420: Replace infix arithmetic operators with checked and saturating internal functions. ([#435](https://github.com/aranya-project/aranya-core/pull/435))
+- require command priority ([#354](https://github.com/aranya-project/aranya-core/pull/354))
+
 ## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.14.0...aranya-runtime-v0.15.0) - 2025-10-16
 
 ### Other

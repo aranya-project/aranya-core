@@ -1,0 +1,5 @@
+struct Fum { b struct Bar }
+struct Bar { f struct Fum } // cycle
+
+struct Job { t struct Task }
+struct Task { j struct Job } // cycle

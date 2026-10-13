@@ -1,0 +1,4 @@
+struct Foo { a int, b string }
+function convert() struct Foo {
+    return Foo { a: 1, b: "test" } as Foo
+}

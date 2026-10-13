@@ -10,7 +10,7 @@ mod meta;
 
 pub use meta::*;
 
-use crate::{Label, data::Value};
+use crate::{Label, data::ConstValue};
 
 /// Reason for ending execution.
 #[must_use]
@@ -30,7 +30,7 @@ pub enum ExitReason {
     Normal,
     /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
     Yield,
-    /// Execution was aborted gracefully, due an error.
+    /// Execution was aborted gracefully, due to an error. If the command had a recall block, it was already executed inline before this exit.
     Check,
     /// Execution was aborted due to an unhandled error.
     Panic,
@@ -93,6 +93,38 @@ impl Display for Target {
     }
 }
 
+/// Type of `Value` wrapping
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub enum WrapType {
+    /// Wrap in Result::Ok
+    Ok,
+    /// Wrap in Result::Err
+    Err,
+    /// Wrap in Option::Some
+    Some,
+}
+
+impl Display for WrapType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ok => f.write_str("ok"),
+            Self::Err => f.write_str("err"),
+            Self::Some => f.write_str("some"),
+        }
+    }
+}
+
 /// The machine instruction types
 #[derive(
     Debug,
@@ -108,7 +140,9 @@ impl Display for Target {
 pub enum Instruction {
     // data
     /// Push a value onto the stack
-    Const(Value),
+    Const(ConstValue),
+    /// Push an identifier onto the stack
+    Identifier(Identifier),
     /// Define a local value by name
     Def(Identifier),
     /// Get a local value by name
@@ -126,12 +160,10 @@ pub enum Instruction {
     Jump(Target),
     /// Jump if top of stack is true
     Branch(Target),
-    /// Jump to the beginning of the block
-    Next,
-    /// Jump to the end of the block
-    Last,
     /// Call regular function at target
     Call(Target),
+    /// Invoke the named recall block
+    Recall(Target),
     /// Call external function (FFI), specified by module, procedure indices. The FFI modules should be added to the MachineIO.
     ExtCall(usize, usize),
     /// Return to the last address on the control flow stack
@@ -175,6 +207,12 @@ pub enum Instruction {
     MStructGet(NonZeroUsize),
     /// Cast previous stack value to given type
     Cast(Identifier),
+    /// Wrap the value on top of the stack in Some, Ok, or Err, depending on wrap type.
+    Wrap(WrapType),
+    /// Check if the value on top of the stack is the given wrap type (pushes bool).
+    Is(WrapType),
+    /// Unwrap the inner value from a Result (Ok or Err). Will eventually support Optional (Some) as well.
+    Unwrap(WrapType),
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -194,10 +232,10 @@ pub enum Instruction {
     QueryStart,
     /// Fetches the next result, and pushes it onto the stack
     QueryNext(Identifier),
-    /// Serialize a command struct
-    Serialize,
-    /// Deserialize a command struct
-    Deserialize,
+    /// Save the stack depth for later restoration.
+    SaveSP,
+    /// Restore the stack depth.
+    RestoreSP,
     /// Metadata for tracing
     Meta(Meta),
 }
@@ -206,17 +244,17 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Const(v) => write!(f, "const {v}"),
-            Self::Def(ident) => write!(f, "def {ident}"),
-            Self::Get(ident) => write!(f, "get {ident}"),
+            Self::Identifier(ident) => write!(f, "ident '{ident}'"),
+            Self::Def(ident) => write!(f, "def '{ident}'"),
+            Self::Get(ident) => write!(f, "get '{ident}'"),
             Self::Dup => write!(f, "dup"),
             Self::Pop => write!(f, "pop"),
             Self::Block => write!(f, "block"),
             Self::End => write!(f, "end"),
             Self::Jump(t) => write!(f, "jump {t}"),
             Self::Branch(t) => write!(f, "branch {t}"),
-            Self::Next => write!(f, "next"),
-            Self::Last => write!(f, "last"),
             Self::Call(t) => write!(f, "call {t}"),
+            Self::Recall(t) => write!(f, "recall {t}"),
             Self::ExtCall(module, proc) => write!(f, "extcall {module} {proc}"),
             Self::Return => write!(f, "return"),
             Self::Exit(reason) => write!(f, "exit {reason}"),
@@ -228,14 +266,18 @@ impl Display for Instruction {
             Self::Gt => write!(f, "gt"),
             Self::Lt => write!(f, "lt"),
             Self::Eq => write!(f, "eq"),
-            Self::FactNew(ident) => write!(f, "fact.new {ident}"),
-            Self::FactKeySet(ident) => write!(f, "fact.kset {ident}"),
-            Self::FactValueSet(ident) => write!(f, "fact.vset {ident}"),
-            Self::StructNew(ident) => write!(f, "struct.new {ident}"),
-            Self::StructSet(ident) => write!(f, "struct.set {ident}"),
-            Self::StructGet(ident) => write!(f, "struct.get {ident}"),
+            Self::FactNew(ident) => write!(f, "fact.new '{ident}'"),
+            Self::FactKeySet(ident) => write!(f, "fact.kset '{ident}'"),
+            Self::FactValueSet(ident) => write!(f, "fact.vset '{ident}'"),
+            Self::StructNew(ident) => write!(f, "struct.new '{ident}'"),
+            Self::StructSet(ident) => write!(f, "struct.set '{ident}'"),
+            Self::StructGet(ident) => write!(f, "struct.get '{ident}'"),
             Self::MStructGet(n) => write!(f, "mstruct.get {n}"),
             Self::MStructSet(n) => write!(f, "mstruct.set {n}"),
+            Self::Cast(ident) => write!(f, "cast '{ident}'"),
+            Self::Wrap(wrap_type) => write!(f, "wrap {wrap_type}"),
+            Self::Is(wrap_type) => write!(f, "is {wrap_type}"),
+            Self::Unwrap(wrap_type) => write!(f, "unwrap {wrap_type}"),
             Self::Publish => write!(f, "publish"),
             Self::Create => write!(f, "create"),
             Self::Delete => write!(f, "delete"),
@@ -244,11 +286,10 @@ impl Display for Instruction {
             Self::Query => write!(f, "query"),
             Self::FactCount(limit) => write!(f, "fact.count {limit}"),
             Self::QueryStart => write!(f, "query.start"),
-            Self::QueryNext(ident) => write!(f, "query.next {ident}"),
-            Self::Serialize => write!(f, "serialize"),
-            Self::Deserialize => write!(f, "deserialize"),
+            Self::QueryNext(ident) => write!(f, "query.next '{ident}'"),
+            Self::SaveSP => write!(f, "save SP"),
+            Self::RestoreSP => write!(f, "restore SP"),
             Self::Meta(m) => write!(f, "meta: {m}"),
-            Self::Cast(identifier) => write!(f, "cast {identifier}"),
         }
     }
 }

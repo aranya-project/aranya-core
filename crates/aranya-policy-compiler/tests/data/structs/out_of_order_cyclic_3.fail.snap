@@ -1,0 +1,10 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: cycle found: [Co, Bar]
+  |
+1 | effect Bar { s struct Co }
+  |        ---
+2 | command Co {
+  |         --

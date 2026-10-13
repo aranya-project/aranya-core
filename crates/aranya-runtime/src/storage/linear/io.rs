@@ -6,9 +6,17 @@
 //! example, accidentally running two instances of the program will cause
 //! issues.
 
-use serde::{Serialize, de::DeserializeOwned};
+use alloc::vec::Vec;
+use core::ops::Deref;
 
-use crate::{GraphId, Location, StorageError};
+use rkyv::{Archive, bytecheck::CheckBytes};
+use stable_deref_trait::StableDeref;
+use yoke::Yoke;
+
+use crate::{
+    GraphId, StorageError,
+    storage::{HeadSet, HeadSetOffset},
+};
 
 /// IO manager for creating and opening writers for a graph.
 pub trait IoManager {
@@ -24,6 +32,23 @@ pub trait IoManager {
     -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
+/// File offset of the committed fact cache (a merged fact index written via
+/// [`Write::append`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FactCacheOffset(u64);
+
+impl FactCacheOffset {
+    /// Wraps a raw offset produced by [`Write::append`].
+    pub fn new(offset: u64) -> Self {
+        Self(offset)
+    }
+
+    /// The raw file offset.
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
+
 /// Exclusive writer for a linear storage graph.
 pub trait Write {
     /// A `Read`er for this writer's shared data.
@@ -31,25 +56,125 @@ pub trait Write {
     /// Get a [`Read`]er for this writer's shared data.
     fn readonly(&self) -> Self::ReadOnly;
 
-    /// Get the commit head.
-    fn head(&self) -> Result<Location, StorageError>;
+    /// Get the committed head set.
+    fn heads(&self) -> Result<HeadSet, StorageError>;
+
+    /// Get the stamp of the committed head set. Must change on every
+    /// [`commit`](Self::commit).
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError>;
+
+    /// Get the file offset of the cached merged fact index.
+    fn fact_cache(&self) -> Result<FactCacheOffset, StorageError>;
 
     /// Append an item (e.g. segment or fact-index) onto the writer.
     ///
     /// A function is used to allow the item to contain its offset.
-    fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
+    fn append<F, T>(
+        &mut self,
+        builder: F,
+    ) -> Result<<Self::ReadOnly as Read>::Handle<T>, StorageError>
     where
-        F: FnOnce(usize) -> T,
-        T: Serialize;
+        F: FnOnce(u64) -> T,
+        T: Writable + Readable;
 
-    /// Set the commit head.
-    fn commit(&mut self, head: Location) -> Result<(), StorageError>;
+    /// Commit the head set and fact-cache offset atomically.
+    fn commit(&mut self, heads: &HeadSet, fact_cache: FactCacheOffset) -> Result<(), StorageError>;
 }
 
 /// A share-able reader for a linear storage graph.
 pub trait Read: Clone {
+    type Handle<T: Readable>: Deref<Target = T::Archived>;
+
     /// Fetch an item written by `Write::append`.
-    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
+    fn fetch<T: Readable>(&self, offset: u64) -> Result<Self::Handle<T>, StorageError>;
+}
+
+// pub(super) for tests
+pub(super) mod private {
+    pub trait Sealed {}
+}
+
+impl private::Sealed for HeadSet {}
+impl private::Sealed for super::SegmentRepr {}
+impl private::Sealed for super::FactIndexRepr {}
+
+pub trait Writable: private::Sealed {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
     where
-        T: DeserializeOwned;
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>;
+
+    fn to_bytes(&self) -> Result<Vec<u8>, StorageError> {
+        self.to_writer(Vec::new())
+    }
+
+    fn to_slice(&self, buf: &mut [u8]) -> Result<usize, StorageError> {
+        self.to_writer(rkyv::ser::writer::Buffer::from(buf))
+            .map(|b| b.len())
+    }
+}
+
+impl Writable for HeadSet {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+    where
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+    {
+        rkyv::api::high::to_bytes_in(self, writer)
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+    }
+}
+
+impl Writable for super::SegmentRepr {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+    where
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+    {
+        rkyv::api::high::to_bytes_in(self, writer)
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+    }
+}
+
+impl Writable for super::FactIndexRepr {
+    fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+    where
+        W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+    {
+        rkyv::api::high::to_bytes_in(self, writer)
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+    }
+}
+
+/// A type that can be read from archived bytes.
+///
+/// This is just a convenience over using
+/// `Archive<Archived: for<'a> CheckBytes<HighValidator<'a, Error>>> + 'static`
+pub trait Readable: private::Sealed + 'static {
+    type Archived;
+
+    /// Read the archived type from the bytes of `cart` and attach it.
+    ///
+    /// The returned [`Yoke`] is static but can accessed `&Self::Archived`.
+    fn yoke<C>(cart: C) -> Result<Yoke<&'static Self::Archived, C>, StorageError>
+    where
+        C: StableDeref<Target = [u8]>;
+}
+
+impl<T> Readable for T
+where
+    T: private::Sealed,
+    T: Archive + 'static,
+    T::Archived: for<'a> CheckBytes<rkyv::api::high::HighValidator<'a, rkyv::rancor::Error>>,
+{
+    type Archived = <Self as Archive>::Archived;
+
+    fn yoke<C>(cart: C) -> Result<Yoke<&'static Self::Archived, C>, StorageError>
+    where
+        C: StableDeref<Target = [u8]>,
+    {
+        Yoke::try_attach_to_cart(cart, |bytes| {
+            rkyv::access::<T::Archived, rkyv::rancor::Error>(bytes).map_err(|err| {
+                tracing::error!(?err, "rkyv access");
+                StorageError::IoError
+            })
+        })
+    }
 }

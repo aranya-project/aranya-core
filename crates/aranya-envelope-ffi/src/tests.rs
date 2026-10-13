@@ -8,51 +8,41 @@ use core::iter;
 use aranya_crypto::{
     BaseId, Csprng, DeviceId, Random, Rng, default::DefaultEngine, id::IdExt as _, policy::CmdId,
 };
-use aranya_policy_vm::{CommandContext, OpenContext, PolicyContext, SealContext, ident};
+use aranya_policy_vm::{CommandContext, PolicyContext, ident};
 
 use crate::{Envelope, Ffi};
 
 type E = DefaultEngine<Rng>;
 
 /// Returns a random number in [0, max).
-fn intn<R: Csprng>(rng: &mut R, max: usize) -> usize {
+fn intn<R: Csprng>(rng: R, max: usize) -> usize {
     if max.is_power_of_two() {
-        return usize::random(rng) & (max - 1);
+        return usize::random(&rng) & (max - 1);
     }
     loop {
-        let v = usize::random(rng);
+        let v = usize::random(&rng);
         if v <= max {
             return v;
         }
     }
 }
-fn rand_vec<R: Csprng>(rng: &mut R, max: usize) -> Vec<u8> {
-    let n = intn(rng, max);
+fn rand_vec<R: Csprng>(rng: R, max: usize) -> Vec<u8> {
+    let n = intn(&rng, max);
     let mut data = vec![0u8; n];
     rng.fill_bytes(&mut data);
     data
 }
 
 impl Random for Envelope {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: R) -> Self {
         Self {
-            parent_id: BaseId::random(rng),
-            command_id: BaseId::random(rng),
-            author_id: BaseId::random(rng),
-            payload: rand_vec(rng, 4096),
-            signature: rand_vec(rng, 4096),
+            parent_id: BaseId::random(&rng),
+            command_id: BaseId::random(&rng),
+            author_id: BaseId::random(&rng),
+            signature: rand_vec(&rng, 4096),
         }
     }
 }
-
-const SEAL_CTX: &CommandContext = &CommandContext::Seal(SealContext {
-    name: ident!("dummy"),
-    head_id: CmdId::default(),
-});
-
-const OPEN_CTX: &CommandContext = &CommandContext::Open(OpenContext {
-    name: ident!("dummy"),
-});
 
 const POLICY_CTX: &CommandContext = &CommandContext::Policy(PolicyContext {
     name: ident!("dummy"),
@@ -70,14 +60,12 @@ const RECALL_CTX: &CommandContext = &CommandContext::Recall(PolicyContext {
 
 #[test]
 fn test_author_id() {
-    let (mut eng, _) = E::from_entropy(Rng);
-    let env = Envelope::random(&mut Rng);
+    let (eng, _) = E::from_entropy(Rng);
+    let env = Envelope::random(Rng);
     let got = [
-        Ffi.author_id(OPEN_CTX, &mut eng, env.clone())
+        Ffi.author_id(POLICY_CTX, &eng, env.clone())
             .expect("should not fail"),
-        Ffi.author_id(POLICY_CTX, &mut eng, env.clone())
-            .expect("should not fail"),
-        Ffi.author_id(RECALL_CTX, &mut eng, env.clone())
+        Ffi.author_id(RECALL_CTX, &eng, env.clone())
             .expect("should not fail"),
     ];
     for (got, want) in got.into_iter().zip(iter::repeat(env.author_id)) {
@@ -87,14 +75,12 @@ fn test_author_id() {
 
 #[test]
 fn test_command_id() {
-    let (mut eng, _) = E::from_entropy(Rng);
-    let env = Envelope::random(&mut Rng);
+    let (eng, _) = E::from_entropy(Rng);
+    let env = Envelope::random(Rng);
     let got = [
-        Ffi.command_id(OPEN_CTX, &mut eng, env.clone())
+        Ffi.command_id(POLICY_CTX, &eng, env.clone())
             .expect("should not fail"),
-        Ffi.command_id(POLICY_CTX, &mut eng, env.clone())
-            .expect("should not fail"),
-        Ffi.command_id(RECALL_CTX, &mut eng, env.clone())
+        Ffi.command_id(RECALL_CTX, &eng, env.clone())
             .expect("should not fail"),
     ];
     for (got, want) in got.into_iter().zip(iter::repeat(env.command_id)) {
@@ -104,52 +90,15 @@ fn test_command_id() {
 
 #[test]
 fn test_signature() {
-    let (mut eng, _) = E::from_entropy(Rng);
-    let env = Envelope::random(&mut Rng);
+    let (eng, _) = E::from_entropy(Rng);
+    let env = Envelope::random(Rng);
     let got = [
-        Ffi.signature(OPEN_CTX, &mut eng, env.clone())
+        Ffi.signature(POLICY_CTX, &eng, env.clone())
             .expect("should not fail"),
-        Ffi.signature(POLICY_CTX, &mut eng, env.clone())
-            .expect("should not fail"),
-        Ffi.signature(RECALL_CTX, &mut eng, env.clone())
+        Ffi.signature(RECALL_CTX, &eng, env.clone())
             .expect("should not fail"),
     ];
     for (got, want) in got.into_iter().zip(iter::repeat(env.signature)) {
         assert_eq!(got, want);
     }
-}
-
-#[test]
-fn test_payload() {
-    let (mut eng, _) = E::from_entropy(Rng);
-    let env = Envelope::random(&mut Rng);
-    let got = [
-        Ffi.payload(OPEN_CTX, &mut eng, env.clone())
-            .expect("should not fail"),
-        Ffi.payload(POLICY_CTX, &mut eng, env.clone())
-            .expect("should not fail"),
-        Ffi.payload(RECALL_CTX, &mut eng, env.clone())
-            .expect("should not fail"),
-    ];
-    for (got, want) in got.into_iter().zip(iter::repeat(env.payload)) {
-        assert_eq!(got, want);
-    }
-}
-
-#[test]
-fn test_new_envelope() {
-    let (mut eng, _) = E::from_entropy(Rng);
-    let env = Envelope::random(&mut Rng);
-    let got = Ffi
-        .new_envelope(
-            SEAL_CTX,
-            &mut eng,
-            CmdId::from_base(env.parent_id),
-            DeviceId::from_base(env.author_id),
-            CmdId::from_base(env.command_id),
-            env.signature.clone(),
-            env.payload.clone(),
-        )
-        .expect("should not fail");
-    assert_eq!(got, env);
 }

@@ -2,15 +2,21 @@
 
 extern crate alloc;
 
+mod contract;
+mod io;
+pub mod v1;
+
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{self as ast, Identifier};
+pub use contract::*;
+pub use io::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CodeMap, Instruction, Label, Value,
-    named::{NamedMap, named},
+    CodeMap, ConstValue, Field, Instruction, Label, Persistence, TypeKind,
+    automap::autokey_by_name, interface,
 };
 
 /// Identifies a [`Module`].
@@ -18,6 +24,8 @@ use crate::{
 pub enum Version {
     /// Version 0.
     V0,
+    /// Version 1.
+    V1,
 }
 
 impl Version {
@@ -25,6 +33,24 @@ impl Version {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::V0 => "V0",
+            Self::V1 => "V1",
+        }
+    }
+
+    /// Convert this version into a u32
+    pub const fn to_u32(&self) -> u32 {
+        match self {
+            Self::V0 => 0,
+            Self::V1 => 1,
+        }
+    }
+
+    /// Convert a u32 into a version, if the u32 describes a valid version
+    pub const fn try_from_u32(v: u32) -> Option<Self> {
+        match v {
+            0 => Some(Self::V0),
+            1 => Some(Self::V1),
+            _ => None,
         }
     }
 }
@@ -64,6 +90,7 @@ impl Module {
     pub const fn version(&self) -> Version {
         match self.data {
             ModuleData::V0(_) => Version::V0,
+            ModuleData::V1(_) => Version::V1,
         }
     }
 }
@@ -84,6 +111,8 @@ impl Module {
 pub enum ModuleData {
     /// Version 0
     V0(ModuleV0),
+    /// Version 1
+    V1(ModuleV1),
 }
 
 /// The Version 0 module format
@@ -105,19 +134,55 @@ pub struct ModuleV0 {
     /// Labels
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: NamedMap<ActionDef>,
+    pub action_defs: Vec<ActionDef>,
     /// Command definitions
-    pub command_defs: NamedMap<CommandDef>,
+    pub command_defs: Vec<CommandDef>,
     /// Fact definitions
-    pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
+    pub fact_defs: Vec<FactDef>,
     /// Struct definitions
-    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
+    pub struct_defs: Vec<StructDef>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
+    pub enum_defs: Vec<EnumDef>,
     /// Code map
     pub codemap: Option<CodeMap>,
     /// Global static data
-    pub globals: BTreeMap<Identifier, Value>,
+    pub globals: BTreeMap<Identifier, ConstValue>,
+}
+
+/// The Version 1 module format
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleV1 {
+    /// Program code and execution information
+    pub program: v1::Program,
+    /// Metadata defininit the capabilities and expectations of the module
+    pub contract: v1::Contract,
+}
+
+impl From<ModuleV1> for ModuleV0 {
+    fn from(value: ModuleV1) -> Self {
+        Self {
+            progmem: value.program.progmem,
+            labels: value.program.labels,
+            action_defs: value.contract.actions,
+            command_defs: value.contract.commands,
+            fact_defs: value.contract.facts,
+            struct_defs: value.contract.structs,
+            enum_defs: value.contract.enums,
+            codemap: value.program.codemap,
+            globals: value.program.globals,
+        }
+    }
 }
 
 /// An action definition.
@@ -134,33 +199,35 @@ pub struct ModuleV0 {
 )]
 pub struct ActionDef {
     /// The name of the action.
-    pub name: ast::Ident,
+    pub name: Identifier,
     /// The persistence of the action.
-    pub persistence: ast::Persistence,
+    pub persistence: Persistence,
     /// The parameters of the action.
-    pub params: NamedMap<Param>,
+    pub params: Vec<Field>,
+    /// action return type: result or unit
+    pub result_type: TypeKind,
 }
-named!(ActionDef);
 
-/// An action or function parameter.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub struct Param {
-    /// The name of the parameter.
-    pub name: ast::Ident,
-    /// The type of the parameter.
-    pub ty: ast::VType,
+autokey_by_name!(ActionDef);
+
+impl ActionDef {
+    /// Whether the action is fallible, i.e. it returns a `result[unit, E]`
+    /// value. An infallible action (return type `unit`) returns nothing.
+    pub fn is_fallible(&self) -> bool {
+        !matches!(self.result_type, TypeKind::Unit)
+    }
 }
-named!(Param);
+
+impl From<interface::ActionDefinition> for ActionDef {
+    fn from(value: interface::ActionDefinition) -> Self {
+        Self {
+            name: value.name.inner,
+            persistence: value.persistence.into(),
+            params: value.params.into_iter().map(ast::Param::into).collect(),
+            result_type: value.return_type.inner.into(),
+        }
+    }
+}
 
 /// A command definition.
 #[derive(
@@ -176,15 +243,27 @@ named!(Param);
 )]
 pub struct CommandDef {
     /// The name of the command.
-    pub name: ast::Ident,
+    pub name: Identifier,
     /// The persistence of the command.
-    pub persistence: ast::Persistence,
+    pub persistence: Persistence,
     /// The attributes of the command.
-    pub attributes: NamedMap<Attribute>,
+    pub attributes: Vec<Attribute>,
     /// The fields of the command.
-    pub fields: NamedMap<Field>,
+    pub fields: Vec<Field>,
 }
-named!(CommandDef);
+
+autokey_by_name!(CommandDef);
+
+impl From<interface::CommandDefinition> for CommandDef {
+    fn from(value: interface::CommandDefinition) -> Self {
+        Self {
+            name: value.name.inner,
+            persistence: value.persistence.into(),
+            attributes: value.attributes.into_iter().map(Attribute::from).collect(),
+            fields: value.fields.into_iter().map(Field::from).collect(),
+        }
+    }
+}
 
 /// A command attribute.
 #[derive(
@@ -200,16 +279,24 @@ named!(CommandDef);
 )]
 pub struct Attribute {
     /// The name of the attribute.
-    pub name: ast::Ident,
+    pub name: Identifier,
     /// The value of the attribute.
-    pub value: Value,
+    pub value: ConstValue,
 }
-named!(Attribute);
 
-/// A struct or command field.
+impl From<interface::Attribute> for Attribute {
+    fn from(value: interface::Attribute) -> Self {
+        Self {
+            name: value.name.inner,
+            value: value.value,
+        }
+    }
+}
+
+/// A schema definition for a fact
 #[derive(
-    Clone,
     Debug,
+    Clone,
     Eq,
     PartialEq,
     Serialize,
@@ -218,10 +305,79 @@ named!(Attribute);
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
-pub struct Field {
-    /// The name of the field
-    pub name: ast::Ident,
-    /// The type of the field
-    pub ty: ast::VType,
+
+pub struct FactDef {
+    /// The name of the fact
+    pub name: Identifier,
+    /// Types for all of the key fields
+    pub keys: Vec<Field>,
+    /// Types for all of the value fields
+    pub values: Vec<Field>,
+    /// Is this fact immutable?
+    pub immutable: bool,
 }
-named!(Field);
+
+autokey_by_name!(FactDef);
+
+impl From<ast::FactDefinition> for FactDef {
+    fn from(value: ast::FactDefinition) -> Self {
+        Self {
+            name: value.name.inner,
+            keys: value.keys.into_iter().map(Field::from).collect(),
+            values: value.values.into_iter().map(Field::from).collect(),
+            immutable: value.immutable,
+        }
+    }
+}
+
+/// A schema definition for a struct
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct StructDef {
+    /// The name of the struct
+    pub name: Identifier,
+    /// The fields of the struct and their types
+    pub items: Vec<Field>,
+}
+
+autokey_by_name!(StructDef);
+
+/// A schema definition for an enum
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct EnumDef {
+    /// enum name
+    pub name: Identifier,
+    /// list of possible values
+    pub variants: Vec<(Identifier, i64)>,
+}
+
+autokey_by_name!(EnumDef);
+
+impl EnumDef {
+    /// Get the integer associated with the variant name, if it exists. Otherwise return `None`.
+    pub fn get(&self, name: impl AsRef<str>) -> Option<i64> {
+        self.variants
+            .iter()
+            .find(|(n, _)| *n == name.as_ref())
+            .map(|(_, v)| *v)
+    }
+}

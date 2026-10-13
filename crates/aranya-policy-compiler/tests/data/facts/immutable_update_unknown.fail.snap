@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unknown error
+  |
+6 |             update Foo[i: 1]=>{a: 1} to {a: 0}
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^ fact `Foo` is immutable so it cannot be updated.

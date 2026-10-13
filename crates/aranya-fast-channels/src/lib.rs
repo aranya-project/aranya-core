@@ -24,6 +24,13 @@
 //! [`AranyaState`]. By default, AFC provides a state
 //! implementation backed by shared memory.
 //!
+//! # Notes
+//!
+//! AFC encrypts/seals each message with a deterministic nonce derived from a
+//! base nonce and sequence number. Sequence numbers should not be re-used in a given channel
+//! but it is possible to do so by passing a "new" [`AfcState::SealCtx`] to the seal methods
+//! on [`Client`].
+//!
 //! # Example
 //!
 //! The following example demonstrates two [`Client`]s encrypting
@@ -75,26 +82,26 @@
 //!         .map_err(Error::SharedMem)?
 //! };
 //!
-//! let (mut eng, _) = E::from_entropy(Rng);
+//! let (eng, _) = E::from_entropy(Rng);
 //!
-//! let device1_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let device1_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device1_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let device1_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
-//! let device2_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let device2_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device2_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let device2_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
 //! // The label ID used for encryption and decryption.
-//! let label_id = LabelId::random(&mut Rng);
+//! let label_id = LabelId::random(Rng);
 //!
 //! let ch1 = UniChannel {
-//!     parent_cmd_id: CmdId::random(&mut eng),
+//!     parent_cmd_id: CmdId::random(&eng),
 //!     our_sk: &device1_enc_sk,
 //!     seal_id: device1_id,
 //!     their_pk: &device2_enc_sk.public()?,
 //!     open_id: device2_id,
 //!     label_id,
 //! };
-//! let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &ch1)?;
+//! let UniSecrets { author, peer } = UniSecrets::new(&eng, &ch1)?;
 //!
 //! // Inform device1 about device2.
 //! let seal = UniSealKey::from_author_secret(&ch1, author)?.into_raw_key();
@@ -137,7 +144,10 @@
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
-//!     afc_client_a.seal(client_a_channel_id, &mut dst[..], GOLDEN.as_bytes())?;
+//!
+//!     // Create the ctx to pass in.
+//!     let mut ctx = afc_client_a.setup_seal_ctx(client_a_channel_id)?;
+//!     afc_client_a.seal(&mut ctx, &mut dst[..], GOLDEN.as_bytes())?;
 //!     dst
 //! };
 //!
@@ -147,8 +157,9 @@
 //! // Have device2 decrypt the data from device1.
 //! let (label_from_open, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let (label_id, seq) =
-//!         afc_client_b.open(client_b_channel_id, &mut dst[..], &ciphertext[..])?;
+//!     // Create the ctx to pass in.
+//!     let mut ctx = afc_client_b.setup_open_ctx(client_b_channel_id)?;
+//!     let (label_id, seq) = afc_client_b.open(&mut ctx, &mut dst[..], &ciphertext[..])?;
 //!     (label_id, seq, dst)
 //! };
 //!
@@ -169,15 +180,7 @@
 //! # }
 //! ```
 
-#![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(feature = "allocator_api", feature(allocator_api))]
-#![cfg_attr(
-    feature = "core_intrinsics",
-    allow(internal_features),
-    feature(core_intrinsics)
-)]
-#![cfg_attr(feature = "try_find", feature(try_find))]
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![warn(
     clippy::alloc_instead_of_core,
@@ -194,9 +197,6 @@
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
-
-#[macro_use]
-mod features;
 
 mod buf;
 mod client;

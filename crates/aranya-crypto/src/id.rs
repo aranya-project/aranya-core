@@ -19,7 +19,7 @@ pub trait IdExt: Sized {
     ) -> Self;
 
     /// Creates a random ID.
-    fn random<R: Csprng>(rng: &mut R) -> Self;
+    fn random<R: Csprng>(rng: R) -> Self;
 }
 
 impl<I> IdExt for I
@@ -33,11 +33,11 @@ where
         // id = H("ID-v1" || suites || data || tag)
         CS::tuple_hash(b"ID-v1", data.into_iter().chain(iter::once(tag)))
             .into_array()
-            .into_array()
+            .0
             .into()
     }
 
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: R) -> Self {
         let mut b = [0u8; 32];
         rng.fill_bytes(&mut b);
         b.into()

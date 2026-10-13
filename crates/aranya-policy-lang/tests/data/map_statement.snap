@@ -1,0 +1,78 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [
+        FactDefinition {
+            immutable: false,
+            name: "Foo" @ 5..8,
+            keys: [
+                FieldDefinition {
+                    name: "i" @ 9..10,
+                    vtype: Int @ 11..14,
+                },
+            ],
+            values: [
+                FieldDefinition {
+                    name: "n" @ 18..19,
+                    vtype: Int @ 20..23,
+                },
+            ],
+            span: 0..24,
+        },
+    ],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            name: "foo" @ 32..35,
+            parameters: [],
+            return_type: Unit @ 0..0,
+            body: [
+                Map(
+                    MapStatement {
+                        fact: FactLiteral {
+                            name: "Foo" @ 48..51,
+                            key_fields: [
+                                (
+                                    "i" @ 52..53,
+                                    Expression(
+                                        Int(
+                                            1 @ 54..55,
+                                        ) @ 54..55,
+                                    ),
+                                ),
+                            ],
+                            value_fields: None,
+                        },
+                        identifier: "f" @ 60..61,
+                        body: [
+                            FunctionCall(
+                                FunctionCall {
+                                    name: "process" @ 72..79,
+                                    arguments: [
+                                        Identifier(
+                                            "f" @ 80..81,
+                                        ) @ 80..81,
+                                    ],
+                                },
+                            ) @ 72..82,
+                        ],
+                    },
+                ) @ 44..88,
+            ],
+            span: 25..90,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    base_commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "fact Foo[i int]=>{n int}\naction foo() {\n    map Foo[i:1] as f {\n        process(f)\n    }\n}\n",
+}

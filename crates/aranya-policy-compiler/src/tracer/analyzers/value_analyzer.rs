@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use aranya_policy_ast::Identifier;
-use aranya_policy_module::{Instruction, Meta, ModuleV0};
+use aranya_policy_module::{Instruction, ModuleV0};
 
 use super::{Analyzer, AnalyzerStatus};
 use crate::tracer::TraceError;
@@ -14,16 +14,10 @@ pub struct ValueAnalyzer {
 }
 
 impl ValueAnalyzer {
-    /// `predefined` is a list of words that are understood to have been defined before
-    /// execution starts. Usually used to add things like `this` or global values.
-    pub fn new(
-        globals: impl IntoIterator<Item = Identifier>,
-        predefined: impl IntoIterator<Item = Identifier>,
-    ) -> Self {
-        let initial_set = predefined.into_iter().collect();
+    pub fn new(globals: impl IntoIterator<Item = Identifier>) -> Self {
         Self {
             globals: globals.into_iter().collect(),
-            value_sets: vec![initial_set],
+            value_sets: vec![BTreeSet::new()],
         }
     }
 
@@ -48,21 +42,17 @@ impl Analyzer for ValueAnalyzer {
         _m: &ModuleV0,
     ) -> Result<AnalyzerStatus, TraceError> {
         match i {
-            Instruction::Call(_) => {
+            Instruction::Call(_) | Instruction::Recall(_) => {
                 self.value_sets.push(BTreeSet::new());
             }
             Instruction::Return => {
                 self.value_sets.pop();
             }
-            Instruction::Meta(Meta::Let(s)) => {
-                if !self.insert(s.clone()) {
-                    return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
-                }
+            Instruction::Def(s) if !self.insert(s.clone()) => {
+                return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
             }
-            Instruction::Meta(Meta::Get(s)) => {
-                if !self.contains(s) {
-                    return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
-                }
+            Instruction::Get(s) if !self.contains(s) => {
+                return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is not set")));
             }
             _ => (),
         }

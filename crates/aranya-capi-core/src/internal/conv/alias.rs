@@ -134,7 +134,7 @@ where
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound. `t` is a ref, so the pointer is never null
     // or unaligned.
-    unsafe { &*ptr::from_ref::<T>(t).cast::<U>() }
+    unsafe { ptr::from_ref::<T>(t).cast::<U>().as_ref_unchecked() }
 }
 
 /// Casts `&mut T` to `&mut U`.
@@ -151,7 +151,7 @@ where
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound. `t` is an exclusive ref, so the pointer is
     // never null or unaligned.
-    unsafe { &mut *ptr::from_mut::<T>(t).cast::<U>() }
+    unsafe { ptr::from_mut::<T>(t).cast::<U>().as_mut_unchecked() }
 }
 
 /// Casts `*const T` to `*const U`.
@@ -195,7 +195,7 @@ where
     }
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound.
-    unsafe { &*(ptr::from_ref::<[T]>(t) as *const [U]) }
+    unsafe { (ptr::from_ref::<[T]>(t) as *const [U]).as_ref_unchecked() }
 }
 
 /// Converts `&mut [T]` to `&mut [U]`.
@@ -211,7 +211,7 @@ where
     }
     // SAFETY: `T: Alias<U>`, so the trait implementor ensures
     // this is sound.
-    unsafe { &mut *(ptr::from_mut::<[T]>(t) as *mut [U]) }
+    unsafe { (ptr::from_mut::<[T]>(t) as *mut [U]).as_mut_unchecked() }
 }
 
 #[cfg(test)]

@@ -1,0 +1,58 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            name: "test" @ 7..11,
+            parameters: [],
+            return_type: Unit @ 0..0,
+            body: [
+                Let(
+                    LetStatement {
+                        name: "x" @ 24..25,
+                        value: InternalFunction(
+                            Query(
+                                FactLiteral {
+                                    name: "A" @ 34..35,
+                                    key_fields: [
+                                        (
+                                            "i" @ 36..37,
+                                            Expression(
+                                                Int(
+                                                    1 @ 38..39,
+                                                ) @ 38..39,
+                                            ),
+                                        ),
+                                        (
+                                            "j" @ 41..42,
+                                            Bind(
+                                                43..44,
+                                            ),
+                                        ),
+                                    ],
+                                    value_fields: None,
+                                },
+                            ),
+                        ) @ 28..46,
+                    },
+                ) @ 20..46,
+            ],
+            span: 0..47,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    base_commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "action test() {\n    let x = query A[i:1, j:?]\n}\n",
+}

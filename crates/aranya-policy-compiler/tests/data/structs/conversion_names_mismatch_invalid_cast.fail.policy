@@ -1,0 +1,5 @@
+struct Foo { a int, b string }
+struct Bar { a bool, s string }
+function convert() struct Bar {
+    return Foo { a: 1, b: "test" } as Bar
+}

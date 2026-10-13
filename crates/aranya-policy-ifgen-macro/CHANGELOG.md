@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-macro-v0.7.0...aranya-policy-ifgen-macro-v0.8.0) - 2026-05-22
+
+### Other
+
+- ifgen build flag for import ([#673](https://github.com/aranya-project/aranya-core/pull/673))
+
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-macro-v0.6.0...aranya-policy-ifgen-macro-v0.7.0) - 2026-03-17
+
+### Other
+
+- generate constants for globals ([#593](https://github.com/aranya-project/aranya-core/pull/593))
+
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-macro-v0.4.2...aranya-policy-ifgen-macro-v0.6.0) - 2025-11-05
+
+### Other
+
+- add more effect conversions ([#456](https://github.com/aranya-project/aranya-core/pull/456))
+- actions as structs ([#350](https://github.com/aranya-project/aranya-core/pull/350))
+
 ## [0.4.2](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-macro-v0.4.1...aranya-policy-ifgen-macro-v0.4.2) - 2025-10-16
 
 ### Other

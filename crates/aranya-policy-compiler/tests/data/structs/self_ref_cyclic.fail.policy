@@ -1,0 +1,1 @@
+struct Bar { self_ref struct Bar }

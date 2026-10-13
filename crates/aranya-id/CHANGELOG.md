@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/aranya-project/aranya-core/compare/aranya-id-v0.2.2...aranya-id-v0.3.0) - 2026-08-25
+
+### Other
+
+- update crypto dependencies ([#762](https://github.com/aranya-project/aranya-core/pull/762))
+
+## [0.2.2](https://github.com/aranya-project/aranya-core/compare/aranya-id-v0.2.1...aranya-id-v0.2.2) - 2026-03-17
+
+### Other
+
+- add ID name to debug impl ([#597](https://github.com/aranya-project/aranya-core/pull/597))
+
+## [0.2.1](https://github.com/aranya-project/aranya-core/compare/aranya-id-v0.2.0...aranya-id-v0.2.1) - 2026-01-06
+
+### Other
+
+- update Cargo.toml dependencies
+
+## [0.2.0](https://github.com/aranya-project/aranya-core/compare/aranya-id-v0.1.0...aranya-id-v0.2.0) - 2025-11-05
+
+### Other
+
+- use tagged ID type ([#327](https://github.com/aranya-project/aranya-core/pull/327))
+
 ## [0.1.0](https://github.com/aranya-project/aranya-core/releases/tag/aranya-id-v0.1.0) - 2025-10-16
 
 ### Other

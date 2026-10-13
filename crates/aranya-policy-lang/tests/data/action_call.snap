@@ -1,0 +1,43 @@
+---
+source: crates/aranya-policy-lang/tests/tests.rs
+expression: ast
+---
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [
+        ActionDefinition {
+            persistence: Persistent,
+            name: "ping" @ 7..11,
+            parameters: [],
+            return_type: Unit @ 0..0,
+            body: [],
+            span: 0..16,
+        },
+        ActionDefinition {
+            persistence: Persistent,
+            name: "pong" @ 24..28,
+            parameters: [],
+            return_type: Unit @ 0..0,
+            body: [
+                ActionCall(
+                    FunctionCall {
+                        name: "ping" @ 44..48,
+                        arguments: [],
+                    },
+                ) @ 37..50,
+            ],
+            span: 17..52,
+        },
+    ],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    base_commands: [],
+    functions: [],
+    finish_functions: [],
+    global_lets: [],
+    text: "action ping() {}\naction pong() {\n    action ping()\n}\n",
+}

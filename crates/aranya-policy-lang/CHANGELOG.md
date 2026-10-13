@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.16.0...aranya-policy-lang-v0.17.0) - 2026-08-25
+
+### Other
+
+- 707 remove unwrap ([#736](https://github.com/aranya-project/aranya-core/pull/736))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.15.0...aranya-policy-lang-v0.16.0) - 2026-07-09
+
+### Other
+
+- add unit type ([#669](https://github.com/aranya-project/aranya-core/pull/669))
+
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.14.1...aranya-policy-lang-v0.15.0) - 2026-05-22
+
+### Other
+
+- 641 multiple recalls ([#642](https://github.com/aranya-project/aranya-core/pull/642))
+- improve string parsing ([#668](https://github.com/aranya-project/aranya-core/pull/668))
+- Improve error messages ([#632](https://github.com/aranya-project/aranya-core/pull/632))
+- Close #656: Implement optional-coalescing operator. ([#657](https://github.com/aranya-project/aranya-core/pull/657))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+- Policy Runner ([#549](https://github.com/aranya-project/aranya-core/pull/549))
+- Close #574: Result cardinality ([#611](https://github.com/aranya-project/aranya-core/pull/611))
+
+## [0.14.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.14.0...aranya-policy-lang-v0.14.1) - 2026-03-31
+
+### Other
+
+- Improve compiler error testing ([#599](https://github.com/aranya-project/aranya-core/pull/599))
+- Change QUIC syncer to TCP syncer ([#629](https://github.com/aranya-project/aranya-core/pull/629))
+
+## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.13.0...aranya-policy-lang-v0.14.0) - 2026-03-17
+
+### Other
+
+- Improve parser error rendering ([#524](https://github.com/aranya-project/aranya-core/pull/524))
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+
+## [0.13.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.12.0...aranya-policy-lang-v0.13.0) - 2026-02-17
+
+### Other
+
+- Fix #447: Require policy block in command. ([#449](https://github.com/aranya-project/aranya-core/pull/449))
+
+## [0.12.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.11.0...aranya-policy-lang-v0.12.0) - 2026-01-23
+
+### Other
+
+- update to rust 1.90 ([#550](https://github.com/aranya-project/aranya-core/pull/550))
+- abstract out `compile_function_like` ([#533](https://github.com/aranya-project/aranya-core/pull/533))
+- move dot/substruct/cast to postfix ops ([#532](https://github.com/aranya-project/aranya-core/pull/532))
+
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.10.0...aranya-policy-lang-v0.11.0) - 2026-01-06
+
+### Other
+
+- add return expression ([#501](https://github.com/aranya-project/aranya-core/pull/501))
+
+## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.9.0...aranya-policy-lang-v0.10.0) - 2025-12-11
+
+### Other
+
+- add custom error for `+` and `-` ops ([#508](https://github.com/aranya-project/aranya-core/pull/508))
+- allow nested option ([#502](https://github.com/aranya-project/aranya-core/pull/502))
+- format pest grammar with leading alternates ([#509](https://github.com/aranya-project/aranya-core/pull/509))
+- improve parser testing ([#489](https://github.com/aranya-project/aranya-core/pull/489))
+- split type checking and instruction generation ([#500](https://github.com/aranya-project/aranya-core/pull/500))
+- add alternative parsing `option[T]` ([#499](https://github.com/aranya-project/aranya-core/pull/499))
+- switch parser snapshots to simplified debug repr ([#492](https://github.com/aranya-project/aranya-core/pull/492))
+- define math as builtin functions ([#439](https://github.com/aranya-project/aranya-core/pull/439))
+
+## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.8.1...aranya-policy-lang-v0.9.0) - 2025-11-05
+
+### Other
+
+- Close #420: Replace infix arithmetic operators with checked and saturating internal functions. ([#435](https://github.com/aranya-project/aranya-core/pull/435))
+
 ## [0.8.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.8.0...aranya-policy-lang-v0.8.1) - 2025-10-16
 
 ### Other

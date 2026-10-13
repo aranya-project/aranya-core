@@ -7,6 +7,11 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "alloc")]
+use alloc::{boxed::Box, rc::Rc, sync::Arc};
 use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 
 use buggy::Bug;
@@ -37,7 +42,7 @@ pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
     type WrappedKey: WrappedKey;
 
     /// Encrypts and authenticates an unwrapped key.
-    fn wrap<T>(&mut self, key: T) -> Result<Self::WrappedKey, WrapError>
+    fn wrap<T>(&self, key: T) -> Result<Self::WrappedKey, WrapError>
     where
         T: UnwrappedKey<Self::CS>,
     {
@@ -54,13 +59,6 @@ pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
         let secret = self.unwrap_secret::<T>(key)?;
         Ok(T::try_from_secret(UnwrappedSecret(secret))?)
     }
-
-    /// Makes a best-effort attempt to render irrecoverable all
-    /// key material protected by the [`Engine`].
-    ///
-    /// This is usually implemented by destroying the key
-    /// wrapping keys.
-    fn destroy(self) {}
 }
 
 /// An encrypted, authenticated key created by [`Engine::wrap`]
@@ -119,7 +117,7 @@ pub trait RawSecretWrap<E: Engine> {
     /// This method is used by [`Engine::wrap`] and should not be
     /// called manually.
     fn wrap_secret<T>(
-        &mut self,
+        &self,
         id: &<T as Identified>::Id,
         secret: RawSecret<E::CS>,
     ) -> Result<E::WrappedKey, WrapError>
@@ -363,3 +361,45 @@ impl From<Infallible> for UnwrapError {
         match err {}
     }
 }
+
+macro_rules! blanket_impl {
+    ($e:ident => $ty:ty) => {
+        impl<$e: Engine> Engine for $ty {
+            type CS = $e::CS;
+            type WrappedKey = $e::WrappedKey;
+        }
+
+        impl<$e: Engine> RawSecretWrap<Self> for $ty {
+            fn unwrap_secret<T>(
+                &self,
+                key: &$e::WrappedKey,
+            ) -> Result<RawSecret<$e::CS>, UnwrapError>
+            where
+                T: UnwrappedKey<$e::CS>,
+            {
+                $e::unwrap_secret::<T>(self, key)
+            }
+
+            fn wrap_secret<T>(
+                &self,
+                id: &<T as Identified>::Id,
+                secret: RawSecret<$e::CS>,
+            ) -> Result<$e::WrappedKey, WrapError>
+            where
+                T: UnwrappedKey<$e::CS>,
+            {
+                $e::wrap_secret::<T>(self, id, secret)
+            }
+        }
+    };
+}
+
+blanket_impl! { E => &E }
+blanket_impl! { E => &mut E }
+
+#[cfg(feature = "alloc")]
+blanket_impl! { E => Box<E> }
+#[cfg(feature = "alloc")]
+blanket_impl! { E => Rc<E> }
+#[cfg(feature = "alloc")]
+blanket_impl! { E => Arc<E> }

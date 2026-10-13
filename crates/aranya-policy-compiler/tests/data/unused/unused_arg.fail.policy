@@ -1,0 +1,4 @@
+// Unused function argument
+function f(x int) int {
+    return 42
+}

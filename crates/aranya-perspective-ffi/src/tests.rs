@@ -6,15 +6,13 @@ use aranya_crypto::{
     default::{DefaultEngine, Rng},
     policy::CmdId,
 };
-use aranya_policy_vm::{
-    ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext, ident,
-};
+use aranya_policy_vm::{ActionContext, CommandContext, MachineErrorType, PolicyContext, ident};
 
 use crate::FfiPerspective;
 
 #[test]
 fn test_head_id() {
-    let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
+    let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
     let perspective = FfiPerspective {};
     let head_id = CmdId::default();
 
@@ -23,30 +21,7 @@ fn test_head_id() {
             name: ident!("action"),
             head_id,
         });
-        assert_eq!(perspective.head_id(&context, &mut eng).unwrap(), head_id);
-    }
-
-    {
-        let context = CommandContext::Seal(SealContext {
-            name: ident!("seal"),
-            head_id,
-        });
-        assert_eq!(perspective.head_id(&context, &mut eng).unwrap(), head_id);
-    }
-
-    {
-        let context = CommandContext::Open(OpenContext {
-            name: ident!("open"),
-        });
-        assert_eq!(
-            perspective
-                .head_id(&context, &mut eng)
-                .unwrap_err()
-                .err_type,
-            MachineErrorType::Unknown(
-                "head_id is only available in Seal and Action contexts".to_string()
-            )
-        );
+        assert_eq!(perspective.head_id(&context, &eng).unwrap(), head_id);
     }
 
     {
@@ -57,13 +32,8 @@ fn test_head_id() {
             version: BaseId::default(),
         });
         assert_eq!(
-            perspective
-                .head_id(&context, &mut eng)
-                .expect_err("")
-                .err_type,
-            MachineErrorType::Unknown(
-                "head_id is only available in Seal and Action contexts".to_string()
-            )
+            perspective.head_id(&context, &eng).expect_err("").err_type,
+            MachineErrorType::Unknown("head_id is only available in Action context".to_string())
         );
     }
 
@@ -75,13 +45,8 @@ fn test_head_id() {
             version: BaseId::default(),
         });
         assert_eq!(
-            perspective
-                .head_id(&context, &mut eng)
-                .expect_err("")
-                .err_type,
-            MachineErrorType::Unknown(
-                "head_id is only available in Seal and Action contexts".to_string()
-            )
+            perspective.head_id(&context, &eng).expect_err("").err_type,
+            MachineErrorType::Unknown("head_id is only available in Action context".to_string())
         );
     }
 }

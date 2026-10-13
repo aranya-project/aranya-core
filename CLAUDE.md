@@ -51,6 +51,11 @@ cargo test -p aranya-crypto
 
 # Run tests with specific features
 cargo test --no-default-features
+
+# Run tests faster on Linux (use tmpfs to avoid slow fsync)
+# If /tmp is not already tmpfs, mount one:
+#   sudo mkdir -p /mnt/tmpfs && sudo mount -t tmpfs tmpfs /mnt/tmpfs
+TMPDIR=/mnt/tmpfs cargo test -p aranya-runtime
 ```
 
 ### Linting & Quality
@@ -115,7 +120,7 @@ client-daemon model with shared memory backend.
 
 - **Storage**: Linear storage implementation with DAG support.
 - **Sync**: Bidirectional synchronization between peers using
-  QUIC transport.
+  TCP transport.
 - **Memory management**: Shared memory implementations for
   high-performance scenarios.
 
