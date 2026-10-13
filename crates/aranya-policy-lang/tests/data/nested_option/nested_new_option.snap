@@ -14,17 +14,17 @@ Policy {
     base_commands: [],
     functions: [
         FunctionDefinition {
-            identifier: "maybe_maybe_int" @ 9..24,
-            arguments: [],
+            name: "maybe_maybe_int" @ 9..24,
+            parameters: [],
             return_type: Optional(
                 Optional(
                     Int @ 41..44,
                 ) @ 34..45,
             ) @ 27..46,
-            statements: [
+            body: [
                 Return(
                     ReturnStatement {
-                        expression: Optional(
+                        value: Optional(
                             None,
                         ) @ 60..64,
                     },

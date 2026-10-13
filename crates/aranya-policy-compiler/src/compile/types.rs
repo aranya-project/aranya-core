@@ -41,7 +41,7 @@ pub struct IdentifierTypeStack {
 
 #[derive(Debug)]
 struct Local {
-    ty: VType,
+    vtype: VType,
     used: AtomicBool,
 }
 
@@ -72,7 +72,7 @@ impl IdentifierTypeStack {
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
-    pub fn add(&mut self, ident: Ident, ty: VType) -> Result<(), AlreadyDefined> {
+    pub fn add(&mut self, ident: Ident, vtype: VType) -> Result<(), AlreadyDefined> {
         if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
             return Err(AlreadyDefined::new(existing_global.clone(), ident));
         }
@@ -89,7 +89,7 @@ impl IdentifierTypeStack {
             }
             indexmap::map::Entry::Vacant(e) => {
                 e.insert(Local {
-                    ty,
+                    vtype,
                     used: AtomicBool::new(false),
                 });
             }
@@ -105,7 +105,7 @@ impl IdentifierTypeStack {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
                     v.used.store(true, Ordering::Relaxed);
-                    return Ok(v.ty.clone());
+                    return Ok(v.vtype.clone());
                 }
             }
         }
@@ -181,18 +181,18 @@ impl Display for IdentNotDefined {
 /// Otherwise, it will keep its value the type kind matches the target,
 /// or error out otherwise.
 #[allow(clippy::result_large_err)]
-pub fn check_type(ty: VType, target_type: VType) -> Result<VType, InvalidType> {
-    match ty.inner {
+pub fn check_type(vtype: VType, target_type: VType) -> Result<VType, InvalidType> {
+    match vtype.inner {
         TypeKind::Never => Ok(target_type),
         _ => {
-            if ty.fits_type(&target_type) {
-                Ok(ty)
+            if vtype.fits_type(&target_type) {
+                Ok(vtype)
             } else {
                 Err(InvalidType::new(
                     target_type.to_string(),
                     Some(target_type.span()),
-                    ty.to_string(),
-                    ty.span,
+                    vtype.to_string(),
+                    vtype.span,
                 ))
             }
         }
@@ -230,33 +230,28 @@ impl Display for DisplayType<'_> {
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {
-        if self
-            .m
-            .interface
-            .struct_defs
-            .contains_key(&s.identifier.inner)
-        {
+        if self.m.interface.struct_defs.contains_key(&s.name.inner) {
             Ok(VType {
-                inner: TypeKind::Struct(s.identifier.clone()),
-                span: s.identifier.span,
+                inner: TypeKind::Struct(s.name.clone()),
+                span: s.name.span,
             })
         } else {
-            let note = format!("struct `{}` not defined", s.identifier);
-            Err(self.err(NotDefined(note, s.identifier.span)))
+            let note = format!("struct `{}` not defined", s.name);
+            Err(self.err(NotDefined(note, s.name.span)))
         }
     }
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
     pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, CompileError> {
-        if self.m.fact_defs.contains_key(&f.identifier.inner) {
+        if self.m.fact_defs.contains_key(&f.name.inner) {
             Ok(VType {
-                inner: TypeKind::Struct(f.identifier.clone()),
-                span: f.identifier.span,
+                inner: TypeKind::Struct(f.name.clone()),
+                span: f.name.span,
             })
         } else {
-            let note = format!("fact `{}` not defined", f.identifier);
-            Err(self.err(NotDefined(note, f.identifier.span)))
+            let note = format!("fact `{}` not defined", f.name);
+            Err(self.err(NotDefined(note, f.name.span)))
         }
     }
 }
