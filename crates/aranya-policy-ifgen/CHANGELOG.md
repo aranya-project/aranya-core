@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.24.0...aranya-policy-ifgen-v0.25.0) - 2026-08-25
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-runtime
+
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.23.0...aranya-policy-ifgen-v0.24.0) - 2026-07-09
+
+### Other
+
+- updated the following local packages: aranya-policy-vm, aranya-runtime
+
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.22.0...aranya-policy-ifgen-v0.23.0) - 2026-05-22
+
+### Other
+
+- ifgen build flag for import ([#673](https://github.com/aranya-project/aranya-core/pull/673))
+
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.21.0...aranya-policy-ifgen-v0.22.0) - 2026-03-31
+
+### Other
+
+- updated the following local packages: aranya-runtime, aranya-policy-vm
+
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.20.0...aranya-policy-ifgen-v0.21.0) - 2026-03-17
+
+### Other
+
+- generate constants for globals ([#593](https://github.com/aranya-project/aranya-core/pull/593))
+
 ## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-ifgen-v0.19.0...aranya-policy-ifgen-v0.20.0) - 2026-02-17
 
 ### Other

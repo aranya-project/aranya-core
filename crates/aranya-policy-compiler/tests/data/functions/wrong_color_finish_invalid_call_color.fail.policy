@@ -1,0 +1,7 @@
+finish function f(x int) {
+    emit Foo {}
+}
+
+function g() int {
+    return f()
+}

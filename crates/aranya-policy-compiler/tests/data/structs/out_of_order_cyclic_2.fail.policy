@@ -1,0 +1,3 @@
+struct Fum { +Fi, +Foo }
+effect Fi { s string }
+fact Foo[x int]=>{ fum struct Fum } // cycle

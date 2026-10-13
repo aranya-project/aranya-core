@@ -1,11 +1,13 @@
 //! [`NamedMap`] and associated traits and types.
 
-use aranya_policy_ast::{Identifier, Param};
+use core::fmt;
+
+use aranya_policy_ast::{Ident, Param};
 
 macro_rules! named {
     ($ty:ty) => {
         impl $crate::named::Named for $ty {
-            fn name(&self) -> &Identifier {
+            fn name(&self) -> &Ident {
                 &self.name
             }
         }
@@ -18,7 +20,7 @@ pub trait Named {
     /// The name of this value.
     ///
     /// This method should be pure and return the same name every time.
-    fn name(&self) -> &Identifier;
+    fn name(&self) -> &Ident; // TODO(Steve): Update doc comments (and rename this trait to NameLoc?)
 }
 
 named!(Param);
@@ -27,13 +29,7 @@ named!(Param);
 ///
 /// `V` must implement [`Named`].
 #[derive(
-    Clone,
-    Debug,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
+    Clone, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[serde(transparent)]
 #[serde(bound(
@@ -71,19 +67,23 @@ impl<V> NamedMap<V> {
 }
 
 /// An error indicating an attempt to insert a duplicate entry.
-#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("An entry with that name already exists")]
-pub struct AlreadyExists;
+pub struct AlreadyExists {
+    /// The identifier of the previously inserted entry.
+    pub existing: Ident,
+}
 
 impl<V: Named> NamedMap<V> {
     /// Insert an item into the map.
     ///
     /// Returns an error if an entry with the same name already exists.
     pub fn insert(&mut self, val: V) -> Result<(), AlreadyExists> {
-        if self.set.insert(ByName(val)) {
-            Ok(())
-        } else {
-            Err(AlreadyExists)
+        match self.set.replace(ByName(val)) {
+            None => Ok(()),
+            Some(old) => Err(AlreadyExists {
+                existing: old.0.name().clone(),
+            }),
         }
     }
 
@@ -117,10 +117,15 @@ impl<V: Named + PartialEq> PartialEq for NamedMap<V> {
 }
 impl<V: Named + Eq> Eq for NamedMap<V> {}
 
+impl<V: fmt::Debug> fmt::Debug for NamedMap<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.set, f)
+    }
+}
+
 #[derive(
     Copy,
     Clone,
-    Debug,
     serde::Serialize,
     serde::Deserialize,
     rkyv::Archive,
@@ -146,5 +151,11 @@ impl<V: Named> core::hash::Hash for ByName<V> {
 impl<V: Named> core::borrow::Borrow<str> for ByName<V> {
     fn borrow(&self) -> &str {
         self.0.name().as_str()
+    }
+}
+
+impl<V: fmt::Debug> fmt::Debug for ByName<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
     }
 }

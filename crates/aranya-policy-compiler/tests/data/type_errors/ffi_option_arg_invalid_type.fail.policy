@@ -1,0 +1,4 @@
+use test
+function foo() bool {
+    return test::doit(Some(3))
+}

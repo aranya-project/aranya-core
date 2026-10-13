@@ -6,8 +6,8 @@ use core::{
 use aranya_crypto::{
     CipherSuite, DeviceId,
     afc::{OpenKey, SealKey},
+    ctutils::CtEq,
     policy::LabelId,
-    subtle::ConstantTimeEq,
 };
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
@@ -272,8 +272,8 @@ impl<S, O> Directed<S, O> {
 
 impl<S, O> Eq for Directed<S, O>
 where
-    S: ConstantTimeEq,
-    O: ConstantTimeEq,
+    S: CtEq,
+    O: CtEq,
 {
 }
 
@@ -281,8 +281,8 @@ where
 // comparisons are in constant time.
 impl<S, O> PartialEq for Directed<S, O>
 where
-    S: ConstantTimeEq,
-    O: ConstantTimeEq,
+    S: CtEq,
+    O: CtEq,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

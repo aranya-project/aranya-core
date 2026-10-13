@@ -1,0 +1,4 @@
+preamble:
+  let fake_device_id = testing::id_from_base58("1thX6LZfHDZZKUs92fh1cxwDCA3ZJ3RGvuRPy5sAQN")
+do:
+  get_raw_device(fake_device_id)

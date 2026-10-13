@@ -1,0 +1,7 @@
+fact Foo[a int]=>{b int}
+
+function get_foo(a int) struct Foo {
+    let foo = query Foo[a]=>{b: ?} or test_fail()
+
+    return foo
+}

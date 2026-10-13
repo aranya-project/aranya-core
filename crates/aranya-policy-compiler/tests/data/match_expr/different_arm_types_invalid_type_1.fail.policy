@@ -1,0 +1,6 @@
+action foo(a int) {
+    let x = match a {
+        1 => { :"one" }
+        _ => { :false }
+    }
+}

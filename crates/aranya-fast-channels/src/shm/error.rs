@@ -93,20 +93,20 @@ impl From<Infallible> for Corrupted {
 }
 
 pub(super) const fn bad_state_magic(magic: U32) -> Corrupted {
-    Corrupted::SharedMemMagic(magic.into())
+    Corrupted::SharedMemMagic(magic.get())
 }
 
 pub(super) const fn bad_state_version(got: U32, want: U32) -> Corrupted {
     Corrupted::SharedMemVersion {
-        got: got.into(),
-        want: want.into(),
+        got: got.get(),
+        want: want.get(),
     }
 }
 
 pub(super) const fn bad_state_size(got: U64, want: U64) -> Corrupted {
     Corrupted::SharedMemSize {
-        got: got.into(),
-        want: want.into(),
+        got: got.get(),
+        want: want.get(),
     }
 }
 
@@ -115,19 +115,19 @@ pub(super) const fn bad_page_alignment(aligned: bool) -> Corrupted {
 }
 
 pub(super) const fn bad_state_key_size(size: U64) -> Corrupted {
-    Corrupted::SharedMemKeySize(size.into())
+    Corrupted::SharedMemKeySize(size.get())
 }
 
 pub(super) const fn bad_chanlist_magic(magic: U32) -> Corrupted {
-    Corrupted::ChanListMagic(magic.into())
+    Corrupted::ChanListMagic(magic.get())
 }
 
 pub(super) const fn bad_chan_magic(magic: U32) -> Corrupted {
-    Corrupted::ChanMagic(magic.into())
+    Corrupted::ChanMagic(magic.get())
 }
 
 pub(super) const fn bad_chan_direction(v: U32) -> Corrupted {
-    Corrupted::ChanDirection(v.into())
+    Corrupted::ChanDirection(v.get())
 }
 
 pub(super) const fn corrupted(msg: &'static str) -> Corrupted {

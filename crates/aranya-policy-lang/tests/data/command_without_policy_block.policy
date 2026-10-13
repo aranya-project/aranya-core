@@ -1,9 +1,3 @@
 command Foo {
     fields {}
-    seal {
-        return ok()
-    }
-    open {
-        return ok()
-    }
 }

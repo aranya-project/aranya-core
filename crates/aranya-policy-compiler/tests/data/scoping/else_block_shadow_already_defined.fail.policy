@@ -1,0 +1,9 @@
+function f(b bool) int {
+    let x = 4
+    if (b) {
+        return x
+    } else {
+        let x = 4
+        return x
+    }
+}

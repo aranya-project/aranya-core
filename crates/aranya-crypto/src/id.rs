@@ -33,7 +33,7 @@ where
         // id = H("ID-v1" || suites || data || tag)
         CS::tuple_hash(b"ID-v1", data.into_iter().chain(iter::once(tag)))
             .into_array()
-            .into_array()
+            .0
             .into()
     }
 

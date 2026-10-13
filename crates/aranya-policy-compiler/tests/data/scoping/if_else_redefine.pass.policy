@@ -1,0 +1,10 @@
+function f(y int) bool {
+    if y == 0 {
+        let x = 3
+    }
+    else {
+        let x = 4
+    }
+
+    return false
+}

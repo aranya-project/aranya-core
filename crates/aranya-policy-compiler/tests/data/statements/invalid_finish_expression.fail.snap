@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid expression
+  |
+5 |             create Foo[]=>{x: saturating_add(1, 2)}
+  |                               ^^^^^^^^^^^^^^^^^^^^ This expression is invalid in finish blocks/functions

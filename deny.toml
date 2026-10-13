@@ -77,6 +77,8 @@ yanked = "warn"
 # output a note when they are encountered.
 ignore = [
     { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained but shouldn't need any, and we don't use it directly" },
+    { id = "RUSTSEC-2026-0097", reason = "we don't use the features required to hit the bug" },
+    { id = "RUSTSEC-2024-0449", reason = "TODO(#832): replace yaml dependencies" },
     #"RUSTSEC-0000-0000",
     #{ id = "RUSTSEC-0000-0000", reason = "you can specify a reason the advisory is ignored" },
     #"a-crate-that-is-yanked@0.1.1", # you can also ignore yanked crate versions if you wish
@@ -121,7 +123,6 @@ exceptions = [
     { allow = ["AGPL-3.0-only"], crate = "aranya-capi-core" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-capi-macro" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-crypto" },
-    { allow = ["AGPL-3.0-only"], crate = "aranya-crypto-ffi" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-device-ffi" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-envelope-ffi" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-fast-channels" },
@@ -137,8 +138,11 @@ exceptions = [
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-ifgen-macro" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-lang" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-module" },
+    { allow = ["AGPL-3.0-only"], crate = "aranya-policy-runner" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-text" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-text-macro" },
+    { allow = ["AGPL-3.0-only"], crate = "aranya-core" },
+    { allow = ["AGPL-3.0-only"], crate = "aranya-core-example" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-policy-vm" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-runtime" },
 ]
@@ -236,23 +240,19 @@ deny = [
 
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-    "bindgen@0.69.5",
-    "generic-array@0.14.7",
-    "getrandom@0.1.16",
-    "hash32@0.2.1",
     "hashbrown@0.15.2",
-    "heapless@0.7.17",
-    "itertools@0.11.0",
-    "rand@0.7.3",
-    "rand_chacha@0.2.2",
-    "rand_core@0.5.1",
-    "spin@0.9.8",
     "thiserror-impl@1.0.69",
     "thiserror@1.0.69",
     "zerocopy-derive@0.7.35",
     "zerocopy-derive@0.8.25",
     "zerocopy@0.7.35",
     "zerocopy@0.8.25",
+
+    # proptest
+    "getrandom@0.2.15",
+    "rand@0.8.5",
+    "rand_chacha@0.3.1",
+    "rand_core@0.6.4",
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive

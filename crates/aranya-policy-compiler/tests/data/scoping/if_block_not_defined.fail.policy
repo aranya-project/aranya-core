@@ -1,0 +1,4 @@
+function foo() int {
+    if true { let x = 5 }
+    return x // x should not exist in the outer scope
+}

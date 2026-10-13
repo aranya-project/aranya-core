@@ -1,15 +1,14 @@
 #![forbid(unsafe_code)]
 
-use core::{cell::OnceCell, iter, marker::PhantomData, result::Result};
+use core::{iter, marker::PhantomData, result::Result};
 
-use buggy::Bug;
 use derive_where::derive_where;
 use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
     csprng::{Csprng, Random},
+    ctutils::{Choice, CtEq},
     hash::{Digest, Hash},
     import::Import,
-    subtle::{Choice, ConstantTimeEq},
     typenum::U64,
     zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
@@ -19,15 +18,16 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt as _},
     engine::unwrapped,
     error::Error,
-    generic_array::GenericArray,
+    hybrid_array::Array,
     id::{IdError, Identified, custom_id},
     policy::CmdId,
+    util::CacheCell,
 };
 
 /// Key material used to derive per-event encryption keys.
 pub struct GroupKey<CS> {
     seed: [u8; 64],
-    id: OnceCell<Result<GroupKeyId, IdError>>,
+    id: CacheCell<Result<GroupKeyId, IdError>>,
     _cs: PhantomData<CS>,
 }
 
@@ -42,7 +42,7 @@ impl<CS> Clone for GroupKey<CS> {
     fn clone(&self) -> Self {
         Self {
             seed: self.seed,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
             _cs: PhantomData,
         }
     }
@@ -59,27 +59,25 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> Result<GroupKeyId, IdError> {
-        self.id
-            .get_or_init(|| {
-                // prk = LabeledExtract(
-                //     "GroupKeyId-v1",
-                //     {0}^n,
-                //     "prk",
-                //     seed,
-                // )
-                // GroupKey = LabeledExpand(
-                //     "GroupKeyId-v1",
-                //     prk,
-                //     "id",
-                //     {0}^0,
-                // )
-                const DOMAIN: &[u8] = b"GroupKeyId-v1";
-                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
-                CS::labeled_expand(DOMAIN, &prk, b"id", [])
-                    .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(GroupKeyId::from_bytes)
-            })
-            .clone()
+        self.id.get_or_init(|| {
+            // prk = LabeledExtract(
+            //     "GroupKeyId-v1",
+            //     {0}^n,
+            //     "prk",
+            //     seed,
+            // )
+            // GroupKey = LabeledExpand(
+            //     "GroupKeyId-v1",
+            //     prk,
+            //     "id",
+            //     {0}^0,
+            // )
+            const DOMAIN: &[u8] = b"GroupKeyId-v1";
+            let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
+            CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                .map_err(|_| IdError::new("unable to expand PRK"))
+                .map(GroupKeyId::from_bytes)
+        })
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -162,14 +160,8 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
-            let required = self
-                .overhead()
-                .checked_add(plaintext.len())
-                .ok_or(Error::Bug(Bug::new(
-                    "overhead + plaintext length must not wrap",
-                )))?;
             return Err(Error::Seal(SealError::BufferTooSmall(BufferTooSmallError(
-                Some(required),
+                self.overhead().checked_add(plaintext.len()),
             ))));
         }
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
@@ -241,7 +233,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     pub(crate) const fn from_seed(seed: [u8; 64]) -> Self {
         Self {
             seed,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
             _cs: PhantomData,
         }
     }
@@ -265,7 +257,7 @@ impl<CS: CipherSuite> Identified for GroupKey<CS> {
     }
 }
 
-impl<CS: CipherSuite> ConstantTimeEq for GroupKey<CS> {
+impl<CS: CipherSuite> CtEq for GroupKey<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.seed.ct_eq(&other.seed)
@@ -316,6 +308,76 @@ custom_id! {
 /// An encrypted [`GroupKey`].
 #[derive_where(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedGroupKey<CS: CipherSuite> {
-    pub(crate) ciphertext: GenericArray<u8, U64>,
+    pub(crate) ciphertext: Array<u8, U64>,
     pub(crate) tag: Tag<CS::Aead>,
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::arithmetic_side_effects)]
+
+    use super::*;
+    use crate::{Rng, SigningKey, default::DefaultCipherSuite};
+
+    type CS = DefaultCipherSuite;
+
+    fn author() -> VerifyingKey<CS> {
+        SigningKey::<CS>::new(Rng)
+            .public()
+            .expect("signing key should be valid")
+    }
+
+    fn ctx<'a>(author: &'a VerifyingKey<CS>) -> Context<'a, CS> {
+        Context {
+            label: "test",
+            parent: CmdId::default(),
+            author_sign_pk: author,
+        }
+    }
+
+    /// Exercises both the happy path and the "`dst` too small"
+    /// error path of [`GroupKey::seal`].
+    #[test]
+    fn test_seal_dst_too_small() {
+        let author = author();
+        let key = GroupKey::<CS>::new(Rng);
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        // Happy path: `dst` is large enough.
+        let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal(Rng, &mut dst, MESSAGE, ctx(&author))
+            .expect("`seal` should succeed");
+
+        // Error path: `dst` is shorter than `overhead()`.
+        let mut small = [0u8; 1];
+        let err = key
+            .seal(Rng, &mut small, MESSAGE, ctx(&author))
+            .expect_err("`seal` should fail when `dst` is too small");
+        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+    }
+
+    /// Exercises both the happy path and the "`ciphertext` too
+    /// short" error path of [`GroupKey::open`].
+    #[test]
+    fn test_open_ciphertext_too_short() {
+        let author = author();
+        let key = GroupKey::<CS>::new(Rng);
+        const MESSAGE: &[u8] = b"hello, world!";
+
+        let mut ciphertext = vec![0u8; MESSAGE.len() + key.overhead()];
+        key.seal(Rng, &mut ciphertext, MESSAGE, ctx(&author))
+            .expect("`seal` should succeed");
+
+        // Happy path: decrypt the full ciphertext.
+        let mut plaintext = vec![0u8; ciphertext.len() - key.overhead()];
+        key.open(&mut plaintext, &ciphertext, ctx(&author))
+            .expect("`open` should succeed");
+        assert_eq!(plaintext, MESSAGE);
+
+        // Error path: `ciphertext` is shorter than `overhead()`.
+        let err = key
+            .open(&mut plaintext, b"short", ctx(&author))
+            .expect_err("`open` should fail when `ciphertext` is too short");
+        assert!(matches!(err, Error::Open(_)), "got {err:?}");
+    }
 }

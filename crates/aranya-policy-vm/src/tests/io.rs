@@ -1,4 +1,3 @@
-extern crate alloc;
 use alloc::collections::{BTreeMap, btree_map};
 use core::fmt;
 

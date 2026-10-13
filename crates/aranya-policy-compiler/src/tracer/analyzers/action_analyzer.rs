@@ -24,10 +24,8 @@ impl Analyzer for ActionAnalyzer {
     ) -> Result<AnalyzerStatus, TraceError> {
         match i {
             Instruction::Publish => self.have_publish = true,
-            Instruction::Return => {
-                if !self.have_publish {
-                    return Ok(AnalyzerStatus::Failed("no publish".to_string()));
-                }
+            Instruction::Return if !self.have_publish => {
+                return Ok(AnalyzerStatus::Failed("no publish".to_string()));
             }
             _ => (),
         }

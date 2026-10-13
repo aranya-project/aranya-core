@@ -5,15 +5,36 @@
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
 
-use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref};
-
-use buggy::Bug;
-use serde::{Deserialize, Serialize};
-
-use crate::{Address, CmdId, Command, PolicyId, Prior};
-
+pub mod head_set;
 pub mod linear;
+mod spill;
+
+use alloc::{boxed::Box, string::String, vec::Vec};
+use core::{borrow::Borrow, cmp::Ordering, fmt, ops::Deref};
+
+use buggy::{Bug, BugExt as _, bug};
+use rend::u64_le;
+
+#[cfg(feature = "libc")]
+pub use self::spill::LibcSpill;
+pub use self::{
+    head_set::HeadSet,
+    spill::{MemSpill, mem_spill},
+};
+use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, Priority, util::mem_usage};
+
+/// Byte-addressable overflow storage for braid and convergence data.
+///
+/// Implemented by [`LibcSpill`] (file-backed) and [`MemSpill`] (in-memory);
+/// each backend has its own constructor signature (paths, etc.), matching
+/// how [`IoManager`](linear::io::IoManager) backends are constructed.
+/// Callers build a spill and pass it in.
+pub trait Spill {
+    /// Write `data` at the given byte offset.
+    fn write_at(&mut self, offset: usize, data: &[u8]) -> Result<(), StorageError>;
+    /// Read exactly `data.len()` bytes starting at the given byte offset.
+    fn read_at(&mut self, offset: usize, data: &mut [u8]) -> Result<(), StorageError>;
+}
 
 /// Default capacity for the traversal queue.
 ///
@@ -26,46 +47,292 @@ pub const QUEUE_CAPACITY: usize = 512;
 /// Locations with the highest `max_cut` are processed first. This bounds the
 /// queue size to the graph width at any given `max_cut` level, rather than
 /// accumulating entries across many levels as a FIFO would.
+///
+/// Entries are partitioned into uncovered (`entries[0..partition]`) and
+/// covered (`entries[partition..len]`). See [`push_covered`](Self::push_covered)
+/// for the rules governing partition transitions.
 #[derive(Debug, Default)]
 pub struct TraversalQueue {
-    entries: heapless::Vec<Location, QUEUE_CAPACITY>,
+    entries: Vec<Location>,
+    /// Index separating uncovered (below) from covered (at and above).
+    partition: usize,
 }
 
 impl TraversalQueue {
     /// Create an empty traversal queue.
     pub const fn new() -> Self {
         Self {
-            entries: heapless::Vec::new(),
+            entries: Vec::new(),
+            partition: 0,
         }
     }
 
     /// Clear the traversal queue.
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.partition = 0;
     }
 
-    /// Enqueues a location.
+    /// Returns true if no entries.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Enqueues a location as uncovered.
     ///
     /// If an entry with the same segment exists, its max cut will be updated
-    /// if the supplied max cut is higher.
+    /// to the max of the two.
     pub fn push(&mut self, loc: Location) -> Result<(), StorageError> {
-        if let Some(prev) = self.entries.iter_mut().find(|x| x.same_segment(loc)) {
-            prev.max_cut = prev.max_cut.max(loc.max_cut);
-            return Ok(());
-        }
-        self.entries
-            .push(loc)
-            .map_err(|_| StorageError::TraversalQueueOverflow(QUEUE_CAPACITY))
+        self.push_covered(loc, false)
     }
 
-    /// Pop a location with the highest max cut.
-    pub fn pop(&mut self) -> Option<Location> {
-        let (i, _) = self
+    /// Enqueues a location with the given covered flag.
+    ///
+    /// Deduplicates segments unless doing so would transition from covered to uncovered.
+    pub fn push_covered(&mut self, loc: Location, covered: bool) -> Result<(), StorageError> {
+        if let Some(i) = self.entries.iter().position(|x| x.same_segment(loc)) {
+            let was_covered = i >= self.partition;
+            let newly_covered = covered && !was_covered;
+            match loc.max_cut.cmp(&self.entries[i].max_cut) {
+                Ordering::Less if newly_covered => {
+                    // Add new location as covered.
+                    self.entries.push(loc);
+                }
+                Ordering::Equal if newly_covered => {
+                    // Adjust old location to be covered.
+                    self.cover(i)?;
+                }
+                Ordering::Greater if newly_covered => {
+                    // Increase max cut, make covered.
+                    self.entries[i].max_cut = loc.max_cut;
+                    self.cover(i)?;
+                }
+                Ordering::Greater if !covered && was_covered => {
+                    // New location is above old but is uncovered while old was covered.
+                    // Add location as uncovered without disturbing old.
+                    self.insert_uncovered(loc)?;
+                }
+                Ordering::Greater => {
+                    // New location is above old, both are either covered or uncovered.
+                    // Just increase max cut, covered state stays the same.
+                    self.entries[i].max_cut = loc.max_cut;
+                }
+                _ => {
+                    // No change needed.
+                }
+            }
+        } else if covered {
+            self.entries.push(loc);
+        } else {
+            self.insert_uncovered(loc)?;
+        }
+        Ok(())
+    }
+
+    /// Mark entry at `idx` as covered.
+    ///
+    /// Given entry must be uncovered.
+    fn cover(&mut self, idx: usize) -> Result<(), Bug> {
+        if idx >= self.partition {
+            bug!("already covered");
+        }
+        self.partition = self
+            .partition
+            .checked_sub(1)
+            .assume("partition must be >= 1 when uncovered entry exists")?;
+        self.entries.swap(idx, self.partition);
+        Ok(())
+    }
+
+    /// Adds a location as uncovered.
+    ///
+    /// Makes no checks for existing entries.
+    fn insert_uncovered(&mut self, loc: Location) -> Result<(), Bug> {
+        self.entries.push(loc);
+        let last = self
             .entries
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, &loc)| loc)?;
-        Some(self.entries.swap_remove(i))
+            .len()
+            .checked_sub(1)
+            .assume("just pushed, len must be >= 1")?;
+        self.entries.swap(self.partition, last);
+        self.partition = self
+            .partition
+            .checked_add(1)
+            .assume("partition must not overflow")?;
+        Ok(())
+    }
+
+    /// Enqueues a location without deduplication.
+    ///
+    /// Unlike [`Self::push`], each call adds a new entry even if the location
+    /// is already present. Used by the convergence pre-pass where
+    /// duplicate tracking is needed.
+    pub fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
+        self.entries.push(loc);
+        // All duplicate entries are uncovered.
+        let last = self
+            .entries
+            .len()
+            .checked_sub(1)
+            .assume("just pushed, len must be >= 1")?;
+        self.entries.swap(self.partition, last);
+        self.partition = self
+            .partition
+            .checked_add(1)
+            .assume("partition must not overflow")?;
+        Ok(())
+    }
+
+    /// Pop the location with the highest max cut, discarding the covered flag.
+    pub fn pop(&mut self) -> Result<Option<Location>, StorageError> {
+        Ok(self.pop_covered()?.map(|(loc, _)| loc))
+    }
+
+    /// Pop the location with the highest max cut, including its covered flag.
+    pub fn pop_covered(&mut self) -> Result<Option<(Location, bool)>, StorageError> {
+        let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
+            return Ok(None);
+        };
+        if i < self.partition {
+            Ok(Some((self.remove_uncovered(i)?, false)))
+        } else {
+            // Removing from covered region: swap_remove is fine.
+            let loc = self.entries.swap_remove(i);
+            Ok(Some((loc, true)))
+        }
+    }
+
+    /// Remove an entry from the uncovered region at index `i`,
+    /// maintaining the partition invariant.
+    fn remove_uncovered(&mut self, i: usize) -> Result<Location, StorageError> {
+        self.partition = self
+            .partition
+            .checked_sub(1)
+            .assume("partition must be >= 1 when uncovered entry exists")?;
+        self.entries.swap(i, self.partition);
+        Ok(self.entries.swap_remove(self.partition))
+    }
+
+    /// Returns the entry with the highest `max_cut` without removing it.
+    pub fn peek(&self) -> Option<&Location> {
+        self.entries.iter().max_by_key(|loc| *loc)
+    }
+
+    /// Pop the entry with the highest `max_cut`, removing all entries
+    /// at that exact location. Returns `(location, count)`.
+    ///
+    /// Used by the convergence pre-pass. Entries are matched by full
+    /// `Location` equality (segment + max_cut), not just max_cut.
+    pub fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
+        let Some(location) = self.entries.iter().max_by_key(|loc| *loc).copied() else {
+            return Ok(None);
+        };
+
+        // Remove all entries matching this location.
+        // Count them as we go. Iterate backward to avoid index shifts.
+        let mut count: usize = 0;
+        let mut j = self.entries.len();
+        while j > 0 {
+            j = j.checked_sub(1).assume("j > 0 checked in loop condition")?;
+            if self.entries[j] == location {
+                count = count
+                    .checked_add(1)
+                    .assume("count bounded by `entries.len()`")?;
+                if j < self.partition {
+                    self.partition = self
+                        .partition
+                        .checked_sub(1)
+                        .assume("partition >= 1 when uncovered entry at j < partition")?;
+                    self.entries.swap(j, self.partition);
+                    self.entries.swap_remove(self.partition);
+                } else {
+                    self.entries.swap_remove(j);
+                }
+            }
+        }
+
+        Ok(Some((location, count)))
+    }
+
+    /// Returns true if all entries are covered (uncovered partition is empty).
+    pub fn all_covered(&self) -> bool {
+        self.partition == 0
+    }
+
+    /// Remove all entries with `max_cut > threshold` from the queue.
+    ///
+    /// Uncovered entries are passed to `f`. Covered entries are discarded
+    /// (the peer already has them).
+    pub fn drain_above(
+        &mut self,
+        threshold: MaxCut,
+        mut f: impl FnMut(Location),
+    ) -> Result<(), StorageError> {
+        // Drain from uncovered region.
+        let mut i = 0;
+        while i < self.partition {
+            if self.entries[i].max_cut > threshold {
+                f(self.remove_uncovered(i)?);
+            } else {
+                i = i.checked_add(1).assume("index must not overflow")?;
+            }
+        }
+        // Discard covered entries above the threshold — the peer
+        // already has these, so they don't belong in the result.
+        let mut i = self.partition;
+        while i < self.entries.len() {
+            if self.entries[i].max_cut > threshold {
+                self.entries.swap_remove(i);
+            } else {
+                i = i.checked_add(1).assume("index must not overflow")?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Mark a segment as covered up to `coverage_mc`. If the segment
+    /// exists in the queue:
+    /// - If `coverage_mc >= longest_mc`: the segment is fully covered.
+    /// - If `coverage_mc >= entry.max_cut`: the entry is updated to
+    ///   `coverage_mc + 1` (still uncovered — the peer needs the rest).
+    /// - If `coverage_mc < entry.max_cut`: no-op (already sending from
+    ///   above the coverage point).
+    pub fn cover_up_to(
+        &mut self,
+        segment: SegmentIndex,
+        coverage_mc: MaxCut,
+        longest_mc: MaxCut,
+    ) -> Result<(), StorageError> {
+        let Some(i) = self.entries.iter().position(|x| x.segment == segment) else {
+            return Ok(());
+        };
+        let was_covered = i >= self.partition;
+        if was_covered {
+            return Ok(());
+        }
+        if coverage_mc >= longest_mc {
+            // Fully covered — move to covered partition.
+            self.partition = self
+                .partition
+                .checked_sub(1)
+                .assume("partition must be >= 1 when uncovered entry exists")?;
+            self.entries.swap(i, self.partition);
+        } else if coverage_mc >= self.entries[i].max_cut {
+            // Partially covered — advance start past the covered portion.
+            self.entries[i].max_cut = coverage_mc
+                .checked_add(1)
+                .assume("coverage_mc + 1 must not overflow")?;
+        }
+        // else: coverage is below our start, nothing to do.
+        Ok(())
+    }
+
+    /// Drain all entries. Uncovered entries are passed to `f`.
+    /// Covered entries are discarded. O(n) single pass.
+    pub fn drain_all(&mut self, f: impl FnMut(Location)) {
+        self.entries[..self.partition].iter().copied().for_each(f);
+        self.entries.clear();
+        self.partition = 0;
     }
 }
 
@@ -121,19 +388,39 @@ impl Default for TraversalBuffers {
     }
 }
 
-#[cfg(feature = "low-mem-usage")]
-pub const MAX_COMMAND_LENGTH: usize = 400;
-#[cfg(not(feature = "low-mem-usage"))]
-pub const MAX_COMMAND_LENGTH: usize = 2048;
+pub const MAX_COMMAND_LENGTH: usize = mem_usage(400, 2048);
 
 aranya_crypto::custom_id! {
     /// The ID of the graph, taken from initialization.
     pub struct GraphId;
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct SegmentIndex(pub usize);
+pub struct SegmentIndex(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for SegmentIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -141,9 +428,42 @@ impl fmt::Display for SegmentIndex {
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+impl SegmentIndex {
+    pub const fn new(val: u64) -> Self {
+        Self(u64_le::from_native(val))
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0.to_native()
+    }
+}
+
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[serde(transparent)]
 #[repr(transparent)]
-pub struct MaxCut(pub usize);
+pub struct MaxCut(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for MaxCut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -152,26 +472,57 @@ impl fmt::Display for MaxCut {
 }
 
 impl MaxCut {
+    pub const fn new(val: u64) -> Self {
+        Self(u64_le::from_native(val))
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0.to_native()
+    }
+
     /// Adds an amount to the max cut, returning `None` on overflow.
     #[must_use]
-    pub fn checked_add(self, other: usize) -> Option<Self> {
-        self.0.checked_add(other).map(Self)
+    pub fn checked_add(self, other: u64) -> Option<Self> {
+        self.get().checked_add(other).map(Self::new)
     }
 
     /// Gets a max cut one lower than this, returning `None` on overflow.
     #[must_use]
     pub fn decremented(self) -> Option<Self> {
-        self.0.checked_sub(1).map(Self)
+        self.get().checked_sub(1).map(Self::new)
     }
 
     /// Gets the distance between two max cuts, returning `None` on overflow.
     #[must_use]
-    pub fn distance_from(self, other: Self) -> Option<usize> {
-        self.0.checked_sub(other.0)
+    pub fn distance_from(self, other: Self) -> Option<u64> {
+        self.get().checked_sub(other.get())
     }
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Portable,
+    rkyv::bytecheck::CheckBytes,
+    zerocopy::IntoBytes,
+    zerocopy::FromBytes,
+    zerocopy::Immutable,
+    zerocopy::KnownLayout,
+)]
+#[rkyv(as = Self)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(C)]
 pub struct Location {
     pub max_cut: MaxCut,
     pub segment: SegmentIndex,
@@ -206,33 +557,88 @@ impl fmt::Display for Location {
     }
 }
 
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+pub struct LocatedAddress {
+    pub id: CmdId,
+    pub segment: SegmentIndex,
+    pub max_cut: MaxCut,
+}
+
+impl LocatedAddress {
+    pub fn address(self) -> Address {
+        Address {
+            id: self.id,
+            max_cut: self.max_cut,
+        }
+    }
+
+    pub fn location(self) -> Location {
+        Location {
+            segment: self.segment,
+            max_cut: self.max_cut,
+        }
+    }
+}
+
+/// Backend-assigned stamp for the committed head set, changed by every
+/// [`Storage::commit_heads`]. A captured value compared against the current
+/// one detects intervening commits without cloning or comparing head sets.
+/// Linear storage uses the file offset of the appended head-set record.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeadSetOffset(u64);
+
+impl HeadSetOffset {
+    /// Wraps a backend-provided raw value.
+    pub fn new(offset: u64) -> Self {
+        Self(offset)
+    }
+}
+
 /// An error returned by [`Storage`] or [`StorageProvider`].
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[non_exhaustive]
 pub enum StorageError {
     #[error("storage already exists")]
     StorageExists,
     #[error("no such storage")]
     NoSuchStorage,
+    #[error("storage created but not initialized by a first commit")]
+    NotInitialized,
     #[error("segment index {} is out of bounds", .0.segment)]
     SegmentOutOfBounds(Location),
     #[error("max cut {} is out of bounds in segment {}", .0.max_cut, .0.segment)]
     CommandOutOfBounds(Location),
     #[error("IO error")]
     IoError,
-    #[error("not a merge command")]
-    NotMerge,
-    #[error("command with id {0} not found")]
-    NoSuchId(CmdId),
     #[error("policy mismatch")]
     PolicyMismatch,
     #[error("cannot write an empty perspective")]
     EmptyPerspective,
-    #[error("segment must be a descendant of the head for commit")]
-    HeadNotAncestor,
     #[error("traversal queue overflow (capacity {0})")]
     TraversalQueueOverflow(usize),
+    #[error("strand heap overflow (capacity {0})")]
+    StrandHeapOverflow(usize),
+    #[error("convergence root index overflow (capacity {0})")]
+    ConvergenceRootOverflow(usize),
     #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
+    #[error("graph has multiple heads ({0}); no single head to report")]
+    MultipleHeads(usize),
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -286,6 +692,52 @@ pub trait StorageProvider {
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
+/// Backward-traversal search for `address`, starting from the locations
+/// already seeded into `queue`. Seeds must have `max_cut >= address.max_cut`.
+///
+/// See `aranya-docs/docs/graph-traversal.md` for the traversal algorithm
+/// specification.
+fn search_queued<S: Storage + ?Sized>(
+    storage: &S,
+    address: Address,
+    queue: &mut TraversalQueue,
+) -> Result<Option<Location>, StorageError> {
+    while let Some(loc) = queue.pop()? {
+        debug_assert!(
+            loc.max_cut >= address.max_cut,
+            "Invariant: we only enqueue locations with at least the target max cut"
+        );
+
+        // Must load segment
+        let segment = storage.get_segment(loc)?;
+
+        // Search commands in this segment.
+        if let Some(found) = segment.get_by_address(address) {
+            return Ok(Some(found));
+        }
+
+        // Try to use skip list to jump directly backward.
+        // Skip list is sorted by max_cut ascending, so the first entry
+        // with max_cut >= target has the lowest valid max_cut, jumping
+        // furthest back in the graph.
+        if let Some(&skip) = segment
+            .skip_list()
+            .iter()
+            .find(|skip| skip.max_cut >= address.max_cut)
+        {
+            queue.push(skip)?;
+        } else {
+            // No valid skip - add prior locations to queue
+            for prior in segment.prior() {
+                if prior.max_cut >= address.max_cut {
+                    queue.push(prior)?;
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
 /// by an associated policy and committed to state.
 pub trait Storage {
@@ -299,9 +751,18 @@ pub trait Storage {
     fn get_location(
         &self,
         address: Address,
-        buffers: &mut TraversalBuffer,
+        buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, address, buffers)
+        // The graph may be multi-head (lazy merges). Run one search seeded
+        // with every head that could reach the target, so ancestry shared
+        // between heads is traversed once rather than once per head.
+        let queue = buffer.get();
+        for head in self.get_heads()?.iter() {
+            if head.max_cut >= address.max_cut {
+                queue.push(head.location())?;
+            }
+        }
+        search_queued(self, address, queue)
     }
 
     /// Returns the location of Command with id by searching from the given location.
@@ -311,49 +772,15 @@ pub trait Storage {
         &self,
         start: Location,
         address: Address,
-        buffers: &mut TraversalBuffer,
+        buffer: &mut TraversalBuffer,
     ) -> Result<Option<Location>, StorageError> {
         if start.max_cut < address.max_cut {
             return Ok(None);
         }
 
-        let queue = buffers.get();
+        let queue = buffer.get();
         queue.push(start)?;
-
-        while let Some(loc) = queue.pop() {
-            debug_assert!(
-                loc.max_cut >= address.max_cut,
-                "Invariant: we only enqueue locations with at least the target max cut"
-            );
-
-            // Must load segment
-            let segment = self.get_segment(loc)?;
-
-            // Search commands in this segment.
-            if let Some(found) = segment.get_by_address(address) {
-                return Ok(Some(found));
-            }
-
-            // Try to use skip list to jump directly backward.
-            // Skip list is sorted by max_cut ascending, so the first entry
-            // with max_cut >= target has the lowest valid max_cut, jumping
-            // furthest back in the graph.
-            if let Some(&skip) = segment
-                .skip_list()
-                .iter()
-                .find(|skip| skip.max_cut >= address.max_cut)
-            {
-                queue.push(skip)?;
-            } else {
-                // No valid skip - add prior locations to queue
-                for prior in segment.prior() {
-                    if prior.max_cut >= address.max_cut {
-                        queue.push(prior)?;
-                    }
-                }
-            }
-        }
-        Ok(None)
+        search_queued(self, address, queue)
     }
 
     /// Returns the address of the command at the given location.
@@ -388,21 +815,48 @@ pub trait Storage {
     /// Returns the segment at the given location.
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError>;
 
-    /// Returns the location of head of the graph.
-    fn get_head(&self) -> Result<Location, StorageError>;
+    /// Returns the committed head set.
+    ///
+    /// Borrows an in-memory cache, so this is cheap to call repeatedly on hot
+    /// paths (no per-call deserialize or copy). Callers that need an owned set
+    /// should clone the returned reference.
+    fn get_heads(&self) -> Result<&HeadSet, StorageError>;
 
-    /// Returns the address of the head of the graph.
-    fn get_head_address(&self) -> Result<Address, StorageError> {
-        self.get_command_address(self.get_head()?)
-    }
+    /// Returns the stamp of the committed head set.
+    ///
+    /// Changes on every [`commit_heads`](Self::commit_heads), so a value
+    /// captured at transaction start detects intervening commits.
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError>;
 
-    /// Sets the given segment as the head of the graph.  Returns an error if
-    /// the current head is not an ancestor of the provided segment.
-    fn commit(
+    /// Returns the cached merged fact index for the current head set.
+    fn fact_cache(&self) -> Result<Self::FactIndex, StorageError>;
+
+    /// Commit the given head set with its rebuilt fact cache.
+    fn commit_heads(
         &mut self,
-        segment: Self::Segment,
-        buffers: &mut TraversalBuffer,
+        heads: HeadSet,
+        fact_cache: Self::FactIndex,
     ) -> Result<(), StorageError>;
+
+    /// Returns the address of the sole graph head.
+    ///
+    /// Errors with [`StorageError::MultipleHeads`] on a multi-head (lazy-merge)
+    /// graph, where there is no single head to report. Callers that may face a
+    /// multi-head graph should use [`get_heads`](Self::get_heads) instead, or
+    /// [`ClientState::hello_head`](crate::ClientState::hello_head) when
+    /// advertising graph state to peers.
+    ///
+    /// An initialized graph always has at least one head, so an empty head set
+    /// is treated as an invariant violation (a [`Bug`]).
+    fn get_head_address(&self) -> Result<Address, StorageError> {
+        let heads = self.get_heads()?;
+        let mut it = heads.iter();
+        let first = it.next().assume("initialized graph always has >= 1 head")?;
+        if it.next().is_some() {
+            return Err(StorageError::MultipleHeads(heads.len()));
+        }
+        Ok(first.address())
+    }
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;
@@ -413,34 +867,21 @@ pub trait Storage {
         fact_perspective: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError>;
 
-    /// Determine whether the given location is an ancestor of the given segment.
+    /// Determine whether the given location is an ancestor of the given location.
     fn is_ancestor(
         &self,
         search_location: Location,
-        segment: &Self::Segment,
-        buffers: &mut TraversalBuffer,
+        start_location: Location,
+        buffer: &mut TraversalBuffer,
     ) -> Result<bool, StorageError> {
-        let queue = buffers.get();
-
-        // Try to use skip list to jump directly backward.
-        // Skip list is sorted by max_cut ascending, so first valid skip
-        // jumps as far back as possible.
-        if let Some(&skip) = segment
-            .skip_list()
-            .iter()
-            .find(|skip| skip.max_cut >= search_location.max_cut)
-        {
-            queue.push(skip)?;
-        } else {
-            // No valid skip - add prior locations to queue
-            for prior in segment.prior() {
-                if prior.max_cut >= search_location.max_cut {
-                    queue.push(prior)?;
-                }
-            }
+        if search_location.max_cut > start_location.max_cut || search_location == start_location {
+            return Ok(false);
         }
 
-        while let Some(loc) = queue.pop() {
+        let queue = buffer.get();
+        queue.push(start_location)?;
+
+        while let Some(loc) = queue.pop()? {
             debug_assert!(
                 loc.max_cut >= search_location.max_cut,
                 "Invariant: we only enqueue locations with at least the target max cut"
@@ -488,7 +929,7 @@ pub trait Storage {
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
     type FactIndex: FactIndex;
-    type Command<'a>: Command
+    type Command<'a>: Command + Prioritized
     where
         Self: 'a;
 
@@ -593,9 +1034,18 @@ pub trait Perspective: FactPerspective {
     /// Returns the id for the policy used for this perspective.
     fn policy(&self) -> PolicyId;
 
-    /// Adds the given command to the head of the perspective. The command's
-    /// parent must be the head of the perspective.
-    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
+    /// Adds the given command to the head of the perspective, persisting
+    /// `priority` alongside it. The command's parent must be the head of the
+    /// perspective.
+    ///
+    /// The priority must match the command's structure: `Merge` for merge
+    /// commands, `Init` for init commands, and the policy's body-derived
+    /// value for evaluated commands.
+    fn add_command(
+        &mut self,
+        command: &impl Command,
+        priority: Priority,
+    ) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
     fn includes(&self, id: CmdId) -> bool;
@@ -614,7 +1064,7 @@ pub trait Revertable {
     fn checkpoint(&self) -> Checkpoint;
 
     /// Revert the perspective to the state it was at when the checkpoint was created.
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug>;
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError>;
 }
 
 /// A checkpoint used to revert perspectives.
@@ -631,7 +1081,7 @@ pub struct Checkpoint {
 /// `(k_1, k_2, ..., k_n)`, where each `k` is a sequence of bytes. The fact value is also a sequence of bytes.
 pub trait Query {
     /// Look up a named fact by an exact match of the compound key.
-    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError>;
+    fn query(&self, name: &str, keys: &[Bytes]) -> Result<Option<Bytes>, StorageError>;
 
     /// Iterator for [`Query::query_prefix`].
     type QueryIterator: Iterator<Item = Result<Fact, StorageError>>;
@@ -643,7 +1093,7 @@ pub trait Query {
     fn query_prefix(
         &self,
         name: &str,
-        prefix: &[Box<[u8]>],
+        prefix: &[Bytes],
     ) -> Result<Self::QueryIterator, StorageError>;
 }
 
@@ -653,7 +1103,7 @@ pub struct Fact {
     /// The sequence of keys.
     pub key: Keys,
     /// The bytes of the value.
-    pub value: Box<[u8]>,
+    pub value: Bytes,
 }
 
 /// Can mutate facts by inserting and deleting them.
@@ -663,10 +1113,16 @@ pub trait QueryMut: Query {
     /// Insert a fact labeled by a name, with a given compound key and a value.
     ///
     /// This fact can later be looked up by [`Query`] methods, using the name and keys.
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>);
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError>;
 
     /// Delete any fact associated to the compound key, under the given name.
-    fn delete(&mut self, name: String, keys: Keys);
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
+}
+
+/// Stored commands hold their validated priority.
+pub trait Prioritized {
+    /// Get this command's priority.
+    fn priority(&self) -> Priority;
 }
 
 // TODO(jdygert): Expose this?
@@ -679,25 +1135,42 @@ pub(crate) trait FactIndexExtra {
 }
 
 /// A sequence of byte-based keys, used for facts.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Keys(Box<[Box<[u8]>]>);
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+pub struct Keys(Box<[Bytes]>);
 
 impl Deref for Keys {
-    type Target = [Box<[u8]>];
-    fn deref(&self) -> &[Box<[u8]>] {
+    type Target = [Bytes];
+    fn deref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl AsRef<[Box<[u8]>]> for Keys {
-    fn as_ref(&self) -> &[Box<[u8]>] {
+impl AsRef<[Bytes]> for Keys {
+    fn as_ref(&self) -> &[Bytes] {
         self.0.as_ref()
     }
 }
 
-impl core::borrow::Borrow<[Box<[u8]>]> for Keys {
-    fn borrow(&self) -> &[Box<[u8]>] {
+impl Borrow<[Bytes]> for Keys {
+    fn borrow(&self) -> &[Bytes] {
         self.0.as_ref()
+    }
+}
+
+impl From<Vec<Bytes>> for Keys {
+    fn from(value: Vec<Bytes>) -> Self {
+        Self(value.into_boxed_slice())
     }
 }
 
@@ -707,15 +1180,93 @@ impl From<&[&[u8]]> for Keys {
     }
 }
 
-impl Keys {
-    fn starts_with(&self, prefix: &[Box<[u8]>]) -> bool {
-        self.as_ref().starts_with(prefix)
+impl<B: Into<Bytes>> FromIterator<B> for Keys {
+    fn from_iter<T: IntoIterator<Item = B>>(iter: T) -> Self {
+        Self(iter.into_iter().map(Into::into).collect())
     }
 }
 
-impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
-    fn from_iter<T: IntoIterator<Item = B>>(iter: T) -> Self {
-        Self(iter.into_iter().map(Into::into).collect())
+impl<'a> IntoIterator for &'a Keys {
+    type Item = &'a Bytes;
+    type IntoIter = core::slice::Iter<'a, Bytes>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl ArchivedKeys {
+    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.0.iter().map(AsRef::as_ref)
+    }
+}
+
+pub type Bytes = Box<[u8]>;
+
+mod impls {
+    use alloc::boxed::Box;
+
+    use super::{GraphId, PolicyId, StorageError, StorageProvider};
+
+    impl<SP: StorageProvider> StorageProvider for &mut SP {
+        type Perspective = SP::Perspective;
+        type Segment = SP::Segment;
+        type Storage = SP::Storage;
+
+        fn new_perspective(&mut self, policy_id: PolicyId) -> Self::Perspective {
+            SP::new_perspective(self, policy_id)
+        }
+
+        fn new_storage(
+            &mut self,
+            init: Self::Perspective,
+        ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
+            SP::new_storage(self, init)
+        }
+
+        fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError> {
+            SP::get_storage(self, graph)
+        }
+
+        fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
+            SP::remove_storage(self, graph)
+        }
+
+        fn list_graph_ids(
+            &mut self,
+        ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+            SP::list_graph_ids(self)
+        }
+    }
+
+    impl<SP: StorageProvider> StorageProvider for Box<SP> {
+        type Perspective = SP::Perspective;
+        type Segment = SP::Segment;
+        type Storage = SP::Storage;
+
+        fn new_perspective(&mut self, policy_id: PolicyId) -> Self::Perspective {
+            SP::new_perspective(self, policy_id)
+        }
+
+        fn new_storage(
+            &mut self,
+            init: Self::Perspective,
+        ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
+            SP::new_storage(self, init)
+        }
+
+        fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError> {
+            SP::get_storage(self, graph)
+        }
+
+        fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
+            SP::remove_storage(self, graph)
+        }
+
+        fn list_graph_ids(
+            &mut self,
+        ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+            SP::list_graph_ids(self)
+        }
     }
 }
 
@@ -724,10 +1275,11 @@ mod queue_tests {
     use super::*;
 
     fn loc(seg: usize, mc: usize) -> Location {
-        Location::new(SegmentIndex(seg), MaxCut(mc))
+        Location::new(SegmentIndex::new(seg as u64), MaxCut::new(mc as u64))
     }
 
     #[test]
+    #[ignore = "queue is currently unbounded"]
     fn test_queue_overflow_returns_error() {
         let mut queue = TraversalQueue::new();
         // Fill to capacity
@@ -739,5 +1291,217 @@ mod queue_tests {
             .push(loc(999, 999))
             .expect_err("expected push_queue to fail");
         assert_eq!(result, StorageError::TraversalQueueOverflow(QUEUE_CAPACITY));
+    }
+
+    #[test]
+    fn test_push_defaults_covered_false() {
+        let mut queue = TraversalQueue::new();
+        queue.push(loc(0, 5)).unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
+        assert!(!covered);
+    }
+
+    #[test]
+    fn test_push_covered_preserves_flag() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 5), true).unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
+        assert!(covered);
+    }
+
+    #[test]
+    fn test_push_covered_same_max_cut_ors_flags() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 5), false).unwrap();
+        queue.push_covered(loc(0, 5), true).unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
+        assert!(covered);
+    }
+
+    #[test]
+    fn test_push_covered_same_max_cut_cannot_uncover() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 5), true).unwrap();
+        // Pushing uncovered at the same max_cut must not clear covered.
+        queue.push_covered(loc(0, 5), false).unwrap();
+        let (_, covered) = queue.pop_covered().unwrap().unwrap();
+        assert!(covered);
+    }
+
+    #[test]
+    fn test_push_same_segment_updates_max_cut() {
+        let mut queue = TraversalQueue::new();
+        queue.push(loc(0, 5)).unwrap();
+        queue.push(loc(0, 8)).unwrap();
+        let l = queue.pop().unwrap().unwrap();
+        assert_eq!(l.max_cut, MaxCut::new(8));
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn test_push_covered_higher_max_cut_adopts_new_flag() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 5), true).unwrap();
+        // Higher max_cut uncovered: segment head moved beyond covered point.
+        queue.push_covered(loc(0, 8), false).unwrap();
+        let (l, covered) = queue.pop_covered().unwrap().unwrap();
+        assert_eq!(l.max_cut, MaxCut::new(8));
+        assert!(!covered);
+    }
+
+    #[test]
+    fn test_push_covered_lower_max_cut_no_change() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 8), false).unwrap();
+        // Lower max_cut should not change anything.
+        queue.push_covered(loc(0, 3), true).unwrap();
+        let (l, covered) = queue.pop_covered().unwrap().unwrap();
+        assert_eq!(l.max_cut, MaxCut::new(8));
+        assert!(!covered);
+    }
+
+    #[test]
+    fn test_pop_discards_covered_flag() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 5), true).unwrap();
+        // pop() should return only the location.
+        let l = queue.pop().unwrap().unwrap();
+        assert_eq!(l.max_cut, MaxCut::new(5));
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn test_all_covered() {
+        let mut queue = TraversalQueue::new();
+        queue.push_covered(loc(0, 1), true).unwrap();
+        queue.push_covered(loc(1, 2), true).unwrap();
+        assert!(queue.all_covered());
+
+        queue.push_covered(loc(2, 3), false).unwrap();
+        assert!(!queue.all_covered());
+    }
+
+    #[test]
+    fn test_drain_above() {
+        let mut queue = TraversalQueue::new();
+        queue.push(loc(0, 3)).unwrap();
+        queue.push(loc(1, 7)).unwrap();
+        queue.push(loc(2, 5)).unwrap();
+
+        let mut result: heapless::Vec<Location, 8> = heapless::Vec::new();
+        queue
+            .drain_above(MaxCut::new(4), |loc| {
+                let _ = result.push(loc);
+            })
+            .unwrap();
+
+        // Entries with max_cut > 4 should be drained.
+        assert_eq!(result.len(), 2);
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(7)));
+        assert!(result.iter().any(|l| l.max_cut == MaxCut::new(5)));
+
+        // Only max_cut=3 should remain in the queue.
+        let remaining = queue.pop().unwrap().unwrap();
+        assert_eq!(remaining.max_cut, MaxCut::new(3));
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn test_drain_above_with_covered_entries() {
+        let mut queue = TraversalQueue::new();
+        // Mix of uncovered and covered entries above and below threshold.
+        queue.push(loc(0, 3)).unwrap(); // uncovered, below
+        queue.push(loc(1, 7)).unwrap(); // uncovered, above
+        queue.push_covered(loc(2, 6), true).unwrap(); // covered, above
+        queue.push_covered(loc(3, 2), true).unwrap(); // covered, below
+        queue.push(loc(4, 5)).unwrap(); // uncovered, above
+
+        let mut drained: heapless::Vec<Location, 8> = heapless::Vec::new();
+        queue
+            .drain_above(MaxCut::new(4), |loc| {
+                let _ = drained.push(loc);
+            })
+            .unwrap();
+
+        // Only uncovered entries above threshold should be passed to f.
+        assert_eq!(drained.len(), 2);
+        assert!(drained.iter().any(|l| l.segment.get() == 1));
+        assert!(drained.iter().any(|l| l.segment.get() == 4));
+
+        // Covered entry above threshold (seg=2) should be discarded.
+        // Entries below threshold should remain: seg=0 (uncovered), seg=3 (covered).
+        let mut remaining = Vec::new();
+        while let Some((l, covered)) = queue.pop_covered().unwrap() {
+            remaining.push((l.segment, covered));
+        }
+        assert_eq!(remaining.len(), 2);
+        assert!(remaining.contains(&(SegmentIndex::new(0), false)));
+        assert!(remaining.contains(&(SegmentIndex::new(3), true)));
+    }
+
+    #[test]
+    fn test_push_duplicate_keeps_separate_entries() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        let first = queue.pop().unwrap();
+        assert!(first.is_some());
+        let second = queue.pop().unwrap();
+        assert!(second.is_some());
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    #[ignore = "queue is currently unbounded"]
+    fn test_push_duplicate_overflow() {
+        let mut queue = TraversalQueue::new();
+        for i in 0..QUEUE_CAPACITY {
+            queue.push_duplicate(loc(0, i)).unwrap();
+        }
+        let result = queue.push_duplicate(loc(0, 999));
+        assert_eq!(
+            result.unwrap_err(),
+            StorageError::TraversalQueueOverflow(QUEUE_CAPACITY)
+        );
+    }
+
+    #[test]
+    fn test_pop_duplicates_returns_count() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(1, 3)).unwrap();
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(location, loc(0, 5));
+        assert_eq!(count, 2);
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(location, loc(1, 3));
+        assert_eq!(count, 1);
+
+        assert!(queue.pop_duplicates().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pop_duplicates_different_segments_same_max_cut() {
+        let mut queue = TraversalQueue::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(1, 5)).unwrap();
+
+        let (location, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(location.max_cut, MaxCut::new(5));
+
+        let (_, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(count, 1);
+
+        assert!(queue.pop_duplicates().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pop_duplicates_empty() {
+        let mut queue = TraversalQueue::new();
+        assert!(queue.pop_duplicates().unwrap().is_none());
     }
 }

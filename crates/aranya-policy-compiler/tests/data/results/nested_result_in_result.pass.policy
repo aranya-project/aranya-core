@@ -1,0 +1,8 @@
+enum Error { Fail }
+function foo(n int) result[result[int, enum Error], enum Error] {
+    if n > 0 {
+        return Ok(Ok(42))
+    } else {
+        return Err(Error::Fail)
+    }
+}

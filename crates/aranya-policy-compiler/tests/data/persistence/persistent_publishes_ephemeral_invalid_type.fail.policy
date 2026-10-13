@@ -1,0 +1,9 @@
+ephemeral command Cmd {
+    fields {}
+    policy {
+        finish {}
+    }
+}
+action test() {
+    publish Cmd {}
+}

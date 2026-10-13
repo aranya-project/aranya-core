@@ -2980,8 +2980,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
                     .cast::<::core::mem::MaybeUninit<Inner>>()
+                    .as_mut_unchecked()
             });
         }
     }
@@ -3116,8 +3117,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
                     .cast::<::core::mem::MaybeUninit<Inner>>()
+                    .as_mut_unchecked()
             });
         }
     }
@@ -3237,8 +3239,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
                     .cast::<::core::mem::MaybeUninit<Inner>>()
+                    .as_mut_unchecked()
             });
         }
     }
@@ -3411,8 +3414,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
                     .cast::<::core::mem::MaybeUninit<Inner>>()
+                    .as_mut_unchecked()
             });
         }
     }
@@ -3561,8 +3565,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
                     .cast::<::core::mem::MaybeUninit<Inner>>()
+                    .as_mut_unchecked()
             });
         }
     }
@@ -3712,8 +3717,9 @@ mod __hidden {
     {
         fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
             <Inner as __capi::InitDefault>::init_default(unsafe {
-                &mut *::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
+                ::core::ptr::from_mut::<::core::mem::MaybeUninit<Self>>(out)
                     .cast::<::core::mem::MaybeUninit<Inner>>()
+                    .as_mut_unchecked()
             });
         }
     }

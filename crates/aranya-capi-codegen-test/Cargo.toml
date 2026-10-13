@@ -10,6 +10,9 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+bench = false
+
 [features]
 default = []
 test_cfg = []
@@ -30,3 +33,7 @@ syn = { workspace = true, features = ["extra-traits", "full"] }
 tracing = { workspace = true, features = ["std"] }
 tracing-appender = { version = "0.2.3" }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry", "std"] }
+
+
+[package.metadata.docs.rs]
+all-features = true

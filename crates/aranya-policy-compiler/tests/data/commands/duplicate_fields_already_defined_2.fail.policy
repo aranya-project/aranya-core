@@ -1,0 +1,10 @@
+struct Bar { a int }
+command Foo {
+    fields {
+        +Bar,
+        a string
+    }
+    policy {
+        finish {}
+    }
+}

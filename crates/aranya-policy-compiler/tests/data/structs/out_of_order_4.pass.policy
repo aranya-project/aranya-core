@@ -1,0 +1,9 @@
+effect Fi { s struct Foo }
+command Foo {
+    fields {
+        i int
+    }
+    policy {
+        finish {}
+    }
+}

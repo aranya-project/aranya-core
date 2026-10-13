@@ -1,0 +1,7 @@
+function f() option[option[int]] {
+    return Some(Some(1))
+}
+
+action a() {
+    let x = f()
+}

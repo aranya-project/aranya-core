@@ -1,0 +1,6 @@
+command A {
+    attributes { i: false || true }
+    policy {
+        finish {}
+    }
+}

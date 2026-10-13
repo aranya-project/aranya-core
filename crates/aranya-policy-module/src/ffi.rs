@@ -2,11 +2,13 @@
 extern crate alloc;
 use alloc::boxed::Box;
 
-use aranya_policy_ast::{Ident, Identifier, Span, TypeKind, VType};
+use aranya_policy_ast::{Identifier, ResultTypeKind, Span, TypeKind, VType, WithSpanExt as _};
 
 /// The type of a value
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type<'a> {
+    /// The unit type.
+    Unit,
     /// A UTF-8 string.
     String,
     /// A byte string
@@ -22,7 +24,9 @@ pub enum Type<'a> {
     /// A named enum.
     Enum(Identifier),
     /// An optional type of some other type.
-    Optional(&'a Type<'a>),
+    Optional(&'a Self),
+    /// Result
+    Result(&'a Self, &'a Self),
 }
 
 impl Type<'_> {
@@ -37,6 +41,7 @@ impl Type<'_> {
             (Struct(lhs), Struct(rhs)) => lhs.const_eq(rhs),
             (Enum(lhs), Enum(rhs)) => lhs.const_eq(rhs),
             (Optional(lhs), Optional(rhs)) => lhs.const_eq(rhs),
+            (Result(lhs1, lhs2), Result(rhs1, rhs2)) => lhs1.const_eq(rhs1) && lhs2.const_eq(rhs2),
             _ => false,
         }
     }
@@ -45,23 +50,22 @@ impl Type<'_> {
 impl From<&Type<'_>> for VType {
     fn from(value: &Type<'_>) -> Self {
         let kind = match value {
+            Type::Unit => TypeKind::Unit,
             Type::String => TypeKind::String,
             Type::Bytes => TypeKind::Bytes,
             Type::Int => TypeKind::Int,
             Type::Bool => TypeKind::Bool,
             Type::Id => TypeKind::Id,
-            Type::Struct(s) => TypeKind::Struct(Ident {
-                name: s.clone(),
-                span: Span::default(),
-            }),
-            Type::Enum(e) => TypeKind::Enum(Ident {
-                name: e.clone(),
-                span: Span::default(),
-            }),
+            Type::Struct(s) => TypeKind::Struct(s.clone().nowhere()),
+            Type::Enum(e) => TypeKind::Enum(e.clone().nowhere()),
             Type::Optional(t) => TypeKind::Optional(Box::new((*t).into())),
+            Type::Result(ok, err) => TypeKind::Result(Box::new(ResultTypeKind {
+                ok: (*ok).into(),
+                err: (*err).into(),
+            })),
         };
         Self {
-            kind,
+            inner: kind,
             span: Span::empty(),
         }
     }
@@ -174,6 +178,15 @@ pub struct Enum<'a> {
 ///     vtype: Type::Optional(const { &Type::Struct(ident!("bar")) }),
 /// };
 /// assert_eq!(got, want);
+///
+/// let ok = &Type::String;
+/// let err = &Type::Int;
+/// let got = arg!("result", Result(&ok, &err));
+/// let want = Arg {
+///     name: ident!("result"),
+///     vtype: Type::Result(const { &Type::String }, const { &Type::Int }),
+/// };
+/// assert_eq!(got, want);
 /// ```
 #[macro_export]
 macro_rules! arg {
@@ -203,6 +216,9 @@ macro_rules! arg {
     }};
     ($name:literal, Optional($inner:expr)) => {{
         $crate::__arg!($name, Optional($inner))
+    }};
+    ($name:literal, Result($ok:expr, $err:expr)) => {{
+        $crate::__arg!($name, Result($ok, $err))
     }};
     ($name:literal, $type:ident) => {{
         ::core::compile_error!(::core::concat!(
@@ -239,6 +255,12 @@ macro_rules! __arg {
             vtype: $crate::__type!(Optional($inner)),
         }
     }};
+    ($name:literal, Result($ok:expr, $err:expr)) => {{
+        $crate::ffi::Arg {
+            name: $crate::ast::ident!($name),
+            vtype: $crate::__type!(Result($ok, $err)),
+        }
+    }};
 }
 
 #[doc(hidden)]
@@ -256,7 +278,12 @@ macro_rules! __type {
     (@raw Optional($inner:expr)) => {
         $crate::ffi::Type::Optional($inner)
     };
+    (@raw Result($ok:expr, $err:expr)) => {
+        $crate::ffi::Type::Result($ok, $err)
+    };
 
+
+    (Unit) => {{ $crate::__type!(@raw Unit) }};
     (String) => {{ $crate::__type!(@raw String) }};
     (Bytes) => {{ $crate::__type!(@raw Bytes) }};
     (Int) => {{ $crate::__type!(@raw Int) }};
@@ -273,6 +300,9 @@ macro_rules! __type {
     }};
     (Optional($inner:expr)) => {{
         $crate::__type!(@raw Optional($inner))
+    }};
+    (Result($ok:expr, $err:expr)) => {{
+        $crate::__type!(@raw Result($ok, $err))
     }};
     ($type:ident) => {{
         ::core::compile_error!(::core::concat!(

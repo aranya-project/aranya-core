@@ -38,8 +38,6 @@
 //! bench_measurements().print_stats();
 //! ```
 
-extern crate alloc;
-
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
 use core::{fmt::Display, ops::Div as _};
 use std::{
@@ -158,7 +156,7 @@ impl BenchMeasurements {
                 }
             })
             .collect();
-        m.sort_by(|a, b| b.mean.cmp(&a.mean));
+        m.sort_by_key(|a| core::cmp::Reverse(a.mean));
         m
     }
 

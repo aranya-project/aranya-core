@@ -1,0 +1,9 @@
+command F {
+    attributes {
+        a: 5,
+        a: "five"
+    }
+    policy {
+        finish {}
+    }
+}

@@ -1,63 +1,57 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
-use core::{fmt, ops::Deref, str::FromStr};
+use core::{fmt, str::FromStr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{Identifier, Span, Spanned, Text, span::spanned};
+use crate::{
+    Identifier, Span, Spanned, Text,
+    span::{WithSpan, spanned},
+};
 
 /// An identifier.
-#[derive(
-    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-pub struct Ident {
-    /// The identifier name
-    pub name: Identifier,
-    /// The source location of this identifier
-    pub span: Span,
-}
-
-impl fmt::Debug for Ident {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
+pub type Ident = WithSpan<Identifier>;
 
 impl Ident {
     /// Reports whether the identifiers are the same, ignoring
     /// spans.
     pub fn matches(&self, other: &Self) -> bool {
-        self.name == other.name
+        self.inner == other.inner
     }
 }
 
-impl Deref for Ident {
-    type Target = Identifier;
-
-    fn deref(&self) -> &Self::Target {
-        &self.name
+impl PartialEq<str> for Ident {
+    fn eq(&self, other: &str) -> bool {
+        self.inner == other
     }
 }
 
-impl fmt::Display for Ident {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(f)
+impl PartialEq<&str> for Ident {
+    fn eq(&self, other: &&str) -> bool {
+        self.inner == *other
     }
 }
 
-impl<T> PartialEq<T> for Ident
-where
-    T: AsRef<str> + ?Sized,
-{
-    fn eq(&self, other: &T) -> bool {
-        self.name == other.as_ref()
+impl PartialEq<Identifier> for Ident {
+    fn eq(&self, other: &Identifier) -> bool {
+        &self.inner == other
     }
 }
 
-impl Spanned for Ident {
-    fn span(&self) -> Span {
-        self.span
+impl AsRef<str> for Ident {
+    fn as_ref(&self) -> &str {
+        self.inner.as_str()
+    }
+}
+
+impl core::borrow::Borrow<Identifier> for Ident {
+    fn borrow(&self) -> &Identifier {
+        &self.inner
+    }
+}
+
+impl core::borrow::Borrow<str> for Ident {
+    fn borrow(&self) -> &str {
+        self.inner.as_str()
     }
 }
 
@@ -70,7 +64,9 @@ pub struct InvalidVersion;
 mod version {
     #![allow(deprecated)] // for serde
 
-    use super::{Deserialize, Serialize};
+    use alloc::format;
+
+    use super::{Deserialize, Serialize, String};
 
     /// Policy language version
     #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -82,6 +78,14 @@ mod version {
         /// Version 2, the second version of the policy language
         #[default]
         V2,
+    }
+
+    impl Version {
+        /// A help message that suggests updating to the latest version.
+        pub fn help_message() -> String {
+            let v = Self::default();
+            format!("please update `policy-version` to {v}")
+        }
     }
 }
 pub use version::Version;
@@ -161,39 +165,22 @@ impl fmt::Display for Persistence {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
-#[must_use]
-#[derive(
-    Clone, Eq, PartialEq, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
-pub struct VType {
-    /// The type kind
-    pub kind: TypeKind,
-    /// The source location of this type
-    pub span: Span,
-}
-
-impl fmt::Debug for VType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
+pub type VType = WithSpan<TypeKind>;
 
 impl VType {
     /// Reports whether the types are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
-        self.kind.matches(&other.kind)
+        self.inner.matches(&other.inner)
     }
 
     /// Checks if two types fit, where `Never` matches with any type.
     pub fn fits_type(&self, other: &Self) -> bool {
-        self.kind.fits_type(&other.kind)
+        self.inner.fits_type(&other.inner)
     }
 
     /// Gets the struct name if this type is a struct.
     pub fn as_struct(&self) -> Option<&Ident> {
-        if let TypeKind::Struct(name) = &self.kind {
+        if let TypeKind::Struct(name) = &self.inner {
             Some(name)
         } else {
             None
@@ -201,16 +188,34 @@ impl VType {
     }
 }
 
-impl fmt::Display for VType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl Spanned for VType {
-    fn span(&self) -> Span {
-        self.span
-    }
+/// Result type kind
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
+    )
+))]
+pub struct ResultTypeKind {
+    /// ok type
+    pub ok: VType,
+    /// error type
+    pub err: VType,
 }
 
 /// The kind of a [`VType`].
@@ -236,7 +241,10 @@ impl Spanned for VType {
         __C::Error: rkyv::rancor::Source,
     )
 ))]
+#[rkyv(attr(doc = "The archived kind of a [`VType`]."))]
 pub enum TypeKind {
+    /// The unit, like `()` or `void`.
+    Unit,
     /// A character (UTF-8) string
     String,
     /// A byte string
@@ -255,21 +263,27 @@ pub enum TypeKind {
     Optional(#[rkyv(omit_bounds)] Box<VType>),
     /// A type which cannot be instantiated.
     Never,
+    /// Result with value, or error
+    Result(#[rkyv(omit_bounds)] Box<ResultTypeKind>),
 }
 
 impl TypeKind {
     /// Reports whether the kinds are the same, ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::String, Self::String)
+            (Self::Unit, Self::Unit)
+            | (Self::String, Self::String)
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
             | (Self::Id, Self::Id)
             | (Self::Never, Self::Never) => true,
-            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
-            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
-            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.matches(&rhs.kind),
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.inner == rhs.inner,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.inner == rhs.inner,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.inner.matches(&rhs.inner),
+            (Self::Result(lhs), Self::Result(rhs)) => {
+                lhs.ok.inner.matches(&rhs.ok.inner) && lhs.err.inner.matches(&rhs.err.inner)
+            }
             _ => false,
         }
     }
@@ -278,14 +292,18 @@ impl TypeKind {
         match (self, other) {
             (Self::Never, _) => true,
             (_, Self::Never) => true,
-            (Self::String, Self::String)
+            (Self::Unit, Self::Unit)
+            | (Self::String, Self::String)
             | (Self::Bytes, Self::Bytes)
             | (Self::Int, Self::Int)
             | (Self::Bool, Self::Bool)
             | (Self::Id, Self::Id) => true,
-            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.name == rhs.name,
-            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.name == rhs.name,
-            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.kind.fits_type(&rhs.kind),
+            (Self::Struct(lhs), Self::Struct(rhs)) => lhs.inner == rhs.inner,
+            (Self::Enum(lhs), Self::Enum(rhs)) => lhs.inner == rhs.inner,
+            (Self::Optional(lhs), Self::Optional(rhs)) => lhs.inner.fits_type(&rhs.inner),
+            (Self::Result(lhs), Self::Result(rhs)) => {
+                lhs.ok.fits_type(&rhs.ok) && lhs.err.fits_type(&rhs.err)
+            }
             _ => false,
         }
     }
@@ -294,6 +312,7 @@ impl TypeKind {
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unit => write!(f, "unit"),
             Self::String => write!(f, "string"),
             Self::Bytes => write!(f, "bytes"),
             Self::Int => write!(f, "int"),
@@ -303,6 +322,9 @@ impl fmt::Display for TypeKind {
             Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "option[{vtype}]"),
             Self::Never => write!(f, "never"),
+            Self::Result(result_type) => {
+                write!(f, "result[{}, {}]", result_type.ok, result_type.err)
+            }
         }
     }
 }
@@ -324,7 +346,7 @@ pub struct Param {
     /// The name of the parameter.
     pub name: Ident,
     /// The type of the parameter.
-    pub ty: VType,
+    pub vtype: VType,
 }
 }
 
@@ -346,9 +368,9 @@ spanned! {
 )]
 pub struct FieldDefinition {
     /// the field's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// the field's type
-    pub field_type: VType,
+    pub vtype: VType,
 }
 }
 
@@ -356,7 +378,7 @@ impl FieldDefinition {
     /// Reports whether the field definitions are the same,
     /// ignoring spans.
     pub fn matches(&self, other: &Self) -> bool {
-        self.identifier.matches(&other.identifier) && self.field_type.matches(&other.field_type)
+        self.name.matches(&other.name) && self.vtype.matches(&other.vtype)
     }
 }
 
@@ -366,16 +388,16 @@ impl FieldDefinition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectFieldDefinition {
     /// the field's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// the field's type
-    pub field_type: VType,
+    pub vtype: VType,
     /// Whether the field is marked "dynamic" or not
     pub dynamic: bool,
 }
 
 impl Spanned for EffectFieldDefinition {
     fn span(&self) -> Span {
-        self.identifier.span.merge(self.field_type.span())
+        self.name.span.merge(self.vtype.span())
     }
 }
 
@@ -404,7 +426,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
 pub struct FactLiteral {
     /// the fact's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the fields of the fact key
     pub key_fields: Vec<(Ident, FactField)>,
     /// values for the fields of the fact value, which can be absent
@@ -419,30 +441,36 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionCall {
     /// the function's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
 }
 
-spanned! {
 /// A named struct literal
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
+    /// The source location of this struct literal
+    pub span: Span,
 }
+
+impl Spanned for NamedStruct {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
-    pub identifier: Ident,
+    pub name: Ident,
     /// list of possible values
     pub variants: Vec<Ident>,
     /// The source location of this definition
@@ -460,9 +488,9 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumReference {
     /// enum name
-    pub identifier: Ident,
+    pub enumeration: Ident,
     /// name of value inside enum
-    pub value: Ident,
+    pub variant: Ident,
 }
 }
 
@@ -508,16 +536,13 @@ pub enum InternalFunction {
     /// An `exists` fact query
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
-    // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, i64, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
-    /// Serialize function
-    Serialize(Box<Expression>),
-    /// Deserialize function
-    Deserialize(Box<Expression>),
     /// Not yet implemented panic
     Todo(Span),
+    /// Panics with an optional message, for expressing test expectations
+    TestFail(Option<Text>, Span),
 }
 
 impl Spanned for InternalFunction {
@@ -527,8 +552,8 @@ impl Spanned for InternalFunction {
             Self::Exists(fact) => fact.span(),
             Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
             Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
-            Self::Serialize(expr) | Self::Deserialize(expr) => expr.span(),
             Self::Todo(span) => *span,
+            Self::TestFail(_, span) => *span,
         }
     }
 }
@@ -542,46 +567,35 @@ pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Ident,
     /// the function's name
-    pub identifier: Ident,
+    pub function: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
 }
 
+/// Integer value with span information.
+pub type IntLiteral = WithSpan<i64>;
+
 /// All of the things which can be in an expression.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Expression {
-    /// The expression kind
-    pub kind: ExprKind,
-    /// The source location of this expression
-    pub span: Span,
-}
-
-impl fmt::Debug for Expression {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
-
-impl Spanned for Expression {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
+pub type Expression = WithSpan<ExprKind>;
 
 /// The kind of [`Expression`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExprKind {
+    /// A Unit literal
+    Unit,
     /// A 64-bit signed integer
-    Int(i64),
+    Int(IntLiteral),
     /// A text string
     String(Text),
     /// A boolean literal
     Bool(bool),
     /// An optional literal
     Optional(Option<Box<Expression>>),
+    /// A Result Ok literal
+    Ok(Box<Expression>),
+    /// A Result Err literal
+    Err(Box<Expression>),
     /// A named struct
     NamedStruct(NamedStruct),
     /// One of the [InternalFunction]s
@@ -590,8 +604,12 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
+    /// Calls an action, evaluating to the action's return value.
+    ActionCall(FunctionCall),
     /// A return expression. Valid only in functions.
     Return(Box<Expression>),
+    /// A `recall name(args)` expression with type `Never`. Valid only in `policy` blocks.
+    Recall(FunctionCall),
     /// A variable identifier
     Identifier(Ident),
     /// Enum reference, e.g. `Color::Red`
@@ -600,6 +618,8 @@ pub enum ExprKind {
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
+    /// `expr or expr` — optional coalescing
+    Coalesce(Box<Expression>, Box<Expression>),
     /// expr.expr`
     Dot(Box<Expression>, Ident),
     /// `expr` == `expr`
@@ -616,10 +636,6 @@ pub enum ExprKind {
     LessThanOrEqual(Box<Expression>, Box<Expression>),
     /// `!expr`
     Not(Box<Expression>),
-    /// `unwrap expr`
-    Unwrap(Box<Expression>),
-    /// Similar to Unwrap, but exits with a Check, instead of a Panic
-    CheckUnwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
     /// A block expression
@@ -632,15 +648,320 @@ pub enum ExprKind {
     Match(Box<MatchExpression>),
 }
 
+impl ExprKind {
+    /// Compare two expression kinds for equality, ignoring spans.
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Unit, Self::Unit) => true,
+
+            // Simple types without spans - can use ==
+            (Self::Int(a), Self::Int(b)) => a == b,
+            (Self::String(a), Self::String(b)) => a == b,
+            (Self::Bool(a), Self::Bool(b)) => a == b,
+
+            // Optional types
+            (Self::Optional(None), Self::Optional(None)) => true,
+            (Self::Optional(Some(a)), Self::Optional(Some(b))) => a.inner.matches(&b.inner),
+
+            // Result types
+            (Self::Ok(a), Self::Ok(b)) => a.inner.matches(&b.inner),
+            (Self::Err(a), Self::Err(b)) => a.inner.matches(&b.inner),
+
+            // Identifier
+            (Self::Identifier(a), Self::Identifier(b)) => a.matches(b),
+
+            // Named struct
+            (Self::NamedStruct(a), Self::NamedStruct(b)) => {
+                a.name.matches(&b.name)
+                    && a.fields.len() == b.fields.len()
+                    && a.fields
+                        .iter()
+                        .zip(&b.fields)
+                        .all(|((k1, v1), (k2, v2))| k1.matches(k2) && v1.inner.matches(&v2.inner))
+                    && a.sources.len() == b.sources.len()
+                    && a.sources
+                        .iter()
+                        .zip(&b.sources)
+                        .all(|(s1, s2)| s1.matches(s2))
+            }
+
+            // Enum reference
+            (Self::EnumReference(a), Self::EnumReference(b)) => {
+                a.enumeration.matches(&b.enumeration) && a.variant.matches(&b.variant)
+            }
+
+            // Function call
+            (Self::FunctionCall(a), Self::FunctionCall(b))
+            | (Self::ActionCall(a), Self::ActionCall(b))
+            | (Self::Recall(a), Self::Recall(b)) => {
+                a.name.matches(&b.name)
+                    && a.arguments.len() == b.arguments.len()
+                    && a.arguments
+                        .iter()
+                        .zip(&b.arguments)
+                        .all(|(e1, e2)| e1.inner.matches(&e2.inner))
+            }
+
+            // Foreign function call
+            (Self::ForeignFunctionCall(a), Self::ForeignFunctionCall(b)) => {
+                a.module.matches(&b.module)
+                    && a.function.matches(&b.function)
+                    && a.arguments.len() == b.arguments.len()
+                    && a.arguments
+                        .iter()
+                        .zip(&b.arguments)
+                        .all(|(e1, e2)| e1.inner.matches(&e2.inner))
+            }
+
+            // Internal functions
+            (Self::InternalFunction(a), Self::InternalFunction(b)) => {
+                match (a, b) {
+                    (InternalFunction::Query(f1), InternalFunction::Query(f2))
+                    | (InternalFunction::Exists(f1), InternalFunction::Exists(f2)) => {
+                        f1.name.matches(&f2.name)
+                            && f1.key_fields.len() == f2.key_fields.len()
+                            && f1.key_fields.iter().zip(&f2.key_fields).all(
+                                |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
+                            )
+                            && match (&f1.value_fields, &f2.value_fields) {
+                                (None, None) => true,
+                                (Some(vf1), Some(vf2)) => {
+                                    vf1.len() == vf2.len()
+                                        && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
+                                            k1.matches(k2) && matches_fact_field(v1, v2)
+                                        })
+                                }
+                                _ => false,
+                            }
+                    }
+                    (
+                        InternalFunction::FactCount(t1, n1, f1),
+                        InternalFunction::FactCount(t2, n2, f2),
+                    ) => {
+                        t1 == t2
+                            && n1 == n2
+                            && f1.name.matches(&f2.name)
+                            && f1.key_fields.len() == f2.key_fields.len()
+                            && f1.key_fields.iter().zip(&f2.key_fields).all(
+                                |((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2),
+                            )
+                            && match (&f1.value_fields, &f2.value_fields) {
+                                (None, None) => true,
+                                (Some(vf1), Some(vf2)) => {
+                                    vf1.len() == vf2.len()
+                                        && vf1.iter().zip(vf2).all(|((k1, v1), (k2, v2))| {
+                                            k1.matches(k2) && matches_fact_field(v1, v2)
+                                        })
+                                }
+                                _ => false,
+                            }
+                    }
+                    (InternalFunction::If(c1, t1, e1), InternalFunction::If(c2, t2, e2)) => {
+                        c1.inner.matches(&c2.inner)
+                            && t1.inner.matches(&t2.inner)
+                            && e1.inner.matches(&e2.inner)
+                    }
+                    (InternalFunction::TestFail(t1, _), InternalFunction::TestFail(t2, _)) => {
+                        t1 == t2
+                    }
+                    (InternalFunction::Todo(_), InternalFunction::Todo(_)) => true,
+                    _ => false,
+                }
+            }
+
+            // Single expression variants
+            (Self::Return(a), Self::Return(b)) | (Self::Not(a), Self::Not(b)) => {
+                a.inner.matches(&b.inner)
+            }
+
+            // Two expression variants
+            (Self::And(a1, a2), Self::And(b1, b2))
+            | (Self::Or(a1, a2), Self::Or(b1, b2))
+            | (Self::Coalesce(a1, a2), Self::Coalesce(b1, b2))
+            | (Self::Equal(a1, a2), Self::Equal(b1, b2))
+            | (Self::NotEqual(a1, a2), Self::NotEqual(b1, b2))
+            | (Self::GreaterThan(a1, a2), Self::GreaterThan(b1, b2))
+            | (Self::LessThan(a1, a2), Self::LessThan(b1, b2))
+            | (Self::GreaterThanOrEqual(a1, a2), Self::GreaterThanOrEqual(b1, b2))
+            | (Self::LessThanOrEqual(a1, a2), Self::LessThanOrEqual(b1, b2)) => {
+                a1.inner.matches(&b1.inner) && a2.inner.matches(&b2.inner)
+            }
+
+            // Expression with Ident
+            (Self::Dot(e1, i1), Self::Dot(e2, i2))
+            | (Self::Cast(e1, i1), Self::Cast(e2, i2))
+            | (Self::Substruct(e1, i1), Self::Substruct(e2, i2)) => {
+                e1.inner.matches(&e2.inner) && i1.matches(i2)
+            }
+
+            // Is expression
+            (Self::Is(e1, b1), Self::Is(e2, b2)) => e1.inner.matches(&e2.inner) && b1 == b2,
+
+            // Block expression
+            (Self::Block(stmts1, expr1), Self::Block(stmts2, expr2)) => {
+                stmts1.len() == stmts2.len()
+                    && stmts1
+                        .iter()
+                        .zip(stmts2)
+                        .all(|(s1, s2)| matches_statement(s1, s2))
+                    && expr1.inner.matches(&expr2.inner)
+            }
+
+            // Match expression
+            (Self::Match(m1), Self::Match(m2)) => matches_match_expression(m1, m2),
+
+            // Different variants don't match
+            _ => false,
+        }
+    }
+}
+
+/// Helper function to compare FactField instances, ignoring spans.
+fn matches_fact_field(a: &FactField, b: &FactField) -> bool {
+    match (a, b) {
+        (FactField::Expression(e1), FactField::Expression(e2)) => e1.inner.matches(&e2.inner),
+        (FactField::Bind(_), FactField::Bind(_)) => true,
+        _ => false,
+    }
+}
+
+/// Helper function to compare Statement instances, ignoring spans.
+fn matches_statement(a: &Statement, b: &Statement) -> bool {
+    use StmtKind::*;
+    match (&a.inner, &b.inner) {
+        (Let(l1), Let(l2)) => l1.name.matches(&l2.name) && l1.value.inner.matches(&l2.value.inner),
+        (Check(c1), Check(c2)) => c1.condition.inner.matches(&c2.condition.inner),
+        (Match(m1), Match(m2)) => {
+            m1.scrutinee.inner.matches(&m2.scrutinee.inner)
+                && m1.arms.len() == m2.arms.len()
+                && m1.arms.iter().zip(&m2.arms).all(|(a1, a2)| {
+                    matches_match_pattern(&a1.pattern, &a2.pattern)
+                        && a1.body.len() == a2.body.len()
+                        && a1
+                            .body
+                            .iter()
+                            .zip(&a2.body)
+                            .all(|(s1, s2)| matches_statement(s1, s2))
+                })
+        }
+        (If(i1), If(i2)) => {
+            i1.branches.len() == i2.branches.len()
+                && i1
+                    .branches
+                    .iter()
+                    .zip(&i2.branches)
+                    .all(|((cond1, stmts1), (cond2, stmts2))| {
+                        cond1.inner.matches(&cond2.inner)
+                            && stmts1.len() == stmts2.len()
+                            && stmts1
+                                .iter()
+                                .zip(stmts2)
+                                .all(|(s1, s2)| matches_statement(s1, s2))
+                    })
+                && match (&i1.fallback, &i2.fallback) {
+                    (None, None) => true,
+                    (Some(f1), Some(f2)) => {
+                        f1.len() == f2.len()
+                            && f1.iter().zip(f2).all(|(s1, s2)| matches_statement(s1, s2))
+                    }
+                    _ => false,
+                }
+        }
+        (Finish(f1), Finish(f2)) => {
+            f1.len() == f2.len() && f1.iter().zip(f2).all(|(s1, s2)| matches_statement(s1, s2))
+        }
+        (Map(m1), Map(m2)) => {
+            matches_fact_literal(&m1.fact, &m2.fact)
+                && m1.identifier.matches(&m2.identifier)
+                && m1.body.len() == m2.body.len()
+                && m1
+                    .body
+                    .iter()
+                    .zip(&m2.body)
+                    .all(|(s1, s2)| matches_statement(s1, s2))
+        }
+        (Return(r1), Return(r2)) => r1.value.inner.matches(&r2.value.inner),
+        (ActionCall(c1), ActionCall(c2)) | (FunctionCall(c1), FunctionCall(c2)) => {
+            c1.name.matches(&c2.name)
+                && c1.arguments.len() == c2.arguments.len()
+                && c1
+                    .arguments
+                    .iter()
+                    .zip(&c2.arguments)
+                    .all(|(e1, e2)| e1.inner.matches(&e2.inner))
+        }
+        (Publish(e1), Publish(e2)) | (Emit(e1), Emit(e2)) | (DebugAssert(e1), DebugAssert(e2)) => {
+            e1.inner.matches(&e2.inner)
+        }
+        (Create(c1), Create(c2)) => matches_fact_literal(&c1.fact, &c2.fact),
+        (Delete(d1), Delete(d2)) => matches_fact_literal(&d1.fact, &d2.fact),
+        (Update(u1), Update(u2)) => {
+            matches_fact_literal(&u1.fact, &u2.fact)
+                && u1.to.len() == u2.to.len()
+                && u1
+                    .to
+                    .iter()
+                    .zip(&u2.to)
+                    .all(|((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2))
+        }
+        _ => false,
+    }
+}
+
+/// Helper function to compare FactLiteral instances, ignoring spans.
+fn matches_fact_literal(a: &FactLiteral, b: &FactLiteral) -> bool {
+    a.name.matches(&b.name)
+        && a.key_fields.len() == b.key_fields.len()
+        && a.key_fields
+            .iter()
+            .zip(&b.key_fields)
+            .all(|((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2))
+        && match (&a.value_fields, &b.value_fields) {
+            (None, None) => true,
+            (Some(vf1), Some(vf2)) => {
+                vf1.len() == vf2.len()
+                    && vf1
+                        .iter()
+                        .zip(vf2)
+                        .all(|((k1, v1), (k2, v2))| k1.matches(k2) && matches_fact_field(v1, v2))
+            }
+            _ => false,
+        }
+}
+
+/// Helper function to compare MatchPattern instances, ignoring spans.
+fn matches_match_pattern(a: &MatchPattern, b: &MatchPattern) -> bool {
+    match (a, b) {
+        (MatchPattern::Default(_), MatchPattern::Default(_)) => true,
+        (MatchPattern::Values(v1), MatchPattern::Values(v2)) => {
+            v1.len() == v2.len()
+                && v1
+                    .iter()
+                    .zip(v2)
+                    .all(|(e1, e2)| e1.inner.matches(&e2.inner))
+        }
+        _ => false,
+    }
+}
+
+/// Helper function to compare MatchExpression instances, ignoring spans.
+fn matches_match_expression(a: &MatchExpression, b: &MatchExpression) -> bool {
+    a.scrutinee.inner.matches(&b.scrutinee.inner)
+        && a.arms.len() == b.arms.len()
+        && a.arms.iter().zip(&b.arms).all(|(a1, a2)| {
+            matches_match_pattern(&a1.pattern, &a2.pattern) && a1.body.inner.matches(&a2.body.inner)
+        })
+}
+
 spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FunctionDecl {
     /// The identifier of the function
-    pub identifier: Ident,
-    /// A list of the arguments to the function, and their types
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// A list of the parameters to the function, and their types
+    pub parameters: Vec<Param>,
     /// The return type of the function, if any
     pub return_type: Option<VType>,
 }
@@ -651,9 +972,9 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LetStatement {
     /// The variable's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// The variable's value
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 
@@ -662,7 +983,10 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckStatement {
     /// The boolean expression being checked
-    pub expression: Expression,
+    pub condition: Expression,
+    /// Expression to evaluate if the check fails. Must be a terminal expression
+    /// (type `Never`), e.g. `return Err(..)` or `recall foo()`.
+    pub else_expression: Expression,
 }
 }
 
@@ -671,7 +995,8 @@ pub struct CheckStatement {
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
-    /// List of values to match
+    /// List of values to match. E.g. `0 | 1 | 2 => ...`
+    /// Can include Ok(x) and Err(e) for Result matching.
     Values(Vec<Expression>),
 }
 
@@ -693,7 +1018,7 @@ pub struct MatchArm {
     // exhaustive range checks.
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -704,7 +1029,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchStatement {
     /// The value to match against
-    pub expression: Expression,
+    pub scrutinee: Expression,
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
 }
@@ -749,7 +1074,7 @@ pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
     /// Expression
-    pub expression: Expression,
+    pub body: Expression,
     /// The source location of this match arm
     pub span: Span,
 }
@@ -780,7 +1105,7 @@ pub struct MapStatement {
     /// Identifier of container struct
     pub identifier: Ident,
     /// Statements to execute for each fact
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -820,33 +1145,14 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReturnStatement {
     /// The value to return
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 
 /// Statements in the policy language.
+///
 /// Not all statements are valid in all contexts.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Statement {
-    /// The statement kind
-    pub kind: StmtKind,
-    /// The source location of this statement
-    pub span: Span,
-}
-
-impl fmt::Debug for Statement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)?;
-        write!(f, " @ {:?}", self.span)?;
-        Ok(())
-    }
-}
-
-impl Spanned for Statement {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
+pub type Statement = WithSpan<StmtKind>;
 
 /// The kind of [`Statement`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -866,7 +1172,7 @@ pub enum StmtKind {
     Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Calls an action
+    /// Calls an non-returning action. For returning actions, see [`ExprKind::ActionCall`].
     ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
@@ -883,6 +1189,8 @@ pub enum StmtKind {
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
     DebugAssert(Expression),
+    /// A `recall name(args)` statement. Valid only in `policy` blocks.
+    Recall(FunctionCall),
 }
 
 /// A schema definition for a fact
@@ -902,19 +1210,19 @@ pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
     /// The name of the fact
-    pub identifier: Ident,
+    pub name: Ident,
     /// Types for all of the key fields
-    pub key: Vec<FieldDefinition>,
+    pub keys: Vec<FieldDefinition>,
     /// Types for all of the value fields
-    pub value: Vec<FieldDefinition>,
+    pub values: Vec<FieldDefinition>,
     /// The source location of this definition
     pub span: Span,
 }
 
 impl FactDefinition {
-    /// Returns an iterator of the [`Self::key`] and [`Self::value`] fields combined.
+    /// Returns an iterator of the [`Self::keys`] and [`Self::values`] fields combined.
     pub fn fields(&self) -> impl Iterator<Item = &FieldDefinition> {
-        self.key.iter().chain(self.value.iter())
+        self.keys.iter().chain(self.values.iter())
     }
 }
 
@@ -930,11 +1238,14 @@ pub struct ActionDefinition {
     /// The persistence mode of the action
     pub persistence: Persistence,
     /// The name of the action
-    pub identifier: Ident,
-    /// The arguments to the action
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// The parameters to the action
+    pub parameters: Vec<Param>,
+    /// The action's return type: a `result[unit, E]` for a fallible action, or
+    /// [`TypeKind::Unit`] for an infallible one.
+    pub return_type: VType,
     /// The statements executed when the action is called
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -949,7 +1260,7 @@ impl Spanned for ActionDefinition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectDefinition {
     /// The name of the effect
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields of the effect and their types
     pub items: Vec<StructItem<EffectFieldDefinition>>,
     /// The source location of this definition
@@ -966,7 +1277,7 @@ impl Spanned for EffectDefinition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StructDefinition {
     /// The name of the struct
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields of the struct and their types
     pub items: Vec<StructItem<FieldDefinition>>,
     /// The source location of this definition
@@ -1007,25 +1318,42 @@ impl<T: Spanned> Spanned for StructItem<T> {
     }
 }
 
+/// A recall block definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecallBlockDefinition {
+    /// The name of the recall block
+    pub name: Ident,
+    /// The parameters to the recall block
+    pub parameters: Vec<Param>,
+    /// The recall rule statements for this block
+    pub body: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for RecallBlockDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
     /// The persistence mode of the command
     pub persistence: Persistence,
+    /// The name of the base command for this command
+    pub base: Option<Ident>,
     /// Optional attributes
     pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields of the command and their types
     pub fields: Vec<StructItem<FieldDefinition>>,
-    /// Statements for sealing the command into an envelope
-    pub seal: Vec<Statement>,
-    /// Statements for opening the command envelope
-    pub open: Vec<Statement>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
-    /// The recall rule statements for this command
-    pub recall: Vec<Statement>,
+    /// The named recall blocks for this command
+    pub recalls: Vec<RecallBlockDefinition>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1036,17 +1364,36 @@ impl Spanned for CommandDefinition {
     }
 }
 
+/// A base command definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BaseCommandDefinition {
+    /// The name of the base command
+    pub name: Ident,
+    /// The fields of the base command and their types
+    pub fields: Vec<StructItem<FieldDefinition>>,
+    /// The get key block
+    pub get_key: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for BaseCommandDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A function definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionDefinition {
     /// The name of the function
-    pub identifier: Ident,
-    /// The argument names and types
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// The parameter names and types
+    pub parameters: Vec<Param>,
     /// The return type
     pub return_type: VType,
     /// The policy rule statements
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1063,11 +1410,11 @@ impl Spanned for FunctionDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FinishFunctionDefinition {
     /// The name of the function
-    pub identifier: Ident,
-    /// The argument names and types
-    pub arguments: Vec<Param>,
+    pub name: Ident,
+    /// The parameter names and types
+    pub parameters: Vec<Param>,
     /// The finish block statements
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1082,9 +1429,9 @@ impl Spanned for FinishFunctionDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlobalLetStatement {
     /// The variable's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// The variable's value
-    pub expression: Expression,
+    pub value: Expression,
     /// The source location of this statement
     pub span: Span,
 }
@@ -1116,6 +1463,8 @@ pub struct Policy {
     pub enums: Vec<EnumDefinition>,
     /// The policy's command definitions.
     pub commands: Vec<CommandDefinition>,
+    /// The policy's base command definitions.
+    pub base_commands: Vec<BaseCommandDefinition>,
     /// The policy's function definitions.
     pub functions: Vec<FunctionDefinition>,
     /// The policy's finish function definitions.

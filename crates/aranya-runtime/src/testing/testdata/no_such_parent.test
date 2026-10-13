@@ -1,0 +1,127 @@
+[
+  {
+    "AddClient": {
+      "client": 0
+    }
+  },
+  {
+    "AddClient": {
+      "client": 1
+    }
+  },
+  {
+    "AddClient": {
+      "client": 2
+    }
+  },
+  {
+    "NewGraph": {
+      "client": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 0,
+      "max_syncs": 100000
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 0,
+      "max_syncs": 100000
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "equal": true
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": true
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 2
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 4
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 0,
+      "value": 3
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "ConvergeAll": {
+      "clients": 3,
+      "max_syncs": 200
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "equal": true
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": false
+    }
+  }
+]

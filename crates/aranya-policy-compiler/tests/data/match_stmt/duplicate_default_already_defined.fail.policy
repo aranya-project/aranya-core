@@ -1,0 +1,7 @@
+action foo(i int) {
+    match i {
+        1 => {}
+        _ => {}
+        _ => {}
+    }
+}

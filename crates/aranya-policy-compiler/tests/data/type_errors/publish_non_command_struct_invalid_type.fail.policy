@@ -1,0 +1,4 @@
+struct Foo {}
+action foo() {
+    publish Foo {}
+}

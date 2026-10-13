@@ -17,6 +17,35 @@ some other mechanism.
 ```policy
 use envelope
 
+fact Key[]=>{key bytes}
+
+base command BaseInit {
+    fields {
+        key bytes
+    }
+    get_key {
+        return Some(this.key)
+    }
+}
+
+base command Base {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base command BaseEphemeral {
+    get_key {
+        return match query Key[] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
 // `Stuff` is the fact we will interact with in the on-graph commands. It writes
 // a simple fact to the factDB.
 fact Stuff[a int]=>{x int}
@@ -47,14 +76,12 @@ effect Success {
 }
 
 // The `init` action takes a nonce variable and passes it to the Init command.
-action init(nonce int) {
-    publish Init {
-        nonce: nonce,
-    }
+action init(nonce int, key bytes) {
+    publish Init { key, nonce }
 }
 
 // `Init` is a command that initializes a graph.
-command Init {
+command Init with BaseInit {
     attributes {
         init: true,
     }
@@ -64,16 +91,13 @@ command Init {
         nonce int
     }
 
-    // Seal and open blocks are required by the policy_vm to transform an envelope
-    // into command fields and vice versa.
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     // The policy block contains statements which query data and check its validity.
     policy {
-        check this.nonce > 0
+        check this.nonce > 0 else test_fail("nonce must be positive")
         // The finish block contains statements which mutate facts.
-        finish {}
+        finish {
+            create Key[]=>{key: this.key}
+        }
     }
 }
 
@@ -88,7 +112,7 @@ action create_action(v int) {
 
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
 // the `StuffHappened` effect back to the user.
-command Create {
+command Create with Base {
     attributes {
         priority: 0,
     }
@@ -97,9 +121,6 @@ command Create {
         key_a int,
         value int,
     }
-
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
@@ -116,14 +137,11 @@ ephemeral action create_action_ephemeral(v int) {
     }
 }
 
-ephemeral command CreateEphemeral {
+ephemeral command CreateEphemeral with BaseEphemeral {
     fields {
         key_a int,
         value int,
     }
-
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
@@ -144,7 +162,7 @@ action increment(v int) {
 
 // `Increment` is an on-graph command that will increase our test count by the
 // value passed in.
-command Increment {
+command Increment with Base {
     attributes {
         priority: 0,
     }
@@ -154,13 +172,10 @@ command Increment {
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = add(stuff.x, this.value) or test_fail()
+        check new_x < 25 else test_fail("new_x out of range")
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -176,19 +191,16 @@ ephemeral action increment_ephemeral(v int) {
     }
 }
 
-ephemeral command IncrementEphemeral {
+ephemeral command IncrementEphemeral with BaseEphemeral {
     fields {
         key_a int,
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap add(stuff.x, this.value)
-        check new_x < 25
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = add(stuff.x, this.value) or test_fail()
+        check new_x < 25 else test_fail("new_x out of range")
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -208,7 +220,7 @@ action decrement(v int) {
 
 // `Decrement` is an on-graph command that will decrease our test count by the
 // value passed in.
-command Decrement {
+command Decrement with BaseEphemeral {
     attributes {
         priority: 0,
     }
@@ -218,12 +230,9 @@ command Decrement {
         value int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     policy {
-        let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
-        let new_x = unwrap sub(stuff.x, this.value)
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
+        let new_x = sub(stuff.x, this.value) or test_fail()
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
@@ -241,16 +250,13 @@ ephemeral action get_stuff() {
 
 // `GetStuff` is a command that queries the contents of the `Stuff` fact and
 // returns it in a `StuffHappened` effect.
-ephemeral command GetStuff {
+ephemeral command GetStuff with BaseEphemeral {
     fields {
         key_a int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     policy {
-        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
         }
@@ -263,7 +269,7 @@ action get_stuff_on_graph() {
     }
 }
 
-command GetStuffOnGraph {
+command GetStuffOnGraph with Base {
     attributes {
         priority: 0,
     }
@@ -272,11 +278,8 @@ command GetStuffOnGraph {
         key_a int,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     policy {
-        let stuff = unwrap query Stuff[a: 1]=>{x: ?}
+        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
         }
@@ -294,14 +297,11 @@ ephemeral action create_greeting(v string) {
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
-ephemeral command CreateGreeting {
+ephemeral command CreateGreeting with BaseEphemeral {
     fields {
         key string,
         value string,
     }
-
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
@@ -326,23 +326,20 @@ ephemeral action verify_hello() {
 // compares the contents with the value passed in. It is meant to be used in
 // conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
 // and VerifyGreeting checks it's contents.
-ephemeral command VerifyGreeting {
+ephemeral command VerifyGreeting with BaseEphemeral {
     fields {
         key string,
         value string,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value
+        check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}
         }
@@ -356,7 +353,7 @@ action verify_hello_on_graph() {
     }
 }
 
-command VerifyGreetingOnGraph {
+command VerifyGreetingOnGraph with Base {
     attributes {
         priority: 0,
     }
@@ -366,12 +363,9 @@ command VerifyGreetingOnGraph {
         value string,
     }
 
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
-
     policy {
-        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
-        check greeting.value == this.value
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
+        check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
             emit Success{value: true}
         }
@@ -383,14 +377,14 @@ command VerifyGreetingOnGraph {
 // and byte value.
 action store_session_data(key string, value bytes) {
     publish StoreSessionData {
-        key: key,
+        key,
         cmd: value,
     }
 }
 
 // `StoreSessionData` will take serialized byte information and add it to
 // the factDB in a `PersistedSessionData` fact.
-command StoreSessionData {
+command StoreSessionData with Base {
     attributes {
         priority: 0,
     }
@@ -399,9 +393,6 @@ command StoreSessionData {
         key string,
         cmd bytes,
     }
-
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
@@ -419,16 +410,13 @@ effect Relationship {
 }
 
 // Emits `Relationship` effects
-command Link {
+command Link with Base {
     attributes {
         priority: 0,
     }
 
     // Local variables for command
     fields {}
-
-    seal { return envelope::do_seal(serialize(this)) }
-    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {

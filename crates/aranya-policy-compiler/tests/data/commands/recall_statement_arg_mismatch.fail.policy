@@ -1,0 +1,8 @@
+command Cmd {
+    fields {}
+    policy {
+        recall handle("not an int")
+    }
+    recall handle(x int) {
+    }
+}

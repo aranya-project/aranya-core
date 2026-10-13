@@ -511,7 +511,7 @@ impl<T> OwnedPtr<T> {
     pub unsafe fn read(self) -> T {
         // SAFETY: `Valid` is always non-null and suitably
         // aligned.
-        let xref = unsafe { &mut *(self.ptr.as_mut_ptr()) };
+        let xref = unsafe { self.ptr.as_mut_ptr().as_mut_unchecked() };
         // SAFETY: `read` consumes `self`, so the `ManuallyDrop`
         // cannot be used again.
         unsafe { ManuallyDrop::take(xref) }
@@ -525,7 +525,7 @@ impl<T> OwnedPtr<T> {
     pub unsafe fn drop_in_place(self) {
         // SAFETY: `Valid` is always non-null and suitably
         // aligned.
-        let xref = unsafe { &mut *(self.ptr.as_mut_ptr()) };
+        let xref = unsafe { self.ptr.as_mut_ptr().as_mut_unchecked() };
         // SAFETY: `drop_in_place` consumes `self`, so the
         // `ManuallyDrop` cannot be used again.
         unsafe { ManuallyDrop::drop(xref) }

@@ -1,0 +1,10 @@
+struct Foo { x int, y bool }
+struct Bar { x string }
+function baz(b struct Bar) struct Foo {
+    let new_foo = Foo {
+        y: true,
+        ...b
+    }
+
+    return new_foo
+}

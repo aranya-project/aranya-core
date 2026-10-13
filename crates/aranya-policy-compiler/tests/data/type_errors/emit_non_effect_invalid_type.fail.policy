@@ -1,0 +1,7 @@
+command Foo {
+    policy {
+        finish {
+            emit 0
+        }
+    }
+}

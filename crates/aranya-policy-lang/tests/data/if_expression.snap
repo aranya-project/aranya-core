@@ -9,13 +9,14 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "test" @ 7..11,
-            arguments: [],
-            statements: [
+            name: "test" @ 7..11,
+            parameters: [],
+            return_type: Unit @ 0..0,
+            body: [
                 Let(
                     LetStatement {
-                        identifier: "b" @ 24..25,
-                        expression: InternalFunction(
+                        name: "b" @ 24..25,
+                        value: InternalFunction(
                             If(
                                 Bool(
                                     true,
@@ -23,13 +24,13 @@ Policy {
                                 Block(
                                     [],
                                     Int(
-                                        1,
+                                        1 @ 39..40,
                                     ) @ 39..40,
                                 ) @ 36..42,
                                 Block(
                                     [],
                                     Int(
-                                        0,
+                                        0 @ 51..52,
                                     ) @ 51..52,
                                 ) @ 48..54,
                             ),
@@ -44,6 +45,7 @@ Policy {
     structs: [],
     enums: [],
     commands: [],
+    base_commands: [],
     functions: [],
     finish_functions: [],
     global_lets: [],

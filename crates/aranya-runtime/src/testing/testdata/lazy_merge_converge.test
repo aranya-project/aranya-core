@@ -1,0 +1,201 @@
+[
+  {
+    "AddClient": {
+      "client": 0
+    }
+  },
+  {
+    "AddClient": {
+      "client": 1
+    }
+  },
+  {
+    "AddClient": {
+      "client": 2
+    }
+  },
+  {
+    "NewGraph": {
+      "client": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 1,
+      "from": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 0
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "equal": true
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": true
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 0,
+      "key": 0,
+      "value": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 1,
+      "value": 2
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 2,
+      "key": 2,
+      "value": 3
+    }
+  },
+  {
+    "HeadCount": {
+      "client": 0,
+      "count": 1
+    }
+  },
+  {
+    "HeadCount": {
+      "client": 1,
+      "count": 1
+    }
+  },
+  {
+    "Sync": {
+      "client": 0,
+      "from": 1
+    }
+  },
+  {
+    "HeadCount": {
+      "client": 0,
+      "count": 2
+    }
+  },
+  {
+    "Sync": {
+      "client": 0,
+      "from": 2
+    }
+  },
+  {
+    "HeadCount": {
+      "client": 0,
+      "count": 3
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": false
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "key": 3,
+      "value": 4
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 0
+    }
+  },
+  {
+    "Sync": {
+      "client": 2,
+      "from": 1
+    }
+  },
+  {
+    "ConvergeAll": {
+      "clients": 3,
+      "max_syncs": 100
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 1,
+      "clientb": 2,
+      "equal": true
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 0,
+      "key": 0,
+      "value": 9
+    }
+  },
+  {
+    "HeadCount": {
+      "client": 0,
+      "count": 1
+    }
+  },
+  {
+    "ConvergeAll": {
+      "clients": 3,
+      "max_syncs": 100
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "equal": true
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": false
+    }
+  }
+]

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.23.0...aranya-policy-vm-v0.24.0) - 2026-08-25
+
+### Other
+
+- 707 remove unwrap ([#736](https://github.com/aranya-project/aranya-core/pull/736))
+- Remove vm span dependency ([#726](https://github.com/aranya-project/aranya-core/pull/726))
+- validate enum value on deserialization ([#748](https://github.com/aranya-project/aranya-core/pull/748))
+- bypass open in braid ([#738](https://github.com/aranya-project/aranya-core/pull/738))
+- Close #661: Implement `Some(ident)` pattern matching. ([#712](https://github.com/aranya-project/aranya-core/pull/712))
+- Close #705: Actions can return results ([#706](https://github.com/aranya-project/aranya-core/pull/706))
+
+## [0.23.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.22.0...aranya-policy-vm-v0.23.0) - 2026-07-09
+
+### Other
+
+- Close #648: Invoke recall blocks directly from policy, without roundtrip to runtime. ([#700](https://github.com/aranya-project/aranya-core/pull/700))
+- add unit type ([#669](https://github.com/aranya-project/aranya-core/pull/669))
+
+## [0.22.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.21.0...aranya-policy-vm-v0.22.0) - 2026-05-22
+
+### Other
+
+- Close #530: Add tests for nested optionals. ([#685](https://github.com/aranya-project/aranya-core/pull/685))
+- 641 multiple recalls ([#642](https://github.com/aranya-project/aranya-core/pull/642))
+- Close #656: Implement optional-coalescing operator. ([#657](https://github.com/aranya-project/aranya-core/pull/657))
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+- Policy Runner ([#549](https://github.com/aranya-project/aranya-core/pull/549))
+- Close #574: Result cardinality ([#611](https://github.com/aranya-project/aranya-core/pull/611))
+
+## [0.21.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.20.0...aranya-policy-vm-v0.21.0) - 2026-03-31
+
+### Other
+
+- updated the following local packages: aranya-policy-module, aranya-policy-derive
+
+## [0.20.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.19.0...aranya-policy-vm-v0.20.0) - 2026-03-17
+
+### Other
+
+- serialize only command values ([#606](https://github.com/aranya-project/aranya-core/pull/606))
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+- split off `ConstValue` and move `Value` to the vm ([#584](https://github.com/aranya-project/aranya-core/pull/584))
+- only compile ffi structs when imported ([#561](https://github.com/aranya-project/aranya-core/pull/561))
+
 ## [0.19.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-vm-v0.18.0...aranya-policy-vm-v0.19.0) - 2026-02-17
 
 ### Other

@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: unknown error
+   |
+13 |         _ => {
+   |         ^ Default match case must be last.

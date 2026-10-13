@@ -1,0 +1,5 @@
+command Foo {
+    policy {
+        check 0 else test_fail("should fail")
+    }
+}

@@ -1,0 +1,20 @@
+effect Result {
+    x int
+}
+
+finish function f(x int) {
+    emit Result { x }
+}
+
+command Foo {
+    fields {
+        x int,
+    }
+
+
+    policy {
+        finish {
+            f()
+        }
+    }
+}

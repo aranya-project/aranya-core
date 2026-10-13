@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.17.0...aranya-policy-derive-v0.18.0) - 2026-08-25
+
+### Other
+
+- updated the following local packages: aranya-policy-lang
+
+## [0.17.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.16.0...aranya-policy-derive-v0.17.0) - 2026-07-09
+
+### Other
+
+- add unit type ([#669](https://github.com/aranya-project/aranya-core/pull/669))
+
+## [0.16.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.15.1...aranya-policy-derive-v0.16.0) - 2026-05-22
+
+### Other
+
+- add `WithSpan` wrapper and `WithSpanExt` helpers ([#665](https://github.com/aranya-project/aranya-core/pull/665))
+
+## [0.15.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.15.0...aranya-policy-derive-v0.15.1) - 2026-03-31
+
+### Other
+
+- updated the following local packages: aranya-policy-lang
+
+## [0.15.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.14.0...aranya-policy-derive-v0.15.0) - 2026-03-17
+
+### Other
+
+- Close #490: Implement `result` type ([#498](https://github.com/aranya-project/aranya-core/pull/498))
+- split off `ConstValue` and move `Value` to the vm ([#584](https://github.com/aranya-project/aranya-core/pull/584))
+
 ## [0.14.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.13.0...aranya-policy-derive-v0.14.0) - 2026-02-17
 
 ### Other

@@ -12,7 +12,7 @@
 //! # Usage
 //!
 //! Refer to provided demo/quickstart code for an example of how to use the runtime crate.
-//! The `quic_syncer.rs` module provides a good example of syncing via QUIC.
+//! The `aranya-tcp-syncer` crate provides a good example of syncing via TCP.
 //!
 //! # Example
 //!
@@ -51,8 +51,18 @@ mod prior;
 pub mod storage;
 pub mod sync;
 pub mod testing;
+pub(crate) mod util;
 pub mod vm_policy;
 
 pub use crate::{
-    client::*, command::*, policy::*, prior::Prior, storage::*, sync::*, vm_policy::*,
+    client::*,
+    command::*,
+    policy::*,
+    prior::Prior,
+    storage::*,
+    sync::*,
+    vm_policy::{
+        AttributeError, Envelope, FfiCallable, VmAction, VmEffect, VmEffectData, VmFactCursor,
+        VmPolicy, VmPolicyError, VmPolicyIO, VmProtocol, VmProtocolData,
+    },
 };

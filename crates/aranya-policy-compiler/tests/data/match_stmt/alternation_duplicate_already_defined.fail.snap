@@ -1,0 +1,11 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: duplicate match patterns found
+   |
+12 |         5 | 6 => {
+   |         - first defined here
+...
+15 |         1 | 5 | 3  => {
+   |             ^ duplicate pattern

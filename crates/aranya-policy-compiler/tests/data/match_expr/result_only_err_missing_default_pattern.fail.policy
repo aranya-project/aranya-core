@@ -1,0 +1,5 @@
+function f(r result[int, string]) int {
+    return match r {
+        Err(e) => 0
+    }
+}

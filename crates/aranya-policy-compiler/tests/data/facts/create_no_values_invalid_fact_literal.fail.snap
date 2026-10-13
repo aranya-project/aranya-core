@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: fact literal does not match definition: fact literal requires value when used in a create statement
+  |
+4 |     create Device[device_id:1]
+  |            ^^^^^^^^^^^^^^^^^^ fact literal requires value when used in a create statement

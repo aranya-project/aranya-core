@@ -1,0 +1,53 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: module
+---
+Module {
+    version: "1",
+    labels: {},
+    action_defs: [],
+    command_defs: [],
+    fact_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "Bar",
+            items: [
+                Field {
+                    name: "a",
+                    vtype: Int,
+                },
+            ],
+        },
+        StructDef {
+            name: "Baz",
+            items: [
+                Field {
+                    name: "c",
+                    vtype: Bool,
+                },
+            ],
+        },
+        StructDef {
+            name: "Foo",
+            items: [
+                Field {
+                    name: "a",
+                    vtype: Int,
+                },
+                Field {
+                    name: "b",
+                    vtype: String,
+                },
+                Field {
+                    name: "c",
+                    vtype: Bool,
+                },
+            ],
+        },
+    ],
+    enum_defs: [],
+    globals: {},
+    ..
+}
+---
+    exit panic

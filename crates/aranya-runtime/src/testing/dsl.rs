@@ -60,31 +60,145 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::{env, fs};
 
-use aranya_crypto::{Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use aranya_crypto::{
+    Rng,
+    dangerous::spideroak_crypto::csprng::rand::{
+        self, RngExt as _, SeedableRng as _, rngs::SmallRng,
+    },
+};
 use buggy::{Bug, BugExt as _};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _, GraphId,
-    Location, MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Segment as _, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
-    TraversalBuffer, TraversalBuffers,
+    Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _,
+    CommandExt as _, GraphId, Keys, LocatedAddress, Location, MAX_COMMAND_LENGTH,
+    MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers,
+    Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncHello, SyncIncoming,
+    SyncRequester, SyncResponder, Transaction, TraversalBuffer, TraversalBuffers, mem_spill,
+    sync::wire::{SyncHelloType, SyncType},
     testing::{
-        protocol::{TestActions, TestEffect, TestPolicyStore, TestSink},
+        protocol::{TestActions, TestEffect, TestPolicy, TestPolicyStore, TestSink},
         short_b58,
     },
 };
 
-fn default_repeat() -> u64 {
-    1
+/// Fact names written by the DSL test policies.
+///
+/// The DSL harness runs `TestPolicy` (see `testing::protocol`), whose only
+/// fact write is `insert("payload", ...)` (in `origin_check_message`). The
+/// VM test policy (`testing::vm`) writes `"Stuff"`. We enumerate these known
+/// names because the [`Query`] API only supports lookups by a known fact name
+/// (`query` / `query_prefix`); there is no API to enumerate fact names. For
+/// the DSL tests this is FULL coverage of the merged fact state, since
+/// `"payload"` is the only name those tests ever write.
+const TEST_FACT_NAMES: &[&str] = &["payload", "Stuff", "seq", "stuff"];
+
+const DEFAULT_MAX_CASCADE_DEPTH: u64 = 100;
+
+const DEFAULT_REPEAT: u64 = 1;
+const DEFAULT_MAX_SYNCS: u64 = 1;
+const DEFAULT_NOTIFY_INTERVAL: u64 = 1;
+const DEFAULT_KEY_RANGE: u64 = 1;
+const DEFAULT_SYNC_INTERVAL: u64 = 1;
+
+fn constant<const VALUE: u64>() -> u64 {
+    VALUE
 }
 
-fn default_max_syncs() -> u64 {
-    1
+fn is<const VALUE: u64>(val: &u64) -> bool {
+    *val == VALUE
 }
 
-/// Dispatches the SyncType contained in data.
+fn is_default<T: Default + PartialEq>(val: &T) -> bool {
+    *val == T::default()
+}
+
+/// Tracks per-subscriber state for hello sync debouncing.
+///
+/// A graph change is one command added to the publisher's graph, whether
+/// written locally or received by sync, so a sync that lands ten commands
+/// counts ten times toward the interval.
+#[derive(Clone, Debug)]
+struct HelloSub {
+    /// Notify after this many commands are added to the publisher's graph.
+    notify_interval: u64,
+    /// Commands added since the last notification.
+    changes_since_notify: u64,
+}
+
+/// Determines how GenerateGraph synchronizes clients.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum SyncMethod {
+    /// Explicit poll-based sync (existing behavior).
+    Poll {
+        /// Probability weight for generating a command action.
+        add_command_chance: u64,
+        /// Probability weight for generating a sync action.
+        sync_chance: u64,
+    },
+    /// Hello notification-driven sync.
+    HelloSync {
+        /// Notify after this many graph changes (debounce).
+        #[serde(
+            default = "constant::<DEFAULT_NOTIFY_INTERVAL>",
+            skip_serializing_if = "is::<DEFAULT_NOTIFY_INTERVAL>"
+        )]
+        notify_interval: u64,
+        /// How clients are connected for hello notifications.
+        #[serde(default)]
+        topology: HelloTopology,
+    },
+    /// No syncing during command generation. Commands are distributed
+    /// evenly (round-robin) across the participating clients and only
+    /// propagated to the rest during convergence. Useful for benchmarking
+    /// sync performance against a large graph.
+    None {
+        /// If true, client 0 participates in the round-robin distribution.
+        /// If false, client 0 is excluded and commands are split across
+        /// clients 1..N only.
+        #[serde(default, skip_serializing_if = "is_default")]
+        add_commands_to_client_zero: bool,
+    },
+    /// Deterministic tick-driven generation. On each tick, every client
+    /// whose write interval divides the tick writes one command; then,
+    /// if the tick is a sync tick, the peers sync bidirectionally.
+    /// A branch forms whenever multiple clients write on the same tick,
+    /// giving controlled branching. Uses no randomness, so the generated
+    /// rule sequence is fully reproducible.
+    Tick {
+        /// Client `i` writes a command every `write_intervals[i]` ticks.
+        /// An interval of 0 means the client never writes (pure
+        /// subscriber). Length must equal `clients`; at least one entry
+        /// must be nonzero.
+        write_intervals: Vec<u64>,
+        /// Bidirectional pairwise sync every `sync_interval` ticks.
+        /// Ignored when `hello_notify_interval` is set.
+        #[serde(
+            default = "constant::<DEFAULT_SYNC_INTERVAL>",
+            skip_serializing_if = "is::<DEFAULT_SYNC_INTERVAL>"
+        )]
+        sync_interval: u64,
+        /// If set, sync via hello notifications instead of explicit
+        /// per-tick pair syncs: the peers subscribe to each other with
+        /// this notify (debounce) interval and sync only when notified
+        /// of a change.
+        #[serde(default)]
+        hello_notify_interval: Option<u64>,
+    },
+}
+
+/// Client connection topology for hello sync.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum HelloTopology {
+    /// Client 0 is the hub; all others subscribe to it and it subscribes to all.
+    #[default]
+    HubAndSpoke,
+    /// Each client subscribes to the next: 0→1, 1→2, ..., N-1→0.
+    Ring,
+}
+
+/// Dispatches the sync message contained in data.
 /// This function is only for testing using polling. In production
 /// usage the syncer implementation will handle this.
 pub fn dispatch(
@@ -92,45 +206,246 @@ pub fn dispatch(
     target: &mut [u8],
     provider: &mut impl StorageProvider,
     response_cache: &mut PeerCache,
+    buffers: &mut TraversalBuffers,
 ) -> Result<usize, SyncError> {
-    let sync_type: SyncType = postcard::from_bytes(data)?;
-    let len = match sync_type {
-        SyncType::Poll { request } => {
-            let mut buffers = TraversalBuffers::new();
-            let mut response_syncer = SyncResponder::new(&mut buffers);
-            response_syncer.receive(request)?;
+    let len = match SyncIncoming::decode(data)? {
+        SyncIncoming::Poll(poll) => {
+            let mut response_syncer = SyncResponder::new();
+            response_syncer.receive(poll)?;
             assert!(response_syncer.ready());
-            response_syncer.poll(target, provider, response_cache)?
+            response_syncer.poll(target, provider, response_cache, buffers)?
         }
-        SyncType::Subscribe { .. } => unimplemented!(),
-        SyncType::Unsubscribe { .. } => unimplemented!(),
-        SyncType::Push { .. } => unimplemented!(),
-        SyncType::Hello(_) => unimplemented!(),
+        SyncIncoming::Subscribe(_) => unimplemented!(),
+        SyncIncoming::Unsubscribe(_) => unimplemented!(),
+        SyncIncoming::Push(_) => unimplemented!(),
+        SyncIncoming::Hello(_) => unimplemented!(),
     };
     Ok(len)
+}
+
+/// Processes hello sync notifications cascading from a graph change.
+///
+/// `initial_changed` added `new_commands` commands to its graph. Every
+/// command counts toward each subscriber's debounce, and a subscriber that
+/// receives commands from the publisher becomes a changed client with that
+/// many new commands of its own.
+///
+/// Models the daemon's hello protocol: when a client's graph changes, each
+/// subscriber is sent a wire-encoded `Hello` notification carrying the
+/// publisher's advertised head ([`ClientState::hello_head`]: the head itself,
+/// or the virtual synthetic merge of a multi-head set). A subscriber for
+/// which the advertisement signals nothing new
+/// ([`ClientState::should_sync_on_hello`]) does not sync; otherwise it syncs
+/// from the publisher, and if it receives new data it becomes a "changed
+/// client" whose own subscribers are notified. This repeats until no new
+/// data flows or `max_depth` is exceeded.
+#[allow(clippy::too_many_arguments)]
+fn process_hello_notifications<SP: StorageProvider>(
+    graph: u64,
+    initial_changed: u64,
+    new_commands: u64,
+    subscriptions: &mut BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>>,
+    graph_id: GraphId,
+    clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
+    client_heads: &mut BTreeMap<(u64, u64, u64), RefCell<PeerCache>>,
+    sink: &mut TestSink,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
+    max_depth: u64,
+) -> Result<(), TestError> {
+    // Changed clients this level, with how many commands each gained.
+    let mut changed: BTreeMap<u64, u64> = BTreeMap::new();
+    changed.insert(initial_changed, new_commands);
+    for depth in 0..max_depth {
+        let mut next_changed: BTreeMap<u64, u64> = BTreeMap::new();
+
+        for (&publisher, &added) in &changed {
+            // Collect subscribers that are ready to be notified.
+            let ready: Vec<u64> = match subscriptions.get_mut(&(graph, publisher)) {
+                Some(subs) => subs
+                    .iter_mut()
+                    .filter_map(|(&subscriber, sub)| {
+                        sub.changes_since_notify += added;
+                        if sub.changes_since_notify >= sub.notify_interval {
+                            sub.changes_since_notify = 0;
+                            Some(subscriber)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                None => continue,
+            };
+
+            for subscriber in ready {
+                debug!(
+                    depth,
+                    publisher, subscriber, "hello sync: notifying subscriber"
+                );
+
+                // The publisher builds the notification the same way the
+                // daemon does: a single head address on the wire. A
+                // multi-head graph advertises its virtual synthetic head.
+                let head = clients
+                    .get(&publisher)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut()
+                    .hello_head(graph_id)?;
+
+                // Round-trip the notification through the wire format.
+                let mut wire = [0u8; MAX_SYNC_MESSAGE_SIZE];
+                let len = postcard::to_slice(
+                    &SyncType::Hello(SyncHelloType::Hello { graph_id, head }),
+                    &mut wire,
+                )
+                .map_err(SyncError::from)?
+                .len();
+                let SyncIncoming::Hello(SyncHello::Hello(notification)) =
+                    SyncIncoming::decode(&wire[..len])?
+                else {
+                    buggy::bug!("hello notification decoded as a different message type");
+                };
+
+                let mut request_client = clients
+                    .get(&subscriber)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+
+                // The subscriber only syncs if the advertised head signals
+                // state it does not hold.
+                let needs_sync = request_client.should_sync_on_hello(
+                    notification.graph_id(),
+                    notification.head(),
+                    &mut rt_buffers.traversal.primary,
+                )?;
+
+                client_heads
+                    .entry((graph, subscriber, publisher))
+                    .or_default();
+                client_heads
+                    .entry((graph, publisher, subscriber))
+                    .or_default();
+
+                let mut received = 0;
+                if needs_sync {
+                    let mut request_cache = client_heads
+                        .get(&(graph, subscriber, publisher))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let mut response_cache = client_heads
+                        .get(&(graph, publisher, subscriber))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let mut response_client = clients
+                        .get(&publisher)
+                        .ok_or(TestError::MissingClient)?
+                        .borrow_mut();
+
+                    // The hello cascade needs committed state to serve
+                    // onward, so commit per notification here.
+                    let mut trx = request_client.transaction(graph_id);
+                    let mut received_addrs = Vec::new();
+                    loop {
+                        let (_, exchange_received) = sync::<SP>(
+                            &mut trx,
+                            (&request_cache, &mut request_client),
+                            (&mut response_cache, &mut response_client),
+                            &mut received_addrs,
+                            sink,
+                            graph_id,
+                            rt_buffers,
+                        )?;
+                        received += exchange_received;
+                        if exchange_received == 0 {
+                            break;
+                        }
+                    }
+                    request_client.commit(trx, sink, rt_buffers, mem_spill)?;
+                    request_client.update_heads(
+                        graph_id,
+                        received_addrs,
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
+                    )?;
+                }
+
+                // Track the advertised head in the subscriber's cache for the
+                // publisher. A multi-head publisher advertises a virtual
+                // merge that exists in no one's storage, so only locatable
+                // commands go in the cache.
+                if request_client.command_exists(
+                    notification.graph_id(),
+                    notification.head(),
+                    &mut rt_buffers.traversal.primary,
+                ) {
+                    let mut request_cache = client_heads
+                        .get(&(graph, subscriber, publisher))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    request_client.update_heads(
+                        notification.graph_id(),
+                        [notification.head()],
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
+                    )?;
+                }
+
+                if received > 0 {
+                    debug!(
+                        depth,
+                        subscriber, received, "hello sync: subscriber received new data"
+                    );
+                    *next_changed.entry(subscriber).or_default() += received as u64;
+                }
+            }
+        }
+
+        if next_changed.is_empty() {
+            debug!(depth, "hello sync: cascade complete");
+            return Ok(());
+        }
+
+        changed = next_changed;
+    }
+
+    #[allow(clippy::panic)]
+    {
+        panic!("hello sync cascade exceeded max depth of {max_depth}");
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum TestRule {
     AddClient {
-        id: u64,
+        #[serde(alias = "id")]
+        client: u64,
     },
     NewGraph {
+        #[serde(alias = "id")]
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         client: u64,
-        id: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         policy: u64,
     },
     RemoveGraph {
+        #[serde(alias = "id")]
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         client: u64,
-        id: u64,
     },
     Sync {
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
         client: u64,
         from: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         must_send: Option<usize>,
+        #[serde(default, skip_serializing_if = "is_default")]
         must_receive: Option<usize>,
-        #[serde(default = "default_max_syncs")]
+        #[serde(
+            default = "constant::<DEFAULT_MAX_SYNCS>",
+            skip_serializing_if = "is::<DEFAULT_MAX_SYNCS>"
+        )]
         max_syncs: u64,
     },
     AddExpectation(u64),
@@ -139,187 +454,150 @@ pub enum TestRule {
         repeat: u64,
     },
     ActionSet {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         key: u64,
         value: u64,
-        #[serde(default = "default_repeat")]
+        #[serde(
+            default = "constant::<DEFAULT_REPEAT>",
+            skip_serializing_if = "is::<DEFAULT_REPEAT>"
+        )]
         repeat: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
+        priority: u32,
+    },
+    ActionDelete {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
+        client: u64,
+        key: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
+        priority: u32,
+    },
+    ActionNoOp {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
+        client: u64,
+        nonce: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
+        priority: u32,
+    },
+    /// Ingests a command whose rule writes `payload[poison_key] =
+    /// poison_value` and then fails, asserts the runtime rejects it, then
+    /// adds a valid basic command setting `payload[key] = value` in the
+    /// same transaction and commits.
+    ///
+    /// Models a caller that keeps using a transaction after a per-command
+    /// policy failure, which the `Transaction` API permits: the failed
+    /// rule's writes are reverted, so nothing from the rejected command may
+    /// reach committed fact state.
+    IngestPoisonThenSet {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
+        client: u64,
+        poison_key: u64,
+        poison_value: u64,
+        key: u64,
+        value: u64,
     },
     CompareGraphs {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
         clienta: u64,
         clientb: u64,
-        graph: u64,
         equal: bool,
     },
     PrintGraph {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
     },
     IgnoreExpectations {
         ignore: bool,
     },
     GenerateGraph {
-        clients: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        clients: u64,
         commands: u64,
-        add_command_chance: u64,
-        sync_chance: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
+        policy: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
+        sync_client_zero: bool,
+        sync_method: SyncMethod,
+        /// Percent (0-100) of generated commands that delete a fact.
+        #[serde(alias = "delete_chance")]
+        #[serde(default, skip_serializing_if = "is_default")]
+        delete_proportion: u8,
+        /// Percent (0-100) of generated commands that are no-ops (no fact
+        /// mutation). Produces segments with empty fact maps.
+        #[serde(alias = "noop_chance")]
+        #[serde(default, skip_serializing_if = "is_default")]
+        noop_proportion: u8,
+        /// Fact keys are drawn from `0..key_range`.
+        #[serde(
+            default = "constant::<DEFAULT_KEY_RANGE>",
+            skip_serializing_if = "is::<DEFAULT_KEY_RANGE>"
+        )]
+        key_range: u64,
+        /// Command priorities are drawn from `0..=max_priority`.
+        #[serde(default, skip_serializing_if = "is_default")]
+        max_priority: u32,
+        /// Seed for the RNG driving generation, making the run
+        /// repeatable. When absent, a random seed is drawn and
+        /// reported so a failure can still be replayed.
+        #[serde(default, skip_serializing_if = "is_default")]
+        seed: Option<u64>,
     },
     SetupClientsAndGraph {
-        clients: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        clients: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         policy: u64,
     },
     MaxCut {
-        client: u64,
+        #[serde(default, skip_serializing_if = "is_default")]
         graph: u64,
+        client: u64,
         max_cut: MaxCut,
     },
     VerifyGraphIds {
         client: u64,
         ids: Vec<u64>,
     },
-}
-
-impl Display for TestRule {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: None,
-                must_receive: None,
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, max_syncs,
-            ),
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: None,
-                must_receive: Some(must_receive),
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_receive, max_syncs,
-            ),
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: Some(must_send),
-                must_receive: None,
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, max_syncs,
-            ),
-            Self::Sync {
-                graph,
-                client,
-                from,
-                must_send: Some(must_send),
-                must_receive: Some(must_receive),
-                max_syncs,
-            } => write!(
-                f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, must_receive, max_syncs,
-            ),
-            Self::ActionSet {
-                client,
-                graph,
-                key,
-                value,
-                repeat,
-            } => write!(
-                f,
-                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {} }} }},"#,
-                graph, client, key, value, repeat,
-            ),
-            Self::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
-            Self::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
-            Self::AddExpectations {
-                expectation,
-                repeat,
-            } => write!(
-                f,
-                r#"{{"AddExpectations": {{ "expectation": {}, "repeat": {} }} }},"#,
-                expectation, repeat,
-            ),
-            Self::CompareGraphs {
-                clienta,
-                clientb,
-                graph,
-                equal,
-            } => write!(
-                f,
-                r#"{{"CompareGraphs": {{ "clienta": {}, "clientb": {}, "graph": {}, "equal": {} }} }},"#,
-                clienta, clientb, graph, equal,
-            ),
-            Self::GenerateGraph {
-                clients,
-                graph,
-                commands,
-                add_command_chance,
-                sync_chance,
-            } => write!(
-                f,
-                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {} }} }},"#,
-                clients, graph, commands, add_command_chance, sync_chance,
-            ),
-            Self::IgnoreExpectations { ignore } => write!(
-                f,
-                r#"{{"IgnoreExpectations": {{ "ignore": {} }} }},"#,
-                ignore,
-            ),
-            Self::MaxCut {
-                client,
-                graph,
-                max_cut,
-            } => write!(
-                f,
-                r#"{{"MaxCut": {{ "client": {}, "graph": {}, "max_cut": {} }} }},"#,
-                client, graph, max_cut,
-            ),
-            Self::NewGraph { client, id, policy } => write!(
-                f,
-                r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
-                client, id, policy,
-            ),
-            Self::RemoveGraph { client, id } => write!(
-                f,
-                r#"{{"RemoveGraph": {{ "client": {}, "id": {} }} }},"#,
-                client, id,
-            ),
-            Self::PrintGraph { client, graph } => write!(
-                f,
-                r#"{{"PrintGraph": {{ "client": {}, "graph": {} }} }},"#,
-                client, graph,
-            ),
-            Self::SetupClientsAndGraph {
-                clients,
-                graph,
-                policy,
-            } => write!(
-                f,
-                r#"{{"SetupClientsAndGraph": {{ "clients": {}, "graph": {}, "policy": {} }} }},"#,
-                clients, graph, policy,
-            ),
-            Self::VerifyGraphIds { client, ids } => write!(
-                f,
-                r#"{{"VerifyGraphIds": {{ "client": {}, "ids": {:?} }} }},"#,
-                client, ids
-            ),
-        }
-    }
+    ConvergeAll {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
+        clients: u64,
+        max_syncs: u64,
+    },
+    HelloSubscribe {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
+        client: u64,
+        peer: u64,
+        #[serde(
+            default = "constant::<DEFAULT_NOTIFY_INTERVAL>",
+            skip_serializing_if = "is::<DEFAULT_NOTIFY_INTERVAL>"
+        )]
+        notify_interval: u64,
+    },
+    HelloUnsubscribe {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
+        client: u64,
+        peer: u64,
+    },
+    /// Asserts a client's graph holds exactly `count` heads. With lazy merges a
+    /// divergent graph holds multiple heads; this checks the lazy property.
+    HeadCount {
+        #[serde(default, skip_serializing_if = "is_default")]
+        graph: u64,
+        client: u64,
+        count: usize,
+    },
 }
 
 /// An error result from a test.
@@ -354,12 +632,60 @@ pub trait StorageBackend {
     fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
 }
 
+/// Randomly generates a set, delete, or no-op rule shaped by the
+/// `GenerateGraph` knobs. `delete_proportion` and `noop_proportion` are percentages
+/// (their sum at most 100); keys are drawn from `0..key_range` and
+/// priorities from `0..=max_priority`.
+fn gen_command_rule<R: rand::Rng>(
+    rng: &mut R,
+    client: u64,
+    graph: u64,
+    delete_proportion: u8,
+    noop_proportion: u8,
+    key_range: u64,
+    max_priority: u32,
+) -> TestRule {
+    let key = rng.random_range(0..key_range);
+    let priority = if max_priority == 0 {
+        0
+    } else {
+        rng.random_range(0..=max_priority)
+    };
+    let roll = rng.random_range(0..100u8);
+    if roll < noop_proportion {
+        TestRule::ActionNoOp {
+            client,
+            graph,
+            nonce: rng.random(),
+            priority,
+        }
+    } else if roll < noop_proportion + delete_proportion {
+        TestRule::ActionDelete {
+            client,
+            graph,
+            key,
+            priority,
+        }
+    } else {
+        TestRule::ActionSet {
+            client,
+            graph,
+            key,
+            // Full-range values keep concurrently written commands distinct:
+            // two clients writing the same value on the same parent would
+            // otherwise produce one identical command.
+            value: rng.random(),
+            repeat: 1,
+            priority,
+        }
+    }
+}
+
 /// Runs a particular test.
 pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError>
 where
     SB: StorageBackend,
 {
-    let mut rng = Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()
@@ -369,93 +695,39 @@ where
                     clients,
                     graph,
                     commands,
-                    add_command_chance,
-                    sync_chance,
+                    policy,
+                    sync_client_zero,
+                    sync_method,
+                    delete_proportion,
+                    noop_proportion,
+                    key_range,
+                    max_priority,
+                    seed,
                 } => {
-                    assert!(clients > 2, "There must be at least three clients");
+                    assert!(key_range > 0, "key_range must be at least 1");
                     assert!(
-                        add_command_chance > 0,
-                        "There must be a positive command chance or it will never exit"
+                        // Widened so bogus inputs hit this assert rather
+                        // than overflowing the `u8` addition.
+                        u16::from(delete_proportion) + u16::from(noop_proportion) <= 100,
+                        "delete_proportion + noop_proportion are percentages of generated commands"
                     );
-                    // Calculate the maximum number of syncs needed to send all commands.
-                    // We add 100 to account for extra syncs needed for merge commands.
-                    let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                    let seed = seed.unwrap_or_else(|| Rng.random());
+                    // Reported so a failing generated run can be replayed
+                    // by setting `"seed"` on the `GenerateGraph` rule.
+                    #[cfg(any(test, feature = "std"))]
+                    eprintln!("GenerateGraph rng seed: {seed}");
+                    debug!(seed, "GenerateGraph rng seed");
+                    let mut rng = SmallRng::seed_from_u64(seed);
+                    // Setup clients and graph first.
                     let mut generated_actions = Vec::new();
-                    let command_ceiling: u64 = add_command_chance;
-                    let sync_ceiling = command_ceiling + sync_chance;
-                    generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
-                    let mut count = 0;
-                    // Randomly generate actions and syncs. This will create a graph with many branches.
-                    while count < commands {
-                        let client = rng.gen_range(1..clients);
-                        match rng.gen_range(0..sync_ceiling) {
-                            x if x < command_ceiling => {
-                                generated_actions.push(TestRule::ActionSet {
-                                    client,
-                                    graph,
-                                    key: 0,
-                                    value: rng.gen_range(0..10),
-                                    repeat: 1,
-                                });
-                                count += 1;
-                            }
-                            x if x < sync_ceiling => {
-                                let mut from = (client + 1) % clients;
-                                if from == 0 {
-                                    from += 1;
-                                }
-                                generated_actions.push(TestRule::Sync {
-                                    graph,
-                                    client,
-                                    from,
-                                    must_send: None,
-                                    must_receive: None,
-                                    max_syncs: 1,
-                                });
-                            }
-                            _ => {}
-                        }
+                    for i in 0..clients {
+                        generated_actions.push(TestRule::AddClient { client: i });
                     }
-                    // Converge clients 1, 2, 3, etc. by repeatedly syncing them with each other
-                    // until they all have the same graph. This is necessary because merge commands
-                    // created during syncs need to propagate to all clients.
-                    // We loop multiple times to ensure convergence (merge commands from one client
-                    // need to be sent to others, which may create new merges, etc.)
-                    for _convergence_round in 0..5 {
-                        // Sync client 1 with all other clients so client 1 has the entire graph.
-                        for i in 2..clients {
-                            generated_actions.push(TestRule::Sync {
-                                graph,
-                                client: 1,
-                                from: i,
-                                must_send: None,
-                                must_receive: None,
-                                max_syncs,
-                            });
-                        }
-                        // Sync other clients with client 1 so they get everything from client 1.
-                        for i in 2..clients {
-                            generated_actions.push(TestRule::Sync {
-                                graph,
-                                client: i,
-                                from: 1,
-                                must_send: None,
-                                must_receive: None,
-                                max_syncs,
-                            });
-                        }
-                    }
-                    // Sync the entire graph to client 0 at once.
-                    generated_actions.push(TestRule::Sync {
-                        graph,
+                    generated_actions.push(TestRule::NewGraph {
                         client: 0,
-                        from: 1,
-                        must_send: None,
-                        must_receive: None,
-                        max_syncs,
+                        graph,
+                        policy,
                     });
-                    // Sync other clients with client 0 so other clients have any extra merges
-                    // created by client 0.
                     for i in 1..clients {
                         generated_actions.push(TestRule::Sync {
                             graph,
@@ -463,10 +735,9 @@ where
                             from: 0,
                             must_send: None,
                             must_receive: None,
-                            max_syncs,
+                            max_syncs: 100000,
                         });
                     }
-                    // Compare all graphs to ensure they're the same after syncing.
                     for i in 1..clients {
                         generated_actions.push(TestRule::CompareGraphs {
                             clienta: 0,
@@ -475,8 +746,303 @@ where
                             equal: true,
                         });
                     }
-                    generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
-                    generated_actions
+
+                    match sync_method {
+                        SyncMethod::Poll {
+                            sync_chance,
+                            add_command_chance,
+                        } => {
+                            let min_clients = if sync_client_zero { 2 } else { 3 };
+                            assert!(
+                                clients >= min_clients,
+                                "There must be at least {min_clients} clients"
+                            );
+                            assert!(
+                                add_command_chance > 0,
+                                "There must be a positive command chance or it will never exit"
+                            );
+                            // Calculate the maximum number of syncs needed to send all commands.
+                            // We add 100 to account for extra syncs needed for merge commands.
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                            let command_ceiling: u64 = add_command_chance;
+                            let sync_ceiling = command_ceiling + sync_chance;
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+                            let client_start = if sync_client_zero { 0 } else { 1 };
+                            let mut count = 0;
+                            // Randomly generate actions and syncs. This will create a graph with many branches.
+                            while count < commands {
+                                let client = rng.random_range(client_start..clients);
+                                match rng.random_range(0..sync_ceiling) {
+                                    x if x < command_ceiling => {
+                                        generated_actions.push(gen_command_rule(
+                                            &mut rng,
+                                            client,
+                                            graph,
+                                            delete_proportion,
+                                            noop_proportion,
+                                            key_range,
+                                            max_priority,
+                                        ));
+                                        count += 1;
+                                    }
+                                    _ => {
+                                        let mut from = (client + 1) % clients;
+                                        if !sync_client_zero && from == 0 {
+                                            from += 1;
+                                        }
+                                        generated_actions.push(TestRule::Sync {
+                                            graph,
+                                            client,
+                                            from,
+                                            must_send: None,
+                                            must_receive: None,
+                                            max_syncs: 1,
+                                        });
+                                    }
+                                }
+                            }
+                            // Converge all clients by syncing every pair in both
+                            // directions until no client receives new commands.
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
+                            // Verify all graphs are identical after convergence.
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                        SyncMethod::HelloSync {
+                            notify_interval,
+                            topology,
+                        } => {
+                            assert!(clients >= 2, "HelloSync requires at least 2 clients");
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+
+                            match topology {
+                                HelloTopology::HubAndSpoke => {
+                                    // Client 0 is the hub; all others subscribe
+                                    // to it and it subscribes to all.
+                                    for i in 1..clients {
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: i,
+                                            peer: 0,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: 0,
+                                            peer: i,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                    }
+                                }
+                                HelloTopology::Ring => {
+                                    // Each client subscribes to the next:
+                                    // 0→1, 1→2, ..., N-1→0.
+                                    for i in 0..clients {
+                                        let next = (i + 1) % clients;
+                                        generated_actions.push(TestRule::HelloSubscribe {
+                                            client: i,
+                                            peer: next,
+                                            graph,
+                                            notify_interval,
+                                        });
+                                    }
+                                }
+                            }
+
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+
+                            let mut count = 0;
+
+                            // Generate rounds. Each round, every client
+                            // adds a command.
+                            while count < commands {
+                                for client in 0..clients {
+                                    generated_actions.push(gen_command_rule(
+                                        &mut rng,
+                                        client,
+                                        graph,
+                                        delete_proportion,
+                                        noop_proportion,
+                                        key_range,
+                                        max_priority,
+                                    ));
+                                    count += 1;
+                                    if count >= commands {
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Converge all clients as safety net.
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
+                            // Verify all graphs are identical.
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                        SyncMethod::Tick {
+                            write_intervals,
+                            sync_interval,
+                            hello_notify_interval,
+                        } => {
+                            assert!(
+                                clients == 2,
+                                "Tick sync currently supports exactly 2 clients"
+                            );
+                            assert_eq!(
+                                write_intervals.len(),
+                                clients as usize,
+                                "write_intervals must have one entry per client"
+                            );
+                            assert!(
+                                write_intervals.iter().any(|&interval| interval >= 1),
+                                "at least one write interval must be nonzero"
+                            );
+                            assert!(sync_interval >= 1, "sync_interval must be at least 1");
+                            if let Some(notify_interval) = hello_notify_interval {
+                                assert!(
+                                    notify_interval >= 1,
+                                    "hello_notify_interval must be at least 1"
+                                );
+                                // The peers subscribe to each other; syncs are
+                                // then driven by change notifications instead
+                                // of explicit Sync rules.
+                                for client in 0..clients {
+                                    let peer = (client + 1) % clients;
+                                    generated_actions.push(TestRule::HelloSubscribe {
+                                        client,
+                                        peer,
+                                        graph,
+                                        notify_interval,
+                                    });
+                                }
+                            }
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+
+                            let mut count = 0;
+                            let mut tick: u64 = 0;
+                            while count < commands {
+                                tick += 1;
+                                // Writes first: clients due on the same tick
+                                // commit on the same head, creating a branch.
+                                for (i, &interval) in write_intervals.iter().enumerate() {
+                                    if count < commands && tick.is_multiple_of(interval) {
+                                        generated_actions.push(TestRule::ActionSet {
+                                            client: i as u64,
+                                            graph,
+                                            key: 0,
+                                            value: tick % 10,
+                                            repeat: 1,
+                                            priority: 0,
+                                        });
+                                        count += 1;
+                                    }
+                                }
+                                // Then sync both directions; the receiver of
+                                // two heads commits a merge and the back-sync
+                                // propagates it. With hello sync the runtime
+                                // syncs on notification instead.
+                                if hello_notify_interval.is_none()
+                                    && tick.is_multiple_of(sync_interval)
+                                {
+                                    for client in 0..clients {
+                                        let from = (client + 1) % clients;
+                                        generated_actions.push(TestRule::Sync {
+                                            graph,
+                                            client,
+                                            from,
+                                            must_send: None,
+                                            must_receive: None,
+                                            max_syncs: 1,
+                                        });
+                                    }
+                                }
+                            }
+
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                        SyncMethod::None {
+                            add_commands_to_client_zero,
+                        } => {
+                            assert!(clients >= 2, "None sync requires at least 2 clients");
+                            let max_syncs = (commands / COMMAND_RESPONSE_MAX as u64) + 100;
+                            let participating: Vec<u64> = if add_commands_to_client_zero {
+                                (0..clients).collect()
+                            } else {
+                                (1..clients).collect()
+                            };
+
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: true });
+
+                            for i in 0..commands {
+                                let client = participating[(i as usize) % participating.len()];
+                                generated_actions.push(gen_command_rule(
+                                    &mut rng,
+                                    client,
+                                    graph,
+                                    delete_proportion,
+                                    noop_proportion,
+                                    key_range,
+                                    max_priority,
+                                ));
+                            }
+
+                            generated_actions.push(TestRule::ConvergeAll {
+                                graph,
+                                clients,
+                                max_syncs,
+                            });
+                            for i in 1..clients {
+                                generated_actions.push(TestRule::CompareGraphs {
+                                    clienta: 0,
+                                    clientb: i,
+                                    graph,
+                                    equal: true,
+                                });
+                            }
+                            generated_actions.push(TestRule::IgnoreExpectations { ignore: false });
+                            generated_actions
+                        }
+                    }
                 }
                 TestRule::SetupClientsAndGraph {
                     clients,
@@ -485,11 +1051,11 @@ where
                 } => {
                     let mut generated_actions = Vec::new();
                     for i in 0..clients {
-                        generated_actions.push(TestRule::AddClient { id: i });
+                        generated_actions.push(TestRule::AddClient { client: i });
                     }
                     generated_actions.push(TestRule::NewGraph {
                         client: 0,
-                        id: graph,
+                        graph,
                         policy,
                     });
                     for i in 1..clients {
@@ -548,20 +1114,25 @@ where
     // Store all known heads for each client.
     // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
     let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
-    let mut buffers = TraversalBuffers::new();
+    let mut rt_buffers = RuntimeBuffers::<<SB::StorageProvider as StorageProvider>::Segment>::new();
+    let mut subscriptions: BTreeMap<(u64, u64), BTreeMap<u64, HelloSub>> = BTreeMap::new();
 
     for rule in actions {
         debug!(?rule);
 
         match rule {
-            TestRule::AddClient { id } => {
+            TestRule::AddClient { client: id } => {
                 let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
                 let state = ClientState::new(policy_store, storage);
                 clients.insert(id, RefCell::new(state));
             }
-            TestRule::NewGraph { client, id, policy } => {
+            TestRule::NewGraph {
+                client,
+                graph,
+                policy,
+            } => {
                 let state = clients
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
@@ -573,16 +1144,16 @@ where
                     &mut sink,
                 )?;
 
-                graphs.insert(id, graph_id);
+                graphs.insert(graph, graph_id);
 
                 assert_eq!(0, sink.count());
             }
-            TestRule::RemoveGraph { client, id } => {
+            TestRule::RemoveGraph { client, graph } => {
                 let state = clients
                     .get_mut(&client)
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
-                let graph_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 state.remove_graph(*graph_id)?;
 
                 assert_eq!(0, sink.count());
@@ -597,41 +1168,64 @@ where
             } => {
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                let mut request_client = clients
-                    .get(&client)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-                let mut response_client = clients
-                    .get(&from)
-                    .ok_or(TestError::MissingClient)?
-                    .borrow_mut();
-
                 let mut total_sent = 0;
                 let mut total_received = 0;
-                for _ in 0..max_syncs {
+                // Scope the client borrows so they are released before the
+                // hello cascade below re-borrows the same clients.
+                {
+                    let mut request_client = clients
+                        .get(&client)
+                        .ok_or(TestError::MissingClient)?
+                        .borrow_mut();
+                    let mut response_client = clients
+                        .get(&from)
+                        .ok_or(TestError::MissingClient)?
+                        .borrow_mut();
+
+                    // One transaction held open across every exchange in this Sync,
+                    // committed once after the loop (one fact-cache braid instead of
+                    // one per exchange).
+                    let mut trx = request_client.transaction(*graph_id);
+                    let mut received_addrs = Vec::new();
                     client_heads.entry((graph, client, from)).or_default();
                     client_heads.entry((graph, from, client)).or_default();
+                    for _ in 0..max_syncs {
+                        let request_cache = client_heads
+                            .get(&(graph, client, from))
+                            .assume("cache must exist")?
+                            .borrow();
+                        let mut response_cache = client_heads
+                            .get(&(graph, from, client))
+                            .assume("cache must exist")?
+                            .borrow_mut();
+
+                        let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                            &mut trx,
+                            (&request_cache, &mut request_client),
+                            (&mut response_cache, &mut response_client),
+                            &mut received_addrs,
+                            &mut sink,
+                            *graph_id,
+                            &mut rt_buffers,
+                        )?;
+                        total_received += received;
+                        total_sent += sent;
+                        // Break when no commands are received, meaning the requester has caught up
+                        if received == 0 {
+                            break;
+                        }
+                    }
+                    request_client.commit(trx, &mut sink, &mut rt_buffers, mem_spill)?;
                     let mut request_cache = client_heads
                         .get(&(graph, client, from))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let mut response_cache = client_heads
-                        .get(&(graph, from, client))
-                        .assume("cache must exist")?
-                        .borrow_mut();
-
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
-                        (&mut request_cache, &mut request_client),
-                        (&mut response_cache, &mut response_client),
-                        &mut sink,
+                    request_client.update_heads(
                         *graph_id,
+                        received_addrs,
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
                     )?;
-                    total_received += received;
-                    total_sent += sent;
-                    // Break when no commands are received, meaning the requester has caught up
-                    if received == 0 {
-                        break;
-                    }
                 }
 
                 if let Some(mr) = must_receive {
@@ -640,6 +1234,22 @@ where
 
                 if let Some(ms) = must_send {
                     assert_eq!(total_sent, ms);
+                }
+
+                if total_received > 0 && !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        total_received as u64,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        DEFAULT_MAX_CASCADE_DEPTH,
+                    )?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -664,6 +1274,7 @@ where
                 key,
                 value,
                 repeat,
+                priority,
             } => {
                 let state = clients
                     .get_mut(&client)
@@ -673,13 +1284,174 @@ where
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
-                    let set = TestActions::SetValue(key, value);
-                    state.action(*graph_id, &mut sink, set)?;
+                    let set = TestActions::SetValuePriority(key, value, priority);
+                    state.action(*graph_id, &mut sink, set, &mut rt_buffers, mem_spill)?;
                 }
 
                 assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        repeat,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        DEFAULT_MAX_CASCADE_DEPTH,
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
             }
 
+            TestRule::ActionDelete {
+                client,
+                graph,
+                key,
+                priority,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                state.action(
+                    *graph_id,
+                    &mut sink,
+                    TestActions::DeleteValue(key, priority),
+                    &mut rt_buffers,
+                    mem_spill,
+                )?;
+
+                assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        1,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        DEFAULT_MAX_CASCADE_DEPTH,
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
+            }
+
+            TestRule::ActionNoOp {
+                client,
+                graph,
+                nonce,
+                priority,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                state.action(
+                    *graph_id,
+                    &mut sink,
+                    TestActions::NoOp(nonce, priority),
+                    &mut rt_buffers,
+                    mem_spill,
+                )?;
+
+                assert_eq!(0, sink.count());
+
+                if !subscriptions.is_empty() {
+                    let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                    process_hello_notifications(
+                        graph,
+                        client,
+                        1,
+                        &mut subscriptions,
+                        graph_id,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                        DEFAULT_MAX_CASCADE_DEPTH,
+                    )?;
+                    assert_eq!(0, sink.count());
+                }
+            }
+
+            TestRule::IngestPoisonThenSet {
+                client,
+                graph,
+                poison_key,
+                poison_value,
+                key,
+                value,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+                let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                // Both commands extend the current head, like a batch synced
+                // from a peer would.
+                let parent = {
+                    let storage = state.provider().get_storage(graph_id)?;
+                    let heads = storage.get_heads()?;
+                    assert_eq!(
+                        1,
+                        heads.len(),
+                        "IngestPoisonThenSet requires a single-head graph"
+                    );
+                    heads.as_slice()[0].address()
+                };
+                let policy = TestPolicy::new(0);
+
+                let mut trx = state.transaction(graph_id);
+
+                // The poison command's rule writes a fact and then fails, so
+                // the runtime must reject the command and revert the write.
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let poison =
+                    policy.poison(buffer.as_mut_slice(), parent, (poison_key, poison_value), 0)?;
+                let result = state.add_commands(
+                    &mut trx,
+                    &mut sink,
+                    core::slice::from_ref(&poison),
+                    &mut rt_buffers,
+                    mem_spill,
+                );
+                assert!(
+                    matches!(result, Err(ClientError::PolicyError(PolicyError::Rejected))),
+                    "poison command must be rejected, got {result:?}"
+                );
+
+                // The transaction remains usable after a rejected command;
+                // the next command must not observe (or absorb into its own
+                // persisted updates) the rejected command's fact write.
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let cmd = policy.basic(buffer.as_mut_slice(), parent, (key, value), 0)?;
+                let added = state.add_commands(
+                    &mut trx,
+                    &mut sink,
+                    core::slice::from_ref(&cmd),
+                    &mut rt_buffers,
+                    mem_spill,
+                )?;
+                assert_eq!(1, added);
+                state.commit(trx, &mut sink, &mut rt_buffers, mem_spill)?;
+            }
             TestRule::PrintGraph { client, graph } => {
                 let state = clients
                     .get_mut(&client)
@@ -688,8 +1460,9 @@ where
 
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
-                let head = storage.get_head()?;
-                print_graph(storage, head, &mut buffers.primary)?;
+                for head in storage.get_heads()?.iter() {
+                    print_graph(storage, head.location(), &mut rt_buffers.traversal.primary)?;
+                }
             }
 
             TestRule::CompareGraphs {
@@ -715,12 +1488,24 @@ where
 
                 let same = graph_eq(storage_a, storage_b);
                 if same != equal {
-                    let head_a = storage_a.get_head()?;
-                    let head_b = storage_b.get_head()?;
                     debug!("Graph A (client {})", clienta);
-                    let cmds_a = print_graph(storage_a, head_a, &mut buffers.primary)?;
+                    let mut cmds_a = BTreeSet::new();
+                    for head in storage_a.get_heads()?.iter() {
+                        cmds_a.extend(print_graph(
+                            storage_a,
+                            head.location(),
+                            &mut rt_buffers.traversal.primary,
+                        )?);
+                    }
                     debug!("Graph B (client {})", clientb);
-                    let cmds_b = print_graph(storage_b, head_b, &mut buffers.primary)?;
+                    let mut cmds_b = BTreeSet::new();
+                    for head in storage_b.get_heads()?.iter() {
+                        cmds_b.extend(print_graph(
+                            storage_b,
+                            head.location(),
+                            &mut rt_buffers.traversal.primary,
+                        )?);
+                    }
 
                     // Compare command sets
                     let only_in_a: Vec<_> = cmds_a.difference(&cmds_b).collect();
@@ -735,6 +1520,8 @@ where
                         debug!("  Only in B: {}", short_b58(*cmd));
                     }
                 }
+                // `graph_eq` also asserts the merged fact state matches (via
+                // `fact_cache_eq`), so equal graphs imply equal fact DBs.
                 assert_eq!(equal, same);
             }
             TestRule::MaxCut {
@@ -748,8 +1535,61 @@ where
                     .borrow_mut();
                 let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*graph_id)?;
-                let head = storage.get_head()?;
-                assert_eq!(max_cut, head.max_cut);
+                // Lazy merges keep the graph multi-head, so compare against the
+                // greatest max_cut across all heads (the depth of the graph).
+                let actual = storage
+                    .get_heads()?
+                    .iter()
+                    .map(|la| la.max_cut)
+                    .max()
+                    .assume("graph has at least one head")?;
+                assert_eq!(max_cut, actual);
+            }
+            TestRule::ConvergeAll {
+                graph,
+                clients: client_count,
+                max_syncs,
+            } => {
+                let graph_id = *graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                // Star rounds. Client 0 gathers from every other client and
+                // commits, then every other client pulls from client 0. One
+                // round gives every client the union of all graphs; a further
+                // round propagates any merge commands clients created while
+                // catching up. The loop ends when a whole round moves nothing.
+                // Each pull is skipped when the requester already holds the
+                // responder's heads, so a converged graph costs no exchanges.
+                loop {
+                    let mut moved = converge_pull_pass::<SB::StorageProvider>(
+                        graph,
+                        graph_id,
+                        0,
+                        1..client_count,
+                        max_syncs,
+                        &clients,
+                        &mut client_heads,
+                        &mut sink,
+                        &mut rt_buffers,
+                    )?;
+                    for i in 1..client_count {
+                        moved |= converge_pull_pass::<SB::StorageProvider>(
+                            graph,
+                            graph_id,
+                            i,
+                            iter::once(0),
+                            max_syncs,
+                            &clients,
+                            &mut client_heads,
+                            &mut sink,
+                            &mut rt_buffers,
+                        )?;
+                    }
+                    if !moved {
+                        break;
+                    }
+                }
+
+                assert_eq!(0, sink.count());
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
             TestRule::VerifyGraphIds { client, ids } => {
@@ -768,6 +1608,48 @@ where
                 let expected_ids: BTreeSet<GraphId> = ids.iter().map(|id| graphs[id]).collect();
 
                 assert_eq!(actual_ids, expected_ids);
+            }
+            TestRule::HelloSubscribe {
+                client,
+                peer,
+                graph,
+                notify_interval,
+            } => {
+                debug!(client, peer, graph, notify_interval, "hello subscribe");
+                subscriptions.entry((graph, peer)).or_default().insert(
+                    client,
+                    HelloSub {
+                        notify_interval,
+                        changes_since_notify: 0,
+                    },
+                );
+            }
+            TestRule::HelloUnsubscribe {
+                client,
+                peer,
+                graph,
+            } => {
+                debug!(client, peer, graph, "hello unsubscribe");
+                if let Some(subs) = subscriptions.get_mut(&(graph, peer)) {
+                    subs.remove(&client);
+                }
+            }
+            TestRule::HeadCount {
+                client,
+                graph,
+                count,
+            } => {
+                let mut state = clients
+                    .get(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+                let graph_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(*graph_id)?;
+                let actual = storage.get_heads()?.len();
+                assert_eq!(
+                    count, actual,
+                    "client {client} graph {graph}: expected {count} heads, got {actual}"
+                );
             }
             _ => {}
         }
@@ -835,21 +1717,27 @@ where
         }
     }
 
-    // Find the convergence phase which should be preserved
-    // The GenerateGraph rule creates a distinctive sync with high max_syncs
-    // (commands / COMMAND_RESPONSE_MAX + 100) before the verification CompareGraphs.
-    // We look for a Sync with max_syncs > 10 as the start of convergence.
+    // Find the convergence phase which should be preserved.
+    // The GenerateGraph rule creates either a ConvergeAll or a distinctive
+    // Sync with high max_syncs before the verification CompareGraphs.
+    // We look for ConvergeAll or a Sync with max_syncs > 10 as the start
+    // of convergence.
     let mut convergence_idx = end_idx;
     for (i, rule) in rules.iter().enumerate().skip(start_idx) {
-        if let TestRule::Sync { max_syncs, .. } = rule
-            && *max_syncs > 10
-        {
-            convergence_idx = i;
-            break;
+        match rule {
+            TestRule::ConvergeAll { .. } => {
+                convergence_idx = i;
+                break;
+            }
+            TestRule::Sync { max_syncs, .. } if *max_syncs > 10 => {
+                convergence_idx = i;
+                break;
+            }
+            _ => {}
         }
     }
 
-    // If we didn't find a high max_syncs, fall back to looking for CompareGraphs
+    // If we didn't find a convergence marker, fall back to looking for CompareGraphs
     if convergence_idx == end_idx {
         for (i, rule) in rules.iter().enumerate().skip(start_idx) {
             if matches!(rule, TestRule::CompareGraphs { .. }) {
@@ -930,20 +1818,206 @@ where
     result
 }
 
+/// Addresses of the heads of `client`'s committed graph.
+fn committed_heads<SP: StorageProvider>(
+    client: &mut ClientState<TestPolicyStore, SP>,
+    graph_id: GraphId,
+) -> Result<BTreeSet<Address>, TestError> {
+    Ok(client
+        .provider()
+        .get_storage(graph_id)?
+        .get_heads()?
+        .iter()
+        .map(LocatedAddress::address)
+        .collect())
+}
+
+/// Whether `client` holds every address in `heads`, either committed or in
+/// `received` (fetched this pass into an open transaction). Command IDs hash
+/// their parents, so holding a peer's heads means holding its whole graph.
+fn holds_all<SP: StorageProvider>(
+    client: &mut ClientState<TestPolicyStore, SP>,
+    graph_id: GraphId,
+    heads: &BTreeSet<Address>,
+    received: &BTreeSet<Address>,
+    buffer: &mut TraversalBuffer,
+) -> Result<bool, TestError> {
+    let storage = client.provider().get_storage(graph_id)?;
+    for &addr in heads {
+        if received.contains(&addr) {
+            continue;
+        }
+        if storage.get_location(addr, buffer)?.is_none() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// One `ConvergeAll` pass: `requester` pulls from each of `responders` into a
+/// single open transaction, commits, and advances its peer caches.
+///
+/// Holding one transaction across the pass makes the whole catch-up one
+/// fact-cache braid instead of one per exchange. Committing at the end of the
+/// pass is what lets the requester serve the data onward, since responders
+/// serve from committed storage. A responder whose heads the requester already
+/// holds is skipped, and a pull stops as soon as the responder's heads have
+/// been received, so no exchange is spent confirming there is nothing left.
+///
+/// Returns whether any command was received.
+#[allow(clippy::too_many_arguments)]
+fn converge_pull_pass<SP: StorageProvider>(
+    graph: u64,
+    graph_id: GraphId,
+    requester: u64,
+    responders: impl IntoIterator<Item = u64>,
+    max_syncs: u64,
+    clients: &BTreeMap<u64, RefCell<ClientState<TestPolicyStore, SP>>>,
+    client_heads: &mut BTreeMap<(u64, u64, u64), RefCell<PeerCache>>,
+    sink: &mut TestSink,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
+) -> Result<bool, TestError> {
+    let mut request_client = clients
+        .get(&requester)
+        .ok_or(TestError::MissingClient)?
+        .borrow_mut();
+    let mut trx: Option<Transaction<SP, TestPolicyStore>> = None;
+    // Received addresses per responder, used to advance the persistent
+    // caches after the pass commits.
+    let mut pass_received: BTreeMap<u64, Vec<Address>> = BTreeMap::new();
+    // Everything received this pass, pending commit.
+    let mut held: BTreeSet<Address> = BTreeSet::new();
+    let mut moved = false;
+
+    for responder in responders {
+        if responder == requester {
+            continue;
+        }
+        let mut response_client = clients
+            .get(&responder)
+            .ok_or(TestError::MissingClient)?
+            .borrow_mut();
+
+        let responder_heads = committed_heads(&mut response_client, graph_id)?;
+        if holds_all(
+            &mut request_client,
+            graph_id,
+            &responder_heads,
+            &held,
+            &mut rt_buffers.traversal.primary,
+        )? {
+            continue;
+        }
+
+        let request_trx = trx.get_or_insert_with(|| request_client.transaction(graph_id));
+        let received_addrs = pass_received.entry(responder).or_default();
+        for _ in 0..max_syncs {
+            client_heads
+                .entry((graph, requester, responder))
+                .or_default();
+            client_heads
+                .entry((graph, responder, requester))
+                .or_default();
+            let request_cache = client_heads
+                .get(&(graph, requester, responder))
+                .assume("cache must exist")?
+                .borrow();
+            let mut response_cache = client_heads
+                .get(&(graph, responder, requester))
+                .assume("cache must exist")?
+                .borrow_mut();
+
+            let before = received_addrs.len();
+            let (_, received) = sync::<SP>(
+                request_trx,
+                (&request_cache, &mut request_client),
+                (&mut response_cache, &mut response_client),
+                received_addrs,
+                sink,
+                graph_id,
+                rt_buffers,
+            )?;
+            held.extend(
+                received_addrs
+                    .get(before..)
+                    .unwrap_or_default()
+                    .iter()
+                    .copied(),
+            );
+
+            if received == 0 {
+                break;
+            }
+            moved = true;
+            if holds_all(
+                &mut request_client,
+                graph_id,
+                &responder_heads,
+                &held,
+                &mut rt_buffers.traversal.primary,
+            )? {
+                break;
+            }
+        }
+    }
+
+    if let Some(trx) = trx {
+        request_client.commit(trx, sink, rt_buffers, mem_spill)?;
+    }
+
+    for (responder, addrs) in pass_received {
+        if addrs.is_empty() {
+            continue;
+        }
+        let mut request_cache = client_heads
+            .get(&(graph, requester, responder))
+            .assume("cache must exist")?
+            .borrow_mut();
+        request_client.update_heads(
+            graph_id,
+            addrs,
+            &mut request_cache,
+            &mut rt_buffers.traversal.primary,
+        )?;
+    }
+
+    Ok(moved)
+}
+
+/// Perform a single sync exchange, ingesting received commands into the
+/// caller-owned `request_trx` (held open across many exchanges so a whole
+/// graph is committed once instead of per exchange).
+///
+/// Does NOT commit. Instead, after ingesting, it flushes the open transaction
+/// and advances the requester's `PeerCache` from the transaction's accumulated
+/// frontier (committed + received-but-uncommitted tips). `get_commands`
+/// incorporates `peer_cache.heads()`, so this is what makes progressive
+/// multi-exchange fetch advance without a per-exchange commit.
 fn sync<SP: StorageProvider>(
-    (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    request_trx: &mut Transaction<SP, TestPolicyStore>,
+    (request_cache, request_state): (&PeerCache, &mut ClientState<TestPolicyStore, SP>),
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    received_addrs: &mut Vec<Address>,
     sink: &mut TestSink,
     graph_id: GraphId,
+    rt_buffers: &mut RuntimeBuffers<SP::Segment>,
 ) -> Result<(usize, usize), TestError> {
-    let mut buffers = TraversalBuffers::new();
-    let mut request_syncer = SyncRequester::new(graph_id, Rng, &mut buffers);
+    let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
 
-    let mut request_trx = request_state.transaction(graph_id);
-
+    // The persistent `request_cache` only ever holds committed commands
+    // (callers advance it after commit). The transaction's uncommitted
+    // frontier is advertised via `session_heads`, which cannot outlive the
+    // transaction, so an abandoned transaction cannot leave the cache
+    // claiming commands the requester never committed.
+    let session = request_trx.session_heads(request_cache);
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
+    let (len, sent) = request_syncer.poll(
+        &mut buffer,
+        request_state.provider(),
+        &session,
+        &mut rt_buffers.traversal.primary,
+    )?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -952,6 +2026,7 @@ fn sync<SP: StorageProvider>(
         &mut target,
         response_state.provider(),
         response_cache,
+        &mut rt_buffers.traversal,
     )?;
 
     if len == 0 {
@@ -959,13 +2034,17 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
-        request_state.commit(&mut request_trx, sink)?;
-        request_state.update_heads(
-            graph_id,
-            cmds.iter().filter_map(|cmd| cmd.address().ok()),
-            request_cache,
-        )?;
+        received = request_state.add_commands(request_trx, sink, &cmds, rt_buffers, mem_spill)?;
+
+        // Persist any in-flight perspective so the next exchange's overlay
+        // sees every accumulated command at a real location. This is what
+        // lets progressive fetch advance while the transaction stays open.
+        let storage = request_state.provider().get_storage(graph_id)?;
+        request_trx.flush(storage)?;
+
+        // Report what was received so the caller can advance the persistent
+        // cache once these commands are committed.
+        received_addrs.extend(cmds.iter().filter_map(|cmd| cmd.address().ok()));
     }
 
     Ok((sent, received))
@@ -988,7 +2067,7 @@ impl Display for Parent {
 pub fn print_graph<S>(
     storage: &S,
     location: Location,
-    buffers: &mut TraversalBuffer,
+    buffer: &mut TraversalBuffer,
 ) -> Result<BTreeSet<CmdId>, StorageError>
 where
     S: Storage,
@@ -1011,7 +2090,7 @@ where
                 "id: {} location {:?} max_cut: {} parent: {}",
                 short_b58(cmd_id),
                 storage
-                    .get_location(command.address()?, buffers)?
+                    .get_location(command.address()?, buffer)?
                     .assume("location must exist"),
                 command.max_cut()?,
                 Parent(command.parent())
@@ -1024,41 +2103,132 @@ where
 }
 
 /// Walk the graph and yield all visited IDs.
+///
+/// Lazy merges keep the graph multi-head, so seed the walk from every head.
 fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CmdId> + '_ {
     let mut visited = BTreeSet::new();
-    let mut stack = vec![storage.get_head().unwrap()];
+    let mut stack: Vec<Location> = storage
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(LocatedAddress::location)
+        .collect();
+    // Sort so the multi-head walk order is deterministic across peers.
+    stack.sort();
     let mut segment = None;
 
     iter::from_fn(move || {
-        let loc = stack.pop()?;
-        if visited.contains(&loc) {
-            return None;
+        loop {
+            let loc = stack.pop()?;
+            if !visited.insert(loc) {
+                // Already visited (e.g. a shared ancestor of two heads); skip
+                // it and continue rather than ending the whole walk.
+                segment = None;
+                continue;
+            }
+
+            let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
+            let id = seg.get_command(loc).unwrap().id();
+
+            if let Some(previous) = seg.previous(loc) {
+                // We will visit the segment again.
+                stack.push(previous);
+            } else {
+                // We have exhausted this segment.
+                stack.extend(seg.prior());
+                segment = None;
+            }
+
+            return Some(id);
         }
-        visited.insert(loc);
-
-        let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
-        let id = seg.get_command(loc).unwrap().id();
-
-        if let Some(previous) = seg.previous(loc) {
-            // We will visit the segment again.
-            stack.push(previous);
-        } else {
-            // We have exhausted this segment.
-            stack.extend(seg.prior());
-            segment = None;
-        }
-
-        Some(id)
     })
 }
 
-fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
-    for (a, b) in iter::zip(walk(storage_a), walk(storage_b)) {
-        if a != b {
-            error!(a = %short_b58(a), b = %short_b58(b), "graph mismatch");
-            return false;
+/// Collects the full set of `(name, keys, value)` fact entries from a peer's
+/// merged fact cache, for every fact name the test policies are known to write.
+///
+/// Uses [`Query::query_prefix`] with an empty prefix to enumerate all keys
+/// under each name (the empty prefix matches every key). There is no API to
+/// enumerate fact names, so we iterate [`TEST_FACT_NAMES`]; for the DSL tests
+/// the only written name is `"payload"`, so this captures the entire merged
+/// fact state.
+fn collect_facts<S: Storage>(
+    storage: &S,
+) -> Result<BTreeMap<(&'static str, Keys), Bytes>, StorageError> {
+    let cache = storage.fact_cache()?;
+    let mut facts = BTreeMap::new();
+    for &name in TEST_FACT_NAMES {
+        for fact in cache.query_prefix(name, &[])? {
+            let fact = fact?;
+            facts.insert((name, fact.key), fact.value);
         }
     }
+    Ok(facts)
+}
+
+/// Asserts the merged fact state of two peers is identical.
+///
+/// This is the load-bearing convergence artifact for lazy merges: two peers
+/// that hold the same commands must braid them into the same merged facts.
+fn fact_cache_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
+    let facts_a = collect_facts(storage_a).unwrap();
+    let facts_b = collect_facts(storage_b).unwrap();
+    if facts_a != facts_b {
+        for key in facts_a.keys().chain(facts_b.keys()) {
+            let (a, b) = (facts_a.get(key), facts_b.get(key));
+            if a != b {
+                error!(
+                    name = key.0,
+                    "merged fact-cache mismatch: A={:?} B={:?}", a, b
+                );
+            }
+        }
+        return false;
+    }
+    true
+}
+
+fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
+    // Lazy merges keep graphs multi-head, and two converged peers may store the
+    // same commands under different segment layouts. Convergence means the same
+    // set of reachable commands and the same head set (head sets are sorted, so
+    // equality is order-independent).
+    let cmds_a: BTreeSet<CmdId> = walk(storage_a).collect();
+    let cmds_b: BTreeSet<CmdId> = walk(storage_b).collect();
+    if cmds_a != cmds_b {
+        for id in cmds_a.symmetric_difference(&cmds_b) {
+            error!(id = %short_b58(*id), "graph command-set mismatch");
+        }
+        return false;
+    }
+
+    // Compare heads by command id: segment indices are local storage layout and
+    // may legitimately differ between converged peers.
+    let heads_a: BTreeSet<CmdId> = storage_a
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(|la| la.id)
+        .collect();
+    let heads_b: BTreeSet<CmdId> = storage_b
+        .get_heads()
+        .unwrap()
+        .iter()
+        .map(|la| la.id)
+        .collect();
+    if heads_a != heads_b {
+        error!("graph head-set mismatch");
+        return false;
+    }
+
+    // Strengthened convergence oracle: peers with the same commands + heads must
+    // also braid them into the same MERGED FACT STATE. This converts the
+    // previously-inferred fact-cache equality into a directly checked invariant.
+    if !fact_cache_eq(storage_a, storage_b) {
+        error!("merged fact-cache mismatch");
+        return false;
+    }
+
     true
 }
 
@@ -1135,17 +2305,26 @@ test_vectors! {
     duplicate_sync_causes_failure,
     empty_sync,
     generate_graph,
+    generate_graph_hello_sync,
+    generate_graph_no_branching,
+    generate_graph_small_branching,
+    hello_sync,
+    hello_sync_extended_head,
+    hello_sync_multiple_heads,
+    no_such_parent,
+    rejected_command_fact_leak,
     exponential_traversal_regression,
     find_needed_segments_queue_max,
     four_seventy_three_failure,
     large_sync,
+    lazy_merge_converge,
     list_multiple_graph_ids,
     many_branches,
-    many_clients,
     max_cut,
     missing_parent_after_sync,
     remove_graph,
     skip_list,
+    sync_all_at_once,
     sync_graph_larger_than_command_max,
     three_client_branch,
     three_client_compare_graphs,
@@ -1153,4 +2332,240 @@ test_vectors! {
     two_client_branch,
     two_client_merge,
     two_client_sync,
+    converge_conflict_heavy,
+    converge_delete_heavy,
+    converge_priority_mixed,
+    converge_sparse_facts,
+    stress_hot_key_ties,
+    stress_long_divergence,
+    stress_hello_ring,
+    stress_hello_hub_noops,
+    stress_no_sync_braid,
+    stress_delete_noop_churn,
+    sync_stall_regression_821,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ClientState, Keys, Prioritized as _,
+        storage::linear::testing::MemStorageProvider,
+        testing::protocol::{TestActions, TestPolicyStore, TestSink},
+    };
+
+    pub(super) struct MemBackend;
+
+    impl StorageBackend for MemBackend {
+        type StorageProvider = MemStorageProvider;
+
+        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+            MemStorageProvider::default()
+        }
+    }
+
+    /// Returns the location of the graph's only head, asserting there is
+    /// exactly one (true for the linear, single-client tests below).
+    fn single_head<S: Storage>(storage: &S) -> Result<Location, TestError> {
+        let heads = storage.get_heads()?;
+        assert_eq!(heads.len(), 1, "expected a single head");
+        Ok(heads.as_slice()[0].location())
+    }
+
+    #[test]
+    fn collect_facts_sees_set_values() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(
+            graph_id,
+            &mut sink,
+            TestActions::SetValue(7, 9),
+            &mut buffers,
+            mem_spill,
+        )?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        let value = facts
+            .get(&("payload", Keys::from_iter([7u64.to_be_bytes()])))
+            .expect("fact for key 7");
+        assert_eq!(&**value, 9u64.to_be_bytes().as_slice());
+        Ok(())
+    }
+
+    #[test]
+    fn delete_action_removes_fact() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        for action in [
+            TestActions::SetValue(7, 9),
+            TestActions::SetValue(8, 10),
+            TestActions::DeleteValue(7, 0),
+        ] {
+            state.action(graph_id, &mut sink, action, &mut buffers, mem_spill)?;
+        }
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        assert!(facts.contains_key(&("payload", Keys::from_iter([8u64.to_be_bytes()]))));
+        Ok(())
+    }
+
+    #[test]
+    fn set_value_priority_carries_priority() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        state.action(
+            graph_id,
+            &mut sink,
+            TestActions::SetValuePriority(1, 2, 7),
+            &mut buffers,
+            mem_spill,
+        )?;
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let head = single_head(storage)?;
+        let segment = storage.get_segment(head)?;
+        assert_eq!(
+            segment.get_command(head).unwrap().priority(),
+            crate::Priority::Basic(7)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn action_set_json_backcompat() {
+        let rule: TestRule = serde_json::from_str(
+            r#"{"ActionSet": {"client": 0, "graph": 0, "key": 1, "value": 2, "repeat": 1}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            rule,
+            TestRule::ActionSet {
+                client: 0,
+                graph: 0,
+                key: 1,
+                value: 2,
+                repeat: 1,
+                priority: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn action_rules_converge_facts() -> Result<(), TestError> {
+        let rules = vec![
+            TestRule::AddClient { client: 0 },
+            TestRule::AddClient { client: 1 },
+            TestRule::NewGraph {
+                client: 0,
+                graph: 0,
+                policy: 0,
+            },
+            TestRule::Sync {
+                graph: 0,
+                client: 1,
+                from: 0,
+                must_send: None,
+                must_receive: None,
+                max_syncs: 100,
+            },
+            TestRule::IgnoreExpectations { ignore: true },
+            // Concurrent, conflicting operations on key 1 with different
+            // priorities, plus an unrelated write on key 2. The braid
+            // decides the outcome; both clients must agree.
+            TestRule::ActionSet {
+                client: 0,
+                graph: 0,
+                key: 1,
+                value: 10,
+                repeat: 1,
+                priority: 2,
+            },
+            TestRule::ActionDelete {
+                client: 1,
+                graph: 0,
+                key: 1,
+                priority: 1,
+            },
+            TestRule::ActionSet {
+                client: 1,
+                graph: 0,
+                key: 2,
+                value: 5,
+                repeat: 1,
+                priority: 0,
+            },
+            TestRule::ConvergeAll {
+                graph: 0,
+                clients: 2,
+                max_syncs: 100,
+            },
+            TestRule::CompareGraphs {
+                clienta: 0,
+                clientb: 1,
+                graph: 0,
+                equal: true,
+            },
+            TestRule::IgnoreExpectations { ignore: false },
+        ];
+        run_test(MemBackend, &rules)
+    }
+
+    #[test]
+    fn noop_action_writes_no_facts() -> Result<(), TestError> {
+        let mut sink = TestSink::new();
+        sink.ignore_expectations(true);
+        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut buffers = RuntimeBuffers::new();
+        let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
+        for action in [TestActions::SetValue(7, 9), TestActions::NoOp(42, 1)] {
+            state.action(graph_id, &mut sink, action, &mut buffers, mem_spill)?;
+        }
+
+        let storage = state.provider().get_storage(graph_id)?;
+        let facts = collect_facts(storage)?;
+        assert_eq!(facts.len(), 1);
+        assert!(facts.contains_key(&("payload", Keys::from_iter([7u64.to_be_bytes()]))));
+
+        let head = single_head(storage)?;
+        let segment = storage.get_segment(head)?;
+        assert_eq!(
+            segment.get_command(head).unwrap().priority(),
+            crate::Priority::Basic(1)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn generate_graph_with_knobs_converges() -> Result<(), TestError> {
+        let rules = vec![TestRule::GenerateGraph {
+            clients: 3,
+            graph: 0,
+            commands: 60,
+            policy: 0,
+            sync_client_zero: true,
+            sync_method: SyncMethod::Poll {
+                sync_chance: 40,
+                add_command_chance: 60,
+            },
+            delete_proportion: 30,
+            noop_proportion: 0,
+            key_range: 3,
+            max_priority: 3,
+            seed: None,
+        }];
+        run_test(MemBackend, &rules)
+    }
 }

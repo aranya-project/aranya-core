@@ -1,0 +1,951 @@
+[
+  {
+    "AddClient": {
+      "id": 0
+    }
+  },
+  {
+    "AddClient": {
+      "id": 1
+    }
+  },
+  {
+    "AddClient": {
+      "id": 2
+    }
+  },
+  {
+    "NewGraph": {
+      "client": 0,
+      "id": 0,
+      "policy": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 100000
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 100000
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "graph": 0,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "graph": 0,
+      "equal": true
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": true
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 6240207848271261934,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 2329600672824935704,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 16950722235675414647,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 6343679540783637513,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 6336370664521545254,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 7350512426991531782,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 8238874768683967521,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 10508616805608348947,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 2497851560239316142,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 3431725799459972666,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 5625617387484170433,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 13959622884452435682,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 9242830347382600039,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 14122160247836554051,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 6311559485031698035,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 1072906115539677857,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 5976722155509559877,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 9866349643995724659,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 12458316336275889504,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 4224826293998394435,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 13824975126821544361,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 5204428260200992395,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 11066987203523652139,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 9359599565977781147,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 18334909084081130714,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 14561982103592348533,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 15407602356494751130,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 4283909832649895836,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 15587789171603876567,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 7286982351522453953,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 15287268807683490197,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 12638171089924102099,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 1700932672122706480,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 15053658729310226465,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 17604073341488999048,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 14035818712752443241,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 8542291954813040217,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 6023301538615234752,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 5984356869290843292,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 1811901141036679329,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 9663182851844369395,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 13082755908235285666,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 2774132035576661443,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 8496124590668674066,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 3781440536423345632,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 13133517707180482350,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 4916863028604109137,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 3490852756665277677,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 5965255532715255767,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 13096555595100039471,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 3288648865118883379,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 7512151296609842862,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 15656853230677947347,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 11859511080758924325,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 13394677230424700286,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 910668814889320306,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 861288551199857834,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 736643001868680116,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 1799153522150423757,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 17762324954214444064,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 8160499548498501734,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 3786443876128464983,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 1717765159879450245,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 16867048206333812251,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 6357881365092615618,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 17458833916537209626,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 12637936646407605272,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 4113821572694574893,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 2438455155216407378,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 0,
+      "graph": 0,
+      "nonce": 3909313347298022837,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 0,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 2002499806605386059,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 2071439208177404903,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 9637471479280110952,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 8561959581502298097,
+      "priority": 0
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 1,
+      "graph": 0,
+      "nonce": 3166840359232050393,
+      "priority": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 2,
+      "must_send": null,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "ActionNoOp": {
+      "client": 2,
+      "graph": 0,
+      "nonce": 18126742556838238898,
+      "priority": 0
+    }
+  },
+  {
+    "ConvergeAll": {
+      "graph": 0,
+      "clients": 3,
+      "max_syncs": 102
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "graph": 0,
+      "equal": true
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 2,
+      "graph": 0,
+      "equal": true
+    }
+  },
+  {
+    "IgnoreExpectations": {
+      "ignore": false
+    }
+  }
+]

@@ -1,0 +1,8 @@
+// Check inside nested blocks
+function qux() int {
+    let x = 1
+    if true {
+        let y = 2 // unused
+    }
+    return x
+}
