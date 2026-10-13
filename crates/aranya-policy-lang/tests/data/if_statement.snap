@@ -9,15 +9,15 @@ Policy {
     actions: [
         ActionDefinition {
             persistence: Persistent,
-            identifier: "test" @ 7..11,
-            arguments: [
+            name: "test" @ 7..11,
+            parameters: [
                 Param {
                     name: "n" @ 12..13,
-                    ty: Int @ 14..17,
+                    vtype: Int @ 14..17,
                 },
             ],
             return_type: Unit @ 0..0,
-            statements: [
+            body: [
                 If(
                     IfStatement {
                         branches: [
@@ -28,7 +28,7 @@ Policy {
                                 [
                                     Check(
                                         CheckStatement {
-                                            expression: Int(
+                                            condition: Int(
                                                 1 @ 50..51,
                                             ) @ 50..51,
                                             else_expression: InternalFunction(
@@ -57,7 +57,7 @@ Policy {
                                 [
                                     Check(
                                         CheckStatement {
-                                            expression: Int(
+                                            condition: Int(
                                                 1 @ 114..115,
                                             ) @ 114..115,
                                             else_expression: InternalFunction(
@@ -77,7 +77,7 @@ Policy {
                             [
                                 Check(
                                     CheckStatement {
-                                        expression: Int(
+                                        condition: Int(
                                             2 @ 169..170,
                                         ) @ 169..170,
                                         else_expression: InternalFunction(
@@ -104,7 +104,7 @@ Policy {
                                 [
                                     Check(
                                         CheckStatement {
-                                            expression: Int(
+                                            condition: Int(
                                                 1 @ 233..234,
                                             ) @ 233..234,
                                             else_expression: InternalFunction(
@@ -119,10 +119,10 @@ Policy {
                                     ) @ 227..269,
                                     Let(
                                         LetStatement {
-                                            identifier: "c" @ 273..274,
-                                            expression: FunctionCall(
+                                            name: "c" @ 273..274,
+                                            value: FunctionCall(
                                                 FunctionCall {
-                                                    identifier: "add" @ 277..280,
+                                                    name: "add" @ 277..280,
                                                     arguments: [
                                                         Int(
                                                             1 @ 281..282,
@@ -149,7 +149,7 @@ Policy {
                                 [
                                     Check(
                                         CheckStatement {
-                                            expression: Int(
+                                            condition: Int(
                                                 3 @ 324..325,
                                             ) @ 324..325,
                                             else_expression: InternalFunction(
@@ -176,7 +176,7 @@ Policy {
                                 [
                                     Check(
                                         CheckStatement {
-                                            expression: Int(
+                                            condition: Int(
                                                 5 @ 389..390,
                                             ) @ 389..390,
                                             else_expression: InternalFunction(
@@ -196,7 +196,7 @@ Policy {
                             [
                                 Check(
                                     CheckStatement {
-                                        expression: Int(
+                                        condition: Int(
                                             6 @ 444..445,
                                         ) @ 444..445,
                                         else_expression: InternalFunction(

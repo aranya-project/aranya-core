@@ -10,9 +10,9 @@ pub mod linear;
 mod spill;
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{borrow::Borrow, fmt, ops::Deref};
+use core::{borrow::Borrow, cmp::Ordering, fmt, ops::Deref};
 
-use buggy::{Bug, BugExt as _};
+use buggy::{Bug, BugExt as _, bug};
 use rend::u64_le;
 
 #[cfg(feature = "libc")]
@@ -88,49 +88,77 @@ impl TraversalQueue {
 
     /// Enqueues a location with the given covered flag.
     ///
-    /// If an entry with the same segment already exists, max cut is updated
-    /// to the max. When a higher max_cut changes the head, the new push's
-    /// covered status is adopted (old coverage was below the new head).
-    /// At the same max_cut, covered flags are OR'd. Lower max_cut is ignored.
+    /// Deduplicates segments unless doing so would transition from covered to uncovered.
     pub fn push_covered(&mut self, loc: Location, covered: bool) -> Result<(), StorageError> {
         if let Some(i) = self.entries.iter().position(|x| x.same_segment(loc)) {
             let was_covered = i >= self.partition;
-            let new_covered = if loc.max_cut > self.entries[i].max_cut {
-                self.entries[i].max_cut = loc.max_cut;
-                covered
-            } else if loc.max_cut == self.entries[i].max_cut {
-                was_covered || covered
-            } else {
-                return Ok(());
-            };
-            if !was_covered && new_covered {
-                self.partition = self
-                    .partition
-                    .checked_sub(1)
-                    .assume("partition must be >= 1 when uncovered entry exists")?;
-                self.entries.swap(i, self.partition);
-            } else if was_covered && !new_covered {
-                self.entries.swap(i, self.partition);
-                self.partition = self
-                    .partition
-                    .checked_add(1)
-                    .assume("partition must not overflow")?;
+            let newly_covered = covered && !was_covered;
+            match loc.max_cut.cmp(&self.entries[i].max_cut) {
+                Ordering::Less if newly_covered => {
+                    // Add new location as covered.
+                    self.entries.push(loc);
+                }
+                Ordering::Equal if newly_covered => {
+                    // Adjust old location to be covered.
+                    self.cover(i)?;
+                }
+                Ordering::Greater if newly_covered => {
+                    // Increase max cut, make covered.
+                    self.entries[i].max_cut = loc.max_cut;
+                    self.cover(i)?;
+                }
+                Ordering::Greater if !covered && was_covered => {
+                    // New location is above old but is uncovered while old was covered.
+                    // Add location as uncovered without disturbing old.
+                    self.insert_uncovered(loc)?;
+                }
+                Ordering::Greater => {
+                    // New location is above old, both are either covered or uncovered.
+                    // Just increase max cut, covered state stays the same.
+                    self.entries[i].max_cut = loc.max_cut;
+                }
+                _ => {
+                    // No change needed.
+                }
             }
-            return Ok(());
+        } else if covered {
+            self.entries.push(loc);
+        } else {
+            self.insert_uncovered(loc)?;
         }
+        Ok(())
+    }
+
+    /// Mark entry at `idx` as covered.
+    ///
+    /// Given entry must be uncovered.
+    fn cover(&mut self, idx: usize) -> Result<(), Bug> {
+        if idx >= self.partition {
+            bug!("already covered");
+        }
+        self.partition = self
+            .partition
+            .checked_sub(1)
+            .assume("partition must be >= 1 when uncovered entry exists")?;
+        self.entries.swap(idx, self.partition);
+        Ok(())
+    }
+
+    /// Adds a location as uncovered.
+    ///
+    /// Makes no checks for existing entries.
+    fn insert_uncovered(&mut self, loc: Location) -> Result<(), Bug> {
         self.entries.push(loc);
-        if !covered {
-            let last = self
-                .entries
-                .len()
-                .checked_sub(1)
-                .assume("just pushed, len must be >= 1")?;
-            self.entries.swap(self.partition, last);
-            self.partition = self
-                .partition
-                .checked_add(1)
-                .assume("partition must not overflow")?;
-        }
+        let last = self
+            .entries
+            .len()
+            .checked_sub(1)
+            .assume("just pushed, len must be >= 1")?;
+        self.entries.swap(self.partition, last);
+        self.partition = self
+            .partition
+            .checked_add(1)
+            .assume("partition must not overflow")?;
         Ok(())
     }
 

@@ -7,8 +7,6 @@ use aranya_crypto::{
 };
 use buggy::BugExt as _;
 
-#[allow(unused_imports)]
-use crate::features::*;
 use crate::{
     buf::Buf,
     error::Error,
@@ -219,7 +217,8 @@ impl<S: AfcState> Client<S> {
             // We're missing an authentication tag, so by
             // definition we cannot authenticate the ciphertext.
             .ok_or(Error::Authentication)?;
-        if unlikely!(dst.len() < plaintext_len) {
+        if dst.len() < plaintext_len {
+            core::hint::cold_path();
             // Not enough room to write plaintext.
             return Err(Error::BufferTooSmall);
         }

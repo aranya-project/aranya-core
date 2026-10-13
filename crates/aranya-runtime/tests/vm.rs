@@ -1,6 +1,8 @@
 #![cfg(test)]
 #![allow(clippy::panic)]
 
+use std::sync::Arc;
+
 use aranya_crypto::{
     Rng,
     default::{DefaultCipherSuite, DefaultEngine},
@@ -57,7 +59,7 @@ fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect
     let mut machine = Machine::from_module(module).expect("module conversion failed");
     contract_mutator(machine.ffis.as_mut().unwrap());
     let (eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
-    let r = VmPolicy::new(machine, eng, vec![Box::from(TestFfiEnvelope)]);
+    let r = VmPolicy::new(machine, eng, vec![Arc::new(TestFfiEnvelope)]);
     let Err(VmPolicyError::ContractValidation(got_error)) = r else {
         panic!("Did not get Contract Validation error")
     };
