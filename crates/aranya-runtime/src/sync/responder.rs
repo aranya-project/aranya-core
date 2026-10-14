@@ -1,3 +1,6 @@
+use alloc::vec;
+
+use aranya_crypto::Csprng;
 use buggy::{BugExt as _, bug};
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
@@ -6,10 +9,13 @@ use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PollIncoming,
     SEGMENT_BUFFER_MAX, SyncError,
     requester::SyncRequestMessage,
-    wire::{COMMAND_META_SERIALIZED_UPPER_BOUND, CommandMeta, SyncType},
+    sample::{self, skip_jump},
+    wire::{
+        ADDRESS_SERIALIZED_UPPER_BOUND, COMMAND_META_SERIALIZED_UPPER_BOUND, CommandMeta, SyncType,
+    },
 };
 use crate::{
-    LocatedAddress, Prior, StorageError,
+    LocatedAddress, StorageError,
     command::{Address, CmdId, Command},
     storage::{
         GraphId, Location, MaxCut, Segment as _, Storage, StorageProvider, TraversalBuffer,
@@ -17,17 +23,18 @@ use crate::{
     },
 };
 
-/// The maximum number of heads that will be stored for a peer.
-const PEER_HEAD_MAX: usize = 10;
-
+/// The committed commands a peer is known to hold, kept as the heads of
+/// that set: no head is an ancestor of another.
 #[derive(Default, Debug)]
 pub struct PeerCache {
-    heads: Vec<LocatedAddress, { PEER_HEAD_MAX }>,
+    heads: vec::Vec<LocatedAddress>,
 }
 
 impl PeerCache {
     pub const fn new() -> Self {
-        Self { heads: Vec::new() }
+        Self {
+            heads: vec::Vec::new(),
+        }
     }
 
     pub fn heads(&self) -> &[LocatedAddress] {
@@ -73,8 +80,7 @@ impl PeerCache {
         };
         self.heads.retain(|h| retain_head(h).unwrap_or(false));
         if add_command {
-            // TODO(jdygert): Replace an old head when full?
-            self.heads.push(new).ok();
+            self.heads.push(new);
         }
 
         Ok(())
@@ -88,7 +94,9 @@ const SYNC_RESPONSE_SERIALIZED_UPPER_BOUND: usize = {
     let response_index = size_of::<u64>() + 1; // varint
     let command_length = COMMAND_RESPONSE_MAX.ilog2().div_ceil(8) as usize + 1; // varint
     let commands = command_length + COMMAND_RESPONSE_MAX * COMMAND_META_SERIALIZED_UPPER_BOUND; // sizeof(n) + n * sizeof(meta)
-    tag + session_id + response_index + commands
+    let sample_length = COMMAND_SAMPLE_MAX.ilog2().div_ceil(8) as usize + 1; // varint
+    let sample = sample_length + COMMAND_SAMPLE_MAX * ADDRESS_SERIALIZED_UPPER_BOUND;
+    tag + session_id + response_index + commands + sample
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -111,6 +119,9 @@ pub(crate) enum SyncResponseMessage {
         response_index: u64,
         /// Commands that the responder believes the requester does not have.
         commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
+        /// A sample of the responder's graph, sent when the commands the
+        /// requester lacks do not fit in this reply. Empty otherwise.
+        sample: Vec<Address, COMMAND_SAMPLE_MAX>,
     },
 
     /// End a sync session if `SyncRequest.max_bytes` has been reached or
@@ -174,6 +185,11 @@ pub struct SyncResponder {
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
+    /// Whether `to_send` was cut short by `SEGMENT_BUFFER_MAX`.
+    truncated: bool,
+    /// Whether the next reply may carry a sample. Only the first reply to a
+    /// request does.
+    send_sample: bool,
 }
 
 impl Default for SyncResponder {
@@ -184,9 +200,10 @@ impl Default for SyncResponder {
 
 /// Insert `loc` into a bounded vec that keeps the lowest `max_cut`
 /// entries. If full, replaces the highest `max_cut` entry when the
-/// new one is lower.
-fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
+/// new one is lower, and sets `truncated`.
+fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location, truncated: &mut bool) {
     if v.push(loc).is_err() {
+        *truncated = true;
         // Full — find the entry with the highest max_cut.
         let (max_idx, _) = v
             .iter()
@@ -195,51 +212,6 @@ fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
             .expect("non-empty");
         if loc.max_cut < v[max_idx].max_cut {
             v[max_idx] = loc;
-        }
-    }
-}
-
-/// Walk backwards from `head` along the skip list, taking any skip entry
-/// that stays at or above `target`, until the next step would drop below
-/// `target`. Returns the segment we stopped at — the entry point for the
-/// per-round traversal in `find_needed_segments`.
-fn skip_jump<S: Storage>(
-    storage: &S,
-    head: Location,
-    target: MaxCut,
-) -> Result<Location, StorageError> {
-    if head.max_cut <= target {
-        return Ok(head);
-    }
-    let mut current = head;
-    loop {
-        let seg = storage.get_segment(current)?;
-
-        // Smallest skip entry at or above target (and below current).
-        let best = seg
-            .skip_list()
-            .iter()
-            .copied()
-            .filter(|s| s.max_cut >= target && s.max_cut < current.max_cut)
-            .min_by_key(|s| s.max_cut);
-        if let Some(skip) = best {
-            current = skip;
-            continue;
-        }
-
-        // No useful skip. If any prior would drop below target, stop here.
-        let prior_below = match seg.prior() {
-            Prior::Single(p) => p.max_cut < target,
-            Prior::Merge(a, b) => a.max_cut < target || b.max_cut < target,
-            Prior::None => true,
-        };
-        if prior_below {
-            return Ok(current);
-        }
-
-        match seg.prior() {
-            Prior::Single(p) => current = p,
-            _ => return Ok(current),
         }
     }
 }
@@ -256,6 +228,8 @@ impl SyncResponder {
             message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
+            truncated: false,
+            send_sample: false,
         }
     }
 
@@ -270,12 +244,17 @@ impl SyncResponder {
 
     /// Write a sync message in to the target buffer. Returns the number
     /// of bytes written.
+    ///
+    /// `response_cache` holds the commands the requester is known to have.
+    /// The request's sample is added to it, and everything it covers is
+    /// treated as held by the requester.
     pub fn poll(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         response_cache: &mut PeerCache,
         buffers: &mut TraversalBuffers,
+        rng: &impl Csprng,
     ) -> Result<usize, SyncError> {
         // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
@@ -302,11 +281,19 @@ impl SyncResponder {
                     // Commands not in our graph are ignored by the cache.
                     response_cache.add_command(storage, *command, &mut buffers.primary)?;
                 }
-                self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+                // The cache now covers every resolved sample command.
+                let have = response_cache
+                    .heads()
+                    .iter()
+                    .map(|h| h.location())
+                    .collect();
+                (self.to_send, self.truncated) =
+                    Self::find_needed_segments(have, storage, buffers)?;
+                self.send_sample = true;
 
-                self.get_next(target, provider)?
+                self.get_next(target, provider, rng)?
             }
-            S::Send => self.get_next(target, provider)?,
+            S::Send => self.get_next(target, provider, rng)?,
             S::Reset => {
                 self.state = S::Stopped;
                 let message = SyncResponseMessage::EndSession {
@@ -396,31 +383,18 @@ impl SyncResponder {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
-    /// Returns segments (or partial segments) that the peer doesn't have.
+    /// Returns segments (or partial segments) that the peer doesn't have,
+    /// given the locations of commands it holds, and whether the result was
+    /// cut short by `SEGMENT_BUFFER_MAX`.
     ///
     /// Uses a single backward traversal with coverage propagation to
     /// eliminate all `is_ancestor()` calls. See
     /// `aranya-docs/docs/find-needed-segments-optimization.md`.
     fn find_needed_segments(
-        commands: &[Address],
+        mut have_locations: vec::Vec<Location>,
         storage: &impl Storage,
         buffers: &mut TraversalBuffers,
-    ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        // Resolve command addresses to locations. Use buffers.primary as
-        // scratch for each get_location call (it gets cleared before main loop).
-        if commands.len() > COMMAND_SAMPLE_MAX {
-            bug!(
-                "commands length {} exceeds COMMAND_SAMPLE_MAX",
-                commands.len()
-            );
-        }
-        let mut have_locations: Vec<Location, COMMAND_SAMPLE_MAX> = Vec::new();
-        for &addr in commands {
-            if let Some(location) = storage.get_location(addr, &mut buffers.primary)? {
-                let _ = have_locations.push(location);
-            }
-        }
-
+    ) -> Result<(Vec<Location, SEGMENT_BUFFER_MAX>, bool), SyncError> {
         // Sort descending by max_cut so we can discard from the front as we
         // descend through the graph.
         have_locations.sort_by_key(|loc| core::cmp::Reverse(loc.max_cut));
@@ -444,7 +418,11 @@ impl SyncResponder {
             .checked_add(SEGMENT_BUFFER_MAX as u64)
             .assume("skip target overflow")?;
         for head in storage.get_heads()?.iter() {
-            let start = skip_jump(storage, head.location(), skip_target)?;
+            let start = if head.max_cut <= skip_target {
+                head.location()
+            } else {
+                skip_jump(storage, head.location(), skip_target, |_| Ok(None))?
+            };
             heads.push(start)?;
         }
 
@@ -455,6 +433,7 @@ impl SyncResponder {
         // entries with the lowest max_cut (ancestors first). When full,
         // the highest max_cut entry is replaced if the new one is lower.
         let mut collected: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
+        let mut truncated = false;
         let mut prev_max_cut: Option<MaxCut> = None;
 
         while let Some((head, covered)) = heads.pop_covered()? {
@@ -462,7 +441,9 @@ impl SyncResponder {
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.
             if prev_max_cut != Some(head.max_cut) {
-                pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
+                pending.drain_above(head.max_cut, |loc| {
+                    push_bounded(&mut collected, loc, &mut truncated);
+                })?;
                 prev_max_cut = Some(head.max_cut);
             }
 
@@ -503,8 +484,7 @@ impl SyncResponder {
             // with max_cut within shortest_max_cut..=longest_max_cut.
             let shortest = segment.shortest_max_cut();
             let mut best_have: Option<(usize, Location)> = None;
-            for scan in have_cursor..have_locations.len() {
-                let hloc = have_locations[scan];
+            for (scan, &hloc) in have_locations.iter().enumerate().skip(have_cursor) {
                 if hloc.max_cut < shortest {
                     break; // rest are even lower, can't be in this segment
                 }
@@ -555,18 +535,19 @@ impl SyncResponder {
 
         // Flush remaining uncovered pending segments. Covered entries
         // are discarded — the peer already has them.
-        pending.drain_all(|loc| push_bounded(&mut collected, loc));
+        pending.drain_all(|loc| push_bounded(&mut collected, loc, &mut truncated));
 
         // Sort to ensure causal order (parents before children).
         collected.sort();
 
-        Ok(collected)
+        Ok((collected, truncated))
     }
 
     fn get_next(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
+        rng: &impl Csprng,
     ) -> Result<usize, SyncError> {
         if self.next_send >= self.to_send.len() {
             self.state = SyncResponderState::Idle;
@@ -581,10 +562,29 @@ impl SyncResponder {
 
         let (commands, command_data, next_send) = self.get_commands(provider)?;
 
+        // When the requester lacks more than fits in this reply, sample our
+        // graph so it can tell us what it holds that its own sample missed.
+        let mut sample = Vec::new();
+        if core::mem::take(&mut self.send_sample)
+            && (next_send < self.to_send.len() || self.truncated)
+        {
+            let graph_id = self.graph_id.assume("graph_id is set")?;
+            let storage = provider.get_storage(graph_id)?;
+            let heads: vec::Vec<Address> = storage
+                .get_heads()?
+                .iter()
+                .map(LocatedAddress::address)
+                .collect();
+            sample = sample::build(&*storage, &[&heads], rng, |addr| {
+                commands.iter().any(|meta| meta.id == addr.id)
+            })?;
+        }
+
         let message = SyncResponseMessage::SyncResponse {
             session_id: self.session_id()?,
             response_index: self.message_index as u64,
             commands,
+            sample,
         };
 
         let length = Self::write(target, message)?;
@@ -607,11 +607,13 @@ impl SyncResponder {
     }
 
     /// Writes a sync push message to target for the peer. The message will
-    /// contain any commands that are after the commands in response_cache.
+    /// contain any commands not covered by the session's heads or by
+    /// `response_cache`, the commands the peer is known to have.
     pub fn push(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
+        response_cache: &PeerCache,
         buffers: &mut TraversalBuffers,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
@@ -629,7 +631,17 @@ impl SyncResponder {
                 return Err(e.into());
             }
         };
-        self.to_send = Self::find_needed_segments(&self.has, storage, buffers)?;
+        let mut have: vec::Vec<Location> = response_cache
+            .heads()
+            .iter()
+            .map(|h| h.location())
+            .collect();
+        for &addr in &self.has {
+            if let Some(location) = storage.get_location(addr, &mut buffers.primary)? {
+                have.push(location);
+            }
+        }
+        (self.to_send, self.truncated) = Self::find_needed_segments(have, storage, buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {
@@ -638,6 +650,7 @@ impl SyncResponder {
                     session_id: self.session_id()?,
                     response_index: self.message_index as u64,
                     commands,
+                    sample: Vec::new(),
                 },
                 graph_id,
             };
@@ -817,12 +830,7 @@ mod tests {
 
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _sent) = requester
-            .poll(
-                &mut buffer,
-                dest.provider(),
-                &req_cache.session_heads(),
-                &mut rt_buffers.traversal.primary,
-            )
+            .poll(&mut buffer, dest.provider(), &req_cache, &Rng)
             .expect("requester poll");
 
         match SyncIncoming::decode(&buffer[..len]).expect("decode") {
@@ -842,12 +850,13 @@ mod tests {
                     source.provider(),
                     &mut resp_cache,
                     &mut rt_buffers.traversal,
+                    &Rng,
                 )
                 .expect("responder poll");
             if len == 0 {
                 break;
             }
-            let Some(cmds) = requester
+            let Some(reply) = requester
                 .receive(&buffer[..len])
                 .expect("requester receive")
             else {
@@ -855,7 +864,13 @@ mod tests {
                 break;
             };
             received += dest
-                .add_commands(&mut trx, &mut sink, &cmds, &mut rt_buffers, mem_spill)
+                .add_commands(
+                    &mut trx,
+                    &mut sink,
+                    reply.commands(),
+                    &mut rt_buffers,
+                    mem_spill,
+                )
                 .expect("add_commands");
         }
         dest.commit(trx, &mut sink, &mut rt_buffers, mem_spill)
@@ -950,5 +965,254 @@ mod tests {
             "session ended with SyncEnd but receiver is missing commands \
              (received {received} of 120)",
         );
+    }
+
+    /// Builds a client whose graph is a chain of `n` commands.
+    fn client_with_commands(n: u64) -> (TestClient, GraphId) {
+        let mut sink = new_sink();
+        let mut client = new_client();
+        let graph_id = client
+            .new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)
+            .expect("new_graph");
+        extend_chain(&mut client, graph_id, 1..n);
+        (client, graph_id)
+    }
+
+    /// Appends one action per value in `values` to `client`'s graph.
+    fn extend_chain(client: &mut TestClient, graph_id: GraphId, values: core::ops::Range<u64>) {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        for i in values {
+            client
+                .action(
+                    graph_id,
+                    &mut sink,
+                    TestActions::SetValue(i, i),
+                    &mut rt_buffers,
+                    mem_spill,
+                )
+                .expect("action");
+        }
+    }
+
+    /// The outcome of one request and its first reply.
+    struct Exchange {
+        /// Commands in the reply.
+        sent: vec::Vec<CmdId>,
+        /// How many of them the requester did not already hold.
+        new: usize,
+        /// The reply's sample.
+        sample: vec::Vec<Address>,
+    }
+
+    /// Sends one request from `req` to `resp`, commits the first reply, and
+    /// records it in `req_cache` the way a transport would.
+    fn exchange(
+        req: &mut TestClient,
+        resp: &mut TestClient,
+        graph_id: GraphId,
+        req_cache: &mut PeerCache,
+        resp_cache: &mut PeerCache,
+    ) -> Exchange {
+        let mut sink = new_sink();
+        let mut rt_buffers = RuntimeBuffers::new();
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut responder = SyncResponder::new();
+
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _) = requester
+            .poll(&mut buffer, req.provider(), req_cache, &Rng)
+            .expect("requester poll");
+        match SyncIncoming::decode(&buffer[..len]).expect("decode") {
+            SyncIncoming::Poll(poll) => responder.receive(poll).expect("responder receive"),
+            _ => panic!("expected a poll message"),
+        }
+        let len = responder
+            .poll(
+                &mut buffer,
+                resp.provider(),
+                resp_cache,
+                &mut rt_buffers.traversal,
+                &Rng,
+            )
+            .expect("responder poll");
+        let Some(reply) = requester
+            .receive(&buffer[..len])
+            .expect("requester receive")
+        else {
+            return Exchange {
+                sent: vec::Vec::new(),
+                new: 0,
+                sample: vec::Vec::new(),
+            };
+        };
+
+        let mut trx = req.transaction(graph_id);
+        let new = req
+            .add_commands(
+                &mut trx,
+                &mut sink,
+                reply.commands(),
+                &mut rt_buffers,
+                mem_spill,
+            )
+            .expect("add_commands");
+        req.commit(trx, &mut sink, &mut rt_buffers, mem_spill)
+            .expect("commit");
+        req.update_heads(
+            graph_id,
+            reply.addresses(),
+            req_cache,
+            &mut rt_buffers.traversal.primary,
+        )
+        .expect("update_heads");
+
+        Exchange {
+            sent: reply.commands().iter().map(Command::id).collect(),
+            new,
+            sample: reply.sample().to_vec(),
+        }
+    }
+
+    /// Decodes the sample carried by a request.
+    fn request_sample(client: &mut TestClient, graph_id: GraphId) -> vec::Vec<Address> {
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _) = requester
+            .poll(&mut buffer, client.provider(), &PeerCache::new(), &Rng)
+            .expect("requester poll");
+        let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
+            panic!("expected a poll message");
+        };
+        let SyncRequestMessage::SyncRequest { commands, .. } = poll.message else {
+            panic!("expected a sync request");
+        };
+        commands.to_vec()
+    }
+
+    /// On a 1000-command chain the sample is the head followed by probes
+    /// spaced `COMMAND_RESPONSE_MAX` apart, the first at least half a gap
+    /// below the head, down to the root.
+    #[test]
+    fn request_probes_are_evenly_spaced() {
+        let (mut a, graph_id) = client_with_commands(1000);
+        for _ in 0..20 {
+            let sample = request_sample(&mut a, graph_id);
+            let cuts: vec::Vec<u64> = sample.iter().map(|s| s.max_cut.get()).collect();
+            assert_eq!(cuts[0], 999, "the head anchor comes first: {cuts:?}");
+            let probes = &cuts[1..];
+            assert!(
+                (899..=949).contains(&probes[0]),
+                "first probe is 50 to 100 below the head: {cuts:?}"
+            );
+            for pair in probes.windows(2) {
+                assert_eq!(pair[0] - pair[1], 100, "probes are one gap apart: {cuts:?}");
+            }
+            assert!(
+                *probes.last().unwrap() < 100,
+                "probes reach the root: {cuts:?}"
+            );
+        }
+    }
+
+    /// A requester far ahead of the responder: the old tip-only sample
+    /// found nothing, so the responder resent its whole graph. Probes
+    /// resolve in the shared history, so at most one gap is resent.
+    #[test]
+    fn requester_ahead_resends_less_than_one_gap() {
+        let (mut a, graph_id) = client_with_commands(500);
+        let mut b = new_client();
+        for _ in 0..20 {
+            if b.head_address(graph_id).ok() == a.head_address(graph_id).ok() {
+                break;
+            }
+            run_full_session(&mut a, &mut b, graph_id);
+        }
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            a.head_address(graph_id).expect("a head"),
+        );
+        extend_chain(&mut a, graph_id, 500..1000);
+
+        let mut a_cache = PeerCache::new();
+        let mut b_cache = PeerCache::new();
+        let mut wasted = 0;
+        for _ in 0..10 {
+            let ex = exchange(&mut a, &mut b, graph_id, &mut a_cache, &mut b_cache);
+            assert_eq!(ex.new, 0, "b has nothing a lacks");
+            if ex.sent.is_empty() {
+                break;
+            }
+            wasted += ex.sent.len();
+        }
+        assert!(
+            wasted < COMMAND_RESPONSE_MAX,
+            "resent {wasted} commands a already held"
+        );
+    }
+
+    /// A reply carries a sample only when the uncovered region does not fit
+    /// in it, and the sample leaves out commands the reply already carries.
+    #[test]
+    fn responder_sample_only_when_reply_overflows() {
+        let (mut b, graph_id) = client_with_commands(300);
+        let mut a = new_client();
+        let ex = exchange(
+            &mut a,
+            &mut b,
+            graph_id,
+            &mut PeerCache::new(),
+            &mut PeerCache::new(),
+        );
+        assert_eq!(ex.sent.len(), COMMAND_RESPONSE_MAX);
+        assert!(!ex.sample.is_empty(), "a 300-command region needs a sample");
+        assert!(
+            ex.sample.len() <= COMMAND_SAMPLE_MAX,
+            "sample fits its bound"
+        );
+        for addr in &ex.sample {
+            assert!(
+                !ex.sent.contains(&addr.id),
+                "sample repeats a command in the reply: {addr:?}"
+            );
+        }
+
+        let (mut c, graph_id) = client_with_commands(50);
+        let mut d = new_client();
+        let ex = exchange(
+            &mut d,
+            &mut c,
+            graph_id,
+            &mut PeerCache::new(),
+            &mut PeerCache::new(),
+        );
+        assert_eq!(ex.sent.len(), 50);
+        assert!(ex.sample.is_empty(), "a region that fits needs no sample");
+    }
+
+    /// The peer cache has no size limit: concurrent heads beyond the old
+    /// limit of 10 are all kept.
+    #[test]
+    fn peer_cache_keeps_every_concurrent_head() {
+        let (mut root, graph_id) = client_with_commands(1);
+        let mut branches = vec::Vec::new();
+        for i in 0..15u64 {
+            let mut branch = new_client();
+            run_full_session(&mut root, &mut branch, graph_id);
+            extend_chain(&mut branch, graph_id, 100 + i..101 + i);
+            branches.push(branch);
+        }
+        let mut hub = new_client();
+        let mut cache = PeerCache::new();
+        let mut buffer = TraversalBuffer::new();
+        for branch in &mut branches {
+            run_full_session(branch, &mut hub, graph_id);
+            let head = branch.head_address(graph_id).expect("branch head");
+            let storage = hub.provider().get_storage(graph_id).expect("storage");
+            cache
+                .add_command(storage, head, &mut buffer)
+                .expect("add_command");
+        }
+        assert_eq!(cache.heads().len(), 15);
     }
 }

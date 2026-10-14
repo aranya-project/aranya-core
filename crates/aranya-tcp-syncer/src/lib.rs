@@ -17,8 +17,8 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientState, CommandExt as _, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
-    SubscribeResponse, SyncError, SyncIncoming, SyncRequester, SyncResponder,
+    ClientState, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers, SubscribeResponse,
+    SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -145,13 +145,7 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
-        let session = heads.session_heads();
-        let (len, _) = syncer.poll(
-            &mut buffer,
-            client.provider(),
-            &session,
-            &mut self.rt_buffers.traversal.primary,
-        )?;
+        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads, &Rng)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -167,17 +161,23 @@ where
         stream.read_to_end(&mut received_data)?;
         // An empty response means we're up to date and there's nothing to sync.
         if !received_data.is_empty()
-            && let Some(cmds) = syncer.receive(&received_data)?
+            && let Some(reply) = syncer.receive(&received_data)?
         {
-            received = cmds.len();
+            received = reply.commands().len();
             let mut trx = client.transaction(graph_id);
             let spill_dir = self.spill_dir.as_path();
             let make_spill = || LibcSpill::new(spill_dir);
-            client.add_commands(&mut trx, sink, &cmds, &mut self.rt_buffers, make_spill)?;
+            client.add_commands(
+                &mut trx,
+                sink,
+                reply.commands(),
+                &mut self.rt_buffers,
+                make_spill,
+            )?;
             client.commit(trx, sink, &mut self.rt_buffers, make_spill)?;
             client.update_heads(
                 graph_id,
-                cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                reply.addresses(),
                 heads,
                 &mut self.rt_buffers.traversal.primary,
             )?;
@@ -199,14 +199,13 @@ where
     ) -> Result<()> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let heads = self.remote_heads.entry(peer_addr).or_default();
-        let session = heads.session_heads();
         let len = sync_requester.subscribe(
             &mut buffer,
             client.provider(),
-            &session,
+            heads,
+            &Rng,
             remain_open,
             max_bytes,
-            &mut self.rt_buffers.traversal.primary,
         )?;
 
         let mut stream = TcpStream::connect(peer_addr)?;
@@ -265,6 +264,7 @@ where
                     client.provider(),
                     response_cache,
                     &mut self.rt_buffers.traversal,
+                    &Rng,
                 )?
             }
             SyncIncoming::Subscribe(sub) => {
@@ -299,8 +299,8 @@ where
             SyncIncoming::Push(push) => {
                 let graph_id = push.graph_id();
                 let mut sync_requester = SyncRequester::new_session_id(graph_id, push.session_id());
-                if let Some(cmds) = sync_requester.receive_push(push)?
-                    && !cmds.is_empty()
+                if let Some(reply) = sync_requester.receive_push(push)?
+                    && !reply.commands().is_empty()
                 {
                     {
                         let response_cache = self.remote_heads.entry(peer_address).or_default();
@@ -313,14 +313,14 @@ where
                         client.add_commands(
                             &mut trx,
                             sink,
-                            &cmds,
+                            reply.commands(),
                             &mut self.rt_buffers,
                             make_spill,
                         )?;
                         client.commit(trx, sink, &mut self.rt_buffers, make_spill)?;
                         client.update_heads(
                             graph_id,
-                            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+                            reply.addresses(),
                             response_cache,
                             &mut self.rt_buffers.traversal.primary,
                         )?;
@@ -350,17 +350,13 @@ where
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
             let mut response_syncer = SyncResponder::new();
-            response_syncer.start_session(
-                session_id,
-                graph_id,
-                0,
-                response_cache.heads().iter().map(|h| h.address()),
-            )?;
+            response_syncer.start_session(session_id, graph_id, 0, [])?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_syncer.push(
                 &mut target,
                 self.client_state.lock().expect("poisoned").provider(),
+                response_cache,
                 &mut self.rt_buffers.traversal,
             )?;
             if len > 0 {

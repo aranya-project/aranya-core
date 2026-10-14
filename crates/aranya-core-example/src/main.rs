@@ -10,7 +10,7 @@ use std::{fs, sync::Arc};
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
-    ClientState, CommandExt as _, GraphId, RuntimeBuffers, Sink, TraversalBuffer, TraversalBuffers,
+    ClientState, GraphId, RuntimeBuffers, Sink, TraversalBuffer, TraversalBuffers,
     crypto::{DefaultCipherSuite, DefaultEngine, Rng},
     ifgen::Actionable as _,
     keystore::{
@@ -195,7 +195,7 @@ fn dispatch(
             let mut responder = SyncResponder::new();
             let mut buffers = TraversalBuffers::default();
             responder.receive(poll)?;
-            responder.poll(target, provider, response_cache, &mut buffers)?
+            responder.poll(target, provider, response_cache, &mut buffers, &Rng)?
         }
         _ => anyhow::bail!("unsupported sync type"),
     };
@@ -218,9 +218,8 @@ fn sync_graphs(
     let mut trx = dest.transaction(graph_id);
 
     let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let session = trx.session_heads(&request_cache);
     let (len, _sent) = syncer
-        .poll(&mut buf, dest.provider(), &session, &mut traversal)
+        .poll(&mut buf, dest.provider(), &request_cache, &Rng)
         .context("sync poll failed")?;
 
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -233,19 +232,25 @@ fn sync_graphs(
     .context("sync dispatch")?;
 
     if resp_len > 0
-        && let Some(cmds) = syncer
+        && let Some(reply) = syncer
             .receive(&target[..resp_len])
             .context("sync receive")?
     {
         let make_spill = || LibcSpill::new(spill_dir);
         let _received = dest
-            .add_commands(&mut trx, sink, &cmds, &mut rt_buffers, make_spill)
+            .add_commands(
+                &mut trx,
+                sink,
+                reply.commands(),
+                &mut rt_buffers,
+                make_spill,
+            )
             .context("add_commands failed")?;
         dest.commit(trx, sink, &mut rt_buffers, make_spill)
             .context("commit failed")?;
         dest.update_heads(
             graph_id,
-            cmds.iter().filter_map(|cmd| cmd.address().ok()),
+            reply.addresses(),
             &mut request_cache,
             &mut traversal,
         )

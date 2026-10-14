@@ -190,12 +190,7 @@ fn sync_pull(
         let mut request = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let req_cache = req_caches.get(&(to, from)).expect("requester cache exists");
         let (req_len, _sample) = requester
-            .poll(
-                &mut request,
-                to_c.provider(),
-                &req_cache.session_heads(),
-                &mut buffers.traversal.primary,
-            )
+            .poll(&mut request, to_c.provider(), req_cache, &Rng)
             .expect("requester poll succeeds");
 
         let mut response = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -214,29 +209,39 @@ fn sync_pull(
             break;
         }
 
-        let Some(commands) = requester
+        let Some(reply) = requester
             .receive(&response[..resp_len])
             .expect("requester receive succeeds")
         else {
             break;
         };
-        if commands.is_empty() {
+        if reply.commands().is_empty() {
             break;
         }
 
         let mut trx = to_c.transaction(gid);
         let received = to_c
-            .add_commands(&mut trx, &mut NullSink, &commands, buffers, mem_spill)
+            .add_commands(
+                &mut trx,
+                &mut NullSink,
+                reply.commands(),
+                buffers,
+                mem_spill,
+            )
             .expect("add_commands succeeds");
         to_c.commit(trx, &mut NullSink, buffers, mem_spill)
             .expect("commit succeeds");
 
-        let addrs: Vec<Address> = commands.iter().filter_map(|c| c.address().ok()).collect();
         let req_cache = req_caches
             .get_mut(&(to, from))
             .expect("requester cache exists");
-        to_c.update_heads(gid, addrs, req_cache, &mut buffers.traversal.primary)
-            .expect("update_heads succeeds");
+        to_c.update_heads(
+            gid,
+            reply.addresses(),
+            req_cache,
+            &mut buffers.traversal.primary,
+        )
+        .expect("update_heads succeeds");
 
         total = total.checked_add(received).expect("received count fits");
         if received == 0 {

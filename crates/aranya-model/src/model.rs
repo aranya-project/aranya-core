@@ -497,7 +497,7 @@ where
             .entry((graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
             .or_default();
 
-        let request_cache = self
+        let mut request_cache = self
             .client_graph_peer_cache
             .get(&(graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
             .ok_or(ModelError::ClientNotFound)?
@@ -527,16 +527,16 @@ where
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*graph_id);
+        let mut received_addrs = Vec::new();
 
         while request_syncer.ready() {
             if request_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let session = request_trx.session_heads(&request_cache);
                 let (len, _) = request_syncer.poll(
                     &mut buffer,
                     request_state.provider(),
-                    &session,
-                    &mut self.buffers.primary,
+                    &request_cache,
+                    &Rng,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -551,19 +551,26 @@ where
                     break;
                 }
 
-                if let Some(cmds) = request_syncer.receive(&target[..len])? {
+                if let Some(reply) = request_syncer.receive(&target[..len])? {
                     request_state.add_commands(
                         &mut request_trx,
                         &mut sink,
-                        &cmds,
+                        reply.commands(),
                         &mut self.rt_buffers,
                         mem_spill,
                     )?;
+                    received_addrs.extend(reply.addresses());
                 }
             }
         }
 
         request_state.commit(request_trx, &mut sink, &mut self.rt_buffers, mem_spill)?;
+        request_state.update_heads(
+            *graph_id,
+            received_addrs,
+            &mut request_cache,
+            &mut self.buffers.primary,
+        )?;
 
         Ok(())
     }

@@ -91,11 +91,17 @@ pub(crate) enum SubscribeResult {
     TooManySubscriptions,
 }
 
+/// An upper bound on the size of a serialized [`Address`].
+pub(super) const ADDRESS_SERIALIZED_UPPER_BOUND: usize = {
+    let id = 1 + size_of::<CmdId>(); // length + bytes
+    let max_cut = size_of::<u64>() + 1; // varint
+    id + max_cut
+};
+
 /// An upper bound on the size of serialized [`CommandMeta`].
 pub(super) const COMMAND_META_SERIALIZED_UPPER_BOUND: usize = {
     let id = 1 + size_of::<CmdId>(); // length + bytes
-    let max_cut = size_of::<u64>() + 1; // varint
-    let address = id + max_cut;
+    let address = ADDRESS_SERIALIZED_UPPER_BOUND;
     let parent = 1 + 2 * address; // tag + two addresses
     let length = size_of::<u32>() + 1; // varint
     id + parent + length + length

@@ -13,13 +13,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Address, Prior,
-    command::{CmdId, Command},
-    storage::{GraphId, LocatedAddress, Location, MAX_COMMAND_LENGTH, StorageError},
+    command::{CmdId, Command, CommandExt as _},
+    storage::{GraphId, MAX_COMMAND_LENGTH, StorageError},
     util::mem_usage,
 };
 
 mod requester;
 mod responder;
+mod sample;
 pub(crate) mod wire;
 
 pub(crate) use requester::SyncRequestMessage;
@@ -27,47 +28,6 @@ pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
 use wire::{SubscribeResult, SyncHelloType, SyncType};
-
-/// The frontier a requester advertises during a sync session: committed
-/// commands the peer is known to have ([`PeerCache`]) plus, when a
-/// transaction is open, its uncommitted heads. Construct with
-/// [`PeerCache::session_heads`] or `Transaction::session_heads`. Borrowing
-/// the transaction keeps uncommitted heads from outliving it: `commit`
-/// consumes the transaction, so they can never be held across a commit or
-/// persisted.
-pub struct SessionHeads<'a> {
-    pub(crate) cache: &'a PeerCache,
-    pub(crate) session: Option<&'a alloc::collections::BTreeMap<CmdId, Location>>,
-}
-
-impl SessionHeads<'_> {
-    /// The open transaction's uncommitted frontier, if any.
-    pub(crate) fn session_iter(&self) -> impl Iterator<Item = LocatedAddress> + '_ {
-        self.session
-            .into_iter()
-            .flatten()
-            .map(|(id, loc)| LocatedAddress {
-                id: *id,
-                segment: loc.segment,
-                max_cut: loc.max_cut,
-            })
-    }
-
-    /// Committed commands the peer is known to have.
-    pub(crate) fn cache_heads(&self) -> &[LocatedAddress] {
-        self.cache.heads()
-    }
-}
-
-impl PeerCache {
-    /// The frontier to advertise to a sync peer when no transaction is open.
-    pub fn session_heads(&self) -> SessionHeads<'_> {
-        SessionHeads {
-            cache: self,
-            session: None,
-        }
-    }
-}
 
 // TODO: These should all be compile time parameters
 
@@ -141,6 +101,41 @@ impl<'a> Command for SyncCommand<'a> {
 
     fn bytes(&self) -> &'a [u8] {
         self.data
+    }
+}
+
+/// The contents of a sync reply: commands to add, and a sample of the
+/// responder's graph.
+///
+/// After committing the commands, pass [`Self::addresses`] to
+/// [`ClientState::update_heads`](crate::ClientState::update_heads) so the
+/// peer cache records the commands and every sample command this side holds.
+#[derive(Debug)]
+pub struct SyncReply<'a> {
+    commands: Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>,
+    sample: Vec<Address, COMMAND_SAMPLE_MAX>,
+}
+
+impl<'a> SyncReply<'a> {
+    /// The commands the responder believes this side does not have, in
+    /// ancestor-first order.
+    pub fn commands(&self) -> &[SyncCommand<'a>] {
+        &self.commands
+    }
+
+    /// A sample of the responder's graph. Empty unless the responder had
+    /// more to send than fit in this reply.
+    pub fn sample(&self) -> &[Address] {
+        &self.sample
+    }
+
+    /// The addresses of the sample and the commands, to record in the peer
+    /// cache once the commands are committed.
+    pub fn addresses(&self) -> impl DoubleEndedIterator<Item = Address> + '_ {
+        self.sample
+            .iter()
+            .copied()
+            .chain(self.commands.iter().filter_map(|cmd| cmd.address().ok()))
     }
 }
 
@@ -446,6 +441,7 @@ mod tests {
             session_id,
             response_index: 0,
             commands,
+            sample: Vec::new(),
         };
         let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let len = postcard::to_slice(&message, &mut buf)
@@ -467,6 +463,7 @@ mod tests {
             session_id,
             response_index: 0,
             commands,
+            sample: Vec::new(),
         };
         let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let len = postcard::to_slice(&message, &mut buf)
