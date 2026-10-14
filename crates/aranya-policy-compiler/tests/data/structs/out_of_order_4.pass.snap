@@ -28,8 +28,10 @@ Module {
             items: [
                 Field {
                     name: "s",
-                    vtype: Struct(
-                        "Foo",
+                    vtype: Optional(
+                        Struct(
+                            "Foo",
+                        ),
                     ),
                 },
             ],

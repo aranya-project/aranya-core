@@ -1,4 +1,4 @@
-effect Fi { s struct Foo }
+effect Fi { s option[struct Foo] }
 command Foo {
     fields {
         i int

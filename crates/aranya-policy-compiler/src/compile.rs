@@ -1760,7 +1760,7 @@ impl<'a> CompileState<'a> {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.inner),
                 // { field_name struct Foo }
-                StructItem::Field(field) => field.vtype.as_struct().map(|ident| &ident.inner),
+                StructItem::Field(field) => field.vtype.struct_type().map(|ident| &ident.inner),
             }
         }
 
@@ -1778,7 +1778,7 @@ impl<'a> CompileState<'a> {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.inner),
                 // { field_name struct Foo }
-                StructItem::Field(field) => field.vtype.as_struct().map(|ident| &ident.inner),
+                StructItem::Field(field) => field.vtype.struct_type().map(|ident| &ident.inner),
             });
             let ident = &effect_def.name;
 
@@ -1789,7 +1789,7 @@ impl<'a> CompileState<'a> {
         for fact_def in &self.policy.facts {
             let deps = fact_def
                 .fields()
-                .filter_map(|def| def.vtype.as_struct().map(|ident| &ident.inner));
+                .filter_map(|def| def.vtype.struct_type().map(|ident| &ident.inner));
             let ident = &fact_def.name;
 
             insert_type_def(ident.clone(), UserType::Fact(fact_def))?;
