@@ -78,7 +78,6 @@ yanked = "warn"
 ignore = [
     { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained but shouldn't need any, and we don't use it directly" },
     { id = "RUSTSEC-2026-0097", reason = "we don't use the features required to hit the bug" },
-    { id = "RUSTSEC-2024-0449", reason = "TODO(#832): replace yaml dependencies" },
     #"RUSTSEC-0000-0000",
     #{ id = "RUSTSEC-0000-0000", reason = "you can specify a reason the advisory is ignored" },
     #"a-crate-that-is-yanked@0.1.1", # you can also ignore yanked crate versions if you wish
