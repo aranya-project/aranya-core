@@ -192,6 +192,7 @@ impl From<PestError<Rule>> for ParseError {
             .renamed_rules(|rule| match *rule {
                 Rule::none => "None".to_owned(),
                 Rule::some => "Some".to_owned(),
+                Rule::try_op => "?".to_owned(),
                 _ => format!("{:?}", rule),
             })
             .variant

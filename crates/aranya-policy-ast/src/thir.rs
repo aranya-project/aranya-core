@@ -201,6 +201,8 @@ pub enum ExprKind {
     Ok(Box<Expression>),
     /// Result Err variant
     Err(Box<Expression>),
+    /// Unwrap a `result[T, E]`, propagating `Err` to the caller.
+    Try(Box<Expression>),
 }
 
 spanned! {
