@@ -109,14 +109,14 @@
     "Sync": {
       "client": 1,
       "from": 0,
-      "must_send": 2
+      "must_send": 1
     }
   },
   {
     "Sync": {
       "client": 1,
       "from": 0,
-      "must_send": 2
+      "must_send": 1
     }
   },
   {
@@ -145,7 +145,7 @@
     "Sync": {
       "client": 2,
       "from": 1,
-      "must_send": 3,
+      "must_send": 2,
       "max_syncs": 2
     }
   },
@@ -153,7 +153,7 @@
     "Sync": {
       "client": 2,
       "from": 1,
-      "must_send": 2,
+      "must_send": 1,
       "max_syncs": 2
     }
   },
@@ -168,7 +168,7 @@
     "Sync": {
       "client": 0,
       "from": 1,
-      "must_send": 2
+      "must_send": 1
     }
   },
   {

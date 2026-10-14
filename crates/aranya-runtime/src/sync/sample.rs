@@ -32,27 +32,31 @@ fn random_index(rng: &impl Csprng, len: usize) -> Result<usize, SyncError> {
     Ok(usize::try_from(i).assume("index fits in usize")?)
 }
 
-/// Walk back from `start` to a command at max cut `target`, which must not
-/// be above `start`.
+/// Walk back from `start` toward max cut `target`, which must not be above
+/// `start`.
 ///
 /// Takes the lowest skip-list entry at or above `target` when one exists,
 /// otherwise steps to a prior. At a merge with no usable skip, `at_merge`
-/// is given the parents with max cut at least `target` and returns the one
-/// to follow, or `None` to stop there.
+/// is given the parents with max cut at least `target` and the merge's LCA,
+/// and returns where to continue, or `None` to stop there.
 ///
 /// Returns the command at `target` when the walk reaches the segment that
-/// contains it. If `at_merge` stops the walk, returns the merge's location.
+/// contains it, or the first location at or below `target` that `at_merge`
+/// leads to. If `at_merge` stops the walk, returns the merge's location.
 pub(super) fn skip_jump<S: Storage>(
     storage: &S,
     start: Location,
     target: MaxCut,
-    mut at_merge: impl FnMut(&[Location]) -> Result<Option<Location>, SyncError>,
+    mut at_merge: impl FnMut(&[Location], Location) -> Result<Option<Location>, SyncError>,
 ) -> Result<Location, SyncError> {
     if start.max_cut < target {
         buggy::bug!("skip_jump target is above start");
     }
     let mut current = start;
     loop {
+        if current.max_cut <= target {
+            return Ok(current);
+        }
         let seg = storage.get_segment(current)?;
         if seg.shortest_max_cut() <= target {
             return Ok(Location::new(current.segment, target));
@@ -81,7 +85,12 @@ pub(super) fn skip_jump<S: Storage>(
                         parents.push(p).ok().assume("at most two parents")?;
                     }
                 }
-                match at_merge(&parents)? {
+                let lca = seg
+                    .skip_list()
+                    .last()
+                    .copied()
+                    .assume("merge skip list must end with LCA")?;
+                match at_merge(&parents, lca)? {
                     Some(p) => p,
                     None => return Ok(current),
                 }
@@ -90,17 +99,40 @@ pub(super) fn skip_jump<S: Storage>(
     }
 }
 
+/// Returns the floor for a peer whose cache holds `cache_heads`: a command
+/// the peer holds such that everything we hold below it is one of its
+/// ancestors.
+///
+/// Walks back from the heads' LCA to the highest command at or below the
+/// deepest cache head. Every point on that walk is a command all heads pass
+/// through, so every path to a cache head passes through the floor.
+pub(super) fn floor<S: Storage>(
+    storage: &S,
+    cache_heads: &[LocatedAddress],
+) -> Result<MaxCut, SyncError> {
+    let Some(deepest) = cache_heads.iter().map(|h| h.max_cut).min() else {
+        return Ok(MaxCut::new(0));
+    };
+    let lca = storage.get_heads()?.lca();
+    if lca.max_cut <= deepest {
+        return Ok(lca.max_cut);
+    }
+    let floor = skip_jump(storage, lca, deepest, |_, merge_lca| Ok(Some(merge_lca)))?;
+    Ok(floor.max_cut)
+}
+
 /// Builds a sample over `storage`.
 ///
 /// `anchor_groups` are added first, in order, into at most half the slots.
 /// A group that does not fit in the remaining anchor slots contributes a
 /// random subset that fills them. The remaining slots hold probes: commands
-/// at evenly spaced max cuts from the tallest head down to the root, each
+/// at evenly spaced max cuts from the tallest head down to `floor`, each
 /// reached from a random head tall enough to reach it. Probes for which
 /// `exclude` returns true are dropped.
 pub(super) fn build<S: Storage>(
     storage: &S,
     anchor_groups: &[&[Address]],
+    floor: MaxCut,
     rng: &impl Csprng,
     exclude: impl Fn(Address) -> bool,
 ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
@@ -147,7 +179,7 @@ pub(super) fn build<S: Storage>(
     if free == 0 {
         return Ok(sample);
     }
-    let span = top.get();
+    let span = top.get().saturating_sub(floor.get());
     let gap = span.div_ceil(free).max(COMMAND_RESPONSE_MAX as u64);
 
     // Step 3: offset, uniform in gap/2..=gap.
@@ -161,8 +193,8 @@ pub(super) fn build<S: Storage>(
         .assume("offset mustn't overflow")?;
 
     // Step 4: probes.
-    let mut position = span.checked_sub(offset);
-    while let Some(t) = position {
+    let mut position = top.get().checked_sub(offset);
+    while let Some(t) = position.filter(|&t| t > floor.get()) {
         if sample.is_full() {
             break;
         }
@@ -175,7 +207,7 @@ pub(super) fn build<S: Storage>(
             .nth(pick)
             .copied()
             .assume("picked an eligible head")?;
-        let location = skip_jump(storage, head, target, |parents| {
+        let location = skip_jump(storage, head, target, |parents, _| {
             Ok(Some(
                 *parents
                     .get(random_index(rng, parents.len())?)

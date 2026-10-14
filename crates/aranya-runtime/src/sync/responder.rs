@@ -421,7 +421,7 @@ impl SyncResponder {
             let start = if head.max_cut <= skip_target {
                 head.location()
             } else {
-                skip_jump(storage, head.location(), skip_target, |_| Ok(None))?
+                skip_jump(storage, head.location(), skip_target, |_, _| Ok(None))?
             };
             heads.push(start)?;
         }
@@ -575,7 +575,7 @@ impl SyncResponder {
                 .iter()
                 .map(LocatedAddress::address)
                 .collect();
-            sample = sample::build(&*storage, &[&heads], rng, |addr| {
+            sample = sample::build(&*storage, &[&heads], MaxCut::new(0), rng, |addr| {
                 commands.iter().any(|meta| meta.id == addr.id)
             })?;
         }
@@ -1074,12 +1074,16 @@ mod tests {
         }
     }
 
-    /// Decodes the sample carried by a request.
-    fn request_sample(client: &mut TestClient, graph_id: GraphId) -> vec::Vec<Address> {
+    /// Decodes the sample a request carries, given the requester's cache.
+    fn request_sample(
+        client: &mut TestClient,
+        graph_id: GraphId,
+        cache: &PeerCache,
+    ) -> vec::Vec<Address> {
         let mut requester = SyncRequester::new(graph_id, Rng);
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, client.provider(), &PeerCache::new(), &Rng)
+            .poll(&mut buffer, client.provider(), cache, &Rng)
             .expect("requester poll");
         let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
             panic!("expected a poll message");
@@ -1097,7 +1101,7 @@ mod tests {
     fn request_probes_are_evenly_spaced() {
         let (mut a, graph_id) = client_with_commands(1000);
         for _ in 0..20 {
-            let sample = request_sample(&mut a, graph_id);
+            let sample = request_sample(&mut a, graph_id, &PeerCache::new());
             let cuts: vec::Vec<u64> = sample.iter().map(|s| s.max_cut.get()).collect();
             assert_eq!(cuts[0], 999, "the head anchor comes first: {cuts:?}");
             let probes = &cuts[1..];
@@ -1214,5 +1218,113 @@ mod tests {
                 .expect("add_command");
         }
         assert_eq!(cache.heads().len(), 15);
+    }
+
+    /// Returns a cache recording that the peer holds `addrs`.
+    fn cache_holding(client: &mut TestClient, graph_id: GraphId, addrs: &[Address]) -> PeerCache {
+        let mut cache = PeerCache::new();
+        let mut buffer = TraversalBuffer::new();
+        let storage = client.provider().get_storage(graph_id).expect("storage");
+        for &addr in addrs {
+            cache
+                .add_command(storage, addr, &mut buffer)
+                .expect("add_command");
+        }
+        cache
+    }
+
+    /// A requester a few commands ahead of its cache head on a long chain:
+    /// the floor is the cache head, so the sample is only the anchors.
+    #[test]
+    fn floor_at_cache_head_sends_no_probes() {
+        let (mut a, graph_id) = client_with_commands(1000);
+        let held = a.head_address(graph_id).expect("head");
+        extend_chain(&mut a, graph_id, 1000..1005);
+        let cache = cache_holding(&mut a, graph_id, &[held]);
+
+        let sample = request_sample(&mut a, graph_id, &cache);
+        let head = a.head_address(graph_id).expect("head");
+        assert_eq!(sample, [held, head]);
+    }
+
+    /// Two writers each add a command on the same parent. After the
+    /// requester receives the other's command it has two heads, their LCA
+    /// is the shared parent, and that is the floor: no probes.
+    #[test]
+    fn floor_below_sibling_heads_sends_no_probes() {
+        let (mut a, graph_id) = client_with_commands(1000);
+        let mut b = new_client();
+        for _ in 0..20 {
+            if b.head_address(graph_id).ok() == a.head_address(graph_id).ok() {
+                break;
+            }
+            run_full_session(&mut a, &mut b, graph_id);
+        }
+        let parent = a.head_address(graph_id).expect("head");
+        extend_chain(&mut a, graph_id, 2000..2001);
+        extend_chain(&mut b, graph_id, 3000..3001);
+        let mine = a.head_address(graph_id).expect("a head");
+        let theirs = b.head_address(graph_id).expect("b head");
+
+        let mut a_cache = PeerCache::new();
+        let ex = exchange(
+            &mut a,
+            &mut b,
+            graph_id,
+            &mut a_cache,
+            &mut PeerCache::new(),
+        );
+        assert_eq!(ex.new, 1, "a receives b's command");
+
+        let storage = a.provider().get_storage(graph_id).expect("storage");
+        let heads = storage.get_heads().expect("heads");
+        assert_eq!(heads.len(), 2, "a holds both siblings as heads");
+        assert_eq!(heads.lca().max_cut, parent.max_cut, "LCA is the parent");
+
+        let cache = cache_holding(&mut a, graph_id, &[theirs]);
+        let mut sample = request_sample(&mut a, graph_id, &cache);
+        sample.sort();
+        let mut expected = vec![mine, theirs];
+        expected.sort();
+        assert_eq!(sample, expected, "anchors only");
+    }
+
+    /// A branch from near the root that the peer has never seen: the heads'
+    /// LCA is near the root, so probes cover the whole graph even though the
+    /// cache head is the main line's tip.
+    #[test]
+    fn unknown_branch_puts_floor_at_root() {
+        let (mut a, graph_id) = client_with_commands(1);
+        let mut b = new_client();
+        run_full_session(&mut a, &mut b, graph_id);
+        extend_chain(&mut a, graph_id, 1..1000);
+        extend_chain(&mut b, graph_id, 5000..5500);
+        let main_tip = a.head_address(graph_id).expect("a head");
+        for _ in 0..20 {
+            let ex = exchange(
+                &mut a,
+                &mut b,
+                graph_id,
+                &mut PeerCache::new(),
+                &mut PeerCache::new(),
+            );
+            if ex.sent.is_empty() {
+                break;
+            }
+        }
+        let storage = a.provider().get_storage(graph_id).expect("storage");
+        assert_eq!(storage.get_heads().expect("heads").len(), 2);
+
+        let cache = cache_holding(&mut a, graph_id, &[main_tip]);
+        let sample = request_sample(&mut a, graph_id, &cache);
+        let lowest = sample.iter().map(|s| s.max_cut.get()).min().unwrap();
+        assert!(
+            sample.len() > 3 && lowest < 100,
+            "probes reach the root: {:?}",
+            sample
+                .iter()
+                .map(|s| s.max_cut.get())
+                .collect::<vec::Vec<_>>()
+        );
     }
 }

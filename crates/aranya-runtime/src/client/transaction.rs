@@ -122,28 +122,32 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             return Ok(false);
         }
 
-        // Build the committed head set from the live tips.
-        let mut head_set = HeadSet::default();
-        for (id, loc) in &self.heads {
-            head_set.push(LocatedAddress {
+        // The committed head set is the live tips, in head set order.
+        let mut heads: Vec<LocatedAddress> = self
+            .heads
+            .iter()
+            .map(|(id, loc)| LocatedAddress {
                 id: *id,
                 segment: loc.segment,
                 max_cut: loc.max_cut,
-            });
-        }
+            })
+            .collect();
+        heads.sort();
 
-        // Rebuild the fact cache for this head set.
-        let head_locs: Vec<Location> = head_set.iter().map(LocatedAddress::location).collect();
-        let fact_cache = if head_locs.len() == 1 {
+        // Rebuild the fact cache for this head set. A multi-head braid also
+        // yields the heads' LCA, which the head set keeps.
+        let (head_set, fact_cache) = if let [head] = heads[..] {
             // Single head: reuse that head's fact index.
-            storage.get_segment(head_locs[0])?.facts()?
+            let facts = storage.get_segment(head.location())?.facts()?;
+            (HeadSet::single(head), facts)
         } else {
             // Multi-head: braid the heads into a merged fact index.
             // TODO(multi-policy): if heads can have differing policies, fold choose_policy
             // over the head set instead of taking head 0's policy.
+            let head_locs: Vec<Location> = heads.iter().map(|h| h.location()).collect();
             let policy_id = storage.get_segment(head_locs[0])?.policy();
             let policy = policy_store.get_policy(policy_id)?;
-            let (facts, _lca) = evaluate_braid::<_, PS, F, MS>(
+            let (facts, lca) = evaluate_braid::<_, PS, F, MS>(
                 storage,
                 &head_locs,
                 sink,
@@ -152,7 +156,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 &mut buffers.braid,
                 make_spill,
             )?;
-            facts
+            (HeadSet::new(heads, lca), facts)
         };
 
         storage.commit_heads(head_set, fact_cache)?;

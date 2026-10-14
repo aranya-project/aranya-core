@@ -728,8 +728,10 @@ mod tests {
         let mut manager = FileManager::new(tempdir.path()).unwrap();
         let graph_id = GraphId::transmute(CmdId::from_bytes([7u8; 32]));
 
-        let mut heads = HeadSet::single(located(1, 1, 3));
-        heads.push(located(2, 2, 5));
+        let heads = HeadSet::new(
+            [located(1, 1, 3), located(2, 2, 5)],
+            located(0, 0, 0).location(),
+        );
         assert_eq!(heads.len(), 2);
 
         // Commit on a fresh writer.

@@ -376,7 +376,10 @@ impl SyncRequester {
             .filter(|a| !cache_heads.contains(a))
             .collect();
 
-        sample::build(&*storage, &[&cache_heads, &graph_heads], rng, |_| false)
+        let floor = sample::floor(&*storage, cache.heads())?;
+        sample::build(&*storage, &[&cache_heads, &graph_heads], floor, rng, |_| {
+            false
+        })
     }
 
     /// Writes a Subscribe message to target.
