@@ -516,6 +516,12 @@ user-id = 6743 # Ed Page (epage)
 start = "2023-04-13"
 end = "2026-11-19"
 
+[[trusted.encoding_rs_io]]
+criteria = "safe-to-deploy"
+user-id = 189 # Andrew Gallant (BurntSushi)
+start = "2019-03-03"
+end = "2027-10-13"
+
 [[trusted.ff]]
 criteria = "safe-to-deploy"
 user-id = 1244 # Sean Bowe (ebfull)
