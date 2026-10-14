@@ -1,4 +1,7 @@
-ephemeral command Cmd {
+base command(ephemeral) Ephemeral {
+    get_key { return None }
+}
+command Cmd with Ephemeral {
     fields {}
     policy {
         finish {}

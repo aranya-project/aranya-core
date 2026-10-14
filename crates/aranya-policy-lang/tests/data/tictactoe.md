@@ -40,9 +40,7 @@ command Start {
     }
     policy {
         check ProfileX != ProfileO else test_fail("Profiles must be different")
-        // `envelope::command_id` is an FFI-provided helper function that returns
-        // the ID from the passed in `envelope`.
-        let gameID = envelope::command_id(envelope)
+        let gameID = envelope.command_id
         finish {
             create PlayerProfile[gameID]=>{x: ProfileX, o: ProfileO}
             create NextPlayer[gameID]=>{p: "X"}
@@ -93,10 +91,7 @@ command Move {
         // These aren't "variables" in the procedural sense, they are
         // set-once constant definitions that can be used in later
         // expressions.
-        // `envelope::author_id` is an FFI-provided helper function which
-        // returns the ID for the author of the command from the passed in
-        // `envelope`.
-        let player = envelope::author_id(envelope)
+        let player = envelope.author_id
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
         // values marked with ?, or None. The `or` operator unwraps the result
@@ -165,7 +160,7 @@ command Move2 {
         Y int,
     }
     policy {
-        let player = envelope::author_id(envelope)
+        let player = envelope.author_id
         let players = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail()
         let p = query NextPlayer[gameID]=>{p: ?} or test_fail()
         let nextp = if p == "X" { :"O" } else { :"X" }
