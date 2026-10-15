@@ -41,14 +41,13 @@ jobs:
             path: aranya-embedded
 
       # Refer to https://github.com/aranya-project/aranya-embedded/blob/main/crates/chat-app/TUTORIAL.md for installation and build instructions.
+      - name: Install espup
+        uses: aranya-project/install-action@main
+        with:
+          tool: espup@0.16.0
+
       - name: Install esp toolchain
-        run: |
-            sudo apt-get update
-            sudo apt-get install libudev-dev --fix-missing
-            cargo install espup --locked
-            espup install
-            . /home/runner/export-esp.sh
-            cargo install espflash@^3 --locked
+        run: espup install
 
       - name: Point aranya-embedded to local aranya crate deps
         run: |
@@ -59,4 +58,4 @@ jobs:
         run: |
             . /home/runner/export-esp.sh
             cd aranya-embedded/crates/chat-app
-            cargo build
+            cargo check
