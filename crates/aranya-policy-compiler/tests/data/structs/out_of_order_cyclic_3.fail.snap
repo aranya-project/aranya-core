@@ -6,5 +6,5 @@ error: cycle found: [Co, Bar]
   |
 1 | effect Bar { s: struct Co }
   |        ---
-2 | command Co {
+2 | command Co with StubBase {
   |         --

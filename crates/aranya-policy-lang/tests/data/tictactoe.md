@@ -33,7 +33,7 @@ effect GameStart {
     o: id,
 }
 
-command Start {
+command Start with Base {
     fields {
         ProfileX: id,
         ProfileO: id,
@@ -79,7 +79,7 @@ effect GameOver {
     p: string,
 }
 
-command Move {
+command Move with Base {
     // phase 0: command field definition
     fields {
         gameID: id,
@@ -153,7 +153,7 @@ function game_over(gameID: id, x: int, y: int, p: string) bool {
            (f20 is Some && f20 == f11 && f11 == f02)
 }
 
-command Move2 {
+command Move2 with Base {
     fields {
         gameID: id,
         X: int,

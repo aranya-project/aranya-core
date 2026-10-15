@@ -15,7 +15,7 @@ effect Added {
     y: int,
 }
 
-command Add {
+command Add with Base {
     fields {
         count: int
     }

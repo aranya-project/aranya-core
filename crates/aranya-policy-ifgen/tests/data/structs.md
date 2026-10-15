@@ -17,7 +17,11 @@ effect UserAdded {
     +User
 }
 
-command AddUser {
+base Base {
+    get_key { return None }
+}
+
+command AddUser with Base {
     fields {
         +User
     }

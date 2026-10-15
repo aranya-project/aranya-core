@@ -5,7 +5,7 @@ effect Bar {
     x: int
 }
 
-command Foo {
+command Foo with StubBase {
     fields {
         a: int,
         b: int,
@@ -40,7 +40,7 @@ effect Update {
     value: int
 }
 
-command Set {
+command Set with StubBase {
     fields {
         a: int,
     }
@@ -53,7 +53,7 @@ command Set {
     }
 }
 
-command Clear {
+command Clear with StubBase {
     fields {}
     policy {
         finish {
@@ -62,7 +62,7 @@ command Clear {
     }
 }
 
-command Increment {
+command Increment with StubBase {
     fields {}
     policy {
         let r = query Foo[]=>{x: ?} or test_fail()
@@ -78,7 +78,7 @@ command Increment {
 pub const POLICY_TEST_UPDATE: &str = r#"
 fact Foo[]=>{x: int}
 
-command Set {
+command Set with StubBase {
     fields {
         a: int,
     }
@@ -90,7 +90,7 @@ command Set {
     }
 }
 
-command Increment {
+command Increment with StubBase {
     fields {}
     policy {
         let r = query Foo[]=>{x: ?} or test_fail()
@@ -103,7 +103,7 @@ command Increment {
 "#;
 
 pub const POLICY_MATCH: &str = r#"
-    command Result {
+    command Result with StubBase {
         fields {
             x: int
         }
@@ -126,13 +126,13 @@ pub const POLICY_MATCH: &str = r#"
 "#;
 
 pub const POLICY_IS: &str = r#"
-    command Result {
+    command Result with StubBase {
         fields {
             x: int
         }
         policy {}
     }
-    command Empty {
+    command Empty with StubBase {
         fields { }
         policy {}
     }

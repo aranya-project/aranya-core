@@ -6,14 +6,14 @@ Module {
     version: "1",
     labels: {
         <get_key 'MyBasic1'>: 10,
-        <policy 'MyBasic1'>: 43,
+        <policy 'MyBasic1'>: 50,
         <get_key 'MyBasic2'>: 10,
-        <policy 'MyBasic2'>: 46,
+        <policy 'MyBasic2'>: 53,
         <get_key 'MyInit'>: 1,
-        <policy 'MyInit'>: 40,
-        <action 'my_basic_1'>: 55,
-        <action 'my_basic_2'>: 58,
-        <action 'my_init'>: 49,
+        <policy 'MyInit'>: 47,
+        <action 'my_basic_1'>: 62,
+        <action 'my_basic_2'>: 65,
+        <action 'my_init'>: 56,
     },
     action_defs: [
         ActionDef {
@@ -144,6 +144,10 @@ Module {
             name: "NullEnvelope",
             items: [],
         },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -193,6 +197,13 @@ Module {
     end
     jump 37
 <37>:
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic
