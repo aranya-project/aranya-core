@@ -92,6 +92,8 @@
 //!
 //! // The label ID used for encryption and decryption.
 //! let label_id = LabelId::random(Rng);
+//! // The channel author's epoch, read from the Aranya graph.
+//! let epoch = 0;
 //!
 //! let ch1 = UniChannel {
 //!     parent_cmd_id: CmdId::random(&eng),
@@ -100,6 +102,7 @@
 //!     their_pk: &device2_enc_sk.public()?,
 //!     open_id: device2_id,
 //!     label_id,
+//!     epoch,
 //! };
 //! let UniSecrets { author, peer } = UniSecrets::new(&eng, &ch1)?;
 //!
@@ -115,6 +118,7 @@
 //!     their_pk: &device1_enc_sk.public()?,
 //!     seal_id: device1_id,
 //!     label_id,
+//!     epoch,
 //! };
 //!
 //! // Inform device2 about device1.

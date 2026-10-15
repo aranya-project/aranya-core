@@ -8,7 +8,7 @@ use aranya_crypto::{
 use aranya_fast_channels::Directed;
 use serde::{Deserialize, Serialize};
 
-use crate::{shared::decode_enc_pk, transform::Transform};
+use crate::{replay::ReplayStore, shared::decode_enc_pk, transform::Transform};
 
 /// Wraps `tracing::error` to always use the `afc-handler`
 /// target.
@@ -27,6 +27,29 @@ impl<S> Handler<S> {
     /// Creates a new `Handler`.
     pub const fn new(device_id: DeviceId, store: S) -> Self {
         Self { device_id, store }
+    }
+
+    /// Handles the `AfcEpochRotated` effect by calling
+    /// [`ReplayStore::clear`] for the rotated device, forgetting
+    /// the nonces recorded for its epochs below the new one.
+    pub fn epoch_rotated<R>(
+        &mut self,
+        replay: &mut R,
+        graph: BaseId,
+        effect: &EpochRotated,
+    ) -> Result<(), Error>
+    where
+        R: ReplayStore,
+    {
+        if effect.device_id == self.device_id {
+            return Ok(());
+        }
+        replay
+            .clear(graph, effect.device_id, effect.epoch)
+            .map_err(|err| {
+                error!("replay store failed: {err}");
+                Error::ReplayStore
+            })
     }
 }
 
@@ -71,6 +94,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label_id: effect.label_id,
+            epoch: effect.epoch,
         };
 
         UniKey::new(&ch, secret, UniKey::SealOnly)
@@ -78,18 +102,37 @@ impl<S: KeyStore> Handler<S> {
 
     /// Converts a [`UniPeerEncap`] into a key suitable for
     /// [`AranyaState`][aranya_fast_channels::AranyaState].
-    pub fn uni_channel_received<E, SK, OK>(
+    ///
+    /// The control message's nonce is first recorded via
+    /// [`ReplayStore::insert`]; a nonce that was already recorded
+    /// fails with [`Error::Replay`] before any key material is
+    /// derived. The record is durable before this returns.
+    pub fn uni_channel_received<E, R, SK, OK>(
         &mut self,
         eng: &E,
+        replay: &mut R,
+        graph: BaseId,
         effect: &UniChannelReceived<'_>,
     ) -> Result<UniKey<SK, OK>, Error>
     where
         E: Engine,
+        R: ReplayStore,
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
         if effect.seal_id == self.device_id {
             return Err(Error::AuthorMustBeSealer);
+        }
+
+        // Freshness, before any key material exists.
+        let fresh = replay
+            .insert(graph, effect.seal_id, effect.epoch, effect.cmd_id)
+            .map_err(|err| {
+                error!("replay store failed: {err}");
+                Error::ReplayStore
+            })?;
+        if !fresh {
+            return Err(Error::Replay);
         }
 
         let encap =
@@ -111,6 +154,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label_id: effect.label_id,
+            epoch: effect.epoch,
         };
 
         UniKey::new(&ch, encap, UniKey::OpenOnly)
@@ -132,6 +176,8 @@ pub struct UniChannelCreated<'a> {
     pub label_id: LabelId,
     /// The unique key identifier for the [`UniAuthorSecret`].
     pub key_id: UniKeyId,
+    /// The channel author's epoch at creation time.
+    pub epoch: u64,
 }
 
 /// Data from the `AfcUniChannelReceived` effect.
@@ -149,6 +195,19 @@ pub struct UniChannelReceived<'a> {
     pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
+    /// The channel author's epoch at creation time.
+    pub epoch: u64,
+    /// The ID of the control command that created the channel, used as replay-protection nonce.
+    pub cmd_id: CmdId,
+}
+
+/// Data from the `AfcEpochRotated` effect.
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct EpochRotated {
+    /// The device whose epoch was rotated.
+    pub device_id: DeviceId,
+    /// The new epoch.
+    pub epoch: u64,
 }
 
 /// Uniquely identifies a unirectional channel.
@@ -221,4 +280,11 @@ pub enum Error {
     /// A `crypto` crate error.
     #[error(transparent)]
     Crypto(#[from] aranya_crypto::Error),
+    /// The control message's nonce was already recorded by the
+    /// [`ReplayStore`].
+    #[error("replayed control message")]
+    Replay,
+    /// The [`ReplayStore`] failed.
+    #[error("replay store failure")]
+    ReplayStore,
 }

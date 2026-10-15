@@ -400,6 +400,7 @@ where
                 seal_id: seal.ident_sk.public().unwrap().id().unwrap(),
                 open_id: open.ident_sk.public().unwrap().id().unwrap(),
                 label_id,
+                epoch: 0,
             };
             let open_cfg = UniChannel {
                 parent_cmd_id: seal_cfg.parent_cmd_id,
@@ -408,6 +409,7 @@ where
                 seal_id: seal.ident_sk.public().unwrap().id().unwrap(),
                 open_id: open.ident_sk.public().unwrap().id().unwrap(),
                 label_id,
+                epoch: seal_cfg.epoch,
             };
 
             let secrets =
