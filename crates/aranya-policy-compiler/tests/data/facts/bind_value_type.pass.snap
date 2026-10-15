@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'test'>: 1,
+        <action 'test'>: 8,
     },
     action_defs: [
         ActionDef {
@@ -48,12 +48,27 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <action 'test'>:
     fact.new 'Foo'
@@ -63,7 +78,7 @@ Module {
     const None
     eq
     not
-    branch 10
+    branch 17
     exit panic
-<10>:
+<17>:
     return

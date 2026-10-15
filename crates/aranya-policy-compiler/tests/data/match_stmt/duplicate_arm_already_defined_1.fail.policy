@@ -1,4 +1,4 @@
-command Result {
+command Result with StubBase {
     fields {
         x: int
     }

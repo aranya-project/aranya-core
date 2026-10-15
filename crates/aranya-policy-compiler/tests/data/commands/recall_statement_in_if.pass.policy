@@ -1,4 +1,4 @@
-command Cmd {
+command Cmd with StubBase {
     fields { x: int }
     policy {
         if this.x < 0 {

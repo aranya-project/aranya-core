@@ -1,5 +1,5 @@
 enum Priority { Low, High }
-command A {
+command A with StubBase {
     attributes {
         i: 5,
         s: "abc",

@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'pets'>: 1,
+        <action 'pets'>: 8,
     },
     action_defs: [
         ActionDef {
@@ -36,6 +36,10 @@ Module {
     ],
     struct_defs: [
         StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
             name: "Pet",
             items: [
                 Field {
@@ -48,6 +52,10 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -55,18 +63,25 @@ Module {
 }
 ---
     exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
+    exit panic
 <action 'pets'>:
     fact.new 'Pet'
     query.start
-<3>:
+<10>:
     block
     query.next 'p'
-    branch 11
+    branch 18
     get 'p'
     struct.get 'age'
     def 'age'
     end
-    jump 3
-<11>:
+    jump 10
+<18>:
     end
     return

@@ -389,7 +389,7 @@ fn parse_effect() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
-        command Foo {
+        command Foo with Base {
             fields {
                 owner: id,
             }

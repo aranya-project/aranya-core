@@ -1,6 +1,6 @@
 fact F[i: int] => {s: string}
 
-command CreateBindKey {
+command CreateBindKey with StubBase {
     fields {}
     policy {
         finish {

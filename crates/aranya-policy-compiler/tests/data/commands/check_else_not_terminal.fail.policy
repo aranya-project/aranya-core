@@ -1,4 +1,4 @@
-command Cmd {
+command Cmd with StubBase {
     fields {}
     policy {
         check true else 0
