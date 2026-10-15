@@ -1,4 +1,4 @@
-base command(ephemeral) Ephemeral {
+base[ephemeral] Ephemeral {
     get_key { return None }
 }
 command Cmd with Ephemeral {

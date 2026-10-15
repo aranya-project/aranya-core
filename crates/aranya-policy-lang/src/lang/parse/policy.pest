@@ -389,7 +389,7 @@ base_command_blocks = _{
 
 base_usage = { "with" ~ identifier }
 
-flavor = { "(" ~ identifier ~ ")" }
+flavor = { "[" ~ identifier ~ "]" }
 
 // # Top-level Statements
 // fact Foo[]=>{}
@@ -406,8 +406,8 @@ struct_definition = { "struct" ~ identifier ~ struct_def }
 enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
 // command Foo { ... }
 command_definition = { "command" ~ identifier ~ base_usage? ~ "{" ~ command_blocks ~ "}" }
-// base command Foo { ... }
-base_command_definition = { "base" ~ "command" ~ flavor? ~ identifier ~ "{" ~ base_command_blocks ~ "}" }
+// base Foo { ... }
+base_command_definition = { "base" ~ flavor? ~ identifier ~ "{" ~ base_command_blocks ~ "}" }
 // function foo(a int) int { return a }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
 function_definition = { function_decl ~ statement_block }

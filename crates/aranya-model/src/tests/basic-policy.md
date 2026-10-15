@@ -17,7 +17,7 @@ some other mechanism.
 ```policy
 fact Key[]=>{key: bytes}
 
-base command(init) BaseInit {
+base[init] BaseInit {
     fields {
         key: bytes
     }
@@ -26,7 +26,7 @@ base command(init) BaseInit {
     }
 }
 
-base command Base {
+base Base {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -35,7 +35,7 @@ base command Base {
     }
 }
 
-base command(ephemeral) BaseEphemeral {
+base[ephemeral] BaseEphemeral {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -74,7 +74,7 @@ effect Success {
 }
 
 // The `init` action takes a nonce variable and passes it to the Init command.
-action(init) init(nonce: int, key: bytes) {
+action[init] init(nonce: int, key: bytes) {
     publish Init { key, nonce }
 }
 
@@ -124,7 +124,7 @@ command Create with Base {
     }
 }
 
-action(ephemeral) create_action_ephemeral(v: int) {
+action[ephemeral] create_action_ephemeral(v: int) {
     publish CreateEphemeral {
         key_a: 1,
         value: v,
@@ -178,7 +178,7 @@ command Increment with Base {
     }
 }
 
-action(ephemeral) increment_ephemeral(v: int) {
+action[ephemeral] increment_ephemeral(v: int) {
     publish IncrementEphemeral {
         key_a: 1,
         value: v,
@@ -236,7 +236,7 @@ command Decrement with Base {
 }
 
 // `get_stuff` calls the `GetStuff` command with the hardcoded test key.
-action(ephemeral) get_stuff() {
+action[ephemeral] get_stuff() {
     publish GetStuff {
         key_a: 1,
     }
@@ -282,7 +282,7 @@ command GetStuffOnGraph with Base {
 
 // The `create_greeting` action calls the command `CreateGreeting`. Passing in
 // the hardcoded greeting key and the message value.
-action(ephemeral) create_greeting(v: string) {
+action[ephemeral] create_greeting(v: string) {
     publish CreateGreeting {
         key: "greeting",
         value: v,
@@ -309,7 +309,7 @@ command CreateGreeting with BaseEphemeral {
 
 // The `verify_hello` action calls the command `VerifyGreeting` that will verify
 // the Message fact contains "hello".
-action(ephemeral) verify_hello() {
+action[ephemeral] verify_hello() {
     publish VerifyGreeting {
         key: "greeting",
         value: "hello",

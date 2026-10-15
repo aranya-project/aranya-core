@@ -74,13 +74,13 @@ Policy {
         },
         ActionDefinition {
             flavor: Some(
-                "ephemeral" @ 1955..1964,
+                "ephemeral" @ 1947..1956,
             ),
-            name: "a" @ 1966..1967,
+            name: "a" @ 1958..1959,
             parameters: [],
             return_type: Unit @ 0..0,
             body: [],
-            span: 1948..1972,
+            span: 1940..1964,
         },
     ],
     effects: [
@@ -623,40 +623,40 @@ Policy {
         },
         CommandDefinition {
             base: Some(
-                "Ephemeral" @ 1885..1894,
+                "Ephemeral" @ 1877..1886,
             ),
             attributes: [],
-            name: "C" @ 1878..1879,
+            name: "C" @ 1870..1871,
             fields: [
                 Field(
                     FieldDefinition {
-                        name: "x" @ 1918..1919,
-                        vtype: Int @ 1921..1924,
+                        name: "x" @ 1910..1911,
+                        vtype: Int @ 1913..1916,
                     },
                 ),
             ],
             policy: [],
             recalls: [],
-            span: 1870..1946,
+            span: 1862..1938,
         },
     ],
     base_commands: [
         BaseCommandDefinition {
             flavor: Some(
-                "ephemeral" @ 1816..1825,
+                "ephemeral" @ 1808..1817,
             ),
-            name: "Ephemeral" @ 1827..1836,
+            name: "Ephemeral" @ 1819..1828,
             fields: [],
             get_key: [
                 Return(
                     ReturnStatement {
                         value: Optional(
                             None,
-                        ) @ 1860..1864,
+                        ) @ 1852..1856,
                     },
-                ) @ 1853..1865,
+                ) @ 1845..1857,
             ],
-            span: 1803..1868,
+            span: 1803..1860,
         },
     ],
     functions: [
@@ -753,5 +753,5 @@ Policy {
         },
     ],
     global_lets: [],
-    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v: string]=>{x: int, y: bool}\n\naction add2(x: int, y: int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x: int dynamic,\n    y: int,\n}\n\ncommand Add {\n    fields {\n        count: int\n    }\n    policy {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{} else recall default()\n        match x {\n            0 => {\n                check positive(Some(new_x)) else recall default()\n            }\n            1 => {\n                check positive(None) else recall default()\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10 else recall default()\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default() {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v: option[int]) bool {\n    return match v {\n        Some(x) => x > 0\n        None => test_fail()\n    }\n}\n\nfinish function next(x: int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nbase command(ephemeral) Ephemeral {\n    get_key { return None }\n}\n\ncommand C with Ephemeral {\n    fields {\n        x: int\n    }\n    policy {}\n}\n\naction(ephemeral) a() {}\n",
+    text: "// This is not a valid policy. It is just meant to exercise\n// every feature of the parser.\n/* block comment */\nfact F[v: string]=>{x: int, y: bool}\n\naction add2(x: int, y: int) {\n    let obj = Add {\n        count: x,\n    }\n    publish obj\n}\n\neffect Added {\n    x: int dynamic,\n    y: int,\n}\n\ncommand Add {\n    fields {\n        count: int\n    }\n    policy {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        check exists TestFact[v: \"test\"]=>{} else recall default()\n        match x {\n            0 => {\n                check positive(Some(new_x)) else recall default()\n            }\n            1 => {\n                check positive(None) else recall default()\n            }\n            _ => {\n\n            }\n        }\n\n        if x == 3 {\n            check new_x < 10 else recall default()\n        }\n\n        let a = foo::ext_func(x)\n\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n    recall default() {\n        let envelope_id = envelope.command_id\n        let author = envelope.author_id\n        let new_x = add2(x, count)\n        finish {\n            create F[v: \"hello\"]=>{x, y: saturating_sub(0, x)}\n            update F[]=>{x} to {x: new_x}\n            delete F[v: \"hello\"]\n            emit Added {\n                x: new_x,\n                y: count,\n            }\n        }\n    }\n}\n\nfunction positive(v: option[int]) bool {\n    return match v {\n        Some(x) => x > 0\n        None => test_fail()\n    }\n}\n\nfinish function next(x: int) {\n    create Next[]=>{}\n}\n\n\n// ephemeral commands and actions\n\nbase[ephemeral] Ephemeral {\n    get_key { return None }\n}\n\ncommand C with Ephemeral {\n    fields {\n        x: int\n    }\n    policy {}\n}\n\naction[ephemeral] a() {}\n",
 }

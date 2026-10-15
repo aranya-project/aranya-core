@@ -57,14 +57,14 @@ fn benchmark_map() {
 policy-version: 2
 ---
 ```policy
-        base command(init) BaseInit {
+        base[init] BaseInit {
             fields { key: bytes }
             get_key { return Some(this.key) }
         }
 
         fact Key[]=>{key: bytes}
 
-        base command Base {
+        base Base {
             get_key {
                 return match query Key[] {
                     Some(f) => Some(f.key)
@@ -83,7 +83,7 @@ policy-version: 2
             }
         }
 
-        action(init) init(key: bytes) {
+        action[init] init(key: bytes) {
             publish Init { key: key }
         }
 

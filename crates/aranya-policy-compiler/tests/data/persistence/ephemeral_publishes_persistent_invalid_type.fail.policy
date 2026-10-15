@@ -4,6 +4,6 @@ command Cmd {
         finish {}
     }
 }
-action(ephemeral) test() {
+action[ephemeral] test() {
     publish Cmd {}
 }

@@ -913,7 +913,7 @@ mod test {
         fn flavored(flavor: &str, attrs: &str) -> String {
             format!(
                 r#"
-                base command({flavor}) Base {{ get_key {{ return None }} }}
+                base[{flavor}] Base {{ get_key {{ return None }} }}
                 command Test with Base {{
                     attributes {{
                         {attrs}

@@ -68,5 +68,5 @@ effect GameOver {
     p: enum Player,
 }
 
-action(ephemeral) Temporary(n: int, s: string) {}
+action[ephemeral] Temporary(n: int, s: string) {}
 ```

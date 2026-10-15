@@ -20,7 +20,7 @@ use idam
 use perspective
 use device
 
-base command(init) BaseInit {
+base[init] BaseInit {
     fields {
         sign_pk: bytes,
     }
@@ -29,7 +29,7 @@ base command(init) BaseInit {
     }
 }
 
-base command BaseSelfSigned {
+base BaseSelfSigned {
     fields {
         sign_pk: bytes,
     }
@@ -38,7 +38,7 @@ base command BaseSelfSigned {
     }
 }
 
-base command Base {
+base Base {
     get_key {
         return match query DeviceSignKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -47,7 +47,7 @@ base command Base {
     }
 }
 
-base command(ephemeral) Ephemeral {
+base[ephemeral] Ephemeral {
     get_key {
         return match query DeviceSignKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -124,7 +124,7 @@ function authorized_device_key_ids(device_keys: struct DeviceKeyBundle) result[s
     })
 }
 
-action(init) init(nonce: int, sign_pk: bytes) {
+action[init] init(nonce: int, sign_pk: bytes) {
     publish Init { nonce, sign_pk }
 }
 
@@ -260,7 +260,7 @@ command Decrement with Base {
 }
 
 // The `create_greeting` action calls the command `CreateGreeting`.
-action(ephemeral) create_greeting(key: string, value: string) {
+action[ephemeral] create_greeting(key: string, value: string) {
     publish CreateGreeting { key, value }
 }
 
@@ -284,7 +284,7 @@ command CreateGreeting with Ephemeral {
 
 // The `verify_hellos` action calls the command `VerifyGreeting` twice to verify
 // the messages.
-action(ephemeral) verify_hellos() {
+action[ephemeral] verify_hellos() {
     publish VerifyGreeting {
         key: "greeting1",
         value: "hello1",

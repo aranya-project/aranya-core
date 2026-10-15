@@ -24,7 +24,7 @@ policy-version: 2
 ---
 
 ```policy
-base command(init) BaseInit {
+base[init] BaseInit {
     fields {
         key: bytes
     }
@@ -35,7 +35,7 @@ base command(init) BaseInit {
 
 fact Key[]=>{key: bytes}
 
-base command Base {
+base Base {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -44,7 +44,7 @@ base command Base {
     }
 }
 
-base command(ephemeral) BaseEphemeral {
+base[ephemeral] BaseEphemeral {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -76,7 +76,7 @@ command Init with BaseInit {
     }
 }
 
-action(init) init(nonce: int, key: bytes) {
+action[init] init(nonce: int, key: bytes) {
     publish Init {
         key: key,
         nonce: nonce,
@@ -142,7 +142,7 @@ action increment() {
     }
 }
 
-action(ephemeral) try_result(fail: bool) result[unit, string] {
+action[ephemeral] try_result(fail: bool) result[unit, string] {
     if fail {
         return Err("boom")
     }
@@ -175,7 +175,7 @@ command IncrementEphemeral with BaseEphemeral {
     }
 }
 
-action(ephemeral) increment_ephemeral() {
+action[ephemeral] increment_ephemeral() {
     publish IncrementEphemeral {
         key: 1,
         amount: 1
@@ -183,7 +183,7 @@ action(ephemeral) increment_ephemeral() {
 }
 
 
-action(ephemeral) incrementFour(n: int) result[unit, string] {
+action[ephemeral] incrementFour(n: int) result[unit, string] {
     check n == 4 else return Err("n must be 4")
     publish IncrementEphemeral {
         key: 1,
@@ -192,7 +192,7 @@ action(ephemeral) incrementFour(n: int) result[unit, string] {
     return Ok(Unit)
 }
 
-action(ephemeral) lookup(k: int, v: int, expected: bool) result[unit, string] {
+action[ephemeral] lookup(k: int, v: int, expected: bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
         true => { check f is Some else return Err("expected Some") }
