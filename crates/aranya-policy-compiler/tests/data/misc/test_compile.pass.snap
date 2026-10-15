@@ -12,7 +12,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "foo",
-            flavor: None,
+            flavor: "null",
             params: [
                 Field {
                     name: "b",
@@ -25,7 +25,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "Foo",
-            flavor: None,
+            flavor: "null",
             attributes: [],
             fields: [
                 Field {

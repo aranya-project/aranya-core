@@ -2,6 +2,6 @@ function f() option[option[int]] {
     return Some(Some(1))
 }
 
-action a() {
+action[null] a() {
     let x = f()
 }

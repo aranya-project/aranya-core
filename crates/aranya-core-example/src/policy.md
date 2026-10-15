@@ -107,7 +107,7 @@ command Init with BaseInit {
 ## Base Command
 
 ```policy
-base Base {
+base[basic] Base {
     get_key {
         return match query DeviceSignPubKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -233,15 +233,15 @@ action[init] init(owner_keys: struct PublicKeys, nonce: int) {
     publish Init { owner_keys, nonce }
 }
 
-action add_device(device_keys: struct PublicKeys) {
+action[basic] add_device(device_keys: struct PublicKeys) {
     publish AddDevice { device_keys }
 }
 
-action set_counter(name: int, value: int) {
+action[basic] set_counter(name: int, value: int) {
     publish SetCounter { name, value }
 }
 
-action increment_counter(name: int, amount: int) {
+action[basic] increment_counter(name: int, amount: int) {
     publish IncrementCounter { name, amount }
 }
 

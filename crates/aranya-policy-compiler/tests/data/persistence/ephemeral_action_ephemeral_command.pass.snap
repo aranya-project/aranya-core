@@ -12,9 +12,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "test",
-            flavor: Some(
-                "ephemeral",
-            ),
+            flavor: "ephemeral",
             params: [],
             result_type: Unit,
         },
@@ -22,9 +20,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "Cmd",
-            flavor: Some(
-                "ephemeral",
-            ),
+            flavor: "ephemeral",
             attributes: [],
             fields: [],
         },
@@ -37,6 +33,10 @@ Module {
         },
         StructDef {
             name: "Ephemeral",
+            items: [],
+        },
+        StructDef {
+            name: "EphemeralEnvelope",
             items: [],
         },
         StructDef {

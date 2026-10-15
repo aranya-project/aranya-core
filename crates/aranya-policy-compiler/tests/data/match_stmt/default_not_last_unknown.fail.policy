@@ -5,7 +5,7 @@ command Result with StubBase {
     policy { }
 }
 
-action foo(x: int) {
+action[null] foo(x: int) {
     match x {
         5 => {
             publish Result { x }

@@ -137,14 +137,14 @@ fn test_validate_return() {
 fn test_validate_get_key() {
     let valid = [
         r#"
-            base Base {
+            base[null] Base {
                 fields { key: bytes }
                 get_key { return Some(this.key) }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     return Some((query Key[author_id: author_id] or return None).key)
                 }
@@ -152,7 +152,7 @@ fn test_validate_get_key() {
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     return match query Key[author_id: author_id] {
                         Some(f) => Some(f.key)
@@ -163,7 +163,7 @@ fn test_validate_get_key() {
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     match query Key[author_id: author_id] {
                         Some(f) => { return Some(f.key) }
@@ -176,13 +176,13 @@ fn test_validate_get_key() {
 
     let invalid = [
         r#"
-            base Base {
+            base[null] Base {
                 get_key { if false { return None } }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     match query Key[author_id: author_id] {
                         Some(f) => { return Some(f.key) }
@@ -217,7 +217,7 @@ fn test_validate_get_key() {
 fn test_validate_publish() {
     let concat = |text| {
         let base = r#"
-            base Base { get_key { return None } }
+            base[null] Base { get_key { return None } }
             command Foo with Base {
                 fields {
                     a: int
@@ -236,14 +236,14 @@ fn test_validate_publish() {
     let valid = [
         concat(
             r#"
-            action a() {
+            action[null] a() {
                 publish Foo { a: 0 } // ok
             }
         "#,
         ),
         concat(
             r#"
-            action b() {
+            action[null] b() {
                 if true {}
 
                 publish Foo { a: 0 } // ok
@@ -252,7 +252,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action c() {
+            action[null] c() {
                 if true {}
                 else {
                     publish Foo { a: 0 }
@@ -263,7 +263,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action d() {
+            action[null] d() {
                 if true {
                     publish Foo { a: 0 }
                 }
@@ -275,7 +275,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action e() {
+            action[null] e() {
                 let n = 0
                 match n {
                     0 => { publish Foo { a: 0 } }
@@ -289,7 +289,7 @@ fn test_validate_publish() {
     let invalid = [
         concat(
             r#"
-            action f() {
+            action[null] f() {
                 if true {
                     publish Foo { a: 0 }
                 }
@@ -298,7 +298,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action g() {
+            action[null] g() {
                 if true {
                 }
                 else if false {

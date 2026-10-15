@@ -3,6 +3,6 @@ function f() int {
     return 1
 }
 
-action foo() {
+action[null] foo() {
     f()
 }

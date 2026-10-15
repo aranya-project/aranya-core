@@ -4,5 +4,5 @@ expression: err
 ---
 error: Reserved identifier
   |
-1 | action int() {}
-  |        ^^^ found reserved identifier: `int`
+1 | action[null] int() {}
+  |              ^^^ found reserved identifier: `int`

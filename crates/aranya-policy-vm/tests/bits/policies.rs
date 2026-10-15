@@ -18,7 +18,7 @@ command Foo with StubBase {
     }
 }
 
-action foo(b: int) {
+action[null] foo(b: int) {
     let x = if b == 0 { :4 } else { :3 }
     let y = Foo{
         a: x,
@@ -27,7 +27,7 @@ action foo(b: int) {
     publish y
 }
 
-action bar() {
+action[null] bar() {
     action foo(0)
     action foo(1)
 }
@@ -110,7 +110,7 @@ pub const POLICY_MATCH: &str = r#"
         policy {}
     }
 
-    action foo(x: int) {
+    action[null] foo(x: int) {
         match x {
             5 => {
                 publish Result { x }
@@ -136,7 +136,7 @@ pub const POLICY_IS: &str = r#"
         fields { }
         policy {}
     }
-    action check_none(x: option[int]) {
+    action[null] check_none(x: option[int]) {
         match x {
             None => { publish Empty { } }
             Some(y) => { publish Result { x: y } }

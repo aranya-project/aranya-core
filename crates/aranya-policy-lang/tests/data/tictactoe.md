@@ -19,7 +19,7 @@ finish function set_next_player(gameID: id, to_input: string) {
     update NextPlayer[gameID] to {p: to_input}
 }
 
-action StartGame(profileX: id, profileO: id) {
+action[null] StartGame(profileX: id, profileO: id) {
     let start_command = Start{
         ProfileX: profileX,
         ProfileO: profileO,
@@ -54,7 +54,7 @@ command Start with Base {
     }
 }
 
-action MakeMove(gameID: id, x: int, y: int) {
+action[null] MakeMove(gameID: id, x: int, y: int) {
     let move_command = Move {
         gameID,
         X: x,

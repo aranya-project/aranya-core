@@ -13,7 +13,7 @@ enum Player {
     O,
 }
 
-base Base {
+base[basic] Base {
     get_key { return None }
 }
 
@@ -38,7 +38,7 @@ command Move with Base {
 }
 
 
-action StartGame(players: struct Players) {
+action[basic] StartGame(players: struct Players) {
     publish Start { players }
 }
 
@@ -47,7 +47,7 @@ effect GameStart {
     players: struct Players,
 }
 
-action MakeMove(gameID: id, x: int, y: int) {
+action[basic] MakeMove(gameID: id, x: int, y: int) {
     let move_command = Move {
         gameID,
         X: x,
