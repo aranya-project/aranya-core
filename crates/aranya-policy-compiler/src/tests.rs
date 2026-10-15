@@ -99,7 +99,7 @@ fn test_validate_return() {
             }
             // ok
         }"#,
-        r#"function g(n int) int {
+        r#"function g(n: int) int {
             match n {
                 0 => { return 0 }
                 _ => { return n }
@@ -142,12 +142,12 @@ fn test_validate_get_key() {
     let valid = [
         r#"
             base command Base {
-                fields { key bytes }
+                fields { key: bytes }
                 get_key { return Some(this.key) }
             }
         "#,
         r#"
-            fact Key[author_id id]=>{key bytes}
+            fact Key[author_id: id]=>{key: bytes}
             base command Base {
                 get_key {
                     return Some((query Key[author_id: author_id] or return None).key)
@@ -155,7 +155,7 @@ fn test_validate_get_key() {
             }
         "#,
         r#"
-            fact Key[author_id id]=>{key bytes}
+            fact Key[author_id: id]=>{key: bytes}
             base command Base {
                 get_key {
                     return match query Key[author_id: author_id] {
@@ -166,7 +166,7 @@ fn test_validate_get_key() {
             }
         "#,
         r#"
-            fact Key[author_id id]=>{key bytes}
+            fact Key[author_id: id]=>{key: bytes}
             base command Base {
                 get_key {
                     match query Key[author_id: author_id] {
@@ -185,7 +185,7 @@ fn test_validate_get_key() {
             }
         "#,
         r#"
-            fact Key[author_id id]=>{key bytes}
+            fact Key[author_id: id]=>{key: bytes}
             base command Base {
                 get_key {
                     match query Key[author_id: author_id] {
@@ -223,7 +223,7 @@ fn test_validate_publish() {
         let base = r#"
             command Foo {
                 fields {
-                    a int
+                    a: int
                 }
                 policy {
                     finish {}

@@ -1,4 +1,4 @@
-function f(o option[bool]) int {
+function f(o: option[bool]) int {
     return match o {
         Some(b) | Some(true) => 1
         None => 0

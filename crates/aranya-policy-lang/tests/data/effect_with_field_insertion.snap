@@ -9,20 +9,20 @@ Policy {
     actions: [],
     effects: [
         EffectDefinition {
-            name: "Bar" @ 29..32,
+            name: "Bar" @ 30..33,
             items: [
                 StructRef(
-                    "Foo" @ 40..43,
+                    "Foo" @ 41..44,
                 ),
                 Field(
                     EffectFieldDefinition {
-                        name: "y" @ 49..50,
-                        vtype: Int @ 51..54,
+                        name: "y" @ 50..51,
+                        vtype: Int @ 53..56,
                         dynamic: false,
                     },
                 ),
             ],
-            span: 22..56,
+            span: 23..58,
         },
     ],
     structs: [
@@ -32,11 +32,11 @@ Policy {
                 Field(
                     FieldDefinition {
                         name: "x" @ 13..14,
-                        vtype: Int @ 15..18,
+                        vtype: Int @ 16..19,
                     },
                 ),
             ],
-            span: 0..20,
+            span: 0..21,
         },
     ],
     enums: [],
@@ -45,5 +45,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "struct Foo { x int }\n\neffect Bar {\n    +Foo,\n    y int\n}\n",
+    text: "struct Foo { x: int }\n\neffect Bar {\n    +Foo,\n    y: int\n}\n",
 }

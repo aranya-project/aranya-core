@@ -1,4 +1,4 @@
-fact Foo[i int] => {a string}
+fact Foo[i: int] => {a: string}
 command test {
     fields {}
     policy {
