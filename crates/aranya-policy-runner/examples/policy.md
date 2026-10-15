@@ -67,7 +67,7 @@ effect UserAdded {
     dev: id,
 }
 
-command AddUser {
+command AddUser with BasicBase {
     attributes {
         // All other commands have numerical priority. Higher numbers have priority over lower.
         priority: 100,
@@ -103,7 +103,7 @@ action add_raw_device(device_id: id, device_key: bytes) {
     publish AddDevice { device_id, device_key }
 }
 
-command AddDevice {
+command AddDevice with BasicBase {
     attributes {
         priority: 101,
     }
@@ -145,7 +145,7 @@ effect DeviceNotFound {
     device_id: id,
 }
 
-command GetDevice {
+command GetDevice with BasicBase {
     attributes {
         priority: 10,
     }
@@ -186,7 +186,7 @@ effect Message {
     msg: string,
 }
 
-command Hello {
+command Hello with BasicBase {
     attributes {
         priority: 0,
     }

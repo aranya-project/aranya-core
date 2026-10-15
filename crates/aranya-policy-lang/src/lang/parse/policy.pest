@@ -387,8 +387,6 @@ base_command_blocks = _{
     ~ get_key_block
 }
 
-base_usage = { "with" ~ identifier }
-
 flavor = { "[" ~ identifier ~ "]" }
 
 // # Top-level Statements
@@ -404,8 +402,8 @@ effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 struct_definition = { "struct" ~ identifier ~ struct_def }
 // enum Result { OK, Err }
 enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
-// command Foo { ... }
-command_definition = { "command" ~ identifier ~ base_usage? ~ "{" ~ command_blocks ~ "}" }
+// command Foo with Base { ... }
+command_definition = { "command" ~ identifier ~ "with" ~ identifier ~ "{" ~ command_blocks ~ "}" }
 // base Foo { ... }
 base_command_definition = { "base" ~ flavor? ~ identifier ~ "{" ~ base_command_blocks ~ "}" }
 // function foo(a int) int { return a }

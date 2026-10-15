@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'f'>: 1,
+        <action 'f'>: 8,
     },
     action_defs: [
         ActionDef {
@@ -40,6 +40,14 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [
         EnumDef {
@@ -65,6 +73,13 @@ Module {
 }
 ---
     exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
+    exit panic
 <action 'f'>:
     def 'traffic'
     get 'traffic'
@@ -75,7 +90,7 @@ Module {
     const false
     struct.set 'go'
     eq
-    branch 51
+    branch 58
     dup
     struct.new 'Light'
     const LightColor::0
@@ -83,7 +98,7 @@ Module {
     const true
     struct.set 'go'
     eq
-    branch 56
+    branch 63
     dup
     struct.new 'Light'
     const LightColor::1
@@ -91,7 +106,7 @@ Module {
     const false
     struct.set 'go'
     eq
-    branch 61
+    branch 68
     dup
     struct.new 'Light'
     const LightColor::1
@@ -99,7 +114,7 @@ Module {
     const true
     struct.set 'go'
     eq
-    branch 66
+    branch 73
     dup
     struct.new 'Light'
     const LightColor::2
@@ -107,7 +122,7 @@ Module {
     const false
     struct.set 'go'
     eq
-    branch 71
+    branch 78
     dup
     struct.new 'Light'
     const LightColor::2
@@ -115,43 +130,43 @@ Module {
     const true
     struct.set 'go'
     eq
-    branch 76
-<51>:
+    branch 83
+<58>:
     block
     pop
     const 0
     end
-    jump 81
-<56>:
+    jump 88
+<63>:
     block
     pop
     const 1
     end
-    jump 81
-<61>:
+    jump 88
+<68>:
     block
     pop
     const 2
     end
-    jump 81
-<66>:
+    jump 88
+<73>:
     block
     pop
     const 3
     end
-    jump 81
-<71>:
+    jump 88
+<78>:
     block
     pop
     const 4
     end
-    jump 81
-<76>:
+    jump 88
+<83>:
     block
     pop
     const 5
     end
-    jump 81
-<81>:
+    jump 88
+<88>:
     def 'x'
     return

@@ -1296,7 +1296,7 @@ impl Spanned for RecallBlockDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
     /// The name of the base command for this command
-    pub base: Option<Ident>,
+    pub base: Ident,
     /// Optional attributes
     pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command

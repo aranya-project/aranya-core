@@ -57,7 +57,7 @@
 //! So for this example policy:
 //!
 //! ```policy
-//! command Init {
+//! command Init with BaseInit {
 //!     fields {
 //!         nonce int,
 //!     }
@@ -66,7 +66,7 @@
 //!     }
 //! }
 //!
-//! action init(nonce int) {
+//! action[init] init(nonce int) {
 //!     publish Init { nonce }
 //! }
 //! ```
@@ -96,7 +96,7 @@
 //! attribute. It should be an `int` literal.
 //!
 //! ```policy
-//! command Foo {
+//! command Foo with Base {
 //!     attributes {
 //!         priority: 3
 //!     }
@@ -865,28 +865,37 @@ mod test {
     #[test]
     fn test_require_command_priority() {
         let cases = [
-            r#"command Test {
+            r#"
+            base Base { get_key { return None } }
+            command Test with Base {
                 fields {}
                 policy {}
-            }"#,
-            r#"command Test {
+            }
+            "#,
+            r#"
+            base Base { get_key { return None } }
+            command Test with Base {
                 attributes {}
                 fields {}
                 policy {}
-            }"#,
-            r#"command Test {
+            }
+            "#,
+            r#"
+            base Base { get_key { return None } }
+            command Test with Base {
                 attributes {
                     init: false,
                     finalize: false,
                 }
                 fields {}
                 policy {}
-            }"#,
+            }
+            "#,
         ];
 
         for case in cases {
             let ast = parse_policy_str(case, Version::V2).unwrap();
-            let module = Compiler::new(&ast).allow_baseless(true).compile().unwrap();
+            let module = Compiler::new(&ast).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let def = machine.command_defs.get(&ident!("Test")).unwrap();
             let err = get_command_priority(def).expect_err("should fail");
@@ -899,7 +908,8 @@ mod test {
         fn basic(attrs: &str) -> String {
             format!(
                 r#"
-                command Test {{
+                base Base {{ get_key {{ return None }} }}
+                command Test with Base {{
                     attributes {{
                         {attrs}
                     }}
@@ -927,11 +937,7 @@ mod test {
 
         fn process(policy: String) -> Result<VmPriority, AttributeError> {
             let ast = parse_policy_str(&policy, Version::V2).unwrap();
-            let module = Compiler::new(&ast)
-                .flavors(&FLAVORS)
-                .allow_baseless(true)
-                .compile()
-                .unwrap();
+            let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let def = machine.command_defs.get(&ident!("Test")).unwrap();
             get_command_priority(def)

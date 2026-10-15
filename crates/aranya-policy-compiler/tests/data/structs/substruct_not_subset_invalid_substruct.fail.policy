@@ -1,4 +1,4 @@
-command Foo {
+command Foo with StubBase {
     fields {
         x: int,
         y: bool,

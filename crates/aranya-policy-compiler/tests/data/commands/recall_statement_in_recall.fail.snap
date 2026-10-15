@@ -4,7 +4,7 @@ expression: error
 ---
 error: invalid statement
    |
- 1 | command Cmd {
+ 1 | command Cmd with StubBase {
  2 |     fields {}
  3 |     policy {
  4 |         finish {}

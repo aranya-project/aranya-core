@@ -1,4 +1,4 @@
-command Foo {
+command Foo with Base {
     attributes {
         priority: "high",
     }

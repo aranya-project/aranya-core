@@ -17,15 +17,19 @@ use aranya_policy_vm::{
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
 
+fn parse(text: &str) -> aranya_policy_ast::Policy {
+    let text =
+        text.trim_start_matches('\n').to_owned() + "\n\nbase StubBase { get_key { return None } }";
+    parse_policy_str(&text, Version::V2).unwrap()
+}
+
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
 fn compile(text: &str) -> Machine {
-    let text = text.trim_start_matches('\n');
-    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let policy = parse(text);
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .debug(true)
-        .allow_baseless(true)
         .compile()
         .unwrap();
     Machine::from_module(module).unwrap()
@@ -70,7 +74,7 @@ macro_rules! vm_struct {
 #[test]
 fn test_bytes() -> anyhow::Result<()> {
     let text = r#"
-        command Foo {
+        command Foo with StubBase {
             fields {
                 id_field: id,
                 x: bytes,
@@ -118,7 +122,7 @@ fn test_structs() -> anyhow::Result<()> {
             x: int
         }
 
-        command Foo {
+        command Foo with StubBase {
             fields {
                 id_field: id,
                 bar: struct Bar,
@@ -485,7 +489,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
     fact Foo[] => {x: int}
     fact Bar[i: int] => {s: string, b: enum Bool}
 
-    command setup {
+    command setup with StubBase {
         fields {}
         policy {
             finish {
@@ -539,7 +543,7 @@ fn test_counting() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i: int]=>{}
 
-        command Setup {
+        command Setup with StubBase {
             policy {
                 finish {
                     create Foo[i:1]=>{}
@@ -549,7 +553,7 @@ fn test_counting() -> anyhow::Result<()> {
             }
         }
 
-        command TestUpTo {
+        command TestUpTo with StubBase {
             policy {
                 let count_one = count_up_to 1 Foo[i:?]
                 check count_one == 1 else test_fail()
@@ -563,7 +567,7 @@ fn test_counting() -> anyhow::Result<()> {
             }
         }
 
-        command TestAtLeast {
+        command TestAtLeast with StubBase {
             policy {
                 check at_least 1 Foo[i:?] else test_fail()
                 check at_least 3 Foo[i:?] else test_fail()
@@ -572,7 +576,7 @@ fn test_counting() -> anyhow::Result<()> {
             }
         }
 
-        command TestAtMost {
+        command TestAtMost with StubBase {
             policy {
                 check at_most 1 Foo[i:?] == false else test_fail()
                 check at_most 3 Foo[i:?] else test_fail()
@@ -581,7 +585,7 @@ fn test_counting() -> anyhow::Result<()> {
             }
         }
 
-        command TestExactly {
+        command TestExactly with StubBase {
             policy {
                 check exactly 1 Foo[i:?] == false else test_fail()
                 check exactly 3 Foo[i:?] else test_fail()
@@ -663,7 +667,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         }
 
         // Set creates the fact
-        command Set {
+        command Set with StubBase {
             fields {
                 a: int,
                 x: int,
@@ -678,7 +682,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         }
 
         // Emit emmits the fact query from the function
-        command Emit {
+        command Emit with StubBase {
             fields {
                 a: int
             }
@@ -751,7 +755,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i: int, j: int]=>{x: int, s: string}
 
-        command Setup {
+        command Setup with StubBase {
             fields {}
             policy {
                 finish {
@@ -829,7 +833,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         enum Foo { A, B }
         fact Bar[i: enum Foo] => {x: enum Foo}
 
-        command Setup {
+        command Setup with StubBase {
             fields {}
             policy {
                 finish {
@@ -922,7 +926,7 @@ fn test_if_true() -> anyhow::Result<()> {
 #[test]
 fn test_if_branches() -> anyhow::Result<()> {
     let text = r#"
-        command Result {
+        command Result with StubBase {
             fields {
                 s: string
             }
@@ -1018,7 +1022,7 @@ fn test_match_default_2() -> anyhow::Result<()> {
 #[test]
 fn test_match_alternation() -> anyhow::Result<()> {
     let policy_str = r#"
-        command Result {
+        command Result with StubBase {
             fields {
                 x: int
             }
@@ -1053,7 +1057,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
 #[test]
 fn test_match_default() -> anyhow::Result<()> {
     let policy_str = r#"
-        command Result {
+        command Result with StubBase {
             fields {
                 x: int
             }
@@ -1113,7 +1117,7 @@ fn test_match_return() -> anyhow::Result<()> {
 #[test]
 fn test_match_expression() -> anyhow::Result<()> {
     let text = r#"
-        command F {
+        command F with StubBase {
             fields { x: int }
             policy {}
         }
@@ -1143,7 +1147,7 @@ fn test_match_expression() -> anyhow::Result<()> {
 #[test]
 fn test_match_optional_binding() -> anyhow::Result<()> {
     let text = r#"
-        command F {
+        command F with StubBase {
             fields { x: int }
             policy {}
         }
@@ -1237,7 +1241,7 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
 #[test]
 fn test_pure_function() -> anyhow::Result<()> {
     let text = r#"
-        command Result {
+        command Result with StubBase {
             fields {
                 x: int
             }
@@ -1280,7 +1284,7 @@ fn test_finish_function() -> anyhow::Result<()> {
             emit Result { x }
         }
 
-        command Foo {
+        command Foo with StubBase {
             fields {
                 x: int,
             }
@@ -1320,7 +1324,7 @@ fn test_finish_function() -> anyhow::Result<()> {
 #[test]
 fn test_check_errors() -> anyhow::Result<()> {
     let cases = [
-        r#"command Foo {
+        r#"command Foo with StubBase {
                 fields {}
                 policy {
                     check false else recall default()
@@ -1328,7 +1332,7 @@ fn test_check_errors() -> anyhow::Result<()> {
                 recall default() {
                 }
             }"#,
-        r#"command Foo {
+        r#"command Foo with StubBase {
                 fields {}
                 policy {
                     check false else recall bar()
@@ -1360,7 +1364,7 @@ fn test_coalesce_or() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i: int]=>{x: int}
 
-        command Setup {
+        command Setup with StubBase {
             fields {}
             policy {
                 finish {
@@ -1485,7 +1489,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let text = r#"
         effect Recalled {}
 
-        command Foo {
+        command Foo with StubBase {
             fields {
                 test: bytes
             }
@@ -1513,12 +1517,8 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         flavors: &[],
     };
 
-    let policy = parse_policy_str(text, Version::V2).unwrap();
-    let module = Compiler::new(&policy)
-        .flavors(&flavors)
-        .allow_baseless(true)
-        .compile()
-        .unwrap();
+    let policy = parse(text);
+    let module = Compiler::new(&policy).flavors(&flavors).compile().unwrap();
     let machine = Machine::from_module(module).unwrap();
 
     let test_data = "thing".as_bytes().to_vec();
@@ -1569,7 +1569,8 @@ fn test_debug_assert() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
+    let policy = parse(text);
+
     let module = Compiler::new(&policy).debug(true).compile()?;
     let machine = Machine::from_module(module)?;
 
@@ -1639,7 +1640,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
             c: false,
         }
 
-        command Result {
+        command Result with StubBase {
             fields {
                 a: int,
                 b: string,
@@ -1714,7 +1715,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 #[test]
 fn test_enum_reference() -> anyhow::Result<()> {
     let text = r#"
-        command Sip {
+        command Sip with StubBase {
             fields {
                 a: string
             }
@@ -1820,7 +1821,7 @@ fn test_enum_parse() -> anyhow::Result<()> {
 /// Tests serializing then deserializing a [`Module`].
 #[test]
 fn test_module_round_trip() {
-    let policy = parse_policy_str(
+    let policy = parse(
         r#"
 fact Foo[]=>{x: int}
 
@@ -1828,7 +1829,7 @@ effect Update {
 value: int
 }
 
-command Set {
+command Set with StubBase {
 fields {
     a: int,
 }
@@ -1841,7 +1842,7 @@ policy {
 }
 }
 
-command Clear {
+command Clear with StubBase {
 fields {}
 policy {
     finish {
@@ -1850,7 +1851,7 @@ policy {
 }
 }
 
-command Increment {
+command Increment with StubBase {
 fields {}
 policy {
     let r = query Foo[]=>{x: ?} or test_fail()
@@ -1862,15 +1863,9 @@ policy {
 }
 }
 "#,
-        Version::V2,
-    )
-    .unwrap();
+    );
 
-    let want = Compiler::new(&policy)
-        .debug(true)
-        .allow_baseless(true)
-        .compile()
-        .unwrap();
+    let want = Compiler::new(&policy).debug(true).compile().unwrap();
     let machine = Machine::from_module(want.clone());
 
     let data = {
@@ -1891,7 +1886,7 @@ fn test_map() -> anyhow::Result<()> {
             value: int
         }
 
-        command Setup {
+        command Setup with StubBase {
             policy {
                 finish {
                     create F[i:1]=>{n:1}
@@ -1901,7 +1896,7 @@ fn test_map() -> anyhow::Result<()> {
             }
         }
 
-        command Process {
+        command Process with StubBase {
             fields {
                 value: int
             }
@@ -1973,7 +1968,7 @@ fn test_map() -> anyhow::Result<()> {
 #[test]
 fn test_optional_type_validation() -> anyhow::Result<()> {
     let text = r#"
-        command TypeValidation {
+        command TypeValidation with StubBase {
             fields {
                 maybe_int: option[int],
                 name: string,
@@ -2057,7 +2052,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
 #[test]
 fn test_block_expression() -> anyhow::Result<()> {
     let policy_text = r#"
-        command TestCommand {
+        command TestCommand with StubBase {
             fields {
                 x: int
             }
@@ -2099,7 +2094,7 @@ fn test_block_expression() -> anyhow::Result<()> {
 #[test]
 fn test_substruct_happy_path() -> anyhow::Result<()> {
     let policy_str = r#"
-        command Foo {
+        command Foo with StubBase {
             fields {
                 x: int,
                 y: bool,
@@ -2144,7 +2139,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
 #[test]
 fn test_struct_composition() -> anyhow::Result<()> {
     let policy_str = r#"
-        command Foo {
+        command Foo with StubBase {
             fields {
                 x: int,
                 y: bool,
@@ -2295,7 +2290,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
     let policy = r#"
         struct Foo { y: string, x: int }
 
-        command Bar {
+        command Bar with StubBase {
             fields { x: int, y: string }
             policy {}
         }
@@ -2466,7 +2461,7 @@ fn test_result() -> anyhow::Result<()> {
             r: result[int, enum Error]
         }
 
-        command DoWork {
+        command DoWork with StubBase {
             fields {
                 succeed: bool
             }
@@ -2547,7 +2542,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
             n: int
         }
 
-        command DoMatch {
+        command DoMatch with StubBase {
             fields {
                 n: int
             }
@@ -2629,7 +2624,7 @@ fn test_unit() -> anyhow::Result<()> {
             }
         }
 
-        command DoMatch {
+        command DoMatch with StubBase {
             fields {
                 n: int
             }
@@ -2702,7 +2697,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
             y: string
         }
 
-        command Foo {
+        command Foo with StubBase {
             fields {
                 x: int,
                 y: string

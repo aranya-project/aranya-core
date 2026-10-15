@@ -50,6 +50,10 @@ Module {
             ],
         },
         StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
             name: "Output",
             items: [
                 Field {
@@ -73,6 +77,10 @@ Module {
                     ),
                 },
             ],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [
@@ -106,6 +114,13 @@ Module {
     ident 'v'
     mstruct.get 4
     mstruct.set 4
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

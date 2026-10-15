@@ -1,5 +1,5 @@
 struct Bar { a: int }
-command Foo {
+command Foo with StubBase {
     fields {
         +Bar,
         a: string
