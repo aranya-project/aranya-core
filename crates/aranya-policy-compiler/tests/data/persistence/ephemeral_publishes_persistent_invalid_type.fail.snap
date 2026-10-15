@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: invalid type: persistent command
+error: invalid type: <default> command
   |
 8 |     publish Cmd {}
-  |             ^^^^^^ expected `ephemeral command` but found `persistent command`
+  |             ^^^^^^ expected `ephemeral command` but found `<default> command`

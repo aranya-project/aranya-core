@@ -5,8 +5,8 @@ use aranya_policy_ast::{
     EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
     ForeignFunctionCall, FunctionCall, Ident, IfStatement, IntLiteral, InternalFunction,
     LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
-    MatchStatement, NamedStruct, Param, Persistence, ResultTypeKind, ReturnStatement, Statement,
-    StmtKind, Text, TypeKind, UpdateStatement, VType, Version, ident,
+    MatchStatement, NamedStruct, Param, ResultTypeKind, ReturnStatement, Statement, StmtKind, Text,
+    TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -200,6 +200,11 @@ impl ChunkParser<'_> {
                 )
             })?;
         Ok(Ident { inner: name, span })
+    }
+
+    fn parse_flavor(&self, token: Pair<'_, Rule>) -> Result<Ident, ParseError> {
+        assert_eq!(token.as_rule(), Rule::flavor);
+        self.descend(token).consume_ident(self)
     }
 
     /// Parse a type token (one of the types under Rule::vtype) into a
@@ -1435,11 +1440,14 @@ impl ChunkParser<'_> {
 
         let span = self.to_ast_span(item.as_span())?;
         let pc = self.descend(item);
-        let persistence = match pc.consume_optional(Rule::ephemeral_modifier) {
-            Some(pair) => Persistence::Ephemeral(self.to_ast_span(pair.as_span())?),
-            None => Persistence::Persistent,
-        };
+
+        let flavor = pc
+            .consume_optional(Rule::flavor)
+            .map(|token| self.parse_flavor(token))
+            .transpose()?;
+
         let name = pc.consume_ident(self)?;
+
         let token = pc.consume_of_type(Rule::function_arguments)?;
         let mut parameters = vec![];
         for field in token.into_inner() {
@@ -1469,7 +1477,7 @@ impl ChunkParser<'_> {
         let body = self.parse_statement_list(list)?;
 
         Ok(ast::ActionDefinition {
-            persistence,
+            flavor,
             name,
             parameters,
             return_type,
@@ -1590,10 +1598,7 @@ impl ChunkParser<'_> {
         let span = self.to_ast_span(item.as_span())?;
 
         let pc = self.descend(item);
-        let persistence = match pc.consume_optional(Rule::ephemeral_modifier) {
-            Some(pair) => Persistence::Ephemeral(self.to_ast_span(pair.as_span())?),
-            None => Persistence::Persistent,
-        };
+
         let name = pc.consume_ident(self)?;
 
         let base = pc
@@ -1688,7 +1693,6 @@ impl ChunkParser<'_> {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ast::CommandDefinition {
-            persistence,
             base,
             attributes,
             name,
@@ -1709,6 +1713,12 @@ impl ChunkParser<'_> {
         let span = self.to_ast_span(item.as_span())?;
 
         let pc = self.descend(item);
+
+        let flavor = pc
+            .consume_optional(Rule::flavor)
+            .map(|token| self.parse_flavor(token))
+            .transpose()?;
+
         let name = pc.consume_ident(self)?;
 
         let fields = pc
@@ -1744,6 +1754,7 @@ impl ChunkParser<'_> {
         let get_key = self.parse_statement_list(token.into_inner())?;
 
         Ok(ast::BaseCommandDefinition {
+            flavor,
             name,
             fields,
             get_key,

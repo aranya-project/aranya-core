@@ -1,6 +1,6 @@
 fact Key[dev id]=>{key bytes}
 
-base command MyInitBase {
+base command(init) MyInitBase {
     fields {
         key bytes
     }
@@ -30,7 +30,7 @@ command MyBasic2 with MyBasicBase {
     policy {}
 }
 
-action my_init(key bytes) {
+action(init) my_init(key bytes) {
     publish MyInit { key: key }
 }
 

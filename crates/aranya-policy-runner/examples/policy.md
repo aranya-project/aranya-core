@@ -10,8 +10,6 @@ management.
 ```policy
 // Import necessary FFIs
 use device
-use crypto
-use envelope
 use perspective
 use idam
 ```
@@ -30,7 +28,7 @@ power than any other user, as there are no privilege levels in this policy, but 
 the first device in the team. See `init.run`.
 
 ```policy
-action init(owner_key bytes) {
+action(init) init(owner_key bytes) {
     publish Init { owner_key }
 }
 
@@ -38,12 +36,7 @@ effect TeamCreated {
     owner_dev id,
 }
 
-command Init {
-    attributes {
-        // The init command must have init priority
-        init: true
-    }
-
+command Init with BaseInit {
     fields {
         owner_key bytes,
     }
@@ -85,7 +78,7 @@ command AddUser {
     }
 
     policy {
-        let dev_id = envelope::command_id(envelope)
+        let dev_id = envelope.command_id
         // Check that this device has not already been added
         check !exists Device[dev: dev_id] else test_fail("no device")
 

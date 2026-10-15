@@ -34,7 +34,7 @@ markdown = { version = "=1.0.0-alpha.17" }
 pest = { version = "2" }
 pest_derive = { version = "2" }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-serde_yaml = { version = "0.9" }
+serde-saphyr = { version = "2", default-features = false, features = ["deserialize"] }
 tracing = { workspace = true }
 
 [dev-dependencies]

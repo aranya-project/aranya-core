@@ -212,7 +212,6 @@ dependencies = [
  "anyhow",
  "aranya-core",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
@@ -253,16 +252,6 @@ version = "0.24.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
-]
-
-[[package]]
-name = "aranya-envelope-ffi"
-version = "0.24.0"
-dependencies = [
- "aranya-crypto",
- "aranya-policy-vm",
- "thiserror 2.0.7",
- "tracing",
 ]
 
 [[package]]
@@ -333,7 +322,6 @@ dependencies = [
  "anyhow",
  "aranya-crypto",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
@@ -453,7 +441,7 @@ dependencies = [
  "pest_derive",
  "rstest",
  "serde",
- "serde_yaml",
+ "serde-saphyr",
  "tracing",
 ]
 
@@ -481,7 +469,6 @@ dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
@@ -603,6 +590,12 @@ dependencies = [
  "test-log",
  "tracing",
 ]
+
+[[package]]
+name = "arraydeque"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
 
 [[package]]
 name = "autocfg"
@@ -727,7 +720,6 @@ dependencies = [
  "aranya-core",
  "aranya-crypto",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-ast",
@@ -1225,6 +1217,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
+name = "encoding_rs"
+version = "0.8.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "encoding_rs_io"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fba3fe847045ecff794b9c138293a80db914678c453ad63fbf0c6a9eb6e00b22"
+dependencies = [
+ "encoding_rs",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1328,6 +1338,16 @@ dependencies = [
  "similar-asserts",
  "tempfile",
  "yansi",
+]
+
+[[package]]
+name = "granit-parser"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da55feca5d1625466bae068f9fd4b87892caeae70c3fe671ddb0f50d41aebf37"
+dependencies = [
+ "arraydeque",
+ "smallvec",
 ]
 
 [[package]]
@@ -2278,6 +2298,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-saphyr"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a253edfdea34032da21af84e16fcc94f4c7a6ba237f9f3bc2dbf43cea8535c44"
+dependencies = [
+ "annotate-snippets",
+ "encoding_rs_io",
+ "granit-parser",
+ "num-traits",
+ "serde_core",
+ "smallvec",
+]
+
+[[package]]
 name = "serde_core"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2327,19 +2361,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f901ee573cab6b3060453d2d5f0bae4e6d628c23c0a962ff9b5f1d7c8d4f1ed"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "serde_yaml"
-version = "0.9.34+deprecated"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
-dependencies = [
- "indexmap",
- "itoa",
- "ryu",
- "serde",
- "unsafe-libyaml",
 ]
 
 [[package]]
@@ -2912,12 +2933,6 @@ dependencies = [
  "crypto-common",
  "ctutils",
 ]
-
-[[package]]
-name = "unsafe-libyaml"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
 
 [[package]]
 name = "utf8parse"
