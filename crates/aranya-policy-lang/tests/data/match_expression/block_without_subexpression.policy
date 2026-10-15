@@ -1,4 +1,4 @@
-action foo(status string) {
+action foo(status: string) {
     let x = match a {
         "ready" => {
             1

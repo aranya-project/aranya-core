@@ -4,7 +4,7 @@ expression: error
 ---
 error: invalid type: result[_, string]
    |
- 9 | function f(x int) result[int, enum Error] {
-   |                   ----------------------- expected because of this
+ 9 | function f(x: int) result[int, enum Error] {
+   |                    ----------------------- expected because of this
 10 |     return Ok(may_fail(x)?)
    |               ^^^^^^^^^^^ expected `result[_, enum Error]` but found `result[_, string]`

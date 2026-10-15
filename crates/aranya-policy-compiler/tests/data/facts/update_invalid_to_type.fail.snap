@@ -4,8 +4,8 @@ expression: error
 ---
 error: invalid type: int
   |
-1 | fact Foo[i int] => {a string}
-  |                     -------- expected because of this
+1 | fact Foo[i: int] => {a: string}
+  |                      --------- expected because of this
 ...
 6 |             update Foo[i: 1]=>{a: 1} to {a: 0}
   |                                   ^ expected `string` but found `int`

@@ -1,11 +1,11 @@
 struct Foo {
-    x int,
-    y string,
+    x: int,
+    y: string,
 }
 struct Bar {
-    y string
+    y: string
 }
-action foo(x struct Foo) {
+action foo(x: struct Foo) {
     let b = Bar { y: "y" }
     match x {
         Foo { x: 10, ...b } => {}

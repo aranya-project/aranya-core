@@ -1,4 +1,4 @@
-fact F[i int] => {s string}
+fact F[i: int] => {s: string}
 
 command CreateBindKey {
     fields {}

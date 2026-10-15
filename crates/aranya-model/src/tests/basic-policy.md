@@ -15,18 +15,18 @@ Hence, they are also not delivered through syncs and should be transmitted via
 some other mechanism.
 
 ```policy
-fact Key[]=>{key bytes}
+fact Key[]=>{key: bytes}
 
-base command(init) BaseInit {
+base[init] BaseInit {
     fields {
-        key bytes
+        key: bytes
     }
     get_key {
         return Some(this.key)
     }
 }
 
-base command Base {
+base Base {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -35,7 +35,7 @@ base command Base {
     }
 }
 
-base command(ephemeral) BaseEphemeral {
+base[ephemeral] BaseEphemeral {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -46,35 +46,35 @@ base command(ephemeral) BaseEphemeral {
 
 // `Stuff` is the fact we will interact with in the on-graph commands. It writes
 // a simple fact to the factDB.
-fact Stuff[a int]=>{x int}
+fact Stuff[a: int]=>{x: int}
 
 // `StuffHappened` is the effect we will emit from on-graph commands. It shares
 // an interface with the Stuff fact.
 effect StuffHappened {
-    a int,
-    x int,
+    a: int,
+    x: int,
 }
 
 // `Message` is one of the facts we will interact with in the ephemeral sessions.
-fact Message[msg string]=>{value string}
+fact Message[msg: string]=>{value: string}
 
 // The `PersistedSessionData` fact is meant to store an ephemeral session command
 // as a byte value in the FactDB.
-fact PersistedSessionData[command_type string]=>{value bytes}
+fact PersistedSessionData[command_type: string]=>{value: bytes}
 
 // `Greeting` is an effect we will emit from the `CreateGreeting` command.
 effect Greeting {
-    msg string,
+    msg: string,
 }
 
 // `Success` is a simple effect we can emit to our test to indicate that a command
 // has succeeded.
 effect Success {
-    value bool,
+    value: bool,
 }
 
 // The `init` action takes a nonce variable and passes it to the Init command.
-action(init) init(nonce int, key bytes) {
+action[init] init(nonce: int, key: bytes) {
     publish Init { key, nonce }
 }
 
@@ -82,7 +82,7 @@ action(init) init(nonce int, key bytes) {
 command Init with BaseInit {
     // Local variables for command
     fields {
-        nonce int
+        nonce: int
     }
 
     // The policy block contains statements which query data and check its validity.
@@ -97,7 +97,7 @@ command Init with BaseInit {
 
 // The `create` action takes a value and passes it to the `Create` command. For
 // simplicity sake, the fact key is hard coded in all our examples.
-action create_action(v int) {
+action create_action(v: int) {
     publish Create{
         key_a: 1,
         value: v,
@@ -112,8 +112,8 @@ command Create with Base {
     }
 
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -124,7 +124,7 @@ command Create with Base {
     }
 }
 
-action(ephemeral) create_action_ephemeral(v int) {
+action[ephemeral] create_action_ephemeral(v: int) {
     publish CreateEphemeral {
         key_a: 1,
         value: v,
@@ -133,8 +133,8 @@ action(ephemeral) create_action_ephemeral(v int) {
 
 command CreateEphemeral with BaseEphemeral {
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -147,7 +147,7 @@ command CreateEphemeral with BaseEphemeral {
 
 // The `increment` action takes a value and passes it to the `Increment` command.
 // For simplicity sake, the fact key is hard coded in all our examples.
-action increment(v int) {
+action increment(v: int) {
     publish Increment{
         key_a: 1,
         value: v,
@@ -162,8 +162,8 @@ command Increment with Base {
     }
 
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -178,7 +178,7 @@ command Increment with Base {
     }
 }
 
-action(ephemeral) increment_ephemeral(v int) {
+action[ephemeral] increment_ephemeral(v: int) {
     publish IncrementEphemeral {
         key_a: 1,
         value: v,
@@ -187,8 +187,8 @@ action(ephemeral) increment_ephemeral(v int) {
 
 command IncrementEphemeral with BaseEphemeral {
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -205,7 +205,7 @@ command IncrementEphemeral with BaseEphemeral {
 
 // The `decrement` action takes a value and passes it to the `Decrement` command.
 // For simplicity sake, the fact key is hard coded in all our examples.
-action decrement(v int) {
+action decrement(v: int) {
     publish Decrement{
         key_a: 1,
         value: v,
@@ -220,8 +220,8 @@ command Decrement with Base {
     }
 
     fields {
-        key_a int,
-        value int,
+        key_a: int,
+        value: int,
     }
 
     policy {
@@ -236,7 +236,7 @@ command Decrement with Base {
 }
 
 // `get_stuff` calls the `GetStuff` command with the hardcoded test key.
-action(ephemeral) get_stuff() {
+action[ephemeral] get_stuff() {
     publish GetStuff {
         key_a: 1,
     }
@@ -246,7 +246,7 @@ action(ephemeral) get_stuff() {
 // returns it in a `StuffHappened` effect.
 command GetStuff with BaseEphemeral {
     fields {
-        key_a int,
+        key_a: int,
     }
 
     policy {
@@ -269,7 +269,7 @@ command GetStuffOnGraph with Base {
     }
 
     fields {
-        key_a int,
+        key_a: int,
     }
 
     policy {
@@ -282,7 +282,7 @@ command GetStuffOnGraph with Base {
 
 // The `create_greeting` action calls the command `CreateGreeting`. Passing in
 // the hardcoded greeting key and the message value.
-action(ephemeral) create_greeting(v string) {
+action[ephemeral] create_greeting(v: string) {
     publish CreateGreeting {
         key: "greeting",
         value: v,
@@ -293,8 +293,8 @@ action(ephemeral) create_greeting(v string) {
 // the lifetime of the session it was called in.
 command CreateGreeting with BaseEphemeral {
     fields {
-        key string,
-        value string,
+        key: string,
+        value: string,
     }
 
     policy {
@@ -309,7 +309,7 @@ command CreateGreeting with BaseEphemeral {
 
 // The `verify_hello` action calls the command `VerifyGreeting` that will verify
 // the Message fact contains "hello".
-action(ephemeral) verify_hello() {
+action[ephemeral] verify_hello() {
     publish VerifyGreeting {
         key: "greeting",
         value: "hello",
@@ -322,8 +322,8 @@ action(ephemeral) verify_hello() {
 // and VerifyGreeting checks it's contents.
 command VerifyGreeting with BaseEphemeral {
     fields {
-        key string,
-        value string,
+        key: string,
+        value: string,
     }
 
     // A command can write to a temporary session fact that will be available
@@ -353,8 +353,8 @@ command VerifyGreetingOnGraph with Base {
     }
 
     fields {
-        key string,
-        value string,
+        key: string,
+        value: string,
     }
 
     policy {
@@ -369,7 +369,7 @@ command VerifyGreetingOnGraph with Base {
 
 // `store_session_data` will call StoreSessionData with a command name
 // and byte value.
-action store_session_data(key string, value bytes) {
+action store_session_data(key: string, value: bytes) {
     publish StoreSessionData {
         key,
         cmd: value,
@@ -384,8 +384,8 @@ command StoreSessionData with Base {
     }
 
     fields {
-        key string,
-        cmd bytes,
+        key: string,
+        cmd: bytes,
     }
 
     policy {
@@ -399,8 +399,8 @@ command StoreSessionData with Base {
 // `Relationship` is an effect that will be emitted from `Link` commands
 // in order to show parent-child relationships between commands
 effect Relationship {
-    parent_id id,
-    command_id id
+    parent_id: id,
+    command_id: id
 }
 
 // Emits `Relationship` effects

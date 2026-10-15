@@ -1,4 +1,4 @@
-base command(ephemeral) Ephemeral {
+base[ephemeral] Ephemeral {
     get_key { return None }
 }
 command Cmd with Ephemeral {
@@ -7,6 +7,6 @@ command Cmd with Ephemeral {
         finish {}
     }
 }
-action(ephemeral) test() {
+action[ephemeral] test() {
     publish Cmd {}
 }

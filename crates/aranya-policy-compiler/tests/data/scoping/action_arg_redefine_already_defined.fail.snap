@@ -4,7 +4,7 @@ expression: error
 ---
 error: the name `n` is defined multiple times
   |
-1 | action foo(n int) {
+1 | action foo(n: int) {
   |            - previous defintion here
 2 |     let n = n
   |         ^ re-defined here

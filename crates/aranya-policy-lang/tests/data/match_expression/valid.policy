@@ -1,4 +1,4 @@
-action foo(n int) {
+action foo(n: int) {
     let x = match n {
         0 => {
             let x = true

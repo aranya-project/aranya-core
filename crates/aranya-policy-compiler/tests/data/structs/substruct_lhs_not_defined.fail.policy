@@ -1,6 +1,6 @@
 struct Baz {
-    x string,
-    y int,
+    x: string,
+    y: int,
 }
 action foo() {
     let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz

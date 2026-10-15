@@ -4,13 +4,13 @@ policy-version: 2
 
 ```policy
 struct User {
-    uid id,
-    name string
+    uid: id,
+    name: string
 }
 
 struct Admin {
     +User,
-    role string
+    role: string
 }
 
 effect UserAdded {
@@ -28,9 +28,9 @@ command AddUser {
     }
 }
 
-action add_user(uid id, name string) {
+action add_user(uid: id, name: string) {
     publish AddUser { uid, name }
 }
 
-action delete_user(admin struct Admin, uid id) {}
+action delete_user(admin: struct Admin, uid: id) {}
 ```
