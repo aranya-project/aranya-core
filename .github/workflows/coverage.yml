@@ -26,6 +26,11 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup
 
+      - name: Install cargo-llvm-cov
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-llvm-cov@0.6.20
+
       - name: Branch coverage
         run: cargo make coverage
 

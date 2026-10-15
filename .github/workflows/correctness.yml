@@ -32,6 +32,11 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      - name: Install taplo-cli
+        uses: aranya-project/install-action@main
+        with:
+          tool: taplo-cli@0.10.0
+
       - name: Check formatting
         run: cargo make check-fmt
 
@@ -62,6 +67,11 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      - name: Install cargo-machete
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-machete@0.9.1
+
       - name: Check dependency usage
         run: cargo make machete
 
@@ -77,6 +87,11 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup
+
+      - name: Install cargo-all-features
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-all-features@1.12.0
 
       - name: Check Features
         run: cargo make check-features

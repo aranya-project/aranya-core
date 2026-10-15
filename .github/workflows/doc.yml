@@ -32,6 +32,11 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      - name: Install cargo-docs-rs
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-docs-rs@1.0.4
+
       - name: Generate docs
         run: |
           cargo make gen-docs
