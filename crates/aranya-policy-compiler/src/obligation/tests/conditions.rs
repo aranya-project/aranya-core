@@ -55,34 +55,49 @@ fn check_or_proves_nothing_and_is_pointed_out() {
 
 #[test]
 fn counting_queries() {
-    // Count limits must be at least 1.
-    let create = "create Account[user: this.user]=>{balance: 0}";
-    let delete = "delete Account[user: this.user]";
-    for (check, mutation, expected) in [
-        ("at_least 1 Account[user: this.user]", delete, 0),
-        ("exactly 1 Account[user: this.user]", delete, 0),
-        ("at_least 2 Account[user: this.user]", delete, 0),
-        ("!(at_least 1 Account[user: this.user])", create, 0),
-        ("!(at_most 1 Account[user: this.user])", delete, 0),
-        ("at_most 1 Account[user: this.user]", create, 1),
-        ("at_least 2 Account[user: this.user]", create, 1),
+    // Counting is useful on a key prefix. That some fact matches can't
+    // prove any one key, but rules out a later branch on none matching.
+    // That none matches proves every key with the prefix absent. Count
+    // limits must be at least 1.
+    let prefix = "Member[team: this.user, device: ?]";
+    let none_branch = "if !exists Member[team: this.user, device: ?] {
+            finish { create Owner[]=>{user: this.user} }
+        }
+        finish {}";
+    let create_key = "finish { create Member[team: this.user, device: 5]=>{rank: 0} }";
+    let delete_key = "finish { delete Member[team: this.user, device: 5] }";
+    for (check, then, expected) in [
+        (format!("at_least 1 {prefix}"), none_branch, 0),
+        (format!("at_least 2 {prefix}"), none_branch, 0),
+        (format!("exactly 1 {prefix}"), none_branch, 0),
+        (format!("!(at_most 1 {prefix})"), none_branch, 0),
+        (format!("at_least 1 {prefix}"), delete_key, 1),
+        (format!("at_most 1 {prefix}"), none_branch, 1),
+        (format!("!(at_least 2 {prefix})"), none_branch, 1),
+        (format!("!(exactly 1 {prefix})"), none_branch, 1),
+        (format!("!(at_least 1 {prefix})"), create_key, 0),
+        (format!("at_most 1 {prefix}"), create_key, 1),
+        (format!("!(at_least 2 {prefix})"), create_key, 1),
+        (format!("!(exactly 1 {prefix})"), create_key, 1),
+    ] {
+        let warnings = warnings_for(&with_defs(
+            MEMBER,
+            &format!("check {check} else recall failed()\n{then}"),
+        ));
+        assert_eq!(warnings.len(), expected, "{check}: {warnings:?}");
+    }
+
+    // A full key matches at most one fact, so there `at_least 1` and
+    // `exactly 1` say what `exists` says.
+    for check in [
+        "at_least 1 Account[user: this.user]",
+        "exactly 1 Account[user: this.user]",
     ] {
         let warnings = warnings_for(&command(&format!(
             "check {check} else recall failed()\n\
-             finish {{ {mutation} }}"
+             finish {{ delete Account[user: this.user] }}"
         )));
-        assert_eq!(warnings.len(), expected, "{check}: {warnings:?}");
-        let keyword = if mutation == create {
-            "create"
-        } else {
-            "delete"
-        };
-        for w in &warnings {
-            assert!(
-                w.message.contains(&format!("before `{keyword}`")),
-                "{check}: {w:?}"
-            );
-        }
+        assert_eq!(warnings, vec![], "{check}");
     }
 }
 

@@ -134,16 +134,6 @@ a path:
 - Mutations *require* a state (their obligation) and *set* the state to
   their postcondition.
 
-TODO: This paragraph needs a rewrite
-This is a strongest-postcondition analysis flowing forward along each
-control-flow path. The policy language has no general loops (`map` is
-the only iteration construct, and it is only allowed in actions), and
-`finish` blocks terminate execution, so the analysis can follow each
-path separately. Paths that know the same facts are merged, losing
-only what some of them knew about which values are equal or differ.
-Only past a limit on the number of paths are paths that know different
-facts joined, as in a usual dataflow analysis. See
-[Merging and joining paths](#merging-and-joining-paths).
 
 ### The finish-block touched set
 
@@ -230,9 +220,9 @@ contradictory branches are detected.
 | `a \|\| b` | Only what holds both where `a` was true and where `a` was false and `b` true | Both sides' false facts |
 | `a == b` | The two values are equal | The two values differ |
 | `a != b` | The two values differ | The two values are equal |
-| `at_least 1 F[k]` | Some match exists | `NotExists F[k]` |
-| `at_least n F[k]`, `exactly n F[k]` | Some match exists | Nothing |
-| `at_most n F[k]` | Nothing | Some match exists |
+| `at_least 1 F[p]` | `Exists F[p]` | `NotExists F[p]` |
+| `at_least n F[p]`, `exactly n F[p]` | `Exists F[p]` | Nothing |
+| `at_most n F[p]` | Nothing | `Exists F[p]` |
 | `true`, `false` | Nothing, or impossible | Impossible, or nothing |
 | A call to a pure function | From the function's summary | From the function's summary |
 | `if c { :a } else { :b }` | What both arms prove when true, each under its side of `c` | Likewise when false |
@@ -250,11 +240,21 @@ are equal makes keys written with either match, as described under
 is an equality too, and every arm after it knows the scrutinee differs
 from that literal.
 
-Count limits must be at least 1, so `at_most 0` is not valid policy;
-`!(at_least 1 F[k])` is the way to count to zero. "Some match exists"
-is recorded as `Exists` on the counted pattern. When the pattern has a
-bind marker, that says nothing about a particular key, so it cannot
-discharge an `update` or `delete` obligation.
+In the count rows, `F[p]` is a key prefix: a fact's leading key
+fields, with the rest bound by `?`, as in
+`Member[team: t, device: ?]`. That is where counting is useful. A full
+key matches at most one fact, so there `at_least 1` and `exactly 1`
+say what `exists` says, `at_most n` always holds, and `at_least n` or
+`exactly n` for `n` above 1 never does.
+
+`NotExists` on a prefix means no fact shares it, so
+`!(at_least 1 Member[team: t, device: ?])` proves a `create` of
+`Member[team: t, device: d]` for any `d`. `Exists` on a prefix means
+some fact matches, but not which one, so it can't prove an `update` or
+`delete` of any one key. It does rule out a later branch on no fact
+matching, such as `if !exists Member[team: t, device: ?]`. Count
+limits must be at least 1, so `at_most 0` is not valid policy;
+`!(at_least 1 F[p])` is the way to count to zero.
 
 A literal with a value filter, such as `exists F[k]=>{v: 0}`, proves
 `Exists F[k]` when it matches, since some fact with that key exists.
@@ -952,7 +952,8 @@ below:
   function shared by two commands keeping each command's footnotes,
   and recursion;
 - conditions: `&&`, `!(.. || ..)`, `||` proving nothing, and counting
-  queries;
+  queries, on a key prefix and on a full key, where `at_least 1` and
+  `exactly 1` act like `exists`;
 - branches: `if exists` on both sides, early `recall`, `else if`,
   `is None` after a query, `match` on a query, and impossible branches;
 - pure functions: one-line helpers, helpers that return `false` when a
