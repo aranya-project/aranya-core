@@ -2,7 +2,7 @@ use buggy::BugExt as _;
 use zerocopy::{FromZeros as _, IntoBytes as _};
 
 use crate::{
-    ClientError, Location, MaxCut, Segment as _, Storage, StorageError,
+    ClientError, Location, MaxCut, Prior, Segment as _, SegmentIndex, Storage, StorageError,
     storage::{Spill, TraversalQueue},
 };
 
@@ -16,6 +16,11 @@ const NUM_BLOCKS: usize = 3;
 /// spilled block, so this supports up to `ROOT_CAPACITY × BLOCK_ENTRIES`
 /// = 131,072 convergence points before overflow.
 const ROOT_CAPACITY: usize = 512;
+/// Number of segments whose metadata is cached while expanding the BFS.
+/// Should be at least the width of the graph being braided. A miss
+/// fetches the whole segment again, which is correct but costs
+/// `O(segment length)`.
+const SEGMENT_CACHE_ENTRIES: usize = 64;
 
 /// A convergence point: location and remaining arrival count.
 #[derive(
@@ -30,6 +35,18 @@ const ROOT_CAPACITY: usize = 512;
 struct Entry {
     location: Location,
     count: u64,
+}
+
+/// The parts of a segment the BFS needs to expand a location's priors.
+///
+/// Caching these avoids fetching (and validating) the whole segment for
+/// every command in it.
+#[derive(Clone, Copy)]
+struct SegmentMeta {
+    segment: SegmentIndex,
+    shortest_max_cut: MaxCut,
+    prior: Prior<Location>,
+    last_accessed: u32,
 }
 
 /// Index entry in the root node pointing to a block on disk.
@@ -97,6 +114,7 @@ impl Block {
 pub struct ConvergenceStorage {
     blocks: [Block; NUM_BLOCKS],
     root: heapless::Vec<NodeEntry, ROOT_CAPACITY>,
+    segments: heapless::Vec<SegmentMeta, SEGMENT_CACHE_ENTRIES>,
 }
 
 impl ConvergenceStorage {
@@ -104,6 +122,7 @@ impl ConvergenceStorage {
         Self {
             blocks: [Block::new(), Block::new(), Block::new()],
             root: heapless::Vec::new(),
+            segments: heapless::Vec::new(),
         }
     }
 
@@ -113,6 +132,7 @@ impl ConvergenceStorage {
             b.clear();
         }
         self.root.clear();
+        self.segments.clear();
         self
     }
 }
@@ -286,17 +306,70 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             }
 
             // Expand priors.
-            let segment = storage.get_segment(loc)?;
-            if let Some(previous) = segment.previous(loc) {
+            let meta = self.segment_meta(storage, loc)?;
+            if let Some(previous) = loc.previous_in_segment(meta.shortest_max_cut) {
                 self.queue.push_duplicate(previous)?;
             } else {
-                for prior in segment.prior() {
+                // `loc` is the segment's first command. The BFS pops
+                // locations in descending order, so it won't visit this
+                // segment again.
+                self.forget_segment(loc.segment);
+                for prior in meta.prior {
                     self.queue.push_duplicate(prior)?;
                 }
             }
         }
 
         Ok(())
+    }
+
+    /// Returns the metadata for `loc`'s segment, fetching the segment
+    /// on a cache miss and evicting the LRU entry if the cache is full.
+    fn segment_meta<S: Storage>(
+        &mut self,
+        storage: &mut S,
+        loc: Location,
+    ) -> Result<SegmentMeta, ClientError> {
+        self.access_counter = self
+            .access_counter
+            .checked_add(1)
+            .assume("access_counter must not overflow")?;
+
+        let segments = &mut self.storage.segments;
+        if let Some(meta) = segments.iter_mut().find(|m| m.segment == loc.segment) {
+            meta.last_accessed = self.access_counter;
+            return Ok(*meta);
+        }
+
+        let segment = storage.get_segment(loc)?;
+        let meta = SegmentMeta {
+            segment: loc.segment,
+            shortest_max_cut: segment.shortest_max_cut(),
+            prior: segment.prior(),
+            last_accessed: self.access_counter,
+        };
+        if segments.is_full() {
+            let lru = segments
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, m)| m.last_accessed)
+                .map(|(i, _)| i)
+                .assume("cache is full, so non-empty")?;
+            segments.swap_remove(lru);
+        }
+        segments
+            .push(meta)
+            .ok()
+            .assume("cache has room after eviction")?;
+        Ok(meta)
+    }
+
+    /// Drop `segment` from the metadata cache, if present.
+    fn forget_segment(&mut self, segment: SegmentIndex) {
+        let segments = &mut self.storage.segments;
+        if let Some(i) = segments.iter().position(|m| m.segment == segment) {
+            segments.swap_remove(i);
+        }
     }
 
     /// Look up a location in the in-memory blocks.
