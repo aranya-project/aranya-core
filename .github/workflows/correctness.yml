@@ -33,9 +33,9 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Install taplo-cli
-        uses: aranya-project/install-action@main
-        with:
-          tool: taplo-cli@0.10.0
+        run: |
+          curl -L https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz \
+            | gunzip > ~/.cargo/bin/taplo-cli
 
       - name: Check formatting
         run: cargo make check-fmt
