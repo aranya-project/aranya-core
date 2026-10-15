@@ -72,7 +72,7 @@ key fact and the Owner singleton. Because no DeviceSignPubKey exists
 yet, seal/open inline the crypto using keys from the command fields.
 
 ```policy
-base command(init) BaseInit {
+base[init] BaseInit {
     fields {
         owner_keys: struct PublicKeys,
     }
@@ -107,7 +107,7 @@ command Init with BaseInit {
 ## Base Command
 
 ```policy
-base command Base {
+base Base {
     get_key {
         return match query DeviceSignPubKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -116,7 +116,7 @@ base command Base {
     }
 }
 
-base command(ephemeral) BaseEphemeral {
+base[ephemeral] BaseEphemeral {
     get_key {
         return match query DeviceSignPubKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -229,7 +229,7 @@ command GetCounter with BaseEphemeral {
 ## Actions
 
 ```policy
-action(init) init(owner_keys: struct PublicKeys, nonce: int) {
+action[init] init(owner_keys: struct PublicKeys, nonce: int) {
     publish Init { owner_keys, nonce }
 }
 
@@ -245,7 +245,7 @@ action increment_counter(name: int, amount: int) {
     publish IncrementCounter { name, amount }
 }
 
-action(ephemeral) get_counter(name: int) {
+action[ephemeral] get_counter(name: int) {
     publish GetCounter { name }
 }
 ```

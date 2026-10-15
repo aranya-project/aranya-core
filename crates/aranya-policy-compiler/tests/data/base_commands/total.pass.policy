@@ -1,6 +1,6 @@
 fact Key[dev: id]=>{key: bytes}
 
-base command(init) MyInitBase {
+base[init] MyInitBase {
     fields {
         key: bytes
     }
@@ -9,7 +9,7 @@ base command(init) MyInitBase {
     }
 }
 
-base command MyBasicBase {
+base MyBasicBase {
     get_key {
         return match query Key[dev: author_id] {
             Some(f) => Some(f.key)
@@ -30,7 +30,7 @@ command MyBasic2 with MyBasicBase {
     policy {}
 }
 
-action(init) my_init(key: bytes) {
+action[init] my_init(key: bytes) {
     publish MyInit { key: key }
 }
 

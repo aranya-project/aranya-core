@@ -82,7 +82,7 @@ finish function next(x: int) {
 
 // ephemeral commands and actions
 
-base command(ephemeral) Ephemeral {
+base[ephemeral] Ephemeral {
     get_key { return None }
 }
 
@@ -93,4 +93,4 @@ command C with Ephemeral {
     policy {}
 }
 
-action(ephemeral) a() {}
+action[ephemeral] a() {}
