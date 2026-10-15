@@ -8,9 +8,9 @@ use crate::tictactoe::Players;
 
 struct PrintClient;
 impl PrintClient {
-    fn act(&mut self, action: impl Actionable<Interface = tictactoe::Persistent>) {
+    fn act(&mut self, action: impl Actionable<Interface = tictactoe::Basic>) {
         action.with_action(|action| {
-            println!("Calling persistent action {action}");
+            println!("Calling basic action {action}");
         });
     }
 

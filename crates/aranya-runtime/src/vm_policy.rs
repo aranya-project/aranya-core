@@ -147,16 +147,6 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
     };
     use aranya_policy_vm::ident;
     Flavors {
-        default: Flavor {
-            envelope: Struct {
-                name: ident!("DefaultEnvelope"),
-                fields: &[
-                    arg!("command_id", Id),
-                    arg!("parent_id", Id),
-                    arg!("author_id", Id),
-                ],
-            },
-        },
         flavors: &[
             (
                 ident!("init"),
@@ -166,6 +156,19 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
                         fields: &[
                             arg!("command_id", Id),
                             // no parent_id
+                            arg!("author_id", Id),
+                        ],
+                    },
+                },
+            ),
+            (
+                ident!("basic"),
+                Flavor {
+                    envelope: Struct {
+                        name: ident!("DefaultEnvelope"),
+                        fields: &[
+                            arg!("command_id", Id),
+                            arg!("parent_id", Id),
                             arg!("author_id", Id),
                         ],
                     },
@@ -302,29 +305,17 @@ fn get_command_priorities(
 
 /// Get the priority for one command from flavor and attributes.
 fn get_command_priority(def: &CommandDef) -> Result<VmPriority, AttributeError> {
-    Ok(match &def.flavor {
-        None => VmPriority::Basic(load_priority(def)?),
-        Some(flavor) => {
-            if def.attributes.iter().any(|a| a.name == "priority") {
-                return Err(AttributeError::should_not_have(
-                    flavor.as_str(),
-                    def.name.as_str(),
-                    "priority",
-                ));
-            }
-            match flavor.as_str() {
-                "ephemeral" => VmPriority::Ephemeral,
-                "init" => VmPriority::Init,
-                "finalize" => VmPriority::Finalize,
-                _ => {
-                    return Err(AttributeError::unknown_flavor(
-                        flavor.as_str(),
-                        def.name.as_str(),
-                    ));
-                }
-            }
-        }
-    })
+    match def.flavor.as_str() {
+        "basic" => Ok(VmPriority::Basic(load_priority(def)?)),
+        // If not basic, it should not have priority attribute.
+        flavor if def.attributes.iter().any(|a| a.name == "priority") => Err(
+            AttributeError::should_not_have(flavor, def.name.as_str(), "priority"),
+        ),
+        "ephemeral" => Ok(VmPriority::Ephemeral),
+        "init" => Ok(VmPriority::Init),
+        "finalize" => Ok(VmPriority::Finalize),
+        flavor => Err(AttributeError::unknown_flavor(flavor, def.name.as_str())),
+    }
 }
 
 /// Read the priority attribute.
@@ -570,7 +561,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             signature: Cow::Borrowed(signature),
         };
 
-        let def_is_ephemeral = def.flavor.as_ref().is_some_and(|x| x == "ephemeral");
+        let def_is_ephemeral = def.flavor == "ephemeral";
 
         match (placement, def_is_ephemeral) {
             (CommandPlacement::OnGraphAtOrigin, false) => {}
@@ -642,7 +633,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::InternalError
         })?;
 
-        let def_is_ephemeral = def.flavor.as_ref().is_some_and(|x| x == "ephemeral");
+        let def_is_ephemeral = def.flavor == "ephemeral";
 
         match (action_placement, def_is_ephemeral) {
             (ActionPlacement::OnGraph, false) => {}
@@ -866,14 +857,14 @@ mod test {
     fn test_require_command_priority() {
         let cases = [
             r#"
-            base Base { get_key { return None } }
+            base[basic] Base { get_key { return None } }
             command Test with Base {
                 fields {}
                 policy {}
             }
             "#,
             r#"
-            base Base { get_key { return None } }
+            base[basic] Base { get_key { return None } }
             command Test with Base {
                 attributes {}
                 fields {}
@@ -881,7 +872,7 @@ mod test {
             }
             "#,
             r#"
-            base Base { get_key { return None } }
+            base[basic] Base { get_key { return None } }
             command Test with Base {
                 attributes {
                     init: false,
@@ -895,7 +886,7 @@ mod test {
 
         for case in cases {
             let ast = parse_policy_str(case, Version::V2).unwrap();
-            let module = Compiler::new(&ast).compile().unwrap();
+            let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
             let def = machine.command_defs.get(&ident!("Test")).unwrap();
             let err = get_command_priority(def).expect_err("should fail");
@@ -905,23 +896,8 @@ mod test {
 
     #[test]
     fn test_get_command_priority() {
-        fn basic(attrs: &str) -> String {
-            format!(
-                r#"
-                base Base {{ get_key {{ return None }} }}
-                command Test with Base {{
-                    attributes {{
-                        {attrs}
-                    }}
-                    fields {{ }}
-                    policy {{ }}
-                }}
-                "#
-            )
-        }
-
-        fn flavored(flavor: &str, attrs: &str) -> String {
-            format!(
+        fn process(flavor: &str, attrs: &str) -> Result<VmPriority, AttributeError> {
+            let policy = format!(
                 r#"
                 base[{flavor}] Base {{ get_key {{ return None }} }}
                 command Test with Base {{
@@ -932,10 +908,7 @@ mod test {
                     policy {{ }}
                 }}
                 "#
-            )
-        }
-
-        fn process(policy: String) -> Result<VmPriority, AttributeError> {
+            );
             let ast = parse_policy_str(&policy, Version::V2).unwrap();
             let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
             let machine = Machine::from_module(module).expect("can create machine");
@@ -943,27 +916,27 @@ mod test {
             get_command_priority(def)
         }
 
-        assert_eq!(process(basic("priority: 42")), Ok(VmPriority::Basic(42)));
+        assert_eq!(process("basic", "priority: 42"), Ok(VmPriority::Basic(42)));
         assert_eq!(
-            process(basic("finalize: false, priority: 42")),
+            process("basic", "finalize: false, priority: 42"),
             Ok(VmPriority::Basic(42))
         );
         assert_eq!(
-            process(basic("init: false, priority: 42, finalize: false")),
+            process("basic", "init: false, priority: 42, finalize: false"),
             Ok(VmPriority::Basic(42))
         );
 
-        assert_eq!(process(flavored("init", "")), Ok(VmPriority::Init));
-        assert_eq!(process(flavored("finalize", "")), Ok(VmPriority::Finalize));
+        assert_eq!(process("init", ""), Ok(VmPriority::Init));
+        assert_eq!(process("finalize", ""), Ok(VmPriority::Finalize));
 
         assert_eq!(
-            process(basic("priority: false")),
+            process("basic", "priority: false"),
             Err(AttributeError::type_mismatch(
                 "Test", "priority", "Int", "Bool"
             ))
         );
         assert_eq!(
-            process(basic("priority: -1")),
+            process("basic", "priority: -1"),
             Err(AttributeError::int_range(
                 "Test",
                 "priority",
@@ -972,7 +945,7 @@ mod test {
             ))
         );
         assert_eq!(
-            process(basic(&format!("priority: {}", i64::MAX))),
+            process("basic", &format!("priority: {}", i64::MAX)),
             Err(AttributeError::int_range(
                 "Test",
                 "priority",
@@ -982,13 +955,13 @@ mod test {
         );
 
         assert_eq!(
-            process(flavored("finalize", "priority: 42")),
+            process("finalize", "priority: 42"),
             Err(AttributeError::should_not_have(
                 "finalize", "Test", "priority"
             ))
         );
         assert_eq!(
-            process(flavored("init", "priority: 42")),
+            process("init", "priority: 42"),
             Err(AttributeError::should_not_have("init", "Test", "priority"))
         );
     }

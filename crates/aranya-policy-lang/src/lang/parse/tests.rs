@@ -355,7 +355,7 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
-        action init(owner: id) {
+        action[null] init(owner: id) {
             publish Init{
                 Owner: owner
             }

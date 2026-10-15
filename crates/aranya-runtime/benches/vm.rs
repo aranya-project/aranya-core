@@ -64,7 +64,7 @@ policy-version: 2
 
         fact Key[]=>{key: bytes}
 
-        base Base {
+        base[basic] Base {
             get_key {
                 return match query Key[] {
                     Some(f) => Some(f.key)
@@ -87,7 +87,7 @@ policy-version: 2
             publish Init { key: key }
         }
 
-        action insert(i: int, value: string) {
+        action[basic] insert(i: int, value: string) {
             publish Insert { i:i, value: value }
         }
 
@@ -106,7 +106,7 @@ policy-version: 2
             }
         }
 
-        action run() {
+        action[basic] run() {
             map F[i:?] as f {
                 publish DoSomething { i: f.i }
             }

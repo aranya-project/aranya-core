@@ -97,7 +97,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
         .action_defs
         .iter()
         .map(|def| {
-            let flavor = def.flavor.as_ref().map_or("persistent", |f| f.as_str());
+            let flavor = def.flavor.as_str();
             let actions = flavors.entry(flavor).or_insert_with(|| ActionsByFlavor {
                 interface: mk_ident_pascal(flavor),
                 actions: Vec::new(),

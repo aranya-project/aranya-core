@@ -1,4 +1,4 @@
-action bar(n: int, s: string) {}
-action foo() {
+action[null] bar(n: int, s: string) {}
+action[null] foo() {
     action bar(1, "abc")
 }

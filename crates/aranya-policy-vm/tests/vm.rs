@@ -17,9 +17,10 @@ use aranya_policy_vm::{
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
 
+#[track_caller]
 fn parse(text: &str) -> aranya_policy_ast::Policy {
-    let text =
-        text.trim_start_matches('\n').to_owned() + "\n\nbase StubBase { get_key { return None } }";
+    let text = text.trim_start_matches('\n').to_owned()
+        + "\n\nbase[null] StubBase { get_key { return None } }";
     parse_policy_str(&text, Version::V2).unwrap()
 }
 
@@ -82,7 +83,7 @@ fn test_bytes() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo(id_input: id, x: bytes) {
+        action[null] foo(id_input: id, x: bytes) {
             publish Foo{id_field: id_input, x}
         }
     "#;
@@ -130,7 +131,7 @@ fn test_structs() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo(id_input: id, x: int) {
+        action[null] foo(id_input: id, x: int) {
             publish Foo{
                 id_field: id_input,
                 bar: Bar { x },
@@ -266,11 +267,11 @@ fn test_action_call_expression() -> anyhow::Result<()> {
     // An action call is an expression, so `outer` can propagate `inner`'s result.
     let machine = compile(
         r#"
-        action inner() result[unit, string] {
+        action[null] inner() result[unit, string] {
             return Err("inner fail")
         }
 
-        action outer() result[unit, string] {
+        action[null] outer() result[unit, string] {
             return action inner()
         }
     "#,
@@ -499,7 +500,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         }
     }
 
-    action testExists() {
+    action[null] testExists() {
         check exists Foo[] => {x: 3} else test_fail()
         check exists Foo[] else test_fail()
         check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail()
@@ -765,7 +766,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
             }
         }
 
-        action test_query() {
+        action[null] test_query() {
             let f = query Foo[i: 1, j: ?] or test_fail()
             check f.x == 1 else test_fail()
             let f2 = query Foo[i: ?, j: ?] or test_fail()
@@ -781,11 +782,11 @@ fn test_query_partial_key() -> anyhow::Result<()> {
             check f5.x == 3 else test_fail()
         }
 
-        action test_nonexistent() {
+        action[null] test_nonexistent() {
             let f = query Foo[i:?, j:?] or test_fail()
         }
 
-        action test_exists() {
+        action[null] test_exists() {
             check exists Foo[i:1, j:?] else test_fail()
             check exists Foo[i:-1, j:?] == false else test_fail()
             check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail()
@@ -843,7 +844,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
             }
         }
 
-        action test_query() {
+        action[null] test_query() {
             let f = query Bar[i:Foo::A] => {x: ?} or test_fail()
             check f.x == Foo::A else test_fail()
         }
@@ -881,7 +882,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 #[test]
 fn test_not_operator() -> anyhow::Result<()> {
     let text = r#"
-        action test() {
+        action[null] test() {
             check !false else test_fail()
         }
     "#;
@@ -899,7 +900,7 @@ fn test_not_operator() -> anyhow::Result<()> {
 #[test]
 fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
-        action foo(x: bool) {
+        action[null] foo(x: bool) {
             if x == true {
                 check false else test_fail()
             }
@@ -933,7 +934,7 @@ fn test_if_branches() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo(x: int) {
+        action[null] foo(x: int) {
             if x == 0 {
                 check true else test_fail()
                 publish Result { s: "0" }
@@ -1029,7 +1030,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo(x: int) {
+        action[null] foo(x: int) {
             match x {
                 0 | 1 => {
                     check false else test_fail()
@@ -1064,7 +1065,7 @@ fn test_match_default() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo(x: int) {
+        action[null] foo(x: int) {
             match x {
                 5 => {
                     publish Result { x }
@@ -1092,7 +1093,7 @@ fn test_match_default() -> anyhow::Result<()> {
 #[test]
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
-        action foo(val: int) {
+        action[null] foo(val: int) {
             check val == bar() else test_fail()
         }
 
@@ -1121,7 +1122,7 @@ fn test_match_expression() -> anyhow::Result<()> {
             fields { x: int }
             policy {}
         }
-        action foo(x: int) {
+        action[null] foo(x: int) {
             let y = match x {
                 0 => { :1 }
                 _ => { :0 }
@@ -1151,7 +1152,7 @@ fn test_match_optional_binding() -> anyhow::Result<()> {
             fields { x: int }
             policy {}
         }
-        action foo(o: option[int]) {
+        action[null] foo(o: option[int]) {
             let y = match o {
                 Some(n) => n
                 None => 0
@@ -1218,7 +1219,7 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 #[test]
 fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
-    action foo(x: bool, y: bool) {
+    action[null] foo(x: bool, y: bool) {
         if x {
             check x else test_fail()
         }
@@ -1252,7 +1253,7 @@ fn test_pure_function() -> anyhow::Result<()> {
             return add(x, 1) or test_fail()
         }
 
-        action foo(x: int) {
+        action[null] foo(x: int) {
             publish Result { x: f(x) }
         }
     "#;
@@ -1373,22 +1374,22 @@ fn test_coalesce_or() -> anyhow::Result<()> {
             }
         }
 
-        action test_some_or() {
+        action[null] test_some_or() {
             let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
             check f.x == 42 else test_fail()
         }
 
-        action test_none_or() {
+        action[null] test_none_or() {
             let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
             check f.x == 99 else test_fail()
         }
 
-        action test_chain() {
+        action[null] test_chain() {
             let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
             check f.x == 77 else test_fail()
         }
 
-        action test_chain_first_some() {
+        action[null] test_chain_first_some() {
             let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
             check f.x == 42 else test_fail()
         }
@@ -1464,7 +1465,9 @@ fn test_nested_optionals() -> anyhow::Result<()> {
     let actions = checks
         .iter()
         .enumerate()
-        .map(|(i, c)| format!("action c{i}() {{ check {c} else test_fail(\"check failed\") }}"))
+        .map(|(i, c)| {
+            format!("action[null] c{i}() {{ check {c} else test_fail(\"check failed\") }}")
+        })
         .collect::<Vec<_>>()
         .join("\n");
     let machine = compile(&actions);
@@ -1489,7 +1492,11 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let text = r#"
         effect Recalled {}
 
-        command Foo with StubBase {
+        base[custom] Base {
+            get_key { return None }
+        }
+
+        command Foo with Base {
             fields {
                 test: bytes
             }
@@ -1508,13 +1515,15 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     "#;
 
     let flavors = flavor::Flavors {
-        default: flavor::Flavor {
-            envelope: flavor::Struct {
-                name: ident!("CustomEnvelope"),
-                fields: &[arg!("payload", Bytes)],
+        flavors: &[(
+            ident!("custom"),
+            flavor::Flavor {
+                envelope: flavor::Struct {
+                    name: ident!("CustomEnvelope"),
+                    fields: &[arg!("payload", Bytes)],
+                },
             },
-        },
-        flavors: &[],
+        )],
     };
 
     let policy = parse(text);
@@ -1551,11 +1560,11 @@ fn test_debug_assert() -> anyhow::Result<()> {
         return false
     }
 
-    action test_debug_assert_failure() {
+    action[null] test_debug_assert_failure() {
         debug_assert(false)
     }
 
-    action test_debug_assert_failure_expression() {
+    action[null] test_debug_assert_failure_expression() {
         debug_assert(get_false())
     }
 
@@ -1563,7 +1572,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
         return true
     }
 
-    action test_debug_assert_pass() {
+    action[null] test_debug_assert_pass() {
         debug_assert(true)
         debug_assert(get_true())
     }
@@ -1650,7 +1659,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
             policy {}
         }
 
-        action foo() {
+        action[null] foo() {
             let a = add(x, 1) or test_fail()
             let b = y
             let c = !z
@@ -1726,7 +1735,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
             Water, Coffee
         }
 
-        action test(type: enum Drink) {
+        action[null] test(type: enum Drink) {
             match type {
                 Drink::Water => {
                     publish Sip { a: "bleh" }
@@ -1909,7 +1918,7 @@ fn test_map() -> anyhow::Result<()> {
             }
         }
 
-        action test() {
+        action[null] test() {
             map F[i:?] as f {
                 publish Process { value: f.n }
             }
@@ -1978,7 +1987,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             }
         }
 
-        action type_validation(maybe_int_input: option[int], name_input: string) {
+        action[null] type_validation(maybe_int_input: option[int], name_input: string) {
             publish TypeValidation{maybe_int: maybe_int_input, name: name_input}
         }
     "#;
@@ -2062,7 +2071,7 @@ fn test_block_expression() -> anyhow::Result<()> {
             }
         }
 
-        action test() {
+        action[null] test() {
             let a = 3
             let b = 4
             let x = {
@@ -2106,7 +2115,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
             y: bool,
             z: string,
         }
-        action baz(source: struct Bar) {
+        action[null] baz(source: struct Bar) {
             publish source substruct Foo
         }
     "#;
@@ -2152,7 +2161,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
             y: bool,
             z: string,
         }
-        action baz(source: struct Bar, x: int) {
+        action[null] baz(source: struct Bar, x: int) {
             publish Foo { x, ...source }
         }
     "#;
@@ -2197,7 +2206,9 @@ fn test_struct_composition() -> anyhow::Result<()> {
 #[test]
 fn test_boolean_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
+        let machine = compile(&format!(
+            "action[null] f() {{ check {expr} else test_fail() }}"
+        ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2223,7 +2234,7 @@ fn test_boolean_operators() {
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
         let machine = compile(&format!(
-            "action f() result[unit, int] {{ check {expr} else return Err(0) return Ok(Unit) }}"
+            "action[null] f() result[unit, int] {{ check {expr} else return Err(0) return Ok(Unit) }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2245,7 +2256,9 @@ fn test_boolean_short_circuit() {
 #[test]
 fn test_test_fail() {
     fn run(cond: &str) -> ExitReason {
-        let machine = compile(&format!("action f() {{ check {cond} else test_fail() }}"));
+        let machine = compile(&format!(
+            "action[null] f() {{ check {cond} else test_fail() }}"
+        ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2263,7 +2276,9 @@ fn test_test_fail() {
 #[test]
 fn test_comparison_operators() {
     fn check(expr: &str) {
-        let machine = compile(&format!("action f() {{ check {expr} else test_fail() }}"));
+        let machine = compile(&format!(
+            "action[null] f() {{ check {expr} else test_fail() }}"
+        ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
         let mut rs = machine.create_run_state(&mut io, ctx);
@@ -2299,7 +2314,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             return Foo { y, x }
         }
 
-        action test() {
+        action[null] test() {
             let foo = Foo { y: "abc", x: 42 }
             publish foo as Bar // var reference
             publish Foo { y: "b", x: 1 } as Bar // struct literal
@@ -2353,7 +2368,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 #[test]
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
-        action foo() {
+        action[null] foo() {
             check true else test_fail()
             // before
             check false else test_fail()
@@ -2389,7 +2404,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
 #[test]
 fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
-        action foo() {
+        action[null] foo() {
             check 42 == bar() else test_fail()
         }
 
@@ -2421,7 +2436,7 @@ fn test_return_expression() -> anyhow::Result<()> {
 #[test]
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
-        action foo() {
+        action[null] foo() {
             check 42 == bar() else test_fail()
         }
 

@@ -8,42 +8,42 @@ Policy {
     facts: [],
     actions: [
         ActionDefinition {
-            flavor: None,
-            name: "test" @ 7..11,
+            flavor: "null" @ 7..11,
+            name: "test" @ 13..17,
             parameters: [],
             return_type: Unit @ 0..0,
             body: [
                 Let(
                     LetStatement {
-                        name: "x" @ 24..25,
+                        name: "x" @ 30..31,
                         value: InternalFunction(
                             Query(
                                 FactLiteral {
-                                    name: "A" @ 34..35,
+                                    name: "A" @ 40..41,
                                     key_fields: [
                                         (
-                                            "i" @ 36..37,
+                                            "i" @ 42..43,
                                             Expression(
                                                 Int(
-                                                    1 @ 38..39,
-                                                ) @ 38..39,
+                                                    1 @ 44..45,
+                                                ) @ 44..45,
                                             ),
                                         ),
                                         (
-                                            "j" @ 41..42,
+                                            "j" @ 47..48,
                                             Bind(
-                                                43..44,
+                                                49..50,
                                             ),
                                         ),
                                     ],
                                     value_fields: None,
                                 },
                             ),
-                        ) @ 28..46,
+                        ) @ 34..52,
                     },
-                ) @ 20..46,
+                ) @ 26..52,
             ],
-            span: 0..47,
+            span: 0..53,
         },
     ],
     effects: [],
@@ -54,5 +54,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action test() {\n    let x = query A[i:1, j:?]\n}\n",
+    text: "action[null] test() {\n    let x = query A[i:1, j:?]\n}\n",
 }

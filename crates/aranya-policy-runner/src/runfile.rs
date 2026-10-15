@@ -242,12 +242,12 @@ impl RunFile {
     ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
             r#"use testing
-            base Base {{ get_key {{ return None }} }}
+            base[null] Base {{ get_key {{ return None }} }}
             command CaptureVariables with Base {{
                 fields {{ }}
                 policy {{ }}
             }}
-            action preamble() {{
+            action[null] preamble() {{
                 {}
                 publish CaptureVariables {{}}
             }}"#,
