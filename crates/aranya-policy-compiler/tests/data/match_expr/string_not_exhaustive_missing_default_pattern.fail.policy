@@ -7,7 +7,7 @@ struct ColorName {
     name: string
 }
 
-action f(c: struct ColorName) {
+action[null] f(c: struct ColorName) {
     let x = match c {
         ColorName {  color: LightColor::Red, name: "red" } => 0
         ColorName {  color: LightColor::Yellow, name: "yellow" } => 1

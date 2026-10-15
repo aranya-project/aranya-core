@@ -2,6 +2,6 @@ function may_fail(x: int) result[int, string] {
     return Err("nope")
 }
 
-action run(x: int) {
+action[null] run(x: int) {
     let n = may_fail(x)?
 }

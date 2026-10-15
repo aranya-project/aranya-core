@@ -7,7 +7,7 @@ command Foo with StubBase {
         finish {}
     }
 }
-action foo(b: int) {
+action[null] foo(b: int) {
     let i = 4
     let x = if b == 0 { :saturating_add(4, i) } else { :3 }
     let y = Foo{

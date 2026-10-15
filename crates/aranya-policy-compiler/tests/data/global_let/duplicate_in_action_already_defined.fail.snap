@@ -6,6 +6,6 @@ error: the name `x` is defined multiple times
   |
 1 | let x = 10
   |     - previous defintion here
-2 | action foo() {
+2 | action[null] foo() {
 3 |     let x = saturating_add(x, 15)
   |         ^ re-defined here

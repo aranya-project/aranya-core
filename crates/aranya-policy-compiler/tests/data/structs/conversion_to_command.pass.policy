@@ -11,7 +11,7 @@ command Bar with StubBase {
         finish {}
     }
 }
-action convert() {
+action[null] convert() {
     let bar = Foo { a: 1, b: "test" } as Bar
     publish bar
 }

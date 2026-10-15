@@ -18,9 +18,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "my_init",
-            flavor: Some(
-                "init",
-            ),
+            flavor: "init",
             params: [
                 Field {
                     name: "key",
@@ -31,13 +29,13 @@ Module {
         },
         ActionDef {
             name: "my_basic_1",
-            flavor: None,
+            flavor: "basic",
             params: [],
             result_type: Unit,
         },
         ActionDef {
             name: "my_basic_2",
-            flavor: None,
+            flavor: "basic",
             params: [],
             result_type: Unit,
         },
@@ -45,9 +43,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "MyInit",
-            flavor: Some(
-                "init",
-            ),
+            flavor: "init",
             attributes: [],
             fields: [
                 Field {
@@ -58,13 +54,13 @@ Module {
         },
         CommandDef {
             name: "MyBasic1",
-            flavor: None,
+            flavor: "basic",
             attributes: [],
             fields: [],
         },
         CommandDef {
             name: "MyBasic2",
-            flavor: None,
+            flavor: "basic",
             attributes: [],
             fields: [],
         },
@@ -88,6 +84,10 @@ Module {
         },
     ],
     struct_defs: [
+        StructDef {
+            name: "BasicEnvelope",
+            items: [],
+        },
         StructDef {
             name: "InitEnvelope",
             items: [

@@ -59,7 +59,7 @@ Adding a user is a fairly simple operation of adding their key to the `Device` f
 ID is the id of this command. See `init.run`.
 
 ```policy
-action add_user(new_user_key: bytes) {
+action[null] add_user(new_user_key: bytes) {
     publish AddUser { new_user_key }
 }
 
@@ -99,7 +99,7 @@ the command. You probably wouldn't want to do this in a real policy, but it is u
 testing. See `add_raw_device.run`.
 
 ```policy
-action add_raw_device(device_id: id, device_key: bytes) {
+action[null] add_raw_device(device_id: id, device_key: bytes) {
     publish AddDevice { device_id, device_key }
 }
 
@@ -132,7 +132,7 @@ This simply fetches the keys from the `Device` fact, or reports that the device 
 `get_raw_device.run` and `get_raw_device_not_found.run`.
 
 ```policy
-action get_raw_device(device_id: id) {
+action[null] get_raw_device(device_id: id) {
     publish GetDevice { device_id }
 }
 

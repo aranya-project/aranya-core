@@ -13,7 +13,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "Cmd",
-            flavor: None,
+            flavor: "null",
             attributes: [],
             fields: [
                 Field {

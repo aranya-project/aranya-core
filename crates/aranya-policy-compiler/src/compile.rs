@@ -228,7 +228,7 @@ struct CompileState<'a> {
 struct BaseCommand {
     name: Ident,
     get_key_address: usize,
-    flavor: Option<Ident>,
+    flavor: Ident,
 }
 impl aranya_policy_module::named::Named for BaseCommand {
     fn name(&self) -> &Ident {
@@ -1458,22 +1458,19 @@ impl<'a> CompileState<'a> {
             base.get_key_address,
         )?;
 
-        let flavor_def = match &cmd_flavor {
-            None => &self.config.flavors.default,
-            Some(cmd_flavor) => self
-                .config
-                .flavors
-                .flavors
-                .iter()
-                .find(|&(name, _)| *name == cmd_flavor.inner)
-                .map(|(_, flavor)| flavor)
-                .ok_or_else(|| {
-                    self.err(NotDefined(
-                        format!("unknown flavor {cmd_flavor}"),
-                        cmd_flavor.span,
-                    ))
-                })?,
-        };
+        let flavor_def = self
+            .config
+            .flavors
+            .flavors
+            .iter()
+            .find(|&(name, _)| *name == cmd_flavor.inner)
+            .map(|(_, flavor)| flavor)
+            .ok_or_else(|| {
+                self.err(NotDefined(
+                    format!("unknown flavor {cmd_flavor}"),
+                    cmd_flavor.span,
+                ))
+            })?;
 
         self.compile_command_policy(command, flavor_def)?;
         self.compile_command_recall(command, flavor_def)?;
@@ -1980,18 +1977,11 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn is_default_flavor_envelope_used(&self) -> bool {
-        self.policy
-            .base_commands
-            .iter()
-            .any(|bc| bc.flavor.is_none())
-    }
-
     fn is_flavor_used(&self, name: &str) -> bool {
         self.policy
             .base_commands
             .iter()
-            .any(|bc| bc.flavor.as_ref().is_some_and(|f| f.inner == *name))
+            .any(|bc| bc.flavor.inner == *name)
     }
 
     fn define_envelope(
@@ -2010,10 +2000,6 @@ impl<'a> CompileState<'a> {
     }
 
     fn define_envelopes(&mut self) -> Result<(), CompileError> {
-        if self.is_default_flavor_envelope_used() {
-            self.define_envelope(&self.config.flavors.default.envelope)?;
-        }
-
         for (flavor_name, flavor) in self.config.flavors.flavors {
             if self.is_flavor_used(flavor_name.as_str()) {
                 self.define_envelope(&flavor.envelope)?;
@@ -2356,13 +2342,15 @@ struct Config<'a> {
 }
 
 static DEFAULT_FLAVORS: Flavors<'static> = Flavors {
-    default: Flavor {
-        envelope: ffi::Struct {
-            name: ident!("NullEnvelope"),
-            fields: &[],
+    flavors: &[(
+        ident!("null"),
+        Flavor {
+            envelope: ffi::Struct {
+                name: ident!("NullEnvelope"),
+                fields: &[],
+            },
         },
-    },
-    flavors: &[],
+    )],
 };
 
 impl Config<'_> {

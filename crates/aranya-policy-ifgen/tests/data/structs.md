@@ -17,7 +17,7 @@ effect UserAdded {
     +User
 }
 
-base Base {
+base[basic] Base {
     get_key { return None }
 }
 
@@ -32,9 +32,9 @@ command AddUser with Base {
     }
 }
 
-action add_user(uid: id, name: string) {
+action[basic] add_user(uid: id, name: string) {
     publish AddUser { uid, name }
 }
 
-action delete_user(admin: struct Admin, uid: id) {}
+action[basic] delete_user(admin: struct Admin, uid: id) {}
 ```
