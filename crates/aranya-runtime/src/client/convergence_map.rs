@@ -20,6 +20,12 @@ const ROOT_CAPACITY: usize = 512;
 /// Should be at least the width of the graph being braided. A miss
 /// fetches the whole segment again, which is correct but costs
 /// `O(segment length)`.
+///
+/// Eviction is MRU. The BFS visits the frontier segments in the same
+/// order at every `max_cut` level, so accesses form a cycle of length
+/// equal to the graph width. When that exceeds the cache, MRU keeps
+/// all but one entry resident and misses about
+/// `width - SEGMENT_CACHE_ENTRIES` times per level.
 const SEGMENT_CACHE_ENTRIES: usize = 64;
 
 /// A convergence point: location and remaining arrival count.
@@ -324,7 +330,8 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     }
 
     /// Returns the metadata for `loc`'s segment, fetching the segment
-    /// on a cache miss and evicting the LRU entry if the cache is full.
+    /// on a cache miss and evicting the most recently used entry if the
+    /// cache is full (see [`SEGMENT_CACHE_ENTRIES`]).
     fn segment_meta<S: Storage>(
         &mut self,
         storage: &mut S,
@@ -349,13 +356,13 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
             last_accessed: self.access_counter,
         };
         if segments.is_full() {
-            let lru = segments
+            let mru = segments
                 .iter()
                 .enumerate()
-                .min_by_key(|(_, m)| m.last_accessed)
+                .max_by_key(|(_, m)| m.last_accessed)
                 .map(|(i, _)| i)
                 .assume("cache is full, so non-empty")?;
-            segments.swap_remove(lru);
+            segments.swap_remove(mru);
         }
         segments
             .push(meta)
