@@ -31,6 +31,11 @@ jobs:
         runner:
           - ubuntu-latest
           - ubuntu2404-arm64-4core
+        chunk:
+          - 1
+          - 2
+          - 3
+          - 4
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -44,10 +49,46 @@ jobs:
           tool: cargo-all-features@1.12.0
 
       - name: Unit Tests
-        run: cargo make unit-tests
+        run: cargo make unit-tests --n-chunks 4 --chunk "${{ matrix.chunk }}"
+
+  core-example:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup
 
       - name: Run aranya-core example
         run: cargo make run-aranya-core-example
 
+  test-benchmarks:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup
+
       - name: Test benchmarks (not valid measurements)
         run: cargo make test-benchmarks
+
+  tests-pass:
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - core-example
+      - test-benchmarks
+    steps:
+      - name: Tests passed
+        run: echo 'Tests passed'
