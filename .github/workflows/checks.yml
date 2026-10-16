@@ -133,13 +133,11 @@ jobs:
       - name: Coverage summary
         run: |
           for bucket in capi tools compiler core-prod; do
-            {
-              echo "### Branch coverage: ${bucket}"
-              echo '```'
-              cat "target/llvm-cov/${bucket}/coverage.txt"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          done
+            echo "### Branch coverage: ${bucket}"
+            echo '```'
+            cat "target/llvm-cov/${bucket}/coverage.txt"
+            echo '```'
+          done >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload C API coverage report
         uses: actions/upload-artifact@v7
@@ -232,11 +230,7 @@ jobs:
         runner:
           - ubuntu-latest
           - ubuntu2404-arm64-4core
-        chunk:
-          - 1
-          - 2
-          - 3
-          - 4
+        chunk: [1, 2, 3, 4]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
