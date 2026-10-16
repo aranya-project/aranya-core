@@ -39,10 +39,10 @@ Policy {
                                 Err(
                                     Unit @ 95..99,
                                 ) @ 91..100,
-                            ) @ 84..105,
-                        ) @ 71..105,
+                            ) @ 84..100,
+                        ) @ 71..100,
                     },
-                ) @ 63..105,
+                ) @ 63..100,
                 Let(
                     LetStatement {
                         identifier: "c" @ 109..110,
@@ -52,7 +52,7 @@ Policy {
                             ) @ 114..115,
                         ) @ 113..115,
                     },
-                ) @ 105..120,
+                ) @ 105..115,
                 Emit(
                     NamedStruct(
                         NamedStruct {
@@ -75,14 +75,14 @@ Policy {
                             span: 125..137,
                         },
                     ) @ 125..137,
-                ) @ 120..142,
+                ) @ 120..137,
                 Return(
                     ReturnStatement {
                         expression: Ok(
                             Unit @ 152..156,
                         ) @ 149..157,
                     },
-                ) @ 142..158,
+                ) @ 142..157,
             ],
             span: 25..159,
         },
@@ -100,14 +100,14 @@ Policy {
             expression: Int(
                 42 @ 8..10,
             ) @ 8..10,
-            span: 0..11,
+            span: 0..10,
         },
         GlobalLetStatement {
             identifier: "z" @ 15..16,
             expression: Bool(
                 true,
             ) @ 19..23,
-            span: 11..25,
+            span: 11..23,
         },
     ],
     text: "let x = 42\nlet z = true\n\naction foo() result[unit, unit] {\n    let a = add(x, 1) or return Err(Unit)\n    let c = !z\n    emit Bar { a, c }\n    return Ok(Unit)\n}\n",

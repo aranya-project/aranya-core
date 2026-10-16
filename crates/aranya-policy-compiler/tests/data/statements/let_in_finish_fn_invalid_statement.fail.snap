@@ -4,7 +4,8 @@ expression: error
 ---
 error: invalid statement
   |
-1 |   finish function foo() {
-2 | /     let x = 3
-3 | | }
-  | |_^ statement not allowed in finish block/function context
+1 | finish function foo() {
+2 |     let x = 3
+  |     ^^^^^^^^^ statement not allowed in finish block/function context
+3 | }
+  |

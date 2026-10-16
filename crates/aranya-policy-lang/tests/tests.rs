@@ -134,3 +134,56 @@ fn autotest(src: &Path, parse: impl Fn(&str) -> Result<Policy, ParseError>) {
         }
     });
 }
+
+/// A statement or expression ends at its last token. pest skips the
+/// whitespace and comments before an optional or repeated part even when
+/// the part is absent, so spans used to run on to the next token: a
+/// `delete` or `let` underlined the next line too.
+#[test]
+fn spans_end_at_the_last_token() {
+    let src = r#"
+fact F[v int]=>{}
+command C {
+    fields { v int }
+    policy {
+        let found = exists F[v: this.v]   // trailing comment
+        let text = "a // not a comment"
+        check found else recall failed()  /* block comment */
+        if found {
+            let unused = 1
+        }
+        finish {
+            delete F[v: this.v]
+            // a comment
+            delete F[v: 2]
+        }
+    }
+    recall failed() { finish {} }
+}
+"#;
+    let policy = parse_policy_str(src, Version::V2).expect("parse");
+    let text = |span: aranya_policy_ast::Span| &src[span.start()..span.end()];
+    let statements: Vec<&str> = policy.commands[0]
+        .policy
+        .iter()
+        .map(|s| text(s.span))
+        .collect();
+    assert_eq!(
+        statements[..4],
+        [
+            "let found = exists F[v: this.v]",
+            r#"let text = "a // not a comment""#,
+            "check found else recall failed()",
+            "if found {\n            let unused = 1\n        }",
+        ]
+    );
+    let aranya_policy_ast::StmtKind::Let(found) = &policy.commands[0].policy[0].inner else {
+        panic!("expected a `let`");
+    };
+    assert_eq!(text(found.expression.span), "exists F[v: this.v]");
+    let aranya_policy_ast::StmtKind::Finish(finish) = &policy.commands[0].policy[4].inner else {
+        panic!("expected a `finish`");
+    };
+    let deletes: Vec<&str> = finish.iter().map(|s| text(s.span)).collect();
+    assert_eq!(deletes, ["delete F[v: this.v]", "delete F[v: 2]"]);
+}

@@ -20,7 +20,7 @@ Policy {
             expression: String(
                 "foo\n    bar",
             ) @ 8..21,
-            span: 0..22,
+            span: 0..21,
         },
     ],
     text: "let x = \"foo\n    bar\"\n",
