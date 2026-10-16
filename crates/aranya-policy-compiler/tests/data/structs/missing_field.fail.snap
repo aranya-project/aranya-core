@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: missing field `y` in struct literal for `S`
+  |
+8 |     return S {
+  |            ^ missing `y`
