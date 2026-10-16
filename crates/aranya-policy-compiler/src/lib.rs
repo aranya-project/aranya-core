@@ -14,6 +14,7 @@ pub use compile::*;
 pub use tracer::*;
 
 // Stub for review purposes - this will be removed in the stacked PR
+#[cfg(feature = "experimental")]
 pub mod obligation {
     use std::collections::BTreeMap;
 

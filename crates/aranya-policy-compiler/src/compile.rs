@@ -44,6 +44,7 @@ use self::{
     types::{IdentifierTypeStack, UserType},
 };
 pub use self::{error::CompileError, target::PolicyInterface};
+#[cfg(feature = "experimental")]
 use crate::obligation::{self, ObligationWarning};
 
 #[derive(Clone, Debug)]
@@ -231,10 +232,12 @@ struct CompileState<'a> {
     /// Configuration
     config: Config<'a>,
     /// Warnings produced by the obligation analysis
+    #[cfg(feature = "experimental")]
     obligation_warnings: Vec<ObligationWarning>,
     /// The obligation analysis, which records function bodies as they are
     /// lowered so it can follow calls
     /// The obligation analysis, when it is enabled.
+    #[cfg(feature = "experimental")]
     obligations: Option<obligation::Analyzer>,
 }
 
@@ -936,6 +939,7 @@ impl<'a> CompileState<'a> {
         scope: Scope,
     ) -> Result<(), CompileError> {
         let stmts = self.lower_statements(statements, scope)?;
+        #[cfg(feature = "experimental")]
         if self.config.analyze_obligations {
             /// What the obligation analysis should do with these statements.
             enum Use {
@@ -2444,12 +2448,15 @@ struct Config<'a> {
     /// Run the obligation analysis on command policy/recall blocks. Only
     /// [`Compiler::compile_with_diagnostics`] sets this, since only it
     /// returns the warnings.
+    #[cfg(feature = "experimental")]
     analyze_obligations: bool,
     /// The most exits the obligation analysis records for one pure
     /// function before treating calls to it as unknown
+    #[cfg(feature = "experimental")]
     max_exit_paths: usize,
     /// The most distinct paths the obligation analysis keeps at one point
     /// before joining them
+    #[cfg(feature = "experimental")]
     max_paths: usize,
 }
 
@@ -2472,8 +2479,11 @@ impl Config<'_> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
+            #[cfg(feature = "experimental")]
             analyze_obligations: false,
+            #[cfg(feature = "experimental")]
             max_exit_paths: obligation::DEFAULT_MAX_EXIT_PATHS,
+            #[cfg(feature = "experimental")]
             max_paths: obligation::DEFAULT_MAX_PATHS,
         }
     }
@@ -2524,6 +2534,7 @@ impl<'a> Compiler<'a> {
     /// Sets the most exits the obligation analysis records for one pure
     /// function. Calls to a function with more exits are treated as
     /// unknown. The default is [`obligation::DEFAULT_MAX_EXIT_PATHS`].
+    #[cfg(feature = "experimental")]
     #[must_use]
     pub fn max_exit_paths(mut self, max: usize) -> Self {
         self.config.max_exit_paths = max;
@@ -2534,6 +2545,7 @@ impl<'a> Compiler<'a> {
     /// point of a block. Past it, the paths are joined into one, which
     /// keeps only what all of them know. The default is
     /// [`obligation::DEFAULT_MAX_PATHS`].
+    #[cfg(feature = "experimental")]
     #[must_use]
     pub fn max_paths(mut self, max: usize) -> Self {
         self.config.max_paths = max;
@@ -2551,6 +2563,7 @@ impl<'a> Compiler<'a> {
     /// Like [`Compiler::compile`], but also runs the obligation analysis
     /// (see `docs/policy-obligation-analysis.md`) and returns its
     /// warnings. The module is the same as [`Compiler::compile`]'s.
+    #[cfg(feature = "experimental")]
     pub fn compile_with_diagnostics(
         mut self,
     ) -> Result<(Module, Vec<ObligationWarning>), CompileError> {
@@ -2588,7 +2601,9 @@ impl<'a> Compiler<'a> {
             current_caller: None,
             config: self.config,
             ffi_modules: self.config.ffi_modules,
+            #[cfg(feature = "experimental")]
             obligation_warnings: Vec::new(),
+            #[cfg(feature = "experimental")]
             obligations: self.config.analyze_obligations.then(|| {
                 obligation::Analyzer::new(
                     self.policy.text.clone(),
@@ -2624,6 +2639,7 @@ impl<'a> Compiler<'a> {
 ///
 /// The runtime only accepts such a command as the root of the graph, so it
 /// always runs against an empty fact database.
+#[cfg(feature = "experimental")]
 fn is_init_command(cmd: &ast::CommandDefinition) -> bool {
     cmd.attributes
         .iter()
