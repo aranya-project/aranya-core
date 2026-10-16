@@ -44,6 +44,7 @@ use self::{
     types::{IdentifierTypeStack, UserType},
 };
 pub use self::{error::CompileError, target::PolicyInterface};
+use crate::obligation::{self, ObligationWarning};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -229,6 +230,12 @@ struct CompileState<'a> {
     current_caller: Option<Label>,
     /// Configuration
     config: Config<'a>,
+    /// Warnings produced by the obligation analysis
+    obligation_warnings: Vec<ObligationWarning>,
+    /// The obligation analysis, which records function bodies as they are
+    /// lowered so it can follow calls
+    /// The obligation analysis, when it is enabled.
+    obligations: Option<obligation::Analyzer>,
 }
 
 struct BaseCommand {
@@ -929,6 +936,69 @@ impl<'a> CompileState<'a> {
         scope: Scope,
     ) -> Result<(), CompileError> {
         let stmts = self.lower_statements(statements, scope)?;
+        if self.config.analyze_obligations {
+            /// What the obligation analysis should do with these statements.
+            enum Use {
+                Analyze { empty_db: bool, command: Identifier },
+                Finish(Span),
+                Pure(Identifier, Vec<Identifier>),
+                Nothing,
+            }
+            let usage = match self.get_statement_context()? {
+                StatementContext::CommandPolicy(cmd) | StatementContext::CommandRecall(cmd) => {
+                    Use::Analyze {
+                        empty_db: is_init_command(cmd),
+                        command: cmd.name.inner.clone(),
+                    }
+                }
+                // Finish and pure functions are compiled before commands,
+                // so their bodies are recorded here before any command
+                // calls them.
+                StatementContext::Finish(span) => Use::Finish(*span),
+                // A base command's `get_key` block is compiled like a pure
+                // function named `get_key`. It can't be called, and it must
+                // not replace a user function with that name.
+                StatementContext::PureFunction(def)
+                    if self.policy.functions.iter().any(|f| f.span == def.span) =>
+                {
+                    Use::Pure(
+                        def.name.inner.clone(),
+                        def.parameters
+                            .iter()
+                            .map(|p| p.name.inner.clone())
+                            .collect(),
+                    )
+                }
+                StatementContext::PureFunction(_) => Use::Nothing,
+                StatementContext::Action(_) => Use::Nothing,
+            };
+            if let Some(obligations) = self.obligations.as_mut() {
+                match usage {
+                    Use::Analyze { empty_db, command } => {
+                        let warnings = obligations.analyze_block(&stmts, empty_db, command);
+                        self.obligation_warnings.extend(warnings);
+                    }
+                    Use::Finish(span) => {
+                        if let Some(def) =
+                            self.policy.finish_functions.iter().find(|f| f.span == span)
+                        {
+                            obligations.record_finish_function(
+                                def.name.inner.clone(),
+                                def.parameters
+                                    .iter()
+                                    .map(|p| p.name.inner.clone())
+                                    .collect(),
+                                stmts.clone(),
+                            );
+                        }
+                    }
+                    Use::Pure(name, params) => {
+                        obligations.record_pure_function(name, params, stmts.clone());
+                    }
+                    Use::Nothing => {}
+                }
+            }
+        }
         self.compile_typed_statements(stmts, scope)
     }
 
@@ -2371,6 +2441,16 @@ struct Config<'a> {
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
+    /// Run the obligation analysis on command policy/recall blocks. Only
+    /// [`Compiler::compile_with_diagnostics`] sets this, since only it
+    /// returns the warnings.
+    analyze_obligations: bool,
+    /// The most exits the obligation analysis records for one pure
+    /// function before treating calls to it as unknown
+    max_exit_paths: usize,
+    /// The most distinct paths the obligation analysis keeps at one point
+    /// before joining them
+    max_paths: usize,
 }
 
 static DEFAULT_FLAVORS: Flavors<'static> = Flavors {
@@ -2392,6 +2472,9 @@ impl Config<'_> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
+            analyze_obligations: false,
+            max_exit_paths: obligation::DEFAULT_MAX_EXIT_PATHS,
+            max_paths: obligation::DEFAULT_MAX_PATHS,
         }
     }
 }
@@ -2438,11 +2521,46 @@ impl<'a> Compiler<'a> {
         self
     }
 
-    /// Consumes the builder to create a [`Module`]
+    /// Sets the most exits the obligation analysis records for one pure
+    /// function. Calls to a function with more exits are treated as
+    /// unknown. The default is [`obligation::DEFAULT_MAX_EXIT_PATHS`].
+    #[must_use]
+    pub fn max_exit_paths(mut self, max: usize) -> Self {
+        self.config.max_exit_paths = max;
+        self
+    }
+
+    /// Sets the most distinct paths the obligation analysis keeps at one
+    /// point of a block. Past it, the paths are joined into one, which
+    /// keeps only what all of them know. The default is
+    /// [`obligation::DEFAULT_MAX_PATHS`].
+    #[must_use]
+    pub fn max_paths(mut self, max: usize) -> Self {
+        self.config.max_paths = max;
+        self
+    }
+
+    /// Consumes the builder to create a [`Module`]. This doesn't run the
+    /// obligation analysis; [`Compiler::compile_with_diagnostics`] does.
     pub fn compile(self) -> Result<Module, CompileError> {
         let mut cs = self.set_up_compile_state();
         cs.compile()?;
         Ok(cs.m.into_module())
+    }
+
+    /// Like [`Compiler::compile`], but also runs the obligation analysis
+    /// (see `docs/policy-obligation-analysis.md`) and returns its
+    /// warnings. The module is the same as [`Compiler::compile`]'s.
+    pub fn compile_with_diagnostics(
+        mut self,
+    ) -> Result<(Module, Vec<ObligationWarning>), CompileError> {
+        self.config.analyze_obligations = true;
+        let mut cs = self.set_up_compile_state();
+        cs.compile()?;
+        // A finish function reached from several commands produces the
+        // same warning from each, so deduplicate across all blocks.
+        let warnings = obligation::dedup_warnings(core::mem::take(&mut cs.obligation_warnings));
+        Ok((cs.m.into_module(), warnings))
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
@@ -2470,8 +2588,46 @@ impl<'a> Compiler<'a> {
             current_caller: None,
             config: self.config,
             ffi_modules: self.config.ffi_modules,
+            obligation_warnings: Vec::new(),
+            obligations: self.config.analyze_obligations.then(|| {
+                obligation::Analyzer::new(
+                    self.policy.text.clone(),
+                    self.policy
+                        .global_lets
+                        .iter()
+                        .map(|g| g.name.inner.clone())
+                        .collect(),
+                    self.policy
+                        .facts
+                        .iter()
+                        .map(|f| {
+                            let schema = obligation::FactSchema {
+                                keys: f
+                                    .keys
+                                    .iter()
+                                    .map(|k| (k.name.inner.clone(), k.vtype.clone()))
+                                    .collect(),
+                                values: f.values.len(),
+                            };
+                            (f.name.inner.clone(), schema)
+                        })
+                        .collect(),
+                    self.config.max_exit_paths,
+                    self.config.max_paths,
+                )
+            }),
         }
     }
+}
+
+/// Reports whether a command is marked `init: true`.
+///
+/// The runtime only accepts such a command as the root of the graph, so it
+/// always runs against an empty fact database.
+fn is_init_command(cmd: &ast::CommandDefinition) -> bool {
+    cmd.attributes
+        .iter()
+        .any(|(name, value)| name.as_str() == "init" && matches!(value.inner, ExprKind::Bool(true)))
 }
 
 /// Checks whether a vector has duplicate values, and returns the pair of the first and second ones, if found.
