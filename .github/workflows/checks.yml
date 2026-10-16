@@ -230,12 +230,11 @@ jobs:
         runner:
           - ubuntu-latest
           - ubuntu2404-arm64-4core
+        chunk: [1, 2, 3, 4]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
-
-      - name: Setup Environment
-        uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup
 
       - name: Install cargo-all-features
         uses: aranya-project/install-action@main
@@ -243,10 +242,32 @@ jobs:
           tool: cargo-all-features@1.12.0
 
       - name: Unit Tests
-        run: cargo make unit-tests
+        run: cargo make unit-tests --n-chunks 4 --chunk "${{ matrix.chunk }}"
+
+  core-example:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
 
       - name: Run aranya-core example
         run: cargo make run-aranya-core-example
+
+  test-benchmarks:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
 
       - name: Test benchmarks (not valid measurements)
         run: cargo make test-benchmarks
@@ -275,6 +296,8 @@ jobs:
       - security-checks
       # ==== Tests ====
       - unit-tests
+      - core-example
+      - test-benchmarks
 
     steps:
       - run: |
