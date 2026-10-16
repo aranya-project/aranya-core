@@ -49,7 +49,8 @@ jobs:
           tool: cargo-all-features@1.12.0
 
       - name: Unit Tests
-        run: cargo make unit-tests --n-chunks 4 --chunk "${{ matrix.chunk }}"
+        # check that a failure propagates to tests-pass job
+        run: 'false'
 
   core-example:
     strategy:
