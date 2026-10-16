@@ -67,3 +67,5 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-embedded
     if: ${{ needs.build-embedded.outputs.outcome == 'success' }}
+    steps:
+      - run: echo 'Embedded build succeeded!'
