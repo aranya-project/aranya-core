@@ -84,12 +84,14 @@ jobs:
       - name: Test benchmarks (not valid measurements)
         run: cargo make test-benchmarks
 
-  tests-pass:
-    runs-on: ubuntu-latest
+  tests-fail-alert:
+    if: ${{ cancelled() || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'failure') }}
     needs:
       - unit-tests
       - core-example
       - test-benchmarks
+    runs-on: ubuntu-latest
     steps:
-      - name: Tests passed
-        run: echo 'Tests passed'
+      - run: |
+          echo "Some workflows have failed!"
+          exit 1
