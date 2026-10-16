@@ -1,0 +1,282 @@
+name: "PR Checks"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  REV: ${{ github.run_id }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
+  cancel-in-progress: true
+
+
+jobs:
+  # ==== Build =====
+
+  build-release:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Build code
+        run: cargo make build-code
+
+      - name: Verify build didn't change any checked-in files
+        run: cargo make git-unchanged
+
+
+  # ==== Correctness =====
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Install taplo-cli
+        run: |
+          curl -L https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz \
+            | gunzip > ~/.cargo/bin/taplo-cli
+
+      - name: Check formatting
+        run: cargo make check-fmt
+
+  canaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Check canaries (no-std/no-alloc)
+        run: cargo make check-canaries
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Run clippy
+        run: cargo make clippy
+
+  machete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Install cargo-machete
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-machete@0.9.1
+
+      - name: Check dependency usage
+        run: cargo make machete
+
+  check:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Install cargo-all-features
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-all-features@1.12.0
+
+      - name: Check Features
+        run: cargo make check-features
+
+
+  # ==== Coverage ====
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Install cargo-llvm-cov
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-llvm-cov@0.6.20
+
+      - name: Branch coverage
+        run: cargo make coverage
+
+      - name: Coverage summary
+        run: |
+          for bucket in capi tools compiler core-prod; do
+            echo "### Branch coverage: ${bucket}"
+            echo '```'
+            cat "target/llvm-cov/${bucket}/coverage.txt"
+            echo '```'
+          done >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload C API coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-capi
+          path: target/llvm-cov/capi
+          if-no-files-found: error
+
+      - name: Upload tools coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-tools
+          path: target/llvm-cov/tools
+          if-no-files-found: error
+
+      - name: Upload policy compiler coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-compiler
+          path: target/llvm-cov/compiler
+          if-no-files-found: error
+
+      - name: Upload core production coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-core-prod
+          path: target/llvm-cov/core-prod
+          if-no-files-found: error
+
+
+  # ==== Docs ====
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Install cargo-docs-rs
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-docs-rs@1.0.4
+
+      - name: Generate docs
+        run: |
+          cargo make gen-docs
+          cd target/x86_64-unknown-linux-gnu/
+          zip -qr ../../docs.zip doc
+
+      - name: Publish docs
+        uses: actions/upload-artifact@v7
+        with:
+          path: docs.zip
+          archive: false
+          if-no-files-found: error
+
+
+  # ==== Security ====
+
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      - name: Install cargo-audit
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-audit@0.22.0
+
+      - name: Install cargo-deny
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-deny@0.18.9
+
+      - name: Install cargo-vet
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-vet@0.10.2
+
+      - name: Run cargo security checks
+        run: cargo make security
+
+
+  # ==== Tests ====
+
+  unit-tests:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup
+
+      - name: Install cargo-all-features
+        uses: aranya-project/install-action@main
+        with:
+          tool: cargo-all-features@1.12.0
+
+      - name: Unit Tests
+        run: cargo make unit-tests
+
+      - name: Run aranya-core example
+        run: cargo make run-aranya-core-example
+
+      - name: Test benchmarks (not valid measurements)
+        run: cargo make test-benchmarks
+
+
+  # ==== Failure alert ====
+
+  failure-alert:
+    if: ${{ cancelled() || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+
+    needs:
+      # ==== Build ====
+      - build-release
+      # ==== Correctness ====
+      - fmt
+      - canaries
+      - clippy
+      - machete
+      - check
+      # ==== Coverage ====
+      - coverage
+      # ==== Docs ====
+      - doc
+      # ==== Security ====
+      - security-checks
+      # ==== Tests ====
+      - unit-tests
+
+    steps:
+      - run: |
+          echo "Some workflows have failed!"
+          exit 1
