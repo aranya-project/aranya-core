@@ -25,18 +25,22 @@ struct Args {
     stub_ffi: bool,
     /// Run the obligation analysis and print warnings (e.g. a `create`
     /// without a prior proof that the fact does not exist)
+    #[cfg(feature = "experimental")]
     #[arg(long)]
     check_obligations: bool,
     /// Fail, without writing the output file, if the obligation analysis
     /// reports any warnings
+    #[cfg(feature = "experimental")]
     #[arg(long, requires = "check_obligations")]
     deny_warnings: bool,
     /// The most exit paths the obligation analysis records for one pure
     /// function before treating calls to it as unknown
+    #[cfg(feature = "experimental")]
     #[arg(long, default_value_t = aranya_policy_compiler::obligation::DEFAULT_MAX_EXIT_PATHS)]
     max_exit_paths: usize,
     /// The most distinct paths the obligation analysis keeps at one point
     /// of a block before joining them into one
+    #[cfg(feature = "experimental")]
     #[arg(long, default_value_t = aranya_policy_compiler::obligation::DEFAULT_MAX_PATHS)]
     max_paths: usize,
 }
@@ -62,32 +66,48 @@ pub fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let compiler = Compiler::new(&ast)
-        .stub_ffi(args.stub_ffi)
-        .max_exit_paths(args.max_exit_paths)
-        .max_paths(args.max_paths);
-    let compiled = if args.check_obligations {
-        compiler.compile_with_diagnostics()
-    } else {
-        compiler.compile().map(|module| (module, Vec::new()))
-    };
-    let (module, warnings) = match compiled {
-        Ok(m) => m,
-        Err(e) => {
-            println!("{e}");
-            return ExitCode::FAILURE;
+    #[cfg(not(feature = "experimental"))]
+    let module = {
+        let compiler = Compiler::new(&ast).stub_ffi(args.stub_ffi);
+        match compiler.compile() {
+            Ok(m) => m,
+            Err(e) => {
+                println!("{e}");
+                return ExitCode::FAILURE;
+            }
         }
     };
-    for warning in &warnings {
-        eprintln!("{}", warning.render(&ast.text));
-    }
+    #[cfg(feature = "experimental")]
+    let module = {
+        let compiler = Compiler::new(&ast)
+            .stub_ffi(args.stub_ffi)
+            .max_exit_paths(args.max_exit_paths)
+            .max_paths(args.max_paths);
+        let compiled = if args.check_obligations {
+            compiler.compile_with_diagnostics()
+        } else {
+            compiler.compile().map(|module| (module, Vec::new()))
+        };
+        let (module, warnings) = match compiled {
+            Ok(m) => m,
+            Err(e) => {
+                println!("{e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        for warning in &warnings {
+            eprintln!("{}", warning.render(&ast.text));
+        }
 
-    if args.deny_warnings && !warnings.is_empty() {
-        let n = warnings.len();
-        let s = if n == 1 { "" } else { "s" };
-        eprintln!("error: aborting due to {n} obligation warning{s} (--deny-warnings)");
-        return ExitCode::FAILURE;
-    }
+        if args.deny_warnings && !warnings.is_empty() {
+            let n = warnings.len();
+            let s = if n == 1 { "" } else { "s" };
+            eprintln!("error: aborting due to {n} obligation warning{s} (--deny-warnings)");
+            return ExitCode::FAILURE;
+        }
+
+        module
+    };
 
     if !args.no_validate && !validate(&module) {
         return ExitCode::FAILURE;
