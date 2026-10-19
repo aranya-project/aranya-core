@@ -477,3 +477,137 @@ fn test_validate_action_return_or_publish() {
         assert!(validate(&m), "Expected case to be invalid: {}", p);
     }
 }
+
+#[test]
+fn test_validate_action_returns_err_indirectly() {
+    let concat = |text| {
+        let base = r#"
+            function fail() result[unit, string] {
+                return Err("nope")
+            }
+
+            function may_fail(x int) result[int, string] {
+                if x < 0 {
+                    return Err("negative")
+                }
+                return Ok(x)
+            }
+
+            command Foo {
+                fields {
+                    a int
+                }
+                policy {
+                    finish {}
+                }
+                recall default() {
+                    finish {}
+                }
+            }
+        "#;
+        format!("{base}{text}")
+    };
+
+    // Each of these returns an `Err` on every path that does not publish, so
+    // each should be valid.
+    let valid = [
+        // Baseline: a literal `Err` is recognized.
+        (
+            "literal",
+            concat(
+                r#"
+            action literal() result[unit, string] {
+                return Err("nope")
+            }
+        "#,
+            ),
+        ),
+        // `?` returns the `Err` before publishing.
+        (
+            "try_op",
+            concat(
+                r#"
+            action try_op(n int) result[unit, string] {
+                let x = may_fail(n)?
+                publish Foo { a: x }
+                return Ok(Unit)
+            }
+        "#,
+            ),
+        ),
+        // Return a variable holding an `Err`.
+        (
+            "var",
+            concat(
+                r#"
+            action var() result[unit, string] {
+                let e = Err("nope")
+                return e
+            }
+        "#,
+            ),
+        ),
+        // Return the `Err` from a function.
+        (
+            "func",
+            concat(
+                r#"
+            action func() result[unit, string] {
+                return fail()
+            }
+        "#,
+            ),
+        ),
+        // Return a match expression which evaluates to `Err`.
+        (
+            "match_expr",
+            concat(
+                r#"
+            action match_expr(n int) result[unit, string] {
+                return match n {
+                    0 => Err("zero")
+                    _ => Err("nonzero")
+                }
+            }
+        "#,
+            ),
+        ),
+        // Return a block expression which evaluates to `Err`.
+        (
+            "block_expr",
+            concat(
+                r#"
+            action block_expr() result[unit, string] {
+                return {
+                    let msg = "nope"
+                    : Err(msg)
+                }
+            }
+        "#,
+            ),
+        ),
+        // Return a coalesce which evaluates to `Err`.
+        (
+            "coalesce",
+            concat(
+                r#"
+            action coalesce() result[unit, string] {
+                return None or Err("nope")
+            }
+        "#,
+            ),
+        ),
+    ];
+
+    let mut failures = Vec::new();
+    for (name, p) in valid {
+        let m = compile_pass(&p);
+        if validate(&m) {
+            failures.push(name);
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "Expected cases to be valid: {failures:?}"
+    );
+}
