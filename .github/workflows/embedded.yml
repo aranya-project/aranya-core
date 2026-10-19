@@ -1,4 +1,4 @@
-name: "Verify aranya-embedded repo builds"
+name: Check aranya-embedded
 
 on:
   push:
@@ -25,12 +25,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-embedded:
-    strategy:
-      matrix:
-        runner:
-          - ubuntu-latest
-    runs-on: ${{ matrix.runner }}
+  # This job will pass even when the build step fails.
+  embedded-build:
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v7
 
@@ -54,8 +53,19 @@ jobs:
             mkdir -p $GITHUB_WORKSPACE/aranya-embedded/.cargo
             echo "paths = [\"$GITHUB_WORKSPACE\"]" > $GITHUB_WORKSPACE/aranya-embedded/.cargo/config.toml
 
-      - name: Build chat-app crate in aranya-embedded repo
+      - id: build
+        name: Build chat-app crate in aranya-embedded repo
+        continue-on-error: true
         run: |
             . /home/runner/export-esp.sh
             cd aranya-embedded/crates/chat-app
             cargo check
+
+  # This job will succeeed if embedded check succeeded or will be skipped if it failed.
+  # This lets us see that status without getting a big red X that hides actual important failures.
+  embedded-skipped-if-failed:
+    runs-on: ubuntu-latest
+    needs: embedded-build
+    if: ${{ needs.embedded-build.outputs.outcome == 'success' }}
+    steps:
+      - run: echo 'Embedded build succeeded!'
