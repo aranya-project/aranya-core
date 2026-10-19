@@ -14,27 +14,27 @@ Policy {
     base_commands: [],
     functions: [
         FunctionDefinition {
-            identifier: "foo" @ 9..12,
-            arguments: [
+            name: "foo" @ 9..12,
+            parameters: [
                 Param {
                     name: "x" @ 13..14,
-                    ty: Bytes @ 15..20,
+                    vtype: Bytes @ 16..21,
                 },
             ],
-            return_type: Bytes @ 22..27,
-            statements: [
+            return_type: Bytes @ 23..28,
+            body: [
                 Return(
                     ReturnStatement {
-                        expression: Identifier(
-                            "x" @ 41..42,
-                        ) @ 41..42,
+                        value: Identifier(
+                            "x" @ 42..43,
+                        ) @ 42..43,
                     },
-                ) @ 34..43,
+                ) @ 35..44,
             ],
-            span: 0..44,
+            span: 0..45,
         },
     ],
     finish_functions: [],
     global_lets: [],
-    text: "function foo(x bytes) bytes {\n    return x\n}\n",
+    text: "function foo(x: bytes) bytes {\n    return x\n}\n",
 }

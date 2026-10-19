@@ -4,7 +4,7 @@ expression: error
 ---
 error: the name `a` is defined multiple times
   |
-3 |         a int,
+3 |         a: int,
   |         - previous defintion here
-4 |         a string
+4 |         a: string
   |         ^ re-defined here

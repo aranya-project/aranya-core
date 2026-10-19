@@ -1,8 +1,8 @@
 struct Envelope {
-    payload bytes
+    payload: bytes
 }
 
-fact Owner[] => {device_id id}
+fact Owner[] => {device_id: id}
 
 command AddThing {
     fields {}

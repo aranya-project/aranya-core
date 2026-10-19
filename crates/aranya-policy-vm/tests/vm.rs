@@ -47,9 +47,9 @@ fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     })
 }
 
-fn dummy_envelope() -> Struct {
+fn null_envelope() -> Struct {
     Struct {
-        name: ident!("Envelope"),
+        name: ident!("NullEnvelope"),
         fields: BTreeMap::new(),
     }
 }
@@ -72,13 +72,13 @@ fn test_bytes() -> anyhow::Result<()> {
     let text = r#"
         command Foo {
             fields {
-                id_field id,
-                x bytes,
+                id_field: id,
+                x: bytes,
             }
             policy {}
         }
 
-        action foo(id_input id, x bytes) {
+        action foo(id_input: id, x: bytes) {
             publish Foo{id_field: id_input, x}
         }
     "#;
@@ -115,18 +115,18 @@ fn test_bytes() -> anyhow::Result<()> {
 fn test_structs() -> anyhow::Result<()> {
     let text = r#"
         struct Bar {
-            x int
+            x: int
         }
 
         command Foo {
             fields {
-                id_field id,
-                bar struct Bar,
+                id_field: id,
+                bar: struct Bar,
             }
             policy {}
         }
 
-        action foo(id_input id, x int) {
+        action foo(id_input: id, x: int) {
             publish Foo{
                 id_field: id_input,
                 bar: Bar { x },
@@ -144,7 +144,7 @@ fn test_structs() -> anyhow::Result<()> {
             name: ident!("Bar"),
             items: vec![Field {
                 name: ident!("x"),
-                ty: aranya_policy_module::TypeKind::Int,
+                vtype: aranya_policy_module::TypeKind::Int,
             }]
         })
     );
@@ -299,7 +299,7 @@ fn test_command_policy() -> anyhow::Result<()> {
             .collect(),
     };
     machine
-        .call_command_policy(this_data, dummy_envelope(), &mut io, ctx)
+        .call_command_policy(this_data, null_envelope(), &mut io, ctx)
         .expect("Could not call command policy")
         .success();
 
@@ -323,7 +323,7 @@ fn test_command_invalid_this() {
             fields: vec![(ident!("b"), Value::Int(4))].into_iter().collect(),
         };
         let err = machine
-            .call_command_policy(this_data, dummy_envelope(), &mut io, ctx.clone())
+            .call_command_policy(this_data, null_envelope(), &mut io, ctx.clone())
             .unwrap_err()
             .err_type;
         assert_eq!(
@@ -344,7 +344,7 @@ fn test_command_invalid_this() {
                 .collect(),
         };
         let err = machine
-            .call_command_policy(this_data, dummy_envelope(), &mut io, ctx.clone())
+            .call_command_policy(this_data, null_envelope(), &mut io, ctx.clone())
             .unwrap_err()
             .err_type;
         assert_eq!(err, MachineErrorType::InvalidStructMember(ident!("aaa")));
@@ -363,7 +363,7 @@ fn test_command_invalid_this() {
             .collect(),
         };
         let err = machine
-            .call_command_policy(this_data, dummy_envelope(), &mut io, ctx)
+            .call_command_policy(this_data, null_envelope(), &mut io, ctx)
             .unwrap_err()
             .err_type;
         assert_eq!(
@@ -387,7 +387,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, [(KVPair::new_int(ident!("a"), 3))]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -400,7 +400,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, &[]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -419,14 +419,14 @@ fn test_fact_query() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, [KVPair::new_int(ident!("a"), 3)]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
 
         let name = ident!("Increment");
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, &[]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -448,13 +448,13 @@ fn test_invalid_update() -> anyhow::Result<()> {
             let ctx = dummy_ctx_policy(name.clone());
             let self_struct = Struct::new(name, [KVPair::new_int(ident!("a"), initial_value)]);
             machine
-                .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+                .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
                 .success();
 
             let name = ident!("Increment");
             let ctx = dummy_ctx_policy(name.clone());
             let self_struct = Struct::new(name, &[]);
-            machine.call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            machine.call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
         };
 
         let fk = (ident!("Foo"), vec![]);
@@ -482,8 +482,8 @@ fn test_fact_exists() -> anyhow::Result<()> {
         False
     }
 
-    fact Foo[] => {x int}
-    fact Bar[i int] => {s string, b enum Bool}
+    fact Foo[] => {x: int}
+    fact Bar[i: int] => {s: string, b: enum Bool}
 
     command setup {
         fields {}
@@ -520,7 +520,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -537,7 +537,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
 #[test]
 fn test_counting() -> anyhow::Result<()> {
     let text = r#"
-        fact Foo[i int]=>{}
+        fact Foo[i: int]=>{}
 
         command Setup {
             policy {
@@ -599,7 +599,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -609,7 +609,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -619,7 +619,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -629,7 +629,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -639,7 +639,7 @@ fn test_counting() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -649,14 +649,14 @@ fn test_counting() -> anyhow::Result<()> {
 #[test]
 fn test_fact_function_return() -> anyhow::Result<()> {
     let text = r#"
-        fact Foo[a int]=>{b int}
+        fact Foo[a: int]=>{b: int}
 
         effect Result {
-            x struct Foo
+            x: struct Foo
         }
 
         // This tests the implicitly defined struct as a return type
-        function get_foo(a int) struct Foo {
+        function get_foo(a: int) struct Foo {
             let foo = query Foo[a]=>{b: ?} or test_fail()
 
             return foo
@@ -665,8 +665,8 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         // Set creates the fact
         command Set {
             fields {
-                a int,
-                x int,
+                a: int,
+                x: int,
             }
 
 
@@ -680,7 +680,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         // Emit emmits the fact query from the function
         command Emit {
             fields {
-                a int
+                a: int
             }
 
 
@@ -710,7 +710,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 KVPair::new(ident!("x"), Value::Int(2)),
             ],
         );
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -720,7 +720,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(cmd_name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(cmd_name, [KVPair::new(ident!("a"), a)]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
 
@@ -749,7 +749,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 #[test]
 fn test_query_partial_key() -> anyhow::Result<()> {
     let text = r#"
-        fact Foo[i int, j int]=>{x int, s string}
+        fact Foo[i: int, j: int]=>{x: int, s: string}
 
         command Setup {
             fields {}
@@ -800,7 +800,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
     }
 
@@ -827,7 +827,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 fn test_query_enum_keys() -> anyhow::Result<()> {
     let text = r#"
         enum Foo { A, B }
-        fact Bar[i enum Foo] => {x enum Foo}
+        fact Bar[i: enum Foo] => {x: enum Foo}
 
         command Setup {
             fields {}
@@ -857,7 +857,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 
         let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
     }
 
@@ -895,7 +895,7 @@ fn test_not_operator() -> anyhow::Result<()> {
 #[test]
 fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
-        action foo(x bool) {
+        action foo(x: bool) {
             if x == true {
                 check false else test_fail()
             }
@@ -924,12 +924,12 @@ fn test_if_branches() -> anyhow::Result<()> {
     let text = r#"
         command Result {
             fields {
-                s string
+                s: string
             }
             policy {}
         }
 
-        action foo(x int) {
+        action foo(x: int) {
             if x == 0 {
                 check true else test_fail()
                 publish Result { s: "0" }
@@ -1020,12 +1020,12 @@ fn test_match_alternation() -> anyhow::Result<()> {
     let policy_str = r#"
         command Result {
             fields {
-                x int
+                x: int
             }
             policy {}
         }
 
-        action foo(x int) {
+        action foo(x: int) {
             match x {
                 0 | 1 => {
                     check false else test_fail()
@@ -1055,12 +1055,12 @@ fn test_match_default() -> anyhow::Result<()> {
     let policy_str = r#"
         command Result {
             fields {
-                x int
+                x: int
             }
             policy {}
         }
 
-        action foo(x int) {
+        action foo(x: int) {
             match x {
                 5 => {
                     publish Result { x }
@@ -1088,7 +1088,7 @@ fn test_match_default() -> anyhow::Result<()> {
 #[test]
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
-        action foo(val int) {
+        action foo(val: int) {
             check val == bar() else test_fail()
         }
 
@@ -1114,10 +1114,10 @@ fn test_match_return() -> anyhow::Result<()> {
 fn test_match_expression() -> anyhow::Result<()> {
     let text = r#"
         command F {
-            fields { x int }
+            fields { x: int }
             policy {}
         }
-        action foo(x int) {
+        action foo(x: int) {
             let y = match x {
                 0 => { :1 }
                 _ => { :0 }
@@ -1144,10 +1144,10 @@ fn test_match_expression() -> anyhow::Result<()> {
 fn test_match_optional_binding() -> anyhow::Result<()> {
     let text = r#"
         command F {
-            fields { x int }
+            fields { x: int }
             policy {}
         }
-        action foo(o option[int]) {
+        action foo(o: option[int]) {
             let y = match o {
                 Some(n) => n
                 None => 0
@@ -1214,7 +1214,7 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 #[test]
 fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
-    action foo(x bool, y bool) {
+    action foo(x: bool, y: bool) {
         if x {
             check x else test_fail()
         }
@@ -1239,16 +1239,16 @@ fn test_pure_function() -> anyhow::Result<()> {
     let text = r#"
         command Result {
             fields {
-                x int
+                x: int
             }
             policy {}
         }
 
-        function f(x int) int {
+        function f(x: int) int {
             return add(x, 1) or test_fail()
         }
 
-        action foo(x int) {
+        action foo(x: int) {
             publish Result { x: f(x) }
         }
     "#;
@@ -1273,16 +1273,16 @@ fn test_pure_function() -> anyhow::Result<()> {
 fn test_finish_function() -> anyhow::Result<()> {
     let text = r#"
         effect Result {
-            x int
+            x: int
         }
 
-        finish function f(x int) {
+        finish function f(x: int) {
             emit Result { x }
         }
 
         command Foo {
             fields {
-                x int,
+                x: int,
             }
 
 
@@ -1302,7 +1302,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let self_struct = Struct::new(name, [KVPair::new(ident!("x"), Value::Int(3))]);
         machine
-            .call_command_policy(self_struct, dummy_envelope(), &mut io, ctx)?
+            .call_command_policy(self_struct, null_envelope(), &mut io, ctx)?
             .success();
     }
 
@@ -1348,7 +1348,7 @@ fn test_check_errors() -> anyhow::Result<()> {
             name: name.clone(),
             fields: BTreeMap::new(),
         };
-        let result = rs.call_command_policy(self_struct, dummy_envelope())?;
+        let result = rs.call_command_policy(self_struct, null_envelope())?;
 
         assert_eq!(result, ExitReason::Check);
     }
@@ -1358,7 +1358,7 @@ fn test_check_errors() -> anyhow::Result<()> {
 #[test]
 fn test_coalesce_or() -> anyhow::Result<()> {
     let text = r#"
-        fact Foo[i int]=>{x int}
+        fact Foo[i: int]=>{x: int}
 
         command Setup {
             fields {}
@@ -1402,7 +1402,7 @@ fn test_coalesce_or() -> anyhow::Result<()> {
         };
         let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, ctx);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
     }
 
@@ -1480,16 +1480,14 @@ fn test_nested_optionals() -> anyhow::Result<()> {
 
 #[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
-    let text = r#"
-        struct Envelope {
-            payload bytes
-        }
+    use aranya_policy_module::{arg, flavor};
 
+    let text = r#"
         effect Recalled {}
 
         command Foo {
             fields {
-                test bytes
+                test: bytes
             }
 
             policy {
@@ -1505,12 +1503,29 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         }
     "#;
 
-    let mut io = TestIO::new();
-    let machine = compile(text);
+    let flavors = flavor::Flavors {
+        default: flavor::Flavor {
+            envelope: flavor::Struct {
+                name: ident!("CustomEnvelope"),
+                fields: &[arg!("payload", Bytes)],
+            },
+        },
+        flavors: &[],
+    };
+
+    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let module = Compiler::new(&policy)
+        .flavors(&flavors)
+        .allow_baseless(true)
+        .compile()
+        .unwrap();
+    let machine = Machine::from_module(module).unwrap();
+
     let test_data = "thing".as_bytes().to_vec();
 
     let name = ident!("Foo");
     let ctx = dummy_ctx_policy(name);
+    let mut io = TestIO::new();
     let mut rs = machine.create_run_state(&mut io, ctx);
     let result = rs.call_command_policy(
         Struct::new(
@@ -1518,7 +1533,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             [KVPair::new(ident!("test"), test_data.clone().into())],
         ),
         Struct::new(
-            ident!("Envelope"),
+            ident!("CustomEnvelope"),
             [KVPair::new(ident!("payload"), test_data.into())],
         ),
     )?;
@@ -1607,13 +1622,13 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         let z = true
 
         struct Far {
-            a int,
+            a: int,
         }
 
         struct Bar {
-            a struct Far,
-            b string,
-            c bool,
+            a: struct Far,
+            b: string,
+            c: bool,
         }
 
         let d = Bar {
@@ -1626,10 +1641,10 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 
         command Result {
             fields {
-                a int,
-                b string,
-                c bool,
-                d struct Bar,
+                a: int,
+                b: string,
+                c: bool,
+                d: struct Bar,
             }
             policy {}
         }
@@ -1678,7 +1693,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
     call_action(&mut rs, &mut published, name, iter::empty::<Value>())?.success();
     drop(rs);
 
-    // Check if the published struct is correct
+    // Check if the published: struct is correct
     assert_eq!(
         published,
         [vm_struct!(Result {
@@ -1701,7 +1716,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
     let text = r#"
         command Sip {
             fields {
-                a string
+                a: string
             }
             policy {}
         }
@@ -1710,7 +1725,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
             Water, Coffee
         }
 
-        action test(type enum Drink) {
+        action test(type: enum Drink) {
             match type {
                 Drink::Water => {
                     publish Sip { a: "bleh" }
@@ -1807,15 +1822,15 @@ fn test_enum_parse() -> anyhow::Result<()> {
 fn test_module_round_trip() {
     let policy = parse_policy_str(
         r#"
-fact Foo[]=>{x int}
+fact Foo[]=>{x: int}
 
 effect Update {
-value int
+value: int
 }
 
 command Set {
 fields {
-    a int,
+    a: int,
 }
 policy {
     let x = this.a
@@ -1871,9 +1886,9 @@ policy {
 #[test]
 fn test_map() -> anyhow::Result<()> {
     let text = r#"
-        fact F[i int]=>{n int}
+        fact F[i: int]=>{n: int}
         effect Result {
-            value int
+            value: int
         }
 
         command Setup {
@@ -1888,7 +1903,7 @@ fn test_map() -> anyhow::Result<()> {
 
         command Process {
             fields {
-                value int
+                value: int
             }
             policy {
                 finish {
@@ -1930,7 +1945,7 @@ fn test_map() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct::new(name, &[]);
-        rs.call_command_policy(self_struct, dummy_envelope())?
+        rs.call_command_policy(self_struct, null_envelope())?
             .success();
     }
     {
@@ -1960,15 +1975,15 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
     let text = r#"
         command TypeValidation {
             fields {
-                maybe_int option[int],
-                name string,
+                maybe_int: option[int],
+                name: string,
             }
             policy {
                 finish {}
             }
         }
 
-        action type_validation(maybe_int_input option[int], name_input string) {
+        action type_validation(maybe_int_input: option[int], name_input: string) {
             publish TypeValidation{maybe_int: maybe_int_input, name: name_input}
         }
     "#;
@@ -2029,7 +2044,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             let mut rs = machine.create_run_state(&mut io, ctx);
 
             assert_eq!(
-                rs.call_command_policy(Struct::new(name.clone(), args), dummy_envelope())
+                rs.call_command_policy(Struct::new(name.clone(), args), null_envelope())
                     .map_err(|e| e.err_type),
                 expected
             );
@@ -2044,7 +2059,7 @@ fn test_block_expression() -> anyhow::Result<()> {
     let policy_text = r#"
         command TestCommand {
             fields {
-                x int
+                x: int
             }
 
 
@@ -2086,17 +2101,17 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
     let policy_str = r#"
         command Foo {
             fields {
-                x int,
-                y bool,
+                x: int,
+                y: bool,
             }
             policy {}
         }
         struct Bar {
-            x int,
-            y bool,
-            z string,
+            x: int,
+            y: bool,
+            z: string,
         }
-        action baz(source struct Bar) {
+        action baz(source: struct Bar) {
             publish source substruct Foo
         }
     "#;
@@ -2131,18 +2146,18 @@ fn test_struct_composition() -> anyhow::Result<()> {
     let policy_str = r#"
         command Foo {
             fields {
-                x int,
-                y bool,
-                z string,
+                x: int,
+                y: bool,
+                z: string,
             }
             policy {}
         }
         struct Bar {
-            x int,
-            y bool,
-            z string,
+            x: int,
+            y: bool,
+            z: string,
         }
-        action baz(source struct Bar, x int) {
+        action baz(source: struct Bar, x: int) {
             publish Foo { x, ...source }
         }
     "#;
@@ -2278,14 +2293,14 @@ fn test_comparison_operators() {
 #[test]
 fn test_struct_conversion() -> anyhow::Result<()> {
     let policy = r#"
-        struct Foo { y string, x int }
+        struct Foo { y: string, x: int }
 
         command Bar {
-            fields { x int, y string }
+            fields { x: int, y: string }
             policy {}
         }
 
-        function new_foo(x int, y string) struct Foo {
+        function new_foo(x: int, y: string) struct Foo {
             return Foo { y, x }
         }
 
@@ -2391,7 +2406,7 @@ fn test_return_expression() -> anyhow::Result<()> {
             )
         }
 
-        function baz(x int, y int, z int) int {
+        function baz(x: int, y: int, z: int) int {
             return x
         }
     "#;
@@ -2423,7 +2438,7 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
             )
         }
 
-        function baz(x int, y int, z int) int {
+        function baz(x: int, y: int, z: int) int {
             return x
         }
     "#;
@@ -2448,12 +2463,12 @@ fn test_result() -> anyhow::Result<()> {
         }
 
         effect Result {
-            r result[int, enum Error]
+            r: result[int, enum Error]
         }
 
         command DoWork {
             fields {
-                succeed bool
+                succeed: bool
             }
             policy {
                 let e = match try(this.succeed) {
@@ -2466,15 +2481,11 @@ fn test_result() -> anyhow::Result<()> {
             }
         }
 
-        function try(succeed bool) result[int, enum Error] {
-            // error propagation is done explicilty, until we have `?` operator
-            return match try_return(succeed) {
-                Ok(n) => Ok(n)
-                _ => Err(Error::Fail)
-            }
+        function try(succeed: bool) result[int, enum Error] {
+            return Ok(try_return(succeed)?)
         }
 
-        function try_return(succeed bool) result[int, enum Error] {
+        function try_return(succeed: bool) result[int, enum Error] {
             let r = match succeed {
                 true => Ok(42)
                 false => return Err(Error::Fail) // early return from match
@@ -2492,7 +2503,7 @@ fn test_result() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(true))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[0],
@@ -2512,7 +2523,7 @@ fn test_result() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("succeed"), Value::Bool(false))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[1],
@@ -2533,12 +2544,12 @@ fn test_result() -> anyhow::Result<()> {
 fn test_match_patterns() -> anyhow::Result<()> {
     let text: &str = r#"
         effect Result {
-            n int
+            n: int
         }
 
         command DoMatch {
             fields {
-                n int
+                n: int
             }
             policy {
                 let r = Ok(this.n)
@@ -2564,7 +2575,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(5))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[0],
@@ -2581,7 +2592,7 @@ fn test_match_patterns() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(6))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[1],
@@ -2603,14 +2614,14 @@ fn test_unit() -> anyhow::Result<()> {
         }
 
         effect Yes {
-            n int,
+            n: int,
         }
 
         effect No {
-            err enum Error,
+            err: enum Error,
         }
 
-        function verify(n int) result[unit, enum Error] {
+        function verify(n: int) result[unit, enum Error] {
             return if n == 42 {
                 : Ok(Unit)
             } else {
@@ -2620,7 +2631,7 @@ fn test_unit() -> anyhow::Result<()> {
 
         command DoMatch {
             fields {
-                n int
+                n: int
             }
             policy {
                 match verify(this.n) {
@@ -2652,7 +2663,7 @@ fn test_unit() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(42))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[0],
@@ -2669,7 +2680,7 @@ fn test_unit() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, [KVPair::new(ident!("n"), Value::Int(99))]);
-        rs.call_command_policy(this_data, dummy_envelope())?
+        rs.call_command_policy(this_data, null_envelope())?
             .success();
         assert_eq!(
             io.effect_stack[1],
@@ -2687,19 +2698,19 @@ fn test_unit() -> anyhow::Result<()> {
 fn test_recall_with_args() -> anyhow::Result<()> {
     let text = r#"
         effect MyError {
-            x int,
-            y string
+            x: int,
+            y: string
         }
 
         command Foo {
             fields {
-                x int,
-                y string
+                x: int,
+                y: string
             }
             policy {
                 check false else recall test(1, "oops")
             }
-            recall test(a int, b string) {
+            recall test(a: int, b: string) {
                 finish {
                     emit MyError { x: a, y: b }
                 }
@@ -2718,7 +2729,7 @@ fn test_recall_with_args() -> anyhow::Result<()> {
             KVPair::new(ident!("y"), Value::from(text!("hello"))),
         ],
     );
-    let envelope = dummy_envelope();
+    let envelope = null_envelope();
 
     // Exec command
     let ctx = dummy_ctx_policy(name);

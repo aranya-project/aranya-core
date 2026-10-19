@@ -317,34 +317,6 @@ impl Display for ConstStruct {
     }
 }
 
-/// A [`Span`](ast::Span)-less version of [`ast::Persistence`]
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub enum Persistence {
-    /// Persisted on-graph (default behavior)
-    Persistent,
-    /// Not persisted on-graph (ephemeral)
-    Ephemeral,
-}
-
-impl From<ast::Persistence> for Persistence {
-    fn from(value: ast::Persistence) -> Self {
-        match value {
-            ast::Persistence::Persistent => Self::Persistent,
-            ast::Persistence::Ephemeral(_) => Self::Ephemeral,
-        }
-    }
-}
-
 /// A [`Span`](ast::Span)-less version of [`ast::Param`] and [`ast::FieldDefinition`], used for both
 /// function arguments and struct fields.
 #[derive(
@@ -362,14 +334,14 @@ pub struct Field {
     /// The name of the parameter.
     pub name: Identifier,
     /// The type of the parameter.
-    pub ty: TypeKind,
+    pub vtype: TypeKind,
 }
 
 impl From<ast::Param> for Field {
     fn from(value: ast::Param) -> Self {
         Self {
             name: value.name.inner,
-            ty: value.ty.inner.into(),
+            vtype: value.vtype.inner.into(),
         }
     }
 }
@@ -377,8 +349,8 @@ impl From<ast::Param> for Field {
 impl From<ast::FieldDefinition> for Field {
     fn from(value: ast::FieldDefinition) -> Self {
         Self {
-            name: value.identifier.inner,
-            ty: value.field_type.inner.into(),
+            name: value.name.inner,
+            vtype: value.vtype.inner.into(),
         }
     }
 }

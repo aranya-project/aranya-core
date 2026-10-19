@@ -1,2 +1,2 @@
-fact Foo[]=>{x int}
+fact Foo[]=>{x: int}
 let x = Foo

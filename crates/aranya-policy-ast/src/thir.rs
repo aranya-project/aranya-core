@@ -13,7 +13,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
 pub struct FactLiteral {
     /// the fact's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the fields of the fact key
     pub key_fields: Vec<(Ident, Expression)>,
     /// values for the fields of the fact value, which can be absent
@@ -28,23 +28,21 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionCall {
     /// the function's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
 }
 
-spanned! {
-    /// Call to a command's recall block.
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    pub struct RecallCall {
-        /// the command being recalled
-        pub command_name: Ident,
-        /// the name of the recall block
-        pub recall_name: Ident,
-        /// recall arguments
-        pub arguments: Vec<Expression>,
-    }
+/// Call to a command's recall block.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecallCall {
+    /// the command being recalled
+    pub command_name: Ident,
+    /// the name of the recall block
+    pub recall_name: Ident,
+    /// recall arguments
+    pub arguments: Vec<Expression>,
 }
 
 spanned! {
@@ -52,7 +50,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
-    pub identifier: Ident,
+    pub name: Ident,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
@@ -64,7 +62,7 @@ pub struct NamedStruct {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumReference {
     /// enum name
-    pub identifier: Ident,
+    pub enumeration: Ident,
     /// variant value
     pub value: i64,
 }
@@ -108,7 +106,7 @@ pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Ident,
     /// the function's name
-    pub identifier: Ident,
+    pub function: Ident,
     /// The module and procedure ID.
     ///
     /// This is `None` if `stub_ffi` is enabled.
@@ -201,6 +199,8 @@ pub enum ExprKind {
     Ok(Box<Expression>),
     /// Result Err variant
     Err(Box<Expression>),
+    /// Unwrap a `result[T, E]`, propagating `Err` to the caller.
+    Try(Box<Expression>),
 }
 
 spanned! {
@@ -208,9 +208,9 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LetStatement {
     /// The variable's name
-    pub identifier: Ident,
+    pub name: Ident,
     /// The variable's value
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 
@@ -219,7 +219,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckStatement {
     /// The boolean expression being checked
-    pub expression: Expression,
+    pub condition: Expression,
     /// Expression to evaluate if the check fails.
     pub else_expression: Expression,
 }
@@ -253,7 +253,7 @@ pub struct MatchArm {
     // exhaustive range checks.
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -264,7 +264,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchStatement {
     /// The value to match against
-    pub expression: Expression,
+    pub scrutinee: Expression,
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
 }
@@ -287,7 +287,7 @@ pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
     /// Expression
-    pub expression: Expression,
+    pub body: Expression,
     /// The source location of this match arm
     pub span: Span,
 }
@@ -318,7 +318,7 @@ pub struct MapStatement {
     /// Identifier of container struct
     pub identifier: Ident,
     /// Statements to execute for each fact
-    pub statements: Vec<Statement>,
+    pub body: Vec<Statement>,
 }
 }
 
@@ -358,7 +358,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReturnStatement {
     /// The value to return
-    pub expression: Expression,
+    pub value: Expression,
 }
 }
 

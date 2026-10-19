@@ -11,7 +11,7 @@ code to fix it.
 This tests that span(s) for the "patched" code snippets
 are within the proper bounds even when using multiple policy chunks.
 ```policy
-    function add(x int, y int) int {
+    function add(x: int, y: int) int {
         return x + y
     }
 ```

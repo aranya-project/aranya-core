@@ -1,4 +1,4 @@
-fact Pet[name string]=>{age int}
+fact Pet[name: string]=>{age: int}
 action pets() {
     check p == None else test_fail()
     map Pet[name:?] as p {}

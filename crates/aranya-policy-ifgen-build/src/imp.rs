@@ -1,9 +1,6 @@
-use std::{
-    collections::{HashMap, HashSet},
-    iter::once,
-};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use aranya_policy_ast::{FieldDefinition, Identifier, Persistence, TypeKind, VType};
+use aranya_policy_ast::{FieldDefinition, Identifier, TypeKind, VType};
 use aranya_policy_compiler::PolicyInterface;
 use aranya_policy_module::ConstValue;
 use proc_macro2::{Span, TokenStream};
@@ -32,8 +29,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
         .map(|(id, fields)| {
             let doc = format!(" {} policy struct.", id);
             let name = mk_ident(id);
-            let names = fields.iter().map(|f| mk_ident(&f.identifier.inner));
-            let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+            let names = fields.iter().map(|f| mk_ident(&f.name.inner));
+            let types = fields.iter().map(|f| vtype_to_rtype(&f.vtype));
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -67,8 +64,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
         let doc = format!(" {} policy effect.", s);
         let ident = mk_ident(s);
-        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier.inner));
-        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+        let field_idents = fields.iter().map(|f| mk_ident(&f.name.inner));
+        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.vtype));
         quote! {
             #[doc = #doc]
             #[effect]
@@ -90,78 +87,56 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
         }
     };
 
-    let persistent = syn::Ident::new("Persistent", Span::call_site());
-    let ephemeral = syn::Ident::new("Ephemeral", Span::call_site());
+    struct ActionsByFlavor {
+        interface: syn::Ident,
+        actions: Vec<syn::Ident>,
+    }
+    let mut flavors = BTreeMap::<&str, ActionsByFlavor>::new();
 
-    let (persistent, ephemeral, actions) = {
-        let mut persistent_actions = Vec::new();
-        let mut ephemeral_actions = Vec::new();
-        let structs = target
-            .action_defs
-            .iter()
-            .map(|def| {
-                match def.persistence {
-                    Persistence::Persistent => {
-                        persistent_actions.push(mk_ident(def.name.as_str()));
-                    }
-                    Persistence::Ephemeral(_) => {
-                        ephemeral_actions.push(mk_ident(def.name.as_str()));
-                    }
+    let action_structs = target
+        .action_defs
+        .iter()
+        .map(|def| {
+            let flavor = def.flavor.as_ref().map_or("persistent", |f| f.as_str());
+            let actions = flavors.entry(flavor).or_insert_with(|| ActionsByFlavor {
+                interface: mk_ident_pascal(flavor),
+                actions: Vec::new(),
+            });
+            actions.actions.push(mk_ident(def.name.as_str()));
+            let interface = &actions.interface;
+            let doc = format!(" {} policy action.", def.name);
+            let ident = mk_ident(def.name.as_str());
+            let argnames = def.params.iter().map(|arg| mk_ident(arg.name.as_str()));
+            let argtypes = def.params.iter().map(|arg| vtype_to_rtype(&arg.vtype));
+            quote! {
+                #[doc = #doc]
+                #[action(interface = #interface)]
+                pub struct #ident {
+                    #(pub #argnames: #argtypes),*
                 }
-                let interface = match def.persistence {
-                    Persistence::Persistent => &persistent,
-                    Persistence::Ephemeral(_) => &ephemeral,
-                };
-                let doc = format!(" {} policy action.", def.name);
-                let ident = mk_ident(def.name.as_str());
-                let argnames = def.params.iter().map(|arg| mk_ident(arg.name.as_str()));
-                let argtypes = def.params.iter().map(|arg| vtype_to_rtype(&arg.ty));
-                quote! {
-                    #[doc = #doc]
-                    #[action(interface = #interface)]
-                    pub struct #ident {
-                        #(pub #argnames: #argtypes),*
-                    }
-                }
-            })
-            .collect::<Vec<_>>();
+            }
+        })
+        .collect::<Vec<_>>();
 
-        let mut out = TokenStream::new();
+    let action_enums = flavors.values().map(|acts| {
+        let interface = &acts.interface;
+        let actions = &acts.actions;
+        let name = quote::format_ident!("{interface}Action");
+        quote! {
+            #[actions(interface = #interface)]
+            pub enum #name {
+                #( #actions(#actions) ),*
+            }
+        }
+    });
 
-        let pdef = if persistent_actions.is_empty() {
-            None
-        } else {
-            out.extend(once(quote! {
-                #[actions(interface = #persistent)]
-                pub enum PersistentAction {
-                    #( #persistent_actions(#persistent_actions) ),*
-                }
-            }));
-            Some(quote! {
-                #[derive(Debug)]
-                pub enum #persistent {}
-            })
-        };
-
-        let edef = if ephemeral_actions.is_empty() {
-            None
-        } else {
-            out.extend(once(quote! {
-                #[actions(interface = #ephemeral)]
-                pub enum EphemeralAction {
-                    #( #ephemeral_actions(#ephemeral_actions) ),*
-                }
-            }));
-            Some(quote! {
-                #[derive(Debug)]
-                pub enum #ephemeral {}
-            })
-        };
-
-        out.extend(structs);
-
-        (pdef, edef, out)
-    };
+    let action_interfaces = flavors.values().map(|acts| {
+        let interface = &acts.interface;
+        quote! {
+            #[derive(Debug)]
+            pub enum #interface {}
+        }
+    });
 
     let import_ifgen = ifgen.map(|path| {
         quote! { use #path as aranya_policy_ifgen; }
@@ -190,8 +165,7 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
 
         #(#constants)*
 
-        #persistent
-        #ephemeral
+        #(#action_interfaces)*
 
         #(#structs)*
         #(#enums)*
@@ -200,7 +174,8 @@ pub fn generate_code(target: &PolicyInterface, ifgen: Option<&syn::Path>) -> Str
         #effect_enum
         #(#effects)*
 
-        #actions
+        #(#action_enums)*
+        #(#action_structs)*
     })
 }
 
@@ -316,7 +291,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
         match ty {
             TypeKind::Struct(s) if found.insert(s.inner.clone()) => {
                 for field in struct_defs[s.as_str()] {
-                    visit(struct_defs, found, &field.field_type.inner);
+                    visit(struct_defs, found, &field.vtype.inner);
                 }
             }
             TypeKind::Enum(s) => {
@@ -337,7 +312,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
 
     for def in target.action_defs.iter() {
         for param in &def.params {
-            visit(&struct_defs, &mut found, &param.ty.inner);
+            visit(&struct_defs, &mut found, &param.vtype.inner);
         }
     }
 
@@ -347,7 +322,7 @@ fn collect_reachable_types(target: &PolicyInterface) -> HashSet<Identifier> {
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
         for field in fields {
-            visit(&struct_defs, &mut found, &field.field_type.inner);
+            visit(&struct_defs, &mut found, &field.vtype.inner);
         }
     }
 
@@ -363,6 +338,27 @@ fn mk_ident(string: impl AsRef<str>) -> syn::Ident {
     let string = string.as_ref();
     syn::parse_str::<syn::Ident>(string)
         .unwrap_or_else(|_| syn::Ident::new_raw(string, Span::call_site()))
+}
+
+/// Makes an identifier from a string, adapting to PascalCase.
+fn mk_ident_pascal(string: impl AsRef<str>) -> syn::Ident {
+    let mut raise = true;
+    let string: String = string
+        .as_ref()
+        .chars()
+        .map(|ch| {
+            if ch == '_' {
+                raise = true;
+                ch
+            } else if raise {
+                raise = false;
+                ch.to_ascii_uppercase()
+            } else {
+                ch
+            }
+        })
+        .collect();
+    syn::parse_str::<syn::Ident>(&string).expect("must be valid ident")
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
-struct Foo { x int, y bool }
-function baz(b bool) struct Foo {
+struct Foo { x: int, y: bool }
+function baz(b: bool) struct Foo {
     let new_foo = Foo {
         y: true,
         ...b

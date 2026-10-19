@@ -1,7 +1,7 @@
-effect Fi { s struct Foo }
+effect Fi { s: struct Foo }
 command Foo {
     fields {
-        i int
+        i: int
     }
     policy {
         finish {}

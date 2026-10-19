@@ -592,7 +592,7 @@ impl Display for HashableValue {
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct FactKey {
     /// key name
-    pub identifier: Identifier,
+    pub name: Identifier,
     /// key value
     pub value: HashableValue,
 }
@@ -600,16 +600,13 @@ pub struct FactKey {
 impl FactKey {
     /// Creates a new fact key.
     pub fn new(name: Identifier, value: HashableValue) -> Self {
-        Self {
-            identifier: name,
-            value,
-        }
+        Self { name, value }
     }
 }
 
 impl Display for FactKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.identifier, self.value)
+        write!(f, "{}: {}", self.name, self.value)
     }
 }
 
@@ -617,7 +614,7 @@ impl Display for FactKey {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactValue {
     /// value name
-    pub identifier: Identifier,
+    pub name: Identifier,
     /// value
     pub value: Value,
 }
@@ -625,16 +622,13 @@ pub struct FactValue {
 impl FactValue {
     /// Creates a new fact value.
     pub fn new(name: Identifier, value: Value) -> Self {
-        Self {
-            identifier: name,
-            value,
-        }
+        Self { name, value }
     }
 }
 
 impl Display for FactValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.identifier, self.value)
+        write!(f, "{}: {}", self.name, self.value)
     }
 }
 
@@ -692,13 +686,13 @@ impl From<&KVPair> for (Identifier, Value) {
 
 impl From<FactKey> for KVPair {
     fn from(value: FactKey) -> Self {
-        Self(value.identifier, value.value.into())
+        Self(value.name, value.value.into())
     }
 }
 
 impl From<FactValue> for KVPair {
     fn from(value: FactValue) -> Self {
-        Self(value.identifier, value.value)
+        Self(value.name, value.value)
     }
 }
 
@@ -728,7 +722,7 @@ impl Fact {
     where
         V: Into<HashableValue>,
     {
-        match self.keys.iter_mut().find(|e| e.identifier == name) {
+        match self.keys.iter_mut().find(|e| e.name == name) {
             None => self.keys.push(FactKey::new(name, value.into())),
             Some(e) => e.value = value.into(),
         }
@@ -739,9 +733,9 @@ impl Fact {
     where
         V: Into<Value>,
     {
-        match self.values.iter_mut().find(|e| e.identifier == name) {
+        match self.values.iter_mut().find(|e| e.name == name) {
             None => self.values.push(FactValue {
-                identifier: name,
+                name,
                 value: value.into(),
             }),
             Some(e) => e.value = value.into(),
@@ -753,29 +747,21 @@ impl Display for Fact {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}[", self.name)?;
         let mut i = false;
-        for FactKey {
-            identifier: k,
-            value: v,
-        } in &self.keys
-        {
+        for FactKey { name, value } in &self.keys {
             if i {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{name}: {value}")?;
         }
         write!(f, "]=>{{")?;
         i = false;
-        for FactValue {
-            identifier: k,
-            value: v,
-        } in &self.values
-        {
+        for FactValue { name, value } in &self.values {
             if i {
                 write!(f, ", ")?;
             }
             i = true;
-            write!(f, "{}: {}", k, v)?;
+            write!(f, "{name}: {value}")?;
         }
         write!(f, " }}")
     }

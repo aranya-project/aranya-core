@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: `?` can only be used in a returning context
+   |
+10 |         let v = may_fail(this.n)?
+   |                 ^^^^^^^^^^^^^^^^^

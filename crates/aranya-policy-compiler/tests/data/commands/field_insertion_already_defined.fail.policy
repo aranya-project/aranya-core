@@ -1,9 +1,9 @@
 let context = "place this here so the struct defintion goes down a line"
-struct Bar { a int }
+struct Bar { a: int }
 command Foo {
     fields {
         +Bar,
-        a bool // Duplicate field `a`
+        a: bool // Duplicate field `a`
     }
     policy {
         finish {}
