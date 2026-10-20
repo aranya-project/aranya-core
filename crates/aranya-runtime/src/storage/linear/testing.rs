@@ -190,7 +190,7 @@ impl Read for Reader {
                 MaxCut::new(u64::MAX), // Not right but this is just for testing...
             )))?;
 
-        T::yoke(bytes).map(Handle)
+        Ok(Handle(T::yoke(bytes)))
     }
 }
 

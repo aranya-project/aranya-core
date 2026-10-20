@@ -558,7 +558,7 @@ impl File {
                 .assume("offset not near u64::MAX")?,
             &mut bytes,
         )?;
-        T::yoke(bytes.into_boxed_slice()).map(Handle)
+        Ok(Handle(T::yoke(bytes.into_boxed_slice())))
     }
 }
 

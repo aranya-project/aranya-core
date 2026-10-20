@@ -9,7 +9,7 @@
 use alloc::vec::Vec;
 use core::ops::Deref;
 
-use rkyv::Archive;
+use rkyv::{Archive, bytecheck::CheckBytes};
 use stable_deref_trait::StableDeref;
 use yoke::Yoke;
 
@@ -150,7 +150,7 @@ pub trait Readable: private::Sealed + 'static {
     /// Read the archived type from the bytes of `cart` and attach it.
     ///
     /// The returned [`Yoke`] is static but can accessed `&Self::Archived`.
-    fn yoke<C>(cart: C) -> Result<Yoke<&'static Self::Archived, C>, StorageError>
+    fn yoke<C>(cart: C) -> Yoke<&'static Self::Archived, C>
     where
         C: StableDeref<Target = [u8]>;
 }
@@ -159,15 +159,21 @@ impl<T> Readable for T
 where
     T: private::Sealed,
     T: Archive + 'static,
+    T::Archived: for<'a> CheckBytes<rkyv::api::high::HighValidator<'a, rkyv::rancor::Panic>>,
 {
     type Archived = <Self as Archive>::Archived;
 
-    fn yoke<C>(cart: C) -> Result<Yoke<&'static Self::Archived, C>, StorageError>
+    fn yoke<C>(cart: C) -> Yoke<&'static Self::Archived, C>
     where
         C: StableDeref<Target = [u8]>,
     {
-        Ok(Yoke::attach_to_cart(cart, |bytes| unsafe {
-            rkyv::access_unchecked::<T::Archived>(bytes)
-        }))
+        Yoke::attach_to_cart(cart, |bytes| {
+            if cfg!(debug_assertions) {
+                rkyv::access::<T::Archived, rkyv::rancor::Panic>(bytes)
+                    .unwrap_or_else(|e| match e {})
+            } else {
+                unsafe { rkyv::access_unchecked::<T::Archived>(bytes) }
+            }
+        })
     }
 }
