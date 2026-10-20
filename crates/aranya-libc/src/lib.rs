@@ -5,7 +5,6 @@
 //! - Android
 //! - Linux
 //! - MacOS
-//! - VxWorks 6.9
 //!
 //! # Features
 //!

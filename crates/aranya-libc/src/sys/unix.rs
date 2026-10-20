@@ -1,4 +1,4 @@
-#![cfg(all(target_family = "unix", not(target_os = "vxworks")))]
+#![cfg(target_family = "unix")]
 
 use core::ffi::{c_int, c_uint};
 

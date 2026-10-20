@@ -1,5 +1,4 @@
 #![cfg(feature = "posix")]
-#![cfg_attr(feature = "sdlib", allow(dead_code))]
 
 use core::{
     alloc::Layout,
