@@ -36,10 +36,7 @@ use crate::{
 };
 
 cfg_select! {
-    feature = "sdlib" => {
-        use super::sdlib::Mapping;
-    }
-    _ => {
+    feature = "posix" => {
         use super::posix::Mapping;
     }
 }

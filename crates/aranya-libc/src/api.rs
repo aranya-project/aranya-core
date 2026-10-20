@@ -7,9 +7,6 @@ use core::{
 use super::{errno::Errno, path::Path};
 
 cfg_select! {
-    target_os = "vxworks" => {
-        use super::sys::vxworks as imp;
-    }
     any(target_os = "linux", target_os = "android") => {
         use super::sys::linux as imp;
     }
