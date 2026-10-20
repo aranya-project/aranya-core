@@ -34,8 +34,8 @@ error: field `not_a_bool` specified more than once
    |         ---------- used again
 error: invalid type: bool
    |
- 4 |     not_a_bool int,
-   |     -------------- expected because of this
+ 4 |     not_a_bool: int,
+   |     --------------- expected because of this
 ...
 15 |         not_a_bool: false,
    |                     ^^^^^ expected `int` but found `bool`

@@ -1,7 +1,7 @@
 struct S {
-    x int,
-    y int,
-    z int,
+    x: int,
+    y: int,
+    z: int,
 }
 
 function make_s() struct S {

@@ -1,7 +1,7 @@
 struct S {
-    multitudes int,
-    forget_me_not int,
-    not_a_bool int,
+    multitudes: int,
+    forget_me_not: int,
+    not_a_bool: int,
 }
 
 function make_s() struct S {
