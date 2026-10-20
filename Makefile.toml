@@ -36,7 +36,6 @@ args = ["build", "--verbose", "--release", "${@}"]
 [tasks.unit-tests]
 category = "test"
 description = "Run Unit Tests"
-workspace = true
 command = "cargo"
 args = ["--verbose", "test-all-features", "${@}"]
 dependencies = ["install-cargo-all-features"]

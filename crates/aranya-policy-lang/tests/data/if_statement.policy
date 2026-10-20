@@ -1,4 +1,4 @@
-action test(n int) {
+action test(n: int) {
     if false {
         check 1 else test_fail("check 1")
     }

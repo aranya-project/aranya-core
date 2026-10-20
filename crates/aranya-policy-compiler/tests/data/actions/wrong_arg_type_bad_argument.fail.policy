@@ -1,4 +1,4 @@
-action bar(n int) {}
+action bar(n: int) {}
 action foo() {
     action bar(false)
 }

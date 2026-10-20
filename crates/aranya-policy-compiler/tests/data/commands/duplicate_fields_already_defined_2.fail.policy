@@ -1,8 +1,8 @@
-struct Bar { a int }
+struct Bar { a: int }
 command Foo {
     fields {
         +Bar,
-        a string
+        a: string
     }
     policy {
         finish {}

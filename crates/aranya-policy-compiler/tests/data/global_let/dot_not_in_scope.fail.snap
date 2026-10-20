@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: invalid expression
+  |
+1 | let x = unknown.author_id
+  |         ^^^^^^^^^^^^^^^^^ 'dot' expressions in a const context can only refer to global values

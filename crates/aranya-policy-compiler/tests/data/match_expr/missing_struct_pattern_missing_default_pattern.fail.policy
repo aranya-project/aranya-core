@@ -3,11 +3,11 @@ enum LightColor {
 }
 
 struct Light {
-    color enum LightColor,
-    go bool
+    color: enum LightColor,
+    go: bool
 }
 
-action f(traffic struct Light) {
+action f(traffic: struct Light) {
     let x = match traffic {
         Light {  color: LightColor::Red, go: false } => 0
         Light {  color: LightColor::Yellow, go: false } => 2

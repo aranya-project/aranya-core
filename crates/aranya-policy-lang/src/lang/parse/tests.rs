@@ -163,6 +163,44 @@ fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
     Ok(())
 }
 
+#[test]
+fn parse_try_operator_precedence() {
+    use aranya_policy_ast::ExprKind;
+
+    // Postfix ops apply left to right: `f(x)?.field` is `(f(x)?).field`.
+    let expr = crate::lang::parse_expression("f(x)?.field").expect("parse failed");
+    let ExprKind::Dot(lhs, _) = expr.inner else {
+        panic!("expected Dot, got {:?}", expr.inner);
+    };
+    let ExprKind::Try(operand) = lhs.inner else {
+        panic!("expected Try, got {:?}", lhs.inner);
+    };
+    let ExprKind::FunctionCall(_) = operand.inner else {
+        panic!("expected FunctionCall, got {:?}", operand.inner);
+    };
+
+    // `x.y?` should parse as `(x.y)?`, i.e. `Try(Dot(x, y))`.
+    let expr = crate::lang::parse_expression("x.y?").expect("parse failed");
+    let ExprKind::Try(operand) = expr.inner else {
+        panic!("expected Try, got {:?}", expr.inner);
+    };
+    let ExprKind::Dot(_, _) = operand.inner else {
+        panic!("expected Dot, got {:?}", operand.inner);
+    };
+
+    // `?` binds tighter than prefix `!`: `!x?` is `!(x?)`.
+    let expr = crate::lang::parse_expression("!x?").expect("parse failed");
+    let ExprKind::Not(inner) = expr.inner else {
+        panic!("expected Not, got {:?}", expr.inner);
+    };
+    let ExprKind::Try(operand) = inner.inner else {
+        panic!("expected Try, got {:?}", inner.inner);
+    };
+    let ExprKind::Identifier(_) = operand.inner else {
+        panic!("expected Identifier, got {:?}", operand.inner);
+    };
+}
+
 struct ErrorInput {
     description: String,
     input: String,
@@ -174,10 +212,10 @@ struct ErrorInput {
 fn parse_errors() -> Result<(), ParseError> {
     let cases = vec![ErrorInput {
         description: String::from("Invalid function body"),
-        input: r#"function foo(x int) bool { invalid }"#.to_string(),
+        input: r#"function foo(x: int) bool { invalid }"#.to_string(),
         error_message: String::from(
-            " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
-                |                            ^---\n  |\n  = expected function_call, \
+            " --> 1:29\n  |\n1 | function foo(x: int) bool { invalid }\n  \
+                |                             ^---\n  |\n  = expected function_call, \
                 action_call, publish_statement, let_statement, check_statement, match_statement, \
                 if_statement, finish_statement, map_statement, create_statement, update_statement, \
                 delete_statement, emit_statement, return_statement, recall_statement, or debug_assert",
@@ -288,7 +326,7 @@ fn test_result_literal() -> Result<(), ParseError> {
 #[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
-    let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
+    let mut pairs = PolicyParser::parse(Rule::field_definition, "bar: int")?;
 
     let tokens: Vec<Pair<'_, Rule>> = pairs.next().unwrap().into_inner().collect();
     assert_eq!(tokens[0].as_rule(), Rule::identifier);
@@ -302,7 +340,7 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_fact() -> Result<(), PestError<Rule>> {
     let src = r#"
-        fact Foo[a int] => {b id, c string}
+        fact Foo[a: int] => {b: id, c: string}
     "#
     .trim();
 
@@ -317,7 +355,7 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
-        action init(owner id) {
+        action init(owner: id) {
             publish Init{
                 Owner: owner
             }
@@ -336,7 +374,7 @@ fn parse_action() -> Result<(), PestError<Rule>> {
 fn parse_effect() -> Result<(), PestError<Rule>> {
     let src = r#"
         effect Foo {
-            owner id dynamic,
+            owner: id dynamic,
         }
     "#
     .trim();
@@ -353,7 +391,7 @@ fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
         command Foo {
             fields {
-                owner id,
+                owner: id,
             }
             policy {
                 finish {
@@ -374,7 +412,7 @@ fn parse_command() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_function() -> Result<(), PestError<Rule>> {
     let src = r#"
-    function foo(x int) bool {
+    function foo(x: int) bool {
         return true
     }
     "#

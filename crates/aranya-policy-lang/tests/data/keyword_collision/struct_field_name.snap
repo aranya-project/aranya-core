@@ -4,5 +4,5 @@ expression: err
 ---
 error: Reserved identifier
   |
-2 |     int int
+2 |     int: int
   |     ^^^ found reserved identifier: `int`

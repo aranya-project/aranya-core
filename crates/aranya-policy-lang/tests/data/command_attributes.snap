@@ -12,7 +12,6 @@ Policy {
     enums: [],
     commands: [
         CommandDefinition {
-            persistence: Persistent,
             base: None,
             attributes: [
                 (
