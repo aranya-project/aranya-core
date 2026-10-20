@@ -2,7 +2,6 @@
   {
     "GenerateGraph": {
       "clients": 3,
-      "graph": 0,
       "commands": 200,
       "sync_client_zero": true,
       "sync_method": {

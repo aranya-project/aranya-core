@@ -26,5 +26,6 @@ runs:
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
 
     - name: Install cargo-make
-      shell: bash
-      run: cargo install --version '0.37.23' --locked cargo-make
+      uses: aranya-project/install-action@main
+      with:
+        tool: cargo-make@0.37.24

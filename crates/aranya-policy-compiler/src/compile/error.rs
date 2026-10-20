@@ -66,6 +66,9 @@ pub(crate) struct InvalidCallColor(pub InvalidCallColorKind, pub Span, pub Optio
 /// An argument to a function or an item in an expression did not make sense.
 pub(crate) struct BadArgument(pub String, pub Span);
 
+/// An expression's value was discarded instead of being used.
+pub(crate) struct UnusedValue(pub Span);
+
 /// A thing referenced is not defined.
 pub(crate) struct NotDefined(pub String, pub Span);
 

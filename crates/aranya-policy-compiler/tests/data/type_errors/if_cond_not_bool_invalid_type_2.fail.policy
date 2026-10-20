@@ -1,4 +1,4 @@
-function foo(x int) bool {
+function foo(x: int) bool {
     if 3 {
     }
 }

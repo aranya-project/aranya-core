@@ -4,7 +4,7 @@ expression: error
 ---
 error: the name `x` is defined multiple times
   |
-1 | function f(x int, x int) int {
-  |            -      ^ re-defined here
+1 | function f(x: int, x: int) int {
+  |            -       ^ re-defined here
   |            |
   |            previous defintion here

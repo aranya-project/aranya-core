@@ -16,50 +16,50 @@ Policy {
     finish_functions: [],
     global_lets: [
         GlobalLetStatement {
-            identifier: "empty" @ 4..9,
-            expression: String(
+            name: "empty" @ 4..9,
+            value: String(
                 "",
             ) @ 12..14,
             span: 0..15,
         },
         GlobalLetStatement {
-            identifier: "basic" @ 19..24,
-            expression: String(
+            name: "basic" @ 19..24,
+            value: String(
                 "foo bar",
             ) @ 27..36,
             span: 15..37,
         },
         GlobalLetStatement {
-            identifier: "min" @ 41..44,
-            expression: String(
+            name: "min" @ 41..44,
+            value: String(
                 "\u{1}",
             ) @ 47..53,
             span: 37..54,
         },
         GlobalLetStatement {
-            identifier: "max" @ 58..61,
-            expression: String(
+            name: "max" @ 58..61,
+            value: String(
                 "\u{7f}",
             ) @ 64..70,
             span: 54..71,
         },
         GlobalLetStatement {
-            identifier: "newline" @ 75..82,
-            expression: String(
+            name: "newline" @ 75..82,
+            value: String(
                 "\n",
             ) @ 85..89,
             span: 71..90,
         },
         GlobalLetStatement {
-            identifier: "slash" @ 94..99,
-            expression: String(
+            name: "slash" @ 94..99,
+            value: String(
                 "\\",
             ) @ 102..106,
             span: 90..107,
         },
         GlobalLetStatement {
-            identifier: "quote" @ 111..116,
-            expression: String(
+            name: "quote" @ 111..116,
+            value: String(
                 "\"",
             ) @ 119..123,
             span: 107..124,

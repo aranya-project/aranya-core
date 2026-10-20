@@ -1,0 +1,8 @@
+action can_fail() result[unit, string] {
+    return Err("nope")
+}
+
+action foo() result[unit, string] {
+    let r = action can_fail()
+    return r
+}

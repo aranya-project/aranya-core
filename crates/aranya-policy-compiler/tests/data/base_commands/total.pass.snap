@@ -18,24 +18,26 @@ Module {
     action_defs: [
         ActionDef {
             name: "my_init",
-            persistence: Persistent,
+            flavor: Some(
+                "init",
+            ),
             params: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
             result_type: Unit,
         },
         ActionDef {
             name: "my_basic_1",
-            persistence: Persistent,
+            flavor: None,
             params: [],
             result_type: Unit,
         },
         ActionDef {
             name: "my_basic_2",
-            persistence: Persistent,
+            flavor: None,
             params: [],
             result_type: Unit,
         },
@@ -43,24 +45,26 @@ Module {
     command_defs: [
         CommandDef {
             name: "MyInit",
-            persistence: Persistent,
+            flavor: Some(
+                "init",
+            ),
             attributes: [],
             fields: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
         CommandDef {
             name: "MyBasic1",
-            persistence: Persistent,
+            flavor: None,
             attributes: [],
             fields: [],
         },
         CommandDef {
             name: "MyBasic2",
-            persistence: Persistent,
+            flavor: None,
             attributes: [],
             fields: [],
         },
@@ -68,16 +72,16 @@ Module {
     fact_defs: [
         FactDef {
             name: "Key",
-            key: [
+            keys: [
                 Field {
                     name: "dev",
-                    ty: Id,
+                    vtype: Id,
                 },
             ],
-            value: [
+            values: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
             immutable: false,
@@ -85,15 +89,24 @@ Module {
     ],
     struct_defs: [
         StructDef {
+            name: "InitEnvelope",
+            items: [
+                Field {
+                    name: "test_field",
+                    vtype: Int,
+                },
+            ],
+        },
+        StructDef {
             name: "Key",
             items: [
                 Field {
                     name: "dev",
-                    ty: Id,
+                    vtype: Id,
                 },
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
@@ -114,7 +127,7 @@ Module {
             items: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
         },
@@ -123,9 +136,13 @@ Module {
             items: [
                 Field {
                     name: "key",
-                    ty: Bytes,
+                    vtype: Bytes,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
         },
     ],
     enum_defs: [],

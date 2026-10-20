@@ -12,7 +12,6 @@ Policy {
     enums: [],
     commands: [
         CommandDefinition {
-            persistence: Persistent,
             base: None,
             attributes: [
                 (
@@ -22,7 +21,7 @@ Policy {
                     ) @ 49..55,
                 ),
             ],
-            identifier: "Foo" @ 8..11,
+            name: "Foo" @ 8..11,
             fields: [],
             policy: [],
             recalls: [],

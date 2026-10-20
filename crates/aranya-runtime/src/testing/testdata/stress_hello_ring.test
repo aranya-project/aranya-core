@@ -2,7 +2,6 @@
   {
     "GenerateGraph": {
       "clients": 6,
-      "graph": 0,
       "commands": 80,
       "sync_method": {
         "HelloSync": {

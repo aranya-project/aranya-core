@@ -4,11 +4,11 @@ expression: err
 ---
 error: Invalid nested option
   |
-1 | function foo(x optional optional int, y struct bar) bool
-  |                ^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+1 | function foo(x: optional optional int, y: struct bar) bool
+  |                 ^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
   |
 help: you should use `option[T]`
   |
-1 - function foo(x optional optional int, y struct bar) bool
-1 + function foo(x option[option[int]], y struct bar) bool
+1 - function foo(x: optional optional int, y: struct bar) bool
+1 + function foo(x: option[option[int]], y: struct bar) bool
   |

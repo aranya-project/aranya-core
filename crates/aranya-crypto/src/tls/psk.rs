@@ -1,4 +1,4 @@
-use core::{cell::OnceCell, fmt, marker::PhantomData};
+use core::{fmt, marker::PhantomData};
 
 use buggy::{Bug, BugExt as _};
 use derive_where::derive_where;
@@ -23,7 +23,7 @@ use crate::{
     id::{IdError, Identified, custom_id},
     policy::{GroupId, PolicyId},
     tls::{self, CipherSuiteId},
-    util,
+    util::{self, CacheCell},
     zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
 
@@ -51,7 +51,7 @@ pub struct PskSeed<CS: CipherSuite> {
     // (a) the constructor becomes fallible, and (b) that doesn't
     // play well with `unwrapped!`. Instead, just cache the
     // result.
-    id: OnceCell<Result<PskSeedId, Bug>>,
+    id: CacheCell<Result<PskSeedId, Bug>>,
     _marker: PhantomData<CS>,
 }
 
@@ -88,38 +88,36 @@ impl<CS: CipherSuite> PskSeed<CS> {
     fn from_prk(prk: Prk<CS>) -> Self {
         Self {
             prk,
-            id: OnceCell::new(),
+            id: CacheCell::new(),
             _marker: PhantomData,
         }
     }
 
     /// Attempts to compute the PSK seed ID.
-    fn try_id(&self) -> Result<&PskSeedId, &Bug> {
-        self.id
-            .get_or_init(|| {
-                // KDFs have the property that their output does
-                // not reaveal anything about the secret input.
-                // Specifically, an attacker with knowledge of
-                // the structure of the secret and with the
-                // ability to perform arbitrary queries should
-                // not be able to distinguish the KDF's output
-                // from a random bitstring with a probability
-                // greater than 50%. (See [hkdf], definition 7.)
-                //
-                // This means that so long as we have proper
-                // domain separation, we can use the KDF to
-                // generate the ID from the secret itself.
-                //
-                // The docs for `CipherSuite::Kdf` state that it
-                // should be able to expand at least 64 octets.
-                // IDs are 32 octets, so this should never fail.
-                //
-                // [hkdf]: https://eprint.iacr.org/2010/264.pdf]
-                let id = CS::labeled_expand(SEED_DOMAIN, &self.prk, b"id", [])
-                    .assume("should be able to generate PSK seed ID")?;
-                Ok(PskSeedId::from_bytes(id))
-            })
-            .as_ref()
+    fn try_id(&self) -> Result<PskSeedId, Bug> {
+        self.id.get_or_init(|| {
+            // KDFs have the property that their output does
+            // not reaveal anything about the secret input.
+            // Specifically, an attacker with knowledge of
+            // the structure of the secret and with the
+            // ability to perform arbitrary queries should
+            // not be able to distinguish the KDF's output
+            // from a random bitstring with a probability
+            // greater than 50%. (See [hkdf], definition 7.)
+            //
+            // This means that so long as we have proper
+            // domain separation, we can use the KDF to
+            // generate the ID from the secret itself.
+            //
+            // The docs for `CipherSuite::Kdf` state that it
+            // should be able to expand at least 64 octets.
+            // IDs are 32 octets, so this should never fail.
+            //
+            // [hkdf]: https://eprint.iacr.org/2010/264.pdf]
+            let id = CS::labeled_expand(SEED_DOMAIN, &self.prk, b"id", [])
+                .assume("should be able to generate PSK seed ID")?;
+            Ok(PskSeedId::from_bytes(id))
+        })
     }
 
     /// Generates one PSK for each of the provided cipher suites.
@@ -144,7 +142,7 @@ impl<CS: CipherSuite> PskSeed<CS> {
     {
         suites.into_iter().map(move |suite| {
             let id = ImportedIdentity {
-                external_identity: *self.try_id().map_err(Bug::clone)?,
+                external_identity: self.try_id()?,
                 context: PskCtx { group, policy },
                 target_protocol: tls::Version::Tls13,
                 target_kdf: suite,
@@ -180,8 +178,7 @@ impl<CS: CipherSuite> Identified for PskSeed<CS> {
 
     #[inline]
     fn id(&self) -> Result<Self::Id, IdError> {
-        let id = self.try_id().map_err(Bug::clone)?;
-        Ok(*id)
+        Ok(self.try_id()?)
     }
 }
 

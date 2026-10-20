@@ -6,6 +6,6 @@ error: cycle found: [Foo, Fum]
   |
 1 | struct Fum { +Fi, +Foo }
   |        ---
-2 | effect Fi { s string }
-3 | fact Foo[x int]=>{ fum struct Fum } // cycle
+2 | effect Fi { s: string }
+3 | fact Foo[x: int]=>{ fum: struct Fum } // cycle
   |      ---

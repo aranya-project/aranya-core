@@ -11,12 +11,12 @@ Module {
     command_defs: [
         CommandDef {
             name: "Foo",
-            persistence: Persistent,
+            flavor: None,
             attributes: [],
             fields: [
                 Field {
                     name: "i",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },
@@ -28,7 +28,7 @@ Module {
             items: [
                 Field {
                     name: "s",
-                    ty: Struct(
+                    vtype: Struct(
                         "Foo",
                     ),
                 },
@@ -39,9 +39,13 @@ Module {
             items: [
                 Field {
                     name: "i",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
         },
     ],
     enum_defs: [],

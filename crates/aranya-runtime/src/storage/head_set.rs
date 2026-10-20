@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 use crate::storage::LocatedAddress;
 
 /// A sorted set of graph heads.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct HeadSet {
     heads: Vec<LocatedAddress>,
 }

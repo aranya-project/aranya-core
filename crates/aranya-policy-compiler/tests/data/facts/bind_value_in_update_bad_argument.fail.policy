@@ -1,4 +1,4 @@
-fact F[] => {s string}
+fact F[] => {s: string}
 
 command CreateBindValue {
     fields {}

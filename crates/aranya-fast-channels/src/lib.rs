@@ -180,15 +180,7 @@
 //! # }
 //! ```
 
-#![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(feature = "allocator_api", feature(allocator_api))]
-#![cfg_attr(
-    feature = "core_intrinsics",
-    allow(internal_features),
-    feature(core_intrinsics)
-)]
-#![cfg_attr(feature = "try_find", feature(try_find))]
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![warn(
     clippy::alloc_instead_of_core,
@@ -202,16 +194,9 @@
     missing_docs
 )]
 #![cfg_attr(not(any(feature = "std", test)), deny(clippy::std_instead_of_core))]
-#![expect(
-    clippy::arithmetic_side_effects,
-    reason = "https://github.com/aranya-project/aranya-core/issues/253"
-)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
-
-#[macro_use]
-mod features;
 
 mod buf;
 mod client;

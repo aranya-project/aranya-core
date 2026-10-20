@@ -1,4 +1,4 @@
-function f(r result[bool, bool]) int {
+function f(r: result[bool, bool]) int {
     return match r {
         Ok(true) | Ok(false) => 0
         Ok(x) => 1

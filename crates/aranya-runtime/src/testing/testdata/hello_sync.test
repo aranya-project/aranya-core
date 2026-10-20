@@ -1,37 +1,31 @@
 [
   {
     "SetupClientsAndGraph": {
-      "clients": 3,
-      "graph": 0,
-      "policy": 0
+      "clients": 3
     }
   },
   {
     "HelloSubscribe": {
       "client": 1,
-      "peer": 0,
-      "graph": 0
+      "peer": 0
     }
   },
   {
     "HelloSubscribe": {
       "client": 2,
-      "peer": 0,
-      "graph": 0
+      "peer": 0
     }
   },
   {
     "HelloSubscribe": {
       "client": 0,
-      "peer": 1,
-      "graph": 0
+      "peer": 1
     }
   },
   {
     "HelloSubscribe": {
       "client": 0,
-      "peer": 2,
-      "graph": 0
+      "peer": 2
     }
   },
   {
@@ -42,17 +36,14 @@
   {
     "ActionSet": {
       "client": 1,
-      "graph": 0,
       "key": 0,
-      "value": 42,
-      "repeat": 1
+      "value": 42
     }
   },
   {
     "CompareGraphs": {
       "clienta": 0,
       "clientb": 1,
-      "graph": 0,
       "equal": true
     }
   },
@@ -60,7 +51,6 @@
     "CompareGraphs": {
       "clienta": 0,
       "clientb": 2,
-      "graph": 0,
       "equal": true
     }
   },

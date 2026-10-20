@@ -1,6 +1,7 @@
 use core::{
     alloc::Layout,
     fmt,
+    hint::cold_path,
     marker::PhantomData,
     mem::{MaybeUninit, size_of},
     ptr, slice, str,
@@ -26,8 +27,6 @@ use super::{
     le::{U32, U64},
     path::{Flag, Mode, Path},
 };
-#[allow(unused_imports)]
-use crate::features::*;
 use crate::{
     ChannelDirection, RemoveIfParams,
     errno::{Errno, errno},
@@ -177,21 +176,21 @@ impl<CS: CipherSuite> State<CS> {
     /// Load the current `read_off` from `shm`.
     fn read_off(&self, shm: &SharedMem<CS>) -> Result<Offset, Corrupted> {
         let off = shm.read_off.load(Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid read offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid read offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Load the current `write_off` from `shm`.
     pub(super) fn write_off(&self, shm: &SharedMem<CS>) -> Result<Offset, Corrupted> {
         let off = shm.write_off.load(Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid write offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid write offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Swaps `write_off` for `read_off` and returns `read_off`.
@@ -201,11 +200,11 @@ impl<CS: CipherSuite> State<CS> {
         write_off: Offset,
     ) -> Result<Offset, Corrupted> {
         let off = shm.read_off.swap(write_off.into(), Ordering::SeqCst);
-        if unlikely!(!self.valid_offset(off)) {
-            Err(corrupted("invalid write offset"))
-        } else {
-            Ok(Offset(off))
+        if !self.valid_offset(off) {
+            cold_path();
+            return Err(corrupted("invalid write offset"));
         }
+        Ok(Offset(off))
     }
 
     /// Reports whether `off` is a known valid offset.
@@ -479,11 +478,11 @@ impl<CS: CipherSuite> ShmChan<CS> {
         }
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_chan_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_chan_magic(magic));
         }
+        Ok(())
     }
 }
 
@@ -656,11 +655,11 @@ impl<CS: CipherSuite> SharedMem<CS> {
         debug_assert_eq!(self.version, Self::VERSION);
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_state_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_state_magic(magic));
         }
+        Ok(())
     }
 
     /// Returns the side corresponding with `off`.
@@ -733,8 +732,14 @@ impl<CS: CipherSuite> ChanList<CS> {
         // straddle multiple pages, align each to the page size.
         let (page_size, page_aligned) = if cfg!(feature = "page-aligned") {
             let page_size = getpagesize()?.assume("`page-aligned` feature requires `libc`")?;
-            let page_aligned =
-                (layout.size() * 2 > page_size) && page_size.is_multiple_of(layout.align());
+            let page_aligned = {
+                #[allow(
+                    clippy::arithmetic_side_effects,
+                    reason = "Layout::size() is in [0, isize::MAX], so * 2 cannot overflow"
+                )]
+                let double_size = layout.size() * 2;
+                (double_size > page_size) && page_size.is_multiple_of(layout.align())
+            };
             (page_size, page_aligned)
         } else {
             (0, false)
@@ -756,11 +761,11 @@ impl<CS: CipherSuite> ChanList<CS> {
         debug_assert_eq!(self.magic, Self::MAGIC);
 
         let magic = self.magic;
-        if unlikely!(magic != Self::MAGIC) {
-            Err(bad_chanlist_magic(magic))
-        } else {
-            Ok(())
+        if magic != Self::MAGIC {
+            cold_path();
+            return Err(bad_chanlist_magic(magic));
         }
+        Ok(())
     }
 
     /// Creates a [`ChanList`] with space for at most
@@ -837,7 +842,10 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
     }
 
     fn len(&self) -> Result<usize, Corrupted> {
-        usize::try_from(self.len).map_err(|_| corrupted("`len` is larger than `usize::MAX`"))
+        isize::try_from(self.len)
+            .map_err(|_| corrupted("`len` is larger than `isize::MAX`"))?
+            .try_into()
+            .map_err(|_| corrupted("`len` conversion to usize failed"))
     }
 
     fn cap(&self) -> Result<usize, Corrupted> {
@@ -855,7 +863,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
         self.check();
 
         let ptr = ptr::addr_of!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY: `ptr` is correctly aligned and non-null. `self.len()` is in [0, isize::MAX].
         Ok(unsafe { slice::from_raw_parts(ptr, self.len()?) })
     }
 
@@ -864,7 +872,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
         self.check();
 
         let ptr = ptr::addr_of_mut!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY: `ptr` is correctly aligned and non-null. `self.len()` is in [0, isize::MAX].
         Ok(unsafe { slice::from_raw_parts_mut(ptr, self.len()?) })
     }
 
@@ -928,7 +936,8 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
             let direction = chan.direction()?.into();
             if !f(RemoveIfParams::new(id, label_id, peer_id, direction)) {
                 // Nope, try the next index.
-                idx += 1;
+                // wrapping_add is safe here: if idx overflows, self.get() will return None, ending the loop
+                idx = idx.wrapping_add(1);
                 continue;
             }
             debug!("removing chan {id}");
@@ -937,7 +946,7 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
                 // As a precaution, update the generation before
                 // we actually delete anything.
                 let generation = self.generation.fetch_add(1, Ordering::AcqRel);
-                debug!("side generation={}", generation + 1);
+                debug!("side generation={}", generation.wrapping_add(1));
 
                 updated = true;
             }
@@ -992,14 +1001,12 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Retrieves the channel and its index for a particular
@@ -1037,14 +1044,12 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
 
         // The index (if any) wasn't valid, so fall back to
         // a linear search.
-        if let Some((idx, chan)) = self.try_iter_mut()?.enumerate().try_find(|(_, chan)| {
-            let ok = chan.id()? == ch && chan.matches(op)?;
-            Ok::<bool, Corrupted>(ok)
-        })? {
-            Ok(Some((chan, Index(idx))))
-        } else {
-            Ok(None)
+        for (idx, chan) in self.try_iter_mut()?.enumerate() {
+            if chan.id()? == ch && chan.matches(op)? {
+                return Ok(Some((chan, Index(idx))));
+            }
         }
+        Ok(None)
     }
 
     /// Removes the [`ShmChan`] at `idx`, replacing it with
@@ -1053,17 +1058,20 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
         self.check();
 
         let len = self.len()?;
-        if unlikely!(len == 0) {
+        if len == 0 {
+            cold_path();
             Err(corrupted("`swap_remove` called with len == 0"))
-        } else if unlikely!(idx >= len) {
+        } else if idx >= len {
+            cold_path();
             Err(corrupted("`ShmChan` index out of range"))
         } else {
             // No need to perform a swap if there is only one
             // channel.
-            if len > 1 {
-                self.chans_mut()?.swap(idx, len - 1);
+            if let Some(swap_idx @ 1..) = len.checked_sub(1) {
+                self.chans_mut()?.swap(idx, swap_idx);
             }
-            self.len -= 1;
+            // Cannot wrap because we already checked len > 0
+            self.len = self.len.wrapping_sub(1);
             assert!(self.len <= self.cap);
             Ok(())
         }

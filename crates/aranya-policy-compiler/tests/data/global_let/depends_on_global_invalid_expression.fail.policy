@@ -2,7 +2,7 @@
 let x = 42
 
 struct Far {
-    a int,
+    a: int,
 }
 
 let e = Far {

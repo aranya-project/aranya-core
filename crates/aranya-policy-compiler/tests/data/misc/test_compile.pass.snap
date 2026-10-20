@@ -11,11 +11,11 @@ Module {
     action_defs: [
         ActionDef {
             name: "foo",
-            persistence: Persistent,
+            flavor: None,
             params: [
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             result_type: Unit,
@@ -24,16 +24,16 @@ Module {
     command_defs: [
         CommandDef {
             name: "Foo",
-            persistence: Persistent,
+            flavor: None,
             attributes: [],
             fields: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },
@@ -45,13 +45,17 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
         },
     ],
     enum_defs: [],

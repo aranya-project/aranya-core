@@ -4,14 +4,14 @@ expression: error
 ---
 error: cycle found: [Bar, Fum]
   |
-1 | struct Fum { b struct Bar }
+1 | struct Fum { b: struct Bar }
   |        ---
-2 | struct Bar { f struct Fum } // cycle
+2 | struct Bar { f: struct Fum } // cycle
   |        ---
   |
 error: cycle found: [Task, Job]
   |
-4 | struct Job { t struct Task }
+4 | struct Job { t: struct Task }
   |        ---
-5 | struct Task { j struct Job } // cycle
+5 | struct Task { j: struct Job } // cycle
   |        ----

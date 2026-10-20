@@ -6,7 +6,7 @@
 //! The FFI/compiler/VM crates are needed for one-time policy compilation
 //! and FFI module wiring.
 
-use std::fs;
+use std::{fs, sync::Arc};
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
@@ -21,7 +21,6 @@ use aranya_core::{
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
 use aranya_device_ffi::FfiDevice as DeviceFfi;
-use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
@@ -160,20 +159,19 @@ fn compile_policy(seal_ctx: VmSealCtx<CE>, eng: CE, store: MemStore) -> Result<V
     let module = Compiler::new(&ast)
         .ffi_modules(&[
             DeviceFfi::SCHEMA,
-            EnvelopeFfi::SCHEMA,
             IdamFfi::<MemStore>::SCHEMA,
             PerspectiveFfi::SCHEMA,
         ])
+        .flavors(&aranya_core::policy::FLAVORS)
         .compile()
         .context("compile policy")?;
 
     let machine = Machine::from_module(module).context("create machine")?;
 
-    let ffis: Vec<Box<dyn FfiCallable<CE> + Send + 'static>> = vec![
-        Box::from(DeviceFfi::new(seal_ctx.author)),
-        Box::from(EnvelopeFfi),
-        Box::from(IdamFfi::new(store)),
-        Box::from(PerspectiveFfi),
+    let ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>> = vec![
+        Arc::from(DeviceFfi::new(seal_ctx.author)),
+        Arc::from(IdamFfi::new(store)),
+        Arc::from(PerspectiveFfi),
     ];
 
     let policy = VmPolicy::new(machine, eng, ffis).context("create VmPolicy")?;
