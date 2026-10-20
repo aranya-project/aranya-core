@@ -5,8 +5,8 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'can_fail'>: 1,
-        <action 'propagates'>: 7,
+        <action 'can_fail'>: 8,
+        <action 'propagates'>: 14,
     },
     action_defs: [
         ActionDef {
@@ -34,12 +34,28 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <action 'can_fail'>:
     save SP

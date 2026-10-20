@@ -13,7 +13,11 @@ enum Player {
     O,
 }
 
-command Start {
+base Base {
+    get_key { return None }
+}
+
+command Start with Base {
     fields {
         players: struct Players
     }
@@ -22,7 +26,7 @@ command Start {
     }
 }
 
-command Move {
+command Move with Base {
     fields {
         gameID: id,
         X: int,

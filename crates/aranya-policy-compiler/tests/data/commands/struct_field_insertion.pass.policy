@@ -1,6 +1,6 @@
 struct Bar { a: int }
 struct Baz { +Bar, b: string }
-command Foo {
+command Foo with StubBase {
     fields {
         +Baz,
         c: bool

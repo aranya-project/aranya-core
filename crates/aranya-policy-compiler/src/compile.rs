@@ -42,7 +42,6 @@ use self::{
     topo::TopoSort,
     types::{IdentifierTypeStack, UserType},
 };
-use crate::compile::error::MissingBaseCommand;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -1443,25 +1442,21 @@ impl<'a> CompileState<'a> {
         let command = command_node;
         self.map_range(command.span)?;
 
-        if !self.config.allow_baseless && command.base.is_none() {
-            return Err(self.err(MissingBaseCommand {
-                command: command.name.clone(),
-            }));
-        }
-
-        let mut cmd_flavor = None;
-        if let Some(base) = &command.base {
-            let base = self
-                .base_commands
-                .get(base)
-                .ok_or_else(|| NotDefined(format!("unknown base class {base}"), base.span))
-                .map_err(|e| self.err(e))?;
-            cmd_flavor.clone_from(&base.flavor);
-            self.define_label(
-                Label::new(command.name.inner.clone(), LabelType::GetKey),
-                base.get_key_address,
-            )?;
-        }
+        let base = self
+            .base_commands
+            .get(&command.base)
+            .ok_or_else(|| {
+                NotDefined(
+                    format!("unknown base class {}", command.base),
+                    command.base.span,
+                )
+            })
+            .map_err(|e| self.err(e))?;
+        let cmd_flavor = base.flavor.clone();
+        self.define_label(
+            Label::new(command.name.inner.clone(), LabelType::GetKey),
+            base.get_key_address,
+        )?;
 
         let flavor_def = match &cmd_flavor {
             None => &self.config.flavors.default,
@@ -1860,7 +1855,7 @@ impl<'a> CompileState<'a> {
                 .fields
                 .iter()
                 .filter_map(extract_struct_ident)
-                .chain(command_def.base.as_deref());
+                .chain(iter::once(&command_def.base.inner));
             let ident = &command_def.name;
 
             insert_type_def(ident.clone(), UserType::Command(command_def))?;
@@ -1950,13 +1945,10 @@ impl<'a> CompileState<'a> {
                     )?;
                 }
                 UserType::Command(command) => {
-                    let base = command
-                        .base
-                        .as_ref()
-                        .map(|b| StructItem::StructRef(b.clone()));
+                    let base = StructItem::StructRef(command.base.clone());
                     self.define_struct(
                         command.name.clone(),
-                        command.fields.iter().cloned().chain(base),
+                        command.fields.iter().cloned().chain(iter::once(base)),
                     )?;
                 }
                 UserType::FFIStruct(s) => {
@@ -1993,7 +1985,6 @@ impl<'a> CompileState<'a> {
             .base_commands
             .iter()
             .any(|bc| bc.flavor.is_none())
-            || self.policy.commands.iter().any(|cmd| cmd.base.is_none())
     }
 
     fn is_flavor_used(&self, name: &str) -> bool {
@@ -2362,8 +2353,6 @@ struct Config<'a> {
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
-    /// Allows commands without a base command
-    allow_baseless: bool,
 }
 
 static DEFAULT_FLAVORS: Flavors<'static> = Flavors {
@@ -2383,7 +2372,6 @@ impl Config<'_> {
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
             stub_ffi: false,
-            allow_baseless: false,
         }
     }
 }
@@ -2427,12 +2415,6 @@ impl<'a> Compiler<'a> {
     #[must_use]
     pub fn stub_ffi(mut self, flag: bool) -> Self {
         self.config.stub_ffi = flag;
-        self
-    }
-
-    #[must_use]
-    pub fn allow_baseless(mut self, flag: bool) -> Self {
-        self.config.allow_baseless = flag;
         self
     }
 

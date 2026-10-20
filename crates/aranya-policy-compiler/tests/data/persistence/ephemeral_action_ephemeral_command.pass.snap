@@ -6,8 +6,8 @@ Module {
     version: "1",
     labels: {
         <get_key 'Cmd'>: 1,
-        <policy 'Cmd'>: 8,
-        <action 'test'>: 15,
+        <policy 'Cmd'>: 15,
+        <action 'test'>: 22,
     },
     action_defs: [
         ActionDef {
@@ -43,6 +43,10 @@ Module {
             name: "NullEnvelope",
             items: [],
         },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -51,6 +55,13 @@ Module {
 ---
     exit panic
 <get_key 'Cmd'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
+    exit panic
     def 'author_id'
     def 'this'
     save SP

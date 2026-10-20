@@ -241,11 +241,6 @@ pub(crate) struct UnusedVariable {
     pub names: Vec<Ident>,
 }
 
-/// Command does not use a base command.
-pub(crate) struct MissingBaseCommand {
-    pub command: Ident,
-}
-
 // ---------------------------------------------------------------------------
 // CompileError
 // ---------------------------------------------------------------------------

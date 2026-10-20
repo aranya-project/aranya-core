@@ -2,7 +2,7 @@ struct Foo {
     a: int,
     b: string,
 }
-command Bar {
+command Bar with StubBase {
     fields {
         a: int,
         b: string,

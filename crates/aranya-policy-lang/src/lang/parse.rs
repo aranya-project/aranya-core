@@ -1601,10 +1601,7 @@ impl ChunkParser<'_> {
 
         let name = pc.consume_ident(self)?;
 
-        let base = pc
-            .consume_optional(Rule::base_usage)
-            .map(|token| self.descend(token).consume_ident(self))
-            .transpose()?;
+        let base = pc.consume_ident(self)?;
 
         // Consume blocks in order: attributes?, fields?, policy, recall?
 
