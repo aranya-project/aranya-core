@@ -9,7 +9,7 @@
 use alloc::vec::Vec;
 use core::ops::Deref;
 
-use rkyv::{Archive, bytecheck::CheckBytes};
+use rkyv::Archive;
 use stable_deref_trait::StableDeref;
 use yoke::Yoke;
 
@@ -144,9 +144,6 @@ impl Writable for super::FactIndexRepr {
 }
 
 /// A type that can be read from archived bytes.
-///
-/// This is just a convenience over using
-/// `Archive<Archived: for<'a> CheckBytes<HighValidator<'a, Error>>> + 'static`
 pub trait Readable: private::Sealed + 'static {
     type Archived;
 
@@ -162,7 +159,6 @@ impl<T> Readable for T
 where
     T: private::Sealed,
     T: Archive + 'static,
-    T::Archived: for<'a> CheckBytes<rkyv::api::high::HighValidator<'a, rkyv::rancor::Error>>,
 {
     type Archived = <Self as Archive>::Archived;
 
@@ -170,11 +166,8 @@ where
     where
         C: StableDeref<Target = [u8]>,
     {
-        Yoke::try_attach_to_cart(cart, |bytes| {
-            rkyv::access::<T::Archived, rkyv::rancor::Error>(bytes).map_err(|err| {
-                tracing::error!(?err, "rkyv access");
-                StorageError::IoError
-            })
-        })
+        Ok(Yoke::attach_to_cart(cart, |bytes| unsafe {
+            rkyv::access_unchecked::<T::Archived>(bytes)
+        }))
     }
 }
