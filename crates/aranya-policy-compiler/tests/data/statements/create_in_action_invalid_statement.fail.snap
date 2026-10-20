@@ -4,7 +4,7 @@ expression: error
 ---
 error: invalid statement
   |
-1 | action foo() {
+1 | action[null] foo() {
 2 |     create Foo[]=>{}
   |     ^^^^^^^^^^^^^^^^ statement not allowed in action context
 3 | }

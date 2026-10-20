@@ -10,7 +10,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "f",
-            flavor: None,
+            flavor: "null",
             params: [
                 Field {
                     name: "traffic",

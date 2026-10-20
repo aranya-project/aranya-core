@@ -7,7 +7,7 @@ use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, ffi::ffi}
 /// Implements 'perspective` FFI module.
 ///
 /// ```text
-/// action do_something() {
+/// action[null] do_something() {
 ///   let head_id = perspective::head_id()
 /// }```
 pub struct FfiPerspective;

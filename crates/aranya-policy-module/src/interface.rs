@@ -25,7 +25,7 @@ pub struct ActionDefinition {
     /// The name of the action.
     pub name: Ident,
     /// The flavor of the action.
-    pub flavor: Option<Ident>,
+    pub flavor: Ident,
     /// The parameters of the action.
     pub params: Vec<Param>,
     /// The return type of the action
@@ -60,7 +60,7 @@ pub struct CommandDefinition {
     /// The name of the command.
     pub name: Ident,
     /// The flavor of the command.
-    pub flavor: Option<Ident>,
+    pub flavor: Ident,
     /// The attributes of the command.
     pub attributes: Vec<Attribute>,
     /// The fields of the command.

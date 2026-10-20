@@ -1,4 +1,4 @@
-action f() {
+action[null] f() {
     let x = match 0 {
         0 => 1
         _ => return 2

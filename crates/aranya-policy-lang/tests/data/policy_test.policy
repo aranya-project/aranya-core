@@ -3,7 +3,7 @@
 /* block comment */
 fact F[v: string]=>{x: int, y: bool}
 
-action add2(x: int, y: int) {
+action[null] add2(x: int, y: int) {
     let obj = Add {
         count: x,
     }

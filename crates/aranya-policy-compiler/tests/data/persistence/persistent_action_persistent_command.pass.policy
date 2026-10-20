@@ -4,6 +4,6 @@ command Cmd with StubBase {
         finish {}
     }
 }
-action test() {
+action[null] test() {
     publish Cmd {}
 }

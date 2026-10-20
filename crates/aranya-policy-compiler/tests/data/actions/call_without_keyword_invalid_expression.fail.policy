@@ -1,4 +1,4 @@
-action bar() {}
-action foo() {
+action[null] bar() {}
+action[null] foo() {
     bar()
 }

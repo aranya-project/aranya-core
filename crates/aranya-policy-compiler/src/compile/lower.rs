@@ -1791,24 +1791,14 @@ impl CompileState<'_> {
                         .get(ident.inner.as_str())
                         .assume("command must be defined")?
                         .flavor;
-                    match (&action.flavor, command_flavor) {
-                        (None, None) => {}
-                        (Some(x), Some(y)) if x.matches(y) => {}
-                        _ => {
-                            let err = InvalidType::new(
-                                format!(
-                                    "{} command",
-                                    action.flavor.as_ref().map_or("<default>", |x| x.as_str())
-                                ),
-                                None,
-                                format!(
-                                    "{} command",
-                                    command_flavor.as_ref().map_or("<default>", |x| x.as_str())
-                                ),
-                                e.span,
-                            );
-                            return Err(self.err(err));
-                        }
+                    if !action.flavor.matches(command_flavor) {
+                        let err = InvalidType::new(
+                            format!("{} command", action.flavor),
+                            None,
+                            format!("{} command", command_flavor),
+                            e.span,
+                        );
+                        return Err(self.err(err));
                     }
                     thir::StmtKind::Publish(e)
                 }

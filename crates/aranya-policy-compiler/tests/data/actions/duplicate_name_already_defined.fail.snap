@@ -4,8 +4,8 @@ expression: error
 ---
 error: the name `foo` is defined multiple times
   |
-1 | action foo() {}
-  |        --- previous defintion here
-2 | action bar() {}
-3 | action foo() {}
-  |        ^^^ re-defined here
+1 | action[null] foo() {}
+  |              --- previous defintion here
+2 | action[null] bar() {}
+3 | action[null] foo() {}
+  |              ^^^ re-defined here
