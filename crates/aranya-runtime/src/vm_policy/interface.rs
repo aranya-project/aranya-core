@@ -24,6 +24,13 @@ macro_rules! vm_action {
             policy: ::core::option::Option::None,
         }
     };
+    ($name:ident($($arg:expr),* $(,)?); $policy:expr) => {
+        $crate::VmAction {
+            name: ::aranya_policy_vm::ident!(stringify!($name)),
+            args: [$(::aranya_policy_vm::Value::from($arg)),*].as_slice().into(),
+            policy: ::core::option::Option::Some($policy),
+        }
+    };
 }
 
 /// Creates a [`VmEffectData`].

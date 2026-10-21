@@ -36,6 +36,19 @@ impl<CE: Engine> VmPolicyStore<CE> {
             policies: BTreeMap::new(),
         }
     }
+
+    /// Get the serialized verifying key based on the seal context.
+    #[cfg(any(test, feature = "testing"))]
+    pub(crate) fn verifying_key(&self) -> Vec<u8> {
+        postcard::to_allocvec(
+            &self
+                .seal_ctx
+                .key
+                .public()
+                .expect("can compute verifying key"),
+        )
+        .expect("can serialize verifying key")
+    }
 }
 
 impl<CE: Engine + Clone> VmPolicyStore<CE> {

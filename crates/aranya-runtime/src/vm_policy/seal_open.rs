@@ -23,6 +23,18 @@ pub struct SealCtx<CE: Engine> {
     pub key: SigningKey<CE::CS>,
 }
 
+impl<CE: Engine> Clone for SealCtx<CE>
+where
+    SigningKey<CE::CS>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            author: self.author,
+            key: self.key.clone(),
+        }
+    }
+}
+
 pub(super) fn seal_with_key<CS: CipherSuite>(
     key: &SigningKey<CS>,
     command_struct: &Struct,
