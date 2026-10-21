@@ -48,7 +48,7 @@ impl<CE: Engine> VmPolicyStore<CE> {
 
     /// Get the serialized verifying key based on the seal context.
     #[cfg(any(test, feature = "testing"))]
-    pub(crate) fn verifying_key(&self) -> Vec<u8> {
+    pub fn verifying_key(&self) -> Vec<u8> {
         postcard::to_allocvec(
             &self
                 .seal_ctx
