@@ -1,6 +1,6 @@
 //! Mutex implementations.
 
-#![cfg(any(test, feature = "memory", feature = "sdlib", feature = "posix"))]
+#![cfg(any(test, feature = "memory", feature = "posix"))]
 
 use core::{
     cell::UnsafeCell,
@@ -85,10 +85,7 @@ unsafe impl<T: ?Sized + Send> Sync for Mutex<T> {}
 
 impl<T> Mutex<T> {
     /// Creates a new, unlocked mutex.
-    #[cfg_attr(
-        all(feature = "memory", not(any(feature = "posix", feature = "sdlib"))),
-        allow(dead_code)
-    )]
+    #[cfg_attr(all(feature = "memory", not(feature = "posix")), allow(dead_code))]
     pub fn new(v: T) -> Self {
         Self {
             key: AtomicU32::new(0),
@@ -117,11 +114,7 @@ impl<T: ?Sized> Mutex<T> {
     ///
     /// The mutex will be unlocked when the result is dropped.
     #[cfg_attr(
-        all(
-            feature = "memory",
-            feature = "std",
-            not(any(feature = "posix", feature = "sdlib"))
-        ),
+        all(feature = "memory", feature = "std", not(feature = "posix")),
         allow(dead_code)
     )]
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {

@@ -202,11 +202,6 @@ impl ChunkParser<'_> {
         Ok(Ident { inner: name, span })
     }
 
-    fn parse_flavor(&self, token: Pair<'_, Rule>) -> Result<Ident, ParseError> {
-        assert_eq!(token.as_rule(), Rule::flavor);
-        self.descend(token).consume_ident(self)
-    }
-
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
     fn parse_type(&self, token: Pair<'_, Rule>) -> Result<VType, ParseError> {
@@ -1441,10 +1436,7 @@ impl ChunkParser<'_> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = self.descend(item);
 
-        let flavor = pc
-            .consume_optional(Rule::flavor)
-            .map(|token| self.parse_flavor(token))
-            .transpose()?;
+        let flavor = pc.consume_ident(self)?;
 
         let name = pc.consume_ident(self)?;
 
@@ -1601,10 +1593,7 @@ impl ChunkParser<'_> {
 
         let name = pc.consume_ident(self)?;
 
-        let base = pc
-            .consume_optional(Rule::base_usage)
-            .map(|token| self.descend(token).consume_ident(self))
-            .transpose()?;
+        let base = pc.consume_ident(self)?;
 
         // Consume blocks in order: attributes?, fields?, policy, recall?
 
@@ -1714,10 +1703,7 @@ impl ChunkParser<'_> {
 
         let pc = self.descend(item);
 
-        let flavor = pc
-            .consume_optional(Rule::flavor)
-            .map(|token| self.parse_flavor(token))
-            .transpose()?;
+        let flavor = pc.consume_ident(self)?;
 
         let name = pc.consume_ident(self)?;
 

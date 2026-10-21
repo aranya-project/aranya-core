@@ -72,35 +72,17 @@ impl Iterator for GraphIdIterator {
 #[derive(Debug)]
 #[clippy::has_significant_drop]
 pub struct FileManager {
-    #[cfg_attr(target_os = "vxworks", allow(dead_code))]
     fd: OwnedFd,
-
-    // VxWorks doesn't support `openat`, so we also need to store
-    // the path.
-    #[cfg(target_os = "vxworks")]
-    dir: aranya_libc::PathBuf,
 }
 
 impl FileManager {
     /// Creates a `FileManager` at `dir`.
     pub fn new<P: AsRef<Path>>(dir: P) -> Result<Self, Error> {
         let fd = libc::open(dir.as_ref(), O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0)?;
-        Ok(Self {
-            fd,
-            // TODO(eric): skip the alloc if `P` is `PathBuf`?
-            #[cfg(target_os = "vxworks")]
-            dir: dir.as_ref().to_path_buf(),
-        })
+        Ok(Self { fd })
     }
 
     /// Returns the root.
-    #[cfg(target_os = "vxworks")]
-    fn root(&self) -> &Path {
-        &self.dir
-    }
-
-    /// Returns the root.
-    #[cfg(not(target_os = "vxworks"))]
     fn root(&self) -> libc::BorrowedFd<'_> {
         libc::AsFd::as_fd(&self.fd)
     }

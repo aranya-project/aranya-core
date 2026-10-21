@@ -7,10 +7,9 @@ use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidStructLiteral,
-    InvalidSubstruct, InvalidType, MissingBaseCommand, MissingDefaultPattern, MissingFields,
-    NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase,
-    StructCompositionTypeMismatch, UnknownError, UnknownField, UnreachableMatchArm, UnusedValue,
-    UnusedVariable,
+    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoReturn,
+    NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
+    UnknownError, UnknownField, UnreachableMatchArm, UnusedValue, UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -518,14 +517,5 @@ impl Error for UnusedVariable {
                 })),
             ),
         );
-    }
-}
-
-impl SimpleError for MissingBaseCommand {
-    fn description(&self) -> Cow<'_, str> {
-        format!("command {} has no base command", self.command).into()
-    }
-    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
-        once((self.command.span, "command defined here".into()))
     }
 }

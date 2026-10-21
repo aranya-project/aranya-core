@@ -46,9 +46,6 @@ page-aligned = ["libc"]
 # Have POSIX shm_open, etc.
 posix = ["libc"]
 
-# Have VxWorks 6.9 sdLib.
-sdlib = ["libc"]
-
 # Use std.
 std = [
 	"alloc",
@@ -131,9 +128,6 @@ denylist = [
 	"std",
 	"alloc",
 	"memory",
-
-	# It only works on VxWorks.
-	"sdlib",
 
 	# Just forwards to crypto, so already tested there.
 	"trng",

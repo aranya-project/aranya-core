@@ -5,13 +5,13 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'can_fail'>: 1,
-        <action 'foo'>: 7,
+        <action 'can_fail'>: 8,
+        <action 'foo'>: 14,
     },
     action_defs: [
         ActionDef {
             name: "can_fail",
-            flavor: None,
+            flavor: "null",
             params: [],
             result_type: Result(
                 ResultTypeKind {
@@ -22,7 +22,7 @@ Module {
         },
         ActionDef {
             name: "foo",
-            flavor: None,
+            flavor: "null",
             params: [],
             result_type: Result(
                 ResultTypeKind {
@@ -34,12 +34,28 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <action 'can_fail'>:
     save SP
