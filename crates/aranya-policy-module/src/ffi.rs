@@ -1,5 +1,5 @@
 //! Data definitions used by the FFI interface
-extern crate alloc;
+
 use alloc::boxed::Box;
 
 use aranya_policy_ast::{Identifier, ResultTypeKind, Span, TypeKind, VType, WithSpanExt as _};

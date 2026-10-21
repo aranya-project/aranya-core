@@ -179,12 +179,7 @@ fn compile_policy() -> Result<Vec<u8>> {
         .compile()
         .context("compile policy")?;
 
-    let mut buf = vec![0u8; 10_000];
-    let n = module
-        .write_to_slice(&mut buf)
-        .context("serialize module")?;
-    buf.truncate(n);
-    Ok(buf)
+    module.write_to_vec().context("serialize module")
 }
 
 // ---------------------------------------------------------------------------
