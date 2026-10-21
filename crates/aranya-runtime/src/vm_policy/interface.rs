@@ -50,7 +50,7 @@ macro_rules! vm_effect {
     };
 }
 
-/// [`VmPolicy`]'s actions.
+/// [`VmPolicy`](super::VmPolicy)'s effects.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VmAction<'a> {
     /// The name of the action.
@@ -82,7 +82,7 @@ impl PartialEq<VmEffectData> for VmEffect {
     }
 }
 
-/// [`VmPolicy`]'s effects.
+/// [`VmPolicy`](super::VmPolicy)'s effects.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VmEffect {
     /// The name of the effect.

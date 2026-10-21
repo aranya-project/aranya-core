@@ -1,20 +1,15 @@
-//! VmPolicy implements a [Policy] that evaluates actions and commands via the [Policy
-//! VM](../../policy_vm/index.html).
+//! VmPolicy implements a [`Policy`] that evaluates actions and commands via the [Policy VM].
 //!
 //! ## Creating a `VmPolicy` instance
 //!
-//! To use `VmPolicy` in your [`PolicyStore`](super::PolicyStore), you need to provide a Policy VM
-//! [`Machine`], a [`aranya_crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine
-//! will be created by either compiling a policy document (see
-//! [`parse_policy_document()`](../../policy_lang/lang/fn.parse_policy_document.html) and
-//! [`Compiler`](../../policy_compiler/struct.Compiler.html)), or loading a compiled policy
-//! module (see [`Machine::from_module()`]). The crypto engine comes from your favorite
-//! implementation
-//! ([`DefaultEngine::from_entropy()`](aranya_crypto::default::DefaultEngine::from_entropy) is a
-//! good choice for testing). The list of FFIs is a list of things that implement
-//! [`FfiModule`](aranya_policy_vm::ffi::FfiModule), most likely via the [ffi attribute
-//! macro](../../policy_vm/ffi/attr.ffi.html). The list of FFI modules _must_ be in the same
-//! order as the FFI schemas given during VM construction.
+//! To use `VmPolicy` in your [`PolicyStore`], you need to provide a Policy VM [`Machine`], a
+//! [`aranya_crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine will be created
+//! by either compiling a policy document (see [`parse_policy_document`] and [`Compiler`]), or
+//! loading a compiled policy module (see [`Machine::from_module`]). The crypto engine comes from
+//! your favorite implementation ([`DefaultEngine::from_entropy`] is a good choice for testing). The
+//! list of FFIs is a list of things that implement [`FfiModule`], most likely via the [ffi
+//! attribute macro]. The list of FFI modules _must_ be in the same order as the FFI schemas given
+//! during VM construction.
 //!
 //! ```ignore
 //! // Create a `Machine` by compiling policy from source.
@@ -35,24 +30,22 @@
 //!
 //! ## Actions and Effects
 //!
-//! The VM represents actions as a kind of function, which has a name and a list of
-//! parameters. [`VmPolicy`] represents those actions as [`VmAction`]. Calling an action
-//! via [`call_action()`](VmPolicy::call_action) requires you to give it an action of
-//! that type. You can use the [`vm_action!()`](crate::vm_action) macro to create this
-//! more comfortably.
+//! The VM represents actions as a kind of function, which has a name and a list of parameters.
+//! [`VmPolicy`] represents those actions as [`VmAction`]. Calling an action via [`call_action`]
+//! requires you to give it an action of that type. You can use the [`vm_action`] macro to create
+//! this more comfortably.
 //!
-//! The VM represents effects as a named struct containing a set of fields. `VmPolicy`
-//! represents this as [`VmEffect`]. Effects captured via [`Sink`]s will have this type.
-//! You can use the [`vm_effect!()`](crate::vm_effect) macro to create effects.
+//! The VM represents effects as a named struct containing a set of fields. `VmPolicy` represents
+//! this as [`VmEffect`]. Effects captured via [`Sink`]s will have this type. You can use the
+//! [`vm_effect`] macro to create effects.
 //!
 //! ## The "init" command and action
 //!
-//! To create a graph, there must be a command that is the ancestor of all commands in that
-//! graph - the "init" command. In `VmPolicy`, that command is created via a special action
-//! given as the second argument to
-//! [`ClientState::new_graph()`](crate::ClientState::new_graph). The first command produced
-//! by that action becomes the "init" command. It has basically all the same properties as
-//! any other command, except it has no parent.
+//! To create a graph, there must be a command that is the ancestor of all commands in that graph -
+//! the "init" command. In `VmPolicy`, that command is created via a special action given as the
+//! second argument to [`ClientState::new_graph`]. The first command produced by that action becomes
+//! the "init" command. It has basically all the same properties as any other command, except it has
+//! no parent.
 //!
 //! So for this example policy:
 //!
@@ -84,16 +77,16 @@
 //!     .expect("could not create graph");
 //! ```
 //!
-//! Because the ID of this initial command is also the ID of the resulting graph,
-//! some data within the command must be present to ensure that multiple initial commands
-//! create distinct IDs for each graph. If no other suitable data exists, it is good
-//! practice to add a nonce field that is distinct for each graph.
+//! Because the ID of this initial command is also the ID of the resulting graph, some data within
+//! the command must be present to ensure that multiple initial commands create distinct IDs for
+//! each graph. If no other suitable data exists, it is good practice to add a nonce field that is
+//! distinct for each graph.
 //!
 //! ## Priorities
 //!
-//! `VmPolicy` uses the policy language's attributes system to report command priorities to
-//! the runtime. You can specify the priority of a command by adding the `priority`
-//! attribute. It should be an `int` literal.
+//! `VmPolicy` uses the policy language's attributes system to report command priorities to the
+//! runtime. You can specify the priority of a command by adding the `priority` attribute. It should
+//! be an `int` literal.
 //!
 //! ```policy
 //! command Foo with Base {
@@ -106,9 +99,26 @@
 //!
 //! ## Policy Interface Generator
 //!
-//! A more comfortable way to use `VmPolicy` is via the [Policy Interface
-//! Generator](../../policy_ifgen/index.html). It creates a Rust interface for actions and
-//! effects from a policy document.
+//! A more comfortable way to use `VmPolicy` is via the [Policy Interface Generator]. It creates a
+//! Rust interface for actions and effects from a policy document.
+//!
+//!
+//! [Policy VM]: aranya_policy_vm
+//! [`ClientState::new_graph`]: crate::ClientState::new_graph
+//! [`DefaultEngine::from_entropy`]: aranya_crypto::default::DefaultEngine::from_entropy
+//! [`FfiModule`]: aranya_policy_vm::ffi::FfiModule
+//! [`Machine::from_module`]: aranya_policy_vm::Machine::from_module
+//! [`Machine`]: aranya_policy_vm::Machine
+//! [`PolicyStore`]: super::PolicyStore
+//! [`Sink`]: crate::policy::Sink
+//! [`call_action`]: VmPolicy::call_action
+//! [`vm_action`]: crate::vm_action
+//! [`vm_effect`]: crate::vm_effect
+//! [ffi attribute macro]: aranya_policy_vm::ffi::ffi
+//!
+//! [Policy Interface Generator]: ../../policy_ifgen/index.html
+//! [`Compiler`]: ../../policy_compiler/struct.Compiler.html
+//! [`parse_policy_document`]: ../../policy_lang/lang/fn.parse_policy_document.html
 
 mod error;
 mod imp;
@@ -127,3 +137,5 @@ pub use self::{
     io::{FfiCallable, VmFactCursor},
     seal_open::SealCtx,
 };
+#[cfg(doc)]
+use crate::Policy;
