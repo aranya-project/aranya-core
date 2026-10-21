@@ -246,12 +246,7 @@ fn should_create_basic_client_and_add_commands() {
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
@@ -320,7 +315,7 @@ fn should_create_client_with_ffi_and_add_commands() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, client_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -408,7 +403,7 @@ fn should_fail_duplicate_graph_ids() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, vkey.clone()); &policy),
+            vm_action!(init(nonce, vkey.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -416,12 +411,7 @@ fn should_fail_duplicate_graph_ids() {
     let nonce = 2;
     // Creating a second graph with a proxy id of one will cause an error.
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect_err("Should fail graph creation if proxy_id is reused");
 }
 
@@ -446,19 +436,14 @@ fn should_allow_multiple_graphs() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, vkey.clone()); &policy),
+            vm_action!(init(nonce, vkey.clone())),
             &policy,
         )
         .expect("Should create a graph");
 
     let nonce = 2;
     test_model
-        .new_graph(
-            Graph::Y,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::Y, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should support the ability to add multiple graphs");
 }
 
@@ -498,7 +483,7 @@ fn should_sync_ffi_clients() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_one_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, client_one_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -621,12 +606,7 @@ fn should_sync_basic_clients() {
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should create a graph");
 
     // Issue the create action, it will create a fact in the FactDB with the value
@@ -712,12 +692,7 @@ fn should_sync_clients_with_duplicate_payloads() {
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
@@ -790,12 +765,7 @@ fn should_allow_multiple_instances_of_model() {
     let nonce = 1;
     // Create a graph on the first model client
     test_model_1
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey1); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey1)), &policy)
         .expect("Should create a graph");
 
     // Issue a create action on the first model client.
@@ -807,12 +777,7 @@ fn should_allow_multiple_instances_of_model() {
     // Create a graph on the second model client
     let nonce = 1;
     test_model_2
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey2); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey2)), &policy)
         .expect("Should create a graph");
 
     // Issue an action on the second model client
@@ -862,7 +827,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, model_one_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, model_one_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -906,7 +871,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, model_two_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, model_two_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -952,12 +917,7 @@ fn should_send_and_receive_session_data() {
     // Initialize the graph on client A
     let nonce = 1;
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should create a graph");
 
     // Sync the graph with client B. Currently, ephemeral commands must be run on
@@ -1052,7 +1012,7 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, client_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -1176,7 +1136,7 @@ fn test_session_bound_to_graph() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, client_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -1202,7 +1162,7 @@ fn test_session_bound_to_graph() {
         .new_graph(
             Graph::Y,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, client_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -1283,12 +1243,7 @@ fn should_allow_access_to_fact_db_from_session() {
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should create a graph");
 
     // Create an on-graph fact to later be queried from the session command.
@@ -1343,12 +1298,7 @@ fn should_store_session_data_to_graph() {
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should create a graph");
 
     // `sessions_actions` is the portion of the session api responsible for
@@ -1399,12 +1349,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     test_model.add_client(Device::B)?;
 
     // Create graph and sync
-    test_model.new_graph(
-        Graph::X,
-        Device::A,
-        vm_action!(init(42, vkey); &policy),
-        &policy,
-    )?;
+    test_model.new_graph(Graph::X, Device::A, vm_action!(init(42, vkey)), &policy)?;
     test_model.sync(Graph::X, Device::A, Device::B)?;
 
     // Perform actions on client A session.
@@ -1547,7 +1492,7 @@ fn should_create_clients_with_args() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            vm_action!(init(nonce, client_sign_pk.clone())),
             &policy,
         )
         .expect("Should create a graph");
@@ -1660,12 +1605,7 @@ fn test_storage_fact_creturns_correct_index() {
     test_model.add_client(Device::B).unwrap();
 
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(1, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(1, vkey)), &policy)
         .unwrap();
 
     test_model
@@ -1707,12 +1647,7 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, vkey); &policy),
-            &policy,
-        )
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)), &policy)
         .expect("Should create a graph");
 
     // Issue the 'publish_multiple_commands' action. It will publish 3 Link commands
@@ -1802,7 +1737,7 @@ fn should_allow_remove_graph() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_one_sign_pk); &policy),
+            vm_action!(init(nonce, client_one_sign_pk)),
             &policy,
         )
         .expect("Should create a graph");

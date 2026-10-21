@@ -21,14 +21,6 @@ macro_rules! vm_action {
         $crate::VmAction {
             name: ::aranya_policy_vm::ident!(stringify!($name)),
             args: [$(::aranya_policy_vm::Value::from($arg)),*].as_slice().into(),
-            policy: ::core::option::Option::None,
-        }
-    };
-    ($name:ident($($arg:expr),* $(,)?); $policy:expr) => {
-        $crate::VmAction {
-            name: ::aranya_policy_vm::ident!(stringify!($name)),
-            args: [$(::aranya_policy_vm::Value::from($arg)),*].as_slice().into(),
-            policy: ::core::option::Option::Some($policy),
         }
     };
 }
@@ -65,8 +57,6 @@ pub struct VmAction<'a> {
     pub name: Identifier,
     /// The arguments of the action.
     pub args: Cow<'a, [Value]>,
-    /// Policy bytes for init (and upgrade?).
-    pub policy: Option<&'a [u8]>,
 }
 
 /// A partial version of [`VmEffect`] containing only the data. Created by

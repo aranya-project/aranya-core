@@ -300,11 +300,7 @@ fn main() -> Result<()> {
     // Step 4: Create graph with init action
     println!("\nStep 4: Creating graph (init)...");
     let graph_id = init(dev_a.public_keys, 42)
-        .with_action(|action| {
-            let mut action = action;
-            action.policy = Some(&policy_module);
-            cs_a.new_graph(&policy_module, action, &mut sink)
-        })
+        .with_action(|action| cs_a.new_graph(&policy_module, action, &mut sink))
         .context("new_graph")?;
     sink.drain_and_print("Device A / init");
     println!("  Graph ID: {graph_id}");

@@ -725,7 +725,7 @@ mod test {
 
     use super::*;
     use crate::{
-        Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
+        Bytes, ClientState, FlavorCtx, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
         Prioritized as _, Priority, TraversalBuffer, mem_spill,
         policy::{ActionPlacement, CommandPlacement},
         storage::linear::testing::MemStorageProvider,
@@ -835,6 +835,7 @@ mod test {
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
             _seal_ctx: &(),
+            _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
             unimplemented!()
         }

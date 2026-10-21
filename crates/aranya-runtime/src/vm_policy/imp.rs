@@ -16,8 +16,8 @@ use super::{
     seal_open::{SealCtx, open_with_key, seal_with_key},
 };
 use crate::{
-    ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, NullSink, Perspective,
-    Prior, Priority,
+    ActionPlacement, Address, CommandPlacement, FactPerspective, FlavorCtx, MergeIds, NullSink,
+    Perspective, Prior, Priority,
     command::{CmdId, Command},
     policy::{Policy, PolicyError, Sink},
 };
@@ -337,8 +337,14 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         sink: &mut impl Sink<Self::Effect>,
         action_placement: ActionPlacement,
         seal_ctx: &SealCtx<CE>,
+        flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
-        let VmAction { name, args, policy } = action;
+        let VmAction { name, args } = action;
+
+        let policy = match flavor_ctx {
+            FlavorCtx::Init { policy } => Some(policy),
+            FlavorCtx::Basic => None,
+        };
 
         let def = self.machine.action_defs.get(&name).ok_or_else(|| {
             error!("action not found");

@@ -354,7 +354,7 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore, policy: &[u8]) -> Result<(),
 
     // Create a new graph. This builds an Init event and returns an ID referencing the graph.
     let graph_id = cs
-        .new_graph(policy, vm_action!(init(0, key); policy), &mut sink)
+        .new_graph(policy, vm_action!(init(0, key)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
@@ -430,7 +430,7 @@ pub fn test_action_result(
     let mut cs = ClientState::new(policy_store, provider);
 
     let graph = cs
-        .new_graph(policy, vm_action!(init(0, key); policy), &mut NullSink)
+        .new_graph(policy, vm_action!(init(0, key)), &mut NullSink)
         .expect("could not create graph");
 
     // `try_result` is ephemeral, so run it in a session.
@@ -476,7 +476,7 @@ pub fn test_query_fact_value(
     let mut buffers = RuntimeBuffers::new();
 
     let graph = cs
-        .new_graph(policy, vm_action!(init(0, key); policy), &mut NullSink)
+        .new_graph(policy, vm_action!(init(0, key)), &mut NullSink)
         .expect("could not create graph");
 
     cs.action(
@@ -529,7 +529,7 @@ pub fn test_aranya_session(
 
     // Create a new graph. This builds an Init event and returns an ID referencing the graph.
     let graph_id = cs
-        .new_graph(policy, vm_action!(init(0, key); policy), &mut sink)
+        .new_graph(policy, vm_action!(init(0, key)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
@@ -720,7 +720,7 @@ pub fn test_effect_metadata(
     let mut cs1 = ClientState::new(policy_store_1, provider);
     let mut sink = VecSink::new();
     let graph_id = cs1
-        .new_graph(policy, vm_action!(init(1, key); policy), &mut sink)
+        .new_graph(policy, vm_action!(init(1, key)), &mut sink)
         .expect("could not create graph");
 
     // Create a new counter with a value of 1
