@@ -13,15 +13,15 @@ use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
-    Machine, Value,
+    Value,
     ffi::{FfiModule as _, ModuleSchema},
     text,
 };
 use aranya_runtime::{
-    ClientState, FfiCallable, PolicyStore, StorageProvider, VmEffect,
+    ClientState, PolicyStore, StorageProvider, VmEffect,
     storage::linear::{self, testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::{FLAVORS, SealCtx, VmPolicy},
+    vm_policy::{FLAVORS, FfiSet, SealCtx},
 };
 use tempfile::tempdir;
 use test_log::test;
@@ -41,23 +41,22 @@ type Lsp = linear::LinearStorageProvider<linear::testing::Manager>;
 // NOTE: In actual usage, we would only have one client factory per
 // implementation, I included two here for testing purposes.
 struct BasicClientFactory {
-    machine: Machine,
-    seal_ctx: Arc<SealCtx<DefaultEngine>>,
+    seal_ctx: SealCtx<Arc<DefaultEngine>>,
 }
 
 impl BasicClientFactory {
-    fn new(policy_doc: &str) -> Result<Self, ModelError> {
-        let policy_ast = parse_policy_document(policy_doc)?;
-        // Create policy machine
-        let module = Compiler::new(&policy_ast).flavors(&FLAVORS).compile()?;
-        let machine = Machine::from_module(module).expect("should be able to load compiled module");
-
-        let seal_ctx = Arc::new(SealCtx {
+    fn new() -> Result<Self, ModelError> {
+        let seal_ctx = SealCtx {
             author: DeviceId::default(),
             key: SigningKey::new(Rng),
-        });
+        };
+        Ok(Self { seal_ctx })
+    }
 
-        Ok(Self { machine, seal_ctx })
+    fn compile(policy_doc: &str) -> Result<Vec<u8>, ModelError> {
+        let policy_ast = parse_policy_document(policy_doc)?;
+        let module = Compiler::new(&policy_ast).flavors(&FLAVORS).compile()?;
+        Ok(module.write_to_vec()?)
     }
 
     fn key(&self) -> Vec<u8> {
@@ -75,7 +74,7 @@ struct EmptyKeys;
 // necessary to to satisfy the policy_vm. The main part being, the use of the
 // `TestFfiEnvelope` ffi needed to satisfy requirements in the policy envelope.
 impl ClientFactory for BasicClientFactory {
-    type PolicyStore = ModelPolicyStore<DefaultEngine>;
+    type PolicyStore = ModelPolicyStore<Arc<DefaultEngine>>;
     type StorageProvider = Lsp;
     type PublicKeys = EmptyKeys;
     type Args = ();
@@ -84,10 +83,9 @@ impl ClientFactory for BasicClientFactory {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
 
         // Configure testing FFIs
-        let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![];
+        let ffis = FfiSet::new();
 
-        let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
-        let policy_store = ModelPolicyStore::new(policy, Some(Arc::clone(&self.seal_ctx)));
+        let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis, self.seal_ctx.clone());
         let provider = Lsp::default();
 
         ModelClient {
@@ -97,12 +95,14 @@ impl ClientFactory for BasicClientFactory {
     }
 }
 
-struct FfiClientFactory {
-    machine: Machine,
-}
+struct FfiClientFactory(());
 
 impl FfiClientFactory {
-    fn new(policy_doc: &str) -> Result<Self, ModelError> {
+    fn new() -> Result<Self, ModelError> {
+        Ok(Self(()))
+    }
+
+    fn compile(policy_doc: &str) -> Result<Vec<u8>, ModelError> {
         let ffi_schema: &[ModuleSchema<'static>] = &[
             DeviceFfi::SCHEMA,
             PerspectiveFfi::SCHEMA,
@@ -110,21 +110,19 @@ impl FfiClientFactory {
         ];
 
         let policy_ast = parse_policy_document(policy_doc)?;
-        // Create policy machine
         let module = Compiler::new(&policy_ast)
             .ffi_modules(ffi_schema)
             .flavors(&FLAVORS)
             .compile()?;
-        let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
-        Ok(Self { machine })
+        Ok(module.write_to_vec()?)
     }
 }
 
 // The FfiClientFactory uses signing keys in it's envelope, thus requires
 // supporting FFIs.
 impl ClientFactory for FfiClientFactory {
-    type PolicyStore = ModelPolicyStore<DefaultEngine>;
+    type PolicyStore = ModelPolicyStore<Arc<DefaultEngine>>;
     type StorageProvider = Lsp;
     type PublicKeys = PublicKeys<DefaultCipherSuite>;
     type Args = ();
@@ -156,19 +154,21 @@ impl ClientFactory for FfiClientFactory {
             .expect("key present");
 
         // Configure FFIs
-        let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-            Arc::from(DeviceFfi::new(bundle.device_id)),
-            Arc::from(PerspectiveFfi),
-            Arc::from(IdamFfi::new(store)),
-        ];
+        let ffis = FfiSet::new()
+            .with(DeviceFfi::new(bundle.device_id))
+            .unwrap()
+            .with(PerspectiveFfi)
+            .unwrap()
+            .with(IdamFfi::new(store))
+            .unwrap();
 
-        let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
         let policy_store = ModelPolicyStore::new(
-            policy,
-            Some(Arc::new(SealCtx {
+            Arc::new(eng),
+            ffis,
+            SealCtx {
                 author: bundle.device_id,
                 key,
-            })),
+            },
         );
         let provider = Lsp::default();
 
@@ -229,9 +229,10 @@ impl From<Graph> for ProxyGraphId {
 // requirements of the basic-policy.md.
 #[test]
 fn should_create_basic_client_and_add_commands() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
 
     // Create a new model instance with our client factory.
@@ -245,7 +246,12 @@ fn should_create_basic_client_and_add_commands() {
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
@@ -283,8 +289,10 @@ fn should_create_basic_client_and_add_commands() {
 // the fuller requirements of the ffi-policy.md.
 #[test]
 fn should_create_client_with_ffi_and_add_commands() {
+    let policy = FfiClientFactory::compile(FFI_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let ffi_clients = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let ffi_clients = FfiClientFactory::new().expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(ffi_clients);
 
@@ -312,7 +320,8 @@ fn should_create_client_with_ffi_and_add_commands() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone())),
+            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -362,8 +371,7 @@ fn should_create_client_with_ffi_and_add_commands() {
 #[test]
 fn should_fail_duplicate_client_ids() {
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::<_, Device, Graph>::new(basic_clients);
 
@@ -381,9 +389,10 @@ fn should_fail_duplicate_client_ids() {
 // error if a duplicate ID is used.
 #[test]
 fn should_fail_duplicate_graph_ids() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -396,13 +405,23 @@ fn should_fail_duplicate_graph_ids() {
     let nonce = 1;
     // Create the first graph with an id of one
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey.clone())))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey.clone()); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     let nonce = 2;
     // Creating a second graph with a proxy id of one will cause an error.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect_err("Should fail graph creation if proxy_id is reused");
 }
 
@@ -410,9 +429,10 @@ fn should_fail_duplicate_graph_ids() {
 // use case could be thought of a single device that belongs to multiple teams.
 #[test]
 fn should_allow_multiple_graphs() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -423,12 +443,22 @@ fn should_allow_multiple_graphs() {
 
     let nonce = 1;
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey.clone())))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey.clone()); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     let nonce = 2;
     test_model
-        .new_graph(Graph::Y, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::Y,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should support the ability to add multiple graphs");
 }
 
@@ -437,8 +467,10 @@ fn should_allow_multiple_graphs() {
 // times. We verify that the data is correct after every sync.
 #[test]
 fn should_sync_ffi_clients() {
+    let policy = FfiClientFactory::compile(FFI_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let ffi_clients = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let ffi_clients = FfiClientFactory::new().expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(ffi_clients);
 
@@ -466,7 +498,8 @@ fn should_sync_ffi_clients() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_one_sign_pk.clone())),
+            vm_action!(init(nonce, client_one_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -572,9 +605,10 @@ fn should_sync_ffi_clients() {
 // multiple times. We verify that the data is correct after every sync.
 #[test]
 fn should_sync_basic_clients() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -587,7 +621,12 @@ fn should_sync_basic_clients() {
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Issue the create action, it will create a fact in the FactDB with the value
@@ -657,9 +696,10 @@ fn should_sync_basic_clients() {
 // the commands.
 #[test]
 fn should_sync_clients_with_duplicate_payloads() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -672,7 +712,12 @@ fn should_sync_clients_with_duplicate_payloads() {
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
@@ -718,16 +763,16 @@ fn should_sync_clients_with_duplicate_payloads() {
 // We want to be able to use multiple instances of the model simultaneously.
 #[test]
 fn should_allow_multiple_instances_of_model() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our first client factory, this will be responsible for creating all our clients.
-    let basic_clients_1 =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients_1 = BasicClientFactory::new().expect("should create client factory");
     let vkey1 = basic_clients_1.key();
     // Create a new model with our client factory.
     let mut test_model_1 = RuntimeModel::new(basic_clients_1);
 
     // Create our second client factory.
-    let basic_clients_2 =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients_2 = BasicClientFactory::new().expect("should create client factory");
     let vkey2 = basic_clients_2.key();
     // Create a new model with our client factory.
     let mut test_model_2 = RuntimeModel::new(basic_clients_2);
@@ -745,7 +790,12 @@ fn should_allow_multiple_instances_of_model() {
     let nonce = 1;
     // Create a graph on the first model client
     test_model_1
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey1)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey1); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Issue a create action on the first model client.
@@ -757,7 +807,12 @@ fn should_allow_multiple_instances_of_model() {
     // Create a graph on the second model client
     let nonce = 1;
     test_model_2
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey2)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey2); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Issue an action on the second model client
@@ -771,13 +826,15 @@ fn should_allow_multiple_instances_of_model() {
 // test verifies that we can do that with a ffi configured clients.
 #[test]
 fn should_allow_multiple_instances_of_model_with_ffi() {
+    let policy = FfiClientFactory::compile(FFI_POLICY).expect("should compile");
+
     // Create our first client factory, this will be responsible for creating all our clients.
-    let ffi_clients_1 = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let ffi_clients_1 = FfiClientFactory::new().expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model_1 = RuntimeModel::new(ffi_clients_1);
 
     // Create our second client factory.
-    let ffi_clients_2 = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let ffi_clients_2 = FfiClientFactory::new().expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model_2 = RuntimeModel::new(ffi_clients_2);
 
@@ -805,7 +862,8 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, model_one_sign_pk.clone())),
+            vm_action!(init(nonce, model_one_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -848,7 +906,8 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, model_two_sign_pk.clone())),
+            vm_action!(init(nonce, model_two_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -872,10 +931,11 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
 // and send it over to a second client that will process the command.
 #[test]
 fn should_send_and_receive_session_data() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory function that will be responsible for creating
     // all of our test clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -892,7 +952,12 @@ fn should_send_and_receive_session_data() {
     // Initialize the graph on client A
     let nonce = 1;
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Sync the graph with client B. Currently, ephemeral commands must be run on
@@ -953,8 +1018,10 @@ fn should_send_and_receive_session_data() {
 // and send it over to a second client that will process the command.
 #[test]
 fn should_send_and_receive_session_data_with_ffi_clients() {
+    let policy = FfiClientFactory::compile(FFI_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let ffi_clients = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let ffi_clients = FfiClientFactory::new().expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(ffi_clients);
 
@@ -985,7 +1052,8 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone())),
+            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -1081,7 +1149,9 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
 
 #[test]
 fn test_session_bound_to_graph() {
-    let ffi_clients = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let policy = FfiClientFactory::compile(FFI_POLICY).expect("should compile");
+
+    let ffi_clients = FfiClientFactory::new().expect("should create client factory");
     let mut test_model = RuntimeModel::new(ffi_clients);
 
     test_model
@@ -1106,7 +1176,8 @@ fn test_session_bound_to_graph() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone())),
+            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -1131,7 +1202,8 @@ fn test_session_bound_to_graph() {
         .new_graph(
             Graph::Y,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone())),
+            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -1191,9 +1263,10 @@ fn test_session_bound_to_graph() {
 // it's FactDB.
 #[test]
 fn should_allow_access_to_fact_db_from_session() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -1210,7 +1283,12 @@ fn should_allow_access_to_fact_db_from_session() {
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Create an on-graph fact to later be queried from the session command.
@@ -1249,9 +1327,10 @@ fn should_allow_access_to_fact_db_from_session() {
 // serialized data, that is completely possible.
 #[test]
 fn should_store_session_data_to_graph() {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -1264,7 +1343,12 @@ fn should_store_session_data_to_graph() {
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // `sessions_actions` is the portion of the session api responsible for
@@ -1304,7 +1388,9 @@ fn should_store_session_data_to_graph() {
 
 #[test]
 fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
-    let basic_clients = BasicClientFactory::new(BASIC_POLICY)?;
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
+    let basic_clients = BasicClientFactory::new()?;
     let vkey = basic_clients.key();
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -1313,7 +1399,12 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     test_model.add_client(Device::B)?;
 
     // Create graph and sync
-    test_model.new_graph(Graph::X, Device::A, vm_action!(init(42, vkey)))?;
+    test_model.new_graph(
+        Graph::X,
+        Device::A,
+        vm_action!(init(42, vkey); &policy),
+        &policy,
+    )?;
     test_model.sync(Graph::X, Device::A, Device::B)?;
 
     // Perform actions on client A session.
@@ -1375,30 +1466,17 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
 // be synced, and can issue and receive ephemeral commands.
 #[test]
 fn should_create_clients_with_args() {
+    let policy = FfiClientFactory::compile(FFI_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our
     // clients.
     let client_factory = IdentityClientFactory(PhantomData);
     // Create a new model instance with our client factory.
     let mut test_model = RuntimeModel::new(client_factory);
 
-    let ffi_schema: &[ModuleSchema<'static>] = &[
-        DeviceFfi::SCHEMA,
-        PerspectiveFfi::SCHEMA,
-        IdamFfi::<Store>::SCHEMA,
-    ];
-
-    let policy_ast = parse_policy_document(FFI_POLICY).unwrap();
-    // Create policy machine
-    let module = Compiler::new(&policy_ast)
-        .ffi_modules(ffi_schema)
-        .flavors(&FLAVORS)
-        .compile()
-        .unwrap();
-    let machine = Machine::from_module(module).expect("should be able to load compiled module");
-
     // We'll store the pub keys necessary for initializing and interacting with
     // the graph.
-    let public_keys;
+    let public_keys: PublicKeys<DefaultCipherSuite>;
 
     // Create first client with full key bundle (device_id and sign_id)
     test_model
@@ -1432,19 +1510,21 @@ fn should_create_clients_with_args() {
                 .expect("unable to generate public keys");
 
             // Configure FFIs
-            let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-                Arc::from(DeviceFfi::new(bundle.device_id)),
-                Arc::from(PerspectiveFfi),
-                Arc::from(IdamFfi::new(store)),
-            ];
+            let ffis = FfiSet::new()
+                .with(DeviceFfi::new(bundle.device_id))
+                .unwrap()
+                .with(PerspectiveFfi)
+                .unwrap()
+                .with(IdamFfi::new(store))
+                .unwrap();
 
-            let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
             let policy_store = ModelPolicyStore::new(
-                policy,
-                Some(Arc::new(SealCtx {
+                Arc::new(eng),
+                ffis,
+                SealCtx {
                     author: bundle.device_id,
                     key,
-                })),
+                },
             );
             let provider = MemStorageProvider::default();
 
@@ -1467,7 +1547,8 @@ fn should_create_clients_with_args() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_sign_pk.clone())),
+            vm_action!(init(nonce, client_sign_pk.clone()); &policy),
+            &policy,
         )
         .expect("Should create a graph");
 
@@ -1503,14 +1584,15 @@ fn should_create_clients_with_args() {
                 MinKeyBundle::generate(&eng, &mut store).expect("unable to generate `KeyBundle`");
 
             // Configure FFIs
-            let ffis: Vec<Arc<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-                Arc::from(DeviceFfi::new(bundle.device_id)),
-                Arc::from(PerspectiveFfi),
-                Arc::from(IdamFfi::new(store)),
-            ];
+            let ffis = FfiSet::new()
+                .with(DeviceFfi::new(bundle.device_id))
+                .unwrap()
+                .with(PerspectiveFfi)
+                .unwrap()
+                .with(IdamFfi::new(store))
+                .unwrap();
 
-            let policy = VmPolicy::new(machine, eng, ffis).expect("should create policy");
-            let policy_store = ModelPolicyStore::new(policy, None);
+            let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis, todo!());
             let provider = MemStorageProvider::default();
 
             ModelClient {
@@ -1568,7 +1650,9 @@ fn should_create_clients_with_args() {
 // When starting a perspective from the middle of a segment with no facts, we previously would grab the wrong fact index, by taking that prior's prior to apply 0 fact updates to it.
 #[test]
 fn test_storage_fact_creturns_correct_index() {
-    let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
+    let basic_clients = BasicClientFactory::new().unwrap();
     let vkey = basic_clients.key();
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -1576,7 +1660,12 @@ fn test_storage_fact_creturns_correct_index() {
     test_model.add_client(Device::B).unwrap();
 
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(1, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(1, vkey); &policy),
+            &policy,
+        )
         .unwrap();
 
     test_model
@@ -1602,9 +1691,10 @@ fn test_storage_fact_creturns_correct_index() {
 // Ensure multiple commands are all published, and each command has the correct parent ID.
 #[test]
 fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &'static str> {
+    let policy = BasicClientFactory::compile(BASIC_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let basic_clients =
-        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    let basic_clients = BasicClientFactory::new().expect("should create client factory");
     let vkey = basic_clients.key();
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
@@ -1617,7 +1707,12 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(Graph::X, Device::A, vm_action!(init(nonce, vkey)))
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, vkey); &policy),
+            &policy,
+        )
         .expect("Should create a graph");
 
     // Issue the 'publish_multiple_commands' action. It will publish 3 Link commands
@@ -1675,8 +1770,10 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
 // Client should support removing a graph from storage based on the graph ID.
 #[test]
 fn should_allow_remove_graph() {
+    let policy = FfiClientFactory::compile(FFI_POLICY).expect("should compile");
+
     // Create our client factory, this will be responsible for creating all our clients.
-    let ffi_clients = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    let ffi_clients = FfiClientFactory::new().expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(ffi_clients);
 
@@ -1705,7 +1802,8 @@ fn should_allow_remove_graph() {
         .new_graph(
             Graph::X,
             Device::A,
-            vm_action!(init(nonce, client_one_sign_pk)),
+            vm_action!(init(nonce, client_one_sign_pk); &policy),
+            &policy,
         )
         .expect("Should create a graph");
     let head_id_a = test_model
