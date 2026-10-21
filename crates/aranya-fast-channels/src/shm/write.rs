@@ -5,6 +5,7 @@ use aranya_crypto::{
     afc::{RawOpenKey, RawSealKey},
     policy::LabelId,
 };
+use buggy::BugExt as _;
 
 use super::{
     error::{Error, corrupted},
@@ -87,11 +88,14 @@ where
             ShmChan::<CS>::init(chan, id, label_id, peer_id, &keys, &self.rng);
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("write side generation={}", generation + 1);
+            debug!("write side generation={}", generation.wrapping_add(1));
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
-            side.len += 1;
+            side.len = side
+                .len
+                .checked_add(1)
+                .assume("len < cap, so adding 1 cannot overflow")?;
             assert!(side.len <= side.cap);
             debug!("write side len={}", side.len);
 
@@ -107,11 +111,14 @@ where
             ShmChan::<CS>::init(side.raw_at(idx)?, id, label_id, peer_id, &keys, &self.rng);
 
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("read side generation={}", generation + 1);
+            debug!("read side generation={}", generation.wrapping_add(1));
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
-            side.len += 1;
+            side.len = side
+                .len
+                .checked_add(1)
+                .assume("len < cap, so adding 1 cannot overflow")?;
             assert!(side.len <= side.cap);
             debug!("read side len={}", side.len);
 
@@ -146,7 +153,7 @@ where
             // As a precaution, update the generation before we
             // do anything else.
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("write side generation={}", generation + 1);
+            debug!("write side generation={}", generation.wrapping_add(1));
 
             // side[i] = side[side.len-1]
             side.swap_remove(idx)?;
@@ -164,7 +171,7 @@ where
             // As a precaution, update the generation before we
             // do anything else.
             let generation = side.generation.fetch_add(1, Ordering::AcqRel);
-            debug!("read side generation={}", generation + 1);
+            debug!("read side generation={}", generation.wrapping_add(1));
 
             // side[i] = side[side.len-1]
             side.swap_remove(idx)?;

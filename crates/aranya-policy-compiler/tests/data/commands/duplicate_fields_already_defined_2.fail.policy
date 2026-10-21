@@ -1,8 +1,8 @@
-struct Bar { a int }
-command Foo {
+struct Bar { a: int }
+command Foo with StubBase {
     fields {
         +Bar,
-        a string
+        a: string
     }
     policy {
         finish {}

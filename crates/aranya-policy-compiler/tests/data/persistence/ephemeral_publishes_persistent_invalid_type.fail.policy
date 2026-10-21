@@ -1,9 +1,9 @@
-command Cmd {
+command Cmd with StubBase {
     fields {}
     policy {
         finish {}
     }
 }
-ephemeral action test() {
+action[ephemeral] test() {
     publish Cmd {}
 }

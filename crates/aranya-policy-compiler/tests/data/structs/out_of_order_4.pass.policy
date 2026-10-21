@@ -1,7 +1,7 @@
-effect Fi { s struct Foo }
-command Foo {
+effect Fi { s: struct Foo }
+command Foo with StubBase {
     fields {
-        i int
+        i: int
     }
     policy {
         finish {}

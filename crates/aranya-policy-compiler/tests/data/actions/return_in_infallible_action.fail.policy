@@ -1,4 +1,4 @@
-// An infallible action (no result type) cannot return.
-action oops() {
+// An infallible action (no: result type) cannot return.
+action[null] oops() {
     return Ok(0)
 }

@@ -16,23 +16,23 @@ Policy {
     ],
     actions: [
         ActionDefinition {
-            persistence: Persistent,
-            name: "foo" @ 125..128,
+            flavor: "null" @ 125..129,
+            name: "foo" @ 131..134,
             parameters: [],
             return_type: Unit @ 0..0,
             body: [
                 Publish(
                     NamedStruct(
                         NamedStruct {
-                            name: "SomeCommand" @ 145..156,
+                            name: "SomeCommand" @ 151..162,
                             fields: [],
                             sources: [],
-                            span: 145..158,
+                            span: 151..164,
                         },
-                    ) @ 145..158,
-                ) @ 137..159,
+                    ) @ 151..164,
+                ) @ 143..165,
             ],
-            span: 118..160,
+            span: 118..166,
         },
     ],
     effects: [],
@@ -43,5 +43,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "---\npolicy-version: 2\n---\n\n# A fact\n\n```policy\nfact Markdown[]=>{}\n```\n\n```\nfact NotAPolicyBlock[]=>{}\n```\n\n```policy\naction foo() {\n    publish SomeCommand{}\n}\n```\n",
+    text: "---\npolicy-version: 2\n---\n\n# A fact\n\n```policy\nfact Markdown[]=>{}\n```\n\n```\nfact NotAPolicyBlock[]=>{}\n```\n\n```policy\naction[null] foo() {\n    publish SomeCommand{}\n}\n```\n",
 }

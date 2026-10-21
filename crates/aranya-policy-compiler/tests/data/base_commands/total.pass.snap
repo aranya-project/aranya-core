@@ -6,19 +6,19 @@ Module {
     version: "1",
     labels: {
         <get_key 'MyBasic1'>: 10,
-        <policy 'MyBasic1'>: 43,
+        <policy 'MyBasic1'>: 50,
         <get_key 'MyBasic2'>: 10,
-        <policy 'MyBasic2'>: 46,
+        <policy 'MyBasic2'>: 53,
         <get_key 'MyInit'>: 1,
-        <policy 'MyInit'>: 40,
-        <action 'my_basic_1'>: 55,
-        <action 'my_basic_2'>: 58,
-        <action 'my_init'>: 49,
+        <policy 'MyInit'>: 47,
+        <action 'my_basic_1'>: 62,
+        <action 'my_basic_2'>: 65,
+        <action 'my_init'>: 56,
     },
     action_defs: [
         ActionDef {
             name: "my_init",
-            persistence: Persistent,
+            flavor: "init",
             params: [
                 Field {
                     name: "key",
@@ -29,13 +29,13 @@ Module {
         },
         ActionDef {
             name: "my_basic_1",
-            persistence: Persistent,
+            flavor: "basic",
             params: [],
             result_type: Unit,
         },
         ActionDef {
             name: "my_basic_2",
-            persistence: Persistent,
+            flavor: "basic",
             params: [],
             result_type: Unit,
         },
@@ -43,7 +43,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "MyInit",
-            persistence: Persistent,
+            flavor: "init",
             attributes: [],
             fields: [
                 Field {
@@ -54,13 +54,13 @@ Module {
         },
         CommandDef {
             name: "MyBasic1",
-            persistence: Persistent,
+            flavor: "basic",
             attributes: [],
             fields: [],
         },
         CommandDef {
             name: "MyBasic2",
-            persistence: Persistent,
+            flavor: "basic",
             attributes: [],
             fields: [],
         },
@@ -84,6 +84,19 @@ Module {
         },
     ],
     struct_defs: [
+        StructDef {
+            name: "BasicEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "InitEnvelope",
+            items: [
+                Field {
+                    name: "test_field",
+                    vtype: Int,
+                },
+            ],
+        },
         StructDef {
             name: "Key",
             items: [
@@ -126,6 +139,14 @@ Module {
                     vtype: Bytes,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -176,6 +197,13 @@ Module {
     end
     jump 37
 <37>:
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

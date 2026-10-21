@@ -21,7 +21,6 @@ aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false,
 	"rand_compat",
 ] }
 aranya-device-ffi = { path = "../../crates/aranya-device-ffi", features = ["alloc"] }
-aranya-envelope-ffi = { path = "../../crates/aranya-envelope-ffi", features = ["alloc"] }
 aranya-idam-ffi = { path = "../../crates/aranya-idam-ffi", features = ["alloc"] }
 aranya-perspective-ffi = { path = "../../crates/aranya-perspective-ffi", features = ["alloc"] }
 aranya-policy-ast = { path = "../../crates/aranya-policy-ast" }

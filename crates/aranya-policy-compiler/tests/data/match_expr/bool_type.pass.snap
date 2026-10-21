@@ -5,12 +5,12 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'f'>: 1,
+        <action 'f'>: 8,
     },
     action_defs: [
         ActionDef {
             name: "f",
-            persistence: Persistent,
+            flavor: "null",
             params: [
                 Field {
                     name: "n",
@@ -22,12 +22,28 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <action 'f'>:
     def 'n'
@@ -35,24 +51,24 @@ Module {
     dup
     const 0
     eq
-    branch 8
-    jump 13
-<8>:
+    branch 15
+    jump 20
+<15>:
     block
     pop
     const false
     end
-    jump 18
-<13>:
+    jump 25
+<20>:
     block
     pop
     const true
     end
-    jump 18
-<18>:
+    jump 25
+<25>:
     def 'b'
     get 'b'
-    branch 22
+    branch 29
     exit panic
-<22>:
+<29>:
     return

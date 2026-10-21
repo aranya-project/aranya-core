@@ -1,3 +1,3 @@
-action test() {
+action[null] test() {
     let n = Drink::Coffee
 }

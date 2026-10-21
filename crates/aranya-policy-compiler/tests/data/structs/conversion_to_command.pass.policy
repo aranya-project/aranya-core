@@ -1,17 +1,17 @@
 struct Foo {
-    a int,
-    b string,
+    a: int,
+    b: string,
 }
-command Bar {
+command Bar with StubBase {
     fields {
-        a int,
-        b string,
+        a: int,
+        b: string,
     }
     policy {
         finish {}
     }
 }
-action convert() {
+action[null] convert() {
     let bar = Foo { a: 1, b: "test" } as Bar
     publish bar
 }

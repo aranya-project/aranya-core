@@ -115,53 +115,6 @@ impl fmt::Display for Version {
     }
 }
 
-/// Persistence mode for commands and actions
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-pub enum Persistence {
-    /// Persisted on-graph (default behavior)
-    Persistent,
-    /// Not persisted on-graph (ephemeral)
-    Ephemeral(Span),
-}
-
-impl Persistence {
-    /// Reports whether both persistence modes are the same,
-    /// ignoring spans.
-    pub fn matches(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::Persistent, Self::Persistent) | (Self::Ephemeral(_), Self::Ephemeral(_))
-        )
-    }
-
-    /// Returns the span of the persistence mode, if available.
-    pub fn span(&self) -> Option<Span> {
-        match self {
-            Self::Persistent => None,
-            Self::Ephemeral(span) => Some(*span),
-        }
-    }
-}
-
-impl fmt::Display for Persistence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Persistent => write!(f, "persistent"),
-            Self::Ephemeral(_) => write!(f, "ephemeral"),
-        }
-    }
-}
-
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
@@ -646,6 +599,8 @@ pub enum ExprKind {
     Cast(Box<Expression>, Ident),
     /// Match expression
     Match(Box<MatchExpression>),
+    /// `expr?` — unwrap a `result[T, E]`, propagating `Err` to the caller.
+    Try(Box<Expression>),
 }
 
 impl ExprKind {
@@ -770,9 +725,9 @@ impl ExprKind {
             }
 
             // Single expression variants
-            (Self::Return(a), Self::Return(b)) | (Self::Not(a), Self::Not(b)) => {
-                a.inner.matches(&b.inner)
-            }
+            (Self::Return(a), Self::Return(b))
+            | (Self::Not(a), Self::Not(b))
+            | (Self::Try(a), Self::Try(b)) => a.inner.matches(&b.inner),
 
             // Two expression variants
             (Self::And(a1, a2), Self::And(b1, b2))
@@ -1235,8 +1190,8 @@ impl Spanned for FactDefinition {
 /// An action definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionDefinition {
-    /// The persistence mode of the action
-    pub persistence: Persistence,
+    /// The flavor of the action
+    pub flavor: Ident,
     /// The name of the action
     pub name: Ident,
     /// The parameters to the action
@@ -1340,10 +1295,8 @@ impl Spanned for RecallBlockDefinition {
 /// A command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
-    /// The persistence mode of the command
-    pub persistence: Persistence,
     /// The name of the base command for this command
-    pub base: Option<Ident>,
+    pub base: Ident,
     /// Optional attributes
     pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
@@ -1367,6 +1320,8 @@ impl Spanned for CommandDefinition {
 /// A base command definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseCommandDefinition {
+    /// The flavor of the command
+    pub flavor: Ident,
     /// The name of the base command
     pub name: Ident,
     /// The fields of the base command and their types

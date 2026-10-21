@@ -47,7 +47,6 @@ BUCKETS = {
         "aranya-core",
         "aranya-crypto",
         "aranya-device-ffi",
-        "aranya-envelope-ffi",
         "aranya-fast-channels",
         "aranya-id",
         "aranya-idam-ffi",
