@@ -17,8 +17,9 @@ use yoke::{Yoke, Yokeable};
 
 use crate::{
     Address, Bytes, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective,
-    GraphId, Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority,
-    Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
+    FlavorCtx, GraphId, Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior,
+    Priority, Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError,
+    StorageProvider,
     policy::{ActionPlacement, CommandPlacement},
 };
 
@@ -103,6 +104,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
             effect_sink,
             ActionPlacement::OffGraph,
             seal_ctx,
+            FlavorCtx::Basic,
         ) {
             Ok(()) => {
                 // Success, commit effects
@@ -491,8 +493,8 @@ mod test {
 
     use super::*;
     use crate::{
-        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MergeIds, Perspective, Policy,
-        PolicyStore, Priority, RuntimeBuffers, mem_spill,
+        Address, Bytes, ClientState, FactPerspective, FlavorCtx, GraphId, Keys, MergeIds,
+        Perspective, Policy, PolicyStore, Priority, RuntimeBuffers, mem_spill,
         policy::{ActionPlacement, CommandPlacement, NullSink, PolicyError, Sink},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -591,6 +593,7 @@ mod test {
             _sink: &mut impl Sink<Self::Effect>,
             _placement: ActionPlacement,
             _seal_ctx: &(),
+            _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
             unimplemented!()
         }

@@ -127,6 +127,7 @@ mod io;
 mod priority;
 mod protocol;
 mod seal_open;
+mod store;
 
 #[cfg(any(test, feature = "testing"))]
 pub(crate) use self::io::ser_keys;
@@ -136,6 +137,7 @@ pub use self::{
     interface::{VmAction, VmEffect, VmEffectData},
     io::{FfiCallable, VmFactCursor},
     seal_open::SealCtx,
+    store::{DuplicateFfiName, FfiSet, MissingFfiName, VmPolicyStore},
 };
 #[cfg(doc)]
 use crate::Policy;

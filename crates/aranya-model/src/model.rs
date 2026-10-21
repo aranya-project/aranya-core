@@ -8,21 +8,21 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     mem,
-    sync::Arc,
     vec::Vec,
 };
 
 use anyhow::Result;
-use aranya_crypto::{Engine, Rng};
+use aranya_crypto::Rng;
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
+use aranya_policy_vm::ModuleIoError;
 use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
     StorageProvider, SyncError, SyncRequester, TraversalBuffers, mem_spill,
-    policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
+    policy::{Policy, PolicyError, PolicyStore, Sink},
     storage::GraphId,
     testing::dsl::dispatch,
-    vm_policy::{SealCtx, VmEffect, VmPolicy, VmPolicyError},
+    vm_policy::{VmEffect, VmPolicyError},
 };
 use derive_where::derive_where;
 
@@ -31,42 +31,7 @@ use derive_where::derive_where;
 /// An Effect is a struct used in policy `finish` and `recall` blocks to describe the shape of side effects emitted from processed commands.
 pub type ModelEffect = VmEffect;
 
-/// Model policy store.
-///
-/// Holds the [`VmPolicy`] model policy store methods.
-pub struct ModelPolicyStore<CE: Engine> {
-    policy: VmPolicy<CE>,
-    seal_ctx: Option<Arc<SealCtx<CE>>>,
-}
-
-impl<CE: Engine> ModelPolicyStore<CE> {
-    /// Creates a new [`ModelPolicyStore`] instance with a [`VmPolicy`].
-    pub fn new(policy: VmPolicy<CE>, seal_ctx: Option<Arc<SealCtx<CE>>>) -> Self {
-        Self { policy, seal_ctx }
-    }
-}
-
-impl<CE: Engine> PolicyStore for ModelPolicyStore<CE> {
-    type Policy = VmPolicy<CE>;
-    type Effect = ModelEffect;
-
-    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
-        // TODO: (Scott) Implement once `add_policy` method is implemented in the policy_vm
-        // For now return dummy PolicyId
-        Ok(PolicyId::default())
-    }
-
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
-        Ok(&self.policy)
-    }
-
-    fn seal_ctx(
-        &self,
-        _id: PolicyId,
-    ) -> std::result::Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
-        self.seal_ctx.as_deref().ok_or(PolicyError::Panic)
-    }
-}
+pub type ModelPolicyStore<CE> = aranya_runtime::vm_policy::VmPolicyStore<CE>;
 
 /// An error returned by the model.
 #[derive(Debug, thiserror::Error)]
@@ -91,6 +56,8 @@ pub enum ModelError {
     Parse(#[from] ParseError),
     #[error(transparent)]
     Compile(#[from] CompileError),
+    #[error(transparent)]
+    ModuleIo(#[from] ModuleIoError),
 }
 
 /// Proxy ID for clients
@@ -137,6 +104,7 @@ pub trait Model {
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
+        policy: &[u8],
     ) -> Result<(Vec<Self::Effect>, GraphId), ModelError>;
 
     /// Used to get the ID of the head of the graph.
@@ -374,6 +342,7 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
+        policy: &[u8],
     ) -> Result<(Vec<Self::Effect>, GraphId), ModelError> {
         let Entry::Vacant(graph_id_entry) = self.graph_ids.entry(proxy_id.into()) else {
             return Err(ModelError::DuplicateGraph);
@@ -388,7 +357,7 @@ where
             .state
             .borrow_mut();
 
-        let graph_id = state.new_graph(&[0u8], action, &mut sink)?;
+        let graph_id = state.new_graph(policy, action, &mut sink)?;
         graph_id_entry.insert(graph_id);
 
         Ok((sink.effects, graph_id))

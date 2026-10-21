@@ -3,9 +3,9 @@ use core::{fmt, iter::DoubleEndedIterator};
 use buggy::Bug;
 
 use crate::{
-    Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,
-    PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError, StorageProvider,
-    TraversalBuffer,
+    Address, CmdId, Command, FlavorCtx, GraphId, LocatedAddress, PeerCache, Perspective as _,
+    Policy, PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError,
+    StorageProvider, TraversalBuffer,
     policy::ActionPlacement,
     storage::{HeadSet, Spill},
 };
@@ -112,6 +112,9 @@ where
                 sink,
                 ActionPlacement::OnGraph,
                 seal_ctx,
+                FlavorCtx::Init {
+                    policy: policy_data,
+                },
             )
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
@@ -302,6 +305,7 @@ where
             sink,
             ActionPlacement::OnGraph,
             seal_ctx,
+            FlavorCtx::Basic,
         ) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
