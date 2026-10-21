@@ -338,7 +338,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         action_placement: ActionPlacement,
         seal_ctx: &SealCtx<CE>,
     ) -> Result<(), PolicyError> {
-        let VmAction { name, args } = action;
+        let VmAction { name, args, policy } = action;
 
         let def = self.machine.action_defs.get(&name).ok_or_else(|| {
             error!("action not found");
@@ -426,31 +426,30 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         let priority = self.get_command_priority(&command_name)?.into();
 
                         let parent_id;
-                        let policy;
-                        match parent {
+                        let policy = match parent {
                             Prior::None => {
                                 parent_id = CmdId::default();
                                 // TODO(chip): where does the policy value come from?
-                                policy = Some(&[0u8; 8][..]);
                                 if !matches!(priority, Priority::Init) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
                                     return Err(PolicyError::InternalError);
                                 }
+                                Some(policy.unwrap_or(&[0u8; 8]))
                             }
                             Prior::Single(p) => {
                                 parent_id = p.id;
-                                policy = None;
                                 if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
                                     error!(
                                         "Command {command_name} has invalid priority {priority:?}"
                                     );
                                     return Err(PolicyError::InternalError);
                                 }
+                                None
                             }
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
-                        }
+                        };
 
                         let (payload, envelope) =
                             self.seal_command(&command_struct, parent_id, seal_ctx)?;
