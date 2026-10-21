@@ -1592,7 +1592,7 @@ fn should_create_clients_with_args() {
                 .with(IdamFfi::new(store))
                 .unwrap();
 
-            let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis, todo!());
+            let policy_store = ModelPolicyStore::new_readonly(Arc::new(eng), ffis);
             let provider = MemStorageProvider::default();
 
             ModelClient {

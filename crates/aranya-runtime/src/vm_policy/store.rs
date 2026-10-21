@@ -22,7 +22,7 @@ pub struct MissingFfiName(Identifier);
 /// [`PolicyStore`] implementation which holds [`VmPolicy`].
 pub struct VmPolicyStore<CE: Engine> {
     engine: CE,
-    seal_ctx: SealCtx<CE>,
+    seal_ctx: Option<SealCtx<CE>>,
     ffis: FfiSet<CE>,
     policies: BTreeMap<PolicyId, VmPolicy<CE>>,
 }
@@ -31,7 +31,16 @@ impl<CE: Engine> VmPolicyStore<CE> {
     pub fn new(engine: CE, ffis: FfiSet<CE>, seal_ctx: SealCtx<CE>) -> Self {
         Self {
             engine,
-            seal_ctx,
+            seal_ctx: Some(seal_ctx),
+            ffis,
+            policies: BTreeMap::new(),
+        }
+    }
+
+    pub fn new_readonly(engine: CE, ffis: FfiSet<CE>) -> Self {
+        Self {
+            engine,
+            seal_ctx: None,
             ffis,
             policies: BTreeMap::new(),
         }
@@ -43,6 +52,8 @@ impl<CE: Engine> VmPolicyStore<CE> {
         postcard::to_allocvec(
             &self
                 .seal_ctx
+                .as_ref()
+                .expect("has seal ctx")
                 .key
                 .public()
                 .expect("can compute verifying key"),
@@ -109,7 +120,7 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
     }
 
     fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
-        Ok(&self.seal_ctx)
+        self.seal_ctx.as_ref().ok_or(PolicyError::InternalError)
     }
 }
 
