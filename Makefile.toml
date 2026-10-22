@@ -123,7 +123,7 @@ dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 [tasks.install-cargo-llvm-cov]
 private = true
 toolchain = "stable"
-install_crate = { crate_name = "cargo-llvm-cov", version = "0.6.20", binary = "cargo-llvm-cov", test_arg = "--version" }
+install_crate = { crate_name = "cargo-llvm-cov", version = "0.6.20", binary = "cargo", test_arg = ["llvm-cov", "--version"] }
 
 [tasks.install-llvm-tools]
 private = true
