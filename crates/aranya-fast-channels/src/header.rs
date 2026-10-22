@@ -34,6 +34,7 @@ packed! {
 
 impl Header {
     /// Parses the header from its byte representation.
+    #[inline]
     pub fn try_parse(buf: &[u8; Self::PACKED_SIZE]) -> Result<Self, HeaderError> {
         let (version, rest) = buf
             .split_first_chunk()
@@ -55,6 +56,7 @@ impl Header {
     }
 
     /// Writes its byte representation to `out`.
+    #[inline]
     pub fn encode(&self, out: &mut [u8; Self::PACKED_SIZE]) -> Result<(), HeaderError> {
         let (version_out, rest) = out
             .split_first_chunk_mut()
@@ -85,6 +87,7 @@ packed! {
 
 impl DataHeader {
     /// Parses the header from its byte representation.
+    #[inline]
     pub fn try_parse(buf: &[u8; Self::PACKED_SIZE]) -> Result<Self, HeaderError> {
         let (seq, rest) = buf
             .split_first_chunk()
@@ -100,6 +103,7 @@ impl DataHeader {
     }
 
     /// Writes the header to `out`.
+    #[inline]
     pub fn encode(&self, out: &mut [u8; Self::PACKED_SIZE]) -> Result<(), HeaderError> {
         let (seq_out, rest) = out
             .split_first_chunk_mut()

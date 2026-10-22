@@ -76,6 +76,7 @@ unsafe impl<T: Send> Send for Mapping<T> {}
 unsafe impl<T: Sync> Sync for Mapping<T> {}
 
 impl<T> Drop for Mapping<T> {
+    #[inline]
     fn drop(&mut self) {
         // SAFETY: FFI call, no invariants.
         let _ = unsafe { libc::munmap(self.base, self.layout.size()) };
@@ -150,6 +151,7 @@ impl<T> Mapping<T> {
 struct Fd(c_int);
 
 impl Drop for Fd {
+    #[inline]
     fn drop(&mut self) {
         let _ = close(self.0);
     }
