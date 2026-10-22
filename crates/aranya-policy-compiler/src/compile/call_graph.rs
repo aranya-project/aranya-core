@@ -1,5 +1,4 @@
 //! Contains [`CallGraph`], which records calls between functions and actions in order to detect recursion.
-//!
 use std::collections::HashMap;
 
 use aranya_policy_ast::{Ident, Span};

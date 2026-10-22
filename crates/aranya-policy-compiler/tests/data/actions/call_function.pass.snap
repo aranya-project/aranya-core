@@ -5,14 +5,14 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'f'>: 14,
+        <action 'f'>: 21,
         <fn 'f'>: 1,
         <fn 'g'>: 8,
     },
     action_defs: [
         ActionDef {
             name: "f",
-            flavor: None,
+            flavor: "null",
             params: [
                 Field {
                     name: "n",
@@ -24,7 +24,16 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {},
     ..
@@ -46,6 +55,13 @@ Module {
     restore SP
     return
     exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
+    exit panic
 <action 'f'>:
     def 'n'
     get 'n'
@@ -54,7 +70,7 @@ Module {
     get 'x'
     get 'n'
     eq
-    branch 23
+    branch 30
     exit panic
-<23>:
+<30>:
     return

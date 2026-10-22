@@ -5,35 +5,30 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'divide_by_two'>: 35,
-        <fn 'double'>: 27,
-        <fn 'is_even'>: 9,
-        <fn 'quadruple'>: 1,
+        <fn 'double'>: 1,
+        <fn 'make_pair'>: 20,
+        <fn 'sum'>: 10,
     },
     action_defs: [],
     command_defs: [],
     fact_defs: [],
     struct_defs: [
         StructDef {
-            name: "Division",
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "Pair",
             items: [
                 Field {
-                    name: "d",
+                    name: "a",
                     vtype: Int,
                 },
                 Field {
-                    name: "q",
-                    vtype: Int,
-                },
-                Field {
-                    name: "r",
+                    name: "b",
                     vtype: Int,
                 },
             ],
-        },
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
         },
         StructDef {
             name: "StubBase",
@@ -46,84 +41,36 @@ Module {
 }
 ---
     exit panic
-<fn 'quadruple'>:
-    def 'x'
-    save SP
-    get 'x'
-    call <fn 'double'>
-    call <fn 'double'>
-    restore SP
-    return
-    exit panic
-<fn 'is_even'>:
-    def 'x'
-    save SP
-    struct.new 'Division'
-    const 2
-    struct.set 'd'
-    const 0
-    struct.set 'q'
-    get 'x'
-    struct.set 'r'
-    call <fn 'divide_by_two'>
-    def 'got'
-    get 'got'
-    struct.get 'r'
-    const 0
-    eq
-    restore SP
-    return
-    exit panic
 <fn 'double'>:
     def 'x'
     save SP
     get 'x'
     get 'x'
+    call <fn 'make_pair'>
+    call <fn 'sum'>
+    restore SP
+    return
+    exit panic
+<fn 'sum'>:
+    def 'p'
+    save SP
+    get 'p'
+    struct.get 'a'
+    get 'p'
+    struct.get 'b'
     saturating_add
     restore SP
     return
     exit panic
-<fn 'divide_by_two'>:
-    def 'args'
+<fn 'make_pair'>:
+    def 'b'
+    def 'a'
     save SP
-    get 'args'
-    struct.get 'd'
-    def 'd'
-    get 'args'
-    struct.get 'q'
-    def 'q'
-    get 'args'
-    struct.get 'r'
-    def 'r'
-    get 'r'
-    get 'd'
-    lt
-    not
-    branch 63
-    block
-    struct.new 'Division'
-    get 'd'
-    struct.set 'd'
-    get 'q'
-    struct.set 'q'
-    get 'r'
-    struct.set 'r'
-    restore SP
-    return
-    end
-    jump 63
-<63>:
-    struct.new 'Division'
-    get 'd'
-    struct.set 'd'
-    get 'q'
-    const 1
-    saturating_add
-    struct.set 'q'
-    get 'r'
-    get 'd'
-    saturating_sub
-    struct.set 'r'
+    struct.new 'Pair'
+    get 'a'
+    struct.set 'a'
+    get 'b'
+    struct.set 'b'
     restore SP
     return
     exit panic

@@ -44,7 +44,6 @@ use self::{
     types::{IdentifierTypeStack, UserType},
 };
 pub use self::{error::CompileError, target::PolicyInterface};
-use crate::compile::error::MissingBaseCommand;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
