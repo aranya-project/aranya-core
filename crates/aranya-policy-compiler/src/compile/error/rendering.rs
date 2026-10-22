@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, iter::once};
+use std::{borrow::Cow, iter::once};
 
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::{Span, Spanned as _};
@@ -349,7 +349,7 @@ impl Error for CyclicTypeDefinitions {
 
 impl Error for RecursiveCall {
     fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
-        let title = Level::ERROR.primary_title(format!("recursive call: {self}"));
+        let title = Level::ERROR.primary_title(self.description());
         let annotations = self.calls.iter().map(|(caller, callee)| {
             AnnotationKind::Primary
                 .span(callee.span.into())
@@ -357,14 +357,8 @@ impl Error for RecursiveCall {
         });
         report.push(title.element(Snippet::source(input).annotations(annotations)));
     }
+    /// Describes the recursion, e.g. "recursive call: `a`, `b` call each other".
     fn description(&self) -> Cow<'_, str> {
-        format!("recursive call: {self}").into()
-    }
-}
-
-impl fmt::Display for RecursiveCall {
-    /// Describes the recursion, e.g. "`a`, `b` call each other".
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut callers = Vec::new();
         for (caller, _) in &self.calls {
             if !callers.contains(&caller) {
@@ -372,12 +366,13 @@ impl fmt::Display for RecursiveCall {
             }
         }
         match callers.as_slice() {
-            [caller] => write!(f, "`{caller}` calls itself"),
+            [caller] => format!("recursive call: `{caller}` calls itself"),
             callers => {
                 let names: Vec<_> = callers.iter().map(|name| format!("`{name}`")).collect();
-                write!(f, "{} call each other", names.join(", "))
+                format!("recursive call: {} call each other", names.join(", "))
             }
         }
+        .into()
     }
 }
 
@@ -447,7 +442,7 @@ impl Error for UnusedVariable {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "unused variable(s): {}",
-            fmt::from_fn(|f| {
+            std::fmt::from_fn(|f| {
                 if let Some((x, xs)) = self.names.split_first() {
                     write!(f, "`{x}`")?;
                     for x in xs {
