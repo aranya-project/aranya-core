@@ -17,8 +17,8 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientState, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers, SubscribeResponse,
-    SyncError, SyncIncoming, SyncRequester, SyncResponder,
+    ClientError, ClientState, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
+    SubscribeResponse, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -145,7 +145,7 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
-        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads, &Rng)?;
+        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads.session_heads(), &Rng)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -160,26 +160,33 @@ where
         let mut received_data = Vec::new();
         stream.read_to_end(&mut received_data)?;
         // An empty response means we're up to date and there's nothing to sync.
-        if !received_data.is_empty()
-            && let Some(reply) = syncer.receive(&received_data)?
-        {
+        if !received_data.is_empty() {
+            let Some(reply) = syncer.receive(&received_data)? else {
+                heads.reply_committed();
+                return Ok(received);
+            };
             received = reply.commands().len();
             let mut trx = client.transaction(graph_id);
             let spill_dir = self.spill_dir.as_path();
             let make_spill = || LibcSpill::new(spill_dir);
-            client.add_commands(
+            let added = client.add_commands(
                 &mut trx,
                 sink,
                 reply.commands(),
                 &mut self.rt_buffers,
                 make_spill,
-            )?;
+            );
+            if let Err(ClientError::NoSuchParent(_)) = added {
+                heads.saw_missing_parent();
+            }
+            added?;
             client.commit(trx, sink, &mut self.rt_buffers, make_spill)?;
             client.update_heads(
                 graph_id,
                 reply.addresses(),
                 heads,
                 &mut self.rt_buffers.traversal.primary,
+                &Rng,
             )?;
             self.push(graph_id)?;
         }
@@ -202,7 +209,7 @@ where
         let len = sync_requester.subscribe(
             &mut buffer,
             client.provider(),
-            heads,
+            heads.session_heads(),
             &Rng,
             remain_open,
             max_bytes,
@@ -286,6 +293,7 @@ where
                             sub.heads().iter(),
                             response_cache,
                             &mut self.rt_buffers.traversal.primary,
+                            &Rng,
                         )?;
                         SubscribeResponse::Success.encode_to(target)?
                     }
@@ -310,19 +318,24 @@ where
                         let sink = sink_guard.deref_mut();
                         let spill_dir = self.spill_dir.as_path();
                         let make_spill = || LibcSpill::new(spill_dir);
-                        client.add_commands(
+                        let added = client.add_commands(
                             &mut trx,
                             sink,
                             reply.commands(),
                             &mut self.rt_buffers,
                             make_spill,
-                        )?;
+                        );
+                        if let Err(ClientError::NoSuchParent(_)) = added {
+                            response_cache.saw_missing_parent();
+                        }
+                        added?;
                         client.commit(trx, sink, &mut self.rt_buffers, make_spill)?;
                         client.update_heads(
                             graph_id,
                             reply.addresses(),
                             response_cache,
                             &mut self.rt_buffers.traversal.primary,
+                            &Rng,
                         )?;
                     }
                     self.push(graph_id)?;

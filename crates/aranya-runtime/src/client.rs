@@ -1,5 +1,6 @@
 use core::{fmt, iter::DoubleEndedIterator};
 
+use aranya_crypto::Csprng;
 use buggy::Bug;
 
 use crate::{
@@ -185,12 +186,16 @@ where
         )
     }
 
+    /// Record in `request_heads` that the peer holds `addrs`, once a reply's
+    /// commands are committed. This also clears the conditions that make the
+    /// next request ask the peer to reset.
     pub fn update_heads<I>(
         &mut self,
         graph_id: GraphId,
         addrs: I,
         request_heads: &mut PeerCache,
         buffer: &mut TraversalBuffer,
+        rng: &impl Csprng,
     ) -> Result<(), ClientError>
     where
         I: IntoIterator<Item = Address>,
@@ -202,8 +207,9 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            request_heads.add_command(storage, address, buffer)?;
+            request_heads.add_command(storage, address, buffer, rng)?;
         }
+        request_heads.reply_committed();
 
         Ok(())
     }

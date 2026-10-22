@@ -75,7 +75,7 @@ use crate::{
     CommandExt as _, GraphId, Keys, LocatedAddress, Location, MAX_COMMAND_LENGTH,
     MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers,
     Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncHello, SyncIncoming,
-    SyncRequester, SyncResponder, TraversalBuffer, TraversalBuffers, mem_spill,
+    SyncRequester, SyncResponder, Transaction, TraversalBuffer, TraversalBuffers, mem_spill,
     sync::wire::{SyncHelloType, SyncType},
     testing::{
         protocol::{TestActions, TestEffect, TestPolicy, TestPolicyStore, TestSink},
@@ -340,10 +340,16 @@ fn process_hello_notifications<SP: StorageProvider>(
                         .ok_or(TestError::MissingClient)?
                         .borrow_mut();
 
+                    // The hello cascade needs committed state to serve
+                    // onward, so commit per notification here.
+                    let mut trx = request_client.transaction(graph_id);
+                    let mut received_addrs = Vec::new();
                     loop {
                         let (_, exchange_received) = sync::<SP>(
+                            &mut trx,
                             (&mut request_cache, &mut request_client),
                             (&mut response_cache, &mut response_client),
+                            &mut received_addrs,
                             sink,
                             graph_id,
                             rt_buffers,
@@ -353,6 +359,14 @@ fn process_hello_notifications<SP: StorageProvider>(
                             break;
                         }
                     }
+                    request_client.commit(trx, sink, rt_buffers, mem_spill)?;
+                    request_client.update_heads(
+                        graph_id,
+                        received_addrs,
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
+                        &Rng,
+                    )?;
                 }
 
                 // Track the advertised head in the subscriber's cache for the
@@ -373,6 +387,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                         [notification.head()],
                         &mut request_cache,
                         &mut rt_buffers.traversal.primary,
+                        &Rng,
                     )?;
                 }
 
@@ -1169,6 +1184,11 @@ where
                         .ok_or(TestError::MissingClient)?
                         .borrow_mut();
 
+                    // One transaction held open across every exchange in this Sync,
+                    // committed once after the loop (one fact-cache braid instead of
+                    // one per exchange).
+                    let mut trx = request_client.transaction(*graph_id);
+                    let mut received_addrs = Vec::new();
                     client_heads.entry((graph, client, from)).or_default();
                     client_heads.entry((graph, from, client)).or_default();
                     for _ in 0..max_syncs {
@@ -1182,8 +1202,10 @@ where
                             .borrow_mut();
 
                         let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
+                            &mut trx,
                             (&mut request_cache, &mut request_client),
                             (&mut response_cache, &mut response_client),
+                            &mut received_addrs,
                             &mut sink,
                             *graph_id,
                             &mut rt_buffers,
@@ -1195,6 +1217,18 @@ where
                             break;
                         }
                     }
+                    request_client.commit(trx, &mut sink, &mut rt_buffers, mem_spill)?;
+                    let mut request_cache = client_heads
+                        .get(&(graph, client, from))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    request_client.update_heads(
+                        *graph_id,
+                        received_addrs,
+                        &mut request_cache,
+                        &mut rt_buffers.traversal.primary,
+                        &Rng,
+                    )?;
                 }
 
                 if let Some(mr) = must_receive {
@@ -1801,16 +1835,21 @@ fn committed_heads<SP: StorageProvider>(
         .collect())
 }
 
-/// Whether `client` has committed every address in `heads`. Command IDs hash
+/// Whether `client` holds every address in `heads`, either committed or in
+/// `received` (fetched this pass into an open transaction). Command IDs hash
 /// their parents, so holding a peer's heads means holding its whole graph.
 fn holds_all<SP: StorageProvider>(
     client: &mut ClientState<TestPolicyStore, SP>,
     graph_id: GraphId,
     heads: &BTreeSet<Address>,
+    received: &BTreeSet<Address>,
     buffer: &mut TraversalBuffer,
 ) -> Result<bool, TestError> {
     let storage = client.provider().get_storage(graph_id)?;
     for &addr in heads {
+        if received.contains(&addr) {
+            continue;
+        }
         if storage.get_location(addr, buffer)?.is_none() {
             return Ok(false);
         }
@@ -1818,12 +1857,15 @@ fn holds_all<SP: StorageProvider>(
     Ok(true)
 }
 
-/// One `ConvergeAll` pass: `requester` pulls from each of `responders`,
-/// committing after each exchange so the data can be served onward.
+/// One `ConvergeAll` pass: `requester` pulls from each of `responders` into a
+/// single open transaction, commits, and advances its peer caches.
 ///
-/// A responder whose heads the requester already holds is skipped, and a pull
-/// stops as soon as the responder's heads have been received, so no exchange
-/// is spent confirming there is nothing left.
+/// Holding one transaction across the pass makes the whole catch-up one
+/// fact-cache braid instead of one per exchange. Committing at the end of the
+/// pass is what lets the requester serve the data onward, since responders
+/// serve from committed storage. A responder whose heads the requester already
+/// holds is skipped, and a pull stops as soon as the responder's heads have
+/// been received, so no exchange is spent confirming there is nothing left.
 ///
 /// Returns whether any command was received.
 #[allow(clippy::too_many_arguments)]
@@ -1842,6 +1884,12 @@ fn converge_pull_pass<SP: StorageProvider>(
         .get(&requester)
         .ok_or(TestError::MissingClient)?
         .borrow_mut();
+    let mut trx: Option<Transaction<SP, TestPolicyStore>> = None;
+    // Received addresses per responder, used to advance the persistent
+    // caches after the pass commits.
+    let mut pass_received: BTreeMap<u64, Vec<Address>> = BTreeMap::new();
+    // Everything received this pass, pending commit.
+    let mut held: BTreeSet<Address> = BTreeSet::new();
     let mut moved = false;
 
     for responder in responders {
@@ -1858,18 +1906,21 @@ fn converge_pull_pass<SP: StorageProvider>(
             &mut request_client,
             graph_id,
             &responder_heads,
+            &held,
             &mut rt_buffers.traversal.primary,
         )? {
             continue;
         }
 
-        client_heads
-            .entry((graph, requester, responder))
-            .or_default();
-        client_heads
-            .entry((graph, responder, requester))
-            .or_default();
+        let request_trx = trx.get_or_insert_with(|| request_client.transaction(graph_id));
+        let received_addrs = pass_received.entry(responder).or_default();
         for _ in 0..max_syncs {
+            client_heads
+                .entry((graph, requester, responder))
+                .or_default();
+            client_heads
+                .entry((graph, responder, requester))
+                .or_default();
             let mut request_cache = client_heads
                 .get(&(graph, requester, responder))
                 .assume("cache must exist")?
@@ -1879,13 +1930,23 @@ fn converge_pull_pass<SP: StorageProvider>(
                 .assume("cache must exist")?
                 .borrow_mut();
 
+            let before = received_addrs.len();
             let (_, received) = sync::<SP>(
+                request_trx,
                 (&mut request_cache, &mut request_client),
                 (&mut response_cache, &mut response_client),
+                received_addrs,
                 sink,
                 graph_id,
                 rt_buffers,
             )?;
+            held.extend(
+                received_addrs
+                    .get(before..)
+                    .unwrap_or_default()
+                    .iter()
+                    .copied(),
+            );
 
             if received == 0 {
                 break;
@@ -1895,6 +1956,7 @@ fn converge_pull_pass<SP: StorageProvider>(
                 &mut request_client,
                 graph_id,
                 &responder_heads,
+                &held,
                 &mut rt_buffers.traversal.primary,
             )? {
                 break;
@@ -1902,14 +1964,43 @@ fn converge_pull_pass<SP: StorageProvider>(
         }
     }
 
+    if let Some(trx) = trx {
+        request_client.commit(trx, sink, rt_buffers, mem_spill)?;
+    }
+
+    // Every responder pulled from is updated, even with nothing received,
+    // since the commit clears the mark left by sending it session heads.
+    for (responder, addrs) in pass_received {
+        let mut request_cache = client_heads
+            .get(&(graph, requester, responder))
+            .assume("cache must exist")?
+            .borrow_mut();
+        request_client.update_heads(
+            graph_id,
+            addrs,
+            &mut request_cache,
+            &mut rt_buffers.traversal.primary,
+            &Rng,
+        )?;
+    }
+
     Ok(moved)
 }
 
-/// Perform a single sync exchange: commit the received commands, then record
-/// them and the reply's sample in the requester's `PeerCache`.
+/// Perform a single sync exchange, ingesting received commands into the
+/// caller-owned `request_trx` (held open across many exchanges so a whole
+/// graph is committed once instead of per exchange).
+///
+/// Does NOT commit. Instead, after ingesting, it flushes the open transaction
+/// and advances the requester's `PeerCache` from the transaction's accumulated
+/// frontier (committed + received-but-uncommitted tips). `get_commands`
+/// incorporates `peer_cache.heads()`, so this is what makes progressive
+/// multi-exchange fetch advance without a per-exchange commit.
 fn sync<SP: StorageProvider>(
+    request_trx: &mut Transaction<SP, TestPolicyStore>,
     (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    received_addrs: &mut Vec<Address>,
     sink: &mut TestSink,
     graph_id: GraphId,
     rt_buffers: &mut RuntimeBuffers<SP::Segment>,
@@ -1917,9 +2008,18 @@ fn sync<SP: StorageProvider>(
     let mut request_syncer = SyncRequester::new(graph_id, Rng);
     assert!(request_syncer.ready());
 
+    // The persistent `request_cache` only ever holds committed commands
+    // (callers advance it after commit). The transaction's uncommitted
+    // frontier is advertised via `session_heads`, which cannot outlive the
+    // transaction, so an abandoned transaction cannot leave the cache
+    // claiming commands the requester never committed.
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let (len, sent) =
-        request_syncer.poll(&mut buffer, request_state.provider(), request_cache, &Rng)?;
+    let (len, sent) = request_syncer.poll(
+        &mut buffer,
+        request_state.provider(),
+        request_trx.session_heads(request_cache),
+        &Rng,
+    )?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -1936,16 +2036,23 @@ fn sync<SP: StorageProvider>(
     }
 
     if let Some(reply) = request_syncer.receive(&target[..len])? {
-        let mut trx = request_state.transaction(graph_id);
-        received =
-            request_state.add_commands(&mut trx, sink, reply.commands(), rt_buffers, mem_spill)?;
-        request_state.commit(trx, sink, rt_buffers, mem_spill)?;
-        request_state.update_heads(
-            graph_id,
-            reply.addresses(),
-            request_cache,
-            &mut rt_buffers.traversal.primary,
+        received = request_state.add_commands(
+            request_trx,
+            sink,
+            reply.commands(),
+            rt_buffers,
+            mem_spill,
         )?;
+
+        // Persist any in-flight perspective so the next exchange's overlay
+        // sees every accumulated command at a real location. This is what
+        // lets progressive fetch advance while the transaction stays open.
+        let storage = request_state.provider().get_storage(graph_id)?;
+        request_trx.flush(storage)?;
+
+        // Report what was received, and the reply's sample, so the caller
+        // can advance the persistent cache once these commands are committed.
+        received_addrs.extend(reply.addresses());
     }
 
     Ok((sent, received))

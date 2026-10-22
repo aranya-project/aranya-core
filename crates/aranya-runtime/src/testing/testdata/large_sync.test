@@ -145,7 +145,7 @@
     "Sync": {
       "client": 2,
       "from": 1,
-      "must_send": 2,
+      "must_send": 3,
       "max_syncs": 2
     }
   },

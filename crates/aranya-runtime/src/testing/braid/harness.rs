@@ -188,9 +188,16 @@ fn sync_pull(
         let (from_c, to_c) = two_mut(clients, from, to);
         let mut requester = SyncRequester::new(gid, Rng);
         let mut request = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let req_cache = req_caches.get(&(to, from)).expect("requester cache exists");
+        let req_cache = req_caches
+            .get_mut(&(to, from))
+            .expect("requester cache exists");
         let (req_len, _sample) = requester
-            .poll(&mut request, to_c.provider(), req_cache, &Rng)
+            .poll(
+                &mut request,
+                to_c.provider(),
+                req_cache.session_heads(),
+                &Rng,
+            )
             .expect("requester poll succeeds");
 
         let mut response = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -240,6 +247,7 @@ fn sync_pull(
             reply.addresses(),
             req_cache,
             &mut buffers.traversal.primary,
+            &Rng,
         )
         .expect("update_heads succeeds");
 

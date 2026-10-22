@@ -726,12 +726,17 @@ fn test_sync<PS, P, S>(
     let mut sync_requester = SyncRequester::new(graph_id, Rng);
 
     let mut req_transaction = cs1.transaction(graph_id);
-    let request_cache = PeerCache::new();
+    let mut request_cache = PeerCache::new();
 
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = sync_requester
-            .poll(&mut buffer, cs2.provider(), &request_cache, &Rng)
+            .poll(
+                &mut buffer,
+                cs2.provider(),
+                req_transaction.session_heads(&mut request_cache),
+                &Rng,
+            )
             .expect("sync req->res");
 
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];

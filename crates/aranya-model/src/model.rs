@@ -535,7 +535,7 @@ where
                 let (len, _) = request_syncer.poll(
                     &mut buffer,
                     request_state.provider(),
-                    &request_cache,
+                    request_trx.session_heads(&mut request_cache),
                     &Rng,
                 )?;
 
@@ -570,6 +570,7 @@ where
             received_addrs,
             &mut request_cache,
             &mut self.buffers.primary,
+            &Rng,
         )?;
 
         Ok(())

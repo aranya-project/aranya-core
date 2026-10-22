@@ -23,17 +23,27 @@ use crate::{
     },
 };
 
+/// The maximum number of heads that will be stored for a peer.
+const PEER_HEAD_MAX: usize = 100;
+
 /// The committed commands a peer is known to hold, kept as the heads of
 /// that set: no head is an ancestor of another.
 #[derive(Default, Debug)]
 pub struct PeerCache {
-    heads: vec::Vec<LocatedAddress>,
+    heads: Vec<LocatedAddress, PEER_HEAD_MAX>,
+    /// Session heads were sent to the peer in a transaction that has not
+    /// committed.
+    sent_session_heads: bool,
+    /// A reply from the peer had a command whose parent we lack.
+    missing_parent: bool,
 }
 
 impl PeerCache {
     pub const fn new() -> Self {
         Self {
-            heads: vec::Vec::new(),
+            heads: Vec::new(),
+            sent_session_heads: false,
+            missing_parent: false,
         }
     }
 
@@ -41,15 +51,54 @@ impl PeerCache {
         &self.heads
     }
 
+    /// Record that a reply from the peer failed with
+    /// [`ClientError::NoSuchParent`](crate::ClientError::NoSuchParent). The
+    /// peer's picture of what we hold is wrong, so the next request asks it
+    /// to reset.
+    pub fn saw_missing_parent(&mut self) {
+        self.missing_parent = true;
+    }
+
+    /// Record that a request carried session heads.
+    pub(super) fn sent_session_heads(&mut self) {
+        self.sent_session_heads = true;
+    }
+
+    /// Record that a reply from the peer arrived and its commands, if any,
+    /// were committed. This clears the conditions that make the next request
+    /// ask the peer to reset. [`ClientState::update_heads`] calls this, so
+    /// call it directly only for a reply with no commands. Do not call it
+    /// while a transaction that sent session heads is still open.
+    ///
+    /// [`ClientState::update_heads`]: crate::ClientState::update_heads
+    pub fn reply_committed(&mut self) {
+        self.sent_session_heads = false;
+        self.missing_parent = false;
+    }
+
+    /// Whether the next request should ask the peer to reset its cache for
+    /// us. `in_session` is whether the request is sent within a transaction
+    /// that has received commands.
+    pub(super) fn needs_reset(&self, in_session: bool) -> bool {
+        self.heads.is_empty() || self.missing_parent || (self.sent_session_heads && !in_session)
+    }
+
+    /// Forget every head, after the peer asks us to reset.
+    pub(super) fn clear(&mut self) {
+        self.heads.clear();
+    }
+
     /// Record that the peer holds `addr`. The location is derived here from
     /// committed storage (`get_location` traverses from committed heads
     /// only), so a command that is not committed on this node is silently
-    /// ignored and can never enter the cache.
+    /// ignored and can never enter the cache. When the cache is full, a
+    /// random head is evicted.
     pub fn add_command<S>(
         &mut self,
         storage: &S,
         addr: Address,
         buffer: &mut TraversalBuffer,
+        rng: &impl Csprng,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -80,7 +129,11 @@ impl PeerCache {
         };
         self.heads.retain(|h| retain_head(h).unwrap_or(false));
         if add_command {
-            self.heads.push(new);
+            if self.heads.is_full() {
+                let evict = sample::random_index(rng, self.heads.len())?;
+                self.heads.swap_remove(evict);
+            }
+            self.heads.push(new).ok().assume("cache has room")?;
         }
 
         Ok(())
@@ -184,6 +237,8 @@ pub struct SyncResponder {
     next_send: usize,
     message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
+    /// Whether the requester asked us to forget what we know it holds.
+    reset: bool,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
     /// Whether `to_send` was cut short by `SEGMENT_BUFFER_MAX`.
     truncated: bool,
@@ -227,6 +282,7 @@ impl SyncResponder {
             next_send: 0,
             message_index: 0,
             has: Vec::new(),
+            reset: false,
             to_send: Vec::new(),
             truncated: false,
             send_sample: false,
@@ -246,8 +302,9 @@ impl SyncResponder {
     /// of bytes written.
     ///
     /// `response_cache` holds the commands the requester is known to have.
-    /// The request's sample is added to it, and everything it covers is
-    /// treated as held by the requester.
+    /// It is cleared first if the request asks for a reset. The request's
+    /// sample is added to it, and everything it covers is treated as held by
+    /// the requester.
     pub fn poll(
         &mut self,
         target: &mut [u8],
@@ -277,9 +334,12 @@ impl SyncResponder {
                 };
 
                 self.state = S::Send;
+                if self.reset {
+                    response_cache.clear();
+                }
                 for command in &self.has {
                     // Commands not in our graph are ignored by the cache.
-                    response_cache.add_command(storage, *command, &mut buffers.primary)?;
+                    response_cache.add_command(storage, *command, &mut buffers.primary, rng)?;
                 }
                 // The cache now covers every resolved sample command.
                 let have = response_cache
@@ -291,9 +351,9 @@ impl SyncResponder {
                     Self::find_needed_segments(have, storage, buffers)?;
                 self.send_sample = true;
 
-                self.get_next(target, provider, rng)?
+                self.get_next(target, provider, response_cache, rng)?
             }
-            S::Send => self.get_next(target, provider, rng)?,
+            S::Send => self.get_next(target, provider, response_cache, rng)?,
             S::Reset => {
                 self.state = S::Stopped;
                 let message = SyncResponseMessage::EndSession {
@@ -334,6 +394,7 @@ impl SyncResponder {
             graph_id,
             max_bytes,
             commands,
+            reset: false,
         })
     }
 
@@ -350,6 +411,7 @@ impl SyncResponder {
                 graph_id,
                 max_bytes,
                 commands,
+                reset,
                 ..
             } => {
                 self.state = SyncResponderState::Start;
@@ -357,6 +419,7 @@ impl SyncResponder {
                 self.bytes_sent = max_bytes;
                 self.to_send = Vec::new();
                 self.has = commands;
+                self.reset = reset;
                 self.next_send = 0;
                 return Ok(());
             }
@@ -417,10 +480,14 @@ impl SyncResponder {
         let skip_target = highest_have
             .checked_add(SEGMENT_BUFFER_MAX as u64)
             .assume("skip target overflow")?;
+        // A jump skips uncovered segments above the target, so the result is
+        // cut short.
+        let mut truncated = false;
         for head in storage.get_heads()?.iter() {
             let start = if head.max_cut <= skip_target {
                 head.location()
             } else {
+                truncated = true;
                 skip_jump(storage, head.location(), skip_target, |_, _| Ok(None))?
             };
             heads.push(start)?;
@@ -433,7 +500,6 @@ impl SyncResponder {
         // entries with the lowest max_cut (ancestors first). When full,
         // the highest max_cut entry is replaced if the new one is lower.
         let mut collected: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
-        let mut truncated = false;
         let mut prev_max_cut: Option<MaxCut> = None;
 
         while let Some((head, covered)) = heads.pop_covered()? {
@@ -547,6 +613,7 @@ impl SyncResponder {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
+        response_cache: &PeerCache,
         rng: &impl Csprng,
     ) -> Result<usize, SyncError> {
         if self.next_send >= self.to_send.len() {
@@ -575,7 +642,8 @@ impl SyncResponder {
                 .iter()
                 .map(LocatedAddress::address)
                 .collect();
-            sample = sample::build(&*storage, &[&heads], MaxCut::new(0), rng, |addr| {
+            let floor = sample::floor(&*storage, response_cache.heads())?;
+            sample = sample::build(&*storage, &[&heads], floor, rng, |addr| {
                 commands.iter().any(|meta| meta.id == addr.id)
             })?;
         }
@@ -794,7 +862,7 @@ mod tests {
     use crate::{
         ClientState, RuntimeBuffers, mem_spill,
         storage::linear::testing::MemStorageProvider,
-        sync::{MAX_SYNC_MESSAGE_SIZE, SyncIncoming, SyncRequester},
+        sync::{MAX_SYNC_MESSAGE_SIZE, SessionHeads, SyncIncoming, SyncRequester},
         testing::protocol::{TestActions, TestPolicyStore, TestSink},
     };
 
@@ -822,7 +890,7 @@ mod tests {
     ) -> usize {
         let mut sink = new_sink();
         let mut rt_buffers = RuntimeBuffers::new();
-        let req_cache = PeerCache::new();
+        let mut req_cache = PeerCache::new();
         let mut resp_cache = PeerCache::new();
 
         let mut requester = SyncRequester::new(graph_id, Rng);
@@ -830,7 +898,12 @@ mod tests {
 
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _sent) = requester
-            .poll(&mut buffer, dest.provider(), &req_cache, &Rng)
+            .poll(
+                &mut buffer,
+                dest.provider(),
+                req_cache.session_heads(),
+                &Rng,
+            )
             .expect("requester poll");
 
         match SyncIncoming::decode(&buffer[..len]).expect("decode") {
@@ -1021,7 +1094,7 @@ mod tests {
 
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, req.provider(), req_cache, &Rng)
+            .poll(&mut buffer, req.provider(), req_cache.session_heads(), &Rng)
             .expect("requester poll");
         match SyncIncoming::decode(&buffer[..len]).expect("decode") {
             SyncIncoming::Poll(poll) => responder.receive(poll).expect("responder receive"),
@@ -1040,6 +1113,7 @@ mod tests {
             .receive(&buffer[..len])
             .expect("requester receive")
         else {
+            req_cache.reply_committed();
             return Exchange {
                 sent: vec::Vec::new(),
                 new: 0,
@@ -1064,6 +1138,7 @@ mod tests {
             reply.addresses(),
             req_cache,
             &mut rt_buffers.traversal.primary,
+            &Rng,
         )
         .expect("update_heads");
 
@@ -1078,12 +1153,12 @@ mod tests {
     fn request_sample(
         client: &mut TestClient,
         graph_id: GraphId,
-        cache: &PeerCache,
+        cache: &mut PeerCache,
     ) -> vec::Vec<Address> {
         let mut requester = SyncRequester::new(graph_id, Rng);
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, client.provider(), cache, &Rng)
+            .poll(&mut buffer, client.provider(), cache.session_heads(), &Rng)
             .expect("requester poll");
         let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
             panic!("expected a poll message");
@@ -1094,34 +1169,38 @@ mod tests {
         commands.to_vec()
     }
 
-    /// On a 1000-command chain the sample is the head followed by probes
+    /// On a 1000-command chain the sample is the head followed by random commands
     /// spaced `COMMAND_RESPONSE_MAX` apart, the first at least half a gap
     /// below the head, down to the root.
     #[test]
-    fn request_probes_are_evenly_spaced() {
+    fn request_random_commands_are_evenly_spaced() {
         let (mut a, graph_id) = client_with_commands(1000);
         for _ in 0..20 {
-            let sample = request_sample(&mut a, graph_id, &PeerCache::new());
+            let sample = request_sample(&mut a, graph_id, &mut PeerCache::new());
             let cuts: vec::Vec<u64> = sample.iter().map(|s| s.max_cut.get()).collect();
-            assert_eq!(cuts[0], 999, "the head anchor comes first: {cuts:?}");
-            let probes = &cuts[1..];
+            assert_eq!(cuts[0], 999, "the head comes first: {cuts:?}");
+            let random = &cuts[1..];
             assert!(
-                (899..=949).contains(&probes[0]),
-                "first probe is 50 to 100 below the head: {cuts:?}"
+                (899..=949).contains(&random[0]),
+                "first random command is 50 to 100 below the head: {cuts:?}"
             );
-            for pair in probes.windows(2) {
-                assert_eq!(pair[0] - pair[1], 100, "probes are one gap apart: {cuts:?}");
+            for pair in random.windows(2) {
+                assert_eq!(
+                    pair[0] - pair[1],
+                    100,
+                    "random commands are one gap apart: {cuts:?}"
+                );
             }
             assert!(
-                *probes.last().unwrap() < 100,
-                "probes reach the root: {cuts:?}"
+                *random.last().unwrap() <= 100,
+                "random commands reach within one gap of the root: {cuts:?}"
             );
         }
     }
 
     /// A requester far ahead of the responder: the old tip-only sample
-    /// found nothing, so the responder resent its whole graph. Probes
-    /// resolve in the shared history, so at most one gap is resent.
+    /// found nothing, so the responder resent its whole graph. Random
+    /// commands resolve in the shared history, so at most one gap is resent.
     #[test]
     fn requester_ahead_resends_less_than_one_gap() {
         let (mut a, graph_id) = client_with_commands(500);
@@ -1194,13 +1273,13 @@ mod tests {
         assert!(ex.sample.is_empty(), "a region that fits needs no sample");
     }
 
-    /// The peer cache has no size limit: concurrent heads beyond the old
-    /// limit of 10 are all kept.
+    /// The peer cache keeps at most `PEER_HEAD_MAX` concurrent heads, and a
+    /// new head evicts an old one rather than being dropped.
     #[test]
-    fn peer_cache_keeps_every_concurrent_head() {
+    fn peer_cache_evicts_when_full() {
         let (mut root, graph_id) = client_with_commands(1);
         let mut branches = vec::Vec::new();
-        for i in 0..15u64 {
+        for i in 0..PEER_HEAD_MAX as u64 + 5 {
             let mut branch = new_client();
             run_full_session(&mut root, &mut branch, graph_id);
             extend_chain(&mut branch, graph_id, 100 + i..101 + i);
@@ -1214,10 +1293,173 @@ mod tests {
             let head = branch.head_address(graph_id).expect("branch head");
             let storage = hub.provider().get_storage(graph_id).expect("storage");
             cache
-                .add_command(storage, head, &mut buffer)
+                .add_command(storage, head, &mut buffer, &Rng)
                 .expect("add_command");
+            assert!(
+                cache.heads().iter().any(|h| h.address() == head),
+                "the new head is kept"
+            );
         }
-        assert_eq!(cache.heads().len(), 15);
+        assert_eq!(cache.heads().len(), PEER_HEAD_MAX);
+    }
+
+    /// Decodes whether a request asks the responder to reset.
+    fn request_resets(client: &mut TestClient, graph_id: GraphId, heads: SessionHeads<'_>) -> bool {
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _) = requester
+            .poll(&mut buffer, client.provider(), heads, &Rng)
+            .expect("requester poll");
+        let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
+            panic!("expected a poll message");
+        };
+        let SyncRequestMessage::SyncRequest { reset, .. } = poll.message else {
+            panic!("expected a sync request");
+        };
+        reset
+    }
+
+    /// A request resets while the requester's cache is empty or after a
+    /// missing parent, until a reply is committed.
+    #[test]
+    fn request_resets_until_reply_commits() {
+        let (mut b, graph_id) = client_with_commands(10);
+        let mut a = new_client();
+        let mut a_cache = PeerCache::new();
+        let mut b_cache = PeerCache::new();
+
+        assert!(
+            request_resets(&mut a, graph_id, a_cache.session_heads()),
+            "an empty cache resets"
+        );
+        exchange(&mut a, &mut b, graph_id, &mut a_cache, &mut b_cache);
+        assert!(
+            !request_resets(&mut a, graph_id, a_cache.session_heads()),
+            "a populated cache does not reset"
+        );
+
+        a_cache.saw_missing_parent();
+        assert!(request_resets(&mut a, graph_id, a_cache.session_heads()));
+        assert!(
+            request_resets(&mut a, graph_id, a_cache.session_heads()),
+            "the reset is sent again until a reply arrives"
+        );
+        exchange(&mut a, &mut b, graph_id, &mut a_cache, &mut b_cache);
+        assert!(!request_resets(&mut a, graph_id, a_cache.session_heads()));
+    }
+
+    /// Session heads sent in a transaction that is dropped make the next
+    /// request outside it reset.
+    #[test]
+    fn dropped_session_resets() {
+        let (mut b, graph_id) = client_with_commands(10);
+        let mut a = new_client();
+        let mut a_cache = PeerCache::new();
+        exchange(
+            &mut a,
+            &mut b,
+            graph_id,
+            &mut a_cache,
+            &mut PeerCache::new(),
+        );
+        extend_chain(&mut b, graph_id, 10..20);
+
+        // Receive b's new commands into a transaction, then advertise them.
+        let mut trx = a.transaction(graph_id);
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut responder = SyncResponder::new();
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _) = requester
+            .poll(&mut buffer, a.provider(), a_cache.session_heads(), &Rng)
+            .expect("requester poll");
+        let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
+            panic!("expected a poll message");
+        };
+        responder.receive(poll).expect("responder receive");
+        let mut rt_buffers = RuntimeBuffers::new();
+        let len = responder
+            .poll(
+                &mut buffer,
+                b.provider(),
+                &mut PeerCache::new(),
+                &mut rt_buffers.traversal,
+                &Rng,
+            )
+            .expect("responder poll");
+        let reply = requester
+            .receive(&buffer[..len])
+            .expect("requester receive")
+            .expect("reply");
+        a.add_commands(
+            &mut trx,
+            &mut new_sink(),
+            reply.commands(),
+            &mut rt_buffers,
+            mem_spill,
+        )
+        .expect("add_commands");
+        trx.flush(a.provider().get_storage(graph_id).expect("storage"))
+            .expect("flush");
+        assert!(
+            !request_resets(&mut a, graph_id, trx.session_heads(&mut a_cache)),
+            "a request inside the transaction does not reset"
+        );
+
+        drop(trx);
+        assert!(
+            request_resets(&mut a, graph_id, a_cache.session_heads()),
+            "a request after the dropped transaction resets"
+        );
+    }
+
+    /// A reset makes the responder forget what it knew the requester held.
+    #[test]
+    fn responder_clears_cache_on_reset() {
+        let (mut b, graph_id) = client_with_commands(300);
+        let mut a = new_client();
+        let stale = b.head_address(graph_id).expect("head");
+        let mut b_cache = cache_holding(&mut b, graph_id, &[stale]);
+
+        let ex = exchange(
+            &mut a,
+            &mut b,
+            graph_id,
+            &mut PeerCache::new(),
+            &mut b_cache,
+        );
+        assert_eq!(
+            ex.sent.len(),
+            COMMAND_RESPONSE_MAX,
+            "b resends from the root"
+        );
+        assert!(
+            !b_cache.heads().iter().any(|h| h.address() == stale),
+            "the stale head is gone"
+        );
+    }
+
+    /// The responder's sample covers only the region above its floor for the
+    /// requester.
+    #[test]
+    fn responder_sample_above_floor() {
+        let (mut b, graph_id) = client_with_commands(1000);
+        let mut a = new_client();
+        let mut a_cache = PeerCache::new();
+        let mut b_cache = PeerCache::new();
+        for _ in 0..7 {
+            exchange(&mut a, &mut b, graph_id, &mut a_cache, &mut b_cache);
+        }
+        let floor = a.head_address(graph_id).expect("a head").max_cut;
+        assert!(floor.get() >= 600, "a holds most of the chain");
+
+        let ex = exchange(&mut a, &mut b, graph_id, &mut a_cache, &mut b_cache);
+        assert!(!ex.sample.is_empty(), "the rest does not fit in one reply");
+        for addr in &ex.sample {
+            assert!(
+                addr.max_cut > floor,
+                "sample command {addr:?} is at or below the floor {floor:?}"
+            );
+        }
     }
 
     /// Returns a cache recording that the peer holds `addrs`.
@@ -1227,31 +1469,31 @@ mod tests {
         let storage = client.provider().get_storage(graph_id).expect("storage");
         for &addr in addrs {
             cache
-                .add_command(storage, addr, &mut buffer)
+                .add_command(storage, addr, &mut buffer, &Rng)
                 .expect("add_command");
         }
         cache
     }
 
     /// A requester a few commands ahead of its cache head on a long chain:
-    /// the floor is the cache head, so the sample is only the anchors.
+    /// the floor is the cache head, so the sample is only the heads.
     #[test]
-    fn floor_at_cache_head_sends_no_probes() {
+    fn floor_at_cache_head_sends_only_heads() {
         let (mut a, graph_id) = client_with_commands(1000);
         let held = a.head_address(graph_id).expect("head");
         extend_chain(&mut a, graph_id, 1000..1005);
-        let cache = cache_holding(&mut a, graph_id, &[held]);
+        let mut cache = cache_holding(&mut a, graph_id, &[held]);
 
-        let sample = request_sample(&mut a, graph_id, &cache);
+        let sample = request_sample(&mut a, graph_id, &mut cache);
         let head = a.head_address(graph_id).expect("head");
         assert_eq!(sample, [held, head]);
     }
 
     /// Two writers each add a command on the same parent. After the
     /// requester receives the other's command it has two heads, their LCA
-    /// is the shared parent, and that is the floor: no probes.
+    /// is the shared parent, and that is the floor: only heads.
     #[test]
-    fn floor_below_sibling_heads_sends_no_probes() {
+    fn floor_below_sibling_heads_sends_only_heads() {
         let (mut a, graph_id) = client_with_commands(1000);
         let mut b = new_client();
         for _ in 0..20 {
@@ -1281,17 +1523,17 @@ mod tests {
         assert_eq!(heads.len(), 2, "a holds both siblings as heads");
         assert_eq!(heads.lca().max_cut, parent.max_cut, "LCA is the parent");
 
-        let cache = cache_holding(&mut a, graph_id, &[theirs]);
-        let mut sample = request_sample(&mut a, graph_id, &cache);
+        let mut cache = cache_holding(&mut a, graph_id, &[theirs]);
+        let mut sample = request_sample(&mut a, graph_id, &mut cache);
         sample.sort();
         let mut expected = vec![mine, theirs];
         expected.sort();
-        assert_eq!(sample, expected, "anchors only");
+        assert_eq!(sample, expected, "heads only");
     }
 
     /// A branch from near the root that the peer has never seen: the heads'
-    /// LCA is near the root, so probes cover the whole graph even though the
-    /// cache head is the main line's tip.
+    /// LCA is near the root, so random commands cover the whole graph even
+    /// though the cache head is the main line's tip.
     #[test]
     fn unknown_branch_puts_floor_at_root() {
         let (mut a, graph_id) = client_with_commands(1);
@@ -1315,12 +1557,12 @@ mod tests {
         let storage = a.provider().get_storage(graph_id).expect("storage");
         assert_eq!(storage.get_heads().expect("heads").len(), 2);
 
-        let cache = cache_holding(&mut a, graph_id, &[main_tip]);
-        let sample = request_sample(&mut a, graph_id, &cache);
+        let mut cache = cache_holding(&mut a, graph_id, &[main_tip]);
+        let sample = request_sample(&mut a, graph_id, &mut cache);
         let lowest = sample.iter().map(|s| s.max_cut.get()).min().unwrap();
         assert!(
             sample.len() > 3 && lowest < 100,
-            "probes reach the root: {:?}",
+            "random commands reach the root: {:?}",
             sample
                 .iter()
                 .map(|s| s.max_cut.get())

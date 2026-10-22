@@ -5,7 +5,7 @@
 use alloc::vec;
 
 use aranya_crypto::Csprng;
-use buggy::BugExt as _;
+use buggy::{Bug, BugExt as _};
 use heapless::Vec;
 
 use super::{COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, SyncError};
@@ -14,22 +14,23 @@ use crate::{
     storage::{LocatedAddress, Location, MaxCut, Segment as _, Storage},
 };
 
-/// Anchors get at most this many slots. The rest are reserved for probes.
-const ANCHOR_MAX: usize = COMMAND_SAMPLE_MAX / 2;
+/// Heads get at most this many slots. The rest are reserved for random
+/// commands.
+const HEADS_MAX: usize = COMMAND_SAMPLE_MAX / 2;
 
 /// Returns a uniformly random value in `0..n`.
-fn random_below(rng: &impl Csprng, n: u64) -> Result<u64, SyncError> {
+fn random_below(rng: &impl Csprng, n: u64) -> Result<u64, Bug> {
     let mut bytes = [0u8; 8];
     rng.fill_bytes(&mut bytes);
-    Ok(u64::from_le_bytes(bytes)
+    u64::from_le_bytes(bytes)
         .checked_rem(n)
-        .assume("n must be nonzero")?)
+        .assume("n must be nonzero")
 }
 
 /// Returns a uniformly random index into a collection of length `len`.
-fn random_index(rng: &impl Csprng, len: usize) -> Result<usize, SyncError> {
+pub(super) fn random_index(rng: &impl Csprng, len: usize) -> Result<usize, Bug> {
     let i = random_below(rng, len as u64)?;
-    Ok(usize::try_from(i).assume("index fits in usize")?)
+    usize::try_from(i).assume("index fits in usize")
 }
 
 /// Walk back from `start` toward max cut `target`, which must not be above
@@ -104,43 +105,43 @@ pub(super) fn skip_jump<S: Storage>(
 /// ancestors.
 ///
 /// Walks back from the heads' LCA to the highest command at or below the
-/// deepest cache head. Every point on that walk is a command all heads pass
+/// lowest cache head. Every point on that walk is a command all heads pass
 /// through, so every path to a cache head passes through the floor.
 pub(super) fn floor<S: Storage>(
     storage: &S,
     cache_heads: &[LocatedAddress],
 ) -> Result<MaxCut, SyncError> {
-    let Some(deepest) = cache_heads.iter().map(|h| h.max_cut).min() else {
+    let Some(lowest) = cache_heads.iter().map(|h| h.max_cut).min() else {
         return Ok(MaxCut::new(0));
     };
     let lca = storage.get_heads()?.lca();
-    if lca.max_cut <= deepest {
+    if lca.max_cut <= lowest {
         return Ok(lca.max_cut);
     }
-    let floor = skip_jump(storage, lca, deepest, |_, merge_lca| Ok(Some(merge_lca)))?;
+    let floor = skip_jump(storage, lca, lowest, |_, merge_lca| Ok(Some(merge_lca)))?;
     Ok(floor.max_cut)
 }
 
 /// Builds a sample over `storage`.
 ///
-/// `anchor_groups` are added first, in order, into at most half the slots.
-/// A group that does not fit in the remaining anchor slots contributes a
-/// random subset that fills them. The remaining slots hold probes: commands
-/// at evenly spaced max cuts from the tallest head down to `floor`, each
-/// reached from a random head tall enough to reach it. Probes for which
-/// `exclude` returns true are dropped.
+/// `head_groups` are added first, in order, into at most half the slots.
+/// A group that does not fit in the remaining head slots contributes a
+/// random subset that fills them. The remaining slots hold random commands:
+/// commands at evenly spaced max cuts from the tallest head down to
+/// `floor`, each reached from a random head tall enough to reach it. Random
+/// commands for which `exclude` returns true are dropped.
 pub(super) fn build<S: Storage>(
     storage: &S,
-    anchor_groups: &[&[Address]],
+    head_groups: &[&[Address]],
     floor: MaxCut,
     rng: &impl Csprng,
     exclude: impl Fn(Address) -> bool,
 ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
     let mut sample: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
-    // Step 1: anchors.
-    for group in anchor_groups {
-        let room = ANCHOR_MAX.saturating_sub(sample.len());
+    // Heads.
+    for group in head_groups {
+        let room = HEADS_MAX.saturating_sub(sample.len());
         let mut group: vec::Vec<Address> = group
             .iter()
             .copied()
@@ -158,8 +159,8 @@ pub(super) fn build<S: Storage>(
             }
             group.truncate(room);
         }
-        for anchor in group {
-            sample.push(anchor).ok().assume("anchors fit in sample")?;
+        for head in group {
+            sample.push(head).ok().assume("heads fit in sample")?;
         }
     }
 
@@ -172,7 +173,7 @@ pub(super) fn build<S: Storage>(
         return Ok(sample);
     };
 
-    // Step 2: gap.
+    // Gap.
     let free = COMMAND_SAMPLE_MAX
         .checked_sub(sample.len())
         .assume("sample is not overfull")? as u64;
@@ -182,7 +183,7 @@ pub(super) fn build<S: Storage>(
     let span = top.get().saturating_sub(floor.get());
     let gap = span.div_ceil(free).max(COMMAND_RESPONSE_MAX as u64);
 
-    // Step 3: offset, uniform in gap/2..=gap.
+    // Offset, uniform in gap/2..=gap.
     let half = gap.div_ceil(2);
     let width = gap
         .checked_sub(half)
@@ -192,7 +193,7 @@ pub(super) fn build<S: Storage>(
         .checked_add(random_below(rng, width)?)
         .assume("offset mustn't overflow")?;
 
-    // Step 4: probes.
+    // Random commands.
     let mut position = top.get().checked_sub(offset);
     while let Some(t) = position.filter(|&t| t > floor.get()) {
         if sample.is_full() {

@@ -6,7 +6,7 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    COMMAND_SAMPLE_MAX, PeerCache, PushIncoming, REQUEST_MISSING_MAX, SyncCommand, SyncError,
+    COMMAND_SAMPLE_MAX, PushIncoming, REQUEST_MISSING_MAX, SessionHeads, SyncCommand, SyncError,
     SyncReply, responder::SyncResponseMessage, sample, wire::SyncType,
 };
 use crate::{
@@ -37,6 +37,9 @@ pub(crate) enum SyncRequestMessage {
         /// the provided sample. When sending commands ancestors must be sent
         /// before descendents.
         commands: Vec<Address, COMMAND_SAMPLE_MAX>,
+        /// Asks the responder to forget what it knows the requester holds
+        /// before resolving `commands`, because that knowledge may be wrong.
+        reset: bool,
     },
 
     /// Sent by the requester if it deduces a `SyncResponse` message has been
@@ -147,12 +150,17 @@ impl SyncRequester {
     /// Write a sync message in to the target buffer. Returns the number
     /// of bytes written and the number of commands sent in the sample.
     ///
-    /// `cache` holds the committed commands the peer is known to have.
+    /// `heads` is the frontier to advertise: [`PeerCache::session_heads`]
+    /// when no transaction is open, or `Transaction::session_heads` to also
+    /// advertise an open transaction's uncommitted frontier so progressive
+    /// fetch advances across exchanges before commit.
+    ///
+    /// [`PeerCache::session_heads`]: super::PeerCache::session_heads
     pub fn poll(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        cache: &PeerCache,
+        heads: SessionHeads<'_>,
         rng: &impl Csprng,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
@@ -162,7 +170,7 @@ impl SyncRequester {
             }
             S::New => {
                 self.state = S::Start;
-                self.start(self.max_bytes, target, provider, cache, rng)?
+                self.start(self.max_bytes, target, provider, heads, rng)?
             }
             S::Resync => self.resume(self.max_bytes, target)?,
             S::Reset => {
@@ -354,12 +362,13 @@ impl SyncRequester {
         Ok((Self::write(target, message)?, 0))
     }
 
-    /// Builds the request's sample: the peer cache heads and our graph heads
-    /// as anchors, then probes spread across the graph.
+    /// Builds the request's sample: the session heads, peer cache heads and
+    /// our graph heads, then random commands spread across the graph. Marks
+    /// the peer cache if session heads are sent.
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-        cache: &PeerCache,
+        heads: &mut SessionHeads<'_>,
         rng: &impl Csprng,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let storage = match provider.get_storage(self.graph_id) {
@@ -368,7 +377,10 @@ impl SyncRequester {
             Ok(storage) => storage,
         };
 
-        let cache_heads: vec::Vec<Address> = cache.heads().iter().map(|h| h.address()).collect();
+        let session_heads: vec::Vec<Address> =
+            heads.session_iter().map(LocatedAddress::address).collect();
+        let cache_heads: vec::Vec<Address> =
+            heads.cache.heads().iter().map(|h| h.address()).collect();
         let graph_heads: vec::Vec<Address> = storage
             .get_heads()?
             .iter()
@@ -376,10 +388,18 @@ impl SyncRequester {
             .filter(|a| !cache_heads.contains(a))
             .collect();
 
-        let floor = sample::floor(&*storage, cache.heads())?;
-        sample::build(&*storage, &[&cache_heads, &graph_heads], floor, rng, |_| {
-            false
-        })
+        let floor = sample::floor(&*storage, heads.cache.heads())?;
+        let sample = sample::build(
+            &*storage,
+            &[&session_heads, &cache_heads, &graph_heads],
+            floor,
+            rng,
+            |_| false,
+        )?;
+        if sample.iter().any(|a| session_heads.contains(a)) {
+            heads.cache.sent_session_heads();
+        }
+        Ok(sample)
     }
 
     /// Writes a Subscribe message to target.
@@ -387,12 +407,12 @@ impl SyncRequester {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        cache: &PeerCache,
+        mut heads: SessionHeads<'_>,
         rng: &impl Csprng,
         remain_open: u64,
         max_bytes: u64,
     ) -> Result<usize, SyncError> {
-        let commands = self.get_commands(provider, cache, rng)?;
+        let commands = self.get_commands(provider, &mut heads, rng)?;
         let message = SyncType::Subscribe {
             remain_open,
             max_bytes,
@@ -417,7 +437,7 @@ impl SyncRequester {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        cache: &PeerCache,
+        mut heads: SessionHeads<'_>,
         rng: &impl Csprng,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
@@ -431,7 +451,9 @@ impl SyncRequester {
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let command_sample = self.get_commands(provider, cache, rng)?;
+        let in_session = heads.session_iter().next().is_some();
+        let reset = heads.cache.needs_reset(in_session);
+        let command_sample = self.get_commands(provider, &mut heads, rng)?;
 
         let sent = command_sample.len();
         let message = SyncType::Poll {
@@ -440,6 +462,7 @@ impl SyncRequester {
                 graph_id: self.graph_id,
                 max_bytes,
                 commands: command_sample,
+                reset,
             },
         };
 

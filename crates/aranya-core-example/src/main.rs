@@ -219,7 +219,12 @@ fn sync_graphs(
 
     let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, _sent) = syncer
-        .poll(&mut buf, dest.provider(), &request_cache, &Rng)
+        .poll(
+            &mut buf,
+            dest.provider(),
+            trx.session_heads(&mut request_cache),
+            &Rng,
+        )
         .context("sync poll failed")?;
 
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -253,6 +258,7 @@ fn sync_graphs(
             reply.addresses(),
             &mut request_cache,
             &mut traversal,
+            &Rng,
         )
         .context("update_heads")?;
     }
