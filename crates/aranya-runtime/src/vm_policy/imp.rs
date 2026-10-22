@@ -1,144 +1,26 @@
-//! VmPolicy implements a [Policy] that evaluates actions and commands via the [Policy
-//! VM](../../policy_vm/index.html).
-//!
-//! ## Creating a `VmPolicy` instance
-//!
-//! To use `VmPolicy` in your [`PolicyStore`](super::PolicyStore), you need to provide a Policy VM
-//! [`Machine`], a [`aranya_crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine
-//! will be created by either compiling a policy document (see
-//! [`parse_policy_document()`](../../policy_lang/lang/fn.parse_policy_document.html) and
-//! [`Compiler`](../../policy_compiler/struct.Compiler.html)), or loading a compiled policy
-//! module (see [`Machine::from_module()`]). The crypto engine comes from your favorite
-//! implementation
-//! ([`DefaultEngine::from_entropy()`](aranya_crypto::default::DefaultEngine::from_entropy) is a
-//! good choice for testing). The list of FFIs is a list of things that implement
-//! [`FfiModule`](aranya_policy_vm::ffi::FfiModule), most likely via the [ffi attribute
-//! macro](../../policy_vm/ffi/attr.ffi.html). The list of FFI modules _must_ be in the same
-//! order as the FFI schemas given during VM construction.
-//!
-//! ```ignore
-//! // Create a `Machine` by compiling policy from source.
-//! let ast = parse_policy_document(policy_doc).unwrap();
-//! let machine = Compiler::new(&ast)
-//!     .ffi_modules(&[TestFfiEnvelope::SCHEMA])
-//!     .compile()
-//!     .unwrap();
-//! // Create a `aranya_crypto::Engine` implementation
-//! let (eng, _) = DefaultEngine::from_entropy(Rng);
-//! // Create a list of FFI module implementations
-//! let ffi_modules = vec![Box::from(TestFfiEnvelope {
-//!     device: DeviceId::random(Rng),
-//! })];
-//! // And finally, create the VmPolicy
-//! let policy = VmPolicy::new(machine, eng, ffi_modules).unwrap();
-//! ```
-//!
-//! ## Actions and Effects
-//!
-//! The VM represents actions as a kind of function, which has a name and a list of
-//! parameters. [`VmPolicy`] represents those actions as [`VmAction`]. Calling an action
-//! via [`call_action()`](VmPolicy::call_action) requires you to give it an action of
-//! that type. You can use the [`vm_action!()`](crate::vm_action) macro to create this
-//! more comfortably.
-//!
-//! The VM represents effects as a named struct containing a set of fields. `VmPolicy`
-//! represents this as [`VmEffect`]. Effects captured via [`Sink`]s will have this type.
-//! You can use the [`vm_effect!()`](crate::vm_effect) macro to create effects.
-//!
-//! ## The "init" command and action
-//!
-//! To create a graph, there must be a command that is the ancestor of all commands in that
-//! graph - the "init" command. In `VmPolicy`, that command is created via a special action
-//! given as the second argument to
-//! [`ClientState::new_graph()`](crate::ClientState::new_graph). The first command produced
-//! by that action becomes the "init" command. It has basically all the same properties as
-//! any other command, except it has no parent.
-//!
-//! So for this example policy:
-//!
-//! ```policy
-//! command Init with BaseInit {
-//!     fields {
-//!         nonce int,
-//!     }
-//!     policy {
-//!         finish {}
-//!     }
-//! }
-//!
-//! action[init] init(nonce int) {
-//!     publish Init { nonce }
-//! }
-//! ```
-//!
-//! This is an example of initializing a graph with `new_graph()`:
-//!
-//! ```ignore
-//! let policy_store = MyPolicyStore::new();
-//! let provider = MyStorageProvider::new();
-//! let mut cs = ClientState::new(policy_store, provider);
-//! let mut sink = MySink::new();
-//!
-//! let graph_id = cs
-//!     .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
-//!     .expect("could not create graph");
-//! ```
-//!
-//! Because the ID of this initial command is also the ID of the resulting graph,
-//! some data within the command must be present to ensure that multiple initial commands
-//! create distinct IDs for each graph. If no other suitable data exists, it is good
-//! practice to add a nonce field that is distinct for each graph.
-//!
-//! ## Priorities
-//!
-//! `VmPolicy` uses the policy language's attributes system to report command priorities to
-//! the runtime. You can specify the priority of a command by adding the `priority`
-//! attribute. It should be an `int` literal.
-//!
-//! ```policy
-//! command Foo with Base {
-//!     attributes {
-//!         priority: 3
-//!     }
-//!     // ... fields, policy, etc.
-//! }
-//! ```
-//!
-//! ## Policy Interface Generator
-//!
-//! A more comfortable way to use `VmPolicy` is via the [Policy Interface
-//! Generator](../../policy_ifgen/index.html). It creates a Rust interface for actions and
-//! effects from a policy document.
-
-extern crate alloc;
-
 use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
-use core::fmt;
 
 use aranya_policy_vm::{
-    ActionContext, CommandContext, CommandDef, ConstValue, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier,
-    ffi_contract_validate,
+    ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
+    PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier, ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument};
 
+use super::{
+    error::VmPolicyError,
+    interface::{VmAction, VmEffect},
+    io::{FfiCallable, VmPolicyIO},
+    priority::{VmPriority, get_command_priorities},
+    protocol::{Envelope, VmProtocol, VmProtocolData},
+    seal_open::{SealCtx, open_with_key, seal_with_key},
+};
 use crate::{
     ActionPlacement, Address, CommandPlacement, FactPerspective, MergeIds, NullSink, Perspective,
     Prior, Priority,
     command::{CmdId, Command},
     policy::{Policy, PolicyError, Sink},
 };
-
-mod error;
-mod io;
-mod protocol;
-mod seal_open;
-
-pub use error::*;
-pub use io::*;
-pub use protocol::*;
-pub use seal_open::SealCtx;
 
 pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
     use aranya_policy_module::{
@@ -205,52 +87,6 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
     }
 };
 
-/// Creates a [`VmAction`].
-///
-/// This must be used directly to avoid lifetime issues, not assigned to a variable.
-///
-/// # Example
-///
-/// ```ignore
-/// let x = 42;
-/// let y = text!("asdf");
-/// client.action(graph_id, sink, vm_action!(foobar(x, y)))
-/// ```
-#[macro_export]
-macro_rules! vm_action {
-    ($name:ident($($arg:expr),* $(,)?)) => {
-        $crate::VmAction {
-            name: ::aranya_policy_vm::ident!(stringify!($name)),
-            args: [$(::aranya_policy_vm::Value::from($arg)),*].as_slice().into(),
-        }
-    };
-}
-
-/// Creates a [`VmEffectData`].
-///
-/// This is mostly useful for testing expected effects, and is expected to be compared
-/// against a [`VmEffect`].
-///
-/// # Example
-///
-/// ```ignore
-/// let val = 3;
-/// sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: val }));
-///
-/// client.action(graph_id, sink, vm_action!(create(val)))
-/// ```
-#[macro_export]
-macro_rules! vm_effect {
-    ($name:ident { $($field:ident : $val:expr),* $(,)? }) => {
-        $crate::VmEffectData {
-            name: ::aranya_policy_vm::ident!(stringify!($name)),
-            fields: vec![$(
-                ::aranya_policy_vm::KVPair::new(::aranya_policy_vm::ident!(stringify!($field)), $val.into())
-            ),*],
-        }
-    };
-}
-
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<CE> {
     machine: Machine,
@@ -287,57 +123,13 @@ impl<CE> VmPolicy<CE> {
         rs.source_location()
             .unwrap_or_else(|| String::from("(unknown location)"))
     }
-}
 
-/// Scans command attributes for priorities and creates the priority map from them.
-fn get_command_priorities(
-    machine: &Machine,
-) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
-    machine
-        .command_defs
-        .iter()
-        .map(|def| {
-            let priority = get_command_priority(def)?;
-            Ok((def.name.clone(), priority))
+    fn get_command_priority(&self, name: &Identifier) -> Result<VmPriority, PolicyError> {
+        self.priority_map.get(name).copied().ok_or_else(|| {
+            error!("unknown command {name}");
+            PolicyError::InternalError
         })
-        .collect()
-}
-
-/// Get the priority for one command from flavor and attributes.
-fn get_command_priority(def: &CommandDef) -> Result<VmPriority, AttributeError> {
-    match def.flavor.as_str() {
-        "basic" => Ok(VmPriority::Basic(load_priority(def)?)),
-        // If not basic, it should not have priority attribute.
-        flavor if def.attributes.iter().any(|a| a.name == "priority") => Err(
-            AttributeError::should_not_have(flavor, def.name.as_str(), "priority"),
-        ),
-        "ephemeral" => Ok(VmPriority::Ephemeral),
-        "init" => Ok(VmPriority::Init),
-        "finalize" => Ok(VmPriority::Finalize),
-        flavor => Err(AttributeError::unknown_flavor(flavor, def.name.as_str())),
     }
-}
-
-/// Read the priority attribute.
-fn load_priority(def: &CommandDef) -> Result<u32, AttributeError> {
-    let cmd_name = def.name.as_str();
-    let attr_name = "priority";
-    let attr = def
-        .attributes
-        .iter()
-        .find(|a| a.name == attr_name)
-        .ok_or_else(|| AttributeError::missing(cmd_name, attr_name))?;
-    let ConstValue::Int(int) = attr.value else {
-        return Err(AttributeError::type_mismatch(
-            cmd_name,
-            attr_name,
-            "Int",
-            &attr.value.type_name(),
-        ));
-    };
-    u32::try_from(int).map_err(|_| {
-        AttributeError::int_range(cmd_name, attr_name, u32::MIN.into(), u32::MAX.into())
-    })
 }
 
 impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
@@ -390,7 +182,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
             PolicyError::Write
         })?;
 
-        let envelope = seal_open::seal_with_key(
+        let envelope = seal_with_key(
             &seal_ctx.key,
             command_struct,
             &payload,
@@ -428,87 +220,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 PolicyError::Panic
             })?;
 
-        seal_open::open_with_key(key, command_struct, payload, envelope)
-            .map_err(|_| PolicyError::Panic)
-    }
-}
-
-/// [`VmPolicy`]'s actions.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VmAction<'a> {
-    /// The name of the action.
-    pub name: Identifier,
-    /// The arguments of the action.
-    pub args: Cow<'a, [Value]>,
-}
-
-/// A partial version of [`VmEffect`] containing only the data. Created by
-/// [`vm_effect!`] and used to compare only the name and fields against the full
-/// `VmEffect`.
-#[derive(Debug)]
-pub struct VmEffectData {
-    /// The name of the effect.
-    pub name: Identifier,
-    /// The fields of the effect.
-    pub fields: Vec<KVPair>,
-}
-
-impl PartialEq<VmEffect> for VmEffectData {
-    fn eq(&self, other: &VmEffect) -> bool {
-        self.name == other.name && self.fields == other.fields
-    }
-}
-
-impl PartialEq<VmEffectData> for VmEffect {
-    fn eq(&self, other: &VmEffectData) -> bool {
-        self.name == other.name && self.fields == other.fields
-    }
-}
-
-/// [`VmPolicy`]'s effects.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VmEffect {
-    /// The name of the effect.
-    pub name: Identifier,
-    /// The fields of the effect.
-    pub fields: Vec<KVPair>,
-    /// The command ID that produced this effect
-    pub command: CmdId,
-    /// Was this produced from a recall block?
-    pub recalled: bool,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum VmPriority {
-    Init,
-    Basic(u32),
-    Finalize,
-    Ephemeral,
-}
-
-impl Default for VmPriority {
-    fn default() -> Self {
-        Self::Basic(0)
-    }
-}
-
-impl From<VmPriority> for Priority {
-    fn from(value: VmPriority) -> Self {
-        match value {
-            VmPriority::Init => Self::Init,
-            VmPriority::Basic(p) => Self::Basic(p),
-            VmPriority::Finalize => Self::Finalize,
-            VmPriority::Ephemeral => Self::Basic(0), // ?
-        }
-    }
-}
-
-impl<CE> VmPolicy<CE> {
-    fn get_command_priority(&self, name: &Identifier) -> Result<VmPriority, PolicyError> {
-        self.priority_map.get(name).copied().ok_or_else(|| {
-            error!("unknown command {name}");
-            PolicyError::InternalError
-        })
+        open_with_key(key, command_struct, payload, envelope).map_err(|_| PolicyError::Panic)
     }
 }
 
@@ -811,158 +523,5 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             policy: None,
             data: &[],
         })
-    }
-}
-
-impl fmt::Display for VmAction<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_tuple(self.name.as_str());
-        for arg in self.args.as_ref() {
-            d.field(&DebugViaDisplay(arg));
-        }
-        d.finish()
-    }
-}
-
-impl fmt::Display for VmEffect {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_struct(self.name.as_str());
-        for field in &self.fields {
-            d.field(field.key().as_str(), &DebugViaDisplay(field.value()));
-        }
-        d.finish()
-    }
-}
-
-/// Implements `Debug` via `T`'s `Display` impl.
-struct DebugViaDisplay<T>(T);
-
-impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use alloc::format;
-
-    use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_str;
-    use aranya_policy_vm::{ast::Version, ident};
-
-    use super::*;
-
-    #[test]
-    fn test_require_command_priority() {
-        let cases = [
-            r#"
-            base[basic] Base { get_key { return None } }
-            command Test with Base {
-                fields {}
-                policy {}
-            }
-            "#,
-            r#"
-            base[basic] Base { get_key { return None } }
-            command Test with Base {
-                attributes {}
-                fields {}
-                policy {}
-            }
-            "#,
-            r#"
-            base[basic] Base { get_key { return None } }
-            command Test with Base {
-                attributes {
-                    init: false,
-                    finalize: false,
-                }
-                fields {}
-                policy {}
-            }
-            "#,
-        ];
-
-        for case in cases {
-            let ast = parse_policy_str(case, Version::V2).unwrap();
-            let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
-            let machine = Machine::from_module(module).expect("can create machine");
-            let def = machine.command_defs.get(&ident!("Test")).unwrap();
-            let err = get_command_priority(def).expect_err("should fail");
-            assert_eq!(err, AttributeError::missing("Test", "priority"));
-        }
-    }
-
-    #[test]
-    fn test_get_command_priority() {
-        fn process(flavor: &str, attrs: &str) -> Result<VmPriority, AttributeError> {
-            let policy = format!(
-                r#"
-                base[{flavor}] Base {{ get_key {{ return None }} }}
-                command Test with Base {{
-                    attributes {{
-                        {attrs}
-                    }}
-                    fields {{ }}
-                    policy {{ }}
-                }}
-                "#
-            );
-            let ast = parse_policy_str(&policy, Version::V2).unwrap();
-            let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
-            let machine = Machine::from_module(module).expect("can create machine");
-            let def = machine.command_defs.get(&ident!("Test")).unwrap();
-            get_command_priority(def)
-        }
-
-        assert_eq!(process("basic", "priority: 42"), Ok(VmPriority::Basic(42)));
-        assert_eq!(
-            process("basic", "finalize: false, priority: 42"),
-            Ok(VmPriority::Basic(42))
-        );
-        assert_eq!(
-            process("basic", "init: false, priority: 42, finalize: false"),
-            Ok(VmPriority::Basic(42))
-        );
-
-        assert_eq!(process("init", ""), Ok(VmPriority::Init));
-        assert_eq!(process("finalize", ""), Ok(VmPriority::Finalize));
-
-        assert_eq!(
-            process("basic", "priority: false"),
-            Err(AttributeError::type_mismatch(
-                "Test", "priority", "Int", "Bool"
-            ))
-        );
-        assert_eq!(
-            process("basic", "priority: -1"),
-            Err(AttributeError::int_range(
-                "Test",
-                "priority",
-                u32::MIN.into(),
-                u32::MAX.into(),
-            ))
-        );
-        assert_eq!(
-            process("basic", &format!("priority: {}", i64::MAX)),
-            Err(AttributeError::int_range(
-                "Test",
-                "priority",
-                u32::MIN.into(),
-                u32::MAX.into(),
-            ))
-        );
-
-        assert_eq!(
-            process("finalize", "priority: 42"),
-            Err(AttributeError::should_not_have(
-                "finalize", "Test", "priority"
-            ))
-        );
-        assert_eq!(
-            process("init", "priority: 42"),
-            Err(AttributeError::should_not_have("init", "Test", "priority"))
-        );
     }
 }
