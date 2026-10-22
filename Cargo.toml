@@ -121,7 +121,6 @@ postcard-core = { version = "0.1.0" }
 proptest = { version = "1.6", default-features = false, features = ["no_std", "alloc"] }
 proptest-derive = { version = "0.5" }
 rand = { version = "0.10", default-features = false }
-rand_core = { version = "0.6", default-features = false }
 rend = { version = "0.5", default-features = false }
 rkyv = { version = "0.8.17", default-features = false, features = ["bytecheck"] }
 rustix = { version = "1", default-features = false }

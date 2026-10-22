@@ -1678,9 +1678,7 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 thir::MatchPattern::Default(_) => {
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        arm_label.clone(),
-                    )));
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(arm_label)));
                 }
             }
         }
