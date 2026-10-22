@@ -2,8 +2,7 @@
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
 CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "canaries/*"
 
-RUSTFLAGS = { value = "-Dwarnings", condition = { env_true = ["CARGO_MAKE_CI"] } }
-RUSTDOCFLAGS = { value = "-Dwarnings", condition = { env_true = ["CARGO_MAKE_CI"] } }
+CARGO_BUILD_WARNINGS = { value = "deny", condition = { env_true = ["CARGO_MAKE_CI"] } }
 
 [config]
 default_to_workspace = false
