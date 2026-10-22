@@ -145,7 +145,13 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
-        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads.session_heads(), &Rng)?;
+        let (len, _) = syncer.poll(
+            &mut buffer,
+            client.provider(),
+            heads.session_heads(),
+            &Rng,
+            &mut self.rt_buffers.traversal.primary,
+        )?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -161,8 +167,7 @@ where
         stream.read_to_end(&mut received_data)?;
         // An empty response means we're up to date and there's nothing to sync.
         if !received_data.is_empty() {
-            let Some(reply) = syncer.receive(&received_data)? else {
-                heads.reply_committed();
+            let Some(reply) = syncer.receive(&received_data, heads)? else {
                 return Ok(received);
             };
             received = reply.commands().len();
@@ -211,6 +216,7 @@ where
             client.provider(),
             heads.session_heads(),
             &Rng,
+            &mut self.rt_buffers.traversal.primary,
             remain_open,
             max_bytes,
         )?;

@@ -224,6 +224,7 @@ fn sync_graphs(
             dest.provider(),
             trx.session_heads(&mut request_cache),
             &Rng,
+            &mut traversal,
         )
         .context("sync poll failed")?;
 
@@ -238,7 +239,7 @@ fn sync_graphs(
 
     if resp_len > 0
         && let Some(reply) = syncer
-            .receive(&target[..resp_len])
+            .receive(&target[..resp_len], &mut request_cache)
             .context("sync receive")?
     {
         let make_spill = || LibcSpill::new(spill_dir);

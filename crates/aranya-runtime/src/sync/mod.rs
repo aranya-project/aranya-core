@@ -485,7 +485,9 @@ mod tests {
             .len();
 
         let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
-        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        let err = requester
+            .receive(&buf[..len], &mut PeerCache::new())
+            .expect_err("must not panic");
         assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
     }
 
@@ -507,7 +509,9 @@ mod tests {
             .len();
 
         let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
-        let err = requester.receive(&buf[..len]).expect_err("must not panic");
+        let err = requester
+            .receive(&buf[..len], &mut PeerCache::new())
+            .expect_err("must not panic");
         assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
     }
 

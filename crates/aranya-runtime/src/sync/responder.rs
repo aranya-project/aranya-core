@@ -28,21 +28,36 @@ const PEER_HEAD_MAX: usize = 100;
 
 /// The committed commands a peer is known to hold, kept as the heads of
 /// that set: no head is an ancestor of another.
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct PeerCache {
     heads: Vec<LocatedAddress, PEER_HEAD_MAX>,
-    /// Session heads were sent to the peer in a transaction that has not
-    /// committed.
-    sent_session_heads: bool,
-    /// A reply from the peer had a command whose parent we lack.
+    /// No reply from the peer has arrived since this cache was created. A
+    /// new cache may mean we lost storage the peer knows about.
+    new: bool,
+    /// Session heads sent to the peer, from a transaction not yet known to
+    /// have committed.
+    sent_session_heads: Vec<Address, COMMAND_SAMPLE_MAX>,
+    /// A transaction that sent session heads ended without committing, and
+    /// no reply has arrived since.
+    session_dropped: bool,
+    /// A reply from the peer had a command whose parent we lack, and no
+    /// reply has arrived since.
     missing_parent: bool,
+}
+
+impl Default for PeerCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PeerCache {
     pub const fn new() -> Self {
         Self {
             heads: Vec::new(),
-            sent_session_heads: false,
+            new: true,
+            sent_session_heads: Vec::new(),
+            session_dropped: false,
             missing_parent: false,
         }
     }
@@ -59,28 +74,63 @@ impl PeerCache {
         self.missing_parent = true;
     }
 
-    /// Record that a request carried session heads.
-    pub(super) fn sent_session_heads(&mut self) {
-        self.sent_session_heads = true;
+    /// Checks the session heads sent to the peer against our storage. Each
+    /// is resolved once it is committed, and kept while the open transaction,
+    /// whose uncommitted heads are `session`, still holds it. Any other was
+    /// sent by a transaction that ended without committing.
+    pub(super) fn check_sent_session_heads<S: Storage>(
+        &mut self,
+        storage: &S,
+        session: &[LocatedAddress],
+        buffer: &mut TraversalBuffer,
+    ) -> Result<(), StorageError> {
+        let mut kept = Vec::new();
+        for &addr in &self.sent_session_heads {
+            if storage.get_location(addr, buffer)?.is_some() {
+                continue;
+            }
+            let mut held = false;
+            for head in session {
+                if storage
+                    .get_location_from(head.location(), addr, buffer)?
+                    .is_some()
+                {
+                    held = true;
+                    break;
+                }
+            }
+            if held {
+                kept.push(addr).ok().assume("kept fits")?;
+            } else {
+                self.session_dropped = true;
+            }
+        }
+        self.sent_session_heads = kept;
+        Ok(())
     }
 
-    /// Record that a reply from the peer arrived and its commands, if any,
-    /// were committed. This clears the conditions that make the next request
-    /// ask the peer to reset. [`ClientState::update_heads`] calls this, so
-    /// call it directly only for a reply with no commands. Do not call it
-    /// while a transaction that sent session heads is still open.
-    ///
-    /// [`ClientState::update_heads`]: crate::ClientState::update_heads
-    pub fn reply_committed(&mut self) {
-        self.sent_session_heads = false;
-        self.missing_parent = false;
+    /// Record the session heads a request carried. They all belong to the
+    /// open transaction, as do any heads still recorded, so they replace
+    /// them.
+    pub(super) fn sent_session_heads(&mut self, sent: impl IntoIterator<Item = Address>) {
+        let sent: Vec<Address, COMMAND_SAMPLE_MAX> = sent.into_iter().collect();
+        if !sent.is_empty() {
+            self.sent_session_heads = sent;
+        }
     }
 
     /// Whether the next request should ask the peer to reset its cache for
-    /// us. `in_session` is whether the request is sent within a transaction
-    /// that has received commands.
-    pub(super) fn needs_reset(&self, in_session: bool) -> bool {
-        self.heads.is_empty() || self.missing_parent || (self.sent_session_heads && !in_session)
+    /// us.
+    pub(super) fn needs_reset(&self) -> bool {
+        self.new || self.missing_parent || self.session_dropped
+    }
+
+    /// Record that a reply from the peer arrived, so it received any reset
+    /// we asked for.
+    pub(super) fn reply_received(&mut self) {
+        self.new = false;
+        self.missing_parent = false;
+        self.session_dropped = false;
     }
 
     /// Forget every head, after the peer asks us to reset.
@@ -106,6 +156,21 @@ impl PeerCache {
         let Some(loc) = storage.get_location(addr, buffer)? else {
             return Ok(());
         };
+        self.insert(storage, addr, loc, buffer, rng)
+    }
+
+    /// Record that the peer holds `addr`, which is committed at `loc`.
+    fn insert<S>(
+        &mut self,
+        storage: &S,
+        addr: Address,
+        loc: Location,
+        buffer: &mut TraversalBuffer,
+        rng: &impl Csprng,
+    ) -> Result<(), StorageError>
+    where
+        S: Storage,
+    {
         let new = LocatedAddress {
             id: addr.id,
             segment: loc.segment,
@@ -337,16 +402,18 @@ impl SyncResponder {
                 if self.reset {
                     response_cache.clear();
                 }
-                for command in &self.has {
-                    // Commands not in our graph are ignored by the cache.
-                    response_cache.add_command(storage, *command, &mut buffers.primary, rng)?;
+                // Treat the resolved sample as held directly, since adding it
+                // to a full cache can evict some of it.
+                let mut have = vec::Vec::new();
+                for &command in &self.has {
+                    // Commands not in our graph are ignored.
+                    let Some(loc) = storage.get_location(command, &mut buffers.primary)? else {
+                        continue;
+                    };
+                    have.push(loc);
+                    response_cache.insert(storage, command, loc, &mut buffers.primary, rng)?;
                 }
-                // The cache now covers every resolved sample command.
-                let have = response_cache
-                    .heads()
-                    .iter()
-                    .map(|h| h.location())
-                    .collect();
+                have.extend(response_cache.heads().iter().map(|h| h.location()));
                 (self.to_send, self.truncated) =
                     Self::find_needed_segments(have, storage, buffers)?;
                 self.send_sample = true;
@@ -860,7 +927,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ClientState, RuntimeBuffers, mem_spill,
+        ClientState, RuntimeBuffers, Transaction, mem_spill,
         storage::linear::testing::MemStorageProvider,
         sync::{MAX_SYNC_MESSAGE_SIZE, SessionHeads, SyncIncoming, SyncRequester},
         testing::protocol::{TestActions, TestPolicyStore, TestSink},
@@ -903,6 +970,7 @@ mod tests {
                 dest.provider(),
                 req_cache.session_heads(),
                 &Rng,
+                &mut rt_buffers.traversal.primary,
             )
             .expect("requester poll");
 
@@ -930,7 +998,7 @@ mod tests {
                 break;
             }
             let Some(reply) = requester
-                .receive(&buffer[..len])
+                .receive(&buffer[..len], &mut req_cache)
                 .expect("requester receive")
             else {
                 // SyncEnd: the responder claims the session is complete.
@@ -1094,7 +1162,13 @@ mod tests {
 
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, req.provider(), req_cache.session_heads(), &Rng)
+            .poll(
+                &mut buffer,
+                req.provider(),
+                req_cache.session_heads(),
+                &Rng,
+                &mut rt_buffers.traversal.primary,
+            )
             .expect("requester poll");
         match SyncIncoming::decode(&buffer[..len]).expect("decode") {
             SyncIncoming::Poll(poll) => responder.receive(poll).expect("responder receive"),
@@ -1110,10 +1184,9 @@ mod tests {
             )
             .expect("responder poll");
         let Some(reply) = requester
-            .receive(&buffer[..len])
+            .receive(&buffer[..len], req_cache)
             .expect("requester receive")
         else {
-            req_cache.reply_committed();
             return Exchange {
                 sent: vec::Vec::new(),
                 new: 0,
@@ -1158,7 +1231,13 @@ mod tests {
         let mut requester = SyncRequester::new(graph_id, Rng);
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, client.provider(), cache.session_heads(), &Rng)
+            .poll(
+                &mut buffer,
+                client.provider(),
+                cache.session_heads(),
+                &Rng,
+                &mut TraversalBuffer::new(),
+            )
             .expect("requester poll");
         let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
             panic!("expected a poll message");
@@ -1308,7 +1387,13 @@ mod tests {
         let mut requester = SyncRequester::new(graph_id, Rng);
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, client.provider(), heads, &Rng)
+            .poll(
+                &mut buffer,
+                client.provider(),
+                heads,
+                &Rng,
+                &mut TraversalBuffer::new(),
+            )
             .expect("requester poll");
         let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
             panic!("expected a poll message");
@@ -1330,7 +1415,7 @@ mod tests {
 
         assert!(
             request_resets(&mut a, graph_id, a_cache.session_heads()),
-            "an empty cache resets"
+            "a new cache resets"
         );
         exchange(&mut a, &mut b, graph_id, &mut a_cache, &mut b_cache);
         assert!(
@@ -1340,12 +1425,79 @@ mod tests {
 
         a_cache.saw_missing_parent();
         assert!(request_resets(&mut a, graph_id, a_cache.session_heads()));
+        let head = a.head_address(graph_id).expect("head");
+        a.update_heads(
+            graph_id,
+            [head],
+            &mut a_cache,
+            &mut TraversalBuffer::new(),
+            &Rng,
+        )
+        .expect("update_heads");
         assert!(
             request_resets(&mut a, graph_id, a_cache.session_heads()),
             "the reset is sent again until a reply arrives"
         );
         exchange(&mut a, &mut b, graph_id, &mut a_cache, &mut b_cache);
         assert!(!request_resets(&mut a, graph_id, a_cache.session_heads()));
+
+        // A cache that stays empty, because the peer has nothing to send,
+        // resets only until the first reply.
+        let mut empty = PeerCache::new();
+        let ex = exchange(&mut a, &mut b, graph_id, &mut empty, &mut PeerCache::new());
+        assert!(ex.sent.is_empty() && empty.heads().is_empty());
+        assert!(!request_resets(&mut a, graph_id, empty.session_heads()));
+    }
+
+    /// Pulls one reply from `resp` into the open transaction `trx`, and
+    /// flushes it so its heads can be advertised.
+    fn pull_into(
+        trx: &mut Transaction<MemStorageProvider, TestPolicyStore>,
+        req: &mut TestClient,
+        resp: &mut TestClient,
+        graph_id: GraphId,
+        req_cache: &mut PeerCache,
+    ) {
+        let mut rt_buffers = RuntimeBuffers::new();
+        let mut requester = SyncRequester::new(graph_id, Rng);
+        let mut responder = SyncResponder::new();
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _) = requester
+            .poll(
+                &mut buffer,
+                req.provider(),
+                trx.session_heads(req_cache),
+                &Rng,
+                &mut rt_buffers.traversal.primary,
+            )
+            .expect("requester poll");
+        let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
+            panic!("expected a poll message");
+        };
+        responder.receive(poll).expect("responder receive");
+        let len = responder
+            .poll(
+                &mut buffer,
+                resp.provider(),
+                &mut PeerCache::new(),
+                &mut rt_buffers.traversal,
+                &Rng,
+            )
+            .expect("responder poll");
+        let reply = requester
+            .receive(&buffer[..len], req_cache)
+            .expect("requester receive")
+            .expect("reply");
+        req.add_commands(
+            trx,
+            &mut new_sink(),
+            reply.commands(),
+            &mut rt_buffers,
+            mem_spill,
+        )
+        .expect("add_commands");
+        trx.flush(req.provider().get_storage(graph_id).expect("storage"))
+            .expect("flush");
     }
 
     /// Session heads sent in a transaction that is dropped make the next
@@ -1364,42 +1516,8 @@ mod tests {
         );
         extend_chain(&mut b, graph_id, 10..20);
 
-        // Receive b's new commands into a transaction, then advertise them.
         let mut trx = a.transaction(graph_id);
-        let mut requester = SyncRequester::new(graph_id, Rng);
-        let mut responder = SyncResponder::new();
-        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-        let (len, _) = requester
-            .poll(&mut buffer, a.provider(), a_cache.session_heads(), &Rng)
-            .expect("requester poll");
-        let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
-            panic!("expected a poll message");
-        };
-        responder.receive(poll).expect("responder receive");
-        let mut rt_buffers = RuntimeBuffers::new();
-        let len = responder
-            .poll(
-                &mut buffer,
-                b.provider(),
-                &mut PeerCache::new(),
-                &mut rt_buffers.traversal,
-                &Rng,
-            )
-            .expect("responder poll");
-        let reply = requester
-            .receive(&buffer[..len])
-            .expect("requester receive")
-            .expect("reply");
-        a.add_commands(
-            &mut trx,
-            &mut new_sink(),
-            reply.commands(),
-            &mut rt_buffers,
-            mem_spill,
-        )
-        .expect("add_commands");
-        trx.flush(a.provider().get_storage(graph_id).expect("storage"))
-            .expect("flush");
+        pull_into(&mut trx, &mut a, &mut b, graph_id, &mut a_cache);
         assert!(
             !request_resets(&mut a, graph_id, trx.session_heads(&mut a_cache)),
             "a request inside the transaction does not reset"
@@ -1409,6 +1527,50 @@ mod tests {
         assert!(
             request_resets(&mut a, graph_id, a_cache.session_heads()),
             "a request after the dropped transaction resets"
+        );
+    }
+
+    /// A later transaction that already holds other uncommitted commands
+    /// still resets for session heads a dropped transaction sent.
+    #[test]
+    fn dropped_session_resets_inside_later_session() {
+        let (mut b, graph_id) = client_with_commands(10);
+        let mut a = new_client();
+        let mut c = new_client();
+        let mut a_cache = PeerCache::new();
+        exchange(
+            &mut a,
+            &mut b,
+            graph_id,
+            &mut a_cache,
+            &mut PeerCache::new(),
+        );
+        exchange(
+            &mut c,
+            &mut b,
+            graph_id,
+            &mut PeerCache::new(),
+            &mut PeerCache::new(),
+        );
+        extend_chain(&mut b, graph_id, 10..20);
+        extend_chain(&mut c, graph_id, 100..105);
+
+        // T1 receives b's new commands, advertises them to b, and is dropped.
+        let mut trx = a.transaction(graph_id);
+        pull_into(&mut trx, &mut a, &mut b, graph_id, &mut a_cache);
+        assert!(!request_resets(
+            &mut a,
+            graph_id,
+            trx.session_heads(&mut a_cache)
+        ));
+        drop(trx);
+
+        // T2 first receives c's branch, then polls b.
+        let mut trx = a.transaction(graph_id);
+        pull_into(&mut trx, &mut a, &mut c, graph_id, &mut PeerCache::new());
+        assert!(
+            request_resets(&mut a, graph_id, trx.session_heads(&mut a_cache)),
+            "b still believes a holds T1's commands"
         );
     }
 

@@ -197,6 +197,7 @@ fn sync_pull(
                 to_c.provider(),
                 req_cache.session_heads(),
                 &Rng,
+                &mut buffers.traversal.primary,
             )
             .expect("requester poll succeeds");
 
@@ -217,7 +218,7 @@ fn sync_pull(
         }
 
         let Some(reply) = requester
-            .receive(&response[..resp_len])
+            .receive(&response[..resp_len], req_cache)
             .expect("requester receive succeeds")
         else {
             break;

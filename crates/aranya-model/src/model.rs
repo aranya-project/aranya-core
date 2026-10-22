@@ -20,7 +20,7 @@ use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
     StorageProvider, SyncError, SyncRequester, TraversalBuffers, mem_spill,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
-    storage::GraphId,
+    storage::{GraphId, StorageError},
     testing::dsl::dispatch,
     vm_policy::{SealCtx, VmEffect, VmPolicy, VmPolicyError},
 };
@@ -537,6 +537,7 @@ where
                     request_state.provider(),
                     request_trx.session_heads(&mut request_cache),
                     &Rng,
+                    &mut self.buffers.primary,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -551,7 +552,20 @@ where
                     break;
                 }
 
-                if let Some(reply) = request_syncer.receive(&target[..len])? {
+                if let Some(reply) = request_syncer.receive(&target[..len], &mut request_cache)? {
+                    // Sample commands already committed here go in the cache
+                    // now, so the next request can use them. Without a graph
+                    // yet, there are none.
+                    match request_state.update_heads(
+                        *graph_id,
+                        reply.sample().iter().copied(),
+                        &mut request_cache,
+                        &mut self.buffers.primary,
+                        &Rng,
+                    ) {
+                        Ok(()) | Err(ClientError::StorageError(StorageError::NoSuchStorage)) => {}
+                        Err(e) => return Err(e.into()),
+                    }
                     request_state.add_commands(
                         &mut request_trx,
                         &mut sink,

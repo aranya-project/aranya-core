@@ -1803,6 +1803,7 @@ mod test {
                 &mut client.provider,
                 trx.session_heads(&mut cache),
                 &aranya_crypto::Rng,
+                &mut buffers.traversal.primary,
             )
             .expect("poll must succeed");
         assert!(sent > 0, "sample must not be empty");

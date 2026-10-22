@@ -736,6 +736,7 @@ fn test_sync<PS, P, S>(
                 cs2.provider(),
                 req_transaction.session_heads(&mut request_cache),
                 &Rng,
+                &mut rt_buffers.traversal.primary,
             )
             .expect("sync req->res");
 
@@ -749,7 +750,10 @@ fn test_sync<PS, P, S>(
         )
         .expect("dispatch sync response");
 
-        if let Some(reply) = sync_requester.receive(&target[..len]).expect("recieve req") {
+        if let Some(reply) = sync_requester
+            .receive(&target[..len], &mut request_cache)
+            .expect("recieve req")
+        {
             cs2.add_commands(
                 &mut req_transaction,
                 sink,

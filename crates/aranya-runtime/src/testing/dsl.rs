@@ -2019,6 +2019,7 @@ fn sync<SP: StorageProvider>(
         request_state.provider(),
         request_trx.session_heads(request_cache),
         &Rng,
+        &mut rt_buffers.traversal.primary,
     )?;
 
     let mut received = 0;
@@ -2035,7 +2036,20 @@ fn sync<SP: StorageProvider>(
         return Ok((sent, received));
     }
 
-    if let Some(reply) = request_syncer.receive(&target[..len])? {
+    if let Some(reply) = request_syncer.receive(&target[..len], request_cache)? {
+        // Sample commands already committed here go in the cache now, so the
+        // next request in this transaction can use them. Without a graph yet,
+        // there are none.
+        match request_state.update_heads(
+            graph_id,
+            reply.sample().iter().copied(),
+            request_cache,
+            &mut rt_buffers.traversal.primary,
+            &Rng,
+        ) {
+            Ok(()) | Err(ClientError::StorageError(StorageError::NoSuchStorage)) => {}
+            Err(e) => return Err(e.into()),
+        }
         received = request_state.add_commands(
             request_trx,
             sink,

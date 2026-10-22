@@ -186,9 +186,8 @@ where
         )
     }
 
-    /// Record in `request_heads` that the peer holds `addrs`, once a reply's
-    /// commands are committed. This also clears the conditions that make the
-    /// next request ask the peer to reset.
+    /// Record in `request_heads` that the peer holds `addrs`. Addresses not
+    /// committed here are ignored.
     pub fn update_heads<I>(
         &mut self,
         graph_id: GraphId,
@@ -209,7 +208,6 @@ where
         for address in addrs.into_iter().rev() {
             request_heads.add_command(storage, address, buffer, rng)?;
         }
-        request_heads.reply_committed();
 
         Ok(())
     }
