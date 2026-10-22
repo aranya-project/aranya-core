@@ -13,7 +13,7 @@ fact NotAPolicyBlock[]=>{}
 ```
 
 ```policy
-action foo() {
+action[null] foo() {
     publish SomeCommand{}
 }
 ```

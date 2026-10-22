@@ -15,11 +15,11 @@ use aranya_policy_ifgen::{
     text, BaseId, ClientError, Value, Text,
 };
 #[derive(Debug)]
+pub enum Basic {}
+#[derive(Debug)]
 pub enum Ephemeral {}
 #[derive(Debug)]
 pub enum Init {}
-#[derive(Debug)]
-pub enum Persistent {}
 /// PublicKeys policy struct.
 #[value]
 pub struct PublicKeys {
@@ -64,6 +64,12 @@ pub struct DeviceAdded {
 pub struct Initialized {
     pub device_id: BaseId,
 }
+#[actions(interface = Basic)]
+pub enum BasicAction {
+    add_device(add_device),
+    set_counter(set_counter),
+    increment_counter(increment_counter),
+}
 #[actions(interface = Ephemeral)]
 pub enum EphemeralAction {
     get_counter(get_counter),
@@ -72,12 +78,6 @@ pub enum EphemeralAction {
 pub enum InitAction {
     init(init),
 }
-#[actions(interface = Persistent)]
-pub enum PersistentAction {
-    add_device(add_device),
-    set_counter(set_counter),
-    increment_counter(increment_counter),
-}
 /// init policy action.
 #[action(interface = Init)]
 pub struct init {
@@ -85,18 +85,18 @@ pub struct init {
     pub nonce: i64,
 }
 /// add_device policy action.
-#[action(interface = Persistent)]
+#[action(interface = Basic)]
 pub struct add_device {
     pub device_keys: PublicKeys,
 }
 /// set_counter policy action.
-#[action(interface = Persistent)]
+#[action(interface = Basic)]
 pub struct set_counter {
     pub name: i64,
     pub value: i64,
 }
 /// increment_counter policy action.
-#[action(interface = Persistent)]
+#[action(interface = Basic)]
 pub struct increment_counter {
     pub name: i64,
     pub amount: i64,

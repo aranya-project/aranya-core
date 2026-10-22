@@ -1191,7 +1191,7 @@ impl Spanned for FactDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionDefinition {
     /// The flavor of the action
-    pub flavor: Option<Ident>,
+    pub flavor: Ident,
     /// The name of the action
     pub name: Ident,
     /// The parameters to the action
@@ -1296,7 +1296,7 @@ impl Spanned for RecallBlockDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandDefinition {
     /// The name of the base command for this command
-    pub base: Option<Ident>,
+    pub base: Ident,
     /// Optional attributes
     pub attributes: Vec<(Ident, Expression)>,
     /// The name of the command
@@ -1321,7 +1321,7 @@ impl Spanned for CommandDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaseCommandDefinition {
     /// The flavor of the command
-    pub flavor: Option<Ident>,
+    pub flavor: Ident,
     /// The name of the base command
     pub name: Ident,
     /// The fields of the base command and their types

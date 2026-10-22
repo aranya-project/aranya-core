@@ -8,7 +8,16 @@ Module {
     action_defs: [],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {
         "x": Option(
@@ -18,4 +27,11 @@ Module {
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic

@@ -54,13 +54,16 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
 ];
 
 const TEST_FLAVORS: &flavor::Flavors<'_> = &flavor::Flavors {
-    default: flavor::Flavor {
-        envelope: flavor::Struct {
-            name: ident!("NullEnvelope"),
-            fields: &[],
-        },
-    },
     flavors: &[
+        (
+            ident!("null"),
+            flavor::Flavor {
+                envelope: flavor::Struct {
+                    name: ident!("NullEnvelope"),
+                    fields: &[],
+                },
+            },
+        ),
         (
             ident!("init"),
             flavor::Flavor {
@@ -71,10 +74,19 @@ const TEST_FLAVORS: &flavor::Flavors<'_> = &flavor::Flavors {
             },
         ),
         (
+            ident!("basic"),
+            flavor::Flavor {
+                envelope: flavor::Struct {
+                    name: ident!("BasicEnvelope"),
+                    fields: &[],
+                },
+            },
+        ),
+        (
             ident!("ephemeral"),
             flavor::Flavor {
                 envelope: flavor::Struct {
-                    name: ident!("NullEnvelope"),
+                    name: ident!("EphemeralEnvelope"),
                     fields: &[],
                 },
             },
@@ -84,12 +96,12 @@ const TEST_FLAVORS: &flavor::Flavors<'_> = &flavor::Flavors {
 
 #[track_caller]
 fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let text = text.to_owned() + "\n\nbase[null] StubBase { get_key { return None } }";
+    let policy = parse_policy_str(&text, Version::V2).unwrap();
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
         .flavors(TEST_FLAVORS)
         .debug(is_debug)
-        .allow_baseless(true)
         .compile()
 }
 

@@ -5,20 +5,29 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'a'>: 8,
+        <action 'a'>: 15,
         <fn 'f'>: 1,
     },
     action_defs: [
         ActionDef {
             name: "a",
-            flavor: None,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {},
     ..
@@ -30,6 +39,13 @@ Module {
     const 1
     wrap some
     wrap some
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

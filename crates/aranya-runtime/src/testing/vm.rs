@@ -35,7 +35,7 @@ base[init] BaseInit {
 
 fact Key[]=>{key: bytes}
 
-base Base {
+base[basic] Base {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -99,7 +99,7 @@ command Create with Base {
     }
 }
 
-action create_action(v: int) {
+action[basic] create_action(v: int) {
     publish Create{
         key: 1,
         value: v,
@@ -135,7 +135,7 @@ command Increment with Base {
     }
 }
 
-action increment() {
+action[basic] increment() {
     publish Increment{
         key: 1,
         amount: 1
@@ -218,7 +218,7 @@ command Invalidate with Base {
     }
 }
 
-action invalidate() {
+action[basic] invalidate() {
     publish Invalidate { key: 1 }
 }
 ```

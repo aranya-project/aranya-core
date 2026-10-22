@@ -6,8 +6,6 @@ pub use crate::ffi::{Enum, Struct, Type};
 
 /// Flavor specifications.
 pub struct Flavors<'a> {
-    /// The default flavor when none is specified.
-    pub default: Flavor<'a>,
     /// Flavors by name.
     pub flavors: &'a [(Identifier, Flavor<'a>)],
 }

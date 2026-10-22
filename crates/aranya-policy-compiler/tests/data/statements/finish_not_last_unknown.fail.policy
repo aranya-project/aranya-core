@@ -1,5 +1,5 @@
 fact Blah[] => {}
-command Foo {
+command Foo with StubBase {
     fields {}
     policy {
         check true else test_fail("should pass")

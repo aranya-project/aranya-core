@@ -308,7 +308,7 @@ pub(super) fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIO
 }
 
 /// An Iterator that returns a sequence of matching facts from a query. It is produced by
-/// the [VmPolicyIO](super::VmPolicyIO) when a query is made by the VM.
+/// the `VmPolicyIO` when a query is made by the VM.
 pub struct VmFactCursor<P: Query> {
     iter: P::QueryIterator,
 }

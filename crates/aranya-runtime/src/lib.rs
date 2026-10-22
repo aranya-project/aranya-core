@@ -62,7 +62,7 @@ pub use crate::{
     storage::*,
     sync::*,
     vm_policy::{
-        AttributeError, Envelope, FfiCallable, VmAction, VmEffect, VmEffectData, VmFactCursor,
-        VmPolicy, VmPolicyError, VmPolicyIO, VmProtocol, VmProtocolData,
+        AttributeError, FfiCallable, VmAction, VmEffect, VmEffectData, VmFactCursor, VmPolicy,
+        VmPolicyError,
     },
 };

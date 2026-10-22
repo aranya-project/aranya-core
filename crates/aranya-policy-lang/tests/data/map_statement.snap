@@ -26,44 +26,44 @@ Policy {
     ],
     actions: [
         ActionDefinition {
-            flavor: None,
-            name: "foo" @ 34..37,
+            flavor: "null" @ 34..38,
+            name: "foo" @ 40..43,
             parameters: [],
             return_type: Unit @ 0..0,
             body: [
                 Map(
                     MapStatement {
                         fact: FactLiteral {
-                            name: "Foo" @ 50..53,
+                            name: "Foo" @ 56..59,
                             key_fields: [
                                 (
-                                    "i" @ 54..55,
+                                    "i" @ 60..61,
                                     Expression(
                                         Int(
-                                            1 @ 56..57,
-                                        ) @ 56..57,
+                                            1 @ 62..63,
+                                        ) @ 62..63,
                                     ),
                                 ),
                             ],
                             value_fields: None,
                         },
-                        identifier: "f" @ 62..63,
+                        identifier: "f" @ 68..69,
                         body: [
                             FunctionCall(
                                 FunctionCall {
-                                    name: "process" @ 74..81,
+                                    name: "process" @ 80..87,
                                     arguments: [
                                         Identifier(
-                                            "f" @ 82..83,
-                                        ) @ 82..83,
+                                            "f" @ 88..89,
+                                        ) @ 88..89,
                                     ],
                                 },
-                            ) @ 74..84,
+                            ) @ 80..90,
                         ],
                     },
-                ) @ 46..90,
+                ) @ 52..96,
             ],
-            span: 27..92,
+            span: 27..98,
         },
     ],
     effects: [],
@@ -74,5 +74,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "fact Foo[i: int]=>{n: int}\naction foo() {\n    map Foo[i:1] as f {\n        process(f)\n    }\n}\n",
+    text: "fact Foo[i: int]=>{n: int}\naction[null] foo() {\n    map Foo[i:1] as f {\n        process(f)\n    }\n}\n",
 }
