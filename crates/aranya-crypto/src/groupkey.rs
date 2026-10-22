@@ -316,6 +316,8 @@ pub struct EncryptedGroupKey<CS: CipherSuite> {
 mod tests {
     #![allow(clippy::arithmetic_side_effects)]
 
+    use core::assert_matches;
+
     use super::*;
     use crate::{Rng, SigningKey, default::DefaultCipherSuite};
 
@@ -353,7 +355,7 @@ mod tests {
         let err = key
             .seal(Rng, &mut small, MESSAGE, ctx(&author))
             .expect_err("`seal` should fail when `dst` is too small");
-        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+        assert_matches!(err, Error::Seal(_));
     }
 
     /// Exercises both the happy path and the "`ciphertext` too
@@ -378,6 +380,6 @@ mod tests {
         let err = key
             .open(&mut plaintext, b"short", ctx(&author))
             .expect_err("`open` should fail when `ciphertext` is too short");
-        assert!(matches!(err, Error::Open(_)), "got {err:?}");
+        assert_matches!(err, Error::Open(_));
     }
 }

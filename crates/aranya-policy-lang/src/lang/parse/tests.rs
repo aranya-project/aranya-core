@@ -1,5 +1,7 @@
 #![allow(clippy::panic)]
 
+use core::assert_matches;
+
 use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
@@ -156,9 +158,9 @@ fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
         panic!("expected outer Coalesce");
     };
     // Outer left side is `a` (single identifier)
-    assert!(matches!(outer_lhs.inner, ExprKind::Identifier(_)));
+    assert_matches!(outer_lhs.inner, ExprKind::Identifier(_));
     // Outer right side is `Coalesce(b, c)`
-    assert!(matches!(outer_rhs.inner, ExprKind::Coalesce(_, _)));
+    assert_matches!(outer_rhs.inner, ExprKind::Coalesce(_, _));
 
     Ok(())
 }

@@ -423,6 +423,8 @@ impl SubscribeResponse {
 
 #[cfg(test)]
 mod tests {
+    use core::assert_matches;
+
     use super::*;
 
     fn meta(policy_length: u32, length: u32) -> wire::CommandMeta {
@@ -454,7 +456,7 @@ mod tests {
 
         let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
         let err = requester.receive(&buf[..len]).expect_err("must not panic");
-        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+        assert_matches!(err, SyncError::MalformedResponse);
     }
 
     /// Same, but the policy length is the one that overruns.
@@ -475,7 +477,7 @@ mod tests {
 
         let mut requester = SyncRequester::new_session_id(GraphId::default(), session_id);
         let err = requester.receive(&buf[..len]).expect_err("must not panic");
-        assert!(matches!(err, SyncError::MalformedResponse), "got {err:?}");
+        assert_matches!(err, SyncError::MalformedResponse);
     }
 
     fn poll_bytes(request: SyncRequestMessage, buf: &mut [u8]) -> usize {
@@ -511,7 +513,7 @@ mod tests {
 
             let mut responder = SyncResponder::new();
             let err = responder.receive(poll).expect_err("must not panic");
-            assert!(matches!(err, SyncError::UnsupportedRequest), "got {err:?}");
+            assert_matches!(err, SyncError::UnsupportedRequest);
             // The session is torn down, so the next poll sends `EndSession`.
             assert!(responder.ready());
         }
