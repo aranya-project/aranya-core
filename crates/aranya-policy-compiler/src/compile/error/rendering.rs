@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::once};
+use std::{borrow::Cow, fmt, iter::once};
 
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::{Span, Spanned as _};
@@ -8,8 +8,8 @@ use super::{
     DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
     InvalidType, MissingBaseCommand, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined,
-    RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
-    UnreachableMatchArm, UnusedValue, UnusedVariable,
+    RecursiveCall, RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
+    UnknownError, UnreachableMatchArm, UnusedValue, UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -347,6 +347,40 @@ impl Error for CyclicTypeDefinitions {
     }
 }
 
+impl Error for RecursiveCall {
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(format!("recursive call: {self}"));
+        let annotations = self.calls.iter().map(|(caller, callee)| {
+            AnnotationKind::Primary
+                .span(callee.span.into())
+                .label(format!("`{caller}` calls `{}`", callee.inner))
+        });
+        report.push(title.element(Snippet::source(input).annotations(annotations)));
+    }
+    fn description(&self) -> Cow<'_, str> {
+        format!("recursive call: {self}").into()
+    }
+}
+
+impl fmt::Display for RecursiveCall {
+    /// Describes the recursion, e.g. "`a`, `b` call each other".
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut callers = Vec::new();
+        for (caller, _) in &self.calls {
+            if !callers.contains(&caller) {
+                callers.push(caller);
+            }
+        }
+        match callers.as_slice() {
+            [caller] => write!(f, "`{caller}` calls itself"),
+            callers => {
+                let names: Vec<_> = callers.iter().map(|name| format!("`{name}`")).collect();
+                write!(f, "{} call each other", names.join(", "))
+            }
+        }
+    }
+}
+
 impl SimpleError for StructCompositionTypeMismatch {
     fn description(&self) -> Cow<'_, str> {
         format!(
@@ -413,7 +447,7 @@ impl Error for UnusedVariable {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "unused variable(s): {}",
-            std::fmt::from_fn(|f| {
+            fmt::from_fn(|f| {
                 if let Some((x, xs)) = self.names.split_first() {
                     write!(f, "`{x}`")?;
                     for x in xs {

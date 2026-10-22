@@ -5,12 +5,10 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'divide'>: 141,
-        <fn 'divide0'>: 174,
-        <fn 'double'>: 67,
-        <fn 'is_odd'>: 54,
-        <fn 'multiply'>: 75,
-        <fn 'pow'>: 1,
+        <fn 'divide_by_two'>: 35,
+        <fn 'double'>: 27,
+        <fn 'is_even'>: 9,
+        <fn 'quadruple'>: 1,
     },
     action_defs: [],
     command_defs: [],
@@ -40,74 +38,31 @@ Module {
 }
 ---
     exit panic
-<fn 'pow'>:
-    def 'n'
+<fn 'quadruple'>:
     def 'x'
     save SP
-    get 'n'
-    const 0
-    eq
-    not
-    branch 15
-    block
-    const 1
-    restore SP
-    return
-    end
-    jump 15
-<15>:
-    get 'n'
-    const 1
-    eq
-    not
-    branch 26
-    block
-    get 'x'
-    restore SP
-    return
-    end
-    jump 26
-<26>:
-    get 'n'
-    call <fn 'is_odd'>
-    not
-    branch 45
-    block
-    get 'x'
     get 'x'
     call <fn 'double'>
-    get 'n'
-    const 1
-    saturating_sub
-    const 2
-    call <fn 'divide'>
-    call <fn 'pow'>
-    call <fn 'multiply'>
-    restore SP
-    return
-    end
-    jump 45
-<45>:
-    get 'x'
     call <fn 'double'>
-    get 'n'
-    const 2
-    call <fn 'divide'>
-    call <fn 'pow'>
     restore SP
     return
     exit panic
-<fn 'is_odd'>:
+<fn 'is_even'>:
     def 'x'
     save SP
-    get 'x'
+    struct.new 'Division'
     const 2
-    call <fn 'divide'>
-    const 2
-    call <fn 'multiply'>
+    struct.set 'd'
+    const 0
+    struct.set 'q'
     get 'x'
+    struct.set 'r'
+    call <fn 'divide_by_two'>
+    def 'got'
+    get 'got'
+    struct.get 'r'
+    const 0
     eq
-    not
     restore SP
     return
     exit panic
@@ -115,121 +70,12 @@ Module {
     def 'x'
     save SP
     get 'x'
-    const 2
-    call <fn 'multiply'>
-    restore SP
-    return
-    exit panic
-<fn 'multiply'>:
-    def 'y'
-    def 'x'
-    save SP
     get 'x'
-    const 0
-    eq
-    not
-    branch 89
-    block
-    const 0
-    restore SP
-    return
-    end
-    jump 89
-<89>:
-    get 'y'
-    const 0
-    eq
-    not
-    branch 100
-    block
-    const 0
-    restore SP
-    return
-    end
-    jump 100
-<100>:
-    get 'x'
-    const 1
-    eq
-    not
-    branch 111
-    block
-    get 'y'
-    restore SP
-    return
-    end
-    jump 111
-<111>:
-    get 'y'
-    const 1
-    eq
-    not
-    branch 122
-    block
-    get 'x'
-    restore SP
-    return
-    end
-    jump 122
-<122>:
-    get 'x'
-    get 'y'
-    add
-    dup
-    is some
-    branch 131
-    pop
-    exit panic
-    jump 132
-<131>:
-    unwrap some
-<132>:
-    get 'x'
-    get 'y'
-    const 1
-    saturating_sub
-    call <fn 'multiply'>
     saturating_add
     restore SP
     return
     exit panic
-<fn 'divide'>:
-    def 'y'
-    def 'x'
-    save SP
-    get 'y'
-    const 0
-    gt
-    branch 149
-    exit panic
-<149>:
-    get 'x'
-    get 'y'
-    lt
-    not
-    branch 160
-    block
-    const 0
-    restore SP
-    return
-    end
-    jump 160
-<160>:
-    struct.new 'Division'
-    get 'y'
-    struct.set 'd'
-    const 0
-    struct.set 'q'
-    get 'x'
-    struct.set 'r'
-    call <fn 'divide0'>
-    def 'got'
-    get 'got'
-    struct.get 'q'
-    restore SP
-    return
-    exit panic
-<fn 'divide0'>:
+<fn 'divide_by_two'>:
     def 'args'
     save SP
     get 'args'
@@ -241,17 +87,11 @@ Module {
     get 'args'
     struct.get 'r'
     def 'r'
-    get 'd'
-    const 0
-    gt
-    branch 190
-    exit panic
-<190>:
     get 'r'
     get 'd'
     lt
     not
-    branch 207
+    branch 63
     block
     struct.new 'Division'
     get 'd'
@@ -263,8 +103,8 @@ Module {
     restore SP
     return
     end
-    jump 207
-<207>:
+    jump 63
+<63>:
     struct.new 'Division'
     get 'd'
     struct.set 'd'
@@ -276,7 +116,6 @@ Module {
     get 'd'
     saturating_sub
     struct.set 'r'
-    call <fn 'divide0'>
     restore SP
     return
     exit panic

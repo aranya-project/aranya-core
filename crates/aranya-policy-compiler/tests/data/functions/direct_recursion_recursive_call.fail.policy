@@ -1,0 +1,4 @@
+function f(n: int) int {
+    if n == 0 { return 0 }
+    return f(saturating_sub(n, 1))
+}
