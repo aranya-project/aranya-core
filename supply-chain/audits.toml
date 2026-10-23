@@ -27,6 +27,11 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.10.1 -> 0.10.2"
 
+[[audits.ctutils]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.4.2 -> 0.4.5"
+
 [[audits.deranged]]
 who = "Steve Sweetney <ssweetney@spideroak.com>"
 criteria = "safe-to-deploy"
