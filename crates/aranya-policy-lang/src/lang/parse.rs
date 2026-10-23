@@ -32,6 +32,67 @@ struct PolicyParser;
 
 type FieldsAndSources = (Vec<(Ident, Expression)>, Vec<Ident>);
 
+/// The span of `pair`, ending at its last token.
+///
+/// pest skips whitespace and comments between the parts of a rule,
+/// including before an optional or repeated part that turns out to be
+/// absent. So the span pest gives a pair can run on past its last token,
+/// over the whitespace and comments up to the next one. This span stops
+/// at the last token: the last child's last token, or a literal token of
+/// the rule after it, such as a closing bracket.
+fn token_span<'i>(pair: &Pair<'i, Rule>) -> Span<'i> {
+    let span = pair.as_span();
+    Span::new(span.get_input(), span.start(), token_end(pair)).unwrap_or(span)
+}
+
+/// Where the last token of `pair` ends. See [`token_span`].
+///
+/// A pair without children is a single token, such as a string literal,
+/// or is made only of literal tokens, so its span is exact. The atomic
+/// rules are the only ones whose text holds anything but tokens and the
+/// whitespace and comments between them, and they have no children. So
+/// after a pair's last child, there are only literal tokens of its rule,
+/// whitespace, and comments.
+fn token_end(pair: &Pair<'_, Rule>) -> usize {
+    let span = pair.as_span();
+    let Some(last) = pair.clone().into_inner().next_back() else {
+        return span.end();
+    };
+    let from = token_end(&last);
+    let after = span.get_input().get(from..span.end()).unwrap_or_default();
+    from.saturating_add(last_token_end(after))
+}
+
+/// The end of the last token in `text`, which holds only literal tokens,
+/// whitespace, and comments, or 0 if it holds no token.
+fn last_token_end(text: &str) -> usize {
+    let mut end = 0;
+    let mut rest = text;
+    loop {
+        let trimmed = rest.trim_start();
+        rest = if let Some(comment) = trimmed.strip_prefix("//") {
+            // Up to the newline, which the next round skips.
+            comment
+                .find('\n')
+                .and_then(|i| comment.get(i..))
+                .unwrap_or_default()
+        } else if let Some(comment) = trimmed.strip_prefix("/*") {
+            comment
+                .find("*/")
+                .and_then(|i| comment.get(i.saturating_add(2)..))
+                .unwrap_or_default()
+        } else {
+            let mut chars = trimmed.chars();
+            if chars.next().is_none() {
+                return end;
+            }
+            let after = chars.as_str();
+            end = text.len().saturating_sub(after.len());
+            after
+        };
+    }
+}
+
 /// Captures the iterator over a Pair's contents, and the span
 /// information for error reporting.
 struct PairContext<'i, 'p> {
@@ -73,7 +134,7 @@ impl<'i> PairContext<'i, '_> {
     fn consume_of_type(&self, rule: Rule) -> Result<Pair<'i, Rule>, ParseError> {
         let token = self.consume()?;
         if token.as_rule() != rule {
-            let span = (self.to_ast_span)(token.as_span())?;
+            let span = (self.to_ast_span)(token_span(&token))?;
             return Err(ParseError::new(
                 ParseErrorKind::Unknown,
                 format!("Got wrong rule: {:?} expected {:?}", token.as_rule(), rule),
@@ -179,14 +240,14 @@ impl ChunkParser<'_> {
     fn parse_ident(&self, token: Pair<'_, Rule>) -> Result<Ident, ParseError> {
         assert_eq!(token.as_rule(), Rule::identifier);
 
-        let span = self.to_ast_span(token.as_span())?;
+        let span = self.to_ast_span(token_span(&token))?;
         let identifier = token.as_str();
 
         if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
                 format!("found reserved identifier: `{identifier}`"),
-                Some(self.to_ast_span(token.as_span())?),
+                Some(self.to_ast_span(token_span(&token))?),
             ));
         }
 
@@ -194,7 +255,7 @@ impl ChunkParser<'_> {
             .parse()
             .assume("grammar produces valid identifiers")
             .map_err(|bug| {
-                self.to_ast_span(token.as_span()).map_or_else(
+                self.to_ast_span(token_span(&token)).map_or_else(
                     |err| err,
                     |span| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), Some(span)),
                 )
@@ -214,7 +275,7 @@ impl ChunkParser<'_> {
         style: TypeStyle,
         outer_span: Option<Span<'_>>,
     ) -> Result<VType, ParseError> {
-        let pest_span = token.as_span();
+        let pest_span = token_span(&token);
         let span = self.to_ast_span(pest_span)?;
         let kind = match token.as_rule() {
             Rule::unit_t => TypeKind::Unit,
@@ -266,7 +327,7 @@ impl ChunkParser<'_> {
                 };
                 let mut pairs = token.clone().into_inner();
                 let token = pairs.next().ok_or_else(|| {
-                    self.to_ast_span(token.as_span()).map_or_else(
+                    self.to_ast_span(token_span(&token)).map_or_else(
                         |err| err,
                         |span| {
                             ParseError::new(
@@ -303,7 +364,7 @@ impl ChunkParser<'_> {
 
                 let mut pairs = token.clone().into_inner();
                 let ok_token = pairs.next().ok_or_else(|| {
-                    self.to_ast_span(token.as_span()).map_or_else(
+                    self.to_ast_span(token_span(&token)).map_or_else(
                         |err| err,
                         |span| {
                             ParseError::new(
@@ -317,7 +378,7 @@ impl ChunkParser<'_> {
                 let ok_type = self.parse_type_inner(ok_token, TypeStyle::New, Some(pest_span))?;
 
                 let err_token = pairs.next().ok_or_else(|| {
-                    self.to_ast_span(token.as_span()).map_or_else(
+                    self.to_ast_span(token_span(&token)).map_or_else(
                         |err| err,
                         |span| {
                             ParseError::new(
@@ -339,7 +400,7 @@ impl ChunkParser<'_> {
                 return Err(ParseError::new(
                     ParseErrorKind::InvalidType,
                     format!("{:?} {}", token.as_rule(), token.as_str().to_owned()),
-                    Some(self.to_ast_span(token.as_span())?),
+                    Some(self.to_ast_span(token_span(&token))?),
                 ));
             }
         };
@@ -409,7 +470,7 @@ impl ChunkParser<'_> {
         };
 
         let content_span_start = {
-            let full_span = self.to_ast_span(string.as_span())?;
+            let full_span = self.to_ast_span(token_span(&string))?;
             full_span.start() + 1
         };
 
@@ -535,7 +596,7 @@ impl ChunkParser<'_> {
     ) -> Result<NamedStruct, ParseError> {
         let pc = self.descend(named_struct.clone());
         let name = pc.consume_ident(self)?;
-        let span = self.to_ast_span(named_struct.as_span())?;
+        let span = self.to_ast_span(token_span(&named_struct))?;
 
         // key/expression pairs follow the identifier
         let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
@@ -598,12 +659,12 @@ impl ChunkParser<'_> {
     /// `A + B + C` => `Add(Add(A, B), C)`
     pub fn parse_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         assert_eq!(expr.as_rule(), Rule::expression);
-        let expr_span = self.to_ast_span(expr.as_span())?;
+        let expr_span = self.to_ast_span(token_span(&expr))?;
         let pairs = expr.into_inner();
 
         self.pratt
             .map_primary(|primary| {
-                let span = self.to_ast_span(primary.as_span())?;
+                let span = self.to_ast_span(token_span(&primary))?;
                 match primary.as_rule() {
                 Rule::unit_literal => Ok(Expression { inner: ExprKind::Unit, span }),
                 Rule::int_literal => {
@@ -679,7 +740,7 @@ impl ChunkParser<'_> {
                 }
                 Rule::result_literal => {
                     let token = primary.clone().into_inner().next().ok_or_else(|| {
-                        self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                        self.to_ast_span(token_span(&primary)).map_or_else(|err| err, |span| ParseError::new(
                             ParseErrorKind::Unknown,
                             String::from("no token in result literal"),
                             Some(span),
@@ -687,9 +748,9 @@ impl ChunkParser<'_> {
                     })?;
                     match token.as_rule() {
                         Rule::ok => {
-                            let span = self.to_ast_span(primary.as_span())?;
+                            let span = self.to_ast_span(token_span(&primary))?;
                             let v = token.into_inner().next().ok_or_else(|| {
-                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                                self.to_ast_span(token_span(&primary)).map_or_else(|err| err, |span| ParseError::new(
                                     ParseErrorKind::Unknown,
                                     String::from("no value in Ok expression"),
                                     Some(span),
@@ -702,9 +763,9 @@ impl ChunkParser<'_> {
                             })
                         }
                         Rule::err => {
-                            let span = self.to_ast_span(primary.as_span())?;
+                            let span = self.to_ast_span(token_span(&primary))?;
                             let v = token.into_inner().next().ok_or_else(|| {
-                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
+                                self.to_ast_span(token_span(&primary)).map_or_else(|err| err, |span| ParseError::new(
                                     ParseErrorKind::Unknown,
                                     String::from("no value in Err expression"),
                                     Some(span),
@@ -719,7 +780,7 @@ impl ChunkParser<'_> {
                         _ => Err(ParseError::new(
                             ParseErrorKind::Unknown,
                             format!("invalid token in result_literal: {:?}", token.as_rule()),
-                            Some(self.to_ast_span(primary.as_span())?),
+                            Some(self.to_ast_span(token_span(&primary))?),
                         ))
                     }
                 }
@@ -797,7 +858,7 @@ impl ChunkParser<'_> {
                 Rule::match_expression => self.parse_match_expression(primary),
                 Rule::if_expr => self.parse_if_expression(primary),
                 Rule::this => {
-                    let span = self.to_ast_span(primary.as_span())?;
+                    let span = self.to_ast_span(token_span(&primary))?;
                     Ok(Expression {
                         inner: ExprKind::Identifier(Ident {
                             inner: ident!("this"),
@@ -807,14 +868,14 @@ impl ChunkParser<'_> {
                     })
                 }
                 Rule::todo => {
-                    let span = self.to_ast_span(primary.as_span())?;
+                    let span = self.to_ast_span(token_span(&primary))?;
                     Ok(Expression {
                         inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
                         span,
                     })
                 }
                 Rule::test_fail => {
-                    let span = self.to_ast_span(primary.as_span())?;
+                    let span = self.to_ast_span(token_span(&primary))?;
                     let mut pairs = primary.into_inner();
                     let msg = pairs.next().map(|t| self.parse_string_literal(t)).transpose()?;
                     Ok(Expression {
@@ -823,7 +884,7 @@ impl ChunkParser<'_> {
                     })
                 }
                 Rule::identifier => {
-                    let span = self.to_ast_span(primary.as_span())?;
+                    let span = self.to_ast_span(token_span(&primary))?;
                     let ident = self.remain(primary).consume_ident(self)?;
                     Ok(Expression {
                         inner: ExprKind::Identifier(ident),
@@ -841,7 +902,7 @@ impl ChunkParser<'_> {
             })
             .map_prefix(|op, rhs| {
                 let rhs = rhs?;
-                let op_span = self.to_ast_span(op.as_span())?;
+                let op_span = self.to_ast_span(token_span(&op))?;
                 let combined_span = op_span.merge(rhs.span);
 
                 let kind = match op.as_rule() {
@@ -861,7 +922,7 @@ impl ChunkParser<'_> {
                 let rhs = rhs?;
                 let combined_span = lhs.span.merge(rhs.span);
 
-                let op_span = self.to_ast_span(op.as_span())?;
+                let op_span = self.to_ast_span(token_span(&op))?;
                 let kind = match op.as_rule() {
                     Rule::add => {
                         return Err(ParseError::new(
@@ -896,7 +957,7 @@ impl ChunkParser<'_> {
             })
             .map_postfix(|lhs, op| {
                 let lhs = lhs?;
-                let op_span = self.to_ast_span( op.as_span())?;
+                let op_span = self.to_ast_span( token_span(&op))?;
                 let combined_span = lhs.span.merge(op_span);
 
                 let kind = match op.as_rule() {
@@ -948,7 +1009,7 @@ impl ChunkParser<'_> {
         let statements = pc.consume()?.into_inner();
         let statement_list = self.parse_statement_list(statements)?;
         let inner_expr = pc.consume_expression(self)?;
-        let span = self.to_ast_span(expr.as_span())?;
+        let span = self.to_ast_span(token_span(&expr))?;
         let stmt_vec = statement_list;
         Ok(Expression {
             inner: ExprKind::Block(stmt_vec, Box::new(inner_expr)),
@@ -957,7 +1018,7 @@ impl ChunkParser<'_> {
     }
 
     fn parse_match_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
-        let span = self.to_ast_span(expr.as_span())?;
+        let span = self.to_ast_span(token_span(&expr))?;
         let pc = self.descend(expr);
         let scrutinee = pc.consume_expression(self)?;
 
@@ -968,7 +1029,7 @@ impl ChunkParser<'_> {
             let pc = self.descend(arm.clone());
             let token = pc.consume()?;
 
-            let pest_span = token.as_span();
+            let pest_span = token_span(&token);
             let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
@@ -977,7 +1038,7 @@ impl ChunkParser<'_> {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
-                        Some(self.to_ast_span(token.as_span())?),
+                        Some(self.to_ast_span(token_span(&token))?),
                     ));
                 }
             };
@@ -985,7 +1046,7 @@ impl ChunkParser<'_> {
             // Remaining tokens are policy statements
             let body = self.parse_expression(pc.consume()?)?;
 
-            let arm_span = self.to_ast_span(arm.as_span())?;
+            let arm_span = self.to_ast_span(token_span(&arm))?;
             arms.push(MatchExpressionArm {
                 pattern,
                 body,
@@ -1005,7 +1066,7 @@ impl ChunkParser<'_> {
         cmp_type: ast::FactCountType,
     ) -> Result<Expression, ParseError> {
         let mut pairs = statement.clone().into_inner();
-        let span = self.to_ast_span(statement.as_span())?;
+        let span = self.to_ast_span(token_span(&statement))?;
 
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
@@ -1014,7 +1075,7 @@ impl ChunkParser<'_> {
                 Some(span),
             )
         })?;
-        let token_span = self.to_ast_span(token.as_span())?;
+        let token_span = self.to_ast_span(token_span(&token))?;
         let limit = token
             .as_str()
             .parse::<i64>()
@@ -1039,7 +1100,7 @@ impl ChunkParser<'_> {
 
     fn parse_if_expression(&self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         let mut pairs = expr.clone().into_inner();
-        let span = self.to_ast_span(expr.as_span())?;
+        let span = self.to_ast_span(token_span(&expr))?;
 
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
@@ -1128,12 +1189,12 @@ impl ChunkParser<'_> {
                 Some((Rule::expression, token)) => {
                     FactField::Expression(self.parse_expression(token)?)
                 }
-                Some((Rule::bind, token)) => FactField::Bind(self.to_ast_span(token.as_span())?),
+                Some((Rule::bind, token)) => FactField::Bind(self.to_ast_span(token_span(&token))?),
                 Some((_, token)) => {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in fact field"),
-                        Some(self.to_ast_span(token.as_span())?),
+                        Some(self.to_ast_span(token_span(&token))?),
                     ));
                 }
             };
@@ -1216,7 +1277,7 @@ impl ChunkParser<'_> {
             let pc = self.descend(arm.clone());
             let token = pc.consume()?;
 
-            let pest_span = token.as_span();
+            let pest_span = token_span(&token);
             let span = self.to_ast_span(pest_span)?;
             let pattern = match token.as_rule() {
                 Rule::match_default => MatchPattern::Default(span),
@@ -1225,7 +1286,7 @@ impl ChunkParser<'_> {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
-                        Some(self.to_ast_span(token.as_span())?),
+                        Some(self.to_ast_span(token_span(&token))?),
                     ));
                 }
             };
@@ -1320,7 +1381,7 @@ impl ChunkParser<'_> {
     fn parse_statement_list(&self, list: Pairs<'_, Rule>) -> Result<Vec<Statement>, ParseError> {
         let mut statements = vec![];
         for statement in list {
-            let span = self.to_ast_span(statement.as_span())?;
+            let span = self.to_ast_span(token_span(&statement))?;
             let kind = match statement.as_rule() {
                 Rule::let_statement => StmtKind::Let(self.parse_let_statement(statement)?),
                 Rule::action_call => {
@@ -1393,7 +1454,7 @@ impl ChunkParser<'_> {
         &self,
         field: Pair<'_, Rule>,
     ) -> Result<ast::FactDefinition, ParseError> {
-        let span = self.to_ast_span(field.as_span())?;
+        let span = self.to_ast_span(token_span(&field))?;
         let pc = self.descend(field);
         let token = pc.consume()?;
 
@@ -1433,7 +1494,7 @@ impl ChunkParser<'_> {
     ) -> Result<ast::ActionDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::action_definition);
 
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
         let pc = self.descend(item);
 
         let flavor = pc.consume_ident(self)?;
@@ -1449,7 +1510,7 @@ impl ChunkParser<'_> {
         // Parse return type
         let return_type = match pc.consume_optional(Rule::result_t) {
             Some(pair) => {
-                let span = self.to_ast_span(pair.as_span())?;
+                let span = self.to_ast_span(token_span(&pair))?;
                 let rt = self.descend(pair);
                 let ok = rt.consume_type(self)?;
                 let err = rt.consume_type(self)?;
@@ -1485,7 +1546,7 @@ impl ChunkParser<'_> {
     ) -> Result<ast::EffectDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::effect_definition);
 
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
         let pc = self.descend(item);
         let name = pc.consume_ident(self)?;
 
@@ -1504,7 +1565,7 @@ impl ChunkParser<'_> {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in effect definition"),
-                        Some(self.to_ast_span(field.as_span())?),
+                        Some(self.to_ast_span(token_span(&field))?),
                     ));
                 }
             }
@@ -1520,7 +1581,7 @@ impl ChunkParser<'_> {
     ) -> Result<ast::StructDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::struct_definition);
 
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
         let pc = self.descend(item);
         let name = pc.consume_ident(self)?;
 
@@ -1539,7 +1600,7 @@ impl ChunkParser<'_> {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         String::from("invalid token in struct definition"),
-                        Some(self.to_ast_span(field.as_span())?),
+                        Some(self.to_ast_span(token_span(&field))?),
                     ));
                 }
             }
@@ -1551,7 +1612,7 @@ impl ChunkParser<'_> {
     fn parse_enum_definition(&self, item: Pair<'_, Rule>) -> Result<EnumDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_definition);
 
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
         let pc = self.descend(item);
         let name = pc.consume_ident(self)?;
         let mut variants = Vec::new();
@@ -1587,7 +1648,7 @@ impl ChunkParser<'_> {
     ) -> Result<ast::CommandDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::command_definition);
 
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
 
         let pc = self.descend(item);
 
@@ -1630,7 +1691,7 @@ impl ChunkParser<'_> {
                         return Err(ParseError::new(
                             ParseErrorKind::Unknown,
                             String::from("invalid token in command definition"),
-                            Some(self.to_ast_span(field.as_span())?),
+                            Some(self.to_ast_span(token_span(&field))?),
                         ));
                     }
                 }
@@ -1652,11 +1713,11 @@ impl ChunkParser<'_> {
                     return Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         format!("expected recall block, found `{:?}`", token.as_rule()),
-                        Some(self.to_ast_span(token.as_span())?),
+                        Some(self.to_ast_span(token_span(&token))?),
                     ));
                 }
 
-                let recall_span = self.to_ast_span(token.as_span())?;
+                let recall_span = self.to_ast_span(token_span(&token))?;
                 let recall_pc = self.descend(token);
 
                 // Parse name
@@ -1699,7 +1760,7 @@ impl ChunkParser<'_> {
     ) -> Result<ast::BaseCommandDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::base_command_definition);
 
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
 
         let pc = self.descend(item);
 
@@ -1726,7 +1787,7 @@ impl ChunkParser<'_> {
                             return Err(ParseError::new(
                                 ParseErrorKind::Unknown,
                                 String::from("invalid token in command definition"),
-                                Some(self.to_ast_span(field.as_span())?),
+                                Some(self.to_ast_span(token_span(&field))?),
                             ));
                         }
                     }
@@ -1781,7 +1842,7 @@ impl ChunkParser<'_> {
         &self,
         item: Pair<'_, Rule>,
     ) -> Result<ast::FunctionDefinition, ParseError> {
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
         let pc = self.descend(item);
 
         let decl = pc.consume()?;
@@ -1805,7 +1866,7 @@ impl ChunkParser<'_> {
         &self,
         item: Pair<'_, Rule>,
     ) -> Result<ast::FinishFunctionDefinition, ParseError> {
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
         let pc = self.descend(item);
 
         let decl = pc.consume()?;
@@ -1827,7 +1888,7 @@ impl ChunkParser<'_> {
         &self,
         item: Pair<'_, Rule>,
     ) -> Result<ast::GlobalLetStatement, ParseError> {
-        let span = self.to_ast_span(item.as_span())?;
+        let span = self.to_ast_span(token_span(&item))?;
         let pc = self.descend(item);
         let name = pc.consume_ident(self)?;
         let value = pc.consume_expression(self)?;
@@ -1839,7 +1900,7 @@ impl ChunkParser<'_> {
     /// children of a token. Makes the parsing process a little more
     /// self-documenting.
     fn descend<'this, 'i>(&'this self, p: Pair<'i, Rule>) -> PairContext<'i, 'this> {
-        let span = p.as_span();
+        let span = token_span(&p);
         PairContext {
             pairs: RefCell::new(p.into_inner()),
             span,
@@ -1850,7 +1911,7 @@ impl ChunkParser<'_> {
     /// Helper function which consumes and returns an iterator over
     /// a single token, rather than descending.
     fn remain<'this, 'i>(&'this self, p: Pair<'i, Rule>) -> PairContext<'i, 'this> {
-        let span = p.as_span();
+        let span = token_span(&p);
         PairContext {
             pairs: RefCell::new(Pairs::single(p)),
             span,
@@ -1938,7 +1999,7 @@ fn parse_policy_chunk_inner(
                 return Err(ParseError::new(
                     ParseErrorKind::Unknown,
                     format!("Impossible rule: {:?}", item.as_rule()),
-                    Some(p.to_ast_span(item.as_span())?),
+                    Some(p.to_ast_span(token_span(&item))?),
                 ));
             }
         }
