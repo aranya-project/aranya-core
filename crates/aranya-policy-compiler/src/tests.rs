@@ -124,12 +124,12 @@ fn test_validate_return() {
 
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(validate(&m).is_ok());
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(validate(&m).is_err());
     }
 }
 
@@ -203,13 +203,13 @@ fn test_validate_get_key() {
     for p in valid {
         let p = p.to_string() + common;
         let m = compile_pass(&p);
-        assert!(!validate(&m), "{p}");
+        assert!(validate(&m).is_ok(), "{p}");
     }
 
     for p in invalid {
         let p = p.to_string() + common;
         let m = compile_pass(&p);
-        assert!(validate(&m), "{p}");
+        assert!(validate(&m).is_err(), "{p}");
     }
 }
 
@@ -313,11 +313,11 @@ fn test_validate_publish() {
 
     for p in valid {
         let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+        assert!(validate(&m).is_ok(), "Expected case to be valid: {}", p);
     }
 
     for p in invalid {
         let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+        assert!(validate(&m).is_err(), "Expected case to be invalid: {}", p);
     }
 }
