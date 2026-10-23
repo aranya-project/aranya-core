@@ -291,8 +291,9 @@ postfix_op = _{
 // operators of equivalent precedence: a + b + c results in
 // Add(Add(a, b), c).
 expression = {
-                                    (prefix_op ~ (ws ~ prefix_op)* ~ ws)? ~ atom ~ (ws ~ postfix_op)*
-    ~ (ws ~ infix_op ~ ws ~ (prefix_op ~ (ws ~ prefix_op)* ~ ws)? ~ atom ~ (ws ~ postfix_op)*)* }
+    (prefix_op ~ ws)* ~ atom ~ (ws ~ postfix_op)*
+    ~ (ws ~ infix_op ~ ws ~ (prefix_op ~ ws)*  ~ atom ~ (ws ~ postfix_op)*)*
+}
 
 // # Statements
 // The publish statement publishes the expression as a command.
