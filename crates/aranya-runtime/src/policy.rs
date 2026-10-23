@@ -161,6 +161,7 @@ pub trait Policy {
         sink: &mut impl Sink<Self::Effect>,
         placement: ActionPlacement,
         seal_ctx: &Self::SealCtx,
+        flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
@@ -205,6 +206,12 @@ pub enum CommandPlacement {
     OnGraphInBraid,
     /// The command is being evaluated off-graph in an ephemeral session.
     OffGraph,
+}
+
+/// Associated data for an action of a certain flavor.
+pub enum FlavorCtx<'a> {
+    Init { policy: &'a [u8] },
+    Basic,
 }
 
 mod impls {

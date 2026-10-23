@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Text, bench_measurements};
@@ -6,17 +9,38 @@ use aranya_runtime::{
     storage::linear::testing::MemStorageProvider,
     testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
     vm_action, vm_effect,
-    vm_policy::FLAVORS,
+    vm_policy::{FLAVORS, FfiSet, SealCtx},
 };
 
-fn benchmark_1() {
-    let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
-    let module = Compiler::new(&policy)
+/// Create a `TestPolicyStore`.
+fn new_policy_store() -> TestPolicyStore {
+    let seal_ctx = generate_seal_context();
+    let (eng, _) = DefaultEngine::from_entropy(Rng);
+    TestPolicyStore::new(Arc::new(eng), FfiSet::new(), seal_ctx)
+}
+
+/// Compile and serialize the policy.
+fn compile_policy(src: &str) -> Vec<u8> {
+    let ast = parse_policy_document(src).expect("can parse");
+    let module = Compiler::new(&ast)
         .flavors(&FLAVORS)
-        .debug(true)
         .compile()
-        .expect("should compile");
-    let policy_store = TestPolicyStore::from_module(module);
+        .expect("can compile");
+    module.write_to_vec().expect("can serialize test module")
+}
+
+/// Generate a random seal context.
+fn generate_seal_context() -> SealCtx<Arc<DefaultEngine>> {
+    use aranya_crypto::id::IdExt as _;
+    SealCtx {
+        author: DeviceId::random(Rng),
+        key: SigningKey::new(Rng),
+    }
+}
+
+fn benchmark_1() {
+    let policy = compile_policy(TEST_POLICY_1);
+    let policy_store = new_policy_store();
     let key = policy_store.verifying_key();
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
@@ -24,7 +48,7 @@ fn benchmark_1() {
 
     let mut sink = TestSink::new();
     let graph_id = cs
-        .new_graph(&[0u8], vm_action!(init(0, key)), &mut sink)
+        .new_graph(&policy, vm_action!(init(0, key)), &mut sink)
         .expect("could not create graph");
 
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
@@ -126,12 +150,8 @@ policy-version: 2
 ```
     "#;
 
-    let policy = parse_policy_document(test).expect("should parse");
-    let module = Compiler::new(&policy)
-        .flavors(&FLAVORS)
-        .compile()
-        .expect("should compile");
-    let policy_store = TestPolicyStore::from_module(module);
+    let policy = compile_policy(test);
+    let policy_store = new_policy_store();
     let key = policy_store.verifying_key();
     let provider = MemStorageProvider::default();
     let mut cs = ClientState::new(policy_store, provider);
@@ -139,7 +159,7 @@ policy-version: 2
 
     let mut sink = TestSink::new();
     let graph_id = cs
-        .new_graph(&[0u8], vm_action!(init(key)), &mut sink)
+        .new_graph(&policy, vm_action!(init(key)), &mut sink)
         .expect("could not create graph");
 
     for i in 1..10 {

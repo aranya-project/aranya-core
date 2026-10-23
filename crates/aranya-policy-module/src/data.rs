@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
 use core::fmt::{self, Display};
 
