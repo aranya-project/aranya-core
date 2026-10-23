@@ -2,14 +2,16 @@ use std::{borrow::Cow, iter::once};
 
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::{Span, Spanned as _};
+use indexmap::IndexSet;
 
 use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidStructLiteral,
     InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoReturn,
-    NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
-    UnknownError, UnknownField, UnreachableMatchArm, UnusedValue, UnusedVariable,
+    NotDefined, RecursiveCall, RedundantMatchArm, SourceStructNotSubsetOfBase,
+    StructCompositionTypeMismatch, UnknownError, UnknownField, UnreachableMatchArm, UnusedValue,
+    UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -425,6 +427,34 @@ impl Error for CyclicTypeDefinitions {
 
             report.push(title.element(Snippet::source(input).annotations(annotations)));
         }
+    }
+}
+
+impl Error for RecursiveCall {
+    fn description(&self) -> Cow<'_, str> {
+        // List callers, in order
+        let callers: IndexSet<_> = self.calls.iter().map(|(caller, _)| caller).collect();
+        let summary = std::fmt::from_fn(|f| {
+            for (i, caller) in callers.iter().enumerate() {
+                let sep = if i > 0 { ", " } else { "" };
+                write!(f, "{sep}`{caller}`")?;
+            }
+            f.write_str(if callers.len() > 1 {
+                " call each other"
+            } else {
+                " calls itself"
+            })
+        });
+        format!("recursive call: {summary}").into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.description());
+        let annotations = self.calls.iter().map(|(caller, callee)| {
+            AnnotationKind::Primary
+                .span(callee.span.into())
+                .label(format!("`{caller}` calls `{}`", callee.inner))
+        });
+        report.push(title.element(Snippet::source(input).annotations(annotations)));
     }
 }
 

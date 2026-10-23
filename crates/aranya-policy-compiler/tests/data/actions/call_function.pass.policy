@@ -1,0 +1,13 @@
+// An action may share a name with a function it calls.
+function f(n: int) int {
+    return g(n)
+}
+
+function g(n: int) int {
+    return n
+}
+
+action[null] f(n: int) {
+    let x = f(n)
+    check x == n else test_fail()
+}
