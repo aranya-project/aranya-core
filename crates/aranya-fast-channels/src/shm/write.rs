@@ -8,7 +8,7 @@ use aranya_crypto::{
 use buggy::BugExt as _;
 
 use super::{
-    error::{Error, corrupted},
+    error::Error,
     path::{Flag, Mode, Path},
     shared::{ShmChan, State},
 };
@@ -80,8 +80,7 @@ where
                 return Err(Error::OutOfSpace);
             }
 
-            let idx = usize::try_from(side.len)
-                .map_err(|_| corrupted("`side.len` larger than `usize::MAX`"))?;
+            let idx = side.len;
             let chan = side.raw_at(idx)?;
             debug!("adding chan {id} at {idx}");
 

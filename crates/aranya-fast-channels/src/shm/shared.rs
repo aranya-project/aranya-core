@@ -24,7 +24,6 @@ use super::{
         bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
         corrupted,
     },
-    le::{U32, U64},
     path::{Flag, Mode, Path},
 };
 use crate::{
@@ -139,8 +138,8 @@ impl<CS: CipherSuite> State<CS> {
             return Err(bad_state_version(shm.version, SharedMem::<CS>::VERSION));
         }
         let layout = SharedMem::<CS>::layout(self.max_chans)?;
-        if shm.size != layout.size64() {
-            return Err(bad_state_size(shm.size, layout.size64()));
+        if shm.size != layout.size() {
+            return Err(bad_state_size(shm.size, layout.size()));
         }
         if shm.page_aligned != layout.page_aligned {
             return Err(bad_page_alignment(layout.page_aligned));
@@ -347,11 +346,11 @@ impl From<ChanDirection> for ChannelDirection {
 #[derive_where(Clone, Debug)]
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
-    pub magic: U32,
+    pub magic: u32,
     /// Describes the direction that data flows in the channel.
-    pub direction: U32,
+    pub direction: u32,
     /// The channel's ID.
-    pub local_channel_id: U64,
+    pub local_channel_id: u64,
     /// The channel's label.
     pub label_id: LabelId,
     /// The ID of the peer.
@@ -367,7 +366,7 @@ assert_ffi_safe!(ShmChan<aranya_crypto::default::DefaultCipherSuite>);
 
 impl<CS: CipherSuite> ShmChan<CS> {
     /// Identifies the `ShmChan` in memory.
-    pub const MAGIC: U32 = U32::new(0x36bb2c43);
+    pub const MAGIC: u32 = 0x36bb2c43;
 
     /// Returns the channel's memory layout.
     const fn layout() -> Layout {
@@ -404,8 +403,8 @@ impl<CS: CipherSuite> ShmChan<CS> {
         let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(&rng));
         let chan = Self {
             magic: Self::MAGIC,
-            direction: ChanDirection::from_directed(keys).to_u32().into(),
-            local_channel_id: id.to_u64().into(),
+            direction: ChanDirection::from_directed(keys).to_u32(),
+            local_channel_id: id.to_u64(),
             label_id,
             peer_id,
             seal_key,
@@ -431,7 +430,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     pub fn id(&self) -> Result<LocalChannelId, Corrupted> {
         self.check()?;
 
-        Ok(LocalChannelId::new(self.local_channel_id.into()))
+        Ok(LocalChannelId::new(self.local_channel_id))
     }
 
     /// Returns the [label ID][LabelId] associated with this channel.
@@ -459,7 +458,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
     fn direction(&self) -> Result<ChanDirection, Corrupted> {
         self.check()?;
 
-        ChanDirection::try_from_u32(self.direction.into()).ok_or(bad_chan_direction(self.direction))
+        ChanDirection::try_from_u32(self.direction).ok_or(bad_chan_direction(self.direction))
     }
 
     /// Performs basic sanity checking.
@@ -499,11 +498,6 @@ impl ShmLayout {
     pub const fn size(&self) -> usize {
         self.layout.size()
     }
-
-    /// Shorthand for `self.layout.size()`.
-    pub const fn size64(&self) -> U64 {
-        U64::new(self.size() as u64)
-    }
 }
 
 /// The contents of the shared memory.
@@ -529,17 +523,17 @@ pub(super) struct SharedMem<CS> {
     /// Identifies this memory as a [`SharedMem`].
     ///
     /// Should be [`Self::MAGIC`].
-    magic: U32,
+    magic: u32,
     /// shm implementation version
-    version: U32,
+    version: u32,
     /// The total size of this object, including trailing data.
-    size: U64,
+    size: usize,
     /// The size in bytes of the keys stored in each
     /// [`ChanList`].
-    key_size: U64,
+    key_size: usize,
     /// The size in bytes of the nonces stored in each
     /// [`ChanList`].
-    nonce_size: U64,
+    nonce_size: usize,
     /// The next channel ID.
     ///
     /// Invariant: only the writer reads from or writes to this
@@ -572,10 +566,10 @@ assert_ffi_safe!(SharedMem<aranya_crypto::default::DefaultEngine<aranya_crypto::
 unsafe impl<CS: CipherSuite> Sync for SharedMem<CS> {}
 
 impl<CS: CipherSuite> SharedMem<CS> {
-    const MAGIC: U32 = U32::new(0xfcee4325);
-    const VERSION: U32 = U32::new(0x00000000);
-    const KEY_SIZE: U64 = U64::new(<CS::Aead as Aead>::KEY_SIZE as u64);
-    const NONCE_SIZE: U64 = U64::new(<CS::Aead as Aead>::NONCE_SIZE as u64);
+    const MAGIC: u32 = 0xfcee4325;
+    const VERSION: u32 = 0x00000000;
+    const KEY_SIZE: usize = <CS::Aead as Aead>::KEY_SIZE;
+    const NONCE_SIZE: usize = <CS::Aead as Aead>::NONCE_SIZE;
 
     /// Initializes the memory at `ptr`.
     pub fn init(ptr: *mut Self, max_chans: usize, layout: &ShmLayout) {
@@ -589,7 +583,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
         let shm = Self {
             magic: Self::MAGIC,
             version: Self::VERSION,
-            size: layout.size64(),
+            size: layout.size(),
             key_size: Self::KEY_SIZE,
             nonce_size: Self::NONCE_SIZE,
             next_chan_id: AtomicU64::new(0),
@@ -700,7 +694,7 @@ pub(super) struct ChanList<CS> {
     /// Identifies this memory as a [`ChanList`].
     ///
     /// Should be [`Self::MAGIC`].
-    magic: U32,
+    magic: u32,
     /// The current generation.
     ///
     /// It is incremented each time the list is modified.
@@ -714,7 +708,7 @@ pub(super) struct ChanList<CS> {
 assert_ffi_safe!(ChanList<aranya_crypto::default::DefaultCipherSuite>);
 
 impl<CS: CipherSuite> ChanList<CS> {
-    const MAGIC: U32 = U32::new(0x1b771244);
+    const MAGIC: u32 = 0x1b771244;
 
     /// Returns its memory layout, including the trailing data.
     ///
@@ -772,8 +766,8 @@ impl<CS: CipherSuite> ChanList<CS> {
             magic: Self::MAGIC,
             generation: AtomicU32::new(0),
             data: Mutex::new(ChanListData {
-                len: U64::new(0),
-                cap: U64::new(max_chans as u64),
+                len: 0,
+                cap: max_chans,
                 chans: PhantomData,
             }),
         }
@@ -815,9 +809,9 @@ impl<CS> core::ops::DerefMut for LockedChanList<'_, CS> {
 #[derive_where(Debug)]
 pub(super) struct ChanListData<CS> {
     /// The current number of channels.
-    pub(super) len: U64,
+    pub(super) len: usize,
     /// The maximum number of channels.
-    pub(super) cap: U64,
+    pub(super) cap: usize,
     /// This is actually `[ShmChan; cap]`.
     ///
     /// It is a ZST and does not affect the memory layout.
@@ -839,19 +833,22 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
     }
 
     fn len(&self) -> Result<usize, Corrupted> {
-        isize::try_from(self.len)
-            .map_err(|_| corrupted("`len` is larger than `isize::MAX`"))?
-            .try_into()
-            .map_err(|_| corrupted("`len` conversion to usize failed"))
+        if self.len > const { isize::MAX as usize } {
+            return Err(corrupted("`len` is larger than `isize::MAX`"));
+        }
+        Ok(self.len)
     }
 
     fn cap(&self) -> Result<usize, Corrupted> {
-        usize::try_from(self.cap).map_err(|_| corrupted("`cap` is larger than `usize::MAX`"))
+        if self.cap > const { isize::MAX as usize } {
+            return Err(corrupted("`cap` is larger than `isize::MAX`"));
+        }
+        Ok(self.cap)
     }
 
     /// Truncates the list.
     pub fn clear(&mut self) {
-        self.len = U64::new(0);
+        self.len = 0;
         self.generation.fetch_add(1, Ordering::AcqRel);
     }
 
