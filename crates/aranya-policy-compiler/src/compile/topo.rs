@@ -1,7 +1,6 @@
 //! Contains [`TopoSort`] which can be used to sort values topologically.
 //!
-//! It's used to find the order for compiling type definitions, and to
-//! detect recursive calls.
+//! It is used in the compiler to find the order for compiling type definitions.
 //!
 //! A [`CycleError`] will be returned when values cannot be sorted topologically.
 use std::{collections::HashMap, fmt::Display};
@@ -77,28 +76,8 @@ impl<T: NodeTrait + Display> TopoSort<T> {
     }
 
     /// Consumes the graph and returns nodes in topological order.
-    pub(crate) fn sort(self) -> Result<Vec<T>, CycleError> {
-        let (topo, cycles) = self.partition();
-
-        if !cycles.is_empty() {
-            let cycles = cycles
-                .into_iter()
-                .map(|cycle| cycle.iter().map(ToString::to_string).collect())
-                .collect();
-            return Err(CycleError(cycles));
-        }
-
-        Ok(topo)
-    }
-
-    /// Returns every cycle in the graph, without sorting.
-    pub(crate) fn cycles(&self) -> Vec<Vec<T>> {
-        self.partition().1
-    }
-
-    /// Splits the nodes into those that are in topological order, and the cycles.
     // Uses strongly connected components (SSC) to determine cycles in a directed graph.
-    fn partition(&self) -> (Vec<T>, Vec<Vec<T>>) {
+    pub(crate) fn sort(self) -> Result<Vec<T>, CycleError> {
         let mut cycles = Vec::new();
         let mut topo = Vec::new();
 
@@ -108,10 +87,17 @@ impl<T: NodeTrait + Display> TopoSort<T> {
             // This is either:
             //     1. A single vertex SCC that has a self-loop.
             //     2. A SCC with 2+ vertices.
-            cycle => cycles.push(cycle.to_vec()),
+            cycle => {
+                let cycle: Vec<_> = cycle.iter().map(ToString::to_string).collect();
+                cycles.push(cycle);
+            }
         });
 
-        (topo, cycles)
+        if !cycles.is_empty() {
+            return Err(CycleError(cycles));
+        }
+
+        Ok(topo)
     }
 }
 
@@ -151,39 +137,6 @@ mod test {
             topo.sort().unwrap_err().to_string(),
             "Found cyclic dependencies when compiling structs:\n- [Foo, Bar, Fum]"
         );
-    }
-
-    #[test]
-    fn test_cycles() {
-        let mut topo = TopoSort::new();
-
-        topo.insert("Fum", ["Bar"]);
-        topo.insert("Bar", ["Fum", "Foo"]);
-        topo.insert("Foo", []);
-        topo.insert("Fi", ["Foo"]);
-
-        assert_eq!(topo.cycles(), vec![vec!["Bar", "Fum"]]);
-    }
-
-    #[test]
-    fn test_self_cycle() {
-        let mut topo = TopoSort::new();
-
-        topo.insert("Fum", ["Fum"]);
-        topo.insert("Bar", ["Fum"]);
-
-        assert_eq!(topo.cycles(), vec![vec!["Fum"]]);
-    }
-
-    #[test]
-    fn test_no_cycles() {
-        let mut topo = TopoSort::new();
-
-        topo.insert("Bar", ["Foo", "Fum"]);
-        topo.insert("Foo", ["Fum"]);
-        topo.insert("Fum", []);
-
-        assert!(topo.cycles().is_empty());
     }
 
     #[test]
