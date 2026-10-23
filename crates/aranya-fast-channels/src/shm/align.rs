@@ -10,21 +10,50 @@ use derive_where::derive_where;
 use super::shared::assert_ffi_safe;
 
 /// A cache-aligned `T`.
+// Copied from https://github.com/crossbeam-rs/crossbeam/blob/099d0469efcfacb32527bd9451a4fb62586ae537/crossbeam-utils/src/cache_padded.rs
+// Follow that link for sources on each size.
 #[cfg_attr(
-    any(target_arch = "aarch64", target_arch = "powerpc64"),
-    repr(C, align(128))
+    any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        target_arch = "arm64ec",
+        target_arch = "powerpc64",
+    ),
+    repr(align(128))
 )]
-#[cfg_attr(any(target_arch = "x86_64"), repr(C, align(64)))]
 #[cfg_attr(
     any(
         target_arch = "arm",
         target_arch = "mips",
+        target_arch = "mips32r6",
         target_arch = "mips64",
-        target_arch = "riscv64",
-        target_arch = "powerpc",
+        target_arch = "mips64r6",
+        target_arch = "sparc",
+        target_arch = "hexagon",
     ),
-    repr(C, align(32))
+    repr(align(32))
 )]
+#[cfg_attr(target_arch = "m68k", repr(align(16)))]
+#[cfg_attr(target_arch = "s390x", repr(align(256)))]
+#[cfg_attr(
+    not(any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        target_arch = "arm64ec",
+        target_arch = "powerpc64",
+        target_arch = "arm",
+        target_arch = "mips",
+        target_arch = "mips32r6",
+        target_arch = "mips64",
+        target_arch = "mips64r6",
+        target_arch = "sparc",
+        target_arch = "hexagon",
+        target_arch = "m68k",
+        target_arch = "s390x",
+    )),
+    repr(align(64))
+)]
+#[repr(C)]
 #[derive(Debug)]
 pub(super) struct CacheAligned<T>(T);
 assert_ffi_safe!(CacheAligned<()>);
