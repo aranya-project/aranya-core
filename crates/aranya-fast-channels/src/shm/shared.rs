@@ -567,7 +567,7 @@ unsafe impl<CS: CipherSuite> Sync for SharedMem<CS> {}
 
 impl<CS: CipherSuite> SharedMem<CS> {
     const MAGIC: u32 = 0xfcee4325;
-    const VERSION: u32 = 0x00000000;
+    const VERSION: u32 = 0x00000001;
     const KEY_SIZE: usize = <CS::Aead as Aead>::KEY_SIZE;
     const NONCE_SIZE: usize = <CS::Aead as Aead>::NONCE_SIZE;
 
