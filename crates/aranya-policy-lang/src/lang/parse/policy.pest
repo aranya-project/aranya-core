@@ -1,16 +1,17 @@
 // Important things to understand about Pest:
 // - It consumes one character at a time
 // - It does not backtrack beyond the current rule
-// - It automatically inserts WHITESPACE between any tokens joined by ~
-//   (unless the it's an @{} rule)
 // - ! is a predicate check, not a negative character match.
 //   (!"a" ~ ANY) checks that the next character is not "a", then
 //   consumes one character. It is equivalent to regex [^a].
 
+// Trivia including whitespace and comments, abbreviated due to frequent use.
+ws = _{ (whitespace | comment)* }
+
 // Whitespace is spaces, tabs, and newlines (which includes CR, CRLF, and LF).
-WHITESPACE = _{ " " | "\t" | NEWLINE }
+whitespace = _{ " " | "\t" | NEWLINE }
 // Comments are C-style, double-slashes to end of line, and slash-star blocks.
-COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
+comment = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
 
 // # Basic Bits
 
@@ -29,14 +30,14 @@ int_t = { "int" }
 bool_t = { "bool" }
 id_t = { "id" }
 // An optional type
-optional_t = { ("optional" ~ vtype) | ("option" ~ "[" ~ vtype ~ "]") }
+optional_t = { ("optional" ~ ws ~ vtype) | ("option" ~ ws ~ "[" ~ ws ~ vtype ~ ws ~ "]") }
 // All structs have a name
-struct_t = { "struct" ~ identifier }
+struct_t = { "struct" ~ ws ~ identifier }
 // enumeration type
-enum_t = { "enum" ~ identifier }
+enum_t = { "enum" ~ ws ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
-result_t = { "result" ~ "[" ~ vtype ~ "," ~ vtype ~ "]" }
+result_t = { "result" ~ ws ~ "[" ~ ws ~ vtype ~ ws ~ "," ~ ws ~ vtype ~ ws ~ "]" }
 vtype = _{
     | unit_t
     | string_t
@@ -53,80 +54,80 @@ vtype = _{
 // ## Fields
 // A field definition is an identifier followed by a type. Used in
 // struct definitions, function arguments, etc.
-field_definition = { identifier ~ ":" ~ vtype }
+field_definition = { identifier ~ ws ~ ":" ~ ws ~ vtype }
 // Reference to struct from which to copy fields into the current struct
-field_insertion = { "+" ~ identifier }
+field_insertion = { "+" ~ ws ~ identifier }
 // A field definition list is a list of field definitions. Trailing
 // commas are allowed in any list.
-field_definition_list = _{ field_definition ~ ("," ~ field_definition)* ~ ","? }
+field_definition_list = _{ field_definition ~ (ws ~ "," ~ ws ~ field_definition)* ~ (ws ~ ",")? }
 // Similar to field_definition_list, but allows field insertion
-field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ ("," ~ (field_definition | field_insertion))* ~ ","? }
+field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ (ws ~ "," ~ ws ~ (field_definition | field_insertion))* ~ (ws ~ ",")? }
 // Keyword for dynamic effect fields
 dynamic = { "dynamic" }
 // An effect field definition works like a regular field but adds the
 // optional "dynamic" keyword.
-effect_field_definition = { identifier ~ ":" ~ vtype ~ dynamic? }
+effect_field_definition = { identifier ~ ws ~ ":" ~ ws ~ vtype ~ ws ~ dynamic? }
 // Ditto the list form
-effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ ("," ~ (effect_field_definition | field_insertion))* ~ ","? }
+effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ (ws ~ "," ~ ws ~ (effect_field_definition | field_insertion))* ~ (ws ~ ",")? }
 
 // ## Structs
 // A struct definition is a list of field definitions surrounded by
 // curly brackets. Note that there are no actual struct types yet -
 // this is only used as a building block for other definitions.
-struct_def = _{ "{" ~ field_definition_and_insertion_list? ~ "}" }
+struct_def = _{ "{" ~ (ws ~ field_definition_and_insertion_list)? ~ ws ~ "}" }
 // An effect struct definition is similar but supports the additional
 // "dynamic" keyword.
-effect_struct_def = _{ "{" ~ effect_field_definition_list? ~ "}" }
+effect_struct_def = _{ "{" ~ (ws ~ effect_field_definition_list)? ~ ws ~ "}" }
 // Struct composition is shorthand for including the fields of some other
 // struct(s) when defining a struct literal
-struct_composition = { "..." ~ identifier }
-struct_composition_list =  _{ struct_composition ~ ("," ~ struct_composition)* }
+struct_composition = { "..." ~ ws ~ identifier }
+struct_composition_list =  _{ struct_composition ~ (ws ~ "," ~ ws ~ struct_composition)* }
 // A struct literal field is an identifier and an expression separated
 // by a colon. The colon marks this as defining the value of the field
 // instead of its type.
-struct_literal_field = { identifier ~ (":" ~ expression)? }
+struct_literal_field = { identifier ~ (ws ~ ":" ~ ws ~ expression)? }
 // A struct literal field list is a list of struct literal fields.
-struct_literal_field_list = _{ struct_literal_field ~ ("," ~ struct_literal_field)* }
+struct_literal_field_list = _{ struct_literal_field ~ (ws ~ "," ~ ws ~ struct_literal_field)* }
 // A struct data list is a list of struct literal fields followed by struct compositions.
-struct_data_list = _{ ((struct_literal_field_list ~ "," ~ struct_composition_list) | struct_literal_field_list | struct_composition_list) ~ ","? }
+struct_data_list = _{ ((struct_literal_field_list ~ ws ~ "," ~ ws ~ struct_composition_list) | struct_literal_field_list | struct_composition_list) ~ (ws ~ ","?) }
 // A struct literal is a struct literal field list surrounded by curly
 // brackets. Note that you cannot define struct values - these are only
 // used in commands.
-struct_literal = _{ "{" ~ struct_data_list? ~ "}" }
+struct_literal = _{ "{" ~ (ws ~ struct_data_list)? ~ ws ~ "}" }
 // A named struct literal begins with an identifier. Effects and
 // Command literals are named struct literals.
-named_struct_literal = { identifier ~ struct_literal }
+named_struct_literal = { identifier ~ ws ~ struct_literal }
 
 // ## Facts
 // A fact signature key is a list of fields surrounded by square
 // brackets.
-fact_signature_key = { "[" ~ field_definition_list? ~ "]" }
+fact_signature_key = { "[" ~ (ws ~ field_definition_list)? ~ ws ~ "]" }
 // A fact signature value is a list of fields surrounded by curly
 // brackets.
-fact_signature_value = { "{" ~ field_definition_list? ~ "}" }
+fact_signature_value = { "{" ~ (ws ~ field_definition_list)? ~ ws ~ "}" }
 // A fact signature is made up of an identifier, a key definition, and
 // a value definition.
-fact_signature = { identifier ~ fact_signature_key ~ "=>" ~ fact_signature_value }
+fact_signature = { identifier ~ ws ~ fact_signature_key ~ ws ~ "=>" ~ ws ~ fact_signature_value }
 // A bind value is only valid in fact literals inside a query
 // expression. It is used to mark values that the query returns.
 bind = { "?" }
 // key/value pair defining a fact field
-fact_literal_field = { identifier ~ (":" ~ (expression | bind))? }
+fact_literal_field = { identifier ~ (ws ~ ":" ~ ws ~ (expression | bind))? }
 // sequence of fact fields
-fact_literal_field_list = _{ fact_literal_field ~ ("," ~ fact_literal_field)* ~ ","? }
+fact_literal_field_list = _{ fact_literal_field ~ (ws ~ "," ~ ws ~ fact_literal_field)* ~ (ws ~ ",")? }
 // A fact literal key is just like a fact signature key except it
 // defines values with literal fields.
-fact_literal_key = { "[" ~ fact_literal_field_list? ~ "]" }
+fact_literal_key = { "[" ~ (ws ~ fact_literal_field_list)? ~ ws ~ "]" }
 // Ditto fact literal values.
-fact_literal_value = { "{" ~ fact_literal_field_list? ~ "}" }
+fact_literal_value = { "{" ~ (ws ~ fact_literal_field_list)? ~ ws ~ "}" }
 // A fact literal looks just like a fact definition except it defines
 // values for the keys an values.
-fact_literal = { identifier ~ fact_literal_key ~ ("=>" ~ fact_literal_value)? }
+fact_literal = { identifier ~ ws ~ fact_literal_key ~ (ws ~ "=>" ~ ws ~ fact_literal_value)? }
 
 // ## Misc
 // Function arguments are a field list surrounded by parentheses. It's
 // used for both actions and functions.
-function_arguments = { "(" ~ field_definition_list? ~ ")" }
+function_arguments = { "(" ~ (ws ~ field_definition_list)? ~ ws ~ ")" }
 
 // # Expressions
 // This grammar implements a standard prefix/infix/postfix expression
@@ -145,14 +146,14 @@ bfalse = { "false" }
 bool_literal = { btrue | bfalse }
 // A function call is an identifier followed by zero or more arguments
 // in parentheses. Tailing commas allowed.
-function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)* ~ ","?)? ~ ")" }
+function_call = { identifier ~ ws ~ "(" ~ (ws ~ expression ~ (ws ~ "," ~ ws ~ expression)* ~ (ws ~ ",")?)? ~ ws ~ ")" }
 // A foreign function call is an identifier followed by double-colons
 // and a function call.
-foreign_function_call = { identifier ~ "::" ~ function_call }
+foreign_function_call = { identifier ~ ws ~ "::" ~ ws ~ function_call }
 // Calls an action. Only valid inside action blocks.
-action_call = { "action" ~ function_call }
+action_call = { "action" ~ ws ~ function_call }
 // Split "Result::Ok" into enum name and value name in order to resolve value to integer
-enum_reference = { identifier ~ "::" ~ identifier }
+enum_reference = { identifier ~ ws ~ "::" ~ ws ~ identifier }
 
 unit_literal = { "Unit" }
 
@@ -161,38 +162,38 @@ unit_literal = { "Unit" }
 // invalid types like `Some None`. This is checked in a later stage.
 none = { "None" }
 some = { "Some" }
-optional_literal = { none | (some ~ "(" ~ expression ~ ")") }
+optional_literal = { none | (some ~ ws ~ "(" ~ ws ~ expression ~ ws ~ ")") }
 
-ok = { "Ok" ~ "(" ~ expression ~ ")" }
-err = { "Err" ~ "(" ~ expression ~ ")" }
+ok = { "Ok" ~ ws ~ "(" ~ ws ~ expression ~ ws ~ ")" }
+err = { "Err" ~ ws ~ "(" ~ ws ~ expression ~ ws ~ ")" }
 result_literal = { ok | err }
 
 // A query expression evaluates a fact literal, returning a result
 // object containing all of the value fields marked with the bind
 // token.
-query = { "query" ~ fact_literal }
+query = { "query" ~ ws ~ fact_literal }
 // exists is query that checks for the existence of a fact
-exists = { "exists" ~ fact_literal }
+exists = { "exists" ~ ws ~ fact_literal }
 // count facts up to a given limit
-count_up_to = { "count_up_to" ~ int_literal ~ fact_literal}
+count_up_to = { "count_up_to" ~ ws ~ int_literal ~ ws ~ fact_literal}
 // count facts, returning true if the given count was reached
-at_least = { "at_least" ~ int_literal ~ fact_literal}
+at_least = { "at_least" ~ ws ~ int_literal ~ ws ~ fact_literal}
 // count facts, returning true if the given count was not exceeded
-at_most = { "at_most" ~ int_literal ~ fact_literal }
+at_most = { "at_most" ~ ws ~ int_literal ~ ws ~ fact_literal }
 // count facts, returning true if the number of facts found equals the expected number
-exactly = { "exactly" ~ int_literal ~ fact_literal }
+exactly = { "exactly" ~ ws ~ int_literal ~ ws ~ fact_literal }
 // Similar to the `match` statement, but resolves to a value. e.g. `let x = match { ... }`
-match_expression = { "match" ~ expression ~ "{" ~ match_expression_arm* ~ "}" }
-match_expression_arm = { (match_arm_expression | match_default) ~ "=>" ~ expression }
+match_expression = { "match" ~ ws ~ expression ~ ws ~ "{" ~ (ws ~ match_expression_arm)* ~ ws ~ "}" }
+match_expression_arm = { (match_arm_expression | match_default) ~ ws ~ "=>" ~ ws ~ expression }
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
 // first expression.
-if_expr = { "if" ~ expression ~ block_expression ~ "else" ~ block_expression }
+if_expr = { "if" ~ ws ~ expression ~ ws ~ block_expression ~ ws ~ "else" ~ ws ~ block_expression }
 // Indicates a not yet implemented panic
 todo = { "todo()" }
 // Panics with a message. Like `todo()`, but for expressing test
 // expectations of the policy vm/compiler, e.g. `check c else test_fail("...")`.
-test_fail = { "test_fail(" ~ string_literal? ~ ")" }
+test_fail = { "test_fail(" ~ (ws ~ string_literal)? ~ ws ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
@@ -207,11 +208,11 @@ internal_function = _{
     | test_fail
 }
 // The return expression returns from a function
-return_expression = { "return" ~ expression }
+return_expression = { "return" ~ ws ~ expression }
 // A block expression is a series of statements followed by an expression
 // the statement list is separated for easier parsing
-block_statement_list = { statements* }
-block_expression = { "{" ~ block_statement_list ~ ":" ~ expression ~ "}" }
+block_statement_list = { (ws ~ statements)* }
+block_expression = { "{" ~ ws ~ block_statement_list ~ ws ~ ":" ~ ws ~ expression ~ ws ~ "}" }
 // An atom is any of the literals, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
 atom = _{
@@ -233,7 +234,7 @@ atom = _{
     | this
     | identifier
     | block_expression
-    | "(" ~ expression ~ ")"
+    | "(" ~ ws ~ expression ~ ws ~ ")"
 }
 this = { "this" }
 
@@ -270,10 +271,10 @@ prefix_op = _{
 }
 
 // ## Postfix operators
-dot = { "." ~ identifier }
-substruct = { "substruct" ~ identifier }
-cast = { "as" ~ identifier }
-is = { "is" ~ (none | some) }
+dot = { "." ~ ws ~ identifier }
+substruct = { "substruct" ~ ws ~ identifier }
+cast = { "as" ~ ws ~ identifier }
+is = { "is" ~ ws ~ (none | some) }
 // The try operator propagates the error out of a `result[T, E]`.
 try_op = { "?" }
 postfix_op = _{
@@ -289,54 +290,56 @@ postfix_op = _{
 // that this creates a left-associative binary parse tree for
 // operators of equivalent precedence: a + b + c results in
 // Add(Add(a, b), c).
-expression = { prefix_op* ~ atom ~ postfix_op* ~ (infix_op ~ prefix_op* ~ atom ~ postfix_op*)* }
+expression = {
+                                    (prefix_op ~ (ws ~ prefix_op)* ~ ws)? ~ atom ~ (ws ~ postfix_op)*
+    ~ (ws ~ infix_op ~ ws ~ (prefix_op ~ (ws ~ prefix_op)* ~ ws)? ~ atom ~ (ws ~ postfix_op)*)* }
 
 // # Statements
 // The publish statement publishes the expression as a command.
-publish_statement = { "publish" ~ expression }
+publish_statement = { "publish" ~ ws ~ expression }
 // A let statement assigns a value to an identifier. Identifiers can
 // only be assigned once.
-let_statement = { "let" ~ identifier ~ "=" ~ expression }
+let_statement = { "let" ~ ws ~ identifier ~ ws ~ "=" ~ ws ~ expression }
 // Check asserts that an expression is true. If it is not, it executes the required terminal `else` expression, e.g. `recall` or `return`.
-check_statement = { "check" ~ expression ~ "else" ~ expression }
+check_statement = { "check" ~ ws ~ expression ~ ws ~ "else" ~ ws ~ expression }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).
-match_arm_expression = { expression ~ ("|" ~ expression)* }
+match_arm_expression = { expression ~ (ws ~ "|" ~ ws ~ expression)* }
 match_default = { "_" }
-match_arm = { (match_arm_expression | match_default) ~ "=>" ~ statement_block }
-match_statement = { "match" ~ expression ~ "{" ~ match_arm* ~ "}" }
+match_arm = { (match_arm_expression | match_default) ~ ws ~ "=>" ~ ws ~ statement_block }
+match_statement = { "match" ~ ws ~ expression ~ ws ~ "{" ~ (ws ~ match_arm)* ~ ws ~ "}" }
 // if - else if - else
 if_statement = {
-    "if" ~ expression ~ if_branch
-    ~ ("else" ~ "if" ~ expression ~ if_branch)*
-    ~ ("else" ~ if_branch)?
+    "if" ~ ws ~ expression ~ ws ~ if_branch
+    ~ (ws ~ "else" ~ ws ~ "if" ~ ws ~ expression ~ ws ~ if_branch)*
+    ~ (ws ~ "else" ~ ws ~ if_branch)?
 }
 // need a non-silent rule to distinguish these.
 if_branch = { statement_block }
 // The finish statement contains a block of statements which update
 // fact state and produce effects. The finish statement ends further
 // policy processing after executing its statements.
-finish_statement = { "finish" ~ statement_block }
+finish_statement = { "finish" ~ ws ~ statement_block }
 // map - iterate over facts
-map_statement = { "map" ~ fact_literal ~ "as" ~ identifier ~ statement_block }
+map_statement = { "map" ~ ws ~ fact_literal ~ ws ~ "as" ~ ws ~ identifier ~ ws ~ statement_block }
 // The create statement creates a fact.
-create_statement = { "create" ~ fact_literal }
+create_statement = { "create" ~ ws ~ fact_literal }
 // The update statement updates a matching fact to a new value.
-update_statement = { "update" ~ fact_literal ~ "to" ~ fact_literal_value }
+update_statement = { "update" ~ ws ~ fact_literal ~ ws ~ "to" ~ ws ~ fact_literal_value }
 // The delete statement deletes a fact.
-delete_statement = { "delete" ~ fact_literal }
+delete_statement = { "delete" ~ ws ~ fact_literal }
 // The emit statement outputs an effect with the given expression.
-emit_statement = { "emit" ~ expression }
+emit_statement = { "emit" ~ ws ~ expression }
 // The return statement returns from a function
-return_statement = { "return" ~ expression }
+return_statement = { "return" ~ ws ~ expression }
 // The recall statement immediately transfers policy evaluation to the
 // named recall block. Valid only in `policy` blocks.
-recall_statement = { "recall" ~ function_call }
+recall_statement = { "recall" ~ ws ~ function_call }
 // The recall expression form, with type `Never`. Valid only in `policy` blocks.
-recall_expression = { "recall" ~ function_call }
+recall_expression = { "recall" ~ ws ~ function_call }
 // debug_assert() optionally runs the contained expression if the debug flag is enabled
-debug_assert = { "debug_assert(" ~ expression ~ ")" }
+debug_assert = { "debug_assert(" ~ ws ~ expression ~ ws ~ ")" }
 
 // ## All statements
 statements = _{
@@ -358,63 +361,63 @@ statements = _{
     | function_call
     | action_call
 }
-statement_block = _{ "{" ~ statements* ~ "}" }
+statement_block = _{ "{" ~ (ws ~ statements)* ~ ws ~ "}" }
 
 // ## Command blocks
 // Command attributes
-attributes_block = { "attributes" ~ struct_literal }
+attributes_block = { "attributes" ~ ws ~ struct_literal }
 // The fields statement defines the fields of a command with a struct
 // literal.
-fields_block = { "fields" ~ struct_def }
+fields_block = { "fields" ~ ws ~ struct_def }
 // The policy statement defines a block of statements comprising the
 // actual policy governing the command.
-policy_block = { "policy" ~ statement_block }
+policy_block = { "policy" ~ ws ~ statement_block }
 // The recall statement defines a block of statements that will be
 // executed when a command of this type is recalled.
-recall_block = { "recall" ~ identifier ~ function_arguments ~ statement_block }
+recall_block = { "recall" ~ ws ~ identifier ~ ws ~ function_arguments ~ ws ~ statement_block }
 // Sequence of command blocks
 command_blocks = _{
     attributes_block?
-    ~ fields_block?
-    ~ policy_block
-    ~ recall_block*
+    ~ (ws ~ fields_block)?
+    ~ ws ~ policy_block
+    ~ (ws ~ recall_block)*
 }
 
-get_key_block = { "get_key" ~ statement_block }
+get_key_block = { "get_key" ~ ws ~ statement_block }
 // Sequence of base command blocks
 base_command_blocks = _{
     fields_block?
-    ~ get_key_block
+    ~ ws ~ get_key_block
 }
 
-flavor = _{ "[" ~ identifier ~ "]" }
+flavor = _{ "[" ~ ws ~ identifier ~ ws ~ "]" }
 
 // # Top-level Statements
 // fact Foo[]=>{}
 immutable_modifier = { "immutable" }
-use_definition = { "use" ~ identifier }
-fact_definition = { immutable_modifier? ~ "fact" ~ fact_signature }
+use_definition = { "use" ~ ws ~ identifier }
+fact_definition = { immutable_modifier? ~ ws ~ "fact" ~ ws ~ fact_signature }
 // action[flavor] foo(a int) [result[unit, T]] { ... }
-action_definition = { "action" ~ flavor ~ identifier ~ function_arguments ~ result_t? ~ statement_block }
+action_definition = { "action" ~ ws ~ flavor ~ ws ~ identifier ~ ws ~ function_arguments ~ (ws ~ result_t)? ~ ws ~ statement_block }
 // effect Foo { bar id }
-effect_definition = { "effect" ~ identifier ~ effect_struct_def }
+effect_definition = { "effect" ~ ws ~ identifier ~ ws ~ effect_struct_def }
 // struct Foo { bar id }
-struct_definition = { "struct" ~ identifier ~ struct_def }
+struct_definition = { "struct" ~ ws ~ identifier ~ ws ~ struct_def }
 // enum Result { OK, Err }
-enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
+enum_definition = { "enum" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ identifier ~ (ws ~ "," ~ ws ~ identifier)* ~ (ws ~ ",")? ~ ws ~ "}" }
 // command Foo with Base { ... }
-command_definition = { "command" ~ identifier ~ "with" ~ identifier ~ "{" ~ command_blocks ~ "}" }
+command_definition = { "command" ~ ws ~ identifier ~ ws ~ "with" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ command_blocks ~ ws ~ "}" }
 // base[flavor] Foo { ... }
-base_command_definition = { "base" ~ flavor ~ identifier ~ "{" ~ base_command_blocks ~ "}" }
+base_command_definition = { "base" ~ ws ~ flavor ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ base_command_blocks ~ ws ~ "}" }
 // function foo(a int) int { return a }
-function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
-function_definition = { function_decl ~ statement_block }
+function_decl = { "function" ~ ws ~ identifier ~ ws ~ function_arguments ~ ws ~ vtype }
+function_definition = { function_decl ~ ws ~ statement_block }
 /// finish function foo(a: int) { create F[]=>{} }
-finish_function_decl = { "finish" ~ "function" ~ identifier ~ function_arguments }
-finish_function_definition = { finish_function_decl ~ statement_block }
+finish_function_decl = { "finish" ~ ws ~ "function" ~ ws ~ identifier ~ ws ~ function_arguments }
+finish_function_definition = { finish_function_decl ~ ws ~ statement_block }
 // This let statement assigns a value to an identifier in a global scope
 // global let statements are overwritten by local ones.
-global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
+global_let_statement = { "let" ~ ws ~ identifier ~ ws ~ "=" ~ ws ~ expression }
 
 top_level_statement = _{
     | use_definition
@@ -434,12 +437,12 @@ top_level_statement = _{
 // end of input markers. Without the end of input marker, the input
 // would only be parsed until the first non-matching text and you would
 // get a partially parsed document instead of a parse error.
-file = _{ SOI ~ top_level_statement* ~ EOI }
+file = _{ SOI ~ (ws ~ top_level_statement)* ~ ws ~ EOI }
 
 ffi_function_decl = _{ function_decl | finish_function_decl }
-ffi_def = _{ SOI ~ ffi_function_decl ~ EOI }
+ffi_def = _{ SOI ~ ws ~ ffi_function_decl ~ ws ~ EOI }
 
-ffi_struct_or_enum_def = _{ SOI ~ (struct_definition | enum_definition)* ~ EOI }
+ffi_struct_or_enum_def = _{ SOI ~ (ws ~ (struct_definition | enum_definition))* ~ ws ~ EOI }
 
 // Used exclusively when parsing an expression on its own
-complete_expression = _{ SOI ~ expression ~ EOI }
+complete_expression = _{ SOI ~ ws ~ expression ~ ws ~ EOI }
