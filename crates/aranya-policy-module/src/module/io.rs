@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use sha2::{
     Digest as _, Sha256,
     digest::{common::OutputSize, typenum::Unsigned as _},
@@ -100,6 +102,36 @@ impl Header {
 }
 
 impl Module {
+    /// Write a module to a vec.
+    pub fn write_to_vec(&self) -> Result<Vec<u8>, ModuleIoError> {
+        let module_data = match &self.data {
+            ModuleData::V0(m) => postcard::to_allocvec(&m)?,
+            ModuleData::V1(m) => postcard::to_allocvec(&m)?,
+        };
+
+        let mut output = zrip::compress(&module_data, 4)?;
+
+        // It should be exceedingly unlikely we can overflow a `usize` here, so I'm just using
+        // `saturating_add()`. Even if the impossible happens and this reaches overflow, saturation
+        // will keep it at `usize::MAX`, where the conversion to `u32` will fail later.
+        let header_data_len = output.len().saturating_add(Header::LEN);
+        let header_data_checksum_len = header_data_len.saturating_add(CHECKSUM_HASH_LEN);
+
+        let h = Header {
+            version: self.version().to_u32().into(),
+            size: u32::try_from(header_data_checksum_len)?.into(),
+            uncompressed_size: u32::try_from(module_data.len())?.into(),
+            ..Default::default()
+        };
+
+        prepend(&mut output, h.as_bytes());
+
+        let hash: [u8; CHECKSUM_HASH_LEN] = Sha256::digest(&output).into();
+        output.extend_from_slice(&hash);
+
+        Ok(output)
+    }
+
     /// Write a module to a mutable slice.
     ///
     /// The slice need to be large enough to contain the serialized module, or it will
@@ -175,9 +207,13 @@ impl Module {
     }
 }
 
+fn prepend(buf: &mut Vec<u8>, data: &[u8]) {
+    buf.extend_from_slice(data);
+    buf.rotate_right(data.len());
+}
+
 #[cfg(test)]
 mod tests {
-    extern crate alloc;
     use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
     use core::assert_matches;
 

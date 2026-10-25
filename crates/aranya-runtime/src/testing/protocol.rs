@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
 use crate::{
-    Address, CmdId, Command, FactPerspective, Keys, MAX_COMMAND_LENGTH, MaxCut, MergeIds,
-    Perspective, Policy, PolicyError, PolicyId, PolicyStore, Prior, Priority, Sink, alloc,
-    testing::hash_for_testing_only,
+    Address, CmdId, Command, FactPerspective, FlavorCtx, Keys, MAX_COMMAND_LENGTH, MaxCut,
+    MergeIds, Perspective, Policy, PolicyError, PolicyId, PolicyStore, Prior, Priority, Sink,
+    alloc, testing::hash_for_testing_only,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -441,6 +441,7 @@ impl Policy for TestPolicy {
         sink: &mut impl Sink<Self::Effect>,
         _placement: crate::policy::ActionPlacement,
         _seal_ctx: &(),
+        _flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {

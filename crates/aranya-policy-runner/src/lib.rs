@@ -24,8 +24,8 @@ use aranya_policy_compiler::{Compiler, validate::validate};
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Identifier, Machine, Value};
 use aranya_runtime::{
-    ActionPlacement, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _, Sink as _,
-    Storage as _, StorageProvider as _, VmAction, vm_policy::SealCtx,
+    ActionPlacement, FlavorCtx, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _,
+    Sink as _, Storage as _, StorageProvider as _, VmAction, vm_policy::SealCtx,
 };
 pub use io::testing_ffi;
 use policy::create_vmpolicy;
@@ -350,6 +350,7 @@ impl PolicyRunner {
                             author: DeviceId::default(),
                             key: SigningKey::new(aranya_crypto::Rng),
                         },
+                        FlavorCtx::Basic,
                     )
                     .inspect_err(|e| {
                         tracing::error!("VM Policy Error: {e}");
