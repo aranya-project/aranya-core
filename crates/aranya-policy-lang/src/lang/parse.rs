@@ -584,6 +584,420 @@ impl ChunkParser<'_> {
         })
     }
 
+    pub fn parse_atom(&self, primary: Pair) -> Result<Expression, ParseError> {
+        let span = self.to_ast_span(primary.as_span())?;
+        match primary.as_rule() {
+            Rule::unit_literal => Ok(Expression {
+                inner: ExprKind::Unit,
+                span,
+            }),
+            Rule::int_literal => {
+                let n = primary.as_str().parse::<i64>().map_err(|e| {
+                    let message = e.to_string().replace("target type", "`int`");
+
+                    ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
+                })?;
+                Ok(Expression {
+                    inner: ExprKind::Int(IntLiteral::new(n, span)),
+                    span,
+                })
+            }
+            Rule::string_literal => {
+                let s = self.parse_string_literal(primary)?;
+                Ok(Expression {
+                    inner: ExprKind::String(s),
+                    span,
+                })
+            }
+            Rule::bool_literal => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("bad bool expression"),
+                        Some(span),
+                    )
+                })?;
+                match token.as_rule() {
+                    Rule::btrue => Ok(Expression {
+                        inner: ExprKind::Bool(true),
+                        span,
+                    }),
+                    Rule::bfalse => Ok(Expression {
+                        inner: ExprKind::Bool(false),
+                        span,
+                    }),
+                    t => Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!("impossible token: {:?}", t),
+                        Some(span),
+                    )),
+                }
+            }
+            Rule::optional_literal => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no token in optional literal"),
+                        Some(span),
+                    )
+                })?;
+                let opt_expr = match token.as_rule() {
+                    Rule::none => None,
+                    Rule::some => {
+                        let token = pairs.next().ok_or_else(|| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("bad Some expression"),
+                                Some(span),
+                            )
+                        })?;
+                        let e = self.parse_expression(token)?;
+                        Some(Box::new(e))
+                    }
+                    t => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("invalid token in optional: {:?}", t),
+                            Some(span),
+                        ));
+                    }
+                };
+                Ok(Expression {
+                    inner: ExprKind::Optional(opt_expr),
+                    span,
+                })
+            }
+            Rule::result_literal => {
+                let token = primary.clone().into_inner().next().ok_or_else(|| {
+                    self.to_ast_span(primary.as_span()).map_or_else(
+                        |err| err,
+                        |span| {
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no token in result literal"),
+                                Some(span),
+                            )
+                        },
+                    )
+                })?;
+                match token.as_rule() {
+                    Rule::ok => {
+                        let span = self.to_ast_span(primary.as_span())?;
+                        let v = token.into_inner().next().ok_or_else(|| {
+                            self.to_ast_span(primary.as_span()).map_or_else(
+                                |err| err,
+                                |span| {
+                                    ParseError::new(
+                                        ParseErrorKind::Unknown,
+                                        String::from("no value in Ok expression"),
+                                        Some(span),
+                                    )
+                                },
+                            )
+                        })?;
+                        let expr = self.parse_expression(v)?;
+                        Ok(Expression {
+                            inner: ExprKind::Ok(Box::new(expr)),
+                            span,
+                        })
+                    }
+                    Rule::err => {
+                        let span = self.to_ast_span(primary.as_span())?;
+                        let v = token.into_inner().next().ok_or_else(|| {
+                            self.to_ast_span(primary.as_span()).map_or_else(
+                                |err| err,
+                                |span| {
+                                    ParseError::new(
+                                        ParseErrorKind::Unknown,
+                                        String::from("no value in Err expression"),
+                                        Some(span),
+                                    )
+                                },
+                            )
+                        })?;
+                        let expr = self.parse_expression(v)?;
+                        Ok(Expression {
+                            inner: ExprKind::Err(Box::new(expr)),
+                            span,
+                        })
+                    }
+                    _ => Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        format!("invalid token in result_literal: {:?}", token.as_rule()),
+                        Some(self.to_ast_span(primary.as_span())?),
+                    )),
+                }
+            }
+            Rule::named_struct_literal => {
+                let ns = self.parse_named_struct_literal(primary)?;
+                Ok(Expression {
+                    inner: ExprKind::NamedStruct(ns),
+                    span,
+                })
+            }
+            Rule::function_call => {
+                let fc = self.parse_function_call(primary)?;
+                Ok(Expression {
+                    inner: ExprKind::FunctionCall(fc),
+                    span,
+                })
+            }
+            Rule::foreign_function_call => {
+                let ffc = self.parse_foreign_function_call(primary)?;
+                Ok(Expression {
+                    inner: ExprKind::ForeignFunctionCall(ffc),
+                    span,
+                })
+            }
+            Rule::action_call => {
+                let fc = self.parse_action_call(primary)?;
+                Ok(Expression {
+                    inner: ExprKind::ActionCall(fc),
+                    span,
+                })
+            }
+            Rule::return_expression => {
+                let pc = self.descend(primary);
+                let expression = pc.consume_expression(self)?;
+                Ok(Expression {
+                    inner: ExprKind::Return(Box::new(expression)),
+                    span,
+                })
+            }
+            Rule::recall_expression => {
+                let fc = self.parse_recall_call(primary)?;
+                Ok(Expression {
+                    inner: ExprKind::Recall(fc),
+                    span,
+                })
+            }
+            Rule::enum_reference => {
+                let er = self.parse_enum_reference(primary)?;
+                Ok(Expression {
+                    inner: ExprKind::EnumReference(er),
+                    span,
+                })
+            }
+            Rule::query => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::InvalidFunctionCall,
+                        String::from("query requires fact literal"),
+                        Some(span),
+                    )
+                })?;
+                let fact_literal = self.parse_fact_literal(token)?;
+                Ok(Expression {
+                    inner: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
+                    span,
+                })
+            }
+            Rule::exists => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::InvalidFunctionCall,
+                        String::from("exists requires fact literal"),
+                        Some(span),
+                    )
+                })?;
+                let fact_literal = self.parse_fact_literal(token)?;
+                Ok(Expression {
+                    inner: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
+                    span,
+                })
+            }
+            Rule::count_up_to => self.parse_counting_fn(primary, ast::FactCountType::UpTo(span)),
+            Rule::at_least => self.parse_counting_fn(primary, ast::FactCountType::AtLeast(span)),
+            Rule::at_most => self.parse_counting_fn(primary, ast::FactCountType::AtMost(span)),
+            Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly(span)),
+            Rule::match_expression => self.parse_match_expression(primary),
+            Rule::if_expr => self.parse_if_expression(primary),
+            Rule::this => {
+                let span = self.to_ast_span(primary.as_span())?;
+                Ok(Expression {
+                    inner: ExprKind::Identifier(Ident {
+                        inner: ident!("this"),
+                        span,
+                    }),
+                    span,
+                })
+            }
+            Rule::todo => {
+                let span = self.to_ast_span(primary.as_span())?;
+                Ok(Expression {
+                    inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
+                    span,
+                })
+            }
+            Rule::test_fail => {
+                let span = self.to_ast_span(primary.as_span())?;
+                let mut pairs = primary.into_inner();
+                let msg = pairs
+                    .next()
+                    .map(|t| self.parse_string_literal(t))
+                    .transpose()?;
+                Ok(Expression {
+                    inner: ExprKind::InternalFunction(InternalFunction::TestFail(msg, span)),
+                    span,
+                })
+            }
+            Rule::identifier => {
+                let span = self.to_ast_span(primary.as_span())?;
+                let ident = self.remain(primary).consume_ident(self)?;
+                Ok(Expression {
+                    inner: ExprKind::Identifier(ident),
+                    span,
+                })
+            }
+            Rule::block_expression => self.parse_block_expression(primary),
+            Rule::expression => self.parse_expression(primary),
+            _ => Err(ParseError::new(
+                ParseErrorKind::Expression,
+                format!("bad atom: {:?}", primary.as_rule()),
+                Some(span),
+            )),
+        }
+    }
+
+    pub fn parse_prefix(&self, op: Pair, rhs: Expression) -> Result<Expression, ParseError> {
+        let op_span = self.to_ast_span(op.as_span())?;
+        let combined_span = op_span.merge(rhs.span);
+
+        let kind = match op.as_rule() {
+            Rule::not => ExprKind::Not(Box::new(rhs)),
+            _ => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Expression,
+                    format!("bad prefix: {:?}", op.as_rule()),
+                    Some(op_span),
+                ));
+            }
+        };
+        Ok(Expression {
+            inner: kind,
+            span: combined_span,
+        })
+    }
+
+    pub fn parse_postfix(&self, lhs: Expression, op: Pair) -> Result<Expression, ParseError> {
+        let op_span = self.to_ast_span(op.as_span())?;
+        let combined_span = lhs.span.merge(op_span);
+
+        let kind = match op.as_rule() {
+            Rule::is => {
+                let mut pairs = op.into_inner();
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::InvalidFunctionCall,
+                        String::from("is requires some or none"),
+                        Some(op_span),
+                    )
+                })?;
+                let some = match token.as_rule() {
+                    Rule::some => true,
+                    Rule::none => false,
+                    _ => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Bug,
+                            "'some' or 'none' must follow 'is'".to_owned(),
+                            None,
+                        ));
+                    }
+                };
+                ExprKind::Is(Box::new(lhs), some)
+            }
+            Rule::dot => {
+                let pc = self.descend(op);
+                let s = pc.consume_ident(self)?;
+                ExprKind::Dot(Box::new(lhs), s)
+            }
+            Rule::substruct => {
+                let pc = self.descend(op);
+                let s = pc.consume_ident(self)?;
+                ExprKind::Substruct(Box::new(lhs), s)
+            }
+            Rule::cast => {
+                let pc = self.descend(op);
+                let s = pc.consume_ident(self)?;
+                ExprKind::Cast(Box::new(lhs), s)
+            }
+            Rule::try_op => ExprKind::Try(Box::new(lhs)),
+            _ => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Expression,
+                    format!("bad postfix: {:?}", op.as_rule()),
+                    Some(op_span),
+                ));
+            }
+        };
+        Ok(Expression {
+            inner: kind,
+            span: combined_span,
+        })
+    }
+
+    pub fn parse_infix(
+        &self,
+        expr_span: ast::Span,
+        lhs: Expression,
+        op: Pair,
+        rhs: Expression,
+    ) -> Result<Expression, ParseError> {
+        let combined_span = lhs.span.merge(rhs.span);
+
+        let op_span = self.to_ast_span(op.as_span())?;
+        let kind = match op.as_rule() {
+            Rule::add => {
+                return Err(ParseError::new(
+                    error::InvalidOperator {
+                        lhs: lhs.span,
+                        rhs: rhs.span,
+                        op: op_span,
+                    },
+                    String::from("found `+`"),
+                    Some(expr_span),
+                ));
+            }
+            Rule::subtract => {
+                return Err(ParseError::new(
+                    error::InvalidOperator {
+                        lhs: lhs.span,
+                        rhs: rhs.span,
+                        op: op_span,
+                    },
+                    String::from("found `-`"),
+                    Some(expr_span),
+                ));
+            }
+            Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
+            Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
+            Rule::coalesce => ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
+            Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
+            Rule::not_equal => ExprKind::NotEqual(Box::new(lhs), Box::new(rhs)),
+            Rule::greater_than => ExprKind::GreaterThan(Box::new(lhs), Box::new(rhs)),
+            Rule::less_than => ExprKind::LessThan(Box::new(lhs), Box::new(rhs)),
+            Rule::greater_than_or_equal => {
+                ExprKind::GreaterThanOrEqual(Box::new(lhs), Box::new(rhs))
+            }
+            Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
+            _ => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Expression,
+                    format!("bad infix: {:?}", op.as_rule()),
+                    Some(op_span),
+                ));
+            }
+        };
+        Ok(Expression {
+            inner: kind,
+            span: combined_span,
+        })
+    }
+
     /// Parses a Rule::expression into an Expression
     ///
     /// This uses the PrattParser to parse the syntax tree. As a part of
@@ -601,344 +1015,10 @@ impl ChunkParser<'_> {
         let pairs = expr.into_inner();
 
         self.pratt
-            .map_primary(|primary| {
-                let span = self.to_ast_span(primary.as_span())?;
-                match primary.as_rule() {
-                Rule::unit_literal => Ok(Expression { inner: ExprKind::Unit, span }),
-                Rule::int_literal => {
-                    let n = primary.as_str().parse::<i64>().map_err(|e| {
-                        let message = e.to_string().replace("target type", "`int`");
-
-                        ParseError::new(
-                            ParseErrorKind::InvalidNumber,
-                            message,
-                            Some(span),
-                        )
-                    })?;
-                    Ok(Expression{inner: ExprKind::Int(IntLiteral::new(n, span)), span})
-                }
-                Rule::string_literal => {
-                    let s = self.parse_string_literal(primary)?;
-                    Ok(Expression{inner: ExprKind::String(s), span})
-                }
-                Rule::bool_literal => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("bad bool expression"),
-                            Some(span),
-                        )
-                    })?;
-                    match token.as_rule() {
-                        Rule::btrue => {
-                            Ok(Expression{inner:ExprKind::Bool(true), span})
-                        }
-                        Rule::bfalse => {
-                            Ok(Expression{inner:ExprKind::Bool(false), span})
-                        }
-                        t => Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            format!("impossible token: {:?}", t),
-                            Some(span),
-                        )),
-                    }
-                }
-                Rule::optional_literal => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("no token in optional literal"),
-                            Some(span),
-                        )
-                    })?;
-                    let opt_expr = match token.as_rule() {
-                        Rule::none => None,
-                        Rule::some => {
-                            let token = pairs.next().ok_or_else(|| {
-                                ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("bad Some expression"),
-                                    Some(span),
-                                )
-                            })?;
-                            let e = self.parse_expression(token)?;
-                            Some(Box::new(e))
-                        }
-                        t => {
-                            return Err(ParseError::new(
-                                ParseErrorKind::Unknown,
-                                format!("invalid token in optional: {:?}", t),
-                                Some(span),
-                            ))
-                        }
-                    };
-                    Ok(Expression { inner: ExprKind::Optional(opt_expr), span })
-                }
-                Rule::result_literal => {
-                    let token = primary.clone().into_inner().next().ok_or_else(|| {
-                        self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("no token in result literal"),
-                            Some(span),
-                        ))
-                    })?;
-                    match token.as_rule() {
-                        Rule::ok => {
-                            let span = self.to_ast_span(primary.as_span())?;
-                            let v = token.into_inner().next().ok_or_else(|| {
-                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("no value in Ok expression"),
-                                    Some(span),
-                                ))
-                            })?;
-                            let expr = self.parse_expression(v)?;
-                            Ok(Expression {
-                                inner: ExprKind::Ok(Box::new(expr)),
-                                span
-                            })
-                        }
-                        Rule::err => {
-                            let span = self.to_ast_span(primary.as_span())?;
-                            let v = token.into_inner().next().ok_or_else(|| {
-                                self.to_ast_span(primary.as_span()).map_or_else(|err| err, |span| ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("no value in Err expression"),
-                                    Some(span),
-                                ))
-                            })?;
-                            let expr = self.parse_expression(v)?;
-                            Ok(Expression {
-                                inner: ExprKind::Err(Box::new(expr)),
-                                span,
-                            })
-                        }
-                        _ => Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            format!("invalid token in result_literal: {:?}", token.as_rule()),
-                            Some(self.to_ast_span(primary.as_span())?),
-                        ))
-                    }
-                }
-                Rule::named_struct_literal => {
-                    let ns = self.parse_named_struct_literal(primary)?;
-                    Ok(Expression { inner: ExprKind::NamedStruct(ns), span })
-                }
-                Rule::function_call => {
-                    let fc = self.parse_function_call(primary)?;
-                    Ok(Expression { inner: ExprKind::FunctionCall(fc), span })
-                }
-                Rule::foreign_function_call => {
-                    let ffc = self.parse_foreign_function_call(primary)?;
-                    Ok(Expression { inner: ExprKind::ForeignFunctionCall(ffc), span })
-                }
-                Rule::action_call => {
-                    let fc = self.parse_action_call(primary)?;
-                    Ok(Expression { inner: ExprKind::ActionCall(fc), span })
-                }
-                Rule::return_expression => {
-                    let pc = self.descend(primary);
-                    let expression = pc.consume_expression(self)?;
-                    Ok(Expression{inner:ExprKind::Return(Box::new(expression)),span})
-                }
-                Rule::recall_expression => {
-                    let fc = self.parse_recall_call(primary)?;
-                    Ok(Expression { inner: ExprKind::Recall(fc), span })
-                }
-                Rule::enum_reference => {
-                    let er = self.parse_enum_reference(primary)?;
-                    Ok(Expression { inner: ExprKind::EnumReference(er), span })
-                }
-                Rule::query => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("query requires fact literal"),
-                            Some(span),
-                        )
-                    })?;
-                    let fact_literal = self.parse_fact_literal(token)?;
-                    Ok(Expression {
-                        inner: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
-                        span,
-                    })
-                }
-                Rule::exists => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or_else(|| {
-                        ParseError::new(
-                            ParseErrorKind::InvalidFunctionCall,
-                            String::from("exists requires fact literal"),
-                            Some(span),
-                        )
-                    })?;
-                    let fact_literal = self.parse_fact_literal(token)?;
-                    Ok(Expression{
-                        inner: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
-                        span,
-                    })
-                }
-                Rule::count_up_to => {
-                    self.parse_counting_fn(primary, ast::FactCountType::UpTo(span))
-                },
-                Rule::at_least => {
-                    self.parse_counting_fn(primary, ast::FactCountType::AtLeast(span))
-                },
-                Rule::at_most => {
-                    self.parse_counting_fn(primary, ast::FactCountType::AtMost(span))
-                },
-                Rule::exactly => {
-                    self.parse_counting_fn(primary, ast::FactCountType::Exactly(span))
-                },
-                Rule::match_expression => self.parse_match_expression(primary),
-                Rule::if_expr => self.parse_if_expression(primary),
-                Rule::this => {
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression {
-                        inner: ExprKind::Identifier(Ident {
-                            inner: ident!("this"),
-                            span,
-                        }),
-                        span,
-                    })
-                }
-                Rule::todo => {
-                    let span = self.to_ast_span(primary.as_span())?;
-                    Ok(Expression {
-                        inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
-                        span,
-                    })
-                }
-                Rule::test_fail => {
-                    let span = self.to_ast_span(primary.as_span())?;
-                    let mut pairs = primary.into_inner();
-                    let msg = pairs.next().map(|t| self.parse_string_literal(t)).transpose()?;
-                    Ok(Expression {
-                        inner: ExprKind::InternalFunction(InternalFunction::TestFail(msg, span)),
-                        span,
-                    })
-                }
-                Rule::identifier => {
-                    let span = self.to_ast_span(primary.as_span())?;
-                    let ident = self.remain(primary).consume_ident(self)?;
-                    Ok(Expression {
-                        inner: ExprKind::Identifier(ident),
-                        span,
-                    })
-                }
-                Rule::block_expression => self.parse_block_expression(primary),
-                Rule::expression => self.parse_expression(primary),
-                _ => Err(ParseError::new(
-                    ParseErrorKind::Expression,
-                    format!("bad atom: {:?}", primary.as_rule()),
-                    Some(span),
-                )),
-            }
-            })
-            .map_prefix(|op, rhs| {
-                let rhs = rhs?;
-                let op_span = self.to_ast_span(op.as_span())?;
-                let combined_span = op_span.merge(rhs.span);
-
-                let kind = match op.as_rule() {
-                    Rule::not => ExprKind::Not(Box::new(rhs)),
-                    _ => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Expression,
-                            format!("bad prefix: {:?}", op.as_rule()),
-                            Some(op_span),
-                        ))
-                    }
-                };
-                Ok(Expression{inner: kind,span:combined_span})
-            })
-            .map_infix(|lhs, op, rhs| {
-                let lhs = lhs?;
-                let rhs = rhs?;
-                let combined_span = lhs.span.merge(rhs.span);
-
-                let op_span = self.to_ast_span(op.as_span())?;
-                let kind = match op.as_rule() {
-                    Rule::add => {
-                        return Err(ParseError::new(
-                            error::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
-                            String::from("found `+`"),
-                            Some(expr_span)
-                        ));
-                    }
-                    Rule::subtract => {
-                        return Err(ParseError::new(
-                            error::InvalidOperator {lhs: lhs.span, rhs: rhs.span, op: op_span},
-                            String::from("found `-`"),
-                            Some(expr_span)
-                        ));
-                    }
-                    Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
-                    Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
-                    Rule::coalesce => ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
-                    Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
-                    Rule::not_equal => ExprKind::NotEqual(Box::new(lhs), Box::new(rhs)),
-                    Rule::greater_than => ExprKind::GreaterThan(Box::new(lhs), Box::new(rhs)),
-                    Rule::less_than => ExprKind::LessThan(Box::new(lhs), Box::new(rhs)),
-                    Rule::greater_than_or_equal => ExprKind::GreaterThanOrEqual(Box::new(lhs), Box::new(rhs)),
-                    Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
-                    _ => return Err(ParseError::new(
-                        ParseErrorKind::Expression,
-                        format!("bad infix: {:?}", op.as_rule()),
-                        Some(op_span),
-                    )),
-                };
-                Ok(Expression{ inner: kind, span: combined_span })
-            })
-            .map_postfix(|lhs, op| {
-                let lhs = lhs?;
-                let op_span = self.to_ast_span( op.as_span())?;
-                let combined_span = lhs.span.merge(op_span);
-
-                let kind = match op.as_rule() {
-                    Rule::is => {
-                        let mut pairs = op.into_inner();
-                        let token = pairs.next().ok_or_else(|| {
-                            ParseError::new(
-                                ParseErrorKind::InvalidFunctionCall,
-                                String::from("is requires some or none"),
-                                Some(op_span),
-                            )
-                        })?;
-                        let some = match token.as_rule() {
-                            Rule::some => true,
-                            Rule::none => false,
-                            _ => return Err(ParseError::new(ParseErrorKind::Bug, "The grammar requires that 'None' or 'Some' follow `is`. There should be an error from `PolicyParser::parse` if an unexpected rule is here.".to_owned(), None))
-                        };
-                        ExprKind::Is(Box::new(lhs), some)
-                    }
-                    Rule::dot => {
-                        let pc = self.descend(op);
-                        let s = pc.consume_ident(self)?;
-                        ExprKind::Dot(Box::new(lhs), s)
-                    },
-                    Rule::substruct => {
-                        let pc = self.descend(op);
-                        let s = pc.consume_ident(self)?;
-                        ExprKind::Substruct(Box::new(lhs), s)
-                    },
-                    Rule::cast => {
-                        let pc = self.descend(op);
-                        let s = pc.consume_ident(self)?;
-                        ExprKind::Cast(Box::new(lhs), s)
-                    },
-                    Rule::try_op => ExprKind::Try(Box::new(lhs)),
-                    _ => return Err(ParseError::new(
-                        ParseErrorKind::Expression,
-                        format!("bad postfix: {:?}", op.as_rule()),
-                        Some(op_span),
-                    )),
-                };
-                Ok(Expression{inner: kind, span: combined_span})
-            })
+            .map_primary(|primary| self.parse_atom(primary))
+            .map_prefix(|op, rhs| self.parse_prefix(op, rhs?))
+            .map_infix(|lhs, op, rhs| self.parse_infix(expr_span, lhs?, op, rhs?))
+            .map_postfix(|lhs, op| self.parse_postfix(lhs?, op))
             .parse(pairs)
     }
 
