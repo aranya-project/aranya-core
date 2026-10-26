@@ -833,14 +833,14 @@ impl<CS: CipherSuite> LockedChanList<'_, CS> {
     }
 
     fn len(&self) -> Result<usize, Corrupted> {
-        if self.len > const { isize::MAX as usize } {
+        if self.len > isize::MAX as usize {
             return Err(corrupted("`len` is larger than `isize::MAX`"));
         }
         Ok(self.len)
     }
 
     fn cap(&self) -> Result<usize, Corrupted> {
-        if self.cap > const { isize::MAX as usize } {
+        if self.cap > isize::MAX as usize {
             return Err(corrupted("`cap` is larger than `isize::MAX`"));
         }
         Ok(self.cap)
