@@ -59,41 +59,41 @@ field_definition = { identifier ~ ws ~ ":" ~ ws ~ vtype }
 field_insertion = { "+" ~ ws ~ identifier }
 // A field definition list is a list of field definitions. Trailing
 // commas are allowed in any list.
-field_definition_list = _{ field_definition ~ (ws ~ "," ~ ws ~ field_definition)* ~ (ws ~ ",")? }
-// Similar to field_definition_list, but allows field insertion
-field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ (ws ~ "," ~ ws ~ (field_definition | field_insertion))* ~ (ws ~ ",")? }
+field_definition_list = _{ field_definition ~ ws ~ ("," ~ ws ~ field_definition ~ ws)* ~ ("," ~ ws)? }
+// Similar to _field_definition_list, but allows field insertion
+field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ ws ~ ("," ~ ws ~ (field_definition | field_insertion) ~ ws)* ~ ("," ~ ws)? }
 // Keyword for dynamic effect fields
 dynamic = { "dynamic" }
 // An effect field definition works like a regular field but adds the
 // optional "dynamic" keyword.
 effect_field_definition = { identifier ~ ws ~ ":" ~ ws ~ vtype ~ ws ~ dynamic? }
 // Ditto the list form
-effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ (ws ~ "," ~ ws ~ (effect_field_definition | field_insertion))* ~ (ws ~ ",")? }
+effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ ws ~ ("," ~ ws ~ (effect_field_definition | field_insertion) ~ ws)* ~ ("," ~ ws)? }
 
 // ## Structs
 // A struct definition is a list of field definitions surrounded by
 // curly brackets. Note that there are no actual struct types yet -
 // this is only used as a building block for other definitions.
-struct_def = _{ "{" ~ ws ~ (field_definition_and_insertion_list ~ ws)? ~ "}" }
+struct_def = _{ "{" ~ ws ~ field_definition_and_insertion_list? ~ "}" }
 // An effect struct definition is similar but supports the additional
 // "dynamic" keyword.
-effect_struct_def = _{ "{" ~ ws ~ (effect_field_definition_list ~ ws)? ~ "}" }
+effect_struct_def = _{ "{" ~ ws ~ effect_field_definition_list? ~ "}" }
 // Struct composition is shorthand for including the fields of some other
 // struct(s) when defining a struct literal
 struct_composition = { "..." ~ ws ~ identifier }
-struct_composition_list =  _{ struct_composition ~ (ws ~ "," ~ ws ~ struct_composition)* }
+struct_composition_list =  _{ struct_composition ~ ws ~ ("," ~ ws ~ struct_composition ~ ws)* }
 // A struct literal field is an identifier and an expression separated
 // by a colon. The colon marks this as defining the value of the field
 // instead of its type.
 struct_literal_field = { identifier ~ (ws ~ ":" ~ ws ~ expression)? }
 // A struct literal field list is a list of struct literal fields.
-struct_literal_field_list = _{ struct_literal_field ~ (ws ~ "," ~ ws ~ struct_literal_field)* }
+struct_literal_field_list = _{ struct_literal_field ~ ws ~ ("," ~ ws ~ struct_literal_field ~ ws)* }
 // A struct data list is a list of struct literal fields followed by struct compositions.
-struct_data_list = _{ ((struct_literal_field_list ~ ws ~ "," ~ ws ~ struct_composition_list) | struct_literal_field_list | struct_composition_list) ~ (ws ~ ","?) }
+struct_data_list = _{ ((struct_literal_field_list ~ "," ~ ws ~ struct_composition_list) | struct_literal_field_list | struct_composition_list) ~ ("," ~ ws)? }
 // A struct literal is a struct literal field list surrounded by curly
 // brackets. Note that you cannot define struct values - these are only
 // used in commands.
-struct_literal = _{ "{" ~ ws ~ (struct_data_list ~ ws)? ~ "}" }
+struct_literal = _{ "{" ~ ws ~ struct_data_list? ~ "}" }
 // A named struct literal begins with an identifier. Effects and
 // Command literals are named struct literals.
 named_struct_literal = { identifier ~ ws ~ struct_literal }
@@ -101,10 +101,10 @@ named_struct_literal = { identifier ~ ws ~ struct_literal }
 // ## Facts
 // A fact signature key is a list of fields surrounded by square
 // brackets.
-fact_signature_key = { "[" ~ ws ~ (field_definition_list ~ ws)? ~ "]" }
+fact_signature_key = { "[" ~ ws ~ field_definition_list? ~ "]" }
 // A fact signature value is a list of fields surrounded by curly
 // brackets.
-fact_signature_value = { "{" ~ ws ~ (field_definition_list ~ ws)? ~ "}" }
+fact_signature_value = { "{" ~ ws ~ field_definition_list? ~ "}" }
 // A fact signature is made up of an identifier, a key definition, and
 // a value definition.
 fact_signature = { identifier ~ ws ~ fact_signature_key ~ ws ~ "=>" ~ ws ~ fact_signature_value }
@@ -114,12 +114,12 @@ bind = { "?" }
 // key/value pair defining a fact field
 fact_literal_field = { identifier ~ (ws ~ ":" ~ ws ~ (expression | bind))? }
 // sequence of fact fields
-fact_literal_field_list = _{ fact_literal_field ~ (ws ~ "," ~ ws ~ fact_literal_field)* ~ (ws ~ ",")? }
+fact_literal_field_list = _{ fact_literal_field ~ ws ~ ("," ~ ws ~ fact_literal_field ~ ws)* ~ ("," ~ ws)? }
 // A fact literal key is just like a fact signature key except it
 // defines values with literal fields.
-fact_literal_key = { "[" ~ ws ~ (fact_literal_field_list ~ ws)? ~ "]" }
+fact_literal_key = { "[" ~ ws ~ fact_literal_field_list? ~ "]" }
 // Ditto fact literal values.
-fact_literal_value = { "{" ~ ws ~ (fact_literal_field_list ~ ws)? ~ "}" }
+fact_literal_value = { "{" ~ ws ~ fact_literal_field_list? ~ "}" }
 // A fact literal looks just like a fact definition except it defines
 // values for the keys an values.
 fact_literal = { identifier ~ ws ~ fact_literal_key ~ (ws ~ "=>" ~ ws ~ fact_literal_value)? }
@@ -127,7 +127,7 @@ fact_literal = { identifier ~ ws ~ fact_literal_key ~ (ws ~ "=>" ~ ws ~ fact_lit
 // ## Misc
 // Function arguments are a field list surrounded by parentheses. It's
 // used for both actions and functions.
-function_arguments = { "(" ~ ws ~ (field_definition_list ~ ws)? ~ ")" }
+function_arguments = { "(" ~ ws ~ field_definition_list? ~ ")" }
 
 // # Expressions
 // This grammar implements a standard prefix/infix/postfix expression
