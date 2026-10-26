@@ -217,9 +217,7 @@ fn add_random_commands<S: Storage>(
     let free = COMMAND_SAMPLE_MAX
         .checked_sub(sample.len())
         .assume("sample is not overfull")?;
-    let Some(free) = NonZeroUsize::new(free) else {
-        return Ok(());
-    };
+    let free = NonZeroUsize::new(free).assume("heads leave slots for random commands")?;
 
     let gap = gap(top, floor, free)?;
     let offset = random_offset(gap, rng)?;
