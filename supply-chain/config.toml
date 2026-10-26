@@ -154,11 +154,6 @@ criteria = "safe-to-deploy"
 version = "0.8.1"
 criteria = "safe-to-deploy"
 
-[[exemptions.chacha20]]
-version = "0.10.1"
-criteria = "safe-to-deploy"
-notes = "RustCrypto"
-
 [[exemptions.ciborium]]
 version = "0.2.2"
 criteria = "safe-to-deploy"
