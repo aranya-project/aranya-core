@@ -33,22 +33,32 @@ pub(super) fn random_index(rng: &impl Csprng, len: usize) -> Result<usize, Bug> 
     usize::try_from(i).assume("index fits in usize")
 }
 
+/// What [`skip_jump`] does at a merge with no usable skip-list entry.
+pub(super) enum AtMerge<'a> {
+    /// Stop at the merge.
+    Stop,
+    /// Continue from the merge's LCA, so the walk only visits commands
+    /// every head passes through.
+    Lca,
+    /// Continue from a random parent with max cut at least the target.
+    RandomParent(&'a dyn Csprng),
+}
+
 /// Walk back from `start` toward max cut `target`, which must not be above
 /// `start`.
 ///
 /// Takes the lowest skip-list entry at or above `target` when one exists,
-/// otherwise steps to a prior. At a merge with no usable skip, `at_merge`
-/// is given the parents with max cut at least `target` and the merge's LCA,
-/// and returns where to continue, or `None` to stop there.
+/// otherwise steps to a prior. At a merge with no usable skip, does what
+/// `at_merge` says.
 ///
 /// Returns the command at `target` when the walk reaches the segment that
-/// contains it, or the first location at or below `target` that `at_merge`
-/// leads to. If `at_merge` stops the walk, returns the merge's location.
+/// contains it, or the first location at or below `target` that a merge's
+/// LCA leads to. With [`AtMerge::Stop`], returns the merge's location.
 pub(super) fn skip_jump<S: Storage>(
     storage: &S,
     start: Location,
     target: MaxCut,
-    mut at_merge: impl FnMut(&[Location], Location) -> Result<Option<Location>, SyncError>,
+    at_merge: AtMerge<'_>,
 ) -> Result<Location, SyncError> {
     if start.max_cut < target {
         buggy::bug!("skip_jump target is above start");
@@ -79,23 +89,25 @@ pub(super) fn skip_jump<S: Storage>(
         current = match seg.prior() {
             Prior::None => buggy::bug!("root segment starts above target"),
             Prior::Single(p) => p,
-            Prior::Merge(a, b) => {
-                let mut parents: Vec<Location, 2> = Vec::new();
-                for p in [a, b] {
-                    if p.max_cut >= target {
-                        parents.push(p).ok().assume("at most two parents")?;
-                    }
-                }
-                let lca = seg
+            Prior::Merge(a, b) => match at_merge {
+                AtMerge::Stop => return Ok(current),
+                AtMerge::Lca => seg
                     .skip_list()
                     .last()
                     .copied()
-                    .assume("merge skip list must end with LCA")?;
-                match at_merge(&parents, lca)? {
-                    Some(p) => p,
-                    None => return Ok(current),
+                    .assume("merge skip list must end with LCA")?,
+                AtMerge::RandomParent(rng) => {
+                    let mut parents: Vec<Location, 2> = Vec::new();
+                    for p in [a, b] {
+                        if p.max_cut >= target {
+                            parents.push(p).ok().assume("at most two parents")?;
+                        }
+                    }
+                    *parents
+                        .get(random_index(&rng, parents.len())?)
+                        .assume("index in range")?
                 }
-            }
+            },
         };
     }
 }
@@ -118,7 +130,7 @@ pub(super) fn floor<S: Storage>(
     if lca.max_cut <= lowest {
         return Ok(lca.max_cut);
     }
-    let floor = skip_jump(storage, lca, lowest, |_, merge_lca| Ok(Some(merge_lca)))?;
+    let floor = skip_jump(storage, lca, lowest, AtMerge::Lca)?;
     Ok(floor.max_cut)
 }
 
@@ -208,13 +220,7 @@ pub(super) fn build<S: Storage>(
             .nth(pick)
             .copied()
             .assume("picked an eligible head")?;
-        let location = skip_jump(storage, head, target, |parents, _| {
-            Ok(Some(
-                *parents
-                    .get(random_index(rng, parents.len())?)
-                    .assume("index in range")?,
-            ))
-        })?;
+        let location = skip_jump(storage, head, target, AtMerge::RandomParent(rng))?;
         let address = storage.get_command_address(location)?;
         if !exclude(address) && !sample.contains(&address) {
             sample.push(address).ok().assume("sample is not full")?;

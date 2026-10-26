@@ -9,7 +9,7 @@ use super::{
     COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PollIncoming,
     SEGMENT_BUFFER_MAX, SyncError,
     requester::SyncRequestMessage,
-    sample::{self, skip_jump},
+    sample::{self, AtMerge, skip_jump},
     wire::{
         ADDRESS_SERIALIZED_UPPER_BOUND, COMMAND_META_SERIALIZED_UPPER_BOUND, CommandMeta, SyncType,
     },
@@ -555,7 +555,7 @@ impl SyncResponder {
                 head.location()
             } else {
                 truncated = true;
-                skip_jump(storage, head.location(), skip_target, |_, _| Ok(None))?
+                skip_jump(storage, head.location(), skip_target, AtMerge::Stop)?
             };
             heads.push(start)?;
         }
