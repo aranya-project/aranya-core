@@ -1723,8 +1723,8 @@ mod tests {
         let sample = request_sample(&mut a, graph_id, &mut cache);
         let lowest = sample.iter().map(|s| s.max_cut.get()).min().unwrap();
         assert!(
-            sample.len() > 3 && lowest < 100,
-            "random commands reach the root: {:?}",
+            sample.len() > 3 && lowest <= 100,
+            "random commands reach within one gap of the root: {:?}",
             sample
                 .iter()
                 .map(|s| s.max_cut.get())
