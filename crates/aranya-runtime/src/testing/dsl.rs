@@ -2019,7 +2019,6 @@ fn sync<SP: StorageProvider>(
         request_state.provider(),
         request_trx.session_heads(request_cache),
         &Rng,
-        &mut rt_buffers.traversal.primary,
     )?;
 
     let mut received = 0;

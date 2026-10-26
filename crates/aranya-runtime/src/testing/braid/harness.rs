@@ -197,7 +197,6 @@ fn sync_pull(
                 to_c.provider(),
                 req_cache.session_heads(),
                 &Rng,
-                &mut buffers.traversal.primary,
             )
             .expect("requester poll succeeds");
 

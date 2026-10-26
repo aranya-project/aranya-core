@@ -734,9 +734,8 @@ fn test_sync<PS, P, S>(
             .poll(
                 &mut buffer,
                 cs2.provider(),
-                req_transaction.session_heads(&mut request_cache),
+                req_transaction.session_heads(&request_cache),
                 &Rng,
-                &mut rt_buffers.traversal.primary,
             )
             .expect("sync req->res");
 

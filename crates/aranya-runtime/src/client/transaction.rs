@@ -100,7 +100,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// transaction's accumulated (received-but-uncommitted) tips. Call `flush`
     /// first so every accumulated command is in a written segment with a real
     /// location.
-    pub fn session_heads<'a>(&'a self, cache: &'a mut PeerCache) -> SessionHeads<'a> {
+    pub fn session_heads<'a>(&'a self, cache: &'a PeerCache) -> SessionHeads<'a> {
         SessionHeads {
             cache,
             session: Some(&self.heads),
@@ -1707,8 +1707,8 @@ mod test {
         trx.flush(storage).expect("flush must succeed");
 
         // The frontier is the single tip `c`.
-        let mut cache = PeerCache::new();
-        let heads: Vec<LocatedAddress> = trx.session_heads(&mut cache).session_iter().collect();
+        let cache = PeerCache::new();
+        let heads: Vec<LocatedAddress> = trx.session_heads(&cache).session_iter().collect();
         assert_eq!(heads.len(), 1, "expected a single tip, got {heads:?}");
         assert_eq!(heads[0].id, c, "tip should be the last command");
 
@@ -1794,16 +1794,15 @@ mod test {
         let storage = client.provider.get_storage(graph_id).unwrap();
         trx.flush(storage).expect("flush must succeed");
 
-        let mut cache = PeerCache::new();
+        let cache = PeerCache::new();
         let mut syncer = SyncRequester::new(graph_id, aranya_crypto::Rng);
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, sent) = syncer
             .poll(
                 &mut target,
                 &mut client.provider,
-                trx.session_heads(&mut cache),
+                trx.session_heads(&cache),
                 &aranya_crypto::Rng,
-                &mut buffers.traversal.primary,
             )
             .expect("poll must succeed");
         assert!(sent > 0, "sample must not be empty");

@@ -10,7 +10,7 @@ use super::{
     SyncError, SyncReply, responder::SyncResponseMessage, sample, wire::SyncType,
 };
 use crate::{
-    Address, GraphId, LocatedAddress, TraversalBuffer,
+    Address, GraphId, LocatedAddress,
     storage::{Storage as _, StorageError, StorageProvider},
 };
 
@@ -37,6 +37,10 @@ pub(crate) enum SyncRequestMessage {
         /// the provided sample. When sending commands ancestors must be sent
         /// before descendents.
         commands: Vec<Address, COMMAND_SAMPLE_MAX>,
+        /// How many of the first `commands` are session heads: commands
+        /// the requester has received but not committed. The responder
+        /// treats them as held for this request but does not cache them.
+        session_heads: u8,
         /// Asks the responder to forget what it knows the requester holds
         /// before resolving `commands`, because that knowledge may be wrong.
         reset: bool,
@@ -162,7 +166,6 @@ impl SyncRequester {
         provider: &mut impl StorageProvider,
         heads: SessionHeads<'_>,
         rng: &impl Csprng,
-        buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
         let result = match self.state {
@@ -171,7 +174,7 @@ impl SyncRequester {
             }
             S::New => {
                 self.state = S::Start;
-                self.start(self.max_bytes, target, provider, heads, rng, buffer)?
+                self.start(self.max_bytes, target, provider, heads, rng)?
             }
             S::Resync => self.resume(self.max_bytes, target)?,
             S::Reset => {
@@ -377,17 +380,16 @@ impl SyncRequester {
 
     /// Builds the request's sample: the session heads, peer cache heads and
     /// our graph heads, then random commands spread across the graph.
-    /// Records the session heads sent in the peer cache. Returns the sample
-    /// and whether the request should ask the peer to reset.
+    /// Returns the sample and how many of its first entries are session
+    /// heads.
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-        heads: &mut SessionHeads<'_>,
+        heads: &SessionHeads<'_>,
         rng: &impl Csprng,
-        buffer: &mut TraversalBuffer,
-    ) -> Result<(Vec<Address, COMMAND_SAMPLE_MAX>, bool), SyncError> {
+    ) -> Result<(Vec<Address, COMMAND_SAMPLE_MAX>, u8), SyncError> {
         let storage = match provider.get_storage(self.graph_id) {
-            Err(StorageError::NoSuchStorage) => return Ok((Vec::new(), heads.cache.needs_reset())),
+            Err(StorageError::NoSuchStorage) => return Ok((Vec::new(), 0)),
             Err(err) => return Err(SyncError::Storage(err)),
             Ok(storage) => storage,
         };
@@ -395,15 +397,11 @@ impl SyncRequester {
         // The transaction's heads include the committed heads it started
         // from. Only the others are uncommitted.
         let committed = storage.get_heads()?;
-        let session_heads: vec::Vec<LocatedAddress> = heads
+        let session_heads: vec::Vec<Address> = heads
             .session_iter()
             .filter(|h| !committed.iter().any(|c| c.id == h.id))
+            .map(LocatedAddress::address)
             .collect();
-        heads
-            .cache
-            .check_sent_session_heads(&*storage, &session_heads, buffer)?;
-
-        let session_heads: vec::Vec<Address> = session_heads.iter().map(|h| h.address()).collect();
         let cache_heads: vec::Vec<Address> =
             heads.cache.heads().iter().map(|h| h.address()).collect();
         let graph_heads: vec::Vec<Address> = committed
@@ -420,25 +418,30 @@ impl SyncRequester {
             rng,
             |_| false,
         )?;
-        heads
-            .cache
-            .sent_session_heads(sample.iter().copied().filter(|a| session_heads.contains(a)));
-        Ok((sample, heads.cache.needs_reset()))
+        // `build` adds the session heads first.
+        let sent_session_heads = sample
+            .iter()
+            .take_while(|a| session_heads.contains(a))
+            .count();
+        let sent_session_heads =
+            u8::try_from(sent_session_heads).assume("session heads fit in a u8")?;
+        Ok((sample, sent_session_heads))
     }
 
     /// Writes a Subscribe message to target.
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// The peer caches every command in a subscribe's sample, so it carries
+    /// no session heads.
     pub fn subscribe(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        mut heads: SessionHeads<'_>,
+        cache: &PeerCache,
         rng: &impl Csprng,
-        buffer: &mut TraversalBuffer,
         remain_open: u64,
         max_bytes: u64,
     ) -> Result<usize, SyncError> {
-        let (commands, _) = self.get_commands(provider, &mut heads, rng, buffer)?;
+        let (commands, _) = self.get_commands(provider, &cache.session_heads(), rng)?;
         let message = SyncType::Subscribe {
             remain_open,
             max_bytes,
@@ -463,9 +466,8 @@ impl SyncRequester {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        mut heads: SessionHeads<'_>,
+        heads: SessionHeads<'_>,
         rng: &impl Csprng,
-        buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,
@@ -478,7 +480,8 @@ impl SyncRequester {
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let (command_sample, reset) = self.get_commands(provider, &mut heads, rng, buffer)?;
+        let reset = heads.cache.needs_reset();
+        let (command_sample, session_heads) = self.get_commands(provider, &heads, rng)?;
 
         let sent = command_sample.len();
         let message = SyncType::Poll {
@@ -487,6 +490,7 @@ impl SyncRequester {
                 graph_id: self.graph_id,
                 max_bytes,
                 commands: command_sample,
+                session_heads,
                 reset,
             },
         };

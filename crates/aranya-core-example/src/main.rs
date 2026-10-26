@@ -222,9 +222,8 @@ fn sync_graphs(
         .poll(
             &mut buf,
             dest.provider(),
-            trx.session_heads(&mut request_cache),
+            trx.session_heads(&request_cache),
             &Rng,
-            &mut traversal,
         )
         .context("sync poll failed")?;
 

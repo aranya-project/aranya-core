@@ -535,9 +535,8 @@ where
                 let (len, _) = request_syncer.poll(
                     &mut buffer,
                     request_state.provider(),
-                    request_trx.session_heads(&mut request_cache),
+                    request_trx.session_heads(&request_cache),
                     &Rng,
-                    &mut self.buffers.primary,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];

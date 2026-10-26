@@ -145,13 +145,7 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(peer_address).or_default();
-        let (len, _) = syncer.poll(
-            &mut buffer,
-            client.provider(),
-            heads.session_heads(),
-            &Rng,
-            &mut self.rt_buffers.traversal.primary,
-        )?;
+        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads.session_heads(), &Rng)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
         }
@@ -214,9 +208,8 @@ where
         let len = sync_requester.subscribe(
             &mut buffer,
             client.provider(),
-            heads.session_heads(),
+            heads,
             &Rng,
-            &mut self.rt_buffers.traversal.primary,
             remain_open,
             max_bytes,
         )?;

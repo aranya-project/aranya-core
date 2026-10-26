@@ -37,7 +37,7 @@ use wire::{SubscribeResult, SyncHelloType, SyncType};
 /// consumes the transaction, so they can never be held across a commit or
 /// persisted.
 pub struct SessionHeads<'a> {
-    pub(crate) cache: &'a mut PeerCache,
+    pub(crate) cache: &'a PeerCache,
     pub(crate) session: Option<&'a alloc::collections::BTreeMap<CmdId, Location>>,
 }
 
@@ -57,7 +57,7 @@ impl SessionHeads<'_> {
 
 impl PeerCache {
     /// The frontier to advertise to a sync peer when no transaction is open.
-    pub fn session_heads(&mut self) -> SessionHeads<'_> {
+    pub fn session_heads(&self) -> SessionHeads<'_> {
         SessionHeads {
             cache: self,
             session: None,
