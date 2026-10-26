@@ -143,10 +143,6 @@ impl PolicyStore for TestPolicyStore {
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
         Ok(&self.policy)
     }
-
-    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-        Some(&())
-    }
 }
 
 pub struct TestPolicy {

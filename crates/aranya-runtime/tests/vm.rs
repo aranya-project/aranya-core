@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use aranya_crypto::{
-    DeviceId, Rng, SigningKey,
+    Rng,
     default::{DefaultCipherSuite, DefaultEngine},
 };
 use aranya_policy_compiler::Compiler;
@@ -12,7 +12,7 @@ use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{FfiContract, Machine, TypeContract, ffi::FfiModule as _, ident};
 use aranya_runtime::{
     testing::vm::{self, TestPolicyStore},
-    vm_policy::{FLAVORS, FfiSet, SealCtx, VmPolicy, VmPolicyError, VmPolicyStore},
+    vm_policy::{FLAVORS, FfiSet, VmPolicy, VmPolicyError, VmPolicyStore},
 };
 use test_log::test;
 
@@ -24,10 +24,9 @@ fn new_policy_store() -> TestPolicyStore {
 
 /// Create multiple `TestPolicyStore`s with the same seal context.
 fn new_policy_stores<const N: usize>() -> [TestPolicyStore; N] {
-    let seal_ctx = generate_seal_context();
     core::array::from_fn(|_| {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        VmPolicyStore::new(Arc::new(eng), FfiSet::new(), seal_ctx.clone())
+        VmPolicyStore::new(Arc::new(eng), FfiSet::new())
     })
 }
 
@@ -36,15 +35,6 @@ fn compile_policy() -> Vec<u8> {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap();
     let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
     module.write_to_vec().expect("can serialize test module")
-}
-
-/// Generate a random seal context.
-fn generate_seal_context() -> SealCtx<Arc<DefaultEngine>> {
-    use aranya_crypto::id::IdExt as _;
-    SealCtx {
-        author: DeviceId::random(Rng),
-        key: SigningKey::new(Rng),
-    }
 }
 
 #[test]

@@ -155,16 +155,12 @@ fn create_device() -> Result<Device> {
 
 const POLICY_SOURCE: &str = include_str!("policy.md");
 
-fn create_policy_store(
-    seal_ctx: VmSealCtx<CE>,
-    eng: CE,
-    store: MemStore,
-) -> Result<VmPolicyStore<CE>> {
+fn create_policy_store(author: DeviceId, eng: CE, store: MemStore) -> Result<VmPolicyStore<CE>> {
     let ffis = FfiSet::new()
-        .with(DeviceFfi::new(seal_ctx.author))?
+        .with(DeviceFfi::new(author))?
         .with(IdamFfi::new(store))?
         .with(PerspectiveFfi)?;
-    Ok(VmPolicyStore::new(eng, ffis, seal_ctx))
+    Ok(VmPolicyStore::new(eng, ffis))
 }
 
 fn compile_policy() -> Result<Vec<u8>> {
@@ -290,9 +286,10 @@ fn main() -> Result<()> {
     // Step 3: Compile policy for Device A, create Client A
     println!("\n== Device A: Create Team ==");
     println!("\nStep 3: Compiling policy for Device A...");
+    let seal_ctx_a = dev_a.seal_ctx()?;
     let policy_module = compile_policy()?;
-    let policy_store_a = create_policy_store(dev_a.seal_ctx()?, dev_a.engine, dev_a.store)?;
-    let mut cs_a = ClientState::new(policy_store_a, provider_a);
+    let policy_store_a = create_policy_store(seal_ctx_a.author, dev_a.engine, dev_a.store)?;
+    let mut cs_a = ClientState::new(policy_store_a, provider_a, Some(seal_ctx_a));
     let mut sink = PrintSink::new();
     let mut rt_buffers = RuntimeBuffers::new();
     let make_spill = || LibcSpill::new(&storage_root);
@@ -331,8 +328,9 @@ fn main() -> Result<()> {
     // Step 8: Compile policy for Device B, create Client B
     println!("\n== Sync: A -> B ==");
     println!("\nStep 8: Compiling policy for Device B...");
-    let policy_store_b = create_policy_store(dev_b.seal_ctx()?, dev_b.engine, dev_b.store)?;
-    let mut cs_b = ClientState::new(policy_store_b, provider_b);
+    let seal_ctx_b = dev_b.seal_ctx()?;
+    let policy_store_b = create_policy_store(seal_ctx_b.author, dev_b.engine, dev_b.store)?;
+    let mut cs_b = ClientState::new(policy_store_b, provider_b, Some(seal_ctx_b));
 
     // Step 9: Sync graph from A to B
     println!("\nStep 9: Syncing A -> B...");

@@ -85,11 +85,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         ES: Sink<PS::Effect>,
         MS: for<'b> Sink<&'b [u8]>,
     {
+        let seal_ctx = client.seal_ctx.as_ref().ok_or(ClientError::NotAnAuthor)?;
         let policy = client.policy_store.get_policy(self.policy_id)?;
-        let seal_ctx = client
-            .policy_store
-            .seal_ctx(self.policy_id)
-            .ok_or(ClientError::NotAnAuthor)?;
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
@@ -527,10 +524,6 @@ mod test {
         fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             Ok(&SeqPolicy)
         }
-
-        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-            unreachable!()
-        }
     }
 
     enum Never {}
@@ -647,7 +640,7 @@ mod test {
     ///
     /// After commit this yields two heads: "b" and "c".
     fn build_two_head_graph() -> (ClientState<SeqPolicyStore, MemStorageProvider>, GraphId) {
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut buffers = RuntimeBuffers::new();
 
         // The graph_id must equal the init command's id (by protocol).

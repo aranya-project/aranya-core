@@ -1,22 +1,21 @@
 use std::sync::Arc;
 
-use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine};
+use aranya_crypto::{Rng, default::DefaultEngine};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Text, bench_measurements};
 use aranya_runtime::{
     ClientState, RuntimeBuffers, mem_spill,
     storage::linear::testing::MemStorageProvider,
-    testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
+    testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink, random_seal_ctx},
     vm_action, vm_effect,
-    vm_policy::{FLAVORS, FfiSet, SealCtx},
+    vm_policy::{FLAVORS, FfiSet},
 };
 
 /// Create a `TestPolicyStore`.
 fn new_policy_store() -> TestPolicyStore {
-    let seal_ctx = generate_seal_context();
     let (eng, _) = DefaultEngine::from_entropy(Rng);
-    TestPolicyStore::new(Arc::new(eng), FfiSet::new(), seal_ctx)
+    TestPolicyStore::new(Arc::new(eng), FfiSet::new())
 }
 
 /// Compile and serialize the policy.
@@ -29,21 +28,12 @@ fn compile_policy(src: &str) -> Vec<u8> {
     module.write_to_vec().expect("can serialize test module")
 }
 
-/// Generate a random seal context.
-fn generate_seal_context() -> SealCtx<Arc<DefaultEngine>> {
-    use aranya_crypto::id::IdExt as _;
-    SealCtx {
-        author: DeviceId::random(Rng),
-        key: SigningKey::new(Rng),
-    }
-}
-
 fn benchmark_1() {
     let policy = compile_policy(TEST_POLICY_1);
     let policy_store = new_policy_store();
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
@@ -152,9 +142,9 @@ policy-version: 2
 
     let policy = compile_policy(test);
     let policy_store = new_policy_store();
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
