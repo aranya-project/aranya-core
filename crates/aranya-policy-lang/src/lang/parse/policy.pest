@@ -378,10 +378,10 @@ policy_block = { "policy" ~ ws ~ statement_block }
 recall_block = { "recall" ~ ws ~ identifier ~ ws ~ function_arguments ~ ws ~ statement_block }
 // Sequence of command blocks
 command_blocks = _{
-    attributes_block?
-    ~ (ws ~ fields_block)?
-    ~ ws ~ policy_block
-    ~ (ws ~ recall_block)*
+    (attributes_block ~ ws)?
+    ~ (fields_block ~ ws)?
+    ~ policy_block ~ ws
+    ~ (recall_block ~ ws)*
 }
 
 get_key_block = { "get_key" ~ ws ~ statement_block }
@@ -407,7 +407,7 @@ struct_definition = { "struct" ~ ws ~ identifier ~ ws ~ struct_def }
 // enum Result { OK, Err }
 enum_definition = { "enum" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ identifier ~ ws ~ ("," ~ ws ~ identifier ~ ws)* ~ ("," ~ ws)? ~ "}" }
 // command Foo with Base { ... }
-command_definition = { "command" ~ ws ~ identifier ~ ws ~ "with" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ command_blocks ~ ws ~ "}" }
+command_definition = { "command" ~ ws ~ identifier ~ ws ~ "with" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ command_blocks ~ "}" }
 // base[flavor] Foo { ... }
 base_command_definition = { "base" ~ ws ~ flavor ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ base_command_blocks ~ ws ~ "}" }
 // function foo(a int) int { return a }
