@@ -74,10 +74,10 @@ effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ 
 // A struct definition is a list of field definitions surrounded by
 // curly brackets. Note that there are no actual struct types yet -
 // this is only used as a building block for other definitions.
-struct_def = _{ "{" ~ (ws ~ field_definition_and_insertion_list)? ~ ws ~ "}" }
+struct_def = _{ "{" ~ ws ~ (field_definition_and_insertion_list ~ ws)? ~ "}" }
 // An effect struct definition is similar but supports the additional
 // "dynamic" keyword.
-effect_struct_def = _{ "{" ~ (ws ~ effect_field_definition_list)? ~ ws ~ "}" }
+effect_struct_def = _{ "{" ~ ws ~ (effect_field_definition_list ~ ws)? ~ "}" }
 // Struct composition is shorthand for including the fields of some other
 // struct(s) when defining a struct literal
 struct_composition = { "..." ~ ws ~ identifier }
@@ -93,7 +93,7 @@ struct_data_list = _{ ((struct_literal_field_list ~ ws ~ "," ~ ws ~ struct_compo
 // A struct literal is a struct literal field list surrounded by curly
 // brackets. Note that you cannot define struct values - these are only
 // used in commands.
-struct_literal = _{ "{" ~ (ws ~ struct_data_list)? ~ ws ~ "}" }
+struct_literal = _{ "{" ~ ws ~ (struct_data_list ~ ws)? ~ "}" }
 // A named struct literal begins with an identifier. Effects and
 // Command literals are named struct literals.
 named_struct_literal = { identifier ~ ws ~ struct_literal }
@@ -101,10 +101,10 @@ named_struct_literal = { identifier ~ ws ~ struct_literal }
 // ## Facts
 // A fact signature key is a list of fields surrounded by square
 // brackets.
-fact_signature_key = { "[" ~ (ws ~ field_definition_list)? ~ ws ~ "]" }
+fact_signature_key = { "[" ~ ws ~ (field_definition_list ~ ws)? ~ "]" }
 // A fact signature value is a list of fields surrounded by curly
 // brackets.
-fact_signature_value = { "{" ~ (ws ~ field_definition_list)? ~ ws ~ "}" }
+fact_signature_value = { "{" ~ ws ~ (field_definition_list ~ ws)? ~ "}" }
 // A fact signature is made up of an identifier, a key definition, and
 // a value definition.
 fact_signature = { identifier ~ ws ~ fact_signature_key ~ ws ~ "=>" ~ ws ~ fact_signature_value }
@@ -117,9 +117,9 @@ fact_literal_field = { identifier ~ (ws ~ ":" ~ ws ~ (expression | bind))? }
 fact_literal_field_list = _{ fact_literal_field ~ (ws ~ "," ~ ws ~ fact_literal_field)* ~ (ws ~ ",")? }
 // A fact literal key is just like a fact signature key except it
 // defines values with literal fields.
-fact_literal_key = { "[" ~ (ws ~ fact_literal_field_list)? ~ ws ~ "]" }
+fact_literal_key = { "[" ~ ws ~ (fact_literal_field_list ~ ws)? ~ "]" }
 // Ditto fact literal values.
-fact_literal_value = { "{" ~ (ws ~ fact_literal_field_list)? ~ ws ~ "}" }
+fact_literal_value = { "{" ~ ws ~ (fact_literal_field_list ~ ws)? ~ "}" }
 // A fact literal looks just like a fact definition except it defines
 // values for the keys an values.
 fact_literal = { identifier ~ ws ~ fact_literal_key ~ (ws ~ "=>" ~ ws ~ fact_literal_value)? }
@@ -127,7 +127,7 @@ fact_literal = { identifier ~ ws ~ fact_literal_key ~ (ws ~ "=>" ~ ws ~ fact_lit
 // ## Misc
 // Function arguments are a field list surrounded by parentheses. It's
 // used for both actions and functions.
-function_arguments = { "(" ~ (ws ~ field_definition_list)? ~ ws ~ ")" }
+function_arguments = { "(" ~ ws ~ (field_definition_list ~ ws)? ~ ")" }
 
 // # Expressions
 // This grammar implements a standard prefix/infix/postfix expression
@@ -146,7 +146,7 @@ bfalse = { "false" }
 bool_literal = { btrue | bfalse }
 // A function call is an identifier followed by zero or more arguments
 // in parentheses. Tailing commas allowed.
-function_call = { identifier ~ ws ~ "(" ~ (ws ~ expression ~ (ws ~ "," ~ ws ~ expression)* ~ (ws ~ ",")?)? ~ ws ~ ")" }
+function_call = { identifier ~ ws ~ "(" ~ ws ~ (expression ~ ws ~ ("," ~ ws ~ expression ~ ws)* ~ ("," ~ ws)?)? ~ ")" }
 // A foreign function call is an identifier followed by double-colons
 // and a function call.
 foreign_function_call = { identifier ~ ws ~ "::" ~ ws ~ function_call }
@@ -183,7 +183,7 @@ at_most = { "at_most" ~ ws ~ int_literal ~ ws ~ fact_literal }
 // count facts, returning true if the number of facts found equals the expected number
 exactly = { "exactly" ~ ws ~ int_literal ~ ws ~ fact_literal }
 // Similar to the `match` statement, but resolves to a value. e.g. `let x = match { ... }`
-match_expression = { "match" ~ ws ~ expression ~ ws ~ "{" ~ (ws ~ match_expression_arm)* ~ ws ~ "}" }
+match_expression = { "match" ~ ws ~ expression ~ ws ~ "{" ~ ws ~ (match_expression_arm ~ ws)* ~ "}" }
 match_expression_arm = { (match_arm_expression | match_default) ~ ws ~ "=>" ~ ws ~ expression }
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
@@ -193,7 +193,7 @@ if_expr = { "if" ~ ws ~ expression ~ ws ~ block_expression ~ ws ~ "else" ~ ws ~ 
 todo = { "todo()" }
 // Panics with a message. Like `todo()`, but for expressing test
 // expectations of the policy vm/compiler, e.g. `check c else test_fail("...")`.
-test_fail = { "test_fail(" ~ (ws ~ string_literal)? ~ ws ~ ")" }
+test_fail = { "test_fail(" ~ ws ~ (string_literal ~ ws)? ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{
@@ -309,7 +309,7 @@ check_statement = { "check" ~ ws ~ expression ~ ws ~ "else" ~ ws ~ expression }
 match_arm_expression = { expression ~ (ws ~ "|" ~ ws ~ expression)* }
 match_default = { "_" }
 match_arm = { (match_arm_expression | match_default) ~ ws ~ "=>" ~ ws ~ statement_block }
-match_statement = { "match" ~ ws ~ expression ~ ws ~ "{" ~ (ws ~ match_arm)* ~ ws ~ "}" }
+match_statement = { "match" ~ ws ~ expression ~ ws ~ "{" ~ ws ~ (match_arm ~ ws)* ~ "}" }
 // if - else if - else
 if_statement = {
     "if" ~ ws ~ expression ~ ws ~ if_branch
@@ -362,7 +362,7 @@ statements = _{
     | function_call
     | action_call
 }
-statement_block = _{ "{" ~ (ws ~ statements)* ~ ws ~ "}" }
+statement_block = _{ "{" ~ ws ~ (statements ~ ws)* ~ "}" }
 
 // ## Command blocks
 // Command attributes
@@ -399,13 +399,13 @@ immutable_modifier = { "immutable" }
 use_definition = { "use" ~ ws ~ identifier }
 fact_definition = { immutable_modifier? ~ ws ~ "fact" ~ ws ~ fact_signature }
 // action[flavor] foo(a int) [result[unit, T]] { ... }
-action_definition = { "action" ~ ws ~ flavor ~ ws ~ identifier ~ ws ~ function_arguments ~ (ws ~ result_t)? ~ ws ~ statement_block }
+action_definition = { "action" ~ ws ~ flavor ~ ws ~ identifier ~ ws ~ function_arguments ~ ws ~ (result_t ~ ws)? ~ statement_block }
 // effect Foo { bar id }
 effect_definition = { "effect" ~ ws ~ identifier ~ ws ~ effect_struct_def }
 // struct Foo { bar id }
 struct_definition = { "struct" ~ ws ~ identifier ~ ws ~ struct_def }
 // enum Result { OK, Err }
-enum_definition = { "enum" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ identifier ~ (ws ~ "," ~ ws ~ identifier)* ~ (ws ~ ",")? ~ ws ~ "}" }
+enum_definition = { "enum" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ identifier ~ ws ~ ("," ~ ws ~ identifier ~ ws)* ~ ("," ~ ws)? ~ "}" }
 // command Foo with Base { ... }
 command_definition = { "command" ~ ws ~ identifier ~ ws ~ "with" ~ ws ~ identifier ~ ws ~ "{" ~ ws ~ command_blocks ~ ws ~ "}" }
 // base[flavor] Foo { ... }
@@ -438,12 +438,12 @@ top_level_statement = _{
 // end of input markers. Without the end of input marker, the input
 // would only be parsed until the first non-matching text and you would
 // get a partially parsed document instead of a parse error.
-file = _{ SOI ~ (ws ~ top_level_statement)* ~ ws ~ EOI }
+file = _{ SOI ~ ws ~ (top_level_statement ~ ws)* ~ EOI }
 
 ffi_function_decl = _{ function_decl | finish_function_decl }
 ffi_def = _{ SOI ~ ws ~ ffi_function_decl ~ ws ~ EOI }
 
-ffi_struct_or_enum_def = _{ SOI ~ (ws ~ (struct_definition | enum_definition))* ~ ws ~ EOI }
+ffi_struct_or_enum_def = _{ SOI ~ ws ~ ((struct_definition | enum_definition) ~ ws)* ~ EOI }
 
 // Used exclusively when parsing an expression on its own
 complete_expression = _{ SOI ~ ws ~ expression ~ ws ~ EOI }
