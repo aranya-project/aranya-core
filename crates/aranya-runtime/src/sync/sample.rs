@@ -153,7 +153,9 @@ pub(super) fn build<S: Storage>(
 
     // Heads.
     for group in head_groups {
-        let room = HEADS_MAX.saturating_sub(sample.len());
+        let room = HEADS_MAX
+            .checked_sub(sample.len())
+            .assume("heads fit in their slots")?;
         let mut group: vec::Vec<Address> = group
             .iter()
             .copied()
@@ -192,7 +194,10 @@ pub(super) fn build<S: Storage>(
     if free == 0 {
         return Ok(sample);
     }
-    let span = top.get().saturating_sub(floor.get());
+    let span = top
+        .get()
+        .checked_sub(floor.get())
+        .assume("floor is not above the tallest head")?;
     let gap = span.div_ceil(free).max(COMMAND_RESPONSE_MAX as u64);
 
     // Offset, uniform in gap/2..=gap.
