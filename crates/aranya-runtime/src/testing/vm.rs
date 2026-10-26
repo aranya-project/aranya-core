@@ -2,6 +2,7 @@
 
 extern crate alloc;
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
+use core::assert_matches;
 
 use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
@@ -514,10 +515,7 @@ pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyE
             vm_action!(try_result(true)),
         )
         .expect_err("Err action should fail");
-    assert!(
-        matches!(&err, ClientError::PolicyError(_)),
-        "expected PolicyError, got {err:?}"
-    );
+    assert_matches!(&err, ClientError::PolicyError(_));
 
     Ok(())
 }

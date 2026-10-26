@@ -556,6 +556,8 @@ impl<T: Readable> Deref for Handle<T> {
 
 #[cfg(test)]
 mod tests {
+    use core::assert_matches;
+
     use super::*;
     use crate::{
         CmdId, MaxCut, SegmentIndex,
@@ -701,7 +703,7 @@ mod tests {
         writer.file.write_all(ROOT_A, &[0xFF; 64]).unwrap();
         drop(writer);
 
-        assert!(matches!(manager.open(id), Err(StorageError::IoError)));
+        assert_matches!(manager.open(id), Err(StorageError::IoError));
     }
 
     #[test]
@@ -718,11 +720,8 @@ mod tests {
         {
             let mut writer = manager.create(graph_id).unwrap();
             // Before any commit the head set / fact cache are absent.
-            assert!(matches!(writer.heads(), Err(StorageError::NotInitialized)));
-            assert!(matches!(
-                writer.fact_cache(),
-                Err(StorageError::NotInitialized)
-            ));
+            assert_matches!(writer.heads(), Err(StorageError::NotInitialized));
+            assert_matches!(writer.fact_cache(), Err(StorageError::NotInitialized));
 
             writer.commit(&heads, FactCacheOffset::new(1234)).unwrap();
             assert_eq!(writer.heads().unwrap(), heads);

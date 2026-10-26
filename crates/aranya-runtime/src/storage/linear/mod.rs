@@ -1298,6 +1298,8 @@ impl Command for LinearCommand<'_> {
 
 #[cfg(test)]
 mod test {
+    use core::assert_matches;
+
     use testing::Manager;
 
     use super::*;
@@ -1420,10 +1422,10 @@ mod test {
         let mut provider = LinearStorageProvider::new(Manager::new());
         let mut p = provider.new_perspective(PolicyId::default());
         // An init-shaped command must be persisted with Priority::Init.
-        assert!(matches!(
+        assert_matches!(
             p.add_command(&Init, Priority::Basic(0)),
             Err(StorageError::Bug(_))
-        ));
+        );
     }
 
     struct LinearBackend;

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt};
+use std::{assert_matches, cell::RefCell, fmt};
 
 use aranya_policy_ast::{
     self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
@@ -1753,10 +1753,7 @@ impl ChunkParser<'_> {
     fn parse_function_decl(&self, item: Pair<'_, Rule>) -> Result<ast::FunctionDecl, ParseError> {
         let rule = item.as_rule();
 
-        assert!(matches!(
-            rule,
-            Rule::function_decl | Rule::finish_function_decl
-        ));
+        assert_matches!(rule, Rule::function_decl | Rule::finish_function_decl);
 
         let pc = self.descend(item);
         let name = pc.consume_ident(self)?;
@@ -1984,10 +1981,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
 
         let rule = decl.as_rule();
 
-        assert!(matches!(
-            rule,
-            Rule::function_decl | Rule::finish_function_decl
-        ));
+        assert_matches!(rule, Rule::function_decl | Rule::finish_function_decl);
 
         let pc = parser.descend(decl.clone());
         let name = pc.consume_ident(&parser)?;
