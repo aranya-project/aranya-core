@@ -3,9 +3,12 @@
 //! A [`PolicyStore`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+pub mod store;
+
 pub use aranya_crypto::PolicyId;
 use buggy::Bug;
 
+pub use self::store::ByteStore;
 use crate::{
     Address, MAX_COMMAND_LENGTH,
     command::{CmdId, Command, Priority},
@@ -22,6 +25,8 @@ pub enum PolicyStoreError {
     UnsupportedPolicy,
     #[error("unknown policy")]
     UnknownPolicy,
+    #[error("IO error")]
+    Io,
     #[error(transparent)]
     Bug(#[from] Bug),
 }

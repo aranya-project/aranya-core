@@ -61,6 +61,9 @@ pub mod policy {
     //! single-policy store used by [`crate::ClientState`]; construct one
     //! with [`VmPolicyStore::new`].
 
+    #[cfg(feature = "libc")]
+    #[doc(inline)]
+    pub use aranya_runtime::policy::store::libc::FileStore;
     #[doc(inline)]
     pub use aranya_runtime::vm_policy::{
         FLAVORS, FfiCallable, FfiSet, SealCtx as VmSealCtx, VmAction, VmEffect, VmEffectData,

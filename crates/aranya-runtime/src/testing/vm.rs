@@ -324,7 +324,8 @@ impl Sink<VmEffect> for VecSink {
     }
 }
 
-pub type TestPolicyStore = VmPolicyStore<Arc<DefaultEngine>>;
+pub type TestPolicyStore =
+    VmPolicyStore<crate::policy::store::testing::NullStore, Arc<DefaultEngine>>;
 
 pub fn random_seal_ctx() -> (SealCtx<Arc<DefaultEngine>>, Vec<u8>) {
     let seal_ctx = SealCtx {

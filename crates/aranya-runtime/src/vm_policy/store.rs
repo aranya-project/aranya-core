@@ -9,7 +9,7 @@ use aranya_policy_vm::{Identifier, Machine, Module, ModuleData};
 use tracing::error;
 
 use super::{FfiCallable, VmEffect, VmPolicy};
-use crate::{PolicyStore, PolicyStoreError};
+use crate::{ByteStore, PolicyStore, PolicyStoreError};
 
 #[derive(Debug, thiserror::Error)]
 #[error("duplicate ffi name: {0}")]
@@ -20,16 +20,18 @@ pub struct DuplicateFfiName(Identifier);
 pub struct MissingFfiName(Identifier);
 
 /// [`PolicyStore`] implementation which holds [`VmPolicy`].
-pub struct VmPolicyStore<CE: Engine> {
+pub struct VmPolicyStore<BS, CE: Engine> {
+    byte_store: BS,
     engine: CE,
     ffis: FfiSet<CE>,
     policies: BTreeMap<PolicyId, Arc<VmPolicy<CE>>>,
 }
 
-impl<CE: Engine> VmPolicyStore<CE> {
+impl<BS, CE: Engine> VmPolicyStore<BS, CE> {
     /// Create a new VM policy store.
-    pub fn new(engine: CE, ffis: FfiSet<CE>) -> Self {
+    pub fn new(byte_store: BS, engine: CE, ffis: FfiSet<CE>) -> Self {
         Self {
+            byte_store,
             engine,
             ffis,
             policies: BTreeMap::new(),
@@ -37,9 +39,9 @@ impl<CE: Engine> VmPolicyStore<CE> {
     }
 }
 
-impl<CE: Engine + Clone> VmPolicyStore<CE> {
+impl<BS: ByteStore, CE: Engine + Clone> VmPolicyStore<BS, CE> {
     /// Load a serialized policy module into a vm policy instance.
-    fn load_policy(&mut self, policy: &[u8]) -> Result<VmPolicy<CE>, PolicyStoreError> {
+    fn load_policy(&mut self, policy: &[u8]) -> Result<Arc<VmPolicy<CE>>, PolicyStoreError> {
         let module = Module::read_from_slice(policy).map_err(|error| {
             error!(%error, "could not load policy");
             PolicyStoreError::InvalidPolicy
@@ -68,11 +70,11 @@ impl<CE: Engine + Clone> VmPolicyStore<CE> {
             PolicyStoreError::UnsupportedPolicy
         })?;
 
-        Ok(policy)
+        Ok(Arc::new(policy))
     }
 }
 
-impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
+impl<BS: ByteStore, CE: Engine + Clone> PolicyStore for VmPolicyStore<BS, CE> {
     type Policy = Arc<VmPolicy<CE>>;
     type Effect = VmEffect;
 
@@ -83,18 +85,34 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
             PolicyId::new::<<CE as Engine>::CS>(b"VmPolicyId-v1", core::iter::once(policy_bytes));
 
         if !self.policies.contains_key(&id) {
+            self.byte_store.put(id, policy_bytes).map_err(|e| {
+                tracing::error!(error = %e, "could not store policy bytes");
+                PolicyStoreError::Io
+            })?;
             let policy = self.load_policy(policy_bytes)?;
-            self.policies.insert(id, Arc::new(policy));
+            self.policies.insert(id, policy);
         }
 
         Ok(id)
     }
 
     fn get_policy(&mut self, id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
-        self.policies
-            .get(&id)
-            .cloned()
-            .ok_or(PolicyStoreError::UnknownPolicy)
+        if let Some(policy) = self.policies.get(&id).cloned() {
+            return Ok(policy);
+        }
+
+        let bytes = self
+            .byte_store
+            .get(id)
+            .map_err(|e| {
+                tracing::error!(error = %e, "could not load policy bytes");
+                PolicyStoreError::Io
+            })?
+            .ok_or(PolicyStoreError::UnknownPolicy)?;
+
+        let policy = self.load_policy(&bytes)?;
+        self.policies.insert(id, Arc::clone(&policy));
+        Ok(policy)
     }
 }
 
