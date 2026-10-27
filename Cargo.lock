@@ -707,28 +707,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
-name = "canary-alloc"
-version = "0.0.0"
-dependencies = [
- "aranya-crypto",
-]
-
-[[package]]
-name = "canary-std"
-version = "0.0.0"
-dependencies = [
- "aranya-core",
- "aranya-crypto",
- "aranya-device-ffi",
- "aranya-idam-ffi",
- "aranya-perspective-ffi",
- "aranya-policy-ast",
- "aranya-policy-module",
- "aranya-policy-vm",
- "aranya-runtime",
-]
-
-[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -2,11 +2,6 @@
 resolver = "2"
 
 members = [
-	"canaries/*",
-	"crates/*",
-]
-
-default-members = [
 	"crates/*",
 ]
 
