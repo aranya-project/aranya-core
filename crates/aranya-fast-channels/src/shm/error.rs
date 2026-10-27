@@ -57,6 +57,9 @@ pub enum Corrupted {
     /// The `SharedMem`'s key size is incorrect.
     #[error("invalid SharedMem key size: {0}")]
     SharedMemKeySize(usize),
+    /// The `SharedMem`'s nonce size is incorrect.
+    #[error("invalid SharedMem nonce size: {0}")]
+    SharedMemNonceSize(usize),
     /// The `ChanList`'s magic value was incorrect.
     #[error("invalid `ChanList` magic: {0}")]
     ChanListMagic(u32),
@@ -106,6 +109,10 @@ pub(super) const fn bad_page_alignment(aligned: bool) -> Corrupted {
 
 pub(super) const fn bad_state_key_size(size: usize) -> Corrupted {
     Corrupted::SharedMemKeySize(size)
+}
+
+pub(super) const fn bad_state_nonce_size(size: usize) -> Corrupted {
+    Corrupted::SharedMemNonceSize(size)
 }
 
 pub(super) const fn bad_chanlist_magic(magic: u32) -> Corrupted {

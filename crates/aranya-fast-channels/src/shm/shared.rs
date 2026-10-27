@@ -21,8 +21,8 @@ use super::{
     align::CacheAligned,
     error::{
         Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
-        bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
-        corrupted,
+        bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_nonce_size,
+        bad_state_size, bad_state_version, corrupted,
     },
     path::{Flag, Mode, Path},
 };
@@ -146,6 +146,9 @@ impl<CS: CipherSuite> State<CS> {
         }
         if shm.key_size != SharedMem::<CS>::KEY_SIZE {
             return Err(bad_state_key_size(shm.key_size));
+        }
+        if shm.nonce_size != SharedMem::<CS>::NONCE_SIZE {
+            return Err(bad_state_nonce_size(shm.nonce_size));
         }
         Ok(())
     }
