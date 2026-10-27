@@ -1,10 +1,9 @@
 use alloc::vec::Vec;
-use core::cmp::Ordering;
+use core::{cmp::Ordering, hash::BuildHasherDefault};
 
 use buggy::{Bug, BugExt as _, bug};
 
 use crate::{Location, MaxCut, SegmentIndex, StorageError};
-
 #[derive(Debug)]
 pub(crate) struct TraversalQueueWithCoverage {
     entries: Vec<Location>,
@@ -14,7 +13,11 @@ pub(crate) struct TraversalQueueWithCoverage {
 
 #[derive(Debug)]
 pub(crate) struct TraversalQueueNoDuplicates {
-    entries: Vec<Location>,
+    entries: priority_queue::PriorityQueue<
+        SegmentIndex,
+        MaxCut,
+        BuildHasherDefault<rustc_hash::FxHasher>,
+    >,
 }
 
 #[derive(Debug)]
@@ -232,7 +235,7 @@ impl TraversalQueueWithCoverage {
 impl TraversalQueueNoDuplicates {
     pub(crate) fn new() -> Self {
         Self {
-            entries: Vec::new(),
+            entries: priority_queue::PriorityQueue::with_default_hasher(),
         }
     }
 
@@ -245,21 +248,19 @@ impl TraversalQueueNoDuplicates {
     /// If an entry with the same segment exists, its max cut will be updated
     /// to the max of the two.
     pub(crate) fn push(&mut self, loc: Location) -> Result<(), StorageError> {
-        if let Some(entry) = self.entries.iter_mut().find(|x| x.same_segment(loc)) {
-            entry.max_cut = entry.max_cut.max(loc.max_cut);
-        } else {
-            self.entries.push(loc);
+        if self
+            .entries
+            .get_priority(&loc.segment)
+            .is_none_or(|&old| old < loc.max_cut)
+        {
+            self.entries.push(loc.segment, loc.max_cut);
         }
         Ok(())
     }
 
     /// Pop the location with the highest max cut, discarding the covered flag.
     pub(crate) fn pop(&mut self) -> Result<Option<Location>, StorageError> {
-        let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
-            return Ok(None);
-        };
-        let loc = self.entries.swap_remove(i);
-        Ok(Some(loc))
+        Ok(self.entries.pop().map(|(seg, mc)| Location::new(seg, mc)))
     }
 }
 
