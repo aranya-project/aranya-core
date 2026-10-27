@@ -204,6 +204,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         payload: &[u8],
         envelope: &Envelope<'_>,
         facts: &mut impl FactPerspective,
+        is_ephemeral: bool,
     ) -> Result<(), PolicyError> {
         let mut sink = NullSink;
         let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
@@ -220,7 +221,8 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 PolicyError::Panic
             })?;
 
-        open_with_key(key, command_struct, payload, envelope).map_err(|_| PolicyError::Panic)
+        open_with_key(key, command_struct, payload, envelope, is_ephemeral)
+            .map_err(|_| PolicyError::Panic)
     }
 }
 
@@ -306,7 +308,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
         match placement {
             CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
-                self.open_command(&command_struct, payload, &envelope, facts)?;
+                self.open_command(&command_struct, payload, &envelope, facts, def_is_ephemeral)?;
             }
             CommandPlacement::OnGraphInBraid => {
                 // Bypass real open and just deserialize.
