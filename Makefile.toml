@@ -219,7 +219,6 @@ install_crate = { crate_name = "taplo-cli", version = "0.10.0", binary = "taplo"
 [tasks.check-features]
 category = "correctness"
 description = "Check features"
-workspace = true
 command = "cargo"
 args = ["--verbose", "check-all-features"]
 dependencies = ["install-cargo-all-features"]
