@@ -430,7 +430,7 @@ impl SyncResponder {
         let mut have_cursor: usize = 0;
 
         // heads queue: segments to process, popped by highest max_cut.
-        let heads = buffers.primary.get();
+        let heads = buffers.primary.get_queue_with_coverage();
 
         // Jump from each head toward highest_have + SEGMENT_BUFFER_MAX before
         // starting the main traversal, so per-round cost is O(log n) instead
@@ -449,7 +449,7 @@ impl SyncResponder {
         }
 
         // pending queue: segments tentatively needed by the peer.
-        let pending = buffers.secondary.get();
+        let pending = buffers.secondary.get_queue_with_coverage();
 
         // Accumulate needed segments, keeping only the SEGMENT_BUFFER_MAX
         // entries with the lowest max_cut (ancestors first). When full,

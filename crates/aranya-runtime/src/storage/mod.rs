@@ -16,11 +16,12 @@ use core::{borrow::Borrow, fmt, ops::Deref};
 use buggy::{Bug, BugExt as _};
 use rend::u64_le;
 
+pub(crate) use self::queue::TraversalQueueWithDuplicates;
+use self::queue::{TraversalQueueNoDuplicates, TraversalQueueWithCoverage};
 #[cfg(feature = "libc")]
 pub use self::spill::LibcSpill;
 pub use self::{
     head_set::HeadSet,
-    queue::TraversalQueue,
     spill::{MemSpill, mem_spill},
 };
 use crate::{Address, CmdId, Command, CommandExt as _, PolicyId, Prior, Priority, util::mem_usage};
@@ -48,20 +49,36 @@ pub const QUEUE_CAPACITY: usize = 512;
 ///
 /// Access via [`get()`](Self::get), which clears the buffer automatically.
 pub struct TraversalBuffer {
-    queue: TraversalQueue,
+    queue_with_coverage: TraversalQueueWithCoverage,
+    queue_no_duplicates: TraversalQueueNoDuplicates,
+    queue_with_duplicates: TraversalQueueWithDuplicates,
 }
 
 impl TraversalBuffer {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            queue: TraversalQueue::new(),
+            queue_with_coverage: TraversalQueueWithCoverage::new(),
+            queue_no_duplicates: TraversalQueueNoDuplicates::new(),
+            queue_with_duplicates: TraversalQueueWithDuplicates::new(),
         }
     }
 
     /// Returns a cleared queue ready for use.
-    pub fn get(&mut self) -> &mut TraversalQueue {
-        self.queue.clear();
-        &mut self.queue
+    pub(crate) fn get_queue_with_coverage(&mut self) -> &mut TraversalQueueWithCoverage {
+        self.queue_with_coverage.clear();
+        &mut self.queue_with_coverage
+    }
+
+    /// Returns a cleared queue ready for use.
+    pub(crate) fn get_queue_no_duplicates(&mut self) -> &mut TraversalQueueNoDuplicates {
+        self.queue_no_duplicates.clear();
+        &mut self.queue_no_duplicates
+    }
+
+    /// Returns a cleared queue ready for use.
+    pub(crate) fn get_queue_with_duplicates(&mut self) -> &mut TraversalQueueWithDuplicates {
+        self.queue_with_duplicates.clear();
+        &mut self.queue_with_duplicates
     }
 }
 
@@ -82,7 +99,7 @@ pub struct TraversalBuffers {
 }
 
 impl TraversalBuffers {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             primary: TraversalBuffer::new(),
             secondary: TraversalBuffer::new(),
@@ -419,7 +436,7 @@ pub trait StorageProvider {
 fn search_queued<S: Storage + ?Sized>(
     storage: &S,
     address: Address,
-    queue: &mut TraversalQueue,
+    queue: &mut TraversalQueueNoDuplicates,
 ) -> Result<Option<Location>, StorageError> {
     while let Some(loc) = queue.pop()? {
         debug_assert!(
@@ -475,7 +492,7 @@ pub trait Storage {
         // The graph may be multi-head (lazy merges). Run one search seeded
         // with every head that could reach the target, so ancestry shared
         // between heads is traversed once rather than once per head.
-        let queue = buffer.get();
+        let queue = buffer.get_queue_no_duplicates();
         for head in self.get_heads()?.iter() {
             if head.max_cut >= address.max_cut {
                 queue.push(head.location())?;
@@ -497,7 +514,7 @@ pub trait Storage {
             return Ok(None);
         }
 
-        let queue = buffer.get();
+        let queue = buffer.get_queue_no_duplicates();
         queue.push(start)?;
         search_queued(self, address, queue)
     }
@@ -597,7 +614,7 @@ pub trait Storage {
             return Ok(false);
         }
 
-        let queue = buffer.get();
+        let queue = buffer.get_queue_no_duplicates();
         queue.push(start_location)?;
 
         while let Some(loc) = queue.pop()? {

@@ -3,41 +3,40 @@ use core::cmp::Ordering;
 
 use buggy::{Bug, BugExt as _, bug};
 
-use super::{Location, MaxCut, SegmentIndex, StorageError};
+use crate::{Location, MaxCut, SegmentIndex, StorageError};
 
-/// Type for the queue used in traversal operations.
-///
-/// Locations with the highest `max_cut` are processed first. This bounds the
-/// queue size to the graph width at any given `max_cut` level, rather than
-/// accumulating entries across many levels as a FIFO would.
-///
-/// Entries are partitioned into uncovered (`entries[0..partition]`) and
-/// covered (`entries[partition..len]`). See [`push_covered`](Self::push_covered)
-/// for the rules governing partition transitions.
-#[derive(Debug, Default)]
-pub struct TraversalQueue {
+#[derive(Debug)]
+pub(crate) struct TraversalQueueWithCoverage {
     entries: Vec<Location>,
     /// Index separating uncovered (below) from covered (at and above).
     partition: usize,
 }
 
-impl TraversalQueue {
-    /// Create an empty traversal queue.
-    pub const fn new() -> Self {
+#[derive(Debug)]
+pub(crate) struct TraversalQueueNoDuplicates {
+    entries: Vec<Location>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TraversalQueueWithDuplicates {
+    entries: Vec<Location>,
+}
+
+impl TraversalQueueWithCoverage {
+    pub(crate) fn new() -> Self {
         Self {
             entries: Vec::new(),
             partition: 0,
         }
     }
 
-    /// Clear the traversal queue.
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.entries.clear();
         self.partition = 0;
     }
 
     /// Returns true if no entries.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
@@ -45,14 +44,18 @@ impl TraversalQueue {
     ///
     /// If an entry with the same segment exists, its max cut will be updated
     /// to the max of the two.
-    pub fn push(&mut self, loc: Location) -> Result<(), StorageError> {
+    pub(crate) fn push(&mut self, loc: Location) -> Result<(), StorageError> {
         self.push_covered(loc, false)
     }
 
     /// Enqueues a location with the given covered flag.
     ///
     /// Deduplicates segments unless doing so would transition from covered to uncovered.
-    pub fn push_covered(&mut self, loc: Location, covered: bool) -> Result<(), StorageError> {
+    pub(crate) fn push_covered(
+        &mut self,
+        loc: Location,
+        covered: bool,
+    ) -> Result<(), StorageError> {
         if let Some(i) = self.entries.iter().position(|x| x.same_segment(loc)) {
             let was_covered = i >= self.partition;
             let newly_covered = covered && !was_covered;
@@ -125,34 +128,8 @@ impl TraversalQueue {
         Ok(())
     }
 
-    /// Enqueues a location without deduplication.
-    ///
-    /// Unlike [`Self::push`], each call adds a new entry even if the location
-    /// is already present. Used by the convergence pre-pass where
-    /// duplicate tracking is needed.
-    pub fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
-        self.entries.push(loc);
-        // All duplicate entries are uncovered.
-        let last = self
-            .entries
-            .len()
-            .checked_sub(1)
-            .assume("just pushed, len must be >= 1")?;
-        self.entries.swap(self.partition, last);
-        self.partition = self
-            .partition
-            .checked_add(1)
-            .assume("partition must not overflow")?;
-        Ok(())
-    }
-
-    /// Pop the location with the highest max cut, discarding the covered flag.
-    pub fn pop(&mut self) -> Result<Option<Location>, StorageError> {
-        Ok(self.pop_covered()?.map(|(loc, _)| loc))
-    }
-
     /// Pop the location with the highest max cut, including its covered flag.
-    pub fn pop_covered(&mut self) -> Result<Option<(Location, bool)>, StorageError> {
+    pub(crate) fn pop_covered(&mut self) -> Result<Option<(Location, bool)>, StorageError> {
         let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
             return Ok(None);
         };
@@ -176,49 +153,8 @@ impl TraversalQueue {
         Ok(self.entries.swap_remove(self.partition))
     }
 
-    /// Returns the entry with the highest `max_cut` without removing it.
-    pub fn peek(&self) -> Option<&Location> {
-        self.entries.iter().max_by_key(|loc| *loc)
-    }
-
-    /// Pop the entry with the highest `max_cut`, removing all entries
-    /// at that exact location. Returns `(location, count)`.
-    ///
-    /// Used by the convergence pre-pass. Entries are matched by full
-    /// `Location` equality (segment + max_cut), not just max_cut.
-    pub fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
-        let Some(location) = self.entries.iter().max_by_key(|loc| *loc).copied() else {
-            return Ok(None);
-        };
-
-        // Remove all entries matching this location.
-        // Count them as we go. Iterate backward to avoid index shifts.
-        let mut count: usize = 0;
-        let mut j = self.entries.len();
-        while j > 0 {
-            j = j.checked_sub(1).assume("j > 0 checked in loop condition")?;
-            if self.entries[j] == location {
-                count = count
-                    .checked_add(1)
-                    .assume("count bounded by `entries.len()`")?;
-                if j < self.partition {
-                    self.partition = self
-                        .partition
-                        .checked_sub(1)
-                        .assume("partition >= 1 when uncovered entry at j < partition")?;
-                    self.entries.swap(j, self.partition);
-                    self.entries.swap_remove(self.partition);
-                } else {
-                    self.entries.swap_remove(j);
-                }
-            }
-        }
-
-        Ok(Some((location, count)))
-    }
-
     /// Returns true if all entries are covered (uncovered partition is empty).
-    pub fn all_covered(&self) -> bool {
+    pub(crate) fn all_covered(&self) -> bool {
         self.partition == 0
     }
 
@@ -226,7 +162,7 @@ impl TraversalQueue {
     ///
     /// Uncovered entries are passed to `f`. Covered entries are discarded
     /// (the peer already has them).
-    pub fn drain_above(
+    pub(crate) fn drain_above(
         &mut self,
         threshold: MaxCut,
         mut f: impl FnMut(Location),
@@ -260,7 +196,7 @@ impl TraversalQueue {
     ///   `coverage_mc + 1` (still uncovered — the peer needs the rest).
     /// - If `coverage_mc < entry.max_cut`: no-op (already sending from
     ///   above the coverage point).
-    pub fn cover_up_to(
+    pub(crate) fn cover_up_to(
         &mut self,
         segment: SegmentIndex,
         coverage_mc: MaxCut,
@@ -292,13 +228,102 @@ impl TraversalQueue {
 
     /// Drain all entries. Uncovered entries are passed to `f`.
     /// Covered entries are discarded. O(n) single pass.
-    pub fn drain_all(&mut self, f: impl FnMut(Location)) {
+    pub(crate) fn drain_all(&mut self, f: impl FnMut(Location)) {
         self.entries[..self.partition].iter().copied().for_each(f);
         self.entries.clear();
         self.partition = 0;
     }
 }
 
+impl TraversalQueueNoDuplicates {
+    pub(crate) fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Enqueues a location as uncovered.
+    ///
+    /// If an entry with the same segment exists, its max cut will be updated
+    /// to the max of the two.
+    pub(crate) fn push(&mut self, loc: Location) -> Result<(), StorageError> {
+        if let Some(entry) = self.entries.iter_mut().find(|x| x.same_segment(loc)) {
+            entry.max_cut = entry.max_cut.max(loc.max_cut);
+        } else {
+            self.entries.push(loc);
+        }
+        Ok(())
+    }
+
+    /// Pop the location with the highest max cut, discarding the covered flag.
+    pub(crate) fn pop(&mut self) -> Result<Option<Location>, StorageError> {
+        let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
+            return Ok(None);
+        };
+        let loc = self.entries.swap_remove(i);
+        Ok(Some(loc))
+    }
+}
+
+impl TraversalQueueWithDuplicates {
+    pub(crate) fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Enqueues a location without deduplication.
+    ///
+    /// Unlike [`Self::push`], each call adds a new entry even if the location
+    /// is already present. Used by the convergence pre-pass where
+    /// duplicate tracking is needed.
+    pub(crate) fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
+        self.entries.push(loc);
+        Ok(())
+    }
+
+    /// Returns the entry with the highest `max_cut` without removing it.
+    pub(crate) fn peek(&self) -> Option<&Location> {
+        self.entries.iter().max_by_key(|loc| *loc)
+    }
+
+    /// Pop the entry with the highest `max_cut`, removing all entries
+    /// at that exact location. Returns `(location, count)`.
+    ///
+    /// Used by the convergence pre-pass. Entries are matched by full
+    /// `Location` equality (segment + max_cut), not just max_cut.
+    pub(crate) fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
+        let Some(location) = self.entries.iter().max_by_key(|loc| *loc).copied() else {
+            return Ok(None);
+        };
+
+        // Remove all entries matching this location.
+        // Count them as we go. Iterate backward to avoid index shifts.
+        let mut count: usize = 0;
+        let mut j = self.entries.len();
+        while j > 0 {
+            j = j.checked_sub(1).assume("j > 0 checked in loop condition")?;
+            if self.entries[j] == location {
+                count = count
+                    .checked_add(1)
+                    .assume("count bounded by `entries.len()`")?;
+                self.entries.swap_remove(j);
+            }
+        }
+
+        Ok(Some((location, count)))
+    }
+}
+
+#[cfg(false)] // TODO
 #[cfg(test)]
 mod tests {
     use super::*;

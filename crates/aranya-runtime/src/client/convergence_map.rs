@@ -3,7 +3,7 @@ use zerocopy::{FromZeros as _, IntoBytes as _};
 
 use crate::{
     ClientError, Location, MaxCut, Prior, Segment as _, SegmentIndex, Storage, StorageError,
-    storage::{Spill, TraversalQueue},
+    storage::{Spill, TraversalQueueWithDuplicates},
 };
 
 /// Maximum entries per block. Larger blocks mean a bigger in-memory
@@ -158,7 +158,7 @@ impl Default for ConvergenceStorage {
 pub struct ConvergenceMap<'a, F> {
     storage: &'a mut ConvergenceStorage,
     active_block: usize,
-    queue: &'a mut TraversalQueue,
+    queue: &'a mut TraversalQueueWithDuplicates,
     lca: Location,
     access_counter: u32,
     spill_file: F,
@@ -170,7 +170,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
     pub fn new(
         heads: &[Location],
         lca: Location,
-        queue: &'a mut TraversalQueue,
+        queue: &'a mut TraversalQueueWithDuplicates,
         storage: &'a mut ConvergenceStorage,
         spill_file: F,
     ) -> Result<Self, ClientError> {
@@ -591,7 +591,7 @@ mod livelock_tests {
     /// `lookup` instead of `should_continue` skips only the BFS advance,
     /// which is a no-op here — the queue never has work.
     fn build_and_query(query: Location) -> Result<bool, ClientError> {
-        let mut queue = TraversalQueue::new();
+        let mut queue = TraversalQueueWithDuplicates::new();
         let mut conv_storage = ConvergenceStorage::new();
         let zero = Location::new(SegmentIndex::new(0), MaxCut::new(0));
         let mut map = ConvergenceMap::new(
