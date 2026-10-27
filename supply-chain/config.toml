@@ -55,9 +55,6 @@ audit-as-crates-io = false
 [policy.aranya-device-ffi]
 audit-as-crates-io = false
 
-[policy.aranya-envelope-ffi]
-audit-as-crates-io = false
-
 [policy.aranya-fast-channels]
 audit-as-crates-io = false
 
@@ -156,11 +153,6 @@ criteria = "safe-to-deploy"
 [[exemptions.bytecheck_derive]]
 version = "0.8.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.chacha20]]
-version = "0.10.1"
-criteria = "safe-to-deploy"
-notes = "RustCrypto"
 
 [[exemptions.ciborium]]
 version = "0.2.2"
@@ -318,6 +310,10 @@ notes = "RustCrypto"
 [[exemptions.goldenfile]]
 version = "1.7.3"
 criteria = "safe-to-run"
+
+[[exemptions.granit-parser]]
+version = "2.0.0"
+criteria = "safe-to-deploy"
 
 [[exemptions.half]]
 version = "2.4.1"
@@ -564,16 +560,16 @@ notes = "RustCrypto"
 version = "1.0.24"
 criteria = "safe-to-deploy"
 
+[[exemptions.serde-saphyr]]
+version = "2.0.0"
+criteria = "safe-to-deploy"
+
 [[exemptions.serde_json]]
 version = "1.0.133"
 criteria = "safe-to-deploy"
 
 [[exemptions.serde_repr]]
 version = "0.1.19"
-criteria = "safe-to-deploy"
-
-[[exemptions.serde_yaml]]
-version = "0.9.34+deprecated"
 criteria = "safe-to-deploy"
 
 [[exemptions.serdect]]
@@ -676,10 +672,6 @@ criteria = "safe-to-deploy"
 version = "0.6.1"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
-
-[[exemptions.unsafe-libyaml]]
-version = "0.2.11"
-criteria = "safe-to-deploy"
 
 [[exemptions.wait-timeout]]
 version = "0.2.0"

@@ -6,11 +6,13 @@ use aranya_runtime::{
     storage::linear::testing::MemStorageProvider,
     testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink},
     vm_action, vm_effect,
+    vm_policy::FLAVORS,
 };
 
 fn benchmark_1() {
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
     let module = Compiler::new(&policy)
+        .flavors(&FLAVORS)
         .debug(true)
         .compile()
         .expect("should compile");
@@ -55,14 +57,14 @@ fn benchmark_map() {
 policy-version: 2
 ---
 ```policy
-        base command BaseInit {
-            fields { key bytes }
+        base[init] BaseInit {
+            fields { key: bytes }
             get_key { return Some(this.key) }
         }
 
-        fact Key[]=>{key bytes}
+        fact Key[]=>{key: bytes}
 
-        base command Base {
+        base[basic] Base {
             get_key {
                 return match query Key[] {
                     Some(f) => Some(f.key)
@@ -71,12 +73,9 @@ policy-version: 2
             }
         }
 
-        fact F[i int]=>{ value string }
+        fact F[i: int]=>{ value: string }
 
         command Init with BaseInit {
-            attributes {
-                init: true,
-            }
             policy {
                 finish {
                     create Key[]=>{key: this.key}
@@ -84,11 +83,11 @@ policy-version: 2
             }
         }
 
-        action init(key bytes) {
+        action[init] init(key: bytes) {
             publish Init { key: key }
         }
 
-        action insert(i int, value string) {
+        action[basic] insert(i: int, value: string) {
             publish Insert { i:i, value: value }
         }
 
@@ -97,8 +96,8 @@ policy-version: 2
                 priority: 10,
             }
             fields {
-                i int,
-                value string
+                i: int,
+                value: string
             }
             policy {
                 finish {
@@ -107,7 +106,7 @@ policy-version: 2
             }
         }
 
-        action run() {
+        action[basic] run() {
             map F[i:?] as f {
                 publish DoSomething { i: f.i }
             }
@@ -117,7 +116,7 @@ policy-version: 2
             attributes {
                 priority: 5,
             }
-            fields { i int }
+            fields { i: int }
             policy {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }
@@ -128,7 +127,10 @@ policy-version: 2
     "#;
 
     let policy = parse_policy_document(test).expect("should parse");
-    let module = Compiler::new(&policy).compile().expect("should compile");
+    let module = Compiler::new(&policy)
+        .flavors(&FLAVORS)
+        .compile()
+        .expect("should compile");
     let policy_store = TestPolicyStore::from_module(module);
     let key = policy_store.verifying_key();
     let provider = MemStorageProvider::default();

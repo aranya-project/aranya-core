@@ -1,4 +1,4 @@
-fact Foo[i int]=>{}
+fact Foo[i: int]=>{}
 function f() int {
     let x = count_up_to 0 Foo[i:?]
     return 0

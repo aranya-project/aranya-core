@@ -30,6 +30,7 @@ use spideroak_crypto::{
 use crate::{
     ciphersuite::CipherSuite,
     id::{IdError, Identified},
+    zeroize::Zeroizing,
 };
 
 /// The core trait used by the cryptography engine APIs.
@@ -146,7 +147,7 @@ pub enum RawSecret<CS: CipherSuite> {
     /// A PRK.
     Prk(Prk<<CS::Kdf as Kdf>::PrkSize>),
     /// Cryptographic seeds.
-    Seed([u8; 64]),
+    Seed(Zeroizing<[u8; 64]>),
     /// An asymmetric signing key.
     Signing(<CS::Signer as Signer>::SigningKey),
 }

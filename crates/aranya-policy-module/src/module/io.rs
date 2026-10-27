@@ -179,6 +179,7 @@ impl Module {
 mod tests {
     extern crate alloc;
     use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+    use core::assert_matches;
 
     use sha2::{Digest as _, Sha256};
     use zerocopy::IntoBytes as _;
@@ -346,8 +347,9 @@ mod tests {
         recompute_checksum(&mut buf[..new_total_size]);
 
         let e = Module::read_from_slice(&buf).expect_err("read_from_slice erroneously succeeded");
-        assert!(
-            matches!(e, ModuleIoError::Postcard(_)),
+        assert_matches!(
+            e,
+            ModuleIoError::Postcard(_),
             "got {e:?}, expected ModuleIoError::Postcard(_)"
         );
     }
@@ -366,9 +368,6 @@ mod tests {
         recompute_checksum(&mut buf);
 
         let e = Module::read_from_slice(&buf).expect_err("read_from_slice erroneously succeeded");
-        assert!(
-            matches!(e, ModuleIoError::Corrupt),
-            "got {e:?}, expected ModuleIoError::Corrupt"
-        );
+        assert_matches!(e, ModuleIoError::Corrupt);
     }
 }

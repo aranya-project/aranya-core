@@ -1,10 +1,10 @@
-function may_fail(x int) result[int, string] {
+function may_fail(x: int) result[int, string] {
     return Err("nope")
 }
 
-command Work {
+command Work with StubBase {
     fields {
-        n int,
+        n: int,
     }
     policy {
         let v = may_fail(this.n)?

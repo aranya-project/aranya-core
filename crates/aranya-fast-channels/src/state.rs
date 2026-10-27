@@ -135,13 +135,13 @@ pub struct LocalChannelId(u64);
 
 impl LocalChannelId {
     /// Creates a [`LocalChannelId`].
-    #[cfg(any(test, feature = "sdlib", feature = "posix", feature = "memory"))]
+    #[cfg(any(test, feature = "posix", feature = "memory"))]
     pub(crate) const fn new(id: u64) -> Self {
         Self(id)
     }
 
     /// Converts the [`LocalChannelId`] to its `u64` representation.
-    #[cfg(any(feature = "sdlib", feature = "posix"))]
+    #[cfg(feature = "posix")]
     pub(crate) const fn to_u64(self) -> u64 {
         self.0
     }

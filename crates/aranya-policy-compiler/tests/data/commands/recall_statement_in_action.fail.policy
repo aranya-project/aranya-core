@@ -1,3 +1,3 @@
-action act() {
+action[null] act() {
     recall handle()
 }

@@ -53,6 +53,7 @@ use alloc::{
     vec::Vec,
 };
 use core::{
+    assert_matches,
     cell::RefCell,
     fmt::{self, Display},
     iter,
@@ -1432,9 +1433,10 @@ where
                     &mut rt_buffers,
                     mem_spill,
                 );
-                assert!(
-                    matches!(result, Err(ClientError::PolicyError(PolicyError::Rejected))),
-                    "poison command must be rejected, got {result:?}"
+                assert_matches!(
+                    result,
+                    Err(ClientError::PolicyError(PolicyError::Rejected)),
+                    "poison command must be rejected",
                 );
 
                 // The transaction remains usable after a rejected command;

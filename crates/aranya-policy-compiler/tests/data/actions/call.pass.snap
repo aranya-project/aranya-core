@@ -5,13 +5,13 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'bar'>: 1,
-        <action 'foo'>: 4,
+        <action 'bar'>: 8,
+        <action 'foo'>: 11,
     },
     action_defs: [
         ActionDef {
             name: "bar",
-            persistence: Persistent,
+            flavor: "null",
             params: [
                 Field {
                     name: "n",
@@ -26,19 +26,35 @@ Module {
         },
         ActionDef {
             name: "foo",
-            persistence: Persistent,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <action 'bar'>:
     def 's'

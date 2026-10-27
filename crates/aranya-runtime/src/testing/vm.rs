@@ -2,6 +2,7 @@
 
 extern crate alloc;
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
+use core::assert_matches;
 
 use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
@@ -24,18 +25,18 @@ policy-version: 2
 ---
 
 ```policy
-base command BaseInit {
+base[init] BaseInit {
     fields {
-        key bytes
+        key: bytes
     }
     get_key {
         return Some(this.key)
     }
 }
 
-fact Key[]=>{key bytes}
+fact Key[]=>{key: bytes}
 
-base command Base {
+base[basic] Base {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -44,7 +45,7 @@ base command Base {
     }
 }
 
-base command BaseEphemeral {
+base[ephemeral] BaseEphemeral {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -53,24 +54,21 @@ base command BaseEphemeral {
     }
 }
 
-fact Stuff[x int]=>{y int}
+fact Stuff[x: int]=>{y: int}
 
 effect StuffHappened {
-    x int,
-    y int,
+    x: int,
+    y: int,
 }
 
 effect OutOfRange {
-    value int,
-    increment int,
+    value: int,
+    increment: int,
 }
 
 command Init with BaseInit {
-    attributes {
-        init: true,
-    }
     fields {
-        nonce int,
+        nonce: int,
     }
     policy {
         finish {
@@ -79,7 +77,7 @@ command Init with BaseInit {
     }
 }
 
-action init(nonce int, key bytes) {
+action[init] init(nonce: int, key: bytes) {
     publish Init {
         key: key,
         nonce: nonce,
@@ -91,8 +89,8 @@ command Create with Base {
         priority: 0,
     }
     fields {
-        key int,
-        value int,
+        key: int,
+        value: int,
     }
     policy {
         finish {
@@ -102,7 +100,7 @@ command Create with Base {
     }
 }
 
-action create_action(v int) {
+action[basic] create_action(v: int) {
     publish Create{
         key: 1,
         value: v,
@@ -114,8 +112,8 @@ command Increment with Base {
         priority: 0,
     }
     fields {
-        key int,
-        amount int,
+        key: int,
+        amount: int,
     }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
@@ -138,24 +136,24 @@ command Increment with Base {
     }
 }
 
-action increment() {
+action[basic] increment() {
     publish Increment{
         key: 1,
         amount: 1
     }
 }
 
-ephemeral action try_result(fail bool) result[unit, string] {
+action[ephemeral] try_result(fail: bool) result[unit, string] {
     if fail {
         return Err("boom")
     }
     return Ok(Unit)
 }
 
-ephemeral command IncrementEphemeral with BaseEphemeral {
+command IncrementEphemeral with BaseEphemeral {
     fields {
-        key int,
-        amount int,
+        key: int,
+        amount: int,
     }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
@@ -178,7 +176,7 @@ ephemeral command IncrementEphemeral with BaseEphemeral {
     }
 }
 
-ephemeral action increment_ephemeral() {
+action[ephemeral] increment_ephemeral() {
     publish IncrementEphemeral {
         key: 1,
         amount: 1
@@ -186,7 +184,7 @@ ephemeral action increment_ephemeral() {
 }
 
 
-ephemeral action incrementFour(n int) result[unit, string] {
+action[ephemeral] incrementFour(n: int) result[unit, string] {
     check n == 4 else return Err("n must be 4")
     publish IncrementEphemeral {
         key: 1,
@@ -195,7 +193,7 @@ ephemeral action incrementFour(n int) result[unit, string] {
     return Ok(Unit)
 }
 
-ephemeral action lookup(k int, v int, expected bool) result[unit, string] {
+action[ephemeral] lookup(k: int, v: int, expected: bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
         true => { check f is Some else return Err("expected Some") }
@@ -209,7 +207,7 @@ command Invalidate with Base {
         priority: 1
     }
     fields {
-        key int
+        key: int
     }
     policy {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
@@ -221,7 +219,7 @@ command Invalidate with Base {
     }
 }
 
-action invalidate() {
+action[basic] invalidate() {
     publish Invalidate { key: 1 }
 }
 ```
@@ -517,10 +515,7 @@ pub fn test_action_result(policy_store: TestPolicyStore) -> Result<(), VmPolicyE
             vm_action!(try_result(true)),
         )
         .expect_err("Err action should fail");
-    assert!(
-        matches!(&err, ClientError::PolicyError(_)),
-        "expected PolicyError, got {err:?}"
-    );
+    assert_matches!(&err, ClientError::PolicyError(_));
 
     Ok(())
 }

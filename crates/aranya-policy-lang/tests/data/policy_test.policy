@@ -1,9 +1,9 @@
 // This is not a valid policy. It is just meant to exercise
 // every feature of the parser.
 /* block comment */
-fact F[v string]=>{x int, y bool}
+fact F[v: string]=>{x: int, y: bool}
 
-action add2(x int, y int) {
+action[null] add2(x: int, y: int) {
     let obj = Add {
         count: x,
     }
@@ -11,17 +11,17 @@ action add2(x int, y int) {
 }
 
 effect Added {
-    x int dynamic,
-    y int,
+    x: int dynamic,
+    y: int,
 }
 
-command Add {
+command Add with Base {
     fields {
-        count int
+        count: int
     }
     policy {
-        let envelope_id = envelope::command_id(envelope)
-        let author = envelope::author_id(envelope)
+        let envelope_id = envelope.command_id
+        let author = envelope.author_id
         let new_x = add2(x, count)
         check exists TestFact[v: "test"]=>{} else recall default()
         match x {
@@ -53,8 +53,8 @@ command Add {
         }
     }
     recall default() {
-        let envelope_id = envelope::command_id(envelope)
-        let author = envelope::author_id(envelope)
+        let envelope_id = envelope.command_id
+        let author = envelope.author_id
         let new_x = add2(x, count)
         finish {
             create F[v: "hello"]=>{x, y: saturating_sub(0, x)}
@@ -68,25 +68,29 @@ command Add {
     }
 }
 
-function positive(v option[int]) bool {
+function positive(v: option[int]) bool {
     return match v {
         Some(x) => x > 0
         None => test_fail()
     }
 }
 
-finish function next(x int) {
+finish function next(x: int) {
     create Next[]=>{}
 }
 
 
 // ephemeral commands and actions
 
-ephemeral command C {
+base[ephemeral] Ephemeral {
+    get_key { return None }
+}
+
+command C with Ephemeral {
     fields {
-        x int
+        x: int
     }
     policy {}
 }
 
-ephemeral action a() {}
+action[ephemeral] a() {}

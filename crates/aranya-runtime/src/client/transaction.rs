@@ -718,7 +718,7 @@ fn get_policy<'a, PS: PolicyStore>(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{assert_matches, collections::HashMap};
 
     use aranya_crypto::id::{Id, IdTag};
     use test_log::test;
@@ -1298,7 +1298,7 @@ mod test {
             "i" < finalize "fff2";
         };
         let err = gb.commit().expect_err("merge should fail");
-        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
+        assert_matches!(err, ClientError::ParallelFinalize);
     }
 
     /// Priorities are derived at ingest — structurally for merge and init
@@ -1996,10 +1996,7 @@ mod test {
                 &mem_spill,
             )
             .expect_err("trx1 commit must fail after trx2 committed");
-        assert!(
-            matches!(err, ClientError::ConcurrentTransaction),
-            "expected ConcurrentTransaction, got {err:?}"
-        );
+        assert_matches!(err, ClientError::ConcurrentTransaction);
     }
 
     #[test]

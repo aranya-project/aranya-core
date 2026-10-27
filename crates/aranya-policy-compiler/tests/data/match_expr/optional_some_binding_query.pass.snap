@@ -5,12 +5,12 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'test'>: 1,
+        <action 'test'>: 8,
     },
     action_defs: [
         ActionDef {
             name: "test",
-            persistence: Persistent,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
@@ -48,12 +48,27 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <action 'test'>:
     fact.new 'Foo'
@@ -62,31 +77,31 @@ Module {
     query
     dup
     is some
-    branch 12
+    branch 19
     dup
     const None
     eq
-    branch 19
-<12>:
+    branch 26
+<19>:
     block
     unwrap some
     def 'f'
     get 'f'
     struct.get 'x'
     end
-    jump 24
-<19>:
+    jump 31
+<26>:
     block
     pop
     const 0
     end
-    jump 24
-<24>:
+    jump 31
+<31>:
     def 'n'
     get 'n'
     const 0
     eq
-    branch 30
+    branch 37
     exit panic
-<30>:
+<37>:
     return

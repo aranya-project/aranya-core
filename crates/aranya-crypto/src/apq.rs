@@ -660,6 +660,8 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
 mod tests {
     #![allow(clippy::arithmetic_side_effects)]
 
+    use core::assert_matches;
+
     use spideroak_crypto::{ed25519::Ed25519, kem::Kem, rust, signer::Signer};
 
     use super::*;
@@ -781,7 +783,7 @@ mod tests {
         let err = key
             .seal_message(Rng, &mut small, MESSAGE, version, &topic, &ident)
             .expect_err("`seal_message` should fail when `dst` is too small");
-        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+        assert_matches!(err, Error::Seal(_));
     }
 
     /// Exercises both the happy path and the "`ciphertext` too
@@ -812,6 +814,6 @@ mod tests {
         let err = key
             .open_message(&mut plaintext, b"short", version, &topic, &ident)
             .expect_err("`open_message` should fail when `ciphertext` is too short");
-        assert!(matches!(err, Error::Open(_)), "got {err:?}");
+        assert_matches!(err, Error::Open(_));
     }
 }

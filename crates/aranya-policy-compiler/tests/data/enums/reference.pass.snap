@@ -1,24 +1,32 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
     version: "1",
     labels: {
-        <action 'test'>: 1,
+        <action 'test'>: 8,
     },
     action_defs: [
         ActionDef {
             name: "test",
-            persistence: Persistent,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [
         EnumDef {
             name: "Result",
@@ -39,40 +47,47 @@ Module {
 }
 ---
     exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
+    exit panic
 <action 'test'>:
     const Result::0
     def 'ok'
     get 'ok'
     const Result::0
     eq
-    branch 8
+    branch 15
     exit panic
-<8>:
+<15>:
     get 'ok'
     const Result::1
     eq
     not
-    branch 14
+    branch 21
     exit panic
-<14>:
+<21>:
     get 'ok'
     dup
     const Result::0
     eq
-    branch 23
+    branch 30
     dup
     const Result::1
     eq
-    branch 27
-<23>:
+    branch 34
+<30>:
     block
     pop
     end
-    jump 31
-<27>:
+    jump 38
+<34>:
     block
     pop
     end
-    jump 31
-<31>:
+    jump 38
+<38>:
     return

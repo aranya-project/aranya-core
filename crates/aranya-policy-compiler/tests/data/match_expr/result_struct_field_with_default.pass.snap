@@ -25,6 +25,14 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
@@ -70,6 +78,13 @@ Module {
     end
     jump 34
 <34>:
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

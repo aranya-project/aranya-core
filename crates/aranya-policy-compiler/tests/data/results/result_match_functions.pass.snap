@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -13,7 +12,16 @@ Module {
     action_defs: [],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [],
+    struct_defs: [
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+    ],
     enum_defs: [],
     globals: {},
     ..
@@ -106,6 +114,13 @@ Module {
     def 'n'
     get 'n'
     wrap ok
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

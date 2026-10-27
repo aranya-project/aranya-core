@@ -4,5 +4,5 @@ expression: err
 ---
 error: Reserved identifier
   |
-1 | fact x[]=>{int int}
+1 | fact x[]=>{int: int}
   |            ^^^ found reserved identifier: `int`

@@ -1,1 +1,1 @@
-fact x[int int]=>{}
+fact x[int: int]=>{}

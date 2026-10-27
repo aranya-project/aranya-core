@@ -2,8 +2,7 @@
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
 CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "canaries/*"
 
-RUSTFLAGS = { value = "-Dwarnings", condition = { env_true = ["CARGO_MAKE_CI"] } }
-RUSTDOCFLAGS = { value = "-Dwarnings", condition = { env_true = ["CARGO_MAKE_CI"] } }
+CARGO_BUILD_WARNINGS = { value = "deny", condition = { env_true = ["CARGO_MAKE_CI"] } }
 
 [config]
 default_to_workspace = false
@@ -36,7 +35,6 @@ args = ["build", "--verbose", "--release", "${@}"]
 [tasks.unit-tests]
 category = "test"
 description = "Run Unit Tests"
-workspace = true
 command = "cargo"
 args = ["--verbose", "test-all-features", "${@}"]
 dependencies = ["install-cargo-all-features"]
@@ -124,7 +122,7 @@ dependencies = ["install-cargo-llvm-cov", "install-llvm-tools"]
 [tasks.install-cargo-llvm-cov]
 private = true
 toolchain = "stable"
-install_crate = { crate_name = "cargo-llvm-cov", version = "0.6.20", binary = "cargo-llvm-cov", test_arg = "--version" }
+install_crate = { crate_name = "cargo-llvm-cov", version = "0.6.20", binary = "cargo", test_arg = ["llvm-cov", "--version"] }
 
 [tasks.install-llvm-tools]
 private = true

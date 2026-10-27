@@ -1,12 +1,12 @@
 struct Foo {
-    x int,
-    y int
+    x: int,
+    y: int
 }
 
 let foo = Foo { x: 10, y: 20 }
 let foo2 = Foo { x: 1000, ...foo }
 
-command Bar {
+command Bar with StubBase {
     attributes {
         foo_attr: Foo { ...foo2 },
     }

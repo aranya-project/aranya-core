@@ -5,13 +5,14 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'test'>: 1,
+        <get_key 'test'>: 1,
+        <policy 'test'>: 8,
     },
     action_defs: [],
     command_defs: [
         CommandDef {
             name: "test",
-            persistence: Persistent,
+            flavor: "null",
             attributes: [],
             fields: [],
         },
@@ -49,6 +50,14 @@ Module {
             ],
         },
         StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
+        StructDef {
             name: "test",
             items: [],
         },
@@ -58,6 +67,14 @@ Module {
     ..
 }
 ---
+    exit panic
+<get_key 'test'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'test'>:
     def 'envelope'

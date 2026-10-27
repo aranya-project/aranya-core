@@ -8,83 +8,83 @@ Policy {
     facts: [],
     actions: [
         ActionDefinition {
-            persistence: Persistent,
-            name: "foo" @ 32..35,
+            flavor: "null" @ 32..36,
+            name: "foo" @ 38..41,
             parameters: [],
             return_type: Result(
                 ResultTypeKind {
-                    ok: Unit @ 45..49,
-                    err: Unit @ 51..55,
+                    ok: Unit @ 51..55,
+                    err: Unit @ 57..61,
                 },
-            ) @ 38..56,
+            ) @ 44..62,
             body: [
                 Let(
                     LetStatement {
-                        name: "a" @ 67..68,
+                        name: "a" @ 73..74,
                         value: Coalesce(
                             FunctionCall(
                                 FunctionCall {
-                                    name: "add" @ 71..74,
+                                    name: "add" @ 77..80,
                                     arguments: [
                                         Identifier(
-                                            "x" @ 75..76,
-                                        ) @ 75..76,
+                                            "x" @ 81..82,
+                                        ) @ 81..82,
                                         Int(
-                                            1 @ 78..79,
-                                        ) @ 78..79,
+                                            1 @ 84..85,
+                                        ) @ 84..85,
                                     ],
                                 },
-                            ) @ 71..80,
+                            ) @ 77..86,
                             Return(
                                 Err(
-                                    Unit @ 95..99,
-                                ) @ 91..100,
-                            ) @ 84..105,
-                        ) @ 71..105,
+                                    Unit @ 101..105,
+                                ) @ 97..106,
+                            ) @ 90..106,
+                        ) @ 77..106,
                     },
-                ) @ 63..105,
+                ) @ 69..106,
                 Let(
                     LetStatement {
-                        name: "c" @ 109..110,
+                        name: "c" @ 115..116,
                         value: Not(
                             Identifier(
-                                "z" @ 114..115,
-                            ) @ 114..115,
-                        ) @ 113..115,
+                                "z" @ 120..121,
+                            ) @ 120..121,
+                        ) @ 119..121,
                     },
-                ) @ 105..120,
+                ) @ 111..121,
                 Emit(
                     NamedStruct(
                         NamedStruct {
-                            name: "Bar" @ 125..128,
+                            name: "Bar" @ 131..134,
                             fields: [
                                 (
-                                    "a" @ 131..132,
+                                    "a" @ 137..138,
                                     Identifier(
-                                        "a" @ 131..132,
-                                    ) @ 131..132,
+                                        "a" @ 137..138,
+                                    ) @ 137..138,
                                 ),
                                 (
-                                    "c" @ 134..135,
+                                    "c" @ 140..141,
                                     Identifier(
-                                        "c" @ 134..135,
-                                    ) @ 134..135,
+                                        "c" @ 140..141,
+                                    ) @ 140..141,
                                 ),
                             ],
                             sources: [],
-                            span: 125..137,
+                            span: 131..143,
                         },
-                    ) @ 125..137,
-                ) @ 120..142,
+                    ) @ 131..143,
+                ) @ 126..143,
                 Return(
                     ReturnStatement {
                         value: Ok(
-                            Unit @ 152..156,
-                        ) @ 149..157,
+                            Unit @ 158..162,
+                        ) @ 155..163,
                     },
-                ) @ 142..158,
+                ) @ 148..163,
             ],
-            span: 25..159,
+            span: 25..165,
         },
     ],
     effects: [],
@@ -100,15 +100,15 @@ Policy {
             value: Int(
                 42 @ 8..10,
             ) @ 8..10,
-            span: 0..11,
+            span: 0..10,
         },
         GlobalLetStatement {
             name: "z" @ 15..16,
             value: Bool(
                 true,
             ) @ 19..23,
-            span: 11..25,
+            span: 11..23,
         },
     ],
-    text: "let x = 42\nlet z = true\n\naction foo() result[unit, unit] {\n    let a = add(x, 1) or return Err(Unit)\n    let c = !z\n    emit Bar { a, c }\n    return Ok(Unit)\n}\n",
+    text: "let x = 42\nlet z = true\n\naction[null] foo() result[unit, unit] {\n    let a = add(x, 1) or return Err(Unit)\n    let c = !z\n    emit Bar { a, c }\n    return Ok(Unit)\n}\n",
 }

@@ -8,17 +8,21 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+
 [lints]
 workspace = true
 
+
 [lib]
 bench = false
+
 
 [dependencies]
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false }
 aranya-id = { version = "0.3.0", path = "../aranya-id", default-features = false }
 aranya-policy-ifgen = { version = "0.25.0", path = "../aranya-policy-ifgen", features = ["serde"] }
 aranya-runtime = { version = "0.25.0", path = "../aranya-runtime", default-features = false }
+
 
 [features]
 default = []
@@ -42,3 +46,13 @@ memstore = ["aranya-crypto/memstore"]
 
 [package.metadata.docs.rs]
 all-features = true
+
+
+[package.metadata.cargo-all-features]
+always_include_features = []
+
+skip_feature_sets = []
+
+denylist = [
+	"low-mem-usage",
+]

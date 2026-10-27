@@ -1,9 +1,9 @@
-command Cmd {
+command Cmd with StubBase {
     fields {}
     policy {
         finish {}
     }
 }
-action test() {
+action[null] test() {
     publish Cmd {}
 }

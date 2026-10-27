@@ -11,8 +11,9 @@ use aranya_policy_ast::{Version, ident};
 use aranya_policy_compiler::{CompileError, Compiler};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Instruction, Label, Module, ModuleData,
+    Instruction, Label, Module, ModuleData, arg,
     ffi::{self, ModuleSchema},
+    flavor,
 };
 
 const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
@@ -52,13 +53,55 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     },
 ];
 
+const TEST_FLAVORS: &flavor::Flavors<'_> = &flavor::Flavors {
+    flavors: &[
+        (
+            ident!("null"),
+            flavor::Flavor {
+                envelope: flavor::Struct {
+                    name: ident!("NullEnvelope"),
+                    fields: &[],
+                },
+            },
+        ),
+        (
+            ident!("init"),
+            flavor::Flavor {
+                envelope: flavor::Struct {
+                    name: ident!("InitEnvelope"),
+                    fields: &[arg!("test_field", Int)],
+                },
+            },
+        ),
+        (
+            ident!("basic"),
+            flavor::Flavor {
+                envelope: flavor::Struct {
+                    name: ident!("BasicEnvelope"),
+                    fields: &[],
+                },
+            },
+        ),
+        (
+            ident!("ephemeral"),
+            flavor::Flavor {
+                envelope: flavor::Struct {
+                    name: ident!("EphemeralEnvelope"),
+                    fields: &[],
+                },
+            },
+        ),
+    ],
+};
+
 #[track_caller]
 fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let policy = parse_policy_str(text, Version::V2).unwrap();
+    let text = text.to_owned() + "\n\nbase[null] StubBase { get_key { return None } }";
+    let policy = parse_policy_str(&text, Version::V2).unwrap();
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
+        .flavors(TEST_FLAVORS)
         .debug(is_debug)
-        .allow_baseless(true)
         .compile()
 }
 

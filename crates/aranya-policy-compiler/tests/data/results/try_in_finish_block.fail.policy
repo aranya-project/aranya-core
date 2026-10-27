@@ -1,12 +1,12 @@
-fact F[k int]=>{v int}
+fact F[k: int]=>{v: int}
 
-function may_fail(x int) result[int, string] {
+function may_fail(x: int) result[int, string] {
     return Err("nope")
 }
 
-command Work {
+command Work with StubBase {
     fields {
-        n int,
+        n: int,
     }
     policy {
         finish {

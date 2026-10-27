@@ -12,26 +12,25 @@ Policy {
     enums: [],
     commands: [
         CommandDefinition {
-            persistence: Persistent,
-            base: None,
+            base: "Base" @ 17..21,
             attributes: [
                 (
-                    "priority" @ 39..47,
+                    "priority" @ 49..57,
                     String(
                         "high",
-                    ) @ 49..55,
+                    ) @ 59..65,
                 ),
             ],
             name: "Foo" @ 8..11,
             fields: [],
             policy: [],
             recalls: [],
-            span: 0..78,
+            span: 0..88,
         },
     ],
     base_commands: [],
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "command Foo {\n    attributes {\n        priority: \"high\",\n    }\n    policy {}\n}\n",
+    text: "command Foo with Base {\n    attributes {\n        priority: \"high\",\n    }\n    policy {}\n}\n",
 }

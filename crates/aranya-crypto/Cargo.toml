@@ -47,14 +47,13 @@ clone-aead = ["spideroak-crypto/clone-aead"]
 # NB: this is NOT supported on big-endian architectures.
 #
 # This is its own feature because of a weird interaction
-# between cargo, ed25519-dalek, and VxWorks.
+# between cargo, ed25519-dalek, and BE architectures.
 #
 # ed25519-dalek's `batch` feature requires `alloc`, so normally
 # we'd put "ed25519-dalek/batch" behind our `alloc` feature.
 #
 # However, ed25519-dalek's `batch` feature does not build for
-# vxworks/ppc because its merlin dependency does not support
-# big-endian architectures.
+# BE architectures because its merlin dependency does not support them.
 #
 # Cargo does not support target-specific features, so we're
 # unable to express "enable ed25519-dalek/batch only if `alloc`
@@ -75,8 +74,6 @@ fs-keystore = [
 ]
 
 # Enable `getrandom` support.
-#
-# NB: `getrandom` does not support VxWorks < 7.
 getrandom = ["spideroak-crypto/getrandom"]
 
 # Enable cryptographically hazardous code.
