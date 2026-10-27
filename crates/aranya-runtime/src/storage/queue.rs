@@ -19,7 +19,7 @@ pub(crate) struct TraversalQueueNoDuplicates {
 
 #[derive(Debug)]
 pub(crate) struct TraversalQueueWithDuplicates {
-    entries: Vec<Location>,
+    entries: alloc::collections::BinaryHeap<Location>,
 }
 
 impl TraversalQueueWithCoverage {
@@ -266,7 +266,7 @@ impl TraversalQueueNoDuplicates {
 impl TraversalQueueWithDuplicates {
     pub(crate) fn new() -> Self {
         Self {
-            entries: Vec::new(),
+            entries: alloc::collections::BinaryHeap::new(),
         }
     }
 
@@ -286,7 +286,7 @@ impl TraversalQueueWithDuplicates {
 
     /// Returns the entry with the highest `max_cut` without removing it.
     pub(crate) fn peek(&self) -> Option<&Location> {
-        self.entries.iter().max_by_key(|loc| *loc)
+        self.entries.peek()
     }
 
     /// Pop the entry with the highest `max_cut`, removing all entries
@@ -295,22 +295,18 @@ impl TraversalQueueWithDuplicates {
     /// Used by the convergence pre-pass. Entries are matched by full
     /// `Location` equality (segment + max_cut), not just max_cut.
     pub(crate) fn pop_duplicates(&mut self) -> Result<Option<(Location, usize)>, StorageError> {
-        let Some(location) = self.entries.iter().max_by_key(|loc| *loc).copied() else {
+        let Some(location) = self.entries.pop() else {
             return Ok(None);
         };
 
         // Remove all entries matching this location.
-        // Count them as we go. Iterate backward to avoid index shifts.
-        let mut count: usize = 0;
-        let mut j = self.entries.len();
-        while j > 0 {
-            j = j.checked_sub(1).assume("j > 0 checked in loop condition")?;
-            if self.entries[j] == location {
-                count = count
-                    .checked_add(1)
-                    .assume("count bounded by `entries.len()`")?;
-                self.entries.swap_remove(j);
-            }
+        // Count them as we go.
+        let mut count: usize = 1;
+        while self.entries.peek().is_some_and(|&e| e == location) {
+            count = count
+                .checked_add(1)
+                .assume("count bounded by `entries.len()`")?;
+            self.entries.pop();
         }
 
         Ok(Some((location, count)))
