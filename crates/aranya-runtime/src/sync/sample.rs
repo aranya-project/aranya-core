@@ -120,10 +120,7 @@ pub(super) fn skip_jump<S: Storage>(
 /// Walks back from the heads' LCA to the highest command at or below the
 /// lowest cache head. Every point on that walk is a command all heads pass
 /// through, so every path to a cache head passes through the floor.
-pub(super) fn floor<S: Storage>(
-    storage: &S,
-    cache_heads: &[LocatedAddress],
-) -> Result<MaxCut, SyncError> {
+fn floor<S: Storage>(storage: &S, cache_heads: &[LocatedAddress]) -> Result<MaxCut, SyncError> {
     let Some(lowest) = cache_heads.iter().map(|h| h.max_cut).min() else {
         return Ok(MaxCut::new(0));
     };
@@ -139,7 +136,8 @@ pub(super) fn floor<S: Storage>(
 type Sample = Vec<Address, COMMAND_SAMPLE_MAX>;
 
 /// Builds a sample over `storage`: the heads in `head_groups`, then random
-/// commands spread evenly between the tallest graph head and `floor`.
+/// commands spread evenly between the tallest graph head and the floor for
+/// a peer whose cache holds `cache_heads`.
 /// Random commands for which `exclude` returns true are dropped.
 ///
 /// Returns the sample and how many heads each group contributed. Each
@@ -148,12 +146,13 @@ type Sample = Vec<Address, COMMAND_SAMPLE_MAX>;
 pub(super) fn build<S: Storage, const N: usize>(
     storage: &S,
     head_groups: [&[Address]; N],
-    floor: MaxCut,
+    cache_heads: &[LocatedAddress],
     rng: &impl Csprng,
     exclude: impl Fn(Address) -> bool,
 ) -> Result<(Sample, [usize; N]), SyncError> {
     let mut sample = Sample::new();
     let counts = add_heads(&mut sample, head_groups, rng)?;
+    let floor = floor(storage, cache_heads)?;
     add_random_commands(&mut sample, storage, floor, rng, exclude)?;
     Ok((sample, counts))
 }

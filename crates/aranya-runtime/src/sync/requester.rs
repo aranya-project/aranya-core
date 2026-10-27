@@ -410,11 +410,10 @@ impl SyncRequester {
             .filter(|a| !cache_heads.contains(a))
             .collect();
 
-        let floor = sample::floor(&*storage, heads.cache.heads())?;
         let (sample, [sent_session_heads, _, _]) = sample::build(
             &*storage,
             [&session_heads, &cache_heads, &graph_heads],
-            floor,
+            heads.cache.heads(),
             rng,
             |_| false,
         )?;

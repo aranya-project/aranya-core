@@ -661,10 +661,10 @@ impl SyncResponder {
                 .iter()
                 .map(LocatedAddress::address)
                 .collect();
-            let floor = sample::floor(&*storage, response_cache.heads())?;
-            (sample, _) = sample::build(&*storage, [&heads], floor, rng, |addr| {
-                commands.iter().any(|meta| meta.id == addr.id)
-            })?;
+            (sample, _) =
+                sample::build(&*storage, [&heads], response_cache.heads(), rng, |addr| {
+                    commands.iter().any(|meta| meta.id == addr.id)
+                })?;
         }
 
         let message = SyncResponseMessage::SyncResponse {
