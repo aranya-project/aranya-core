@@ -501,23 +501,7 @@ impl ShmLayout {
 }
 
 /// The contents of the shared memory.
-///
-/// It is (at least) aligned to the size of a cache line.
-#[cfg_attr(
-    any(target_arch = "aarch64", target_arch = "powerpc64"),
-    repr(C, align(128))
-)]
-#[cfg_attr(any(target_arch = "x86_64"), repr(C, align(64)))]
-#[cfg_attr(
-    any(
-        target_arch = "arm",
-        target_arch = "mips",
-        target_arch = "mips64",
-        target_arch = "riscv64",
-        target_arch = "powerpc",
-    ),
-    repr(C, align(32))
-)]
+#[repr(C)]
 #[derive_where(Debug)]
 pub(super) struct SharedMem<CS> {
     /// Identifies this memory as a [`SharedMem`].
@@ -674,21 +658,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
 /// Unlike (for example) `ShmChan`, this struct is the actual
 /// memory layout, with the exception of the trailing `ShmChan`
 /// array.
-#[cfg_attr(
-    any(target_arch = "aarch64", target_arch = "powerpc64"),
-    repr(C, align(128))
-)]
-#[cfg_attr(any(target_arch = "x86_64"), repr(C, align(64)))]
-#[cfg_attr(
-    any(
-        target_arch = "arm",
-        target_arch = "mips",
-        target_arch = "mips64",
-        target_arch = "riscv64",
-        target_arch = "powerpc",
-    ),
-    repr(C, align(32))
-)]
+#[repr(C)]
 #[derive_where(Debug)]
 pub(super) struct ChanList<CS> {
     /// Identifies this memory as a [`ChanList`].
@@ -717,7 +687,7 @@ impl<CS: CipherSuite> ChanList<CS> {
         let chans = ShmChan::<CS>::layout().repeat(max_chans)?.0;
 
         // Extend by the size of the trailing data.
-        let layout = Layout::new::<Self>().extend(chans)?.0;
+        let layout = Layout::new::<CacheAligned<Self>>().extend(chans)?.0;
 
         // If the cumulative size of the two sides are going to
         // straddle multiple pages, align each to the page size.
