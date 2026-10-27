@@ -317,7 +317,6 @@ impl TraversalQueueWithDuplicates {
     }
 }
 
-#[cfg(false)] // TODO
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,71 +326,46 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "queue is currently unbounded"]
-    fn test_queue_overflow_returns_error() {
-        let mut queue = TraversalQueue::new();
-        // Fill to capacity
-        for i in 0..QUEUE_CAPACITY {
-            queue.push(loc(i, i)).unwrap();
-        }
-        // Next push should fail with TraversalQueueOverflow
-        let result = queue
-            .push(loc(999, 999))
-            .expect_err("expected push_queue to fail");
-        assert_eq!(result, StorageError::TraversalQueueOverflow(QUEUE_CAPACITY));
-    }
-
-    #[test]
-    fn test_push_defaults_covered_false() {
-        let mut queue = TraversalQueue::new();
-        queue.push(loc(0, 5)).unwrap();
+    fn test_push_uncovered_preserves_flag() {
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_uncovered(loc(0, 5)).unwrap();
         let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(!covered);
     }
 
     #[test]
     fn test_push_covered_preserves_flag() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 5), true).unwrap();
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_covered(loc(0, 5)).unwrap();
         let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(covered);
     }
 
     #[test]
     fn test_push_covered_same_max_cut_ors_flags() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 5), false).unwrap();
-        queue.push_covered(loc(0, 5), true).unwrap();
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_uncovered(loc(0, 5)).unwrap();
+        queue.push_covered(loc(0, 5)).unwrap();
         let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(covered);
     }
 
     #[test]
     fn test_push_covered_same_max_cut_cannot_uncover() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 5), true).unwrap();
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_covered(loc(0, 5)).unwrap();
         // Pushing uncovered at the same max_cut must not clear covered.
-        queue.push_covered(loc(0, 5), false).unwrap();
+        queue.push_uncovered(loc(0, 5)).unwrap();
         let (_, covered) = queue.pop_covered().unwrap().unwrap();
         assert!(covered);
     }
 
     #[test]
-    fn test_push_same_segment_updates_max_cut() {
-        let mut queue = TraversalQueue::new();
-        queue.push(loc(0, 5)).unwrap();
-        queue.push(loc(0, 8)).unwrap();
-        let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut::new(8));
-        assert!(queue.is_empty());
-    }
-
-    #[test]
     fn test_push_covered_higher_max_cut_adopts_new_flag() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 5), true).unwrap();
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_covered(loc(0, 5)).unwrap();
         // Higher max_cut uncovered: segment head moved beyond covered point.
-        queue.push_covered(loc(0, 8), false).unwrap();
+        queue.push_uncovered(loc(0, 8)).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
         assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
@@ -399,42 +373,32 @@ mod tests {
 
     #[test]
     fn test_push_covered_lower_max_cut_no_change() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 8), false).unwrap();
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_uncovered(loc(0, 8)).unwrap();
         // Lower max_cut should not change anything.
-        queue.push_covered(loc(0, 3), true).unwrap();
+        queue.push_covered(loc(0, 3)).unwrap();
         let (l, covered) = queue.pop_covered().unwrap().unwrap();
         assert_eq!(l.max_cut, MaxCut::new(8));
         assert!(!covered);
     }
 
     #[test]
-    fn test_pop_discards_covered_flag() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 5), true).unwrap();
-        // pop() should return only the location.
-        let l = queue.pop().unwrap().unwrap();
-        assert_eq!(l.max_cut, MaxCut::new(5));
-        assert!(queue.is_empty());
-    }
-
-    #[test]
     fn test_all_covered() {
-        let mut queue = TraversalQueue::new();
-        queue.push_covered(loc(0, 1), true).unwrap();
-        queue.push_covered(loc(1, 2), true).unwrap();
-        assert!(queue.all_covered());
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_covered(loc(0, 1)).unwrap();
+        queue.push_covered(loc(1, 2)).unwrap();
+        assert!(queue.nontrivially_covered());
 
-        queue.push_covered(loc(2, 3), false).unwrap();
-        assert!(!queue.all_covered());
+        queue.push_uncovered(loc(2, 3)).unwrap();
+        assert!(!queue.nontrivially_covered());
     }
 
     #[test]
     fn test_drain_above() {
-        let mut queue = TraversalQueue::new();
-        queue.push(loc(0, 3)).unwrap();
-        queue.push(loc(1, 7)).unwrap();
-        queue.push(loc(2, 5)).unwrap();
+        let mut queue = TraversalQueueWithCoverage::new();
+        queue.push_uncovered(loc(0, 3)).unwrap();
+        queue.push_uncovered(loc(1, 7)).unwrap();
+        queue.push_uncovered(loc(2, 5)).unwrap();
 
         let mut result: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
@@ -449,20 +413,20 @@ mod tests {
         assert!(result.iter().any(|l| l.max_cut == MaxCut::new(5)));
 
         // Only max_cut=3 should remain in the queue.
-        let remaining = queue.pop().unwrap().unwrap();
+        let (remaining, _) = queue.pop_covered().unwrap().unwrap();
         assert_eq!(remaining.max_cut, MaxCut::new(3));
-        assert!(queue.is_empty());
+        assert!(queue.pop_covered().unwrap().is_none());
     }
 
     #[test]
     fn test_drain_above_with_covered_entries() {
-        let mut queue = TraversalQueue::new();
+        let mut queue = TraversalQueueWithCoverage::new();
         // Mix of uncovered and covered entries above and below threshold.
-        queue.push(loc(0, 3)).unwrap(); // uncovered, below
-        queue.push(loc(1, 7)).unwrap(); // uncovered, above
-        queue.push_covered(loc(2, 6), true).unwrap(); // covered, above
-        queue.push_covered(loc(3, 2), true).unwrap(); // covered, below
-        queue.push(loc(4, 5)).unwrap(); // uncovered, above
+        queue.push_uncovered(loc(0, 3)).unwrap(); // uncovered, below
+        queue.push_uncovered(loc(1, 7)).unwrap(); // uncovered, above
+        queue.push_covered(loc(2, 6)).unwrap(); // covered, above
+        queue.push_covered(loc(3, 2)).unwrap(); // covered, below
+        queue.push_uncovered(loc(4, 5)).unwrap(); // uncovered, above
 
         let mut drained: heapless::Vec<Location, 8> = heapless::Vec::new();
         queue
@@ -488,34 +452,29 @@ mod tests {
     }
 
     #[test]
-    fn test_push_duplicate_keeps_separate_entries() {
-        let mut queue = TraversalQueue::new();
-        queue.push_duplicate(loc(0, 5)).unwrap();
-        queue.push_duplicate(loc(0, 5)).unwrap();
-        let first = queue.pop().unwrap();
-        assert!(first.is_some());
-        let second = queue.pop().unwrap();
-        assert!(second.is_some());
-        assert!(queue.is_empty());
+    fn test_push_same_segment_updates_max_cut() {
+        let mut queue = TraversalQueueNoDuplicates::new();
+        queue.push(loc(0, 5)).unwrap();
+        queue.push(loc(0, 8)).unwrap();
+        let l = queue.pop().unwrap().unwrap();
+        assert_eq!(l.max_cut, MaxCut::new(8));
+        assert!(queue.pop().unwrap().is_none());
     }
 
     #[test]
-    #[ignore = "queue is currently unbounded"]
-    fn test_push_duplicate_overflow() {
-        let mut queue = TraversalQueue::new();
-        for i in 0..QUEUE_CAPACITY {
-            queue.push_duplicate(loc(0, i)).unwrap();
-        }
-        let result = queue.push_duplicate(loc(0, 999));
-        assert_eq!(
-            result.unwrap_err(),
-            StorageError::TraversalQueueOverflow(QUEUE_CAPACITY)
-        );
+    fn test_push_duplicate_keeps_separate_entries() {
+        let mut queue = TraversalQueueWithDuplicates::new();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        queue.push_duplicate(loc(0, 5)).unwrap();
+        let (entry, count) = queue.pop_duplicates().unwrap().unwrap();
+        assert_eq!(entry, loc(0, 5));
+        assert_eq!(count, 2);
+        assert!(queue.peek().is_none());
     }
 
     #[test]
     fn test_pop_duplicates_returns_count() {
-        let mut queue = TraversalQueue::new();
+        let mut queue = TraversalQueueWithDuplicates::new();
         queue.push_duplicate(loc(0, 5)).unwrap();
         queue.push_duplicate(loc(0, 5)).unwrap();
         queue.push_duplicate(loc(1, 3)).unwrap();
@@ -533,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_pop_duplicates_different_segments_same_max_cut() {
-        let mut queue = TraversalQueue::new();
+        let mut queue = TraversalQueueWithDuplicates::new();
         queue.push_duplicate(loc(0, 5)).unwrap();
         queue.push_duplicate(loc(1, 5)).unwrap();
 
@@ -549,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_pop_duplicates_empty() {
-        let mut queue = TraversalQueue::new();
+        let mut queue = TraversalQueueWithDuplicates::new();
         assert!(queue.pop_duplicates().unwrap().is_none());
     }
 }
