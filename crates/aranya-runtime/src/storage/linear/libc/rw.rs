@@ -1,0 +1,762 @@
+//! File-based IO backing using pread/pwrite for explicit IO.
+
+use alloc::{boxed::Box, sync::Arc};
+use core::{cmp::Ordering, hash::Hasher as _, ops::Deref};
+
+use aranya_libc::{
+    self as libc, AsAtRoot, Errno, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
+    O_RDONLY, O_RDWR, OwnedDir, OwnedFd, Path, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
+};
+use buggy::BugExt as _;
+use rkyv::{Archive, Deserialize, Serialize};
+use tracing::{error, warn};
+use yoke::Yoke;
+
+use super::error::Error;
+use crate::{
+    GraphId, StorageError,
+    linear::{
+        Readable, Writable,
+        io::{FactCacheOffset, IoManager, Read, Write},
+        libc::IdPath,
+    },
+    storage::{HeadSet, HeadSetOffset},
+};
+
+struct GraphIdIterator {
+    inner: OwnedDir,
+}
+
+impl GraphIdIterator {
+    fn new(fd: impl AsAtRoot) -> Result<Self, StorageError> {
+        // We're probably reusing a fd, so let's dupe it. This still shares
+        // state so any subsequent calls are affected, but this solves the
+        // problem of closedir destroying this specific fd.
+        let fd = libc::dup(fd.as_root())?;
+        let mut inner = libc::fdopendir(fd)?;
+        // Since we may be at the end of the directory due to shared state,
+        // let's be kind, rewind.
+        libc::rewinddir(&mut inner);
+        Ok(Self { inner })
+    }
+}
+
+impl Iterator for GraphIdIterator {
+    type Item = Result<GraphId, StorageError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Loop until we find an entry that contains an actual GraphId
+        loop {
+            let entry = match libc::readdir(&mut self.inner) {
+                Ok(Some(entry)) => entry,
+                Ok(None) => return None,
+                Err(errno) => return Some(Err(errno.into())),
+            };
+
+            let name = entry.name().to_bytes();
+            if name != b"." && name != b".." {
+                match GraphId::decode(name) {
+                    Ok(graph_id) => return Some(Ok(graph_id)),
+                    Err(err) => {
+                        warn!(
+                            "Filename {:?} is not a valid GraphId: {}",
+                            entry.name(),
+                            err
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A file-backed implementation of [`IoManager`].
+#[derive(Debug)]
+#[clippy::has_significant_drop]
+pub struct FileManager {
+    fd: OwnedFd,
+}
+
+impl FileManager {
+    /// Creates a `FileManager` at `dir`.
+    pub fn new<P: AsRef<Path>>(dir: P) -> Result<Self, Error> {
+        let fd = libc::open(dir.as_ref(), O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0)?;
+        Ok(Self { fd })
+    }
+
+    /// Returns the root.
+    fn root(&self) -> libc::BorrowedFd<'_> {
+        libc::AsFd::as_fd(&self.fd)
+    }
+}
+
+impl IoManager for FileManager {
+    type Writer = Writer;
+
+    fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
+        let name = IdPath::new(id);
+        let fd = libc::openat(
+            self.root(),
+            name,
+            O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC,
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP,
+        )?;
+        libc::flock(&fd, LOCK_EX | LOCK_NB)?;
+        // TODO(jdygert): fallocate?
+        Writer::create(fd)
+    }
+
+    fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
+        let name = IdPath::new(id);
+        let fd = match libc::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
+            Ok(fd) => fd,
+            Err(Errno::ENOENT) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+        libc::flock(&fd, LOCK_EX | LOCK_NB)?;
+        Ok(Some(Writer::open(fd)?))
+    }
+
+    fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
+        let name = IdPath::new(id);
+        libc::unlinkat(self.root(), name, 0)?;
+
+        Ok(())
+    }
+
+    fn list(
+        &mut self,
+    ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+        GraphIdIterator::new(self.root())
+    }
+}
+
+/// A file-based writer for linear storage.
+#[derive(Debug)]
+pub struct Writer {
+    file: File,
+    root: Root,
+    /// End of the region preallocated (and size-extended) via
+    /// `fallocate`. Appends stay within this bound so `fdatasync`
+    /// doesn't have to flush a file-size change on every commit.
+    alloc_end: i64,
+    /// Root slot (`ROOT_A`/`ROOT_B`) to write on the next commit.
+    /// We ping-pong between the two so the previously committed root
+    /// stays intact until the new one is durable.
+    next_root: i64,
+    /// Whether data has been appended since the last durability
+    /// barrier, i.e. whether the next commit must flush data before
+    /// writing the root.
+    data_dirty: bool,
+}
+
+/// An estimated page size for spacing the control data.
+const PAGE: i64 = 4096;
+
+// We store 2 roots for redudancy.
+/// Offset of the first [`Root`].
+const ROOT_A: i64 = PAGE;
+/// Offset of the second [`Root`].
+const ROOT_B: i64 = PAGE * 2;
+
+/// Starting offset for segment/fact data
+const FREE_START: i64 = PAGE * 3;
+
+/// Returns the other root slot, for ping-ponging between the two.
+fn other_root(slot: i64) -> i64 {
+    if slot == ROOT_A { ROOT_B } else { ROOT_A }
+}
+
+/// Granularity by which the file is grown ahead of the write
+/// frontier. Preallocating in large chunks keeps the file size
+/// stable across appends so `fdatasync` avoids the extra
+/// inode-metadata journal commit that a growing file forces.
+const PREALLOC_CHUNK: i64 = 4 * 1024 * 1024;
+
+/// Size of the big-endian `u32` length prefix written before each
+/// serialized value. See [`File::dump_bytes`] and [`File::load`].
+const LEN_PREFIX_LEN: i64 = 4;
+
+impl Writer {
+    fn create(fd: OwnedFd) -> Result<Self, StorageError> {
+        let file = File { fd: Arc::new(fd) };
+        // Preallocate the control region plus a first data chunk so
+        // we can start appending from FREE_START forward without
+        // extending the file size on every append.
+        let alloc_end = const { FREE_START + PREALLOC_CHUNK };
+        file.fallocate(0, alloc_end)?;
+        Ok(Self {
+            file,
+            root: Root::new(),
+            alloc_end,
+            next_root: ROOT_A,
+            data_dirty: false,
+        })
+    }
+
+    fn open(fd: OwnedFd) -> Result<Self, StorageError> {
+        let file = File { fd: Arc::new(fd) };
+
+        // Pick the latest valid root and remember which slot it came
+        // from; the next commit writes to the other slot so this one
+        // survives until the new root is durable.
+        let (root, chosen) = match (
+            file.load_root(ROOT_A).and_then(Root::validate),
+            file.load_root(ROOT_B).and_then(Root::validate),
+        ) {
+            (Ok(root_a), Ok(root_b)) => match root_a.generation.cmp(&root_b.generation) {
+                Ordering::Less => (root_b, ROOT_B),
+                Ordering::Equal | Ordering::Greater => (root_a, ROOT_A),
+            },
+            (Ok(root_a), Err(_)) => (root_a, ROOT_A),
+            (Err(_), Ok(root_b)) => (root_b, ROOT_B),
+            (Err(e), Err(_)) => return Err(e),
+        };
+
+        // Everything up to the write frontier is known to be
+        // allocated; `ensure_capacity` grows from here as needed.
+        let alloc_end = root.free_offset;
+
+        Ok(Self {
+            file,
+            root,
+            alloc_end,
+            next_root: other_root(chosen),
+            data_dirty: false,
+        })
+    }
+
+    /// Grows the preallocated region so it covers `end`, extending
+    /// the file size in `PREALLOC_CHUNK` steps. Appends stay inside
+    /// this bound so their `fdatasync` doesn't flush a size change.
+    fn ensure_capacity(&mut self, end: i64) -> Result<(), StorageError> {
+        if end <= self.alloc_end {
+            return Ok(());
+        }
+        let mut new_end = self.alloc_end;
+        while new_end < end {
+            new_end = new_end
+                .checked_add(PREALLOC_CHUNK)
+                .assume("preallocation size fits in `i64`")?;
+        }
+        self.file.fallocate(0, new_end)?;
+        self.alloc_end = new_end;
+        Ok(())
+    }
+
+    /// Append an item and return both it and its file offset.
+    ///
+    /// A function is used to allow the item to contain its offset.
+    fn append_at<F, T>(&mut self, builder: F) -> Result<(Handle<T>, u64), StorageError>
+    where
+        F: FnOnce(u64) -> T,
+        T: Writable + Readable,
+    {
+        let offset = self.root.free_offset;
+        let off: u64 = offset
+            .try_into()
+            .assume("`free_offset` can be converted to `u64`")?;
+        let item = builder(off);
+        let bytes = item.to_bytes().map_err(|err| {
+            error!(?err, "dump");
+            StorageError::IoError
+        })?;
+        // Ensure the file is grown ahead of this write so appending
+        // it doesn't change the file size (keeping `fdatasync` cheap).
+        let len = i64::try_from(bytes.len()).assume("serialized len fits in `i64`")?;
+        let end = offset
+            .checked_add(LEN_PREFIX_LEN)
+            .and_then(|o| o.checked_add(len))
+            .assume("append stays within `i64`")?;
+        self.ensure_capacity(end)?;
+        let new_offset = self.file.dump_bytes(offset, &bytes)?;
+
+        // The write frontier is advanced in memory only; it is made
+        // durable (along with the committed root) by `commit`. Data
+        // appended past the last committed `free_offset` is unreachable
+        // and safely overwritten after a crash.
+        self.root.free_offset = new_offset;
+        self.data_dirty = true;
+
+        let item = self.readonly().fetch(off)?;
+
+        Ok((item, off))
+    }
+
+    fn write_root(&mut self) -> Result<(), StorageError> {
+        self.root.generation = self
+            .root
+            .generation
+            .checked_add(1)
+            .assume("generation will not overflow u64")?;
+        self.root.checksum = self.root.calc_checksum();
+
+        // Write to the inactive slot and flush. The other slot still
+        // holds the previously committed root, so a crash mid-write
+        // leaves at least one valid root on disk. Ping-pong for next
+        // time.
+        let slot = self.next_root;
+        self.file.dump_root(slot, &self.root)?;
+        self.file.sync()?;
+        self.next_root = other_root(slot);
+
+        Ok(())
+    }
+}
+
+impl Write for Writer {
+    type ReadOnly = Reader;
+    fn readonly(&self) -> Self::ReadOnly {
+        Reader {
+            file: self.file.clone(),
+        }
+    }
+
+    fn heads(&self) -> Result<HeadSet, StorageError> {
+        let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
+        let off = i64::try_from(offset).assume("`offset` can be converted to `i64`")?;
+        let handle = self.file.load::<HeadSet>(off)?;
+        rkyv::api::high::deserialize(handle.deref())
+            .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+    }
+
+    fn heads_offset(&self) -> Result<HeadSetOffset, StorageError> {
+        let offset = self.root.heads.ok_or(StorageError::NotInitialized)?;
+        Ok(HeadSetOffset::new(offset))
+    }
+
+    fn fact_cache(&self) -> Result<FactCacheOffset, StorageError> {
+        let offset = self.root.fact_cache.ok_or(StorageError::NotInitialized)?;
+        Ok(FactCacheOffset::new(offset))
+    }
+
+    fn append<F, T>(&mut self, builder: F) -> Result<Handle<T>, StorageError>
+    where
+        F: FnOnce(u64) -> T,
+        T: Writable + Readable,
+    {
+        let (item, _) = self.append_at(builder)?;
+        Ok(item)
+    }
+
+    fn commit(&mut self, heads: &HeadSet, fact_cache: FactCacheOffset) -> Result<(), StorageError> {
+        // Append the head set, then atomically point the root at it + the
+        // fact cache.
+        let (_, heads_offset) = self.append_at(|_| heads.clone())?;
+        self.root.heads = Some(heads_offset);
+        self.root.fact_cache = Some(fact_cache.get());
+
+        // Barrier 1: ensure the appended data is durable before the
+        // root that references it, so a crash can't leave the root
+        // pointing at data that never reached disk.
+        if self.data_dirty {
+            self.file.sync()?;
+            self.data_dirty = false;
+        }
+
+        // Barrier 2: durably record the new root and write frontier.
+        self.write_root()?;
+        Ok(())
+    }
+}
+
+/// Section of control data for the file
+#[derive(Debug, Archive, Serialize, Deserialize)]
+struct Root {
+    /// Incremented each commit.
+    generation: u64,
+    /// Offset of the appended `HeadSet` record (`None` before first commit).
+    heads: Option<u64>,
+    /// Offset of the cached merged `FactIndex` (`None` before first commit).
+    fact_cache: Option<u64>,
+    /// Offset to write the next item at.
+    free_offset: i64,
+    /// Used to ensure root is valid. Write could be interrupted
+    /// or corrupted.
+    checksum: u64,
+}
+
+impl Root {
+    fn new() -> Self {
+        Self {
+            generation: 0,
+            heads: None,
+            fact_cache: None,
+            free_offset: FREE_START,
+            checksum: 0,
+        }
+    }
+
+    fn calc_checksum(&self) -> u64 {
+        let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
+        hasher.write_u64(self.generation);
+        for offset in [self.heads, self.fact_cache] {
+            match offset {
+                Some(offset) => {
+                    hasher.write_u8(1);
+                    hasher.write_u64(offset);
+                }
+                None => hasher.write_u8(0),
+            }
+        }
+        hasher.write_i64(self.free_offset);
+        hasher.finish()
+    }
+
+    fn validate(self) -> Result<Self, StorageError> {
+        if self.checksum != self.calc_checksum() {
+            tracing::warn!("invalid checksum");
+            return Err(StorageError::IoError);
+        }
+        Ok(self)
+    }
+}
+
+/// A file-based reader for linear storage.
+#[derive(Clone, Debug)]
+pub struct Reader {
+    file: File,
+}
+
+impl Read for Reader {
+    type Handle<T: Readable> = Handle<T>;
+
+    fn fetch<T: Readable>(&self, offset: u64) -> Result<Handle<T>, StorageError> {
+        let off = i64::try_from(offset).assume("`offset` can be converted to `i64`")?;
+        self.file.load(off)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct File {
+    fd: Arc<OwnedFd>,
+}
+
+impl File {
+    fn fallocate(&self, offset: i64, len: i64) -> Result<(), StorageError> {
+        libc::fallocate(&self.fd, 0, offset, len)?;
+        // A full `fsync` (not `fdatasync`) so the size/extent metadata
+        // dirtied by `fallocate` is durable before any data written into
+        // the new region is committed; `fdatasync` may skip metadata not
+        // needed to read back already-written data. This runs once per
+        // `PREALLOC_CHUNK`, not per commit.
+        libc::fsync(&self.fd)?;
+        Ok(())
+    }
+
+    fn read_exact(&self, mut offset: i64, mut buf: &mut [u8]) -> Result<(), StorageError> {
+        while !buf.is_empty() {
+            match libc::pread(&self.fd, buf, offset) {
+                Ok(0) => break,
+                Ok(n) => {
+                    buf = buf.get_mut(n..).assume("`n` should be in bounds")?;
+                    offset = offset
+                        .checked_add(i64::try_from(n).assume("read within bounds")?)
+                        .assume("read within bounds")?;
+                }
+                Err(Errno::EINTR) => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        if !buf.is_empty() {
+            error!(remaining = buf.len(), "could not fill buffer");
+            return Err(StorageError::IoError);
+        }
+        Ok(())
+    }
+
+    fn write_all(&self, mut offset: i64, mut buf: &[u8]) -> Result<(), StorageError> {
+        while !buf.is_empty() {
+            match libc::pwrite(&self.fd, buf, offset) {
+                Ok(0) => {
+                    error!(remaining = buf.len(), "could not write whole buffer");
+                    return Err(StorageError::IoError);
+                }
+                Ok(n) => {
+                    buf = buf.get(n..).assume("`n` is in bounds")?;
+                    offset = offset
+                        .checked_add(i64::try_from(n).assume("write within bounds")?)
+                        .assume("write within bounds")?;
+                }
+                Err(Errno::EINTR) => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(())
+    }
+
+    fn sync(&self) -> Result<(), StorageError> {
+        // `fdatasync` is sufficient for durability here: we only ever need the
+        // data and the metadata required to read it back (file size, block
+        // mapping), never timestamps. It avoids the extra inode-metadata journal
+        // commit that `fsync` forces.
+        libc::fdatasync(&self.fd)?;
+        Ok(())
+    }
+
+    fn dump_root(&self, offset: i64, root: &Root) -> Result<(), StorageError> {
+        const SIZE: usize = size_of::<ArchivedRoot>();
+        let mut buf = [0u8; SIZE];
+        let mut writer = rkyv::ser::writer::Buffer::from(buf.as_mut_slice());
+        rkyv::api::serialize_using::<_, rkyv::rancor::Failure>(root, &mut writer)
+            .assume("can serialize root")?;
+        self.write_all(offset, &writer)
+    }
+
+    fn load_root(&self, offset: i64) -> Result<Root, StorageError> {
+        const SIZE: usize = size_of::<ArchivedRoot>();
+        let mut bytes = [0u8; SIZE];
+        self.read_exact(offset, &mut bytes)?;
+        rkyv::api::low::from_bytes(&bytes).map_err(|err: rkyv::rancor::Error| {
+            error!(?err, "load_root");
+            StorageError::IoError
+        })
+    }
+
+    /// Writes an already-serialized value (length prefix + bytes)
+    /// at `offset`, returning the offset just past it.
+    fn dump_bytes(&self, offset: i64, bytes: &[u8]) -> Result<i64, StorageError> {
+        let len: u32 = bytes
+            .len()
+            .try_into()
+            .assume("serialized objects should fit in u32")?;
+        self.write_all(offset, &len.to_be_bytes())?;
+        let offset2 = offset
+            .checked_add(LEN_PREFIX_LEN)
+            .assume("offset not near u64::MAX")?;
+        self.write_all(offset2, bytes)?;
+        let off = offset2
+            .checked_add(len.into())
+            .assume("offset valid after write")?;
+        Ok(off)
+    }
+
+    fn load<T: Readable>(&self, offset: i64) -> Result<Handle<T>, StorageError> {
+        let mut bytes = [0u8; 4];
+        self.read_exact(offset, &mut bytes)?;
+        let len = u32::from_be_bytes(bytes);
+        let mut bytes = alloc::vec![0u8; len as usize];
+        self.read_exact(
+            offset
+                .checked_add(LEN_PREFIX_LEN)
+                .assume("offset not near u64::MAX")?,
+            &mut bytes,
+        )?;
+        T::yoke(bytes.into_boxed_slice()).map(Handle)
+    }
+}
+
+/// Handle wrapper around a loaded object.
+pub struct Handle<T: Readable>(Yoke<&'static T::Archived, Box<[u8]>>);
+
+impl<T: Readable> Deref for Handle<T> {
+    type Target = T::Archived;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{assert_matches, fs};
+
+    use tracing::info;
+
+    use super::*;
+    use crate::{
+        CmdId, MaxCut, SegmentIndex,
+        storage::{HeadSet, LocatedAddress, linear::LinearStorageProvider},
+        testing::dsl::{StorageBackend, test_suite},
+    };
+
+    struct LinearBackend {
+        tempdir: tempfile::TempDir,
+    }
+
+    impl StorageBackend for LinearBackend {
+        type StorageProvider = LinearStorageProvider<FileManager>;
+
+        fn provider(&mut self, client_id: u64) -> Self::StorageProvider {
+            let dir = self.tempdir.path().join(client_id.to_string());
+            fs::create_dir(&dir).unwrap();
+            let manager = FileManager::new(&dir).unwrap();
+            LinearStorageProvider::new(manager)
+        }
+    }
+
+    test_suite!(|| {
+        let tempdir = tempfile::tempdir().unwrap();
+        info!(path = ?tempdir.path(), "using tempdir");
+        LinearBackend { tempdir }
+    });
+
+    fn located(id: u8, seg: u64, max_cut: u64) -> LocatedAddress {
+        let mut bytes = [0u8; 32];
+        bytes[0] = id;
+        LocatedAddress {
+            id: CmdId::from_bytes(bytes),
+            segment: SegmentIndex::new(seg),
+            max_cut: MaxCut::new(max_cut),
+        }
+    }
+
+    fn heads(id: u8) -> HeadSet {
+        HeadSet::single(located(id, id.into(), id.into()))
+    }
+
+    fn graph_id() -> GraphId {
+        "test".parse().unwrap()
+    }
+
+    fn manager() -> (tempfile::TempDir, FileManager) {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = FileManager::new(dir.path()).unwrap();
+        (dir, manager)
+    }
+
+    impl crate::storage::linear::io::private::Sealed for u64 {}
+    impl Writable for u64 {
+        fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
+        where
+            W: rkyv::ser::Writer<rkyv::rancor::Failure>,
+        {
+            rkyv::api::high::to_bytes_in(self, writer)
+                .map_err(|rkyv::rancor::Failure| StorageError::IoError)
+        }
+    }
+
+    /// Uncommitted appends must not survive a crash: reopening ignores
+    /// data past the committed write frontier.
+    #[test]
+    fn test_reopen_discards_uncommitted_appends() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.append(|_| 1u64).unwrap();
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap();
+        let committed_offset = writer.root.free_offset;
+
+        writer.append(|_| 2u64).unwrap();
+        writer.append(|_| 3u64).unwrap();
+        assert_ne!(writer.root.free_offset, committed_offset);
+        // Simulated crash: drop without committing.
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads(1));
+        assert_eq!(writer.root.free_offset, committed_offset);
+    }
+
+    /// A torn or corrupted root write must fall back to the other
+    /// slot's previously committed root.
+    #[test]
+    fn test_reopen_survives_corrupt_root() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.append(|_| 1u64).unwrap();
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap(); // generation 1 -> ROOT_A
+        writer.append(|_| 2u64).unwrap();
+        writer.commit(&heads(2), FactCacheOffset::new(2)).unwrap(); // generation 2 -> ROOT_B
+
+        // Simulated torn write: scribble over the newest root.
+        writer.file.write_all(ROOT_B, &[0xFF; 64]).unwrap();
+        drop(writer);
+
+        let mut writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads(1));
+
+        // The corrupt slot is the next one written, restoring redundancy.
+        assert_eq!(writer.next_root, ROOT_B);
+        writer.commit(&heads(3), FactCacheOffset::new(3)).unwrap();
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads(3));
+    }
+
+    /// Commits must keep alternating root slots across reopens so the
+    /// previously committed root always survives the next commit.
+    #[test]
+    fn test_root_slots_ping_pong_across_reopen() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap(); // generation 1 -> ROOT_A
+        writer.commit(&heads(2), FactCacheOffset::new(2)).unwrap(); // generation 2 -> ROOT_B
+        drop(writer);
+
+        let mut writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads(2));
+        assert_eq!(writer.root.generation, 2);
+        // The newest root lives in ROOT_B, so the next commit must
+        // overwrite ROOT_A.
+        assert_eq!(writer.next_root, ROOT_A);
+        writer.commit(&heads(3), FactCacheOffset::new(3)).unwrap();
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads(3));
+        assert_eq!(writer.root.generation, 3);
+        assert_eq!(writer.next_root, ROOT_B);
+    }
+
+    /// A root that decodes but fails its checksum is rejected, and
+    /// opening fails if neither slot holds a valid root.
+    #[test]
+    fn test_reopen_rejects_bad_checksum() {
+        let (_dir, mut manager) = manager();
+        let id = graph_id();
+
+        let mut writer = manager.create(id).unwrap();
+        writer.commit(&heads(1), FactCacheOffset::new(1)).unwrap(); // generation 1 -> ROOT_A
+        writer.commit(&heads(2), FactCacheOffset::new(2)).unwrap(); // generation 2 -> ROOT_B
+
+        // Flip a byte of ROOT_B's `generation` (first field): still
+        // decodes, but the checksum no longer matches.
+        let mut byte = [0u8; 1];
+        writer.file.read_exact(ROOT_B, &mut byte).unwrap();
+        writer.file.write_all(ROOT_B, &[byte[0] ^ 1]).unwrap();
+        assert!(writer.file.load_root(ROOT_B).is_ok());
+        drop(writer);
+
+        let writer = manager.open(id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads(1));
+        // Corrupt ROOT_A too; now neither slot is valid.
+        writer.file.write_all(ROOT_A, &[0xFF; 64]).unwrap();
+        drop(writer);
+
+        assert_matches!(manager.open(id), Err(StorageError::IoError));
+    }
+
+    #[test]
+    fn head_set_and_fact_cache_round_trip() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let mut manager = FileManager::new(tempdir.path()).unwrap();
+        let graph_id = GraphId::transmute(CmdId::from_bytes([7u8; 32]));
+
+        let mut heads = HeadSet::single(located(1, 1, 3));
+        heads.push(located(2, 2, 5));
+        assert_eq!(heads.len(), 2);
+
+        // Commit on a fresh writer.
+        {
+            let mut writer = manager.create(graph_id).unwrap();
+            // Before any commit the head set / fact cache are absent.
+            assert_matches!(writer.heads(), Err(StorageError::NotInitialized));
+            assert_matches!(writer.fact_cache(), Err(StorageError::NotInitialized));
+
+            writer.commit(&heads, FactCacheOffset::new(1234)).unwrap();
+            assert_eq!(writer.heads().unwrap(), heads);
+            assert_eq!(writer.fact_cache().unwrap(), FactCacheOffset::new(1234));
+        }
+
+        // Reopen and verify persistence.
+        let writer = manager.open(graph_id).unwrap().unwrap();
+        assert_eq!(writer.heads().unwrap(), heads);
+        assert_eq!(writer.fact_cache().unwrap(), FactCacheOffset::new(1234));
+    }
+}

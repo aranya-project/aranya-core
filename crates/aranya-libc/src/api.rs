@@ -1,7 +1,8 @@
 use alloc::sync::Arc;
 use core::{
-    ffi::{CStr, c_int},
+    ffi::{CStr, c_int, c_void},
     marker::PhantomData,
+    ptr::NonNull,
 };
 
 use super::{errno::Errno, path::Path};
@@ -222,4 +223,17 @@ pub fn readdir(dir: &mut OwnedDir) -> Result<Option<DirEntry<'_>>, Errno> {
 /// See `rewinddir(3p)`.
 pub fn rewinddir(dir: &mut OwnedDir) {
     dir.rewinddir();
+}
+
+/// See `mmap(2)`.
+///
+/// The mapping is readable and writable, and it is shared/persisted.
+pub fn mmap_shared_rw(fd: impl AsFd, offset: i64, len: usize) -> Result<NonNull<c_void>, Errno> {
+    imp::mmap_shared_rw(fd.as_fd(), offset, len)
+}
+
+/// See `munmap(2)`.
+// TODO(mmap): hide this in favor of `Mapping` type which unmaps on drop.
+pub fn munmap(addr: NonNull<c_void>, len: usize) -> Result<(), Errno> {
+    imp::munmap(addr, len)
 }
