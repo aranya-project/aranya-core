@@ -411,18 +411,13 @@ impl SyncRequester {
             .collect();
 
         let floor = sample::floor(&*storage, heads.cache.heads())?;
-        let sample = sample::build(
+        let (sample, [sent_session_heads, _, _]) = sample::build(
             &*storage,
-            &[&session_heads, &cache_heads, &graph_heads],
+            [&session_heads, &cache_heads, &graph_heads],
             floor,
             rng,
             |_| false,
         )?;
-        // `build` adds the session heads first.
-        let sent_session_heads = sample
-            .iter()
-            .take_while(|a| session_heads.contains(a))
-            .count();
         let sent_session_heads =
             u8::try_from(sent_session_heads).assume("session heads fit in a u8")?;
         Ok((sample, sent_session_heads))

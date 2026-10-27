@@ -123,22 +123,26 @@ impl PeerCache {
             max_cut: addr.max_cut,
         };
 
+        // Decide for every head before changing any, so a storage error
+        // leaves the cache untouched.
         let mut add_command = true;
-
-        let mut retain_head = |old: &LocatedAddress| -> Result<bool, StorageError> {
-            if old.id == new.id || storage.is_ancestor(new.location(), old.location(), buffer)? {
-                // Don't add this command, keep existing command
+        let mut keep: Vec<bool, PEER_HEAD_MAX> = Vec::new();
+        for old in &self.heads {
+            let keep_old = if old.id == new.id
+                || storage.is_ancestor(new.location(), old.location(), buffer)?
+            {
+                // The new command is already covered by this head.
                 add_command = false;
-                return Ok(true);
-            }
-            if storage.is_ancestor(old.location(), new.location(), buffer)? {
-                // Remove existing head.
-                return Ok(false);
-            }
-            // Just keep existing head.
-            Ok(true)
-        };
-        self.heads.retain(|h| retain_head(h).unwrap_or(false));
+                true
+            } else {
+                // Drop this head if the new command covers it.
+                !storage.is_ancestor(old.location(), new.location(), buffer)?
+            };
+            keep.push(keep_old).ok().assume("one decision per head")?;
+        }
+        let mut keep = keep.into_iter();
+        self.heads.retain(|_| keep.next().unwrap_or(true));
+
         if add_command {
             if self.heads.is_full() {
                 let evict = sample::random_index(rng, self.heads.len())?;
@@ -253,8 +257,6 @@ pub struct SyncResponder {
     /// Whether the requester asked us to forget what we know it holds.
     reset: bool,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
-    /// Whether `to_send` was cut short by `SEGMENT_BUFFER_MAX`.
-    truncated: bool,
     /// Whether the next reply may carry a sample. Only the first reply to a
     /// request does.
     send_sample: bool,
@@ -266,12 +268,16 @@ impl Default for SyncResponder {
     }
 }
 
+// A truncated `to_send` holds at least `SEGMENT_BUFFER_MAX` commands, so
+// its first reply is full. `get_next` relies on this to attach a sample
+// whenever more remains than fits in one reply.
+const _: () = assert!(SEGMENT_BUFFER_MAX >= COMMAND_RESPONSE_MAX);
+
 /// Insert `loc` into a bounded vec that keeps the lowest `max_cut`
 /// entries. If full, replaces the highest `max_cut` entry when the
-/// new one is lower, and sets `truncated`.
-fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location, truncated: &mut bool) {
+/// new one is lower.
+fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
     if v.push(loc).is_err() {
-        *truncated = true;
         // Full — find the entry with the highest max_cut.
         let (max_idx, _) = v
             .iter()
@@ -298,7 +304,6 @@ impl SyncResponder {
             session_heads: 0,
             reset: false,
             to_send: Vec::new(),
-            truncated: false,
             send_sample: false,
         }
     }
@@ -366,8 +371,7 @@ impl SyncResponder {
                     }
                 }
                 have.extend(response_cache.heads().iter().map(|h| h.location()));
-                (self.to_send, self.truncated) =
-                    Self::find_needed_segments(have, storage, buffers)?;
+                self.to_send = Self::find_needed_segments(have, storage, buffers)?;
                 self.send_sample = true;
 
                 self.get_next(target, provider, response_cache, rng)?
@@ -469,8 +473,7 @@ impl SyncResponder {
     }
 
     /// Returns segments (or partial segments) that the peer doesn't have,
-    /// given the locations of commands it holds, and whether the result was
-    /// cut short by `SEGMENT_BUFFER_MAX`.
+    /// given the locations of commands it holds.
     ///
     /// Uses a single backward traversal with coverage propagation to
     /// eliminate all `is_ancestor()` calls. See
@@ -479,7 +482,7 @@ impl SyncResponder {
         mut have_locations: vec::Vec<Location>,
         storage: &impl Storage,
         buffers: &mut TraversalBuffers,
-    ) -> Result<(Vec<Location, SEGMENT_BUFFER_MAX>, bool), SyncError> {
+    ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
         // Sort descending by max_cut so we can discard from the front as we
         // descend through the graph.
         have_locations.sort_by_key(|loc| core::cmp::Reverse(loc.max_cut));
@@ -502,14 +505,10 @@ impl SyncResponder {
         let skip_target = highest_have
             .checked_add(SEGMENT_BUFFER_MAX as u64)
             .assume("skip target overflow")?;
-        // A jump skips uncovered segments above the target, so the result is
-        // cut short.
-        let mut truncated = false;
         for head in storage.get_heads()?.iter() {
             let start = if head.max_cut <= skip_target {
                 head.location()
             } else {
-                truncated = true;
                 skip_jump(storage, head.location(), skip_target, AtMerge::Stop)?
             };
             heads.push(start)?;
@@ -529,9 +528,7 @@ impl SyncResponder {
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.
             if prev_max_cut != Some(head.max_cut) {
-                pending.drain_above(head.max_cut, |loc| {
-                    push_bounded(&mut collected, loc, &mut truncated);
-                })?;
+                pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
                 prev_max_cut = Some(head.max_cut);
             }
 
@@ -623,12 +620,12 @@ impl SyncResponder {
 
         // Flush remaining uncovered pending segments. Covered entries
         // are discarded — the peer already has them.
-        pending.drain_all(|loc| push_bounded(&mut collected, loc, &mut truncated));
+        pending.drain_all(|loc| push_bounded(&mut collected, loc));
 
         // Sort to ensure causal order (parents before children).
         collected.sort();
 
-        Ok((collected, truncated))
+        Ok(collected)
     }
 
     fn get_next(
@@ -651,12 +648,12 @@ impl SyncResponder {
 
         let (commands, command_data, next_send) = self.get_commands(provider)?;
 
-        // When the requester lacks more than fits in this reply, sample our
-        // graph so it can tell us what it holds that its own sample missed.
+        // When the first reply is full, the requester may lack more than
+        // fits in it, so sample our graph so it can tell us what it holds
+        // that its own sample missed.
+        let reply_full = commands.is_full() || next_send < self.to_send.len();
         let mut sample = Vec::new();
-        if core::mem::take(&mut self.send_sample)
-            && (next_send < self.to_send.len() || self.truncated)
-        {
+        if core::mem::take(&mut self.send_sample) && reply_full {
             let graph_id = self.graph_id.assume("graph_id is set")?;
             let storage = provider.get_storage(graph_id)?;
             let heads: vec::Vec<Address> = storage
@@ -665,7 +662,7 @@ impl SyncResponder {
                 .map(LocatedAddress::address)
                 .collect();
             let floor = sample::floor(&*storage, response_cache.heads())?;
-            sample = sample::build(&*storage, &[&heads], floor, rng, |addr| {
+            (sample, _) = sample::build(&*storage, [&heads], floor, rng, |addr| {
                 commands.iter().any(|meta| meta.id == addr.id)
             })?;
         }
@@ -731,7 +728,7 @@ impl SyncResponder {
                 have.push(location);
             }
         }
-        (self.to_send, self.truncated) = Self::find_needed_segments(have, storage, buffers)?;
+        self.to_send = Self::find_needed_segments(have, storage, buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {

@@ -141,28 +141,33 @@ type Sample = Vec<Address, COMMAND_SAMPLE_MAX>;
 /// Builds a sample over `storage`: the heads in `head_groups`, then random
 /// commands spread evenly between the tallest graph head and `floor`.
 /// Random commands for which `exclude` returns true are dropped.
-pub(super) fn build<S: Storage>(
+///
+/// Returns the sample and how many heads each group contributed. Each
+/// group's heads are contiguous and in group order at the start of the
+/// sample.
+pub(super) fn build<S: Storage, const N: usize>(
     storage: &S,
-    head_groups: &[&[Address]],
+    head_groups: [&[Address]; N],
     floor: MaxCut,
     rng: &impl Csprng,
     exclude: impl Fn(Address) -> bool,
-) -> Result<Sample, SyncError> {
+) -> Result<(Sample, [usize; N]), SyncError> {
     let mut sample = Sample::new();
-    add_heads(&mut sample, head_groups, rng)?;
+    let counts = add_heads(&mut sample, head_groups, rng)?;
     add_random_commands(&mut sample, storage, floor, rng, exclude)?;
-    Ok(sample)
+    Ok((sample, counts))
 }
 
 /// Adds `head_groups` to `sample` in order, into at most `HEADS_MAX` slots.
 /// A group that does not fit in the slots left contributes a random subset
-/// that fills them.
-fn add_heads(
+/// that fills them. Returns how many heads each group added.
+fn add_heads<const N: usize>(
     sample: &mut Sample,
-    head_groups: &[&[Address]],
+    head_groups: [&[Address]; N],
     rng: &impl Csprng,
-) -> Result<(), Bug> {
-    for group in head_groups {
+) -> Result<[usize; N], Bug> {
+    let mut counts = [0; N];
+    for (group, count) in head_groups.into_iter().zip(&mut counts) {
         let room = HEADS_MAX
             .checked_sub(sample.len())
             .assume("heads fit in their slots")?;
@@ -172,11 +177,12 @@ fn add_heads(
             .filter(|a| !sample.contains(a))
             .collect();
         keep_random_subset(&mut new, room, rng)?;
+        *count = new.len();
         for head in new {
             sample.push(head).ok().assume("heads fit in sample")?;
         }
     }
-    Ok(())
+    Ok(counts)
 }
 
 /// Shrinks `items` to a uniformly random subset of at most `n` of them.
