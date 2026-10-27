@@ -445,7 +445,7 @@ impl SyncResponder {
             .assume("skip target overflow")?;
         for head in storage.get_heads()?.iter() {
             let start = skip_jump(storage, head.location(), skip_target)?;
-            heads.push(start)?;
+            heads.push_uncovered(start)?;
         }
 
         // pending queue: segments tentatively needed by the peer.
@@ -477,11 +477,11 @@ impl SyncResponder {
                 // Propagate coverage to priors so they'll be processed as
                 // covered if not yet visited.
                 for prior in segment.prior() {
-                    heads.push_covered(prior, true)?;
+                    heads.push_covered(prior)?;
                 }
                 // Early termination: if all remaining heads are covered, stop.
                 // Every remaining path leads to segments the peer already has.
-                if heads.all_covered() && !heads.is_empty() {
+                if heads.nontrivially_covered() {
                     break;
                 }
                 continue;
@@ -519,7 +519,7 @@ impl SyncResponder {
                 // covered — the peer has at least part of this segment,
                 // so its priors are reachable.
                 for prior in segment.prior() {
-                    heads.push_covered(prior, true)?;
+                    heads.push_covered(prior)?;
                 }
 
                 // If the peer doesn't have the whole segment (have_location
@@ -534,21 +534,21 @@ impl SyncResponder {
                         max_cut: next_max_cut,
                         segment: head.segment,
                     };
-                    pending.push(partial_loc)?;
+                    pending.push_uncovered(partial_loc)?;
                 }
                 // else: peer has the entire segment, nothing to send.
             } else {
                 // Case 3: Uncovered, no have_location. Add to pending and
                 // continue traversal through priors.
-                pending.push(segment.first_location())?;
+                pending.push_uncovered(segment.first_location())?;
                 for prior in segment.prior() {
-                    heads.push(prior)?;
+                    heads.push_uncovered(prior)?;
                 }
             }
 
             // Early termination: if all remaining heads are covered, stop.
             // Every remaining path leads to segments the peer already has.
-            if heads.all_covered() && !heads.is_empty() {
+            if heads.nontrivially_covered() {
                 break;
             }
         }

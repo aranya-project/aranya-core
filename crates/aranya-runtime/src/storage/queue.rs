@@ -35,27 +35,26 @@ impl TraversalQueueWithCoverage {
         self.partition = 0;
     }
 
-    /// Returns true if no entries.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     /// Enqueues a location as uncovered.
     ///
     /// If an entry with the same segment exists, its max cut will be updated
+    /// to the max of the two, unless the old entry was covered.
+    pub(crate) fn push_uncovered(&mut self, loc: Location) -> Result<(), StorageError> {
+        self.push(loc, false)
+    }
+
+    /// Enqueues a location as covered.
+    ///
+    /// If an entry with the same segment exists, its max cut will be updated
     /// to the max of the two.
-    pub(crate) fn push(&mut self, loc: Location) -> Result<(), StorageError> {
-        self.push_covered(loc, false)
+    pub(crate) fn push_covered(&mut self, loc: Location) -> Result<(), StorageError> {
+        self.push(loc, true)
     }
 
     /// Enqueues a location with the given covered flag.
     ///
     /// Deduplicates segments unless doing so would transition from covered to uncovered.
-    pub(crate) fn push_covered(
-        &mut self,
-        loc: Location,
-        covered: bool,
-    ) -> Result<(), StorageError> {
+    fn push(&mut self, loc: Location, covered: bool) -> Result<(), StorageError> {
         if let Some(i) = self.entries.iter().position(|x| x.same_segment(loc)) {
             let was_covered = i >= self.partition;
             let newly_covered = covered && !was_covered;
@@ -153,9 +152,9 @@ impl TraversalQueueWithCoverage {
         Ok(self.entries.swap_remove(self.partition))
     }
 
-    /// Returns true if all entries are covered (uncovered partition is empty).
-    pub(crate) fn all_covered(&self) -> bool {
-        self.partition == 0
+    /// Returns true if all entries are covered and there is at least one entry.
+    pub(crate) fn nontrivially_covered(&self) -> bool {
+        !self.entries.is_empty() && self.partition == 0
     }
 
     /// Remove all entries with `max_cut > threshold` from the queue.
@@ -211,11 +210,7 @@ impl TraversalQueueWithCoverage {
         }
         if coverage_mc >= longest_mc {
             // Fully covered — move to covered partition.
-            self.partition = self
-                .partition
-                .checked_sub(1)
-                .assume("partition must be >= 1 when uncovered entry exists")?;
-            self.entries.swap(i, self.partition);
+            self.cover(i)?;
         } else if coverage_mc >= self.entries[i].max_cut {
             // Partially covered — advance start past the covered portion.
             self.entries[i].max_cut = coverage_mc
@@ -230,8 +225,7 @@ impl TraversalQueueWithCoverage {
     /// Covered entries are discarded. O(n) single pass.
     pub(crate) fn drain_all(&mut self, f: impl FnMut(Location)) {
         self.entries[..self.partition].iter().copied().for_each(f);
-        self.entries.clear();
-        self.partition = 0;
+        self.clear();
     }
 }
 
