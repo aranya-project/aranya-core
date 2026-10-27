@@ -444,7 +444,7 @@ impl SyncResponder {
                 self.bytes_sent = max_bytes;
                 self.to_send = Vec::new();
                 self.has = commands;
-                self.session_heads = usize::from(session_heads);
+                self.session_heads = session_heads;
                 self.reset = reset;
                 self.next_send = 0;
                 return Ok(());

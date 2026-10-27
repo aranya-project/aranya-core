@@ -40,7 +40,7 @@ pub(crate) enum SyncRequestMessage {
         /// How many of the first `commands` are session heads: commands
         /// the requester has received but not committed. The responder
         /// treats them as held for this request but does not cache them.
-        session_heads: u8,
+        session_heads: usize,
         /// Asks the responder to forget what it knows the requester holds
         /// before resolving `commands`, because that knowledge may be wrong.
         reset: bool,
@@ -387,7 +387,7 @@ impl SyncRequester {
         provider: &mut impl StorageProvider,
         heads: &SessionHeads<'_>,
         rng: &impl Csprng,
-    ) -> Result<(Vec<Address, COMMAND_SAMPLE_MAX>, u8), SyncError> {
+    ) -> Result<(Vec<Address, COMMAND_SAMPLE_MAX>, usize), SyncError> {
         let storage = match provider.get_storage(self.graph_id) {
             Err(StorageError::NoSuchStorage) => return Ok((Vec::new(), 0)),
             Err(err) => return Err(SyncError::Storage(err)),
@@ -417,8 +417,6 @@ impl SyncRequester {
             rng,
             |_| false,
         )?;
-        let sent_session_heads =
-            u8::try_from(sent_session_heads).assume("session heads fit in a u8")?;
         Ok((sample, sent_session_heads))
     }
 
