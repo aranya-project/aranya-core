@@ -47,7 +47,7 @@ pub const QUEUE_CAPACITY: usize = 512;
 
 /// A queue buffer for a single graph traversal operation.
 ///
-/// Access via [`get()`](Self::get), which clears the buffer automatically.
+/// Access via a `get_queue_*` method which clears the buffer automatically.
 pub struct TraversalBuffer {
     queue_with_coverage: TraversalQueueWithCoverage,
     queue_no_duplicates: TraversalQueueNoDuplicates,
