@@ -1,4 +1,11 @@
-use alloc::{boxed::Box, sync::Arc};
+//! File-based IO backing using mmap for implicit IO.
+
+// TODO(mmap): Fix these.
+#![expect(clippy::unwrap_used)]
+#![expect(clippy::arithmetic_side_effects)]
+#![expect(clippy::undocumented_unsafe_blocks)]
+
+use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher as _, ops::Deref};
 
 use aranya_libc::{
@@ -10,16 +17,18 @@ use rkyv::{Archive, Deserialize, Serialize};
 use tracing::{error, warn};
 use yoke::Yoke;
 
-use super::error::Error;
+use super::{IdPath, error::Error};
 use crate::{
     GraphId, StorageError,
     linear::{
         Readable, Writable,
         io::{FactCacheOffset, IoManager, Read, Write},
-        libc::IdPath,
     },
     storage::{HeadSet, HeadSetOffset},
 };
+
+const KB: u32 = 1024;
+const MB: u32 = 1024 * KB;
 
 struct GraphIdIterator {
     inner: OwnedDir,
@@ -175,25 +184,36 @@ const PREALLOC_CHUNK: i64 = 4 * 1024 * 1024;
 /// serialized value. See [`File::dump_bytes`] and [`File::load`].
 const LEN_PREFIX_LEN: i64 = 4;
 
+// TODO(mmap): take in max size or handle growth
+const MAX_SIZE: u32 = 64 * MB;
+
 impl Writer {
     fn create(fd: OwnedFd) -> Result<Self, StorageError> {
-        let file = File { fd: Arc::new(fd) };
-        // Preallocate the control region plus a first data chunk so
-        // we can start appending from FREE_START forward without
-        // extending the file size on every append.
-        let alloc_end = const { FREE_START + PREALLOC_CHUNK };
-        file.fallocate(0, alloc_end)?;
+        let alloc_end = MAX_SIZE;
+        libc::fallocate(&fd, 0, 0, alloc_end.into())?;
+        let mapping = Mapping::new(&fd, 0, alloc_end.try_into().unwrap())?;
+        let file = File {
+            fd: Arc::new(fd),
+            mapping: Arc::new(mapping),
+        };
         Ok(Self {
             file,
             root: Root::new(),
-            alloc_end,
+            alloc_end: alloc_end.into(),
             next_root: ROOT_A,
             data_dirty: false,
         })
     }
 
     fn open(fd: OwnedFd) -> Result<Self, StorageError> {
-        let file = File { fd: Arc::new(fd) };
+        // TODO(mmap): read from file size?
+        let alloc_end = MAX_SIZE;
+
+        let mapping = Mapping::new(&fd, 0, alloc_end.try_into().unwrap())?;
+        let file = File {
+            fd: Arc::new(fd),
+            mapping: Arc::new(mapping),
+        };
 
         // Pick the latest valid root and remember which slot it came
         // from; the next commit writes to the other slot so this one
@@ -211,14 +231,10 @@ impl Writer {
             (Err(e), Err(_)) => return Err(e),
         };
 
-        // Everything up to the write frontier is known to be
-        // allocated; `ensure_capacity` grows from here as needed.
-        let alloc_end = root.free_offset;
-
         Ok(Self {
             file,
             root,
-            alloc_end,
+            alloc_end: alloc_end.into(),
             next_root: other_root(chosen),
             data_dirty: false,
         })
@@ -230,6 +246,9 @@ impl Writer {
     fn ensure_capacity(&mut self, end: i64) -> Result<(), StorageError> {
         if end <= self.alloc_end {
             return Ok(());
+        }
+        if true {
+            todo!("TODO(mmap): handle growth?");
         }
         let mut new_end = self.alloc_end;
         while new_end < end {
@@ -273,7 +292,7 @@ impl Writer {
         // durable (along with the committed root) by `commit`. Data
         // appended past the last committed `free_offset` is unreachable
         // and safely overwritten after a crash.
-        self.root.free_offset = new_offset;
+        self.root.free_offset = align_up(new_offset);
         self.data_dirty = true;
 
         let item = self.readonly().fetch(off)?;
@@ -380,7 +399,7 @@ impl Root {
             generation: 0,
             heads: None,
             fact_cache: None,
-            free_offset: FREE_START,
+            free_offset: align_up(FREE_START),
             checksum: 0,
         }
     }
@@ -428,6 +447,7 @@ impl Read for Reader {
 #[derive(Clone, Debug)]
 struct File {
     fd: Arc<OwnedFd>,
+    mapping: Arc<Mapping>,
 }
 
 impl File {
@@ -442,44 +462,8 @@ impl File {
         Ok(())
     }
 
-    fn read_exact(&self, mut offset: i64, mut buf: &mut [u8]) -> Result<(), StorageError> {
-        while !buf.is_empty() {
-            match libc::pread(&self.fd, buf, offset) {
-                Ok(0) => break,
-                Ok(n) => {
-                    buf = buf.get_mut(n..).assume("`n` should be in bounds")?;
-                    offset = offset
-                        .checked_add(i64::try_from(n).assume("read within bounds")?)
-                        .assume("read within bounds")?;
-                }
-                Err(Errno::EINTR) => {}
-                Err(e) => return Err(e.into()),
-            }
-        }
-        if !buf.is_empty() {
-            error!(remaining = buf.len(), "could not fill buffer");
-            return Err(StorageError::IoError);
-        }
-        Ok(())
-    }
-
-    fn write_all(&self, mut offset: i64, mut buf: &[u8]) -> Result<(), StorageError> {
-        while !buf.is_empty() {
-            match libc::pwrite(&self.fd, buf, offset) {
-                Ok(0) => {
-                    error!(remaining = buf.len(), "could not write whole buffer");
-                    return Err(StorageError::IoError);
-                }
-                Ok(n) => {
-                    buf = buf.get(n..).assume("`n` is in bounds")?;
-                    offset = offset
-                        .checked_add(i64::try_from(n).assume("write within bounds")?)
-                        .assume("write within bounds")?;
-                }
-                Err(Errno::EINTR) => {}
-                Err(e) => return Err(e.into()),
-            }
-        }
+    fn write_all(&self, offset: i64, buf: &[u8]) -> Result<(), StorageError> {
+        self.mapping.write(offset, buf);
         Ok(())
     }
 
@@ -503,9 +487,8 @@ impl File {
 
     fn load_root(&self, offset: i64) -> Result<Root, StorageError> {
         const SIZE: usize = size_of::<ArchivedRoot>();
-        let mut bytes = [0u8; SIZE];
-        self.read_exact(offset, &mut bytes)?;
-        rkyv::api::low::from_bytes(&bytes).map_err(|err: rkyv::rancor::Error| {
+        let bytes = self.mapping.get(offset, SIZE);
+        rkyv::api::low::from_bytes(bytes).map_err(|err: rkyv::rancor::Error| {
             error!(?err, "load_root");
             StorageError::IoError
         })
@@ -530,22 +513,114 @@ impl File {
     }
 
     fn load<T: Readable>(&self, offset: i64) -> Result<Handle<T>, StorageError> {
-        let mut bytes = [0u8; 4];
-        self.read_exact(offset, &mut bytes)?;
-        let len = u32::from_be_bytes(bytes);
-        let mut bytes = alloc::vec![0u8; len as usize];
-        self.read_exact(
-            offset
-                .checked_add(LEN_PREFIX_LEN)
-                .assume("offset not near u64::MAX")?,
-            &mut bytes,
-        )?;
-        T::yoke(bytes.into_boxed_slice()).map(Handle)
+        let len = self.mapping.read_u32_be(offset);
+        let bytes = self
+            .mapping
+            .share(offset + LEN_PREFIX_LEN, len.try_into().unwrap());
+        T::yoke(bytes).map(Handle)
     }
 }
 
+use mapping::{Bytes, Mapping};
+mod mapping {
+    use alloc::sync::Arc;
+    use core::{ptr, ptr::NonNull};
+
+    // TODO(mmap): move partially into aranya-libc.
+
+    #[derive(Debug)]
+    pub struct Mapping {
+        ptr: NonNull<u8>,
+        len: usize,
+    }
+
+    unsafe impl Send for Mapping {}
+    unsafe impl Sync for Mapping {}
+
+    impl Mapping {
+        pub fn new(
+            fd: impl aranya_libc::AsFd,
+            offset: i64,
+            len: usize,
+        ) -> Result<Self, aranya_libc::Errno> {
+            let ptr = aranya_libc::mmap_shared_rw(fd, offset, len)?;
+            Ok(Self {
+                ptr: ptr.cast(),
+                len,
+            })
+        }
+
+        // TODO(mmap): Propagate unsafety of these methods upward.
+        // Consider newtype wrapper for offset with unsafe constructor instead of marking these unsafe.
+
+        pub fn read_u32_be(&self, offset: i64) -> u32 {
+            unsafe {
+                u32::from_be(
+                    *self
+                        .ptr
+                        .add(offset.try_into().unwrap())
+                        .cast::<u32>()
+                        .as_ptr(),
+                )
+            }
+        }
+
+        pub fn get(&self, offset: i64, len: usize) -> &[u8] {
+            unsafe {
+                NonNull::slice_from_raw_parts(self.ptr.add(offset.try_into().unwrap()), len)
+                    .as_ref()
+            }
+        }
+
+        pub fn write(&self, offset: i64, buf: &[u8]) {
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    buf.as_ptr(),
+                    self.ptr.as_ptr().add(offset.try_into().unwrap()),
+                    buf.len(),
+                );
+            }
+        }
+
+        pub fn share(self: &Arc<Self>, offset: i64, len: usize) -> Bytes {
+            let bytes = unsafe {
+                NonNull::slice_from_raw_parts(self.ptr.add(offset.try_into().unwrap()), len)
+            };
+            Bytes {
+                _backing: Arc::clone(self),
+                bytes,
+            }
+        }
+    }
+
+    impl Drop for Mapping {
+        fn drop(&mut self) {
+            if let Err(error) = aranya_libc::munmap(self.ptr.cast(), self.len) {
+                tracing::error!(%error, "munmap failed");
+            }
+        }
+    }
+
+    pub struct Bytes {
+        _backing: Arc<Mapping>,
+        /// Pointer into data held by `_backing`.
+        bytes: NonNull<[u8]>,
+    }
+
+    impl core::ops::Deref for Bytes {
+        type Target = [u8];
+        fn deref(&self) -> &Self::Target {
+            // SAFETY: Valid as long as `_backing` is held.
+            unsafe { self.bytes.as_ref() }
+        }
+    }
+
+    // SAFETY: `deref` impl is stable. Does not change when moved or by `&self` methods.
+    unsafe impl stable_deref_trait::StableDeref for Bytes {}
+}
+
 /// Handle wrapper around a loaded object.
-pub struct Handle<T: Readable>(Yoke<&'static T::Archived, Box<[u8]>>);
+pub struct Handle<T: Readable>(Yoke<&'static T::Archived, Bytes>);
 
 impl<T: Readable> Deref for Handle<T> {
     type Target = T::Archived;
@@ -554,15 +629,50 @@ impl<T: Readable> Deref for Handle<T> {
     }
 }
 
+/// Align to (16n - 4) to ensure alignment with rkyv after writing u32 length prefix.
+///
+/// This assumes the base address is aligned to 16. mmap should give a page-aligned address.
+fn align_up(addr: i64) -> i64 {
+    const ALIGN: i64 = 16;
+    const OFFSET: i64 = 4;
+    ((addr + (ALIGN + OFFSET - 1)) & !(ALIGN - 1)) - OFFSET
+}
+
 #[cfg(test)]
 mod tests {
-    use core::assert_matches;
+    #![allow(clippy::indexing_slicing)]
+
+    use std::{assert_matches, fs};
+
+    use tracing::info;
 
     use super::*;
     use crate::{
         CmdId, MaxCut, SegmentIndex,
-        storage::{HeadSet, LocatedAddress},
+        storage::{HeadSet, LocatedAddress, linear::LinearStorageProvider},
+        testing::dsl::{StorageBackend, test_suite},
     };
+
+    struct LinearBackend {
+        tempdir: tempfile::TempDir,
+    }
+
+    impl StorageBackend for LinearBackend {
+        type StorageProvider = LinearStorageProvider<FileManager>;
+
+        fn provider(&mut self, client_id: u64) -> Self::StorageProvider {
+            let dir = self.tempdir.path().join(client_id.to_string());
+            fs::create_dir(&dir).unwrap();
+            let manager = FileManager::new(&dir).unwrap();
+            LinearStorageProvider::new(manager)
+        }
+    }
+
+    test_suite!(|| {
+        let tempdir = tempfile::tempdir().unwrap();
+        info!(path = ?tempdir.path(), "using tempdir");
+        LinearBackend { tempdir }
+    });
 
     fn located(id: u8, seg: u64, max_cut: u64) -> LocatedAddress {
         let mut bytes = [0u8; 32];
@@ -586,17 +696,6 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let manager = FileManager::new(dir.path()).unwrap();
         (dir, manager)
-    }
-
-    impl crate::storage::linear::io::private::Sealed for u64 {}
-    impl Writable for u64 {
-        fn to_writer<W>(&self, writer: W) -> Result<W, StorageError>
-        where
-            W: rkyv::ser::Writer<rkyv::rancor::Failure>,
-        {
-            rkyv::api::high::to_bytes_in(self, writer)
-                .map_err(|rkyv::rancor::Failure| StorageError::IoError)
-        }
     }
 
     /// Uncommitted appends must not survive a crash: reopening ignores
@@ -691,9 +790,8 @@ mod tests {
 
         // Flip a byte of ROOT_B's `generation` (first field): still
         // decodes, but the checksum no longer matches.
-        let mut byte = [0u8; 1];
-        writer.file.read_exact(ROOT_B, &mut byte).unwrap();
-        writer.file.write_all(ROOT_B, &[byte[0] ^ 1]).unwrap();
+        let byte = writer.file.mapping.get(ROOT_B, 1)[0];
+        writer.file.write_all(ROOT_B, &[byte ^ 1]).unwrap();
         assert!(writer.file.load_root(ROOT_B).is_ok());
         drop(writer);
 

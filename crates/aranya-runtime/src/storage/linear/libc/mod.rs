@@ -2,27 +2,23 @@
 
 #![cfg(feature = "libc")]
 #![cfg_attr(docsrs, doc(cfg(feature = "libc")))]
-#![deny(
-    clippy::alloc_instead_of_core,
-    clippy::expect_used,
-    clippy::implicit_saturating_sub,
-    clippy::indexing_slicing,
-    clippy::missing_panics_doc,
-    clippy::ptr_as_ptr,
-    clippy::string_slice,
-    clippy::transmute_ptr_to_ptr,
-    clippy::undocumented_unsafe_blocks,
-    clippy::unimplemented,
-    clippy::unwrap_used,
-    clippy::wildcard_imports,
-    missing_docs
-)]
+#![warn(clippy::alloc_instead_of_core)]
+#![warn(clippy::expect_used)]
+#![warn(clippy::implicit_saturating_sub)]
+#![warn(clippy::indexing_slicing)]
+#![warn(clippy::missing_panics_doc)]
+#![warn(clippy::string_slice)]
+#![warn(clippy::undocumented_unsafe_blocks)]
+#![warn(clippy::unimplemented)]
+#![warn(missing_docs)]
+
+// TODO(mmap): decide how we want to expose the two backends.
 
 mod error;
-mod imp;
+pub mod mmap;
 mod path;
-mod tests;
+pub mod rw;
 
 pub use error::Error;
-pub use imp::*;
-pub use path::*;
+pub use path::IdPath;
+pub use rw::{FileManager, Handle, Reader, Writer};

@@ -10,8 +10,10 @@ use crate::{
 };
 
 /// See `fallocate(2)`.
-pub fn fallocate(_fd: BorrowedFd<'_>, _mode: c_int, _off: i64, _len: i64) -> Result<(), Errno> {
-    Ok(())
+pub fn fallocate(fd: BorrowedFd<'_>, _mode: c_int, off: i64, len: i64) -> Result<(), Errno> {
+    // SAFETY: Ffi call, no invariants.
+    let ret = unsafe { libc::ftruncate(fd.fd, off.strict_add(len)) };
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `fdatasync(2)`.

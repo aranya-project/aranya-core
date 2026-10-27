@@ -1,6 +1,9 @@
 #![cfg(target_family = "unix")]
 
-use core::ffi::{c_int, c_uint};
+use core::{
+    ffi::{c_int, c_uint, c_void},
+    ptr,
+};
 
 pub use libc::{
     LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR,
@@ -133,5 +136,35 @@ pub fn rewinddir(dir: RawDir) {
 pub fn closedir(dir: RawDir) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::closedir(dir) };
+    if ret < 0 { Err(errno()) } else { Ok(()) }
+}
+
+pub fn mmap_shared_rw(
+    fd: BorrowedFd<'_>,
+    offset: i64,
+    len: usize,
+) -> Result<ptr::NonNull<c_void>, Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe {
+        libc::mmap(
+            ptr::null_mut(),
+            len,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_SHARED,
+            fd.fd,
+            offset,
+        )
+    };
+    if ret.addr() == usize::MAX {
+        Err(errno())
+    } else {
+        // SAFETY: Result is always non-null when not using MAP_FIXED.
+        Ok(unsafe { ptr::NonNull::new_unchecked(ret) })
+    }
+}
+
+pub fn munmap(addr: ptr::NonNull<c_void>, len: usize) -> Result<(), Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe { libc::munmap(addr.as_ptr(), len) };
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
