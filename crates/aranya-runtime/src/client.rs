@@ -33,8 +33,6 @@ pub enum ClientError {
     StorageError(#[from] StorageError),
     #[error("init error")]
     InitError,
-    #[error("could not deserialize session command")]
-    SessionDeserialize,
     /// Attempted to braid two parallel finalize commands together.
     ///
     /// Policy must be designed such that two parallel finalize commands are never produced.
