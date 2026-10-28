@@ -7,7 +7,7 @@ Module {
     labels: {
         <get_key 'Cmd'>: 1,
         <policy 'Cmd'>: 8,
-        <recall 'Cmd_handle'>: 14,
+        <recall 'Cmd_handle'>: 15,
     },
     action_defs: [],
     command_defs: [
@@ -50,6 +50,7 @@ Module {
 <policy 'Cmd'>:
     def 'envelope'
     def 'this'
+    save SP
     get 'this'
     get 'envelope'
     recall <recall 'Cmd_handle'>
@@ -57,4 +58,5 @@ Module {
 <recall 'Cmd_handle'>:
     def 'envelope'
     def 'this'
+    save SP
     exit check

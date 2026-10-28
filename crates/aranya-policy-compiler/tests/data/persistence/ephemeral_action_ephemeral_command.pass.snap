@@ -7,7 +7,7 @@ Module {
     labels: {
         <get_key 'Cmd'>: 1,
         <policy 'Cmd'>: 15,
-        <action 'test'>: 22,
+        <action 'test'>: 23,
     },
     action_defs: [
         ActionDef {
@@ -72,12 +72,15 @@ Module {
 <policy 'Cmd'>:
     def 'envelope'
     def 'this'
+    save SP
     meta: finish enabled
     block
     end
     exit normal
     exit panic
 <action 'test'>:
+    save SP
     struct.new 'Cmd'
     publish
+    restore SP
     return

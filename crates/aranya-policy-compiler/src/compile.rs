@@ -689,9 +689,9 @@ impl<'a> CompileState<'a> {
                 self.compile_action_call(fc)?;
             }
             thir::ExprKind::Return(ret_expr) => {
+                let err = matches!(ret_expr.kind, thir::ExprKind::Err(_));
                 self.compile_typed_expression(*ret_expr)?;
-                self.append_instruction(Instruction::RestoreSP);
-                self.append_instruction(Instruction::Return);
+                self.callable_epilogue(err);
             }
             thir::ExprKind::Recall(fc) => {
                 // Recall expression compiles identically to the recall statement.
@@ -878,8 +878,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Branch(Target::Unresolved(is_ok.clone())));
 
                 // Err path: return error value
-                self.append_instruction(Instruction::RestoreSP);
-                self.append_instruction(Instruction::Return);
+                self.callable_epilogue(true);
 
                 // Ok path: unwrap the value.
                 self.define_label(is_ok, self.wp)?;
@@ -982,9 +981,9 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Publish);
             }
             thir::StmtKind::Return(s) => {
+                let err = matches!(s.value.kind, thir::ExprKind::Err(_));
                 self.compile_typed_expression(s.value)?;
-                self.append_instruction(Instruction::RestoreSP);
-                self.append_instruction(Instruction::Return);
+                self.callable_epilogue(err);
             }
             thir::StmtKind::Finish(s) => {
                 self.enter_statement_context(StatementContext::Finish(statement.span));
@@ -1137,9 +1136,32 @@ impl<'a> CompileState<'a> {
             Label::new(function_node.name.inner.clone(), LabelType::Function),
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
-        self.append_instruction(Instruction::Return);
+        self.callable_epilogue(false);
         self.exit_statement_context();
         Ok(())
+    }
+
+    /// Enter a callable: bind its parameters, then save the stack pointer for
+    /// [`Self::callable_epilogue`].
+    fn callable_prologue(&mut self, params: &[Param]) -> Result<(), CompileError> {
+        self.identifier_types.enter_function();
+        for param in params.iter().rev() {
+            self.ensure_type_is_defined(&param.vtype)?;
+            self.append_var(param.name.clone(), param.vtype.clone())?;
+        }
+        self.append_instruction(Instruction::SaveSP);
+        Ok(())
+    }
+
+    /// Leave a callable, keeping the return value if there is one. `err` marks the return
+    /// value as a `Result::Err` for the tracer.
+    fn callable_epilogue(&mut self, err: bool) {
+        if err {
+            // Tell the tracer whether this is an Err-return
+            self.append_instruction(Instruction::Meta(Meta::ReturnErr));
+        }
+        self.append_instruction(Instruction::RestoreSP);
+        self.append_instruction(Instruction::Return);
     }
 
     fn compile_action_call(&mut self, fc: thir::FunctionCall) -> Result<(), CompileError> {
@@ -1213,7 +1235,7 @@ impl<'a> CompileState<'a> {
         )?;
         // An infallible action has no return statement, so add one.
         if ret.is_none() {
-            self.append_instruction(Instruction::Return);
+            self.callable_epilogue(false);
         }
 
         self.exit_statement_context();
@@ -1368,15 +1390,10 @@ impl<'a> CompileState<'a> {
             return Err(self.err(err));
         }
 
-        self.identifier_types.enter_function();
-        for param in params.iter().rev() {
-            self.ensure_type_is_defined(&param.vtype)?;
-            self.append_var(param.name.clone(), param.vtype.clone())?;
-        }
         if let Some(return_type) = ret {
             self.ensure_type_is_defined(return_type)?;
-            self.append_instruction(Instruction::SaveSP);
         }
+        self.callable_prologue(params)?;
         let from = self.wp;
         self.compile_statements(body, Scope::Same)?;
 

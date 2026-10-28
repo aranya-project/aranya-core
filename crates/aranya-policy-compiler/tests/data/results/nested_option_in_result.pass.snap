@@ -51,7 +51,7 @@ Module {
     restore SP
     return
     end
-    jump 34
+    jump 35
 <16>:
     get 'n'
     const 0
@@ -64,15 +64,16 @@ Module {
     restore SP
     return
     end
-    jump 34
+    jump 35
 <28>:
     block
     const Error::0
     wrap err
+    meta: return err
     restore SP
     return
     end
-<34>:
+<35>:
     exit panic
     def 'author_id'
     def 'this'

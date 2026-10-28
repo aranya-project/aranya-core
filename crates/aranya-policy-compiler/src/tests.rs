@@ -326,13 +326,14 @@ fn test_validate_publish() {
 fn test_validate_action_return_or_publish() {
     let concat = |text| {
         let base = r#"
-            function double(x int) int {
+            function double(x: int) int {
                 return saturating_add(x, x)
             }
 
-            command Foo {
+            base[null] Base { get_key { return None } }
+            command Foo with Base {
                 fields {
-                    a int
+                    a: int
                 }
                 policy {
                     finish {}
@@ -349,7 +350,7 @@ fn test_validate_action_return_or_publish() {
         // An action which returns an `Err` does not have to publish.
         concat(
             r#"
-            action a() result[unit, string] {
+            action[null] a() result[unit, string] {
                 return Err("nope") // ok
             }
         "#,
@@ -357,7 +358,7 @@ fn test_validate_action_return_or_publish() {
         // Publish on one path, return an error on the other.
         concat(
             r#"
-            action b(n int) result[unit, string] {
+            action[null] b(n: int) result[unit, string] {
                 if n < 0 {
                     return Err("not positive")
                 }
@@ -369,7 +370,7 @@ fn test_validate_action_return_or_publish() {
         // Publish on each branch
         concat(
             r#"
-            action b(n int) {
+            action[null] b(n: int) {
                 if n < 0 {
                     publish Foo { a: n }    
                 }
@@ -382,7 +383,7 @@ fn test_validate_action_return_or_publish() {
         // Ignore `Return`s from nested callees
         concat(
             r#"
-            action c(n int) {
+            action[null] c(n: int) {
                 let d = double(n)
                 publish Foo { a: d }
             }
@@ -391,7 +392,7 @@ fn test_validate_action_return_or_publish() {
         // Publish on all match arms
         concat(
             r#"
-            action d(n int) {
+            action[null] d(n: int) {
                 match n {
                     0 => { publish Foo { a: 0 } }
                     _ => { publish Foo { a: n } }
@@ -402,11 +403,11 @@ fn test_validate_action_return_or_publish() {
         // A nested action's `publish` satisfies the caller.
         concat(
             r#"
-            action h() {
+            action[null] h() {
                 publish Foo { a: 0 }
             }
 
-            action i() {
+            action[null] i() {
                 action h() // ok
             }
         "#,
@@ -414,11 +415,11 @@ fn test_validate_action_return_or_publish() {
         // Calling an action delegates publishing to it
         concat(
             r#"
-            action do_pub() {
+            action[null] do_pub() {
                 publish Foo { a: 5 }
             }
 
-            action test(n int) {
+            action[null] test(n: int) {
                 // no return or publish, but we delegate to another action... ok
                 action do_pub()
             }
@@ -430,21 +431,21 @@ fn test_validate_action_return_or_publish() {
         // Returning `Ok` without publishing is a no-op action.
         concat(
             r#"
-            action a2() result[unit, string] {
+            action[null] a2() result[unit, string] {
                 return Ok(Unit) // fail
             }
         "#,
         ),
         concat(
             r#"
-            action e() {
+            action[null] e() {
                 // neither publishes nor returns - fail
             }
         "#,
         ),
         concat(
             r#"
-            action f(n int) {
+            action[null] f(n: int) {
                 if n > 0 {
                     publish Foo { a: n }
                 }
@@ -454,7 +455,7 @@ fn test_validate_action_return_or_publish() {
         ),
         concat(
             r#"
-            action g(n int) {
+            action[null] g(n: int) {
                 match n {
                     0 => { publish Foo { a: 0 } }
                     _ => { } // missing publish

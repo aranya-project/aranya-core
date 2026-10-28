@@ -5,8 +5,8 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'match_expr_with_return'>: 48,
-        <fn 'match_statement'>: 22,
+        <fn 'match_expr_with_return'>: 49,
+        <fn 'match_statement'>: 23,
         <fn 'may_fail'>: 1,
     },
     action_defs: [],
@@ -42,15 +42,16 @@ Module {
     restore SP
     return
     end
-    jump 21
+    jump 22
 <15>:
     block
     const "negative input"
     wrap err
+    meta: return err
     restore SP
     return
     end
-<21>:
+<22>:
     exit panic
 <fn 'match_statement'>:
     def 'r'
@@ -58,11 +59,11 @@ Module {
     get 'r'
     dup
     is ok
-    branch 31
+    branch 32
     dup
     is err
-    branch 39
-<31>:
+    branch 40
+<32>:
     block
     unwrap ok
     def 'v'
@@ -70,8 +71,8 @@ Module {
     restore SP
     return
     end
-    jump 47
-<39>:
+    jump 48
+<40>:
     block
     unwrap err
     def 'e'
@@ -79,8 +80,8 @@ Module {
     restore SP
     return
     end
-    jump 47
-<47>:
+    jump 48
+<48>:
     exit panic
 <fn 'match_expr_with_return'>:
     def 'x'
@@ -89,28 +90,29 @@ Module {
     call <fn 'may_fail'>
     dup
     is ok
-    branch 58
+    branch 59
     dup
     is err
-    branch 64
-<58>:
+    branch 65
+<59>:
     block
     unwrap ok
     def 'n'
     get 'n'
     end
-    jump 73
-<64>:
+    jump 75
+<65>:
     block
     unwrap err
     def 'e'
     get 'e'
     wrap err
+    meta: return err
     restore SP
     return
     end
-    jump 73
-<73>:
+    jump 75
+<75>:
     def 'n'
     get 'n'
     wrap ok

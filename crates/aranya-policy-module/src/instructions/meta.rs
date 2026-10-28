@@ -20,6 +20,8 @@ pub enum Meta {
     Finish(bool),
     /// Mark an FFI call (module name, procedure name)
     FFI(Identifier, Identifier),
+    /// Mark that the following `Return` returns a `Result::Err`
+    ReturnErr,
 }
 
 impl fmt::Display for Meta {
@@ -33,6 +35,7 @@ impl fmt::Display for Meta {
                 }
             }
             Self::FFI(module, procedure) => write!(f, "FFI call `{module}.{procedure}`"),
+            Self::ReturnErr => write!(f, "return err"),
         }
     }
 }

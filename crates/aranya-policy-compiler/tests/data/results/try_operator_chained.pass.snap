@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <fn 'inner'>: 1,
-        <fn 'outer'>: 23,
+        <fn 'outer'>: 24,
     },
     action_defs: [],
     command_defs: [],
@@ -42,15 +42,16 @@ Module {
     restore SP
     return
     end
-    jump 22
+    jump 23
 <16>:
     block
     const "negative input"
     wrap err
+    meta: return err
     restore SP
     return
     end
-<22>:
+<23>:
     exit panic
 <fn 'outer'>:
     def 'x'
@@ -59,17 +60,19 @@ Module {
     call <fn 'inner'>
     dup
     is ok
-    branch 32
+    branch 34
+    meta: return err
     restore SP
     return
-<32>:
+<34>:
     unwrap ok
     dup
     is ok
-    branch 38
+    branch 41
+    meta: return err
     restore SP
     return
-<38>:
+<41>:
     unwrap ok
     wrap ok
     restore SP

@@ -71,6 +71,7 @@ Module {
     return
     exit panic
 <action 'test'>:
+    save SP
     fact.new 'Foo'
     const 1
     fact.kset 'i'
@@ -78,7 +79,8 @@ Module {
     const None
     eq
     not
-    branch 17
+    branch 18
     exit panic
-<17>:
+<18>:
+    restore SP
     return

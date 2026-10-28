@@ -55,39 +55,41 @@ Module {
     return
     exit panic
 <action 'test'>:
+    save SP
     const Result::0
     def 'ok'
     get 'ok'
     const Result::0
     eq
-    branch 15
+    branch 16
     exit panic
-<15>:
+<16>:
     get 'ok'
     const Result::1
     eq
     not
-    branch 21
+    branch 22
     exit panic
-<21>:
+<22>:
     get 'ok'
     dup
     const Result::0
     eq
-    branch 30
+    branch 31
     dup
     const Result::1
     eq
-    branch 34
-<30>:
+    branch 35
+<31>:
     block
     pop
     end
-    jump 38
-<34>:
+    jump 39
+<35>:
     block
     pop
     end
-    jump 38
-<38>:
+    jump 39
+<39>:
+    restore SP
     return

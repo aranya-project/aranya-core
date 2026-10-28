@@ -71,37 +71,39 @@ Module {
     return
     exit panic
 <action 'test'>:
+    save SP
     fact.new 'Foo'
     const 1
     fact.kset 'i'
     query
     dup
     is some
-    branch 19
+    branch 20
     dup
     const None
     eq
-    branch 26
-<19>:
+    branch 27
+<20>:
     block
     unwrap some
     def 'f'
     get 'f'
     struct.get 'x'
     end
-    jump 31
-<26>:
+    jump 32
+<27>:
     block
     pop
     const 0
     end
-    jump 31
-<31>:
+    jump 32
+<32>:
     def 'n'
     get 'n'
     const 0
     eq
-    branch 37
+    branch 38
     exit panic
-<37>:
+<38>:
+    restore SP
     return

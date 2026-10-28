@@ -82,6 +82,7 @@ Module {
     exit panic
 <action 'f'>:
     def 'traffic'
+    save SP
     get 'traffic'
     dup
     struct.new 'Light'
@@ -90,7 +91,7 @@ Module {
     const false
     struct.set 'go'
     eq
-    branch 58
+    branch 59
     dup
     struct.new 'Light'
     const LightColor::0
@@ -98,7 +99,7 @@ Module {
     const true
     struct.set 'go'
     eq
-    branch 63
+    branch 64
     dup
     struct.new 'Light'
     const LightColor::1
@@ -106,7 +107,7 @@ Module {
     const false
     struct.set 'go'
     eq
-    branch 68
+    branch 69
     dup
     struct.new 'Light'
     const LightColor::1
@@ -114,7 +115,7 @@ Module {
     const true
     struct.set 'go'
     eq
-    branch 73
+    branch 74
     dup
     struct.new 'Light'
     const LightColor::2
@@ -122,7 +123,7 @@ Module {
     const false
     struct.set 'go'
     eq
-    branch 78
+    branch 79
     dup
     struct.new 'Light'
     const LightColor::2
@@ -130,43 +131,44 @@ Module {
     const true
     struct.set 'go'
     eq
-    branch 83
-<58>:
+    branch 84
+<59>:
     block
     pop
     const 0
     end
-    jump 88
-<63>:
+    jump 89
+<64>:
     block
     pop
     const 1
     end
-    jump 88
-<68>:
+    jump 89
+<69>:
     block
     pop
     const 2
     end
-    jump 88
-<73>:
+    jump 89
+<74>:
     block
     pop
     const 3
     end
-    jump 88
-<78>:
+    jump 89
+<79>:
     block
     pop
     const 4
     end
-    jump 88
-<83>:
+    jump 89
+<84>:
     block
     pop
     const 5
     end
-    jump 88
-<88>:
+    jump 89
+<89>:
     def 'x'
+    restore SP
     return

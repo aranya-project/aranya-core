@@ -97,6 +97,7 @@ Module {
 <policy 'Foo'>:
     def 'envelope'
     def 'this'
+    save SP
     meta: finish enabled
     block
     end

@@ -51,15 +51,16 @@ Module {
     restore SP
     return
     end
-    jump 22
+    jump 23
 <16>:
     block
     const Error::0
     wrap err
+    meta: return err
     restore SP
     return
     end
-<22>:
+<23>:
     exit panic
     def 'author_id'
     def 'this'

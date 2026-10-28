@@ -566,17 +566,15 @@ where
                 let saved_sp = self.call_state.pop().ok_or_else(|| {
                     self.err(MachineErrorType::BadState("no saved stack pointer"))
                 })?;
-                match self
-                    .stack
-                    .len()
-                    .cmp(&saved_sp.checked_add(1).assume("stack size < isize::MAX")?)
-                {
+                match self.stack.len().cmp(&saved_sp) {
                     core::cmp::Ordering::Less => {
                         return Err(self.err(MachineErrorType::BadState(
                             "callable has consumed too many stack values",
                         )));
                     }
+                    // Callable returns no value
                     core::cmp::Ordering::Equal => {}
+                    // Keep the return value on top, and drop the rest.
                     core::cmp::Ordering::Greater => {
                         let v = self.stack.pop_value()?;
                         while self.stack.len() > saved_sp {
