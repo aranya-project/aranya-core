@@ -624,10 +624,6 @@ notes = "RustCrypto"
 version = "2.0.90"
 criteria = "safe-to-deploy"
 
-[[exemptions.table_formatter]]
-version = "0.6.1"
-criteria = "safe-to-deploy"
-
 [[exemptions.tempfile]]
 version = "3.14.0"
 criteria = "safe-to-deploy"
