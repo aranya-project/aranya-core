@@ -88,10 +88,20 @@ criteria = "safe-to-deploy"
 delta = "0.1.5 -> 0.1.6"
 notes = "Minor bugfix: ARMv8 asm operand types changed from in to inout => _ for clobbered registers. Version bump and Cargo.toml formatting only."
 
+[[audits.libc]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.2.190 -> 0.2.191"
+
 [[audits.macro-string]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 version = "0.1.4"
+
+[[audits.markdown]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.0.0-alpha.17 -> 1.0.0"
 
 [[audits.matchers]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
@@ -237,6 +247,11 @@ delta = "0.12.2 -> 0.12.3"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "2.0.90 -> 2.0.101"
+
+[[audits.tempfile]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "3.14.0 -> 3.16.0"
 
 [[audits.time]]
 who = "gknopf <gknopf@spideroak.com>"
@@ -555,11 +570,29 @@ user-id = 6743 # Ed Page (epage)
 start = "2024-05-02"
 end = "2026-11-19"
 
+[[trusted.libc]]
+criteria = "safe-to-deploy"
+user-id = 55123 # rust-lang-owner
+start = "2024-08-15"
+end = "2027-10-27"
+
+[[trusted.linux-raw-sys]]
+criteria = "safe-to-deploy"
+user-id = 6825 # Dan Gohman (sunfishcode)
+start = "2021-06-12"
+end = "2027-10-27"
+
 [[trusted.proc-macro2]]
 criteria = "safe-to-deploy"
 user-id = 3618 # David Tolnay (dtolnay)
 start = "2019-04-23"
 end = "2027-09-01"
+
+[[trusted.rustix]]
+criteria = "safe-to-deploy"
+user-id = 6825 # Dan Gohman (sunfishcode)
+start = "2021-10-29"
+end = "2027-10-27"
 
 [[trusted.spideroak-base58]]
 criteria = "safe-to-deploy"

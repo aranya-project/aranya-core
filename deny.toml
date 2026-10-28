@@ -239,8 +239,6 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     "hashbrown@0.15.2",
-    "thiserror-impl@1.0.69",
-    "thiserror@1.0.69",
     "zerocopy-derive@0.7.35",
     "zerocopy-derive@0.8.25",
     "zerocopy@0.7.35",
