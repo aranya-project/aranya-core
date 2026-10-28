@@ -1,6 +1,5 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
-CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "canaries/*"
 
 CARGO_BUILD_WARNINGS = { value = "deny", condition = { env_true = ["CARGO_MAKE_CI"] } }
 
@@ -220,7 +219,6 @@ install_crate = { crate_name = "taplo-cli", version = "0.10.0", binary = "taplo"
 [tasks.check-features]
 category = "correctness"
 description = "Check features"
-workspace = true
 command = "cargo"
 args = ["--verbose", "check-all-features"]
 dependencies = ["install-cargo-all-features"]
@@ -240,15 +238,19 @@ install_crate = { rustup_component_name = "clippy" }
 [tasks.check-canary-std]
 category = "correctness"
 description = "Check no-std support"
-command = "cargo"
-args = ["check", "--target=aarch64-unknown-none", "-p=canary-std"]
+script = '''
+cp Cargo.lock canaries/canary-std
+cargo check --target=aarch64-unknown-none -m=canaries/canary-std/Cargo.toml
+'''
 dependencies = ["install-no-std-target"]
 
 [tasks.check-canary-alloc]
 category = "correctness"
 description = "Check no-alloc support"
-command = "cargo"
-args = ["check", "--target=aarch64-unknown-none", "-p=canary-alloc"]
+script = '''
+cp Cargo.lock canaries/canary-alloc
+cargo check --target=aarch64-unknown-none -m=canaries/canary-alloc/Cargo.toml
+'''
 dependencies = ["install-no-std-target"]
 
 [tasks.check-canaries]
