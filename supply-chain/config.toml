@@ -176,10 +176,6 @@ version = "0.5.4"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.colored]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.console]]
 version = "0.15.10"
 criteria = "safe-to-run"
@@ -213,17 +209,13 @@ criteria = "safe-to-run"
 version = "0.5.0"
 criteria = "safe-to-run"
 
-[[exemptions.crossbeam-channel]]
-version = "0.5.14"
-criteria = "safe-to-deploy"
-
 [[exemptions.crossbeam-deque]]
 version = "0.8.6"
 criteria = "safe-to-run"
 
 [[exemptions.crossbeam-utils]]
 version = "0.8.21"
-criteria = "safe-to-deploy"
+criteria = "safe-to-run"
 
 [[exemptions.crypto-bigint]]
 version = "0.7.5"
@@ -349,10 +341,6 @@ notes = "RustCrypto"
 [[exemptions.insta]]
 version = "1.43.1"
 criteria = "safe-to-run"
-
-[[exemptions.itertools]]
-version = "0.11.0"
-criteria = "safe-to-deploy"
 
 [[exemptions.js-sys]]
 version = "0.3.76"
@@ -638,10 +626,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.thiserror-impl]]
 version = "2.0.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.tracing-appender]]
-version = "0.2.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.tracing-test]]
