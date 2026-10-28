@@ -30,7 +30,7 @@ aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast", feature
 annotate-snippets = { workspace = true }
 anyhow = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
-markdown = { version = "=1.0.0-alpha.17" }
+markdown = { version = "1" }
 pest = { version = "2" }
 pest_derive = { version = "2" }
 serde = { workspace = true, default-features = false, features = ["derive"] }
