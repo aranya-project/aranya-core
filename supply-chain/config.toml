@@ -351,16 +351,8 @@ version = "0.2.1"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.libc]]
-version = "0.2.168"
-criteria = "safe-to-deploy"
-
 [[exemptions.libm]]
 version = "0.2.11"
-criteria = "safe-to-deploy"
-
-[[exemptions.linux-raw-sys]]
-version = "0.4.14"
 criteria = "safe-to-deploy"
 
 [[exemptions.lock_api]]
@@ -527,10 +519,6 @@ criteria = "safe-to-deploy"
 version = "0.8.11"
 criteria = "safe-to-deploy"
 
-[[exemptions.rustix]]
-version = "0.38.42"
-criteria = "safe-to-deploy"
-
 [[exemptions.rusty-fork]]
 version = "0.3.0"
 criteria = "safe-to-deploy"
@@ -691,10 +679,6 @@ criteria = "safe-to-run"
 
 [[exemptions.winapi-util]]
 version = "0.1.9"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-sys]]
-version = "0.52.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.windows-sys]]

@@ -104,7 +104,7 @@ proptest-derive = { version = "0.5" }
 rand = { version = "0.10", default-features = false }
 rand_core = { version = "0.6", default-features = false }
 rkyv = { version = "0.8.17", default-features = false, features = ["bytecheck"] }
-rustix = { version = "0.38", default-features = false }
+rustix = { version = "1", default-features = false }
 serde = { version = "1.0.210", default-features = false }
 serde_derive = { version = "1" }
 sha2 = { version = "0.11", default-features = false }
