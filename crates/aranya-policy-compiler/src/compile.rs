@@ -258,6 +258,7 @@ impl<'a> CompileState<'a> {
     /// Record a call to `callee` from the function or action being compiled.
     /// `site` is the span of the callee name at the call site.
     fn track_call(&mut self, callee: &Label, site: Span) {
+        // current_caller is None in command blocks
         if let Some(caller) = &self.current_caller {
             self.call_graph.add_call(caller, callee, site);
         }
