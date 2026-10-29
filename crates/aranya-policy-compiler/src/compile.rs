@@ -1128,7 +1128,6 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::PureFunction(function_node.clone()));
         let label = Label::new(function_node.name.inner.clone(), LabelType::Function);
-        self.current_caller = Some(label.clone());
         self.compile_function_like(
             &function_node.parameters,
             Some(&function_node.return_type),
@@ -1136,7 +1135,6 @@ impl<'a> CompileState<'a> {
             &function_node.body,
             label,
         )?;
-        self.current_caller = None;
         self.exit_statement_context();
         Ok(())
     }
@@ -1148,7 +1146,6 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::Finish(function_node.span));
         let label = Label::new(function_node.name.inner.clone(), LabelType::Function);
-        self.current_caller = Some(label.clone());
         self.compile_function_like(
             &function_node.parameters,
             None,
@@ -1158,7 +1155,6 @@ impl<'a> CompileState<'a> {
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
-        self.current_caller = None;
         self.exit_statement_context();
         Ok(())
     }
@@ -1227,7 +1223,6 @@ impl<'a> CompileState<'a> {
             }
             _ => unreachable!("invalid action return type should have been caught during parsing"),
         };
-        self.current_caller = Some(label.clone());
         self.compile_function_like(
             &action_node.parameters,
             ret.as_ref(),
@@ -1240,7 +1235,6 @@ impl<'a> CompileState<'a> {
             self.append_instruction(Instruction::Return);
         }
 
-        self.current_caller = None;
         self.exit_statement_context();
         Ok(())
     }
@@ -1385,6 +1379,14 @@ impl<'a> CompileState<'a> {
         body: &[Statement],
         label: Label,
     ) -> Result<(), CompileError> {
+        // Only functions and actions are callable, so only they can recurse.
+        if matches!(label.ltype, LabelType::Function | LabelType::Action) {
+            if self.current_caller.is_some() {
+                bug!("current_caller should be None");
+            }
+            self.current_caller = Some(label.clone());
+        }
+
         self.define_label(label, self.wp)?;
         self.map_range(span)?;
 
@@ -1418,6 +1420,9 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .exit_function()
             .map_err(|e| self.err(e))?;
+
+        self.current_caller = None;
+
         Ok(())
     }
 
