@@ -251,8 +251,10 @@ impl From<SyncHelloType> for SyncHello {
     }
 }
 
-/// An opaque container for a hello-protocol subscribe request.
-#[derive(Debug)]
+/// A hello-protocol subscribe request: build one with [`HelloSubscribe::new`]
+/// and send it with [`HelloSubscribe::encode_to`], or receive one through
+/// [`SyncIncoming::decode`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct HelloSubscribe {
     graph_id: GraphId,
     graph_change_delay: Duration,
@@ -261,6 +263,36 @@ pub struct HelloSubscribe {
 }
 
 impl HelloSubscribe {
+    /// Creates a request to receive hello notifications for `graph_id`: on
+    /// graph change (at most every `graph_change_delay`) and every
+    /// `schedule_delay` regardless, for `duration`.
+    pub fn new(
+        graph_id: GraphId,
+        graph_change_delay: Duration,
+        duration: Duration,
+        schedule_delay: Duration,
+    ) -> Self {
+        Self {
+            graph_id,
+            graph_change_delay,
+            duration,
+            schedule_delay,
+        }
+    }
+
+    /// Encode into `target`. Returns the number of bytes written.
+    pub fn encode_to(&self, target: &mut [u8]) -> Result<usize, SyncError> {
+        encode_hello(
+            SyncHelloType::Subscribe {
+                graph_id: self.graph_id,
+                graph_change_delay: self.graph_change_delay,
+                duration: self.duration,
+                schedule_delay: self.schedule_delay,
+            },
+            target,
+        )
+    }
+
     /// Returns the graph being subscribed to.
     pub fn graph_id(&self) -> GraphId {
         self.graph_id
@@ -282,27 +314,66 @@ impl HelloSubscribe {
     }
 }
 
-/// An opaque container for a hello-protocol unsubscribe request.
-#[derive(Debug)]
+/// A hello-protocol unsubscribe request: build one with
+/// [`HelloUnsubscribe::new`] and send it with [`HelloUnsubscribe::encode_to`],
+/// or receive one through [`SyncIncoming::decode`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct HelloUnsubscribe {
     graph_id: GraphId,
 }
 
 impl HelloUnsubscribe {
+    /// Creates an unsubscribe from `graph_id` hello notifications.
+    pub fn new(graph_id: GraphId) -> Self {
+        Self { graph_id }
+    }
+
+    /// Encode into `target`. Returns the number of bytes written.
+    pub fn encode_to(&self, target: &mut [u8]) -> Result<usize, SyncError> {
+        encode_hello(
+            SyncHelloType::Unsubscribe {
+                graph_id: self.graph_id,
+            },
+            target,
+        )
+    }
+
     /// Returns the graph being unsubscribed from.
     pub fn graph_id(&self) -> GraphId {
         self.graph_id
     }
 }
 
-/// An opaque container for a hello notification sent to subscribers.
-#[derive(Debug)]
+/// A hello notification sent to subscribers: build one with
+/// [`HelloNotification::new`] and send it with
+/// [`HelloNotification::encode_to`], or receive one through
+/// [`SyncIncoming::decode`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct HelloNotification {
     graph_id: GraphId,
     head: Address,
 }
 
 impl HelloNotification {
+    /// Creates a notification carrying our current `head` of `graph_id`
+    /// (see [`ClientState::hello_head`]).
+    ///
+    /// [`ClientState::hello_head`]: crate::ClientState::hello_head
+    pub fn new(graph_id: GraphId, head: Address) -> Self {
+        Self { graph_id, head }
+    }
+
+    /// Encode into `target`. Returns the number of bytes written.
+    pub fn encode_to(&self, target: &mut [u8]) -> Result<usize, SyncError> {
+        encode_hello(
+            SyncHelloType::Hello {
+                graph_id: self.graph_id,
+                head: self.head,
+            },
+            target,
+        )
+    }
+
     /// Returns the graph this notification is for.
     pub fn graph_id(&self) -> GraphId {
         self.graph_id
@@ -325,6 +396,12 @@ impl PollIncoming {
     /// Returns the sender's session identifier.
     pub fn session_id(&self) -> u128 {
         self.session_id
+    }
+
+    /// Returns the graph being polled, when the message names one (only a
+    /// session-opening request does).
+    pub fn graph_id(&self) -> Option<GraphId> {
+        self.message.graph_id()
     }
 }
 
@@ -421,9 +498,66 @@ impl SubscribeResponse {
     }
 }
 
+fn encode_hello(msg: SyncHelloType, target: &mut [u8]) -> Result<usize, SyncError> {
+    Ok(postcard::to_slice(&SyncType::Hello(msg), target)?.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MaxCut;
+
+    fn graph_id() -> GraphId {
+        GraphId::from_bytes([7; 32])
+    }
+
+    #[test]
+    fn hello_subscribe_round_trips() {
+        let msg = HelloSubscribe::new(
+            graph_id(),
+            Duration::from_secs(3),
+            Duration::from_secs(600),
+            Duration::from_millis(4500),
+        );
+        let mut buf = [0u8; 128];
+        let n = msg.encode_to(&mut buf).expect("encode");
+        let SyncIncoming::Hello(SyncHello::Subscribe(got)) =
+            SyncIncoming::decode(&buf[..n]).expect("decode")
+        else {
+            panic!("expected a hello subscribe");
+        };
+        assert_eq!(got, msg);
+    }
+
+    #[test]
+    fn hello_unsubscribe_round_trips() {
+        let msg = HelloUnsubscribe::new(graph_id());
+        let mut buf = [0u8; 128];
+        let n = msg.encode_to(&mut buf).expect("encode");
+        let SyncIncoming::Hello(SyncHello::Unsubscribe(got)) =
+            SyncIncoming::decode(&buf[..n]).expect("decode")
+        else {
+            panic!("expected a hello unsubscribe");
+        };
+        assert_eq!(got, msg);
+    }
+
+    #[test]
+    fn hello_notification_round_trips() {
+        let head = Address {
+            id: CmdId::from_bytes([9; 32]),
+            max_cut: MaxCut::new(42),
+        };
+        let msg = HelloNotification::new(graph_id(), head);
+        let mut buf = [0u8; 128];
+        let n = msg.encode_to(&mut buf).expect("encode");
+        let SyncIncoming::Hello(SyncHello::Hello(got)) =
+            SyncIncoming::decode(&buf[..n]).expect("decode")
+        else {
+            panic!("expected a hello notification");
+        };
+        assert_eq!(got, msg);
+    }
 
     fn meta(policy_length: u32, length: u32) -> wire::CommandMeta {
         wire::CommandMeta {
