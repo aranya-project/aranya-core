@@ -1,0 +1,23 @@
+// A cycle through a diamond: both paths from `top` lead back to it via `bottom`.
+//
+//     top <--+
+//    /   \   |
+//  left right|
+//    \   /   |
+//    bottom -+
+
+function top(x: int) int {
+    return saturating_add(left(x), right(x))
+}
+
+function left(x: int) int {
+    return bottom(x)
+}
+
+function right(x: int) int {
+    return bottom(x)
+}
+
+function bottom(x: int) int {
+    return top(x)
+}
