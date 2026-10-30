@@ -3,9 +3,8 @@ use std::{borrow::Cow, cmp, fmt};
 use proc_macro2::{Delimiter, Group, Span, TokenStream};
 use quote::{ToTokens, TokenStreamExt as _, format_ident, quote};
 use syn::{
-    Abi, Attribute, BareFnArg, BareVariadic, Error, GenericArgument, Ident, Lifetime, Path,
-    PathArguments, PathSegment, Result, Token, TypeBareFn, TypePath, TypeSlice,
-    parse_quote_spanned,
+    Abi, Attribute, Error, FnPtrVariadic, GenericArgument, Ident, Lifetime, NamedArg, Path,
+    PathArguments, PathSegment, Result, Token, TypeFnPtr, TypePath, TypeSlice, parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned as _,
     token::{Bracket, Paren},
@@ -87,8 +86,7 @@ impl Type {
         let span = Span::call_site();
         Self::Ptr(Box::new(Ptr {
             star_token: Token![*](span),
-            const_token: None,
-            mutability: Some(Token![mut](span)),
+            mutability: syn::PointerMutability::Mut(Token![mut](span)),
             elem: self,
         }))
     }
@@ -155,7 +153,7 @@ impl Type {
     #[instrument(skip_all)]
     pub(crate) fn parse(ctx: &Ctx, ty: syn::Type) -> Result<Self> {
         match ty {
-            syn::Type::BareFn(f) => {
+            syn::Type::FnPtr(f) => {
                 // NB: use `parse_opt`
                 ctx.error(&f, "function pointer must be wrapped in `Option<...>`");
                 Ok(Self::Verbatim(quote!(#f)))
@@ -187,7 +185,7 @@ impl Type {
     #[instrument(skip_all, fields())]
     pub(crate) fn parse_opt(ctx: &Ctx, ty: syn::Type) -> Result<Self> {
         match ty {
-            syn::Type::BareFn(f) => FnPtr::parse(ctx, f).map(Box::new).map(Type::FnPtr),
+            syn::Type::FnPtr(f) => FnPtr::parse(ctx, f).map(Box::new).map(Type::FnPtr),
             ty => {
                 let ty = Self::parse(ctx, ty)?;
                 if !matches!(ty, Self::OwnedPtr(_) | Self::Ref(_)) {
@@ -499,7 +497,7 @@ impl CBytes {
             ));
         }
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         if !matches!(arguments, PathArguments::None) {
@@ -543,7 +541,7 @@ impl CStr {
             ));
         }
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         if !matches!(arguments, PathArguments::None) {
@@ -579,13 +577,13 @@ pub(crate) struct FnPtr {
     pub fn_token: Token![fn],
     pub paren_token: Paren,
     pub inputs: Punctuated<FnPtrArg, Token![,]>,
-    pub variadic: Option<BareVariadic>,
+    pub variadic: Option<FnPtrVariadic>,
     pub output: ReturnType,
 }
 
 impl FnPtr {
     #[instrument(skip_all)]
-    fn parse(ctx: &Ctx, f: TypeBareFn) -> Result<Self> {
+    fn parse(ctx: &Ctx, f: TypeFnPtr) -> Result<Self> {
         trace!("parsing `FnPtr`");
 
         let Some(abi) = f.abi else {
@@ -641,7 +639,7 @@ pub(crate) struct FnPtrArg {
 
 impl FnPtrArg {
     #[instrument(skip_all)]
-    fn parse(ctx: &Ctx, arg: BareFnArg) -> Result<Self> {
+    fn parse(ctx: &Ctx, arg: NamedArg) -> Result<Self> {
         trace!("parsing `FnPtrArg`");
 
         Ok(Self {
@@ -783,7 +781,7 @@ impl MaybeUninit {
         }
 
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         let PathArguments::AngleBracketed(mut args) = arguments else {
@@ -801,7 +799,7 @@ impl MaybeUninit {
         let Some(arg) = args.args.pop() else {
             return Err(Error::new_spanned(&args, "BUG: should have one argument"));
         };
-        let GenericArgument::Type(ty) = arg.into_value() else {
+        let GenericArgument::Type(ty) = arg else {
             return Err(Error::new_spanned(&args, ""));
         };
         Ok(Self {
@@ -935,7 +933,7 @@ impl Opt {
         }
 
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         let PathArguments::AngleBracketed(mut args) = arguments else {
@@ -953,7 +951,7 @@ impl Opt {
         let Some(arg) = args.args.pop() else {
             return Err(Error::new_spanned(&args, "BUG: should have one argument"));
         };
-        let GenericArgument::Type(ty) = arg.into_value() else {
+        let GenericArgument::Type(ty) = arg else {
             return Err(Error::new_spanned(
                 &args,
                 "BUG: expected generic type argument",
@@ -1006,7 +1004,7 @@ impl OwnedPtr {
         }
 
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         let PathArguments::AngleBracketed(mut args) = arguments else {
@@ -1024,7 +1022,7 @@ impl OwnedPtr {
         let Some(arg) = args.args.pop() else {
             return Err(Error::new_spanned(&args, "BUG: should have one argument"));
         };
-        let GenericArgument::Type(ty) = arg.into_value() else {
+        let GenericArgument::Type(ty) = arg else {
             return Err(Error::new_spanned(&args, ""));
         };
         Ok(Self {
@@ -1053,8 +1051,7 @@ impl ToTokens for OwnedPtr {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Ptr {
     pub star_token: Token![*],
-    pub const_token: Option<Token![const]>,
-    pub mutability: Option<Token![mut]>,
+    pub mutability: syn::PointerMutability,
     /// The `T` in `*const T`.
     pub elem: Type,
 }
@@ -1064,7 +1061,6 @@ impl Ptr {
     fn parse(ctx: &Ctx, ptr: syn::TypePtr) -> Result<Self> {
         Ok(Self {
             star_token: ptr.star_token,
-            const_token: ptr.const_token,
             mutability: ptr.mutability,
             elem: Type::parse(ctx, *ptr.elem)?,
         })
@@ -1074,7 +1070,6 @@ impl Ptr {
 impl ToTokens for Ptr {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.star_token.to_tokens(tokens);
-        self.const_token.to_tokens(tokens);
         self.mutability.to_tokens(tokens);
         self.elem.to_tokens(tokens);
     }
@@ -1145,7 +1140,7 @@ impl ResultType {
         }
 
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         let PathArguments::AngleBracketed(mut args) = arguments else {
@@ -1165,7 +1160,7 @@ impl ResultType {
             let Some(arg) = args.args.pop() else {
                 return Err(Error::new_spanned(&args, "BUG: should have an argument"));
             };
-            let GenericArgument::Type(ty) = arg.into_value() else {
+            let GenericArgument::Type(ty) = arg else {
                 return Err(Error::new_spanned(
                     &args,
                     "BUG: expected generic type argument",
@@ -1178,7 +1173,7 @@ impl ResultType {
             let Some(arg) = args.args.pop() else {
                 return Err(Error::new_spanned(&args, "BUG: should have an argument"));
             };
-            let GenericArgument::Type(ty) = arg.into_value() else {
+            let GenericArgument::Type(ty) = arg else {
                 return Err(Error::new_spanned(
                     &args,
                     "BUG: expected generic type argument",
@@ -1247,7 +1242,7 @@ impl Safe {
         }
 
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         let PathArguments::AngleBracketed(mut args) = arguments else {
@@ -1265,7 +1260,7 @@ impl Safe {
         let Some(arg) = args.args.pop() else {
             return Err(Error::new_spanned(&args, "BUG: should have one argument"));
         };
-        let GenericArgument::Type(ty) = arg.into_value() else {
+        let GenericArgument::Type(ty) = arg else {
             return Err(Error::new_spanned(
                 &args,
                 "BUG: expected generic type argument",
@@ -1434,7 +1429,7 @@ impl Str {
             ));
         }
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         if !matches!(arguments, PathArguments::None) {
@@ -1521,7 +1516,7 @@ impl Writer {
         }
 
         let PathSegment { ident, arguments } = match ty.path.segments.pop() {
-            Some(v) => v.into_value(),
+            Some(v) => v,
             None => return Err(Error::new_spanned(ty, "BUG: unable to pop last segment")),
         };
         let PathArguments::AngleBracketed(mut args) = arguments else {
@@ -1539,7 +1534,7 @@ impl Writer {
         let Some(arg) = args.args.pop() else {
             return Err(Error::new_spanned(&args, "BUG: should have one argument"));
         };
-        let GenericArgument::Type(ty) = arg.into_value() else {
+        let GenericArgument::Type(ty) = arg else {
             return Err(Error::new_spanned(
                 &args,
                 "BUG: expected generic type argument",

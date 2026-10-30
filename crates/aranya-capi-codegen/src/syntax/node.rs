@@ -1012,7 +1012,7 @@ impl FfiFnSig {
         }
 
         Ok(Self {
-            unsafety: sig.unsafety,
+            unsafety: to_unsafe(sig.safety)?,
             abi,
             fn_token: sig.fn_token,
             ident: sig.ident,
@@ -1138,7 +1138,7 @@ impl RustFnSig {
         trace!("parsing `RustFnSig`");
 
         Ok(Self {
-            unsafety: sig.unsafety,
+            unsafety: to_unsafe(sig.safety)?,
             abi: sig.abi,
             fn_token: sig.fn_token,
             ident: sig.ident,
@@ -1151,6 +1151,17 @@ impl RustFnSig {
                 .collect::<Result<_>>()?,
             output: ReturnType::parse(ctx, sig.output)?,
         })
+    }
+}
+
+fn to_unsafe(safety: syn::Safety) -> Result<Option<Token![unsafe]>> {
+    match safety {
+        syn::Safety::Safe(_) => Err(Error::new_spanned(
+            safety,
+            "freestanding functions should not have explicit safe keyword",
+        )),
+        syn::Safety::Unsafe(token) => Ok(Some(token)),
+        syn::Safety::Default => Ok(None),
     }
 }
 
