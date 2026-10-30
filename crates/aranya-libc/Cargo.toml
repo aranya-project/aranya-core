@@ -26,9 +26,9 @@ std = [
 
 
 [dependencies]
-errno = { workspace = true, default-features = false }
-libc = { workspace = true, default-features = false }
-memchr = { version = "2.7.2", default-features = false }
+errno = { workspace = true }
+libc = { workspace = true }
+memchr = { workspace = true }
 thiserror = { workspace = true }
 
 

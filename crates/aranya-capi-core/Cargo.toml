@@ -36,20 +36,20 @@ std = [
 [dependencies]
 aranya-capi-macro = { version = "0.7.1", path = "../aranya-capi-macro", default-features = false }
 aranya-libc = { version = "0.4.1", path = "../aranya-libc", default-features = false }
-buggy = { version = "0.1.0", default-features = false }
+buggy = { workspace = true }
 
-const_format = { version = "0.2.31", default-features = false, features = ["assertcp"] }
-elain = "0.3"
+const_format = { workspace = true, features = ["assertcp"] }
+elain = { workspace = true }
 fnv = { workspace = true }
 thiserror = { workspace = true }
-tracing = { workspace = true, default-features = false }
+tracing = { workspace = true }
 
-ciborium-io = { version = "0.2.2", default-features = false, optional = true }
+ciborium-io = { workspace = true, optional = true }
 
 [dev-dependencies]
 libc = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry", "std"] }
-tracing-test = { version = "0.2.5" }
+tracing-test = { workspace = true }
 
 
 [package.metadata.docs.rs]

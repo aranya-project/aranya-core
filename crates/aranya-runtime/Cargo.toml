@@ -19,7 +19,7 @@ name = "rkyv"
 harness = false
 
 [dependencies]
-buggy = { version = "0.1.0", features = ["alloc"] }
+buggy = { workspace = true, features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
 aranya-libc = { version = "0.4.1", path = "../aranya-libc", default-features = false, optional = true }
@@ -28,22 +28,22 @@ aranya-policy-vm = { version = "0.24.0", path = "../aranya-policy-vm" }
 
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
-rend = { version = "0.5", default-features = false, features = ["zerocopy-0_8"] }
+rend = { workspace = true, features = ["zerocopy-0_8"] }
 rkyv = { workspace = true }
-serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+serde = { workspace = true, features = ["derive", "alloc"] }
 spideroak-base58 = { workspace = true }
-stable_deref_trait = { version = "1", default-features = false, features = ["alloc"] }
+stable_deref_trait = { workspace = true, features = ["alloc"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-yoke = { version = "0.8", features = ["derive"] }
+yoke = { workspace = true, features = ["derive"] }
 zerocopy = { workspace = true, features = ["derive"] }
 
 # Used by `testing`.
-serde_json = { version = "1.0.117", default-features = false, features = ["alloc"], optional = true }
+serde_json = { workspace = true, features = ["alloc"], optional = true }
 spin = { workspace = true, features = ["spin_mutex"], optional = true }
 
 # graphviz
-dot-writer = { version = "0.1.3", optional = true }
+dot-writer = { workspace = true, optional = true }
 
 [dev-dependencies]
 aranya-runtime = { path = ".", features = ["testing", "libc"] }
@@ -56,8 +56,8 @@ aranya-policy-vm = { path = "../aranya-policy-vm", features = ["proptest"] }
 
 criterion = { workspace = true }
 proptest = { workspace = true, default-features = true }
-serde_json = { version = "1.0.117", default-features = false, features = ["alloc"] }
-tempfile = { version = "3.9.0" }
+serde_json = { workspace = true, features = ["alloc"] }
+tempfile = { workspace = true }
 test-log = { workspace = true }
 tracing-subscriber = { workspace = true, default-features = true } # affects features used by test-log
 

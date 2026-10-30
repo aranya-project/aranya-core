@@ -44,15 +44,15 @@ aranya-id = { version = "0.3.0", path = "../aranya-id", default-features = false
 aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast" }
 aranya-policy-derive = { version = "0.18.0", path = "../aranya-policy-derive" }
 aranya-policy-module = { version = "0.23.0", path = "../aranya-policy-module" }
-buggy = { version = "0.1.0", features = ["alloc"] }
+buggy = { workspace = true, features = ["alloc"] }
 
 heapless = { workspace = true }
-postcard-core = "0.1.0"
-serde = { workspace = true, default-features = false, features = ["derive"] }
+postcard-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 
 # Optional proptest impls
-proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
+proptest = { workspace = true, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -63,7 +63,7 @@ aranya-policy-module = { path = "../aranya-policy-module", features = ["testing"
 aranya-policy-vm = { path = ".", features = ["derive"] }
 
 anyhow = { workspace = true }
-ciborium = { version = "0.2" }
+ciborium = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }
 
 [package.metadata.docs.rs]
