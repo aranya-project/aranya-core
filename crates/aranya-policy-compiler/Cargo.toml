@@ -30,7 +30,7 @@ buggy = { workspace = true, features = ["std"] }
 annotate-snippets = { workspace = true }
 ciborium = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-indexmap = { workspace = true, default-features = false, features = ["serde"] }
+indexmap = { workspace = true, features = ["serde"] }
 petgraph = { workspace = true }
 tracing = { workspace = true }
 

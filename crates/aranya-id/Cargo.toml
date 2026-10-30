@@ -26,15 +26,15 @@ proptest = ["dep:proptest"]
 
 
 [dependencies]
-spideroak-base58 = { workspace = true, default-features = false }
+spideroak-base58 = { workspace = true }
 
 ctutils = { workspace = true }
 derive-where = { workspace = true }
 paste = { workspace = true }
-proptest = { workspace = true, default-features = false, optional = true }
-rkyv = { workspace = true, default-features = false }
-serde = { workspace = true, default-features = false }
-zerocopy = { workspace = true, default-features = false }
+proptest = { workspace = true, optional = true }
+rkyv = { workspace = true }
+serde = { workspace = true }
+zerocopy = { workspace = true }
 zerocopy-derive = { workspace = true }
 
 

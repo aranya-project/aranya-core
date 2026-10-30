@@ -86,14 +86,14 @@ buggy = { workspace = true }
 
 const_format = { workspace = true, features = ["assertcp"] }
 derive-where = { workspace = true }
-errno = { workspace = true, default-features = false }
-heapless = { workspace = true, default-features = false }
+errno = { workspace = true }
+heapless = { workspace = true }
 # Only enabled by the `testing` feature which already enables
 # `std`.
 hex = { workspace = true, features = ["std"], optional = true }
-libc = { workspace = true, default-features = false, optional = true }
-log = { workspace = true, default-features = false, optional = true }
-serde = { workspace = true, default-features = false, features = ["derive"] }
+libc = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 
 

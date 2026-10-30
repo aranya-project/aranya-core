@@ -42,7 +42,7 @@ const_format = { workspace = true, features = ["assertcp"] }
 elain = { workspace = true }
 fnv = { workspace = true }
 thiserror = { workspace = true }
-tracing = { workspace = true, default-features = false }
+tracing = { workspace = true }
 
 ciborium-io = { workspace = true, optional = true }
 
