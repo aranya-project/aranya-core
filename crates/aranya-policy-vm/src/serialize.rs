@@ -145,7 +145,6 @@ impl SerializeCtx<'_> {
                     self.serialize_value(x)?;
                 }
             },
-            Value::Identifier(_) | Value::Fact(_) => return Err(SerializeError::InternalValue),
         }
         Ok(())
     }

@@ -8,7 +8,6 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
     fmt, iter,
-    num::NonZeroUsize,
     ops::Range,
     vec,
 };
@@ -712,28 +711,8 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.inner));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.inner) else {
-                    let note = format!("struct `{}` not defined", sub);
-                    return Err(self.err(NotDefined(note, sub.span())));
-                };
-                let field_names: Vec<Identifier> = sub_field_defns
-                    .iter()
-                    .map(|field| field.name.inner.clone())
-                    .collect();
-                let field_count = field_names.len();
-
-                self.append_instruction(Instruction::StructNew(sub.inner));
-
                 self.compile_typed_expression(*lhs)?;
-
-                for field_name in field_names {
-                    self.append_instruction(Instruction::Identifier(field_name));
-                }
-
-                if let Some(field_count) = NonZeroUsize::new(field_count) {
-                    self.append_instruction(Instruction::MStructGet(field_count));
-                    self.append_instruction(Instruction::MStructSet(field_count));
-                }
+                self.append_instruction(Instruction::Substruct(sub.inner));
             }
             thir::ExprKind::Cast(lhs, rhs_ident) => {
                 // NOTE this is implemented only for structs
@@ -1026,9 +1005,10 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Create);
             }
             thir::StmtKind::Update(s) => {
+                let name = s.fact.name.inner.clone();
                 self.compile_fact_literal(s.fact)?;
-                self.append_instruction(Instruction::Dup);
 
+                self.append_instruction(Instruction::FactNew(name));
                 for (k, e) in s.to {
                     self.compile_typed_expression(e)?;
                     self.append_instruction(Instruction::FactValueSet(k.inner));

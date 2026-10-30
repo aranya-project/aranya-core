@@ -1,7 +1,4 @@
-use core::{
-    fmt::{self, Display},
-    num::NonZeroUsize,
-};
+use core::fmt::{self, Display};
 
 use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
@@ -141,8 +138,6 @@ pub enum Instruction {
     // data
     /// Push a value onto the stack
     Const(ConstValue),
-    /// Push an identifier onto the stack
-    Identifier(Identifier),
     /// Define a local value by name
     Def(Identifier),
     /// Get a local value by name
@@ -201,10 +196,8 @@ pub enum Instruction {
     StructSet(Identifier),
     /// Get a member from the struct
     StructGet(Identifier),
-    /// Add multiple members to the struct
-    MStructSet(NonZeroUsize),
-    /// Get multiple members from the struct
-    MStructGet(NonZeroUsize),
+    /// Select fields into a new struct
+    Substruct(Identifier),
     /// Cast previous stack value to given type
     Cast(Identifier),
     /// Wrap the value on top of the stack in Some, Ok, or Err, depending on wrap type.
@@ -244,7 +237,6 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Const(v) => write!(f, "const {v}"),
-            Self::Identifier(ident) => write!(f, "ident '{ident}'"),
             Self::Def(ident) => write!(f, "def '{ident}'"),
             Self::Get(ident) => write!(f, "get '{ident}'"),
             Self::Dup => write!(f, "dup"),
@@ -272,8 +264,7 @@ impl Display for Instruction {
             Self::StructNew(ident) => write!(f, "struct.new '{ident}'"),
             Self::StructSet(ident) => write!(f, "struct.set '{ident}'"),
             Self::StructGet(ident) => write!(f, "struct.get '{ident}'"),
-            Self::MStructGet(n) => write!(f, "mstruct.get {n}"),
-            Self::MStructSet(n) => write!(f, "mstruct.set {n}"),
+            Self::Substruct(ident) => write!(f, "substruct '{ident}'"),
             Self::Cast(ident) => write!(f, "cast '{ident}'"),
             Self::Wrap(wrap_type) => write!(f, "wrap {wrap_type}"),
             Self::Is(wrap_type) => write!(f, "is {wrap_type}"),

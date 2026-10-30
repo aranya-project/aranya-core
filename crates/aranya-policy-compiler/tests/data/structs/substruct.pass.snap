@@ -106,14 +106,8 @@ Module {
 <fn 'convert'>:
     def 'input'
     save SP
-    struct.new 'Output'
     get 'input'
-    ident 'x'
-    ident 'y'
-    ident 'w'
-    ident 'v'
-    mstruct.get 4
-    mstruct.set 4
+    substruct 'Output'
     restore SP
     return
     exit panic
