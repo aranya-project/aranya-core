@@ -16,7 +16,7 @@ use super::{
         InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm, UnknownError,
         UnreachableMatchArm, UnusedValue,
     },
-    types::{self, DisplayType},
+    types,
 };
 use crate::compile::error::{DuplicateField, InvalidStructLiteral, MissingFields, UnknownField};
 
@@ -1221,23 +1221,7 @@ impl CompileState<'_> {
                 self.err(NotDefined(note, fc.name.span))
             })?;
 
-        let arg_defs = recall_block.parameters.as_slice();
-
-        let mut arguments = Vec::new();
-        // TODO(zip): check length
-        for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
-            let arg_te = self.lower_expression(arg_e)?;
-            if !arg_te.vtype.fits_type(&param.vtype) {
-                let err = InvalidType::new(
-                    DisplayType(&param.vtype).to_string(),
-                    Some(param.vtype.span),
-                    arg_te.vtype.to_string(),
-                    arg_e.span,
-                );
-                return Err(self.err(err));
-            }
-            arguments.push(arg_te);
-        }
+        let arguments = self.lower_call_args(fc, &recall_block.parameters, fc.span())?;
 
         Ok(thir::RecallCall {
             command_name: cmd.name.clone(),

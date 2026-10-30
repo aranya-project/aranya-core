@@ -199,34 +199,6 @@ pub fn check_type(vtype: VType, target_type: VType) -> Result<VType, InvalidType
     }
 }
 
-// Wrapper type for displaying Type since we can't implement Display for external types
-pub struct DisplayType<'a>(pub &'a VType);
-
-impl Display for DisplayType<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0.inner {
-            TypeKind::String => f.write_str("string"),
-            TypeKind::Bytes => f.write_str("bytes"),
-            TypeKind::Int => f.write_str("int"),
-            TypeKind::Bool => f.write_str("bool"),
-            TypeKind::Id => f.write_str("id"),
-            TypeKind::Struct(id) => write!(f, "struct {}", id),
-            TypeKind::Enum(id) => write!(f, "enum {}", id),
-            TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
-            TypeKind::Never => write!(f, "never"),
-            TypeKind::Unit => write!(f, "unit"),
-            TypeKind::Result(result_type) => {
-                write!(
-                    f,
-                    "result[{}, {}]",
-                    DisplayType(&result_type.ok),
-                    DisplayType(&result_type.err)
-                )
-            }
-        }
-    }
-}
-
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
     pub(super) fn struct_type(&self, s: &NamedStruct) -> Result<VType, CompileError> {
