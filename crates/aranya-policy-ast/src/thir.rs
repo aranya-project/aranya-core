@@ -11,7 +11,7 @@ spanned! {
 ///
 /// It is used to create, read, update, and delete facts.
 #[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
-pub struct FactLiteral {
+pub struct FactInitializer {
     /// the fact's name
     pub name: Ident,
     /// values for the fields of the fact key
@@ -71,12 +71,12 @@ pub struct EnumReference {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InternalFunction {
     /// A `query` expression
-    Query(FactLiteral),
+    Query(FactInitializer),
     /// An `exists` fact query
-    Exists(FactLiteral),
+    Exists(FactInitializer),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
     // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, IntLiteral, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactInitializer),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Not yet implemented panic
@@ -314,7 +314,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MapStatement {
     /// Query
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
     /// Identifier of container struct
     pub identifier: Ident,
     /// Statements to execute for each fact
@@ -327,7 +327,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateStatement {
     /// The fact to create
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
 }
 }
 
@@ -336,7 +336,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
     /// The value fields are updated to these values
     pub to: Vec<(Ident, Expression)>,
 }
@@ -347,7 +347,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeleteStatement {
     /// The fact to delete
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
 }
 }
 

@@ -6,7 +6,7 @@ use aranya_policy_ast::{Span, Spanned as _};
 use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
-    InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement,
+    InvalidExpression, InvalidFactInitializer, InvalidReturn, InvalidStatement,
     InvalidStructInitializer, InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields,
     NoOpStructComp, NoReturn, NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase,
     StructCompositionTypeMismatch, UnknownError, UnknownField, UnreachableMatchArm, UnusedValue,
@@ -263,9 +263,9 @@ impl SimpleError for DuplicateMatchPatterns {
     }
 }
 
-impl SimpleError for InvalidFactLiteral {
+impl SimpleError for InvalidFactInitializer {
     fn description(&self) -> Cow<'_, str> {
-        format!("fact literal does not match definition: {}", self.note).into()
+        format!("fact initializer does not match definition: {}", self.note).into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         once((self.span, self.note.as_str().into()))

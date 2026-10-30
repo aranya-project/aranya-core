@@ -5,8 +5,8 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, FactLiteral, Ident, Identifier, NamedStruct, ResultTypeKind, Span, Spanned as _,
-    TypeKind, VType,
+    self as ast, FactInitializer, Ident, Identifier, NamedStruct, ResultTypeKind, Span,
+    Spanned as _, TypeKind, VType,
 };
 use aranya_policy_module::ffi;
 use indexmap::IndexMap;
@@ -243,7 +243,7 @@ impl CompileState<'_> {
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
-    pub(super) fn query_fact_type(&self, f: &FactLiteral) -> Result<VType, CompileError> {
+    pub(super) fn query_fact_type(&self, f: &FactInitializer) -> Result<VType, CompileError> {
         if self.m.fact_defs.contains_key(&f.name.inner) {
             Ok(VType {
                 inner: TypeKind::Struct(f.name.clone()),

@@ -1,5 +1,5 @@
 use aranya_policy_ast::{
-    ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
+    ExprKind, Expression, FactCountType, FactDefinition, FactField, FactInitializer, FunctionCall,
     Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern, MatchStatement,
     NamedStruct, Param, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
     WithSpanExt as _, thir,
@@ -11,9 +11,9 @@ use super::{
     CompileError, CompileState, FunctionColor, FunctionSignature, Scope, StatementContext,
     error::{
         BadArgument, DuplicateMatchPatterns, InvalidCallColor, InvalidCallColorKind, InvalidCast,
-        InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
-        InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm, UnknownError,
-        UnreachableMatchArm, UnusedValue,
+        InvalidExpression, InvalidFactInitializer, InvalidReturn, InvalidStatement,
+        InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm,
+        UnknownError, UnreachableMatchArm, UnusedValue,
     },
     types::{self, DisplayType},
 };
@@ -136,19 +136,19 @@ impl CompileState<'_> {
         })
     }
 
-    /// Lower a fact literal, ensuring it matches its schema.
+    /// Lower a fact initializer, ensuring it matches its schema.
     ///
     /// Checks:
     /// - a fact with this name was defined
     /// - the keys and values defined in the schema are present, and have the correct types
     /// - there are no duplicate keys or values
     ///
-    /// `require_value` should be true for fact literals used in create statements and false otherwise.
-    fn lower_fact_literal(
+    /// `require_value` should be true for fact initializers used in create statements and false otherwise.
+    fn lower_fact_initializer(
         &mut self,
-        fact: &FactLiteral,
+        fact: &FactInitializer,
         require_value: bool,
-    ) -> Result<thir::FactLiteral, CompileError> {
+    ) -> Result<thir::FactInitializer, CompileError> {
         // Fetch schema
         let fact_def = self.get_fact_def(&fact.name)?.clone();
 
@@ -157,8 +157,8 @@ impl CompileState<'_> {
         let value_fields = if let Some(fact_value_fields) = &fact.value_fields {
             Some(self.lower_fact_values(&fact_def, fact_value_fields)?)
         } else if require_value {
-            return Err(self.err(InvalidFactLiteral::new(
-                "fact literal requires value when used in a create statement",
+            return Err(self.err(InvalidFactInitializer::new(
+                "fact initializer requires value when used in a create statement",
                 fact.span(),
                 None::<(&str, _)>,
             )));
@@ -166,7 +166,7 @@ impl CompileState<'_> {
             None
         };
 
-        Ok(thir::FactLiteral {
+        Ok(thir::FactInitializer {
             name: fact.name.clone(),
             key_fields,
             value_fields,
@@ -185,9 +185,9 @@ impl CompileState<'_> {
         // key sets must have the same length
         if fact_key_fields.len() != fact_def.keys.len() {
             // TODO(Steve): Consider replacing this with a new error type (unknown/missing field error)
-            // that can be used for struct and fact literals.
+            // that can be used for struct and fact initializers.
             let note = "The number of Fact keys don't match the definition".to_owned();
-            return Err(self.err(InvalidFactLiteral::new(
+            return Err(self.err(InvalidFactInitializer::new(
                 note,
                 fact_key_fields.span(),
                 Some((
@@ -207,12 +207,12 @@ impl CompileState<'_> {
         {
             if schema_key.name.inner != lit_key_name.inner {
                 // TODO(Steve): Consider replacing this with a new error type (unknown/missing field error)
-                // that can be used for struct and fact literals.
+                // that can be used for struct and fact initializers.
                 let note = format!(
                     "Invalid key: expected {}, got {}",
                     schema_key.name, lit_key_name
                 );
-                return Err(self.err(InvalidFactLiteral::new(
+                return Err(self.err(InvalidFactInitializer::new(
                     note,
                     lit_key_name.span(),
                     Some(("expected because of this", schema_key.name.span)),
@@ -222,7 +222,7 @@ impl CompileState<'_> {
             match lit_key_field {
                 FactField::Expression(e) => {
                     if let Some(span) = bind_found {
-                        return Err(self.err(InvalidFactLiteral::new(
+                        return Err(self.err(InvalidFactInitializer::new(
                             "leading bind values not allowed",
                             span,
                             None::<(&str, _)>,
@@ -256,12 +256,12 @@ impl CompileState<'_> {
         fact_value_fields: &[(Ident, FactField)],
     ) -> Result<Vec<(Ident, thir::Expression)>, CompileError> {
         // TODO(Steve): Consider replacing this with a new error type (unknown/missing field error)
-        // that can be used for struct and fact literals.
+        // that can be used for struct and fact initializers.
 
         // value block must have the same number of values as the schema
         if fact_value_fields.len() != fact_def.values.len() {
             let note = "The number of Fact values don't match the definition".to_owned();
-            return Err(self.err(InvalidFactLiteral::new(
+            return Err(self.err(InvalidFactInitializer::new(
                 note,
                 fact_value_fields.span(),
                 Some((
@@ -285,7 +285,7 @@ impl CompileState<'_> {
                     "Expected value {}, got {}",
                     schema_value.name, lit_value_name.inner
                 );
-                return Err(self.err(InvalidFactLiteral::new(
+                return Err(self.err(InvalidFactInitializer::new(
                     note,
                     lit_value_name.span,
                     Some(("expected because of this", schema_value.name.span)),
@@ -432,7 +432,7 @@ impl CompileState<'_> {
             }
             ExprKind::InternalFunction(f) => match f {
                 InternalFunction::Query(f) => {
-                    let fact = self.lower_fact_literal(f, false)?;
+                    let fact = self.lower_fact_initializer(f, false)?;
                     let vtype = self.query_fact_type(f)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Query(fact)),
@@ -444,7 +444,7 @@ impl CompileState<'_> {
                     }
                 }
                 InternalFunction::Exists(f) => {
-                    let fact = self.lower_fact_literal(f, false)?;
+                    let fact = self.lower_fact_initializer(f, false)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Exists(
                             fact,
@@ -457,7 +457,7 @@ impl CompileState<'_> {
                     }
                 }
                 InternalFunction::FactCount(cmp_type, n, fact) => {
-                    let fact = self.lower_fact_literal(fact, false)?;
+                    let fact = self.lower_fact_initializer(fact, false)?;
                     let vtype = match cmp_type {
                         FactCountType::UpTo(span) => VType {
                             inner: TypeKind::Int,
@@ -1902,7 +1902,7 @@ impl CompileState<'_> {
                     thir::StmtKind::Finish(s)
                 }
                 (StmtKind::Map(map_stmt), StatementContext::Action(_action)) => {
-                    let fact = self.lower_fact_literal(&map_stmt.fact, false)?;
+                    let fact = self.lower_fact_initializer(&map_stmt.fact, false)?;
                     // Define Struct variable for the `as` clause
                     self.identifier_types.enter_block();
                     self.identifier_types
@@ -1934,7 +1934,7 @@ impl CompileState<'_> {
                         return Err(self.err(BadArgument(note, span)));
                     }
 
-                    let fact = self.lower_fact_literal(&s.fact, true)?;
+                    let fact = self.lower_fact_initializer(&s.fact, true)?;
                     thir::StmtKind::Create(thir::CreateStatement { fact })
                 }
                 (StmtKind::Update(s), StatementContext::Finish(_)) => {
@@ -1954,9 +1954,9 @@ impl CompileState<'_> {
                         return Err(self.err(BadArgument(note, span)));
                     }
 
-                    let fact = self.lower_fact_literal(&s.fact, false)?;
+                    let fact = self.lower_fact_initializer(&s.fact, false)?;
 
-                    // Verify the 'to' fact literal
+                    // Verify the 'to' fact initializer
                     if let Some(span) = find_bind(&s.to) {
                         // Cannot bind in the set statement
                         let note = "Cannot update fact to a bind value".to_owned();
@@ -1973,7 +1973,7 @@ impl CompileState<'_> {
                         return Err(self.err(BadArgument(note, span)));
                     }
 
-                    let fact = self.lower_fact_literal(&s.fact, false)?;
+                    let fact = self.lower_fact_initializer(&s.fact, false)?;
 
                     thir::StmtKind::Delete(thir::DeleteStatement { fact })
                 }

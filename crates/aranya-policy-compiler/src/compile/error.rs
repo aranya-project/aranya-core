@@ -122,14 +122,14 @@ pub(crate) struct DuplicateField {
     pub rest: Vec<Ident>,
 }
 
-/// Fact literal doesn't match definition.
-pub(crate) struct InvalidFactLiteral {
+/// Fact initializer doesn't match definition.
+pub(crate) struct InvalidFactInitializer {
     pub note: String,
     pub span: Span,
     pub context: Option<(String, Span)>,
 }
 
-impl InvalidFactLiteral {
+impl InvalidFactInitializer {
     pub(crate) fn new(
         note: impl Into<String>,
         span: Span,

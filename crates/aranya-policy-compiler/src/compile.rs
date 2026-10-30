@@ -581,8 +581,8 @@ impl<'a> CompileState<'a> {
         }
     }
 
-    /// Compile instructions to construct a fact literal
-    fn compile_fact_literal(&mut self, f: thir::FactLiteral) -> Result<(), CompileError> {
+    /// Compile instructions to construct a fact initializer
+    fn compile_fact_initializer(&mut self, f: thir::FactInitializer) -> Result<(), CompileError> {
         self.append_instruction(Instruction::FactNew(f.name.inner.clone()));
         for (k, e) in f.key_fields {
             self.compile_typed_expression(e)?;
@@ -628,11 +628,11 @@ impl<'a> CompileState<'a> {
             }
             thir::ExprKind::InternalFunction(f) => match f {
                 thir::InternalFunction::Query(f) => {
-                    self.compile_fact_literal(f)?;
+                    self.compile_fact_initializer(f)?;
                     self.append_instruction(Instruction::Query);
                 }
                 thir::InternalFunction::Exists(f) => {
-                    self.compile_fact_literal(f)?;
+                    self.compile_fact_initializer(f)?;
                     self.append_instruction(Instruction::Query);
                     self.append_instruction(Instruction::Const(ConstValue::NONE));
                     self.append_instruction(Instruction::Eq);
@@ -1001,7 +1001,7 @@ impl<'a> CompileState<'a> {
             }
             thir::StmtKind::Map(map_stmt) => {
                 // Execute query and store results
-                self.compile_fact_literal(map_stmt.fact)?;
+                self.compile_fact_initializer(map_stmt.fact)?;
                 self.append_instruction(Instruction::QueryStart);
                 // Consume results...
                 let top_label = self.anonymous_label();
@@ -1022,11 +1022,11 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::End);
             }
             thir::StmtKind::Create(s) => {
-                self.compile_fact_literal(s.fact)?;
+                self.compile_fact_initializer(s.fact)?;
                 self.append_instruction(Instruction::Create);
             }
             thir::StmtKind::Update(s) => {
-                self.compile_fact_literal(s.fact)?;
+                self.compile_fact_initializer(s.fact)?;
                 self.append_instruction(Instruction::Dup);
 
                 for (k, e) in s.to {
@@ -1036,7 +1036,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Update);
             }
             thir::StmtKind::Delete(s) => {
-                self.compile_fact_literal(s.fact)?;
+                self.compile_fact_initializer(s.fact)?;
                 self.append_instruction(Instruction::Delete);
             }
             thir::StmtKind::Emit(s) => {
@@ -1518,7 +1518,7 @@ impl<'a> CompileState<'a> {
         &mut self,
         cmp_type: FactCountType,
         limit: IntLiteral,
-        fact: thir::FactLiteral,
+        fact: thir::FactInitializer,
     ) -> Result<(), CompileError> {
         if *limit <= 0 {
             return Err(self.err(BadArgument(
@@ -1526,7 +1526,7 @@ impl<'a> CompileState<'a> {
                 limit.span(),
             )));
         }
-        self.compile_fact_literal(fact)?;
+        self.compile_fact_initializer(fact)?;
         match cmp_type {
             FactCountType::UpTo(_) => self.append_instruction(Instruction::FactCount(*limit)),
             FactCountType::AtLeast(_) => {

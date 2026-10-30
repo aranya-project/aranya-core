@@ -33,7 +33,7 @@ Policy {
             body: [
                 Map(
                     MapStatement {
-                        fact: FactLiteral {
+                        fact: FactInitializer {
                             name: "Foo" @ 56..59,
                             key_fields: [
                                 (

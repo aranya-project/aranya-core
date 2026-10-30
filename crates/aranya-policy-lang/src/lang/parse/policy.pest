@@ -108,21 +108,21 @@ fact_signature_value = { "{" ~ ws ~ field_definition_list? ~ "}" }
 // A fact signature is made up of an identifier, a key definition, and
 // a value definition.
 fact_signature = { identifier ~ ws ~ fact_signature_key ~ ws ~ "=>" ~ ws ~ fact_signature_value }
-// A bind value is only valid in fact literals inside a query
+// A bind value is only valid in fact initializers inside a query
 // expression. It is used to mark values that the query returns.
 bind = { "?" }
 // key/value pair defining a fact field
-fact_literal_field = { identifier ~ (ws ~ ":" ~ ws ~ (expression | bind))? }
+fact_initializer_field = { identifier ~ (ws ~ ":" ~ ws ~ (expression | bind))? }
 // sequence of fact fields
-fact_literal_field_list = _{ fact_literal_field ~ ws ~ ("," ~ ws ~ fact_literal_field ~ ws)* ~ ("," ~ ws)? }
-// A fact literal key is just like a fact signature key except it
+fact_initializer_field_list = _{ fact_initializer_field ~ ws ~ ("," ~ ws ~ fact_initializer_field ~ ws)* ~ ("," ~ ws)? }
+// A fact initializer key is just like a fact signature key except it
 // defines values with literal fields.
-fact_literal_key = { "[" ~ ws ~ fact_literal_field_list? ~ "]" }
-// Ditto fact literal values.
-fact_literal_value = { "{" ~ ws ~ fact_literal_field_list? ~ "}" }
-// A fact literal looks just like a fact definition except it defines
+fact_initializer_key = { "[" ~ ws ~ fact_initializer_field_list? ~ "]" }
+// Ditto fact initializer values.
+fact_initializer_value = { "{" ~ ws ~ fact_initializer_field_list? ~ "}" }
+// A fact initializer looks just like a fact definition except it defines
 // values for the keys an values.
-fact_literal = { identifier ~ ws ~ fact_literal_key ~ (ws ~ "=>" ~ ws ~ fact_literal_value)? }
+fact_initializer = { identifier ~ ws ~ fact_initializer_key ~ (ws ~ "=>" ~ ws ~ fact_initializer_value)? }
 
 // ## Misc
 // Function arguments are a field list surrounded by parentheses. It's
@@ -168,20 +168,20 @@ ok = { "Ok" ~ ws ~ "(" ~ ws ~ expression ~ ws ~ ")" }
 err = { "Err" ~ ws ~ "(" ~ ws ~ expression ~ ws ~ ")" }
 result_literal = { ok | err }
 
-// A query expression evaluates a fact literal, returning a result
+// A query expression evaluates a fact initializer, returning a result
 // object containing all of the value fields marked with the bind
 // token.
-query = { "query" ~ ws ~ fact_literal }
+query = { "query" ~ ws ~ fact_initializer }
 // exists is query that checks for the existence of a fact
-exists = { "exists" ~ ws ~ fact_literal }
+exists = { "exists" ~ ws ~ fact_initializer }
 // count facts up to a given limit
-count_up_to = { "count_up_to" ~ ws ~ int_literal ~ ws ~ fact_literal}
+count_up_to = { "count_up_to" ~ ws ~ int_literal ~ ws ~ fact_initializer}
 // count facts, returning true if the given count was reached
-at_least = { "at_least" ~ ws ~ int_literal ~ ws ~ fact_literal}
+at_least = { "at_least" ~ ws ~ int_literal ~ ws ~ fact_initializer}
 // count facts, returning true if the given count was not exceeded
-at_most = { "at_most" ~ ws ~ int_literal ~ ws ~ fact_literal }
+at_most = { "at_most" ~ ws ~ int_literal ~ ws ~ fact_initializer }
 // count facts, returning true if the number of facts found equals the expected number
-exactly = { "exactly" ~ ws ~ int_literal ~ ws ~ fact_literal }
+exactly = { "exactly" ~ ws ~ int_literal ~ ws ~ fact_initializer }
 // Similar to the `match` statement, but resolves to a value. e.g. `let x = match { ... }`
 match_expression = { "match" ~ ws ~ expression ~ ws ~ "{" ~ ws ~ (match_expression_arm ~ ws)* ~ "}" }
 match_expression_arm = { (match_arm_expression | match_default) ~ ws ~ "=>" ~ ws ~ expression }
@@ -323,13 +323,13 @@ if_branch = { statement_block }
 // policy processing after executing its statements.
 finish_statement = { "finish" ~ ws ~ statement_block }
 // map - iterate over facts
-map_statement = { "map" ~ ws ~ fact_literal ~ ws ~ "as" ~ ws ~ identifier ~ ws ~ statement_block }
+map_statement = { "map" ~ ws ~ fact_initializer ~ ws ~ "as" ~ ws ~ identifier ~ ws ~ statement_block }
 // The create statement creates a fact.
-create_statement = { "create" ~ ws ~ fact_literal }
+create_statement = { "create" ~ ws ~ fact_initializer }
 // The update statement updates a matching fact to a new value.
-update_statement = { "update" ~ ws ~ fact_literal ~ ws ~ "to" ~ ws ~ fact_literal_value }
+update_statement = { "update" ~ ws ~ fact_initializer ~ ws ~ "to" ~ ws ~ fact_initializer_value }
 // The delete statement deletes a fact.
-delete_statement = { "delete" ~ ws ~ fact_literal }
+delete_statement = { "delete" ~ ws ~ fact_initializer }
 // The emit statement outputs an effect with the given expression.
 emit_statement = { "emit" ~ ws ~ expression }
 // The return statement returns from a function
