@@ -1,8 +1,6 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
 use core::{fmt, str::FromStr};
 
-use serde_derive::{Deserialize, Serialize};
-
 use crate::{
     Identifier, Span, Spanned, Text,
     span::{WithSpan, spanned},
@@ -64,12 +62,10 @@ pub struct InvalidVersion;
 mod version {
     #![allow(deprecated)] // for serde
 
-    use alloc::format;
-
-    use super::{Deserialize, Serialize, String};
+    use alloc::{format, string::String};
 
     /// Policy language version
-    #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+    #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
     pub enum Version {
         /// Version 1, the initial version of the "new" policy
         /// language.
@@ -142,28 +138,7 @@ impl VType {
 }
 
 /// Result type kind
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-#[rkyv(serialize_bounds(
-    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
-    __S::Error: rkyv::rancor::Source,
-))]
-#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
-#[rkyv(bytecheck(
-    bounds(
-        __C: rkyv::validation::ArchiveContext,
-        __C::Error: rkyv::rancor::Source,
-    )
-))]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResultTypeKind {
     /// ok type
     pub ok: VType,
@@ -172,29 +147,7 @@ pub struct ResultTypeKind {
 }
 
 /// The kind of a [`VType`].
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
-#[rkyv(serialize_bounds(
-    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
-    __S::Error: rkyv::rancor::Source,
-))]
-#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
-#[rkyv(bytecheck(
-    bounds(
-        __C: rkyv::validation::ArchiveContext,
-        __C::Error: rkyv::rancor::Source,
-    )
-))]
-#[rkyv(attr(doc = "The archived kind of a [`VType`]."))]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeKind {
     /// The unit, like `()` or `void`.
     Unit,
@@ -213,11 +166,11 @@ pub enum TypeKind {
     /// Named enumeration
     Enum(Ident),
     /// An optional type of some other type
-    Optional(#[rkyv(omit_bounds)] Box<VType>),
+    Optional(Box<VType>),
     /// A type which cannot be instantiated.
     Never,
     /// Result with value, or error
-    Result(#[rkyv(omit_bounds)] Box<ResultTypeKind>),
+    Result(Box<ResultTypeKind>),
 }
 
 impl TypeKind {
@@ -287,13 +240,6 @@ spanned! {
 #[derive(
     Clone,
     Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
 )]
 pub struct Param {
     /// The name of the parameter.
@@ -311,13 +257,6 @@ spanned! {
 #[derive(
     Debug,
     Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
 )]
 pub struct FieldDefinition {
     /// the field's name
@@ -338,7 +277,7 @@ impl FieldDefinition {
 /// An identifier and its type and dynamic effect marker
 ///
 /// A variant used exclusively for Effects
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EffectFieldDefinition {
     /// the field's name
     pub name: Ident,
@@ -355,7 +294,7 @@ impl Spanned for EffectFieldDefinition {
 }
 
 /// Value part of a key/value pair for a fact field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum FactField {
     /// Expression
     Expression(Expression),
@@ -376,7 +315,7 @@ spanned! {
 /// A fact and its key/value field values.
 ///
 /// It is used to create, read, update, and delete facts.
-#[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FactLiteral {
     /// the fact's name
     pub name: Ident,
@@ -391,7 +330,7 @@ spanned! {
 /// A function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FunctionCall {
     /// the function's name
     pub name: Ident,
@@ -401,7 +340,7 @@ pub struct FunctionCall {
 }
 
 /// A named struct literal
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
     pub name: Ident,
@@ -419,7 +358,7 @@ impl Spanned for NamedStruct {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
@@ -438,7 +377,7 @@ impl Spanned for EnumDefinition {
 
 spanned! {
 /// A reference to an enumeration, e.g. `Color::Red`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EnumReference {
     /// enum name
     pub enumeration: Ident,
@@ -448,7 +387,7 @@ pub struct EnumReference {
 }
 
 /// How many facts to expect when counting
-#[derive(Copy, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq)]
 pub enum FactCountType {
     /// Up to
     UpTo(Span),
@@ -482,7 +421,7 @@ impl Spanned for FactCountType {
 }
 
 /// Expression atoms with special rules or effects.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum InternalFunction {
     /// A `query` expression
     Query(FactLiteral),
@@ -515,7 +454,7 @@ spanned! {
 /// A foreign function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Ident,
@@ -533,7 +472,7 @@ pub type IntLiteral = WithSpan<i64>;
 pub type Expression = WithSpan<ExprKind>;
 
 /// The kind of [`Expression`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     /// A Unit literal
     Unit,
@@ -911,7 +850,7 @@ fn matches_match_expression(a: &MatchExpression, b: &MatchExpression) -> bool {
 spanned! {
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
 /// of parsing FFI function declarations.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FunctionDecl {
     /// The identifier of the function
     pub name: Ident,
@@ -924,7 +863,7 @@ pub struct FunctionDecl {
 
 spanned! {
 /// Define a variable with an expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     /// The variable's name
     pub name: Ident,
@@ -935,7 +874,7 @@ pub struct LetStatement {
 
 spanned! {
 /// Check that a boolean expression is true, and fail otherwise
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub condition: Expression,
@@ -946,7 +885,7 @@ pub struct CheckStatement {
 }
 
 /// Match arm pattern
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
@@ -966,7 +905,7 @@ impl Spanned for MatchPattern {
 
 spanned! {
 /// One arm of a match statement
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchArm {
     /// The values to check against. Matches any value if the option is None.
     // TODO(chip): Restrict this to only literal values so we can do
@@ -981,7 +920,7 @@ spanned! {
 /// Match a value and execute one possibility out of many
 ///
 /// Match arms are tested in order.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchStatement {
     /// The value to match against
     pub scrutinee: Expression,
@@ -992,7 +931,7 @@ pub struct MatchStatement {
 
 spanned! {
 /// Match statement expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchExpression {
     /// Value to match against
     pub scrutinee: Expression,
@@ -1002,7 +941,7 @@ pub struct MatchExpression {
 }
 
 /// A container for a statement or expression
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum LanguageContext<A, B> {
     /// statement
     Statement(A),
@@ -1024,7 +963,7 @@ where
 }
 
 /// Match arm expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
@@ -1042,7 +981,7 @@ impl Spanned for MatchExpressionArm {
 
 spanned! {
 /// Test a series of conditions and execute the statements for the first true condition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct IfStatement {
     /// Each `if` and `else if` branch.
     pub branches: Vec<(Expression, Vec<Statement>)>,
@@ -1053,7 +992,7 @@ pub struct IfStatement {
 
 spanned! {
 /// Iterate over the results of a query, and execute some statements for each one.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MapStatement {
     /// Query
     pub fact: FactLiteral,
@@ -1066,7 +1005,7 @@ pub struct MapStatement {
 
 spanned! {
 /// Create a fact
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CreateStatement {
     /// The fact to create
     pub fact: FactLiteral,
@@ -1075,7 +1014,7 @@ pub struct CreateStatement {
 
 spanned! {
 /// Update a fact
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
@@ -1086,7 +1025,7 @@ pub struct UpdateStatement {
 
 spanned! {
 /// Delete a fact
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DeleteStatement {
     /// The fact to delete
     pub fact: FactLiteral,
@@ -1097,7 +1036,7 @@ spanned! {
 /// Return from a function
 ///
 /// Only valid within functions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ReturnStatement {
     /// The value to return
     pub value: Expression,
@@ -1110,7 +1049,7 @@ pub struct ReturnStatement {
 pub type Statement = WithSpan<StmtKind>;
 
 /// The kind of [`Statement`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum StmtKind {
     /// A [LetStatement]
     Let(LetStatement),
@@ -1149,17 +1088,7 @@ pub enum StmtKind {
 }
 
 /// A schema definition for a fact
-#[derive(
-    Debug,
-    Clone,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
+#[derive(Debug, Clone)]
 
 pub struct FactDefinition {
     /// Is this fact immutable?
@@ -1188,7 +1117,7 @@ impl Spanned for FactDefinition {
 }
 
 /// An action definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ActionDefinition {
     /// The flavor of the action
     pub flavor: Ident,
@@ -1212,7 +1141,7 @@ impl Spanned for ActionDefinition {
 }
 
 /// An effect definition
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EffectDefinition {
     /// The name of the effect
     pub name: Ident,
@@ -1229,7 +1158,7 @@ impl Spanned for EffectDefinition {
 }
 
 /// A struct definition
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct StructDefinition {
     /// The name of the struct
     pub name: Ident,
@@ -1246,7 +1175,7 @@ impl Spanned for StructDefinition {
 }
 
 /// Struct field or insertion reference
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum StructItem<T> {
     /// Field definition
     Field(T),
@@ -1274,7 +1203,7 @@ impl<T: Spanned> Spanned for StructItem<T> {
 }
 
 /// A recall block definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct RecallBlockDefinition {
     /// The name of the recall block
     pub name: Ident,
@@ -1293,7 +1222,7 @@ impl Spanned for RecallBlockDefinition {
 }
 
 /// A command definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CommandDefinition {
     /// The name of the base command for this command
     pub base: Ident,
@@ -1318,7 +1247,7 @@ impl Spanned for CommandDefinition {
 }
 
 /// A base command definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BaseCommandDefinition {
     /// The flavor of the command
     pub flavor: Ident,
@@ -1339,7 +1268,7 @@ impl Spanned for BaseCommandDefinition {
 }
 
 /// A function definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FunctionDefinition {
     /// The name of the function
     pub name: Ident,
@@ -1362,7 +1291,7 @@ impl Spanned for FunctionDefinition {
 /// A finish function definition. This is slightly different than a
 /// regular function since it cannot return values and can only
 /// execute finish block statements.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FinishFunctionDefinition {
     /// The name of the function
     pub name: Ident,
@@ -1381,7 +1310,7 @@ impl Spanned for FinishFunctionDefinition {
 }
 
 /// A globally scopped let statement
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct GlobalLetStatement {
     /// The variable's name
     pub name: Ident,
@@ -1400,7 +1329,7 @@ impl Spanned for GlobalLetStatement {
 /// The policy AST root
 ///
 /// This contains all of the definitions that comprise a policy.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone)]
 pub struct Policy {
     /// The policy version.
     pub version: Version,

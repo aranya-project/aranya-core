@@ -348,9 +348,6 @@ name = "aranya-policy-ast"
 version = "0.16.0"
 dependencies = [
  "aranya-policy-text",
- "rkyv",
- "serde",
- "serde_derive",
  "thiserror",
 ]
 

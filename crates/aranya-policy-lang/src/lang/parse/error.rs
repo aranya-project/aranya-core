@@ -3,14 +3,13 @@ use core::fmt::{self, Debug, Display};
 use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
 use pest::error::Error as PestError;
-use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
 
 pub(crate) mod rendering;
 
 /// Invalid usage of an infix operator (i.e. `+` or `-`)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidOperator {
     pub(crate) lhs: Span,
     pub(crate) op: Span,
@@ -24,7 +23,7 @@ impl Display for InvalidOperator {
 }
 
 /// Usage of an older policy version
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidVersion {
     pub found: String,
     pub required: Version,
@@ -44,7 +43,7 @@ impl Display for InvalidVersion {
 /// Invalid usage of option/optional syntax
 ///
 /// `optional option[T]`, `optional optional T`, etc.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidNestedOption {
     pub(crate) outer: Span,
     pub(crate) inner: Span,
@@ -60,7 +59,7 @@ impl Display for InvalidNestedOption {
 ///
 /// If the case contains a String, it is a message describing the item
 /// affected or a general error message.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseErrorKind {
     /// An invalid operator was used.
     InvalidOperator(InvalidOperator),

@@ -154,7 +154,7 @@ mod param {
 
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
 /// statement is currently valid.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum StatementContext {
     /// An action
     Action(ast::ActionDefinition),

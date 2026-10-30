@@ -3,10 +3,9 @@ extern crate alloc;
 use alloc::{string::String, vec::Vec};
 use core::cmp::Ordering;
 
-use aranya_policy_ast::Span;
 use serde::{Deserialize, Serialize};
 
-/// An error for a range that doesn't exist. Used in [CodeMap].
+/// An error for a range that doesn't exist. Used in [`CodeMap`].
 #[derive(Debug, thiserror::Error)]
 #[error("range error")]
 pub struct RangeError;
@@ -110,7 +109,11 @@ impl CodeMap {
     }
 
     /// Add new mapping starting at `instruction` which maps to `span`.
-    pub fn map_instruction(&mut self, instruction: usize, span: Span) -> Result<(), RangeError> {
+    pub fn map_instruction(
+        &mut self,
+        instruction: usize,
+        span: aranya_policy_ast::Span,
+    ) -> Result<(), RangeError> {
         match self
             .mapping
             .last_mut()
@@ -119,20 +122,47 @@ impl CodeMap {
             // Don't break sorting.
             Some((Ordering::Less, _)) => return Err(RangeError),
             // Update existing span to be more specific.
-            Some((Ordering::Equal, last)) => last.1 = span,
+            Some((Ordering::Equal, last)) => last.1 = span.into(),
             // Add new span to end.
-            Some((Ordering::Greater, _)) | None => self.mapping.push((instruction, span)),
+            Some((Ordering::Greater, _)) | None => self.mapping.push((instruction, span.into())),
         }
         Ok(())
     }
 
-    /// Retrieve the [`Span`] containing the given instruction pointer.
+    /// Retrieve the [`SpannedText`] containing the given instruction pointer.
     pub fn span_from_instruction(&self, ip: usize) -> Result<SpannedText<'_>, RangeError> {
         let idx = match self.mapping.binary_search_by(|(i, _)| i.cmp(&ip)) {
             Ok(idx) => idx,
             Err(idx) => idx.checked_sub(1).ok_or(RangeError)?,
         };
         let span = self.mapping[idx].1;
-        SpannedText::new(&self.text, span.start(), span.end()).ok_or(RangeError)
+        SpannedText::new(&self.text, span.start, span.end).ok_or(RangeError)
+    }
+}
+
+/// Span for serialization in [`CodeMap`].
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+struct Span {
+    start: usize,
+    end: usize,
+}
+
+impl From<aranya_policy_ast::Span> for Span {
+    fn from(span: aranya_policy_ast::Span) -> Self {
+        Self {
+            start: span.start(),
+            end: span.end(),
+        }
     }
 }

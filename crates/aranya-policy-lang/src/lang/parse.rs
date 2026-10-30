@@ -14,7 +14,6 @@ use pest::{
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
 };
-use serde::{Deserialize, Serialize};
 
 pub mod error;
 mod markdown;
@@ -2011,7 +2010,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
 }
 
 /// A series of Struct or Enum definitions for the FFI
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct FfiTypes {
     pub structs: Vec<ast::StructDefinition>,
     pub enums: Vec<EnumDefinition>,
