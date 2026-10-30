@@ -25,13 +25,13 @@ default = []
 aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast" }
 aranya-policy-lang = { version = "0.17.0", path = "../aranya-policy-lang" }
 aranya-policy-module = { version = "0.23.0", path = "../aranya-policy-module", features = ["std"] }
-buggy = { version = "0.1.0", features = ["std"] }
+buggy = { workspace = true, features = ["std"] }
 
 annotate-snippets = { workspace = true }
-ciborium = { version = "0.2" }
-clap = { version = "4.4", features = ["derive"] }
+ciborium = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, default-features = false, features = ["serde"] }
-petgraph = { version = "0.8" }
+petgraph = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
