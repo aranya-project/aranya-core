@@ -82,7 +82,7 @@ impl AlreadyDefined {
     /// Creates an `AlreadyDefined` error with `prev` and `primary` ordered by their spans.
     pub(crate) fn new(mut prev: Ident, mut primary: Ident) -> Self {
         use std::cmp::Ordering;
-        match prev.span.cmp(&primary.span) {
+        match prev.span.start().cmp(&primary.span.start()) {
             // already in order
             Ordering::Less | Ordering::Equal => {}
             Ordering::Greater => {

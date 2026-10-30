@@ -4,16 +4,12 @@ use core::{
     ops::{Bound, Range, RangeBounds},
 };
 
-use serde_derive::{Deserialize, Serialize};
-
 /// Wraps a type to add a [`Span`].
 ///
 /// The span is treated as metadata: it is **not** considered for equality,
 /// hashing, or ordering — only the inner value is. This lets `WithSpan<T>`
 /// be used as a map key that behaves like `T`.
-#[derive(
-    Clone, Copy, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
+#[derive(Clone, Copy)]
 #[must_use]
 pub struct WithSpan<T> {
     /// The inner value.
@@ -117,20 +113,7 @@ pub trait WithSpanExt: Sized {
 impl<T> WithSpanExt for T {}
 
 /// A range in the source text.
-#[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
     // [start, end)
     start: usize,

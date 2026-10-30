@@ -14,7 +14,6 @@ use indexmap::IndexMap;
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
 #[derive(Debug)]
-#[cfg_attr(test, derive(Clone, Eq, PartialEq))]
 pub(crate) struct CompileTarget {
     // static state (things which do not change after compilation)
     /// The program memory
@@ -158,7 +157,6 @@ impl Display for CompileTarget {
 
 /// The public interface of a policy.
 #[derive(Debug)]
-#[cfg_attr(test, derive(Clone, Eq, PartialEq))]
 pub struct PolicyInterface {
     /// Action definitions
     pub action_defs: NamedMap<interface::ActionDefinition>,
