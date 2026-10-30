@@ -1,3 +1,4 @@
+mod call_graph;
 mod error;
 mod lower;
 mod target;
@@ -31,8 +32,8 @@ use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
 use tracing::warn;
 
-pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
+    call_graph::CallGraph,
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
         InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
@@ -42,6 +43,7 @@ use self::{
     topo::TopoSort,
     types::{IdentifierTypeStack, UserType},
 };
+pub use self::{error::CompileError, target::PolicyInterface};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -221,6 +223,10 @@ struct CompileState<'a> {
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
+    /// Tracks calls between callers and callees, used to reject recursion.
+    call_graph: CallGraph,
+    /// The function or action being compiled, if any. Used for tracking recursion.
+    current_caller: Option<Label>,
     /// Configuration
     config: Config<'a>,
 }
@@ -247,6 +253,15 @@ impl<'a> CompileState<'a> {
         self.statement_context
             .pop()
             .expect("attempted to exit statement context when none was active");
+    }
+
+    /// Record a call to `callee` from the function or action being compiled.
+    /// `site` is the span of the callee name at the call site.
+    fn track_call(&mut self, callee: &Label, site: Span) {
+        // current_caller is None in command blocks
+        if let Some(caller) = &self.current_caller {
+            self.call_graph.add_call(caller, callee, site);
+        }
     }
 
     /// Get the current statement context.
@@ -1112,12 +1127,13 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FunctionDefinition,
     ) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::PureFunction(function_node.clone()));
+        let label = Label::new(function_node.name.inner.clone(), LabelType::Function);
         self.compile_function_like(
             &function_node.parameters,
             Some(&function_node.return_type),
             function_node.span,
             &function_node.body,
-            Label::new(function_node.name.inner.clone(), LabelType::Function),
+            label,
         )?;
         self.exit_statement_context();
         Ok(())
@@ -1129,12 +1145,13 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::Finish(function_node.span));
+        let label = Label::new(function_node.name.inner.clone(), LabelType::Function);
         self.compile_function_like(
             &function_node.parameters,
             None,
             function_node.span,
             &function_node.body,
-            Label::new(function_node.name.inner.clone(), LabelType::Function),
+            label,
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
@@ -1147,6 +1164,7 @@ impl<'a> CompileState<'a> {
             self.compile_typed_expression(arg)?;
         }
         let label = Label::new(fc.name.inner, LabelType::Action);
+        self.track_call(&label, fc.name.span);
         self.append_instruction(Instruction::Call(Target::Unresolved(label)));
         Ok(())
     }
@@ -1160,6 +1178,7 @@ impl<'a> CompileState<'a> {
             handler(self)?;
         } else {
             let label = Label::new(fc.name.inner, LabelType::Function);
+            self.track_call(&label, fc.name.span);
             self.append_instruction(Instruction::Call(Target::Unresolved(label)));
         }
 
@@ -1360,6 +1379,14 @@ impl<'a> CompileState<'a> {
         body: &[Statement],
         label: Label,
     ) -> Result<(), CompileError> {
+        // Only functions and actions are callable, so only they can recurse.
+        if matches!(label.ltype, LabelType::Function | LabelType::Action) {
+            if self.current_caller.is_some() {
+                bug!("current_caller should be None");
+            }
+            self.current_caller = Some(label.clone());
+        }
+
         self.define_label(label, self.wp)?;
         self.map_range(span)?;
 
@@ -1393,6 +1420,9 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .exit_function()
             .map_err(|e| self.err(e))?;
+
+        self.current_caller = None;
+
         Ok(())
     }
 
@@ -2056,6 +2086,10 @@ impl<'a> CompileState<'a> {
             self.compile_action(action)?;
         }
 
+        self.call_graph
+            .check_recursion()
+            .map_err(|err| self.err(err))?;
+
         self.resolve_targets()?;
 
         Ok(())
@@ -2434,6 +2468,8 @@ impl<'a> Compiler<'a> {
             last_span: Span::empty(),
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(self.config.is_debug),
+            call_graph: CallGraph::new(),
+            current_caller: None,
             config: self.config,
             ffi_modules: self.config.ffi_modules,
         }

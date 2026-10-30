@@ -1,0 +1,8 @@
+---
+source: crates/aranya-policy-compiler/tests/tests.rs
+expression: error
+---
+error: recursive call: `f` calls itself
+  |
+3 |     return f(saturating_sub(n, 1))
+  |            ^ `f` calls `f`
