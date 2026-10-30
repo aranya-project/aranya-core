@@ -2,6 +2,7 @@ use std::{borrow::Cow, iter::once};
 
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::{Span, Spanned as _};
+use itertools::Itertools as _;
 
 use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
@@ -414,8 +415,7 @@ impl Error for CyclicTypeDefinitions {
     }
     fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
         for cycle in &self.1 {
-            let cycle_names: Vec<_> = cycle.iter().map(ToString::to_string).collect();
-            let label = format!("cycle found: [{}]", cycle_names.join(", "));
+            let label = format!("cycle found: [{}]", cycle.iter().format(", "));
             let title = Level::ERROR.primary_title(label);
 
             let annotations: Vec<_> = cycle
@@ -494,15 +494,9 @@ impl Error for UnusedVariable {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "unused variable(s): {}",
-            std::fmt::from_fn(|f| {
-                if let Some((x, xs)) = self.names.split_first() {
-                    write!(f, "`{x}`")?;
-                    for x in xs {
-                        write!(f, ", `{x}`")?;
-                    }
-                }
-                Ok(())
-            })
+            self.names
+                .iter()
+                .format_with(", ", |name, f| f(&format_args!("`{name}`")))
         )
         .into()
     }

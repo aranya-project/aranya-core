@@ -29,6 +29,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
+use itertools::zip_eq;
 use tracing::warn;
 
 pub use self::{error::CompileError, target::PolicyInterface};
@@ -1658,9 +1659,7 @@ impl<'a> CompileState<'a> {
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for ((arm_start, pattern), statements) in
-                    iter::zip(iter::zip(arm_labels, &patterns), s)
-                {
+                for ((arm_start, pattern), statements) in zip_eq(zip_eq(arm_labels, &patterns), s) {
                     self.define_label(arm_start, self.wp)?;
 
                     // Enter a new scope for this match arm
@@ -1711,9 +1710,7 @@ impl<'a> CompileState<'a> {
                 }
             }
             LanguageContext::Expression(e) => {
-                for ((arm_start, pattern), expression) in
-                    iter::zip(iter::zip(arm_labels, &patterns), e)
-                {
+                for ((arm_start, pattern), expression) in zip_eq(zip_eq(arm_labels, &patterns), e) {
                     self.define_label(arm_start, self.wp)?;
 
                     // Enter a new scope for this match arm

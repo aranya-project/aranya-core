@@ -368,6 +368,7 @@ dependencies = [
  "clap",
  "indexmap",
  "insta",
+ "itertools 0.15.0",
  "petgraph",
  "rstest",
  "tracing",
@@ -520,6 +521,7 @@ dependencies = [
  "buggy",
  "ciborium",
  "heapless",
+ "itertools 0.15.0",
  "postcard",
  "postcard-core",
  "proptest",
@@ -555,6 +557,7 @@ dependencies = [
  "criterion",
  "dot-writer",
  "heapless",
+ "itertools 0.15.0",
  "postcard",
  "proptest",
  "rend",
@@ -1447,6 +1450,15 @@ name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
 dependencies = [
  "either",
 ]

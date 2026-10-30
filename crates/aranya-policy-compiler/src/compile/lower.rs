@@ -6,6 +6,7 @@ use aranya_policy_ast::{
 };
 use buggy::{BugExt as _, bug};
 use indexmap::IndexMap;
+use itertools::Itertools as _;
 
 use super::{
     CompileError, CompileState, FunctionColor, FunctionSignature, Scope, StatementContext,
@@ -578,8 +579,7 @@ impl CompileState<'_> {
                     let (module_id, module) = self
                         .ffi_modules
                         .iter()
-                        .enumerate()
-                        .find(|(_, m)| m.name == f.module.inner.as_str())
+                        .find_position(|m| m.name == f.module.inner.as_str())
                         .ok_or_else(|| {
                             let note = format!("module `{}` not defined", f.module);
                             self.err(NotDefined(note, f.module.span))
@@ -589,8 +589,7 @@ impl CompileState<'_> {
                     let (procedure_id, procedure) = module
                         .functions
                         .iter()
-                        .enumerate()
-                        .find(|(_, proc)| proc.name == f.function.inner.as_str())
+                        .find_position(|proc| proc.name == f.function.inner.as_str())
                         .ok_or_else(|| {
                             let note =
                                 format!("function `{}::{}` not defined", f.module, f.function);
@@ -1225,6 +1224,7 @@ impl CompileState<'_> {
         let arg_defs = recall_block.parameters.as_slice();
 
         let mut arguments = Vec::new();
+        // TODO(zip): check length
         for (param, arg_e) in arg_defs.iter().zip(fc.arguments.iter()) {
             let arg_te = self.lower_expression(arg_e)?;
             if !arg_te.vtype.fits_type(&param.vtype) {

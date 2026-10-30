@@ -96,6 +96,7 @@ errno = { version = "0.3", default-features = false }
 heapless = { version = "0.8", default-features = false }
 fnv = { version = "1", default-features = false }
 indexmap = { version = "2.9", default-features = false }
+itertools = { version = "0.15", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
