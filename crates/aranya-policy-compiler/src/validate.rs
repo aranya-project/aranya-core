@@ -1,3 +1,5 @@
+use core::fmt;
+
 use aranya_policy_ast::Identifier;
 use aranya_policy_module::{LabelType, Module, ModuleData};
 
@@ -6,12 +8,14 @@ use crate::{
     ValueAnalyzer,
 };
 
-/// Post-compilation validation. Ensure:
+/// Post-compilation validation.
+///
+/// Ensure:
 /// - action branches publish a command
 /// - variables are assigned before use
 /// - function code paths return values
 /// - commands enter a finish block
-pub fn validate(module: &Module) -> bool {
+pub fn validate(module: &Module) -> Result<(), ValidationError> {
     let m = match &module.data {
         ModuleData::V0(m) => m.clone(),
         ModuleData::V1(m) => m.clone().into(),
@@ -72,10 +76,26 @@ pub fn validate(module: &Module) -> bool {
             }
             Err(e) => {
                 println!("{e}");
-                return false;
+                failed = true;
+                break;
             }
         }
     }
 
-    failed
+    if failed {
+        Err(ValidationError(()))
+    } else {
+        Ok(())
+    }
 }
+
+#[derive(Debug)]
+pub struct ValidationError(());
+
+impl fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("validation error")
+    }
+}
+
+impl core::error::Error for ValidationError {}
