@@ -9,7 +9,7 @@ use core::{
 /// The span is treated as metadata: it is **not** considered for equality,
 /// hashing, or ordering — only the inner value is. This lets `WithSpan<T>`
 /// be used as a map key that behaves like `T`.
-#[derive(Clone, Copy)]
+#[derive(Copy, Clone)]
 #[must_use]
 pub struct WithSpan<T> {
     /// The inner value.
@@ -113,7 +113,7 @@ pub trait WithSpanExt: Sized {
 impl<T> WithSpanExt for T {}
 
 /// A range in the source text.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Span {
     // [start, end)
     start: usize,

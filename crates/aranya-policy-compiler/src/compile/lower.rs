@@ -43,6 +43,98 @@ impl CompileState<'_> {
         self.err(RedundantMatchArm(span))
     }
 
+    // TODO(jdygert): deduplicate
+    /// Lower a struct literal, ensuring it matches its definition.
+    ///
+    /// Checks:
+    /// - a struct with this name was defined
+    /// - the fields defined in the struct are present, and have the correct types
+    /// - there are no duplicate fields
+    fn lower_struct_pattern_literal(
+        &mut self,
+        s: &NamedStruct,
+    ) -> Result<thir::StructPattern, CompileError> {
+        let Some(struct_def) = self.m.interface.struct_defs.get(&s.name.inner).cloned() else {
+            let note = format!("struct `{}` not defined", s.name);
+            return Err(self.err(NotDefined(note, s.name.span)));
+        };
+
+        let s = self.evaluate_sources(s, &struct_def)?;
+
+        let duplicate = {
+            use indexmap::map::Entry;
+            let mut map = IndexMap::<Ident, Vec<Ident>>::new();
+            for (field, _) in &s.fields {
+                match map.entry(field.clone()) {
+                    Entry::Occupied(e) => e.into_mut().push(field.clone()),
+                    Entry::Vacant(e) => _ = e.insert(Vec::new()),
+                }
+            }
+            map.into_iter()
+                .filter(|(_, dupes)| !dupes.is_empty())
+                .map(|(first, rest)| DuplicateField { first, rest })
+                .collect::<Vec<_>>()
+        };
+
+        let mut unknown = Vec::new();
+        let mut mismatch = Vec::new();
+        let mut fields = Vec::new();
+        for (field_name, e) in &s.fields {
+            let Some(def_field) = struct_def.iter().find(|f| f.name.inner == field_name.inner)
+            else {
+                unknown.push(UnknownField {
+                    literal: s.name.inner.clone(),
+                    field: field_name.clone(),
+                });
+                continue;
+            };
+            let e = self.lower_pattern_literal(e)?;
+            if !e.vtype.fits_type(&def_field.vtype) {
+                mismatch.push(InvalidType {
+                    expected: def_field.vtype.to_string(),
+                    expected_span: Some(def_field.span()),
+                    found_type: e.vtype.to_string(),
+                    found_expr: e.span,
+                });
+                continue;
+            }
+            fields.push((field_name.clone(), e));
+        }
+
+        let missing: Vec<_> = struct_def
+            .iter()
+            .map(|field_def| &field_def.name)
+            .filter(|field_def_name| {
+                !s.fields
+                    .iter()
+                    .any(|(lit_field_name, _)| field_def_name.matches(lit_field_name))
+            })
+            .cloned()
+            .collect();
+
+        if !(missing.is_empty()
+            && unknown.is_empty()
+            && duplicate.is_empty()
+            && mismatch.is_empty())
+        {
+            return Err(self.err(InvalidStructLiteral {
+                missing: (!missing.is_empty()).then(|| MissingFields {
+                    literal: s.name.clone(),
+                    fields: missing,
+                }),
+                unknown,
+                duplicate,
+                mismatch,
+            }));
+        }
+
+        Ok(thir::StructPattern {
+            name: s.name.clone(),
+            fields,
+            sources: s.sources.clone(),
+        })
+    }
+
     /// Lower a struct literal, ensuring it matches its definition.
     ///
     /// Checks:
@@ -347,6 +439,133 @@ impl CompileState<'_> {
             _ => "`?` can only be used in a returning context".to_owned(),
         };
         Err(self.err(InvalidReturn { message, span }))
+    }
+
+    fn lower_pattern_literal(
+        &mut self,
+        expression: &Expression,
+    ) -> Result<thir::Pattern, CompileError> {
+        Ok(match &expression.inner {
+            ExprKind::Unit => thir::Pattern {
+                kind: thir::PatternKind::Unit,
+                vtype: VType {
+                    inner: TypeKind::Unit,
+                    span: expression.span,
+                },
+                span: expression.span,
+            },
+            ExprKind::Int(n) => thir::Pattern {
+                kind: thir::PatternKind::Int(*n),
+                vtype: VType {
+                    inner: TypeKind::Int,
+                    span: expression.span,
+                },
+                span: expression.span,
+            },
+            ExprKind::String(s) => thir::Pattern {
+                kind: thir::PatternKind::String(s.clone()),
+                vtype: VType {
+                    inner: TypeKind::String,
+                    span: expression.span,
+                },
+                span: expression.span,
+            },
+            ExprKind::Bool(b) => thir::Pattern {
+                kind: thir::PatternKind::Bool(*b),
+                vtype: VType {
+                    inner: TypeKind::Bool,
+                    span: expression.span,
+                },
+                span: expression.span,
+            },
+            ExprKind::Optional(o) => {
+                let inner_vtype;
+                let inner_expr;
+                match o {
+                    None => {
+                        inner_vtype = VType {
+                            inner: TypeKind::Never,
+                            span: expression.span,
+                        };
+                        inner_expr = None;
+                    }
+                    Some(v) => {
+                        let inner = self.lower_pattern_literal(v)?;
+                        inner_vtype = inner.vtype.clone();
+                        inner_expr = Some(Box::new(inner));
+                    }
+                }
+                thir::Pattern {
+                    kind: thir::PatternKind::Optional(inner_expr),
+                    vtype: VType {
+                        inner: TypeKind::Optional(Box::new(inner_vtype)),
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
+            ExprKind::NamedStruct(s) => {
+                let lit = self.lower_struct_pattern_literal(s)?;
+                let vtype = self.struct_type(s)?;
+                thir::Pattern {
+                    kind: thir::PatternKind::Struct(lit),
+                    vtype,
+                    span: expression.span,
+                }
+            }
+            ExprKind::EnumReference(e) => {
+                let value = self.enum_value(e)?;
+                let vtype = VType {
+                    inner: TypeKind::Enum(e.enumeration.clone()),
+                    span: expression.span,
+                };
+                thir::Pattern {
+                    kind: thir::PatternKind::EnumReference(thir::EnumReference {
+                        enumeration: e.enumeration.clone(),
+                        value,
+                    }),
+                    vtype,
+                    span: expression.span,
+                }
+            }
+            ExprKind::Ok(e) => {
+                let inner = self.lower_pattern_literal(e)?;
+                let ok_vtype = inner.vtype.clone();
+                thir::Pattern {
+                    kind: thir::PatternKind::Ok(Box::new(inner)),
+                    vtype: VType {
+                        inner: TypeKind::Result(Box::new(ResultTypeKind {
+                            ok: ok_vtype,
+                            err: VType {
+                                inner: TypeKind::Never,
+                                span: expression.span,
+                            },
+                        })),
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
+            ExprKind::Err(e) => {
+                let inner = self.lower_pattern_literal(e)?;
+                let err_vtype = inner.vtype.clone();
+                thir::Pattern {
+                    kind: thir::PatternKind::Err(Box::new(inner)),
+                    vtype: VType {
+                        inner: TypeKind::Result(Box::new(ResultTypeKind {
+                            ok: VType {
+                                inner: TypeKind::Never,
+                                span: expression.span,
+                            },
+                            err: err_vtype,
+                        })),
+                        span: expression.span,
+                    },
+                    span: expression.span,
+                }
+            }
+            _ => todo!("not a literal: {expression:?}"),
+        })
     }
 
     fn lower_expression(
@@ -1056,11 +1275,12 @@ impl CompileState<'_> {
             },
             ExprKind::Ok(e) => {
                 let inner = self.lower_expression(e)?;
+                let ok_vtype = inner.vtype.clone();
                 thir::Expression {
-                    kind: thir::ExprKind::Ok(Box::new(inner.clone())),
+                    kind: thir::ExprKind::Ok(Box::new(inner)),
                     vtype: VType {
                         inner: TypeKind::Result(Box::new(ResultTypeKind {
-                            ok: inner.vtype,
+                            ok: ok_vtype,
                             err: VType {
                                 inner: TypeKind::Never,
                                 span: expression.span,
@@ -1073,15 +1293,16 @@ impl CompileState<'_> {
             }
             ExprKind::Err(e) => {
                 let inner = self.lower_expression(e)?;
+                let err_vtype = inner.vtype.clone();
                 thir::Expression {
-                    kind: thir::ExprKind::Err(Box::new(inner.clone())),
+                    kind: thir::ExprKind::Err(Box::new(inner)),
                     vtype: VType {
                         inner: TypeKind::Result(Box::new(ResultTypeKind {
                             ok: VType {
                                 inner: TypeKind::Never,
                                 span: expression.span,
                             },
-                            err: inner.vtype,
+                            err: err_vtype,
                         })),
                         span: expression.span,
                     },
@@ -1371,12 +1592,12 @@ impl CompileState<'_> {
         for pattern in &patterns {
             let pattern = match pattern {
                 MatchPattern::Values(values) => {
-                    let mut values_out = Vec::new();
+                    let mut values_out: Vec<thir::Pattern> = Vec::new();
                     for value in values {
                         n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
                         if value.is_literal() {
                             // Literal pattern (including Result patterns with literal inner values)
-                            let arm_t = self.lower_expression(value)?;
+                            let arm_t = self.lower_pattern_literal(value)?;
                             scrutinee_type = types::unify_pair(scrutinee_type, arm_t.vtype.clone())
                                 .map_err(|err| self.err(err))?;
                             values_out.push(arm_t);
@@ -1407,16 +1628,16 @@ impl CompileState<'_> {
                                             inner.span(),
                                         )));
                                     };
-                                    let inner = thir::Expression {
-                                        kind: thir::ExprKind::Identifier(ident.clone()),
+                                    let inner = thir::Pattern {
+                                        kind: thir::PatternKind::Identifier(ident.clone()),
                                         vtype: inner_type,
                                         span: inner.span(),
                                     };
-                                    let outer = thir::Expression {
+                                    let outer = thir::Pattern {
                                         kind: if is_ok {
-                                            thir::ExprKind::Ok(Box::new(inner))
+                                            thir::PatternKind::Ok(Box::new(inner))
                                         } else {
-                                            thir::ExprKind::Err(Box::new(inner))
+                                            thir::PatternKind::Err(Box::new(inner))
                                         },
                                         vtype: scrutinee_type.clone(),
                                         span: value.span(),
@@ -1443,13 +1664,13 @@ impl CompileState<'_> {
                                             inner.span(),
                                         )));
                                     };
-                                    let inner = thir::Expression {
-                                        kind: thir::ExprKind::Identifier(ident.clone()),
+                                    let inner = thir::Pattern {
+                                        kind: thir::PatternKind::Identifier(ident.clone()),
                                         vtype: inner_type,
                                         span: inner.span(),
                                     };
-                                    let outer = thir::Expression {
-                                        kind: thir::ExprKind::Optional(Some(Box::new(inner))),
+                                    let outer = thir::Pattern {
+                                        kind: thir::PatternKind::Optional(Some(Box::new(inner))),
                                         vtype: scrutinee_type.clone(),
                                         span: value.span(),
                                     };
@@ -1590,10 +1811,10 @@ impl CompileState<'_> {
                     if let thir::MatchPattern::Values(values) = &pattern {
                         for value in values {
                             match &value.kind {
-                                thir::ExprKind::Ok(inner)
-                                | thir::ExprKind::Err(inner)
-                                | thir::ExprKind::Optional(Some(inner)) => {
-                                    if let thir::ExprKind::Identifier(ident) = &inner.kind {
+                                thir::PatternKind::Ok(inner)
+                                | thir::PatternKind::Err(inner)
+                                | thir::PatternKind::Optional(Some(inner)) => {
+                                    if let thir::PatternKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
                                             .add(ident.clone(), inner.vtype.clone())
                                             .map_err(|e| self.err(e))?;
@@ -1634,10 +1855,10 @@ impl CompileState<'_> {
                     if let thir::MatchPattern::Values(values) = &pattern {
                         for value in values {
                             match &value.kind {
-                                thir::ExprKind::Ok(inner)
-                                | thir::ExprKind::Err(inner)
-                                | thir::ExprKind::Optional(Some(inner)) => {
-                                    if let thir::ExprKind::Identifier(ident) = &inner.kind {
+                                thir::PatternKind::Ok(inner)
+                                | thir::PatternKind::Err(inner)
+                                | thir::PatternKind::Optional(Some(inner)) => {
+                                    if let thir::PatternKind::Identifier(ident) = &inner.kind {
                                         self.identifier_types
                                             .add(ident.clone(), inner.vtype.clone())
                                             .map_err(|e| self.err(e))?;
