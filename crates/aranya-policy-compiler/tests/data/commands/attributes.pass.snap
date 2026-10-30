@@ -83,6 +83,7 @@ Module {
 <policy 'A'>:
     def 'envelope'
     def 'this'
+    save SP
     meta: finish enabled
     block
     end

@@ -49,39 +49,41 @@ Module {
     exit panic
 <action 'f'>:
     def 'maybe_bool'
+    save SP
     get 'maybe_bool'
     dup
     const None
     eq
-    branch 24
+    branch 25
     dup
     const true
     wrap some
     eq
-    branch 29
+    branch 30
     dup
     const false
     wrap some
     eq
-    branch 34
-<24>:
+    branch 35
+<25>:
     block
     pop
     const 0
     end
-    jump 39
-<29>:
+    jump 40
+<30>:
     block
     pop
     const 1
     end
-    jump 39
-<34>:
+    jump 40
+<35>:
     block
     pop
     const 2
     end
-    jump 39
-<39>:
+    jump 40
+<40>:
     def 'x'
+    restore SP
     return

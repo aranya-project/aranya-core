@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <action 'can_fail'>: 8,
-        <action 'foo'>: 14,
+        <action 'foo'>: 15,
     },
     action_defs: [
         ActionDef {
@@ -61,6 +61,7 @@ Module {
     save SP
     const "nope"
     wrap err
+    meta: return err
     restore SP
     return
     exit panic

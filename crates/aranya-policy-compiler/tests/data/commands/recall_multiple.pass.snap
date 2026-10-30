@@ -7,9 +7,9 @@ Module {
     labels: {
         <get_key 'Cmd'>: 1,
         <policy 'Cmd'>: 8,
-        <recall 'Cmd_bar'>: 18,
-        <recall 'Cmd_baz'>: 21,
-        <recall 'Cmd_foo'>: 15,
+        <recall 'Cmd_bar'>: 20,
+        <recall 'Cmd_baz'>: 24,
+        <recall 'Cmd_foo'>: 16,
     },
     action_defs: [],
     command_defs: [
@@ -52,6 +52,7 @@ Module {
 <policy 'Cmd'>:
     def 'envelope'
     def 'this'
+    save SP
     meta: finish enabled
     block
     end
@@ -60,12 +61,15 @@ Module {
 <recall 'Cmd_foo'>:
     def 'envelope'
     def 'this'
+    save SP
     exit check
 <recall 'Cmd_bar'>:
     def 'envelope'
     def 'this'
+    save SP
     exit check
 <recall 'Cmd_baz'>:
     def 'envelope'
     def 'this'
+    save SP
     exit check

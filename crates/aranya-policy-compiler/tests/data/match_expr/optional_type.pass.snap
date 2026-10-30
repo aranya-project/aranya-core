@@ -47,25 +47,27 @@ Module {
     exit panic
 <action 'f'>:
     def 'n'
+    save SP
     get 'n'
     dup
     const 0
     eq
-    branch 15
-    jump 20
-<15>:
+    branch 16
+    jump 21
+<16>:
     block
     pop
     const None
     end
-    jump 26
-<20>:
+    jump 27
+<21>:
     block
     pop
     const 0
     wrap some
     end
-    jump 26
-<26>:
+    jump 27
+<27>:
     def 'x'
+    restore SP
     return

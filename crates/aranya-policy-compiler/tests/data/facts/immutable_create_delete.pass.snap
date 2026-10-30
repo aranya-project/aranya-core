@@ -79,6 +79,7 @@ Module {
 <policy 'test'>:
     def 'envelope'
     def 'this'
+    save SP
     meta: finish enabled
     block
     fact.new 'Foo'

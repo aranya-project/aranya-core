@@ -50,6 +50,8 @@ Module {
     return
     exit panic
 <action 'a'>:
+    save SP
     call <fn 'f'>
     def 'x'
+    restore SP
     return

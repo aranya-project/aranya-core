@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'can_fail'>: 9,
+        <action 'can_fail'>: 11,
         <action 'infallible'>: 8,
     },
     action_defs: [
@@ -58,6 +58,8 @@ Module {
     return
     exit panic
 <action 'infallible'>:
+    save SP
+    restore SP
     return
 <action 'can_fail'>:
     def 'x'
@@ -66,17 +68,18 @@ Module {
     const 0
     gt
     not
-    branch 23
+    branch 25
     block
     const ()
     wrap ok
     restore SP
     return
     end
-    jump 23
-<23>:
+    jump 25
+<25>:
     const "negative input"
     wrap err
+    meta: return err
     restore SP
     return
     exit panic

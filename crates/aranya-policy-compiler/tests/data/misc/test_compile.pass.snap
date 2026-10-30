@@ -7,7 +7,7 @@ Module {
     labels: {
         <get_key 'Foo'>: 1,
         <policy 'Foo'>: 8,
-        <action 'foo'>: 15,
+        <action 'foo'>: 16,
     },
     action_defs: [
         ActionDef {
@@ -80,6 +80,7 @@ Module {
 <policy 'Foo'>:
     def 'envelope'
     def 'this'
+    save SP
     meta: finish enabled
     block
     end
@@ -87,23 +88,24 @@ Module {
     exit panic
 <action 'foo'>:
     def 'b'
+    save SP
     const 4
     def 'i'
     get 'b'
     const 0
     eq
-    branch 26
+    branch 28
     block
     const 3
     end
-    jump 31
-<26>:
+    jump 33
+<28>:
     block
     const 4
     get 'i'
     saturating_add
     end
-<31>:
+<33>:
     def 'x'
     struct.new 'Foo'
     get 'x'
@@ -111,4 +113,5 @@ Module {
     const 4
     struct.set 'b'
     def 'y'
+    restore SP
     return

@@ -71,29 +71,31 @@ Module {
     return
     exit panic
 <action 'pets'>:
+    save SP
     const 42
     def 'n'
     fact.new 'Pet'
     query.start
-<12>:
+<13>:
     block
     query.next 'p'
-    branch 28
+    branch 29
     get 'p'
     struct.get 'age'
     const 0
     gt
-    branch 21
+    branch 22
     exit panic
-<21>:
+<22>:
     get 'n'
     const 42
     eq
-    branch 26
+    branch 27
     exit panic
-<26>:
+<27>:
     end
-    jump 12
-<28>:
+    jump 13
+<29>:
     end
+    restore SP
     return

@@ -7,7 +7,7 @@ Module {
     labels: {
         <get_key 'Bar'>: 1,
         <policy 'Bar'>: 8,
-        <action 'convert'>: 15,
+        <action 'convert'>: 16,
     },
     action_defs: [
         ActionDef {
@@ -88,12 +88,14 @@ Module {
 <policy 'Bar'>:
     def 'envelope'
     def 'this'
+    save SP
     meta: finish enabled
     block
     end
     exit normal
     exit panic
 <action 'convert'>:
+    save SP
     struct.new 'Foo'
     const 1
     struct.set 'a'
@@ -103,4 +105,5 @@ Module {
     def 'bar'
     get 'bar'
     publish
+    restore SP
     return

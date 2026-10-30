@@ -6,7 +6,7 @@ Module {
     version: "1",
     labels: {
         <action 'bar'>: 8,
-        <action 'foo'>: 11,
+        <action 'foo'>: 13,
     },
     action_defs: [
         ActionDef {
@@ -59,9 +59,13 @@ Module {
 <action 'bar'>:
     def 's'
     def 'n'
+    save SP
+    restore SP
     return
 <action 'foo'>:
+    save SP
     const 1
     const "abc"
     call <action 'bar'>
+    restore SP
     return
