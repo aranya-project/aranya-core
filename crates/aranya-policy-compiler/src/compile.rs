@@ -597,6 +597,63 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn compile_typed_pattern_literal(
+        &mut self,
+        pattern: thir::Pattern,
+    ) -> Result<(), CompileError> {
+        match pattern.kind {
+            thir::PatternKind::Unit => {
+                self.append_instruction(Instruction::Const(ConstValue::Unit));
+            }
+            thir::PatternKind::Int(n) => {
+                self.append_instruction(Instruction::Const(ConstValue::Int(*n)));
+            }
+            thir::PatternKind::String(s) => {
+                self.append_instruction(Instruction::Const(ConstValue::String(s)));
+            }
+            thir::PatternKind::Bool(b) => {
+                self.append_instruction(Instruction::Const(ConstValue::Bool(b)));
+            }
+            thir::PatternKind::Optional(o) => match o {
+                None => {
+                    self.append_instruction(Instruction::Const(ConstValue::NONE));
+                }
+                Some(v) => {
+                    self.compile_typed_pattern_literal(*v)?;
+                    self.append_instruction(Instruction::Wrap(WrapType::Some));
+                }
+            },
+            thir::PatternKind::Struct(s) => {
+                self.append_instruction(Instruction::StructNew(s.name.inner));
+                for (field_name, e) in s.fields {
+                    self.compile_typed_pattern_literal(e)?;
+                    self.append_instruction(Instruction::StructSet(field_name.inner));
+                }
+            }
+            thir::PatternKind::Identifier(i) => {
+                todo!("identifier {i} not a literal");
+            }
+            thir::PatternKind::EnumReference(e) => {
+                self.append_instruction(Instruction::Const(ConstValue::Enum(
+                    e.enumeration.inner,
+                    e.value,
+                )));
+            }
+            thir::PatternKind::Ok(e) => {
+                // Compile the inner expression and wrap it in Ok
+                self.compile_typed_pattern_literal(*e)?;
+                // We need to wrap the value in a result variant, i.e Int(42) becomes Ok(Int(42))
+                self.append_instruction(Instruction::Wrap(WrapType::Ok));
+            }
+            thir::PatternKind::Err(e) => {
+                // Compile the inner expression and wrap it in Err
+                self.compile_typed_pattern_literal(*e)?;
+                self.append_instruction(Instruction::Wrap(WrapType::Err));
+            }
+        }
+        Ok(())
+    }
+
     fn compile_typed_expression(
         &mut self,
         expression: thir::Expression,
@@ -1605,8 +1662,8 @@ impl<'a> CompileState<'a> {
                 thir::MatchPattern::Values(values) => {
                     for value in values {
                         match &value.kind {
-                            thir::ExprKind::Ok(inner)
-                                if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                            thir::PatternKind::Ok(inner)
+                                if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                             {
                                 // Binding pattern Ok(x): branch if scrutinee is Ok variant
                                 self.append_instruction(Instruction::Dup);
@@ -1615,8 +1672,8 @@ impl<'a> CompileState<'a> {
                                     arm_label.clone(),
                                 )));
                             }
-                            thir::ExprKind::Err(inner)
-                                if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                            thir::PatternKind::Err(inner)
+                                if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                             {
                                 // Binding pattern Err(e): branch if scrutinee is Err variant
                                 self.append_instruction(Instruction::Dup);
@@ -1625,8 +1682,8 @@ impl<'a> CompileState<'a> {
                                     arm_label.clone(),
                                 )));
                             }
-                            thir::ExprKind::Optional(Some(inner))
-                                if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                            thir::PatternKind::Optional(Some(inner))
+                                if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                             {
                                 // Binding pattern Some(x): branch if scrutinee is Some variant
                                 self.append_instruction(Instruction::Dup);
@@ -1638,7 +1695,7 @@ impl<'a> CompileState<'a> {
                             _ => {
                                 // Literal pattern (including Ok(5), Ok(true), int, bool, etc.)
                                 self.append_instruction(Instruction::Dup);
-                                self.compile_typed_expression(value.clone())?;
+                                self.compile_typed_pattern_literal(value.clone())?;
                                 self.append_instruction(Instruction::Eq);
                                 self.append_instruction(Instruction::Branch(Target::Unresolved(
                                     arm_label.clone(),
@@ -1672,25 +1729,25 @@ impl<'a> CompileState<'a> {
                             // Look for a binding pattern (Ok(x), Err(e), or Some(x) with
                             // identifier inner)
                             let binding = values.iter().find_map(|v| match &v.kind {
-                                thir::ExprKind::Ok(inner)
-                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                thir::PatternKind::Ok(inner)
+                                    if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                                 {
                                     Some((WrapType::Ok, inner))
                                 }
-                                thir::ExprKind::Err(inner)
-                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                thir::PatternKind::Err(inner)
+                                    if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                                 {
                                     Some((WrapType::Err, inner))
                                 }
-                                thir::ExprKind::Optional(Some(inner))
-                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                thir::PatternKind::Optional(Some(inner))
+                                    if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                                 {
                                     Some((WrapType::Some, inner))
                                 }
                                 _ => None,
                             });
                             if let Some((wrap_type, inner)) = binding {
-                                let thir::ExprKind::Identifier(ident) = &inner.kind else {
+                                let thir::PatternKind::Identifier(ident) = &inner.kind else {
                                     bug!("checked above");
                                 };
                                 self.append_instruction(Instruction::Unwrap(wrap_type));
@@ -1725,25 +1782,25 @@ impl<'a> CompileState<'a> {
                             // Look for a binding pattern (Ok(x), Err(e), or Some(x) with
                             // identifier inner)
                             let binding = values.iter().find_map(|v| match &v.kind {
-                                thir::ExprKind::Ok(inner)
-                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                thir::PatternKind::Ok(inner)
+                                    if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                                 {
                                     Some((WrapType::Ok, inner))
                                 }
-                                thir::ExprKind::Err(inner)
-                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                thir::PatternKind::Err(inner)
+                                    if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                                 {
                                     Some((WrapType::Err, inner))
                                 }
-                                thir::ExprKind::Optional(Some(inner))
-                                    if matches!(&inner.kind, thir::ExprKind::Identifier(_)) =>
+                                thir::PatternKind::Optional(Some(inner))
+                                    if matches!(&inner.kind, thir::PatternKind::Identifier(_)) =>
                                 {
                                     Some((WrapType::Some, inner))
                                 }
                                 _ => None,
                             });
                             if let Some((wrap_type, inner)) = binding {
-                                let thir::ExprKind::Identifier(ident) = &inner.kind else {
+                                let thir::PatternKind::Identifier(ident) = &inner.kind else {
                                     bug!("checked above");
                                 };
                                 self.append_instruction(Instruction::Unwrap(wrap_type));
