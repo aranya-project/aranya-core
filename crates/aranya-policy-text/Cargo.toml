@@ -21,7 +21,7 @@ default = []
 # Enable `std`.
 std = [
 	"proptest?/std",
-	"serde/std",
+	"serde_core/std",
 	"thiserror/std",
 ]
 
@@ -32,7 +32,7 @@ proptest = ["dep:proptest"]
 aranya-policy-text-macro = { version = "0.1.0", path = "../aranya-policy-text-macro" }
 
 rkyv = { workspace = true }
-serde = { workspace = true, features = ["alloc"] }
+serde_core = { workspace = true, features = ["alloc"] }
 thiserror = { workspace = true }
 
 proptest = { workspace = true, features = ["alloc"], optional = true }

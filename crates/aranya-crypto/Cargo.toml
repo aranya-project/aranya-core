@@ -143,7 +143,7 @@ ciborium = { workspace = true, optional = true }
 ciborium-io = { workspace = true, optional = true }
 derive-where = { workspace = true, features = ["serde"] }
 rustix = { workspace = true, features = ["fs"], optional = true }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 sha3-utils = { workspace = true }
 siphasher = { workspace = true }
 thiserror = { workspace = true }
@@ -157,7 +157,7 @@ aranya-crypto = { path = ".", features = ["alloc", "test_util"] }
 criterion = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 tempfile = { workspace = true }
 
 [[bench]]

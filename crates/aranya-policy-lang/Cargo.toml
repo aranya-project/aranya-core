@@ -33,7 +33,7 @@ clap = { workspace = true, features = ["derive"] }
 markdown = { workspace = true }
 pest = { workspace = true }
 pest_derive = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 serde-saphyr = { workspace = true, features = ["deserialize"] }
 tracing = { workspace = true }
 
