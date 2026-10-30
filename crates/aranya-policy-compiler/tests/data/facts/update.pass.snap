@@ -84,7 +84,7 @@ Module {
     fact.new 'Foo'
     const 1
     fact.kset 'i'
-    dup
+    fact.new 'Foo'
     const "updated"
     fact.vset 'a'
     update

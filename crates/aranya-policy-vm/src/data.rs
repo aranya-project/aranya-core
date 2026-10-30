@@ -63,14 +63,10 @@ pub enum Value {
     Bytes(Vec<u8>),
     /// Struct
     Struct(Struct),
-    /// Fact
-    Fact(Fact),
     /// A unique identifier.
     Id(BaseId),
     /// Enumeration value
     Enum(Identifier, i64),
-    /// Textual Identifier (name)
-    Identifier(Identifier),
     /// Optional value
     Option(Option<Box<Self>>),
     /// Result value
@@ -146,10 +142,8 @@ impl Value {
             Self::String(_) => String::from("String"),
             Self::Bytes(_) => String::from("Bytes"),
             Self::Struct(s) => format!("Struct {}", s.name),
-            Self::Fact(f) => format!("Fact {}", f.name),
             Self::Id(_) => String::from("Id"),
             Self::Enum(name, _) => format!("Enum {}", name),
-            Self::Identifier(_) => String::from("Identifier"),
             Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
             Self::Option(None) => String::from("Option[_]"),
             Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
@@ -247,12 +241,6 @@ impl From<Text> for Value {
     }
 }
 
-impl From<Identifier> for Value {
-    fn from(value: Identifier) -> Self {
-        Self::Identifier(value)
-    }
-}
-
 impl From<&[u8]> for Value {
     fn from(value: &[u8]) -> Self {
         Self::Bytes(value.to_owned())
@@ -268,12 +256,6 @@ impl From<Vec<u8>> for Value {
 impl From<Struct> for Value {
     fn from(value: Struct) -> Self {
         Self::Struct(value)
-    }
-}
-
-impl From<Fact> for Value {
-    fn from(value: Fact) -> Self {
-        Self::Fact(value)
     }
 }
 
@@ -343,21 +325,6 @@ impl TryFrom<Value> for Text {
     }
 }
 
-impl TryFrom<Value> for Identifier {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let Value::Identifier(text) = value else {
-            return Err(ValueConversionError::invalid_type(
-                "Identifier",
-                value.type_name(),
-                "Value -> Identifier",
-            ));
-        };
-        Ok(text)
-    }
-}
-
 impl TryFrom<Value> for Vec<u8> {
     type Error = ValueConversionError;
 
@@ -384,21 +351,6 @@ impl TryFrom<Value> for Struct {
             "Struct",
             value.type_name(),
             "Value -> Struct",
-        ))
-    }
-}
-
-impl TryFrom<Value> for Fact {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Fact(f) = value {
-            return Ok(f);
-        }
-        Err(ValueConversionError::invalid_type(
-            "Fact",
-            value.type_name(),
-            "Value -> Fact",
         ))
     }
 }
@@ -475,20 +427,6 @@ impl TryAsMut<Struct> for Value {
     }
 }
 
-impl TryAsMut<Fact> for Value {
-    type Error = ValueConversionError;
-    fn try_as_mut(&mut self) -> Result<&mut Fact, Self::Error> {
-        if let Self::Fact(f) = self {
-            return Ok(f);
-        }
-        Err(ValueConversionError::invalid_type(
-            "Fact",
-            self.type_name(),
-            "Value -> Fact",
-        ))
-    }
-}
-
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -504,10 +442,8 @@ impl Display for Value {
                 Ok(())
             }
             Self::Struct(s) => s.fmt(f),
-            Self::Fact(fa) => fa.fmt(f),
             Self::Id(id) => id.fmt(f),
             Self::Enum(name, value) => write!(f, "{name}::{value}"),
-            Self::Identifier(name) => write!(f, "{name}"),
             Self::Option(Some(v)) => write!(f, "Some({v})"),
             Self::Option(None) => write!(f, "None"),
             Self::Result(Ok(v)) => write!(f, "Ok({})", v),
