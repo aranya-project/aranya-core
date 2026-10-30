@@ -100,7 +100,7 @@ pub(crate) struct DuplicateMatchPatterns {
     pub patt2: Span,
 }
 
-pub(crate) struct InvalidStructLiteral {
+pub(crate) struct InvalidStructInitializer {
     pub missing: Option<MissingFields>,
     pub unknown: Vec<UnknownField>,
     pub duplicate: Vec<DuplicateField>,
@@ -122,14 +122,14 @@ pub(crate) struct DuplicateField {
     pub rest: Vec<Ident>,
 }
 
-/// Fact literal doesn't match definition.
-pub(crate) struct InvalidFactLiteral {
+/// Fact initializer doesn't match definition.
+pub(crate) struct InvalidFactInitializer {
     pub note: String,
     pub span: Span,
     pub context: Option<(String, Span)>,
 }
 
-impl InvalidFactLiteral {
+impl InvalidFactInitializer {
     pub(crate) fn new(
         note: impl Into<String>,
         span: Span,
@@ -190,7 +190,7 @@ impl SourceStructNotSubsetOfBase {
     }
 }
 
-/// A struct literal has all its fields explicitly specified while also having compositions.
+/// A struct initializer has all its fields explicitly specified while also having compositions.
 pub(crate) struct NoOpStructComp(pub Span);
 
 /// Invalid substruct operation - the RHS is not a subset of the LHS.

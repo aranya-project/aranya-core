@@ -377,7 +377,7 @@ spanned! {
 ///
 /// It is used to create, read, update, and delete facts.
 #[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
-pub struct FactLiteral {
+pub struct FactInitializer {
     /// the fact's name
     pub name: Ident,
     /// values for the fields of the fact key
@@ -400,7 +400,7 @@ pub struct FunctionCall {
 }
 }
 
-/// A named struct literal
+/// A named struct initializer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
@@ -409,7 +409,7 @@ pub struct NamedStruct {
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
-    /// The source location of this struct literal
+    /// The source location of this struct initializer
     pub span: Span,
 }
 
@@ -485,11 +485,11 @@ impl Spanned for FactCountType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InternalFunction {
     /// A `query` expression
-    Query(FactLiteral),
+    Query(FactInitializer),
     /// An `exists` fact query
-    Exists(FactLiteral),
+    Exists(FactInitializer),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
-    FactCount(FactCountType, IntLiteral, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactInitializer),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Not yet implemented panic
@@ -826,7 +826,7 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
             f1.len() == f2.len() && f1.iter().zip(f2).all(|(s1, s2)| matches_statement(s1, s2))
         }
         (Map(m1), Map(m2)) => {
-            matches_fact_literal(&m1.fact, &m2.fact)
+            matches_fact_initializer(&m1.fact, &m2.fact)
                 && m1.identifier.matches(&m2.identifier)
                 && m1.body.len() == m2.body.len()
                 && m1
@@ -848,10 +848,10 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
         (Publish(e1), Publish(e2)) | (Emit(e1), Emit(e2)) | (DebugAssert(e1), DebugAssert(e2)) => {
             e1.inner.matches(&e2.inner)
         }
-        (Create(c1), Create(c2)) => matches_fact_literal(&c1.fact, &c2.fact),
-        (Delete(d1), Delete(d2)) => matches_fact_literal(&d1.fact, &d2.fact),
+        (Create(c1), Create(c2)) => matches_fact_initializer(&c1.fact, &c2.fact),
+        (Delete(d1), Delete(d2)) => matches_fact_initializer(&d1.fact, &d2.fact),
         (Update(u1), Update(u2)) => {
-            matches_fact_literal(&u1.fact, &u2.fact)
+            matches_fact_initializer(&u1.fact, &u2.fact)
                 && u1.to.len() == u2.to.len()
                 && u1
                     .to
@@ -863,8 +863,8 @@ fn matches_statement(a: &Statement, b: &Statement) -> bool {
     }
 }
 
-/// Helper function to compare FactLiteral instances, ignoring spans.
-fn matches_fact_literal(a: &FactLiteral, b: &FactLiteral) -> bool {
+/// Helper function to compare FactInitializer instances, ignoring spans.
+fn matches_fact_initializer(a: &FactInitializer, b: &FactInitializer) -> bool {
     a.name.matches(&b.name)
         && a.key_fields.len() == b.key_fields.len()
         && a.key_fields
@@ -1056,7 +1056,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MapStatement {
     /// Query
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
     /// Identifier of container struct
     pub identifier: Ident,
     /// Statements to execute for each fact
@@ -1069,7 +1069,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateStatement {
     /// The fact to create
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
 }
 }
 
@@ -1078,7 +1078,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
     /// The value fields are updated to these values
     pub to: Vec<(Ident, FactField)>,
 }
@@ -1089,7 +1089,7 @@ spanned! {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeleteStatement {
     /// The fact to delete
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
 }
 }
 

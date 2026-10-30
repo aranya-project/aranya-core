@@ -346,7 +346,7 @@ Policy {
                     [
                         Create(
                             CreateStatement {
-                                fact: FactLiteral {
+                                fact: FactInitializer {
                                     name: "PlayerProfile" @ 1101..1114,
                                     key_fields: [
                                         (
@@ -383,7 +383,7 @@ Policy {
                         ) @ 1094..1150,
                         Create(
                             CreateStatement {
-                                fact: FactLiteral {
+                                fact: FactInitializer {
                                     name: "NextPlayer" @ 1170..1180,
                                     key_fields: [
                                         (
@@ -487,7 +487,7 @@ Policy {
                         value: Coalesce(
                             InternalFunction(
                                 Query(
-                                    FactLiteral {
+                                    FactInitializer {
                                         name: "PlayerProfile" @ 2627..2640,
                                         key_fields: [
                                             (
@@ -555,7 +555,7 @@ Policy {
                         value: Coalesce(
                             InternalFunction(
                                 Query(
-                                    FactLiteral {
+                                    FactInitializer {
                                         name: "NextPlayer" @ 2756..2766,
                                         key_fields: [
                                             (
@@ -716,7 +716,7 @@ Policy {
                     [
                         Create(
                             CreateStatement {
-                                fact: FactLiteral {
+                                fact: FactInitializer {
                                     name: "Field" @ 3728..3733,
                                     key_fields: [
                                         (
@@ -861,7 +861,7 @@ Policy {
                         value: Coalesce(
                             InternalFunction(
                                 Query(
-                                    FactLiteral {
+                                    FactInitializer {
                                         name: "PlayerProfile" @ 5534..5547,
                                         key_fields: [
                                             (
@@ -907,7 +907,7 @@ Policy {
                         value: Coalesce(
                             InternalFunction(
                                 Query(
-                                    FactLiteral {
+                                    FactInitializer {
                                         name: "NextPlayer" @ 5607..5617,
                                         key_fields: [
                                             (
@@ -975,7 +975,7 @@ Policy {
                         condition: Not(
                             InternalFunction(
                                 Exists(
-                                    FactLiteral {
+                                    FactInitializer {
                                         name: "GameOver" @ 5727..5735,
                                         key_fields: [
                                             (
@@ -1139,7 +1139,7 @@ Policy {
                                         [
                                             Create(
                                                 CreateStatement {
-                                                    fact: FactLiteral {
+                                                    fact: FactInitializer {
                                                         name: "Field" @ 6128..6133,
                                                         key_fields: [
                                                             (
@@ -1184,7 +1184,7 @@ Policy {
                                             ) @ 6121..6158,
                                             Delete(
                                                 DeleteStatement {
-                                                    fact: FactLiteral {
+                                                    fact: FactInitializer {
                                                         name: "NextPlayer" @ 6186..6196,
                                                         key_fields: [
                                                             (
@@ -1213,7 +1213,7 @@ Policy {
                                             ) @ 6179..6209,
                                             Create(
                                                 CreateStatement {
-                                                    fact: FactLiteral {
+                                                    fact: FactInitializer {
                                                         name: "GameOver" @ 6237..6245,
                                                         key_fields: [
                                                             (
@@ -1277,7 +1277,7 @@ Policy {
                                         [
                                             Create(
                                                 CreateStatement {
-                                                    fact: FactLiteral {
+                                                    fact: FactInitializer {
                                                         name: "Field" @ 6521..6526,
                                                         key_fields: [
                                                             (
@@ -1482,7 +1482,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4096..4101,
                                                 key_fields: [
                                                     (
@@ -1565,7 +1565,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4193..4198,
                                                 key_fields: [
                                                     (
@@ -1648,7 +1648,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4290..4295,
                                                 key_fields: [
                                                     (
@@ -1731,7 +1731,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4387..4392,
                                                 key_fields: [
                                                     (
@@ -1814,7 +1814,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4484..4489,
                                                 key_fields: [
                                                     (
@@ -1897,7 +1897,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4581..4586,
                                                 key_fields: [
                                                     (
@@ -1980,7 +1980,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4678..4683,
                                                 key_fields: [
                                                     (
@@ -2063,7 +2063,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4775..4780,
                                                 key_fields: [
                                                     (
@@ -2146,7 +2146,7 @@ Policy {
                                     [],
                                     InternalFunction(
                                         Query(
-                                            FactLiteral {
+                                            FactInitializer {
                                                 name: "Field" @ 4872..4877,
                                                 key_fields: [
                                                     (
@@ -2438,7 +2438,7 @@ Policy {
             body: [
                 Update(
                     UpdateStatement {
-                        fact: FactLiteral {
+                        fact: FactInitializer {
                             name: "NextPlayer" @ 568..578,
                             key_fields: [
                                 (

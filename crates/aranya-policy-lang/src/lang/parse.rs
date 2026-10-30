@@ -2,11 +2,11 @@ use std::{assert_matches, cell::RefCell, fmt};
 
 use aranya_policy_ast::{
     self as ast, CheckStatement, CreateStatement, DeleteStatement, EffectFieldDefinition,
-    EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactLiteral, FieldDefinition,
-    ForeignFunctionCall, FunctionCall, Ident, IfStatement, IntLiteral, InternalFunction,
-    LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm, MatchPattern,
-    MatchStatement, NamedStruct, Param, ResultTypeKind, ReturnStatement, Statement, StmtKind, Text,
-    TypeKind, UpdateStatement, VType, Version, ident,
+    EnumDefinition, EnumReference, ExprKind, Expression, FactField, FactInitializer,
+    FieldDefinition, ForeignFunctionCall, FunctionCall, Ident, IfStatement, IntLiteral,
+    InternalFunction, LetStatement, MapStatement, MatchArm, MatchExpression, MatchExpressionArm,
+    MatchPattern, MatchStatement, NamedStruct, Param, ResultTypeKind, ReturnStatement, Statement,
+    StmtKind, Text, TypeKind, UpdateStatement, VType, Version, ident,
 };
 use buggy::BugExt as _;
 use pest::{
@@ -91,9 +91,9 @@ impl<'i> PairContext<'i, '_> {
         Ok(typ)
     }
 
-    fn consume_fact(&self, p: &ChunkParser<'_>) -> Result<FactLiteral, ParseError> {
-        let token = self.consume_of_type(Rule::fact_literal)?;
-        p.parse_fact_literal(token)
+    fn consume_fact(&self, p: &ChunkParser<'_>) -> Result<FactInitializer, ParseError> {
+        let token = self.consume_of_type(Rule::fact_initializer)?;
+        p.parse_fact_initializer(token)
     }
 
     /// Consumes the next Pair out of this context and returns it as an
@@ -529,7 +529,7 @@ impl ChunkParser<'_> {
         Ok(MatchPattern::Values(values))
     }
 
-    fn parse_named_struct_literal(
+    fn parse_named_struct_initializer(
         &self,
         named_struct: Pair<'_, Rule>,
     ) -> Result<NamedStruct, ParseError> {
@@ -723,8 +723,8 @@ impl ChunkParser<'_> {
                         ))
                     }
                 }
-                Rule::named_struct_literal => {
-                    let ns = self.parse_named_struct_literal(primary)?;
+                Rule::named_struct_initializer => {
+                    let ns = self.parse_named_struct_initializer(primary)?;
                     Ok(Expression { inner: ExprKind::NamedStruct(ns), span })
                 }
                 Rule::function_call => {
@@ -757,13 +757,13 @@ impl ChunkParser<'_> {
                     let token = pairs.next().ok_or_else(|| {
                         ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
-                            String::from("query requires fact literal"),
+                            String::from("query requires fact initializer"),
                             Some(span),
                         )
                     })?;
-                    let fact_literal = self.parse_fact_literal(token)?;
+                    let fact_initializer = self.parse_fact_initializer(token)?;
                     Ok(Expression {
-                        inner: ExprKind::InternalFunction(InternalFunction::Query(fact_literal)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Query(fact_initializer)),
                         span,
                     })
                 }
@@ -772,13 +772,13 @@ impl ChunkParser<'_> {
                     let token = pairs.next().ok_or_else(|| {
                         ParseError::new(
                             ParseErrorKind::InvalidFunctionCall,
-                            String::from("exists requires fact literal"),
+                            String::from("exists requires fact initializer"),
                             Some(span),
                         )
                     })?;
-                    let fact_literal = self.parse_fact_literal(token)?;
+                    let fact_initializer = self.parse_fact_initializer(token)?;
                     Ok(Expression{
-                        inner: ExprKind::InternalFunction(InternalFunction::Exists(fact_literal)),
+                        inner: ExprKind::InternalFunction(InternalFunction::Exists(fact_initializer)),
                         span,
                     })
                 }
@@ -1026,11 +1026,11 @@ impl ChunkParser<'_> {
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
                 ParseErrorKind::Expression,
-                format!("{} requires fact literal", cmp_type),
+                format!("{} requires fact initializer", cmp_type),
                 Some(span),
             )
         })?;
-        let fact = self.parse_fact_literal(token)?;
+        let fact = self.parse_fact_initializer(token)?;
         Ok(Expression {
             inner: ExprKind::InternalFunction(InternalFunction::FactCount(cmp_type, limit, fact)),
             span,
@@ -1088,7 +1088,7 @@ impl ChunkParser<'_> {
             let rule_kind = field.as_rule();
             let pc = self.descend(field);
             match rule_kind {
-                Rule::struct_literal_field => {
+                Rule::struct_initializer_field => {
                     let identifier = pc.consume_ident(self)?;
                     let expression = match pc.consume_optional(Rule::expression) {
                         Some(token) => self.parse_expression(token)?,
@@ -1110,7 +1110,7 @@ impl ChunkParser<'_> {
         Ok((field_expressions, sources))
     }
 
-    fn parse_fact_literal_fields(
+    fn parse_fact_initializer_fields(
         &self,
         fields: Pairs<'_, Rule>,
     ) -> Result<Vec<(Ident, FactField)>, ParseError> {
@@ -1162,22 +1162,22 @@ impl ChunkParser<'_> {
         Ok(expression)
     }
 
-    /// Parse a Rule::fact_literal into a FactLiteral.
-    fn parse_fact_literal(&self, fact: Pair<'_, Rule>) -> Result<FactLiteral, ParseError> {
+    /// Parse a Rule::fact_initializer into a FactInitializer.
+    fn parse_fact_initializer(&self, fact: Pair<'_, Rule>) -> Result<FactInitializer, ParseError> {
         let pc = self.descend(fact.clone());
         let name = pc.consume_ident(self)?;
 
-        let token = pc.consume_of_type(Rule::fact_literal_key)?;
-        let key_fields = self.parse_fact_literal_fields(token.into_inner())?;
+        let token = pc.consume_of_type(Rule::fact_initializer_key)?;
+        let key_fields = self.parse_fact_initializer_fields(token.into_inner())?;
 
         let value_fields = if pc.peek().is_some() {
-            let token = pc.consume_of_type(Rule::fact_literal_value)?;
-            Some(self.parse_fact_literal_fields(token.into_inner())?)
+            let token = pc.consume_of_type(Rule::fact_initializer_value)?;
+            Some(self.parse_fact_initializer_fields(token.into_inner())?)
         } else {
             None
         };
 
-        Ok(FactLiteral {
+        Ok(FactInitializer {
             name,
             key_fields,
             value_fields,
@@ -1276,8 +1276,8 @@ impl ChunkParser<'_> {
         let pc = self.descend(item);
         let fact = pc.consume_fact(self)?;
 
-        let token = pc.consume_of_type(Rule::fact_literal_value)?;
-        let to = self.parse_fact_literal_fields(token.into_inner())?;
+        let token = pc.consume_of_type(Rule::fact_initializer_value)?;
+        let to = self.parse_fact_initializer_fields(token.into_inner())?;
 
         Ok(UpdateStatement { fact, to })
     }
@@ -1372,7 +1372,7 @@ impl ChunkParser<'_> {
         assert_eq!(field.as_rule(), Rule::map_statement);
         let pc = self.descend(field);
         let pair = pc.consume()?;
-        let fact = self.parse_fact_literal(pair)?;
+        let fact = self.parse_fact_initializer(pair)?;
         let identifier = pc.consume_ident(self)?;
         let body = self.parse_statement_list(pc.into_inner())?;
 
