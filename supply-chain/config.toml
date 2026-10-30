@@ -342,6 +342,11 @@ notes = "RustCrypto"
 version = "1.43.1"
 criteria = "safe-to-run"
 
+[[exemptions.itertools]]
+version = "0.11.0"
+criteria = "safe-to-deploy"
+notes = "Audited as safe-to-run by chromium"
+
 [[exemptions.js-sys]]
 version = "0.3.76"
 criteria = "safe-to-run"
