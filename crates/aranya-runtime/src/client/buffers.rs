@@ -54,7 +54,7 @@ pub struct RuntimeBuffers<S> {
 }
 
 impl<S: Segment> RuntimeBuffers<S> {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             traversal: TraversalBuffers::new(),
             braid: BraidBuffer::new(),

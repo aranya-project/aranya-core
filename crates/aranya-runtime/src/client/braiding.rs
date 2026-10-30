@@ -236,7 +236,7 @@ where
     let mut convergence = convergence_map::ConvergenceMap::new(
         heads,
         lca,
-        traversal.get(),
+        traversal.get_queue_with_duplicates(),
         braid_buf.convergence.get(),
         make_spill()?,
     )?;
