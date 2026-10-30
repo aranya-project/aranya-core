@@ -2,7 +2,7 @@
 
 use alloc::{boxed::Box, vec::Vec};
 
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType, span::spanned};
 
