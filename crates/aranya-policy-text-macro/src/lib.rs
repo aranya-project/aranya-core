@@ -3,21 +3,22 @@
 //! Do not use this crate directly. Use the macros from `aranya-policy-text`
 //! or a re-export from e.g. `aranya-policy-ast` or `aranya-policy-vm`.
 
+use macro_string::MacroString;
 use proc_macro::TokenStream;
-use syn::Error;
+use syn::{Error, parse_macro_input};
 
 mod imp;
 
 #[proc_macro]
 pub fn validate_text(item: TokenStream) -> TokenStream {
-    imp::validate_text(item.into())
+    imp::validate_text(parse_macro_input!(item as MacroString))
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }
 
 #[proc_macro]
 pub fn validate_identifier(item: TokenStream) -> TokenStream {
-    imp::validate_identifier(item.into())
+    imp::validate_identifier(parse_macro_input!(item as MacroString))
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }

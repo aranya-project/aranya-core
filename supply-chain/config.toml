@@ -452,10 +452,6 @@ criteria = "safe-to-deploy"
 version = "0.2.20"
 criteria = "safe-to-deploy"
 
-[[exemptions.prettyplease]]
-version = "0.2.25"
-criteria = "safe-to-deploy"
-
 [[exemptions.primefield]]
 version = "0.14.0"
 criteria = "safe-to-deploy"
@@ -595,10 +591,6 @@ criteria = "safe-to-deploy"
 version = "0.8.0"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
-
-[[exemptions.syn]]
-version = "2.0.90"
-criteria = "safe-to-deploy"
 
 [[exemptions.tempfile]]
 version = "3.14.0"
