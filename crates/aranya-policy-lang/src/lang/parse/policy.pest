@@ -79,24 +79,24 @@ struct_def = _{ "{" ~ ws ~ field_definition_and_insertion_list? ~ "}" }
 // "dynamic" keyword.
 effect_struct_def = _{ "{" ~ ws ~ effect_field_definition_list? ~ "}" }
 // Struct composition is shorthand for including the fields of some other
-// struct(s) when defining a struct literal
+// struct(s) when defining a struct initializer
 struct_composition = { "..." ~ ws ~ identifier }
 struct_composition_list =  _{ struct_composition ~ ws ~ ("," ~ ws ~ struct_composition ~ ws)* }
-// A struct literal field is an identifier and an expression separated
+// A struct initializer field is an identifier and an expression separated
 // by a colon. The colon marks this as defining the value of the field
 // instead of its type.
-struct_literal_field = { identifier ~ (ws ~ ":" ~ ws ~ expression)? }
-// A struct literal field list is a list of struct literal fields.
-struct_literal_field_list = _{ struct_literal_field ~ ws ~ ("," ~ ws ~ struct_literal_field ~ ws)* }
-// A struct data list is a list of struct literal fields followed by struct compositions.
-struct_data_list = _{ ((struct_literal_field_list ~ "," ~ ws ~ struct_composition_list) | struct_literal_field_list | struct_composition_list) ~ ("," ~ ws)? }
-// A struct literal is a struct literal field list surrounded by curly
+struct_initializer_field = { identifier ~ (ws ~ ":" ~ ws ~ expression)? }
+// A struct initializer field list is a list of struct initializer fields.
+struct_initializer_field_list = _{ struct_initializer_field ~ ws ~ ("," ~ ws ~ struct_initializer_field ~ ws)* }
+// A struct data list is a list of struct initializer fields followed by struct compositions.
+struct_data_list = _{ ((struct_initializer_field_list ~ "," ~ ws ~ struct_composition_list) | struct_initializer_field_list | struct_composition_list) ~ ("," ~ ws)? }
+// A struct initializer is a struct initializer field list surrounded by curly
 // brackets. Note that you cannot define struct values - these are only
 // used in commands.
-struct_literal = _{ "{" ~ ws ~ struct_data_list? ~ "}" }
-// A named struct literal begins with an identifier. Effects and
-// Command literals are named struct literals.
-named_struct_literal = { identifier ~ ws ~ struct_literal }
+struct_initializer = _{ "{" ~ ws ~ struct_data_list? ~ "}" }
+// A named struct initializer begins with an identifier. Effects and
+// Command literals are named struct initializers.
+named_struct_initializer = { identifier ~ ws ~ struct_initializer }
 
 // ## Facts
 // A fact signature key is a list of fields surrounded by square
@@ -221,7 +221,7 @@ atom = _{
     | bool_literal
     | optional_literal
     | result_literal
-    | named_struct_literal
+    | named_struct_initializer
     | unit_literal
     | match_expression
     | internal_function
@@ -366,7 +366,7 @@ statement_block = _{ "{" ~ ws ~ (statements ~ ws)* ~ "}" }
 
 // ## Command blocks
 // Command attributes
-attributes_block = { "attributes" ~ ws ~ struct_literal }
+attributes_block = { "attributes" ~ ws ~ struct_initializer }
 // The fields statement defines the fields of a command with a struct
 // literal.
 fields_block = { "fields" ~ ws ~ struct_def }

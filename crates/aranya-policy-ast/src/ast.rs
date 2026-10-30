@@ -400,7 +400,7 @@ pub struct FunctionCall {
 }
 }
 
-/// A named struct literal
+/// A named struct initializer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
@@ -409,7 +409,7 @@ pub struct NamedStruct {
     pub fields: Vec<(Ident, Expression)>,
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
-    /// The source location of this struct literal
+    /// The source location of this struct initializer
     pub span: Span,
 }
 

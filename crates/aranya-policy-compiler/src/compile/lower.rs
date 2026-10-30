@@ -17,7 +17,9 @@ use super::{
     },
     types::{self, DisplayType},
 };
-use crate::compile::error::{DuplicateField, InvalidStructLiteral, MissingFields, UnknownField};
+use crate::compile::error::{
+    DuplicateField, InvalidStructInitializer, MissingFields, UnknownField,
+};
 
 impl CompileState<'_> {
     fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
@@ -43,13 +45,16 @@ impl CompileState<'_> {
         self.err(RedundantMatchArm(span))
     }
 
-    /// Lower a struct literal, ensuring it matches its definition.
+    /// Lower a struct initializer, ensuring it matches its definition.
     ///
     /// Checks:
     /// - a struct with this name was defined
     /// - the fields defined in the struct are present, and have the correct types
     /// - there are no duplicate fields
-    fn lower_struct_literal(&mut self, s: &NamedStruct) -> Result<thir::NamedStruct, CompileError> {
+    fn lower_struct_initializer(
+        &mut self,
+        s: &NamedStruct,
+    ) -> Result<thir::NamedStruct, CompileError> {
         let Some(struct_def) = self.m.interface.struct_defs.get(&s.name.inner).cloned() else {
             let note = format!("struct `{}` not defined", s.name);
             return Err(self.err(NotDefined(note, s.name.span)));
@@ -113,7 +118,7 @@ impl CompileState<'_> {
             && duplicate.is_empty()
             && mismatch.is_empty())
         {
-            return Err(self.err(InvalidStructLiteral {
+            return Err(self.err(InvalidStructInitializer {
                 missing: (!missing.is_empty()).then(|| MissingFields {
                     literal: s.name.clone(),
                     fields: missing,
@@ -417,7 +422,7 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::NamedStruct(s) => {
-                let lit = self.lower_struct_literal(s)?;
+                let lit = self.lower_struct_initializer(s)?;
                 let vtype = self.struct_type(s)?;
                 thir::Expression {
                     kind: thir::ExprKind::NamedStruct(lit),

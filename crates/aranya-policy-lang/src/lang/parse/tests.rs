@@ -466,11 +466,11 @@ fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
 fn parse_struct_composition() -> Result<(), PestError<Rule>> {
     let input = "{ c: false, ...x }";
 
-    let struct_literal = PolicyParser::parse(Rule::struct_literal, input)?;
+    let struct_initializer = PolicyParser::parse(Rule::struct_initializer, input)?;
 
-    for field in struct_literal {
+    for field in struct_initializer {
         match field.as_rule() {
-            Rule::struct_literal_field => {
+            Rule::struct_initializer_field => {
                 let mut parts = field.into_inner();
                 let field_name = parts.next().unwrap().as_str();
                 assert_eq!(field_name, "c");

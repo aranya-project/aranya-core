@@ -529,7 +529,7 @@ impl ChunkParser<'_> {
         Ok(MatchPattern::Values(values))
     }
 
-    fn parse_named_struct_literal(
+    fn parse_named_struct_initializer(
         &self,
         named_struct: Pair<'_, Rule>,
     ) -> Result<NamedStruct, ParseError> {
@@ -723,8 +723,8 @@ impl ChunkParser<'_> {
                         ))
                     }
                 }
-                Rule::named_struct_literal => {
-                    let ns = self.parse_named_struct_literal(primary)?;
+                Rule::named_struct_initializer => {
+                    let ns = self.parse_named_struct_initializer(primary)?;
                     Ok(Expression { inner: ExprKind::NamedStruct(ns), span })
                 }
                 Rule::function_call => {
@@ -1088,7 +1088,7 @@ impl ChunkParser<'_> {
             let rule_kind = field.as_rule();
             let pc = self.descend(field);
             match rule_kind {
-                Rule::struct_literal_field => {
+                Rule::struct_initializer_field => {
                     let identifier = pc.consume_ident(self)?;
                     let expression = match pc.consume_optional(Rule::expression) {
                         Some(token) => self.parse_expression(token)?,

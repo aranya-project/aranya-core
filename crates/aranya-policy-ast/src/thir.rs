@@ -46,7 +46,7 @@ pub struct RecallCall {
 }
 
 spanned! {
-/// A named struct literal
+/// A named struct initializer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command

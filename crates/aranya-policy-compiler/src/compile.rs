@@ -556,8 +556,8 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Compile instructions to construct a struct literal
-    fn compile_struct_literal(&mut self, s: thir::NamedStruct) -> Result<(), CompileError> {
+    /// Compile instructions to construct a struct
+    fn compile_struct_initializer(&mut self, s: thir::NamedStruct) -> Result<(), CompileError> {
         self.append_instruction(Instruction::StructNew(s.name.inner));
         for (field_name, e) in s.fields {
             self.compile_typed_expression(e)?;
@@ -624,7 +624,7 @@ impl<'a> CompileState<'a> {
                 }
             },
             thir::ExprKind::NamedStruct(s) => {
-                self.compile_struct_literal(s)?;
+                self.compile_struct_initializer(s)?;
             }
             thir::ExprKind::InternalFunction(f) => match f {
                 thir::InternalFunction::Query(f) => {
