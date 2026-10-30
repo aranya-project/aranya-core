@@ -28,7 +28,7 @@ aranya-policy-module = { version = "0.23.0", path = "../aranya-policy-module", f
 buggy = { workspace = true, features = ["std"] }
 
 annotate-snippets = { workspace = true }
-ciborium = { workspace = true }
+ciborium = { workspace = true, features = ["std"] }
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
 petgraph = { workspace = true }
