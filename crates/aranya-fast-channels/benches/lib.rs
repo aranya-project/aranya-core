@@ -11,7 +11,7 @@ use aranya_crypto::{
         hpke::{AeadId, HpkeAead},
         oid,
         oid::{Identified, Oid},
-        rust::HkdfSha256,
+        rust::{Aes256Gcm, HkdfSha256},
     },
     default::DefaultCipherSuite,
     id::IdExt as _,
@@ -21,7 +21,6 @@ use aranya_crypto::{
 };
 use aranya_fast_channels::{
     AfcState as _, AranyaState as _, Client, Directed,
-    crypto::Aes256Gcm,
     shm::{self, Flag, Mode, OpenCtx, Path, SealCtx},
 };
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
