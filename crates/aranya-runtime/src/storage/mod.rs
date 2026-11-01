@@ -12,6 +12,7 @@ mod spill;
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{borrow::Borrow, cmp::Ordering, fmt, ops::Deref};
 
+pub use aranya_crypto::policy::GraphId;
 use buggy::{Bug, BugExt as _, bug};
 use itertools::Itertools as _;
 use rend::u64_le;
@@ -390,11 +391,6 @@ impl Default for TraversalBuffers {
 }
 
 pub const MAX_COMMAND_LENGTH: usize = mem_usage(400, 2048);
-
-aranya_crypto::custom_id! {
-    /// The ID of the graph, taken from initialization.
-    pub struct GraphId;
-}
 
 #[derive(
     Copy,
