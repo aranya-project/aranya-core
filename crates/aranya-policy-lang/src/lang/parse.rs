@@ -42,12 +42,12 @@ type FieldsAndSources = (Vec<(Ident, Expression)>, Vec<Ident>);
 struct PairContext<'i, 'p> {
     pairs: RefCell<Pairs<'i>>,
     span: Span<'i>,
-    to_ast_span: Box<dyn Fn(Span<'i>) -> Result<ast::Span> + 'p>,
+    chunk_parser: &'p ChunkParser<'p>,
 }
 
-impl<'i> PairContext<'i, '_> {
+impl<'i, 'p> PairContext<'i, 'p> {
     fn location_error(&self) -> ParseError {
-        match (self.to_ast_span)(self.span) {
+        match self.chunk_parser.to_ast_span(self.span) {
             Ok(span) => ParseError::new(
                 ParseErrorKind::Unknown,
                 format!("{:?}", self.span),
@@ -78,7 +78,7 @@ impl<'i> PairContext<'i, '_> {
     fn consume_of_type(&self, rule: Rule) -> Result<Pair<'i>> {
         let token = self.consume()?;
         if token.as_rule() != rule {
-            let span = (self.to_ast_span)(token.as_span())?;
+            let span = self.chunk_parser.to_ast_span(token.as_span())?;
             return Err(ParseError::new(
                 ParseErrorKind::Unknown,
                 format!("Got wrong rule: {:?} expected {:?}", token.as_rule(), rule),
@@ -1892,7 +1892,7 @@ impl ChunkParser<'_> {
         PairContext {
             pairs: RefCell::new(p.into_inner()),
             span,
-            to_ast_span: Box::new(|span| self.to_ast_span(span)),
+            chunk_parser: self,
         }
     }
 
@@ -1903,7 +1903,7 @@ impl ChunkParser<'_> {
         PairContext {
             pairs: RefCell::new(Pairs::single(p)),
             span,
-            to_ast_span: Box::new(|span| self.to_ast_span(span)),
+            chunk_parser: self,
         }
     }
 }
