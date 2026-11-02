@@ -68,7 +68,7 @@ impl<'de, CS: CipherSuite> Deserialize<'de> for Signature<CS> {
         impl<'de, G: CipherSuite> de::Visitor<'de> for SigVisitor<G> {
             type Value = Signature<G>;
 
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "a signature")
             }
 
@@ -295,7 +295,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<CS>, CmdId), Error> {
+    pub fn sign_cmd(&self, cmd: Cmd) -> Result<(Signature<CS>, CmdId), Error> {
         let digest = cmd.digest::<CS>(self.id()?);
         let sig = Signature(self.sk.sign(&digest)?);
         let id = policy::cmd_id(&digest, &sig);
@@ -322,7 +322,7 @@ impl<CS: CipherSuite> VerifyingKey<CS> {
 
     /// Verifies the signature allegedly created over a policy
     /// command and returns its ID.
-    pub fn verify_cmd(&self, cmd: Cmd<'_>, sig: &Signature<CS>) -> Result<CmdId, Error> {
+    pub fn verify_cmd(&self, cmd: Cmd, sig: &Signature<CS>) -> Result<CmdId, Error> {
         let digest = cmd.digest::<CS>(self.id()?);
         self.pk.verify(&digest, &sig.0)?;
         let id = policy::cmd_id(&digest, sig);
@@ -424,7 +424,7 @@ impl<CS: CipherSuite> Encap<CS> {
 }
 
 impl<CS: CipherSuite> fmt::Debug for Encap<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Encap").field(&self.as_bytes()).finish()
     }
 }
@@ -456,7 +456,7 @@ where
         {
             type Value = Encap<G>;
 
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "a valid encapsulation")
             }
 

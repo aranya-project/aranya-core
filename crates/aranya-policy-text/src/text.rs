@@ -97,13 +97,13 @@ impl Text {
 }
 
 impl fmt::Display for Text {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.as_str().fmt(f)
     }
 }
 
 impl fmt::Debug for Text {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.as_str().fmt(f)
     }
 }

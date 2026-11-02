@@ -181,7 +181,7 @@ impl Spanned for StatementContext {
 }
 
 impl fmt::Display for StatementContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Action(_) => write!(f, "action"),
             Self::CommandPolicy(_) => write!(f, "command policy block"),
@@ -193,7 +193,7 @@ impl fmt::Display for StatementContext {
 }
 
 /// Called to compile a builtin function call.
-type BuiltinHandler = fn(&mut CompileState<'_>) -> Result<(), CompileError>;
+type BuiltinHandler = fn(&mut CompileState) -> Result<(), CompileError>;
 
 /// The "compile state" of the machine.
 struct CompileState<'a> {
@@ -1270,7 +1270,7 @@ impl<'a> CompileState<'a> {
     fn compile_command_policy(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: &Flavor<'_>,
+        flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
         let params = [
             param::this(command.name.clone()),
@@ -1314,7 +1314,7 @@ impl<'a> CompileState<'a> {
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: &Flavor<'_>,
+        flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
         let base_params = [
             param::this(command.name.clone()),
@@ -1986,7 +1986,7 @@ impl<'a> CompileState<'a> {
 
     fn define_envelope(
         &mut self,
-        envelope: &aranya_policy_module::flavor::Struct<'_>,
+        envelope: &aranya_policy_module::flavor::Struct,
     ) -> Result<(), CompileError> {
         // TODO(jdygert): Allow defining twice with same fields?
         let name = envelope.name.clone().nowhere();

@@ -48,7 +48,7 @@ pub(super) fn open_with_key<CS: CipherSuite>(
     key: VerifyingKey<CS>,
     command_struct: &Struct,
     payload: &[u8],
-    envelope: &Envelope<'_>,
+    envelope: &Envelope,
 ) -> Result<(), OpenError> {
     let signature =
         Signature::<CS>::from_bytes(&envelope.signature).map_err(OpenError::BadSignature)?;

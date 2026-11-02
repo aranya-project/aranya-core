@@ -2129,7 +2129,7 @@ mod test {
             locations
         }
 
-        fn dotwrite(storage: &impl Storage<FactIndex: FactIndexExtra>, out: &mut DotWriter<'_>) {
+        fn dotwrite(storage: &impl Storage<FactIndex: FactIndexExtra>, out: &mut DotWriter) {
             let mut graph = out.digraph();
             graph
                 .graph_attributes()

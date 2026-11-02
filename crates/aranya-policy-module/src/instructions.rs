@@ -45,7 +45,7 @@ impl ExitReason {
 }
 
 impl Display for ExitReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Normal => f.write_str("normal"),
             Self::Yield => f.write_str("yield"),
@@ -85,7 +85,7 @@ impl Target {
 }
 
 impl Display for Target {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Unresolved(label) => write!(f, "<{label}>"),
             Self::Resolved(addr) => write!(f, "{addr}"),
@@ -116,7 +116,7 @@ pub enum WrapType {
 }
 
 impl Display for WrapType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Ok => f.write_str("ok"),
             Self::Err => f.write_str("err"),
@@ -241,7 +241,7 @@ pub enum Instruction {
 }
 
 impl Display for Instruction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Const(v) => write!(f, "const {v}"),
             Self::Identifier(ident) => write!(f, "ident '{ident}'"),

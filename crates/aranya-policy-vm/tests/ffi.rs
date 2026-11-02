@@ -282,7 +282,7 @@ function struct_fn(
 // TODO(eric): break these into their own test routines.
 #[test]
 fn test_ffi_derive() {
-    let mut state = TestState::new(TestModule::<'_, (), ()>::new());
+    let mut state = TestState::new(TestModule::<(), ()>::new());
 
     // Positive test case for `add`.
     {

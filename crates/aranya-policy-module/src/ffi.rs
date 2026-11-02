@@ -48,7 +48,7 @@ impl Type<'_> {
 }
 
 impl From<&Type<'_>> for VType {
-    fn from(value: &Type<'_>) -> Self {
+    fn from(value: &Type) -> Self {
         let kind = match value {
             Type::Unit => TypeKind::Unit,
             Type::String => TypeKind::String,

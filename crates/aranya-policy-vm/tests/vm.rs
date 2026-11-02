@@ -1773,7 +1773,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
 }
 
 fn call_action<M, Args>(
-    rs: &mut RunState<'_, M>,
+    rs: &mut RunState<M>,
     published: &mut Vec<Struct>,
     name: Identifier,
     args: Args,

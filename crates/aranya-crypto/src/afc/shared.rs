@@ -127,7 +127,7 @@ mod test_misc {
     );
 
     impl<CS: CipherSuite> fmt::Debug for TestingKey<CS> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             f.debug_struct("TestingKey")
                 .field("key", &self.key.as_bytes())
                 .field("nonce", &self.base_nonce)

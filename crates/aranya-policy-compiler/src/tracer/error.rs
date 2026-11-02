@@ -8,7 +8,7 @@ pub enum TraceErrorType {
 }
 
 impl fmt::Display for TraceErrorType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::BadLabel(l) => write!(f, "bad label: {l}"),
             Self::Bug => write!(f, "bug"),
@@ -31,7 +31,7 @@ impl TraceError {
 }
 
 impl fmt::Display for TraceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "{}, instruction trace: {:?}",

@@ -53,7 +53,7 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     },
 ];
 
-const TEST_FLAVORS: &flavor::Flavors<'_> = &flavor::Flavors {
+const TEST_FLAVORS: &flavor::Flavors = &flavor::Flavors {
     flavors: &[
         (
             ident!("null"),
@@ -125,7 +125,7 @@ fn compile_fail(text: &str, allow_unused: bool) -> CompileError {
 struct ModuleSnapshotWrapper(Module);
 
 impl fmt::Debug for ModuleSnapshotWrapper {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (
             version,
             labels,
@@ -177,7 +177,7 @@ impl fmt::Debug for ModuleSnapshotWrapper {
     }
 }
 
-fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+fn write_instructions(m: &Module, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
     let (progmem, m_labels) = match &m.data {
         ModuleData::V0(m) => (&m.progmem, &m.labels),
         ModuleData::V1(m) => (&m.program.progmem, &m.program.labels),

@@ -19,6 +19,9 @@ unsafe_op_in_unsafe_fn = "warn"
 unused_lifetimes = "warn"
 unused_qualifications = "warn"
 
+# Superceeded by mismatched_lifetime_syntaxes
+elided_lifetimes_in_paths = "allow"
+
 [workspace.lints.clippy]
 # Warns on any kind of bare arithmetic (2 + 2).
 arithmetic_side_effects = "warn"
