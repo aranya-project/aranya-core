@@ -7,9 +7,10 @@ use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidStructLiteral,
-    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoReturn,
-    NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
-    UnknownError, UnknownField, UnreachableMatchArm, UnusedValue, UnusedVariable,
+    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoPublish,
+    NoReturn, NotDefined, RedundantMatchArm, SourceStructNotSubsetOfBase,
+    StructCompositionTypeMismatch, UnknownError, UnknownField, UnreachableMatchArm, UnusedValue,
+    UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -278,6 +279,15 @@ impl SimpleError for NoReturn {
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         once((self.0, "no return found in this body".into()))
+    }
+}
+
+impl SimpleError for NoPublish {
+    fn description(&self) -> Cow<'_, str> {
+        "missing publish statement".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.0, "no publish found in this action".into()))
     }
 }
 

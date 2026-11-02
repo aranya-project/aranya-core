@@ -146,6 +146,9 @@ impl InvalidFactLiteral {
 /// A callable with a return type has no return statement.
 pub(crate) struct NoReturn(pub Span);
 
+/// An action has no publish statement.
+pub(crate) struct NoPublish(pub Span);
+
 /// Source structs in struct composition have overlapping fields.
 pub(crate) struct DuplicateSourceFields {
     /// The first source struct's type name and the span of its source expression.

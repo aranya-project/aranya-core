@@ -35,8 +35,8 @@ pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
-        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
-        SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublish, NoReturn,
+        NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -1204,6 +1204,7 @@ impl<'a> CompileState<'a> {
             }
             _ => unreachable!("invalid action return type should have been caught during parsing"),
         };
+        let from = self.wp;
         self.compile_function_like(
             &action_node.parameters,
             ret.as_ref(),
@@ -1214,6 +1215,11 @@ impl<'a> CompileState<'a> {
         // An infallible action has no return statement, so add one.
         if ret.is_none() {
             self.append_instruction(Instruction::Return);
+        }
+
+        // Actions should publish, so check that there is a publish statement somewhere in the compiled instructions.
+        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Publish)) {
+            return Err(self.err(NoPublish(action_node.span)));
         }
 
         self.exit_statement_context();
