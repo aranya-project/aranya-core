@@ -136,28 +136,32 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             return Ok(false);
         }
 
-        // Build the committed head set from the live tips.
-        let mut head_set = HeadSet::default();
-        for (id, loc) in &self.heads {
-            head_set.push(LocatedAddress {
+        // The committed head set is the live tips, in head set order.
+        let mut heads: Vec<LocatedAddress> = self
+            .heads
+            .iter()
+            .map(|(id, loc)| LocatedAddress {
                 id: *id,
                 segment: loc.segment,
                 max_cut: loc.max_cut,
-            });
-        }
+            })
+            .collect();
+        heads.sort();
 
-        // Rebuild the fact cache for this head set.
-        let head_locs: Vec<Location> = head_set.iter().map(LocatedAddress::location).collect();
-        let fact_cache = if head_locs.len() == 1 {
+        // Rebuild the fact cache for this head set. A multi-head braid also
+        // yields the heads' LCA, which the head set keeps.
+        let (head_set, fact_cache) = if let [head] = heads[..] {
             // Single head: reuse that head's fact index.
-            storage.get_segment(head_locs[0])?.facts()?
+            let facts = storage.get_segment(head.location())?.facts()?;
+            (HeadSet::single(head), facts)
         } else {
             // Multi-head: braid the heads into a merged fact index.
             // TODO(multi-policy): if heads can have differing policies, fold choose_policy
             // over the head set instead of taking head 0's policy.
+            let head_locs: Vec<Location> = heads.iter().map(|h| h.location()).collect();
             let policy_id = storage.get_segment(head_locs[0])?.policy();
             let policy = policy_store.get_policy(policy_id)?;
-            let (facts, _lca) = evaluate_braid::<_, PS, F, MS>(
+            let (facts, lca) = evaluate_braid::<_, PS, F, MS>(
                 storage,
                 &head_locs,
                 sink,
@@ -166,7 +170,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 &mut buffers.braid,
                 make_spill,
             )?;
-            facts
+            (HeadSet::new(heads, lca), facts)
         };
 
         storage.commit_heads(head_set, fact_cache)?;
@@ -1703,10 +1707,8 @@ mod test {
         trx.flush(storage).expect("flush must succeed");
 
         // The frontier is the single tip `c`.
-        let heads: Vec<LocatedAddress> = trx
-            .session_heads(&PeerCache::new())
-            .session_iter()
-            .collect();
+        let cache = PeerCache::new();
+        let heads: Vec<LocatedAddress> = trx.session_heads(&cache).session_iter().collect();
         assert_eq!(heads.len(), 1, "expected a single tip, got {heads:?}");
         assert_eq!(heads[0].id, c, "tip should be the last command");
 
@@ -1793,15 +1795,14 @@ mod test {
         trx.flush(storage).expect("flush must succeed");
 
         let cache = PeerCache::new();
-        let session = trx.session_heads(&cache);
         let mut syncer = SyncRequester::new(graph_id, aranya_crypto::Rng);
         let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, sent) = syncer
             .poll(
                 &mut target,
                 &mut client.provider,
-                &session,
-                &mut buffers.traversal.primary,
+                trx.session_heads(&cache),
+                &aranya_crypto::Rng,
             )
             .expect("poll must succeed");
         assert!(sent > 0, "sample must not be empty");
@@ -1880,7 +1881,12 @@ mod test {
         // ignore it.
         let mut cache = PeerCache::new();
         cache
-            .add_command(storage, addr_b, &mut buffers.traversal.primary)
+            .add_command(
+                storage,
+                addr_b,
+                &mut buffers.traversal.primary,
+                &aranya_crypto::Rng,
+            )
             .expect("add_command must not error");
         assert!(
             cache.heads().is_empty(),
@@ -1890,7 +1896,12 @@ mod test {
 
         // Committed `a` is accepted.
         cache
-            .add_command(storage, addr_a, &mut buffers.traversal.primary)
+            .add_command(
+                storage,
+                addr_a,
+                &mut buffers.traversal.primary,
+                &aranya_crypto::Rng,
+            )
             .expect("add_command must not error");
         assert_eq!(cache.heads().len(), 1);
         assert_eq!(cache.heads()[0].id, a);
@@ -1906,7 +1917,12 @@ mod test {
         .expect("commit must succeed");
         let storage = client.provider.get_storage(graph_id).unwrap();
         cache
-            .add_command(storage, addr_b, &mut buffers.traversal.primary)
+            .add_command(
+                storage,
+                addr_b,
+                &mut buffers.traversal.primary,
+                &aranya_crypto::Rng,
+            )
             .expect("add_command must not error");
         assert_eq!(cache.heads().len(), 1);
         assert_eq!(cache.heads()[0].id, b);

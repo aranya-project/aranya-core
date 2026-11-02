@@ -721,7 +721,7 @@ fn test_sync<PS, P, S>(
     let mut sync_requester = SyncRequester::new(graph_id, Rng);
 
     let mut req_transaction = cs1.transaction(graph_id);
-    let request_cache = PeerCache::new();
+    let mut request_cache = PeerCache::new();
 
     while sync_requester.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -729,8 +729,8 @@ fn test_sync<PS, P, S>(
             .poll(
                 &mut buffer,
                 cs2.provider(),
-                &req_transaction.session_heads(&request_cache),
-                &mut rt_buffers.traversal.primary,
+                req_transaction.session_heads(&request_cache),
+                &Rng,
             )
             .expect("sync req->res");
 
@@ -744,9 +744,18 @@ fn test_sync<PS, P, S>(
         )
         .expect("dispatch sync response");
 
-        if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds, rt_buffers, mem_spill)
-                .expect("add commands");
+        if let Some(reply) = sync_requester
+            .receive(&target[..len], &mut request_cache)
+            .expect("recieve req")
+        {
+            cs2.add_commands(
+                &mut req_transaction,
+                sink,
+                reply.commands(),
+                rt_buffers,
+                mem_spill,
+            )
+            .expect("add commands");
         }
     }
 

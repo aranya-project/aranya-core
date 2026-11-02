@@ -10,13 +10,12 @@ use alloc::vec::Vec;
 
 use serde::{Deserialize, Serialize};
 
-use crate::storage::LocatedAddress;
+use crate::storage::{LocatedAddress, Location};
 
-/// A sorted set of graph heads.
+/// A sorted set of graph heads, with their last common ancestor.
 #[derive(
     Clone,
     Debug,
-    Default,
     PartialEq,
     Eq,
     Serialize,
@@ -27,14 +26,34 @@ use crate::storage::LocatedAddress;
 )]
 pub struct HeadSet {
     heads: Vec<LocatedAddress>,
+    lca: Location,
 }
 
 impl HeadSet {
-    /// A one-element head set (the common single-head case).
+    /// A one-element head set (the common single-head case). Its LCA is the
+    /// head.
     pub fn single(head: LocatedAddress) -> Self {
         Self {
             heads: alloc::vec![head],
+            lca: head.location(),
         }
+    }
+
+    /// A head set of `heads`, whose last common ancestor is `lca`.
+    ///
+    /// `lca` must be a command every head passes through on its way to the
+    /// root, such as the LCA a braid of `heads` computes.
+    pub fn new(heads: impl IntoIterator<Item = LocatedAddress>, lca: Location) -> Self {
+        let mut heads: Vec<LocatedAddress> = heads.into_iter().collect();
+        heads.sort();
+        heads.dedup();
+        Self { heads, lca }
+    }
+
+    /// A command every head passes through on its way to the root. For a
+    /// single head, the head itself.
+    pub fn lca(&self) -> Location {
+        self.lca
     }
 
     /// Number of heads.
@@ -55,13 +74,6 @@ impl HeadSet {
     /// Iterate over heads.
     pub fn iter(&self) -> impl Iterator<Item = LocatedAddress> + '_ {
         self.heads.iter().copied()
-    }
-
-    /// Insert keeping the set sorted and deduplicated.
-    pub fn push(&mut self, head: LocatedAddress) {
-        if let Err(idx) = self.heads.binary_search(&head) {
-            self.heads.insert(idx, head);
-        }
     }
 }
 
@@ -91,21 +103,22 @@ mod tests {
     }
 
     #[test]
+    fn single_lca_is_the_head() {
+        let h = HeadSet::single(la(1, 4, 7));
+        assert_eq!(h.lca(), la(1, 4, 7).location());
+    }
+
+    #[test]
     fn sorted_equality_is_order_independent() {
-        let mut a = HeadSet::default();
-        a.push(la(2, 2, 5));
-        a.push(la(1, 1, 3));
-        let mut b = HeadSet::default();
-        b.push(la(1, 1, 3));
-        b.push(la(2, 2, 5));
+        let lca = la(0, 0, 0).location();
+        let a = HeadSet::new([la(2, 2, 5), la(1, 1, 3)], lca);
+        let b = HeadSet::new([la(1, 1, 3), la(2, 2, 5)], lca);
         assert_eq!(a, b);
     }
 
     #[test]
-    fn duplicate_insert_does_not_grow() {
-        let mut set = HeadSet::default();
-        set.push(la(1, 1, 3));
-        set.push(la(1, 1, 3));
+    fn duplicate_head_is_kept_once() {
+        let set = HeadSet::new([la(1, 1, 3), la(1, 1, 3)], la(0, 0, 0).location());
         assert_eq!(set.len(), 1);
     }
 }

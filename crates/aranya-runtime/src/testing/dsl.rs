@@ -214,7 +214,7 @@ pub fn dispatch(
             let mut response_syncer = SyncResponder::new();
             response_syncer.receive(poll)?;
             assert!(response_syncer.ready());
-            response_syncer.poll(target, provider, response_cache, buffers)?
+            response_syncer.poll(target, provider, response_cache, buffers, &Rng)?
         }
         SyncIncoming::Subscribe(_) => unimplemented!(),
         SyncIncoming::Unsubscribe(_) => unimplemented!(),
@@ -348,7 +348,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                     loop {
                         let (_, exchange_received) = sync::<SP>(
                             &mut trx,
-                            (&request_cache, &mut request_client),
+                            (&mut request_cache, &mut request_client),
                             (&mut response_cache, &mut response_client),
                             &mut received_addrs,
                             sink,
@@ -366,6 +366,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                         received_addrs,
                         &mut request_cache,
                         &mut rt_buffers.traversal.primary,
+                        &Rng,
                     )?;
                 }
 
@@ -387,6 +388,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                         [notification.head()],
                         &mut request_cache,
                         &mut rt_buffers.traversal.primary,
+                        &Rng,
                     )?;
                 }
 
@@ -1191,10 +1193,10 @@ where
                     client_heads.entry((graph, client, from)).or_default();
                     client_heads.entry((graph, from, client)).or_default();
                     for _ in 0..max_syncs {
-                        let request_cache = client_heads
+                        let mut request_cache = client_heads
                             .get(&(graph, client, from))
                             .assume("cache must exist")?
-                            .borrow();
+                            .borrow_mut();
                         let mut response_cache = client_heads
                             .get(&(graph, from, client))
                             .assume("cache must exist")?
@@ -1202,7 +1204,7 @@ where
 
                         let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider>(
                             &mut trx,
-                            (&request_cache, &mut request_client),
+                            (&mut request_cache, &mut request_client),
                             (&mut response_cache, &mut response_client),
                             &mut received_addrs,
                             &mut sink,
@@ -1226,6 +1228,7 @@ where
                         received_addrs,
                         &mut request_cache,
                         &mut rt_buffers.traversal.primary,
+                        &Rng,
                     )?;
                 }
 
@@ -1920,10 +1923,10 @@ fn converge_pull_pass<SP: StorageProvider>(
             client_heads
                 .entry((graph, responder, requester))
                 .or_default();
-            let request_cache = client_heads
+            let mut request_cache = client_heads
                 .get(&(graph, requester, responder))
                 .assume("cache must exist")?
-                .borrow();
+                .borrow_mut();
             let mut response_cache = client_heads
                 .get(&(graph, responder, requester))
                 .assume("cache must exist")?
@@ -1932,7 +1935,7 @@ fn converge_pull_pass<SP: StorageProvider>(
             let before = received_addrs.len();
             let (_, received) = sync::<SP>(
                 request_trx,
-                (&request_cache, &mut request_client),
+                (&mut request_cache, &mut request_client),
                 (&mut response_cache, &mut response_client),
                 received_addrs,
                 sink,
@@ -1967,10 +1970,9 @@ fn converge_pull_pass<SP: StorageProvider>(
         request_client.commit(trx, sink, rt_buffers, mem_spill)?;
     }
 
+    // Every responder pulled from is updated, even with nothing received,
+    // since the commit clears the mark left by sending it session heads.
     for (responder, addrs) in pass_received {
-        if addrs.is_empty() {
-            continue;
-        }
         let mut request_cache = client_heads
             .get(&(graph, requester, responder))
             .assume("cache must exist")?
@@ -1980,6 +1982,7 @@ fn converge_pull_pass<SP: StorageProvider>(
             addrs,
             &mut request_cache,
             &mut rt_buffers.traversal.primary,
+            &Rng,
         )?;
     }
 
@@ -1997,7 +2000,7 @@ fn converge_pull_pass<SP: StorageProvider>(
 /// multi-exchange fetch advance without a per-exchange commit.
 fn sync<SP: StorageProvider>(
     request_trx: &mut Transaction<SP, TestPolicyStore>,
-    (request_cache, request_state): (&PeerCache, &mut ClientState<TestPolicyStore, SP>),
+    (request_cache, request_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     (response_cache, response_state): (&mut PeerCache, &mut ClientState<TestPolicyStore, SP>),
     received_addrs: &mut Vec<Address>,
     sink: &mut TestSink,
@@ -2012,13 +2015,12 @@ fn sync<SP: StorageProvider>(
     // frontier is advertised via `session_heads`, which cannot outlive the
     // transaction, so an abandoned transaction cannot leave the cache
     // claiming commands the requester never committed.
-    let session = request_trx.session_heads(request_cache);
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let (len, sent) = request_syncer.poll(
         &mut buffer,
         request_state.provider(),
-        &session,
-        &mut rt_buffers.traversal.primary,
+        request_trx.session_heads(request_cache),
+        &Rng,
     )?;
 
     let mut received = 0;
@@ -2035,8 +2037,27 @@ fn sync<SP: StorageProvider>(
         return Ok((sent, received));
     }
 
-    if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(request_trx, sink, &cmds, rt_buffers, mem_spill)?;
+    if let Some(reply) = request_syncer.receive(&target[..len], request_cache)? {
+        // Sample commands already committed here go in the cache now, so the
+        // next request in this transaction can use them. Without a graph yet,
+        // there are none.
+        match request_state.update_heads(
+            graph_id,
+            reply.sample().iter().copied(),
+            request_cache,
+            &mut rt_buffers.traversal.primary,
+            &Rng,
+        ) {
+            Ok(()) | Err(ClientError::StorageError(StorageError::NoSuchStorage)) => {}
+            Err(e) => return Err(e.into()),
+        }
+        received = request_state.add_commands(
+            request_trx,
+            sink,
+            reply.commands(),
+            rt_buffers,
+            mem_spill,
+        )?;
 
         // Persist any in-flight perspective so the next exchange's overlay
         // sees every accumulated command at a real location. This is what
@@ -2044,9 +2065,9 @@ fn sync<SP: StorageProvider>(
         let storage = request_state.provider().get_storage(graph_id)?;
         request_trx.flush(storage)?;
 
-        // Report what was received so the caller can advance the persistent
-        // cache once these commands are committed.
-        received_addrs.extend(cmds.iter().filter_map(|cmd| cmd.address().ok()));
+        // Report what was received, and the reply's sample, so the caller
+        // can advance the persistent cache once these commands are committed.
+        received_addrs.extend(reply.addresses());
     }
 
     Ok((sent, received))
