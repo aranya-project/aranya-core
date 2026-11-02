@@ -77,6 +77,14 @@ impl SyncRequestMessage {
             Self::EndSession { session_id, .. } => *session_id,
         }
     }
+
+    /// The graph named by a session-opening request.
+    pub(crate) fn graph_id(&self) -> Option<GraphId> {
+        match self {
+            Self::SyncRequest { graph_id, .. } => Some(*graph_id),
+            Self::RequestMissing { .. } | Self::SyncResume { .. } | Self::EndSession { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

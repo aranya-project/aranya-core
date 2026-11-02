@@ -2,11 +2,7 @@ use core::{convert::Infallible, str};
 
 use buggy::Bug;
 
-use super::{
-    le::{U32, U64},
-    path::InvalidPathError,
-    shared::PageSizeError,
-};
+use super::{path::InvalidPathError, shared::PageSizeError};
 use crate::{errno::Errno, state::LocalChannelId};
 
 /// An error that occurred while using shared memory.
@@ -51,16 +47,19 @@ pub enum Corrupted {
     #[error("invalid SharedMem size: wanted {want}, got {got}")]
     SharedMemSize {
         /// The size in bytes of the shared memory.
-        got: u64,
+        got: usize,
         /// The expected size of the shared memory.
-        want: u64,
+        want: usize,
     },
     /// The `SharedMem`'s page alignment is incorrect.
     #[error("invalid SharedMem page alignment: {0}")]
     SharedMemPageAlignment(bool),
     /// The `SharedMem`'s key size is incorrect.
     #[error("invalid SharedMem key size: {0}")]
-    SharedMemKeySize(u64),
+    SharedMemKeySize(usize),
+    /// The `SharedMem`'s nonce size is incorrect.
+    #[error("invalid SharedMem nonce size: {0}")]
+    SharedMemNonceSize(usize),
     /// The `ChanList`'s magic value was incorrect.
     #[error("invalid `ChanList` magic: {0}")]
     ChanListMagic(u32),
@@ -92,42 +91,40 @@ impl From<Infallible> for Corrupted {
     }
 }
 
-pub(super) const fn bad_state_magic(magic: U32) -> Corrupted {
-    Corrupted::SharedMemMagic(magic.get())
+pub(super) const fn bad_state_magic(magic: u32) -> Corrupted {
+    Corrupted::SharedMemMagic(magic)
 }
 
-pub(super) const fn bad_state_version(got: U32, want: U32) -> Corrupted {
-    Corrupted::SharedMemVersion {
-        got: got.get(),
-        want: want.get(),
-    }
+pub(super) const fn bad_state_version(got: u32, want: u32) -> Corrupted {
+    Corrupted::SharedMemVersion { got, want }
 }
 
-pub(super) const fn bad_state_size(got: U64, want: U64) -> Corrupted {
-    Corrupted::SharedMemSize {
-        got: got.get(),
-        want: want.get(),
-    }
+pub(super) const fn bad_state_size(got: usize, want: usize) -> Corrupted {
+    Corrupted::SharedMemSize { got, want }
 }
 
 pub(super) const fn bad_page_alignment(aligned: bool) -> Corrupted {
     Corrupted::SharedMemPageAlignment(aligned)
 }
 
-pub(super) const fn bad_state_key_size(size: U64) -> Corrupted {
-    Corrupted::SharedMemKeySize(size.get())
+pub(super) const fn bad_state_key_size(size: usize) -> Corrupted {
+    Corrupted::SharedMemKeySize(size)
 }
 
-pub(super) const fn bad_chanlist_magic(magic: U32) -> Corrupted {
-    Corrupted::ChanListMagic(magic.get())
+pub(super) const fn bad_state_nonce_size(size: usize) -> Corrupted {
+    Corrupted::SharedMemNonceSize(size)
 }
 
-pub(super) const fn bad_chan_magic(magic: U32) -> Corrupted {
-    Corrupted::ChanMagic(magic.get())
+pub(super) const fn bad_chanlist_magic(magic: u32) -> Corrupted {
+    Corrupted::ChanListMagic(magic)
 }
 
-pub(super) const fn bad_chan_direction(v: U32) -> Corrupted {
-    Corrupted::ChanDirection(v.get())
+pub(super) const fn bad_chan_magic(magic: u32) -> Corrupted {
+    Corrupted::ChanMagic(magic)
+}
+
+pub(super) const fn bad_chan_direction(v: u32) -> Corrupted {
+    Corrupted::ChanDirection(v)
 }
 
 pub(super) const fn corrupted(msg: &'static str) -> Corrupted {

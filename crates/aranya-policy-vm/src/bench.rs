@@ -46,8 +46,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use table_formatter::{cell, table, table::Align};
-
 /// Measures and records times for named tasks.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Stopwatch {
@@ -162,40 +160,23 @@ impl BenchMeasurements {
 
     /// Prints benchmarking stats
     pub fn print_stats(&self) {
-        let header = vec![
-            cell!("Name"),
-            cell!("# Samples"),
-            cell!("Best"),
-            cell!("Worst"),
-            cell!("Mean"),
-            cell!("SD"),
-        ];
-        let cells = {
-            self.stats()
-                .iter()
-                .map(|s| {
-                    vec![
-                        cell!(s.name.clone()),
-                        cell!(s.num_samples, align = Align::Right),
-                        cell!(format!("{:?}", s.best), align = Align::Right),
-                        cell!(format!("{:?}", s.worst), align = Align::Right),
-                        cell!(format!("{:?}", s.mean), align = Align::Right),
-                        cell!(format!("{:?}", s.std_dev), align = Align::Right),
-                    ]
-                })
-                .collect()
-        };
-        let table = table! {
-            header
-            ---
-            cells
-        };
-        let mut buf = vec![];
-        table.render(&mut buf).expect("table should render");
         println!(
-            "{}",
-            String::from_utf8(buf).expect("table should convert to string")
+            " {:<32} {:>10} {:>10} {:>10} {:>10} {:>10} ",
+            "Name", "# Samples", "Best", "Worst", "Mean", "SD",
         );
+        println!("{:━<89}", "");
+        for s in self.stats() {
+            println!(
+                " {:<32} {:>10} {:>10} {:>10} {:>10} {:>10} ",
+                s.name,
+                s.num_samples,
+                format!("{:?}", s.best),
+                format!("{:?}", s.worst),
+                format!("{:?}", s.mean),
+                format!("{:?}", s.std_dev),
+            );
+        }
+        println!();
     }
 }
 
