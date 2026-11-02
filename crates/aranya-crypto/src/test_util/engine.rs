@@ -1,7 +1,5 @@
 //! [`Engine`] tests.
 
-extern crate alloc;
-
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::ops::Add;
 

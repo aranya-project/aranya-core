@@ -3,8 +3,6 @@
 #![cfg(any(test, feature = "memory"))]
 #![cfg_attr(docsrs, doc(cfg(feature = "memory")))]
 
-extern crate alloc;
-
 mod lender;
 
 use alloc::{collections::btree_map::BTreeMap, sync::Arc};

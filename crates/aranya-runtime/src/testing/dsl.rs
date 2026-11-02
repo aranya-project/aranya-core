@@ -45,8 +45,6 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
-extern crate alloc;
-
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec,

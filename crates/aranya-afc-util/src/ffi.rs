@@ -3,8 +3,6 @@
 #![cfg(feature = "alloc")]
 #![cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 
-extern crate alloc;
-
 use alloc::vec::Vec;
 use core::result::Result;
 

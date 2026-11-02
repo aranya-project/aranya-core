@@ -1,4 +1,3 @@
-extern crate alloc;
 use alloc::string::String;
 
 use aranya_crypto::policy::CmdId;

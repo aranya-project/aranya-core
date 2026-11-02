@@ -177,7 +177,6 @@ impl Module {
 
 #[cfg(test)]
 mod tests {
-    extern crate alloc;
     use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
     use core::assert_matches;
 
