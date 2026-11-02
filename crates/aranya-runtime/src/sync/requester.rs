@@ -114,6 +114,7 @@ enum SyncRequesterState {
     Reset,
 }
 
+#[derive(Debug)]
 pub struct SyncRequester {
     session_id: u128,
     graph_id: GraphId,
