@@ -242,11 +242,12 @@ impl RunFile {
     ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
             r#"use testing
-            command CaptureVariables {{
+            base[null] Base {{ get_key {{ return None }} }}
+            command CaptureVariables with Base {{
                 fields {{ }}
                 policy {{ }}
             }}
-            action preamble() {{
+            action[null] preamble() {{
                 {}
                 publish CaptureVariables {{}}
             }}"#,
@@ -257,7 +258,6 @@ impl RunFile {
             // It is important that only `TestingFfi` is specified here, as `PreambleIO` uses it
             // alone.
             .ffi_modules(&[TestingFfi::<KS>::SCHEMA])
-            .allow_baseless(true)
             .compile()?;
 
         let machine = Machine::from_module(module).expect("cannot get unsupported version");
@@ -295,6 +295,8 @@ impl RunFile {
 
 #[cfg(test)]
 mod tests {
+    use core::assert_matches;
+
     use aranya_crypto::{
         Random as _, dangerous::spideroak_crypto::aead::AeadKey, default::DefaultEngine,
         keystore::memstore::MemStore,
@@ -346,10 +348,10 @@ preamble:
         "#
         .trim();
 
-        assert!(matches!(
+        assert_matches!(
             RunFile::from_reader(text.as_bytes(), "test.run"),
             Err(RunFileError::Syntax(se)) if se.to_string() == "line 1: Expected 'preamble' or 'do'"
-        ));
+        );
     }
 
     #[test]
@@ -394,7 +396,7 @@ preamble:
 
         let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
         let r = rf.get_preamble_values(&mut ce, &mut ks);
-        assert!(matches!(r, Err(RunFileError::PolicyParse(_))));
+        assert_matches!(r, Err(RunFileError::PolicyParse(_)));
     }
 
     #[test]
@@ -409,7 +411,7 @@ preamble:
 
         let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
         let r = rf.get_preamble_values(&mut ce, &mut ks);
-        assert!(matches!(r, Err(RunFileError::PolicyCompile(_))));
+        assert_matches!(r, Err(RunFileError::PolicyCompile(_)));
     }
 
     #[test]
@@ -424,7 +426,7 @@ preamble:
 
         let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
         let r = rf.get_preamble_values(&mut ce, &mut ks);
-        assert!(matches!(r, Err(RunFileError::PolicyVm(_))));
+        assert_matches!(r, Err(RunFileError::PolicyVm(_)));
     }
 
     #[test]
@@ -439,6 +441,6 @@ preamble:
 
         let rf = RunFile::from_reader(text.as_bytes(), "test.run").expect("parses correctly");
         let r = rf.get_preamble_values(&mut ce, &mut ks);
-        assert!(matches!(r, Err(RunFileError::PolicyVmPanic)));
+        assert_matches!(r, Err(RunFileError::PolicyVmPanic));
     }
 }

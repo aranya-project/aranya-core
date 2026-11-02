@@ -1,4 +1,4 @@
-function f(r result[int, int]) int {
+function f(r: result[int, int]) int {
     return match r {
         Ok(5) | Ok(n) => n
         Err(e) => e

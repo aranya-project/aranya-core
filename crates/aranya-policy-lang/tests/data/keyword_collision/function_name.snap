@@ -4,5 +4,5 @@ expression: err
 ---
 error: Reserved identifier
   |
-1 | function int(x int) int {
+1 | function int(x: int) int {
   |          ^^^ found reserved identifier: `int`

@@ -212,68 +212,70 @@ mod tests {
     use super::*;
 
     mod conversion {
+        use core::assert_matches;
+
         use keystore::Error as _;
 
         use super::*;
 
         #[test]
         fn already_exists() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::AlreadyExists, Errno::INVAL),
                 Error(Repr::AlreadyExists)
-            ));
+            );
         }
 
         #[test]
         fn errno() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::Other, Errno::INVAL),
                 Error(Repr::Errno(Trouble(Errno::INVAL)))
-            ));
+            );
         }
 
         #[test]
         fn encode() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::Other, cbor::ser::Error::Io(Errno::INVAL)),
                 Error(Repr::Encode(cbor::ser::Error::Io(Errno::INVAL)))
-            ));
+            );
 
-            assert!(matches!(
+            assert_matches!(
                 Error::new(
                     ErrorKind::Other,
                     cbor::ser::Error::<Errno>::Value(String::from("asdf"))
                 ),
                 Error(Repr::Encode(cbor::ser::Error::Value(_)))
-            ));
+            );
         }
 
         #[test]
         fn decode() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::Other, cbor::de::Error::Io(Errno::INVAL)),
                 Error(Repr::Decode(cbor::de::Error::Io(Errno::INVAL)))
-            ));
+            );
 
-            assert!(matches!(
+            assert_matches!(
                 Error::new(
                     ErrorKind::Other,
                     cbor::de::Error::<Errno>::Semantic(Some(42), String::from("asdf"))
                 ),
                 Error(Repr::Decode(cbor::de::Error::Semantic(Some(42), _)))
-            ));
+            );
         }
 
         #[test]
         fn trait_object() {
             // Limitation of current approach
-            assert!(matches!(
+            assert_matches!(
                 Error::new::<&(dyn core::error::Error + Send + Sync + 'static)>(
                     ErrorKind::Other,
                     &Errno::INVAL
                 ),
                 Error(Repr::Other)
-            ));
+            );
         }
     }
 }

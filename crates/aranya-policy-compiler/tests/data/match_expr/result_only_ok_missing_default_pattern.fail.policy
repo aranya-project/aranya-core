@@ -1,4 +1,4 @@
-function f(r result[int, string]) int {
+function f(r: result[int, string]) int {
     return match r {
         Ok(n) => n
     }

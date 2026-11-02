@@ -1,17 +1,16 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
     version: "1",
     labels: {
-        <action 'test'>: 1,
+        <action 'test'>: 8,
     },
     action_defs: [
         ActionDef {
             name: "test",
-            persistence: Persistent,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
@@ -20,16 +19,16 @@ Module {
     fact_defs: [
         FactDef {
             name: "Foo",
-            key: [
+            keys: [
                 Field {
                     name: "i",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
-            value: [
+            values: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             immutable: false,
@@ -41,13 +40,21 @@ Module {
             items: [
                 Field {
                     name: "i",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -55,6 +62,13 @@ Module {
     ..
 }
 ---
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <action 'test'>:
     fact.new 'Foo'
@@ -68,7 +82,7 @@ Module {
     const None
     eq
     not
-    branch 14
+    branch 21
     exit panic
-<14>:
+<21>:
     return

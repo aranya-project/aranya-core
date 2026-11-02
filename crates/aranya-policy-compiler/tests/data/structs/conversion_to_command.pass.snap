@@ -5,13 +5,14 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'Bar'>: 1,
-        <action 'convert'>: 8,
+        <get_key 'Bar'>: 1,
+        <policy 'Bar'>: 8,
+        <action 'convert'>: 15,
     },
     action_defs: [
         ActionDef {
             name: "convert",
-            persistence: Persistent,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
@@ -19,16 +20,16 @@ Module {
     command_defs: [
         CommandDef {
             name: "Bar",
-            persistence: Persistent,
+            flavor: "null",
             attributes: [],
             fields: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },
@@ -40,11 +41,11 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: String,
+                    vtype: String,
                 },
             ],
         },
@@ -53,13 +54,21 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: String,
+                    vtype: String,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -67,6 +76,14 @@ Module {
     ..
 }
 ---
+    exit panic
+<get_key 'Bar'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'Bar'>:
     def 'envelope'

@@ -14,8 +14,7 @@ fn main() -> anyhow::Result<()> {
         println!("cargo::rustc-cfg=cbindgen");
     }
 
-    let appender = tracing_appender::rolling::hourly("/tmp/aranya-capi-codegen-test", "prefix.log");
-    let layer = tracing_subscriber::fmt::layer().with_writer(appender);
+    let layer = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
     tracing_subscriber::registry()
         .with(layer)
         .with(EnvFilter::from_env("ARANYA_CAPI_CODEGEN_TEST"))

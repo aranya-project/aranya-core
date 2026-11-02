@@ -146,8 +146,7 @@ where
     P: AsRef<Path>,
 {
     cfg_select! {
-        feature = "sdlib" => super::sdlib::unlink(path),
-        _ => super::posix::shm_unlink(path),
+        feature = "posix" => super::posix::shm_unlink(path),
     }
 }
 

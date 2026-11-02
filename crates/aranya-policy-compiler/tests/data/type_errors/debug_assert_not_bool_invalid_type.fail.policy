@@ -1,3 +1,3 @@
-action foo() {
+action[null] foo() {
     debug_assert(3)
 }

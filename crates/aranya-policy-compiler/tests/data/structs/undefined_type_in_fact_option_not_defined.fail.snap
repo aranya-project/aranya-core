@@ -4,5 +4,5 @@ expression: error
 ---
 error: a thing being referenced is not in scope
   |
-1 | fact Foo[]=>{ s option[struct Unknown] }
-  |                               ^^^^^^^ struct `Unknown` not defined
+1 | fact Foo[]=>{ s: option[struct Unknown] }
+  |                                ^^^^^^^ struct `Unknown` not defined

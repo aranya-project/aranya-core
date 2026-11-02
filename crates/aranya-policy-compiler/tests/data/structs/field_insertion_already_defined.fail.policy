@@ -1,2 +1,2 @@
-struct Bar { a int }
-struct Foo { +Bar, a string }
+struct Bar { a: int }
+struct Foo { +Bar, a: string }

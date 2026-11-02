@@ -1,4 +1,4 @@
-function match_duplicate_arms(r result[int, string]) int {
+function match_duplicate_arms(r: result[int, string]) int {
     return match r {
         Ok(v) => v
         Ok(v) => v

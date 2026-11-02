@@ -1,5 +1,5 @@
-fact Foo[]=>{x int}
-command Test {
+fact Foo[]=>{x: int}
+command Test with StubBase {
     policy {
         finish {
             create Foo[]=>{x: saturating_add(1, 2)}

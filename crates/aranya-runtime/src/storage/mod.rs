@@ -549,6 +549,17 @@ impl Location {
     pub fn same_segment(self, other: Self) -> bool {
         self.segment == other.segment
     }
+
+    /// Returns the previous location in this location's segment, or `None`
+    /// if this is the segment's first command (at `shortest_max_cut`).
+    #[must_use]
+    pub(crate) fn previous_in_segment(mut self, shortest_max_cut: MaxCut) -> Option<Self> {
+        if self.max_cut <= shortest_max_cut {
+            return None;
+        }
+        self.max_cut = self.max_cut.decremented()?;
+        Some(self)
+    }
 }
 
 impl fmt::Display for Location {
@@ -1015,13 +1026,9 @@ pub trait Segment {
 
     /// Walks a location toward init if it would still point within this segment.
     #[must_use]
-    fn previous(&self, mut location: Location) -> Option<Location> {
+    fn previous(&self, location: Location) -> Option<Location> {
         debug_assert_eq!(location.segment, self.index());
-        if location.max_cut <= self.shortest_max_cut() {
-            return None;
-        }
-        location.max_cut = location.max_cut.decremented()?;
-        Some(location)
+        location.previous_in_segment(self.shortest_max_cut())
     }
 }
 

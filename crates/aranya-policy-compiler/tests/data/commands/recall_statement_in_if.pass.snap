@@ -5,19 +5,20 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'Cmd'>: 1,
-        <recall 'Cmd_handle'>: 22,
+        <get_key 'Cmd'>: 1,
+        <policy 'Cmd'>: 8,
+        <recall 'Cmd_handle'>: 29,
     },
     action_defs: [],
     command_defs: [
         CommandDef {
             name: "Cmd",
-            persistence: Persistent,
+            flavor: "null",
             attributes: [],
             fields: [
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },
@@ -29,9 +30,17 @@ Module {
             items: [
                 Field {
                     name: "x",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -39,6 +48,14 @@ Module {
     ..
 }
 ---
+    exit panic
+<get_key 'Cmd'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'Cmd'>:
     def 'envelope'
@@ -48,7 +65,7 @@ Module {
     const 0
     lt
     not
-    branch 17
+    branch 24
     block
     get 'this'
     struct.get 'x'
@@ -56,8 +73,8 @@ Module {
     get 'envelope'
     recall <recall 'Cmd_handle'>
     end
-    jump 17
-<17>:
+    jump 24
+<24>:
     meta: finish enabled
     block
     end

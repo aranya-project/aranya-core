@@ -1,4 +1,4 @@
-function bar(x int) bool {
+function bar(x: int) bool {
     return false
 }
 function foo() bool {

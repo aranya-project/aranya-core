@@ -1,4 +1,4 @@
-finish function f(x int) {
+finish function f(x: int) {
     emit Foo {}
 }
 

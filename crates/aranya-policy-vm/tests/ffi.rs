@@ -151,37 +151,37 @@ impl<T, G> TestModule<'_, T, G> {
     module = "test",
     def = r#"
 struct S0 {
-    x int
+    x: int
 }
 struct S1 {
-    a string,
-    b bytes,
-    c int,
-    d bool,
-    e id,
-    f struct S0,
-    g option[int],
+    a: string,
+    b: bytes,
+    c: int,
+    d: bool,
+    e: id,
+    f: struct S0,
+    g: option[int],
 }
 struct S2 {
-    a struct S0,
-    b struct S1,
+    a: struct S0,
+    b: struct S1,
 }
 
 enum TestEnum { A, B }
 "#
 )]
 impl<T, G> TestModule<'_, T, G> {
-    #[ffi_export(def = "function add2(x int, y int) int")]
+    #[ffi_export(def = "function add2(x: int, y: int) int")]
     fn add<E: Engine>(_ctx: &CommandContext, _eng: &E, x: i64, y: i64) -> Result<i64, Overflow> {
         x.checked_add(y).ok_or(Overflow)
     }
 
-    #[ffi_export(def = "function sub2(x int, y int) int")]
+    #[ffi_export(def = "function sub2(x: int, y: int) int")]
     fn sub<E: Engine>(_ctx: &CommandContext, _eng: &E, x: i64, y: i64) -> Result<i64, Overflow> {
         x.checked_sub(y).ok_or(Overflow)
     }
 
-    #[ffi_export(def = "function concat(a string, b string) string")]
+    #[ffi_export(def = "function concat(a: string, b: string) string")]
     fn concat<E: Engine>(
         _ctx: &CommandContext,
         _eng: &E,
@@ -192,7 +192,7 @@ impl<T, G> TestModule<'_, T, G> {
         Ok(&a + &b)
     }
 
-    #[ffi_export(def = "function renamed_identity(id_input id) id")]
+    #[ffi_export(def = "function renamed_identity(id_input: id) id")]
     fn identity<E: Engine>(
         &self,
         _ctx: &CommandContext,
@@ -207,7 +207,7 @@ impl<T, G> TestModule<'_, T, G> {
         Ok(Self::NO_ARGS_RESULT)
     }
 
-    #[ffi_export(def = "function custom_type(label int) int")]
+    #[ffi_export(def = "function custom_type(label: int) int")]
     fn custom_type<E: Engine>(
         _ctx: &CommandContext,
         _eng: &E,
@@ -217,7 +217,7 @@ impl<T, G> TestModule<'_, T, G> {
         Ok(Self::CUSTOM_TYPE_RESULT)
     }
 
-    #[ffi_export(def = "function custom_type_optional(label option[int]) option[int]")]
+    #[ffi_export(def = "function custom_type_optional(label: option[int]) option[int]")]
     fn custom_type_optional<E: Engine>(
         _ctx: &CommandContext,
         _eng: &E,
@@ -227,7 +227,7 @@ impl<T, G> TestModule<'_, T, G> {
         Ok(Some(Self::CUSTOM_TYPE_RESULT))
     }
 
-    #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
+    #[ffi_export(def = "function custom_def(a: int, b: bytes) bool")]
     fn custom_def<E: Engine>(
         _ctx: &CommandContext,
         _eng: &E,
@@ -239,8 +239,8 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = r#"
 function struct_fn(
-    a struct S0,
-    b struct S1,
+    a: struct S0,
+    b: struct S1,
 ) struct S2
 "#)]
     fn struct_fn<E: Engine>(
@@ -257,7 +257,7 @@ function struct_fn(
         Ok(())
     }
 
-    #[ffi_export(def = r#"function test_enum(e enum TestEnum) enum TestEnum"#)]
+    #[ffi_export(def = r#"function test_enum(e: enum TestEnum) enum TestEnum"#)]
     fn test_enum<E: Engine>(
         _ctx: &CommandContext,
         _eng: &E,
@@ -266,7 +266,7 @@ function struct_fn(
         Ok(e)
     }
 
-    #[ffi_export(def = r#"function test_result(r result[int, string]) result[int, string]"#)]
+    #[ffi_export(def = r#"function test_result(r: result[int, string]) result[int, string]"#)]
     fn test_result<E: Engine>(
         _ctx: &CommandContext,
         _eng: &E,

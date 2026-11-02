@@ -1,4 +1,4 @@
-function f(n int, m int) int {
+function f(n: int, m: int) int {
     let x = match n {
         0 => match m {
             0 => 1

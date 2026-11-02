@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -17,7 +16,7 @@ Module {
             items: [
                 Field {
                     name: "r",
-                    ty: Result(
+                    vtype: Result(
                         ResultTypeKind {
                             ok: Int,
                             err: String,
@@ -25,6 +24,14 @@ Module {
                     ),
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -71,6 +78,13 @@ Module {
     end
     jump 34
 <34>:
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

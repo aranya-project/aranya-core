@@ -1,4 +1,4 @@
-function foo(b bool) int {
+function foo(b: bool) int {
     match b {
         true => { let x = 0 }
         false => { let y = 1 }

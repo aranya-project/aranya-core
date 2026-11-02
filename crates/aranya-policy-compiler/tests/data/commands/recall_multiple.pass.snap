@@ -5,16 +5,17 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'Cmd'>: 1,
-        <recall 'Cmd_bar'>: 11,
-        <recall 'Cmd_baz'>: 14,
-        <recall 'Cmd_foo'>: 8,
+        <get_key 'Cmd'>: 1,
+        <policy 'Cmd'>: 8,
+        <recall 'Cmd_bar'>: 18,
+        <recall 'Cmd_baz'>: 21,
+        <recall 'Cmd_foo'>: 15,
     },
     action_defs: [],
     command_defs: [
         CommandDef {
             name: "Cmd",
-            persistence: Persistent,
+            flavor: "null",
             attributes: [],
             fields: [],
         },
@@ -25,12 +26,28 @@ Module {
             name: "Cmd",
             items: [],
         },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+<get_key 'Cmd'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'Cmd'>:
     def 'envelope'

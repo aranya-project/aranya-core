@@ -1,4 +1,4 @@
-action foo(i int) {
+action[null] foo(i: int) {
     match i {
         1 => {}
         _ => {}

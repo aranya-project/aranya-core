@@ -14,7 +14,7 @@ use aranya_policy_ifgen::{
     text, BaseId, ClientError, Value, Text,
 };
 #[derive(Debug)]
-pub enum Persistent {}
+pub enum Basic {}
 /// Admin policy struct.
 #[value]
 pub struct Admin {
@@ -33,19 +33,19 @@ pub struct UserAdded {
     pub uid: BaseId,
     pub name: Text,
 }
-#[actions(interface = Persistent)]
-pub enum PersistentAction {
+#[actions(interface = Basic)]
+pub enum BasicAction {
     add_user(add_user),
     delete_user(delete_user),
 }
 /// add_user policy action.
-#[action(interface = Persistent)]
+#[action(interface = Basic)]
 pub struct add_user {
     pub uid: BaseId,
     pub name: Text,
 }
 /// delete_user policy action.
-#[action(interface = Persistent)]
+#[action(interface = Basic)]
 pub struct delete_user {
     pub admin: Admin,
     pub uid: BaseId,

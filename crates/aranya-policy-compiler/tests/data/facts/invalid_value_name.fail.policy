@@ -1,4 +1,4 @@
-fact Foo[k int]=>{x int}
-action test() {
+fact Foo[k: int]=>{x: int}
+action[null] test() {
     check exists Foo[k: saturating_add(1, 1)]=>{y: 5} else test_fail()
 }

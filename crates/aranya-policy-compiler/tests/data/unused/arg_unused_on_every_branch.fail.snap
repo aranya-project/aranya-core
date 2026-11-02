@@ -4,5 +4,5 @@ expression: error
 ---
 error: unused variable(s): `x`
   |
-2 | function unused_both(x int, b bool) int {
+2 | function unused_both(x: int, b: bool) int {
   |                      ^ never used

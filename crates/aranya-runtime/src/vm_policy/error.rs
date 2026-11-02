@@ -39,17 +39,19 @@ impl AttributeError {
         Self(format!("{cmd}::{attr} should be {expected}, was {actual}"))
     }
 
-    pub(crate) fn exclusive(cmd: &str, attr1: &str, attr2: &str) -> Self {
-        Self(format!(
-            "{cmd} has both exclusive attributes {attr1} and {attr2}"
-        ))
-    }
-
     pub(crate) fn int_range(cmd: &str, attr: &str, min: i64, max: i64) -> Self {
         Self(format!("{cmd}::{attr} must be within [{min}, {max}]"))
     }
 
     pub(crate) fn missing(cmd: &str, attrs: &str) -> Self {
         Self(format!("{cmd} is missing {attrs}"))
+    }
+
+    pub(crate) fn should_not_have(flavor: &str, cmd: &str, attr: &str) -> Self {
+        Self(format!("{flavor} command {cmd} should not have {attr}"))
+    }
+
+    pub(crate) fn unknown_flavor(flavor: &str, cmd: &str) -> Self {
+        Self(format!("unknown flavor {flavor} for command {cmd}"))
     }
 }

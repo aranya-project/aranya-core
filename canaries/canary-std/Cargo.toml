@@ -1,10 +1,9 @@
+[workspace]
+
 [package]
 name = "canary-std"
 publish = false
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
-rust-version.workspace = true
+edition = "2024"
 
 [dependencies]
 # aranya-afc-util = { path = "../../crates/aranya-afc-util", features = ["alloc"] }
@@ -21,7 +20,6 @@ aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false,
 	"rand_compat",
 ] }
 aranya-device-ffi = { path = "../../crates/aranya-device-ffi", features = ["alloc"] }
-aranya-envelope-ffi = { path = "../../crates/aranya-envelope-ffi", features = ["alloc"] }
 aranya-idam-ffi = { path = "../../crates/aranya-idam-ffi", features = ["alloc"] }
 aranya-perspective-ffi = { path = "../../crates/aranya-perspective-ffi", features = ["alloc"] }
 aranya-policy-ast = { path = "../../crates/aranya-policy-ast" }

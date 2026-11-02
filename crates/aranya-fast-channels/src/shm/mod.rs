@@ -1,16 +1,14 @@
 //! A shared memory implementation of `State`.
 //!
-//! It uses either POSIX shared memory or VxWorks' sdLib.
+//! It uses POSIX shared memory.
 
-#![cfg(any(feature = "sdlib", feature = "posix"))]
+#![cfg(feature = "posix")]
 
 mod align;
 mod error;
-mod le;
 mod path;
 mod posix;
 mod read;
-mod sdlib;
 mod shared;
 mod tests;
 mod write;

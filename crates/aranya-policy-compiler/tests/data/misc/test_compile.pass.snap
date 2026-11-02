@@ -5,17 +5,18 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'Foo'>: 1,
-        <action 'foo'>: 8,
+        <get_key 'Foo'>: 1,
+        <policy 'Foo'>: 8,
+        <action 'foo'>: 15,
     },
     action_defs: [
         ActionDef {
             name: "foo",
-            persistence: Persistent,
+            flavor: "null",
             params: [
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             result_type: Unit,
@@ -24,16 +25,16 @@ Module {
     command_defs: [
         CommandDef {
             name: "Foo",
-            persistence: Persistent,
+            flavor: "null",
             attributes: [],
             fields: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
         },
@@ -45,13 +46,21 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -59,6 +68,14 @@ Module {
     ..
 }
 ---
+    exit panic
+<get_key 'Foo'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'Foo'>:
     def 'envelope'
@@ -75,18 +92,18 @@ Module {
     get 'b'
     const 0
     eq
-    branch 19
+    branch 26
     block
     const 3
     end
-    jump 24
-<19>:
+    jump 31
+<26>:
     block
     const 4
     get 'i'
     saturating_add
     end
-<24>:
+<31>:
     def 'x'
     struct.new 'Foo'
     get 'x'

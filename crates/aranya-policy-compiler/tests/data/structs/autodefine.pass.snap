@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -13,16 +12,16 @@ Module {
     fact_defs: [
         FactDef {
             name: "Foo",
-            key: [
+            keys: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
-            value: [
+            values: [
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
             immutable: false,
@@ -34,13 +33,21 @@ Module {
             items: [
                 Field {
                     name: "a",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "b",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -67,6 +74,13 @@ Module {
 <14>:
     def 'foo'
     get 'foo'
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

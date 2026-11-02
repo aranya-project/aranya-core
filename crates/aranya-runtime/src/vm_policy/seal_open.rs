@@ -6,7 +6,7 @@ use aranya_crypto::{
 };
 use aranya_policy_vm::Struct;
 
-use crate::{command::CmdId, vm_policy::Envelope};
+use crate::{command::CmdId, vm_policy::protocol::Envelope};
 
 #[derive(Debug, thiserror::Error)]
 pub enum OpenError {

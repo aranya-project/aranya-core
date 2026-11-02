@@ -4,5 +4,5 @@ expression: err
 ---
 error: Reserved identifier
   |
-1 | action this() { }
-  |        ^^^^ found reserved identifier: `this`
+1 | action[null] this() { }
+  |              ^^^^ found reserved identifier: `this`

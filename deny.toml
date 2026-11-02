@@ -123,7 +123,6 @@ exceptions = [
     { allow = ["AGPL-3.0-only"], crate = "aranya-capi-macro" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-crypto" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-device-ffi" },
-    { allow = ["AGPL-3.0-only"], crate = "aranya-envelope-ffi" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-fast-channels" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-id" },
     { allow = ["AGPL-3.0-only"], crate = "aranya-idam-ffi" },
@@ -240,8 +239,6 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     "hashbrown@0.15.2",
-    "thiserror-impl@1.0.69",
-    "thiserror@1.0.69",
     "zerocopy-derive@0.7.35",
     "zerocopy-derive@0.8.25",
     "zerocopy@0.7.35",

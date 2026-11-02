@@ -20,7 +20,6 @@ bench = false
 aranya-core = { path = "../aranya-core", features = ["std", "libc", "memstore"] }
 
 aranya-device-ffi = { path = "../aranya-device-ffi" }
-aranya-envelope-ffi = { path = "../aranya-envelope-ffi" }
 aranya-idam-ffi = { path = "../aranya-idam-ffi" }
 aranya-perspective-ffi = { path = "../aranya-perspective-ffi" }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }

@@ -1,0 +1,4 @@
+action[null] bar() {}
+action[null] foo() {
+    bar()
+}

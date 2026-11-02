@@ -120,7 +120,11 @@ impl<S: AfcState> Client<S> {
         data.try_reserve_exact(Self::OVERHEAD)?;
 
         // Append zeros for the tag and header.
-        data.try_resize(data.len() + Self::OVERHEAD, 0)?;
+        let new_len = data
+            .len()
+            .checked_add(Self::OVERHEAD)
+            .assume("try_reserve_exact should have already checked for overflow")?;
+        data.try_resize(new_len, 0)?;
 
         // We've padded data, so split it into chunks.
         //
@@ -130,9 +134,14 @@ impl<S: AfcState> Client<S> {
         let (rest, header) = data
             .split_last_chunk_mut()
             .assume("we've already checked that `data` can fit a header")?;
-        let (out, tag) = rest
-            .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
-            .assume("we've already checked that `data` can fit a tag")?;
+        let (out, tag) = {
+            let split_pos = rest
+                .len()
+                .checked_sub(Self::TAG_SIZE)
+                .assume("we've already checked that `data` can fit a tag")?;
+            rest.split_at_mut_checked(split_pos)
+                .assume("split position is within bounds")?
+        };
 
         self.do_seal(ctx, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)

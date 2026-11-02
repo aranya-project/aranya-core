@@ -1,8 +1,8 @@
-effect Bar { s struct Co }
-command Co {
+effect Bar { s: struct Co }
+command Co with StubBase {
     fields {
-        fi struct Bar, // cycle
-        i int
+        fi: struct Bar, // cycle
+        i: int
     }
     policy {
         finish {}

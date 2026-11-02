@@ -1,5 +1,5 @@
-fact Pet[name string]=>{age int}
-action pets() {
+fact Pet[name: string]=>{age: int}
+action[null] pets() {
     let n = 42
     map Pet[name:?] as p {
         check p.age > 0 else test_fail()

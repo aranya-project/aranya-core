@@ -1,4 +1,4 @@
-action ping() {}
-action pong() {
+action[null] ping() {}
+action[null] pong() {
     action ping()
 }

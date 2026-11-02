@@ -260,7 +260,9 @@ pub fn test_multi_client<T: TestImpl, A: Aead>() {
         let want_seq = *seqs
             .entry((send, recv, label_id))
             .and_modify(|seq| {
-                *seq += 1;
+                *seq = seq
+                    .checked_add(1)
+                    .expect("sequence number should not overflow");
             })
             .or_insert(0);
 

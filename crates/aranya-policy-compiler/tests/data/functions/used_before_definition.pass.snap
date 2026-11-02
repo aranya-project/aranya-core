@@ -1,6 +1,5 @@
 ---
 source: crates/aranya-policy-compiler/tests/tests.rs
-assertion_line: 229
 expression: module
 ---
 Module {
@@ -22,17 +21,25 @@ Module {
             items: [
                 Field {
                     name: "d",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "q",
-                    ty: Int,
+                    vtype: Int,
                 },
                 Field {
                     name: "r",
-                    ty: Int,
+                    vtype: Int,
                 },
             ],
+        },
+        StructDef {
+            name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "StubBase",
+            items: [],
         },
     ],
     enum_defs: [],
@@ -278,6 +285,13 @@ Module {
     saturating_sub
     struct.set 'r'
     call <fn 'divide0'>
+    restore SP
+    return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
     restore SP
     return
     exit panic

@@ -10,9 +10,7 @@ command signing/verification, and application-level facts.
 ## Imports
 
 ```policy
-use crypto
 use device
-use envelope
 use idam
 use perspective
 ```
@@ -21,9 +19,9 @@ use perspective
 
 ```policy
 struct PublicKeys {
-    ident_key bytes,
-    sign_key bytes,
-    enc_key bytes,
+    ident_key: bytes,
+    sign_key: bytes,
+    enc_key: bytes,
 }
 ```
 
@@ -31,39 +29,39 @@ struct PublicKeys {
 
 ```policy
 // Signing public key for seal/open verification.
-fact DeviceSignPubKey[device_id id]=>{key_id id, key bytes}
+fact DeviceSignPubKey[device_id: id]=>{key_id: id, key: bytes}
 
 // Singleton: tracks the team owner's device ID.
-fact Owner[]=>{device_id id}
+fact Owner[]=>{device_id: id}
 
 // Application data: a named counter.
-fact Counter[name int]=>{value int}
+fact Counter[name: int]=>{value: int}
 ```
 
 ## Effects
 
 ```policy
 effect Initialized {
-    device_id id,
+    device_id: id,
 }
 
 effect DeviceAdded {
-    device_id id,
+    device_id: id,
 }
 
 effect CounterSet {
-    name int,
-    value int,
+    name: int,
+    value: int,
 }
 
 effect CounterIncremented {
-    name int,
-    value int,
+    name: int,
+    value: int,
 }
 
 effect CounterValue {
-    name int,
-    value int,
+    name: int,
+    value: int,
 }
 ```
 
@@ -74,9 +72,9 @@ key fact and the Owner singleton. Because no DeviceSignPubKey exists
 yet, seal/open inline the crypto using keys from the command fields.
 
 ```policy
-base command BaseInit {
+base[init] BaseInit {
     fields {
-        owner_keys struct PublicKeys,
+        owner_keys: struct PublicKeys,
     }
     get_key {
         return Some(this.owner_keys.sign_key)
@@ -84,16 +82,12 @@ base command BaseInit {
 }
 
 command Init with BaseInit {
-    attributes {
-        init: true
-    }
-
     fields {
-        nonce int,
+        nonce: int,
     }
 
     policy {
-        let author_id = envelope::author_id(envelope)
+        let author_id = envelope.author_id
         check author_id == idam::derive_device_id(this.owner_keys.ident_key) else test_fail("not authorized")
 
         let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
@@ -113,7 +107,16 @@ command Init with BaseInit {
 ## Base Command
 
 ```policy
-base command Base {
+base[basic] Base {
+    get_key {
+        return match query DeviceSignPubKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+base[ephemeral] BaseEphemeral {
     get_key {
         return match query DeviceSignPubKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -135,11 +138,11 @@ command AddDevice with Base {
     }
 
     fields {
-        device_keys struct PublicKeys,
+        device_keys: struct PublicKeys,
     }
 
     policy {
-        let author_id = envelope::author_id(envelope)
+        let author_id = envelope.author_id
         let owner = query Owner[] or recall reject()
         check author_id == owner.device_id else test_fail("not authorized")
 
@@ -170,8 +173,8 @@ command SetCounter with Base {
     }
 
     fields {
-        name int,
-        value int,
+        name: int,
+        value: int,
     }
 
     policy {
@@ -188,8 +191,8 @@ command IncrementCounter with Base {
     }
 
     fields {
-        name int,
-        amount int,
+        name: int,
+        amount: int,
     }
 
     policy {
@@ -209,9 +212,9 @@ command IncrementCounter with Base {
 ## Ephemeral Query
 
 ```policy
-ephemeral command GetCounter with Base {
+command GetCounter with BaseEphemeral {
     fields {
-        name int,
+        name: int,
     }
 
     policy {
@@ -226,23 +229,23 @@ ephemeral command GetCounter with Base {
 ## Actions
 
 ```policy
-action init(owner_keys struct PublicKeys, nonce int) {
+action[init] init(owner_keys: struct PublicKeys, nonce: int) {
     publish Init { owner_keys, nonce }
 }
 
-action add_device(device_keys struct PublicKeys) {
+action[basic] add_device(device_keys: struct PublicKeys) {
     publish AddDevice { device_keys }
 }
 
-action set_counter(name int, value int) {
+action[basic] set_counter(name: int, value: int) {
     publish SetCounter { name, value }
 }
 
-action increment_counter(name int, amount int) {
+action[basic] increment_counter(name: int, amount: int) {
     publish IncrementCounter { name, amount }
 }
 
-ephemeral action get_counter(name int) {
+action[ephemeral] get_counter(name: int) {
     publish GetCounter { name }
 }
 ```

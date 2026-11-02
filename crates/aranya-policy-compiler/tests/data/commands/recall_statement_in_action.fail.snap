@@ -4,7 +4,7 @@ expression: error
 ---
 error: invalid statement
   |
-1 | action act() {
+1 | action[null] act() {
 2 |     recall handle()
   |     ^^^^^^^^^^^^^^^ statement not allowed in action context
 3 | }

@@ -3,7 +3,7 @@
 //! An FFI for `preamble:` sections that provides utility functions for
 //! creating specific or random values.
 //!
-//! ## `function random_bytes(n int) bytes`
+//! ## `function random_bytes(n: int) bytes`
 //!
 //! Generate `n` random bytes.
 //!
@@ -16,12 +16,12 @@
 //! Generate a random key. The secret portion of the key is stored
 //! in the keystore.
 //!
-//! ## `function bytes_from_hex(hex_str string) bytes`
+//! ## `function bytes_from_hex(hex_str: string) bytes`
 //!
 //! Convert a hex string into bytes. The number of hex digits must
 //! be a multiple of 2.
 //!
-//! ## `function id_from_hex(hex_str string) id`
+//! ## `function id_from_hex(hex_str: string) id`
 //!
 //! Convert a hex string into an ID. The hex string must have
 //! exactly 64 hex digits.
@@ -59,7 +59,7 @@ impl<'o, KS> TestingFfi<'o, KS> {
 
 #[ffi(module = "testing")]
 impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
-    #[ffi_export(def = "function random_bytes(n int) bytes")]
+    #[ffi_export(def = "function random_bytes(n: int) bytes")]
     pub fn random_bytes<E: Engine>(
         &self,
         _ctx: &CommandContext,
@@ -116,7 +116,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         })
     }
 
-    #[ffi_export(def = "function bytes_from_hex(hex_str string) bytes")]
+    #[ffi_export(def = "function bytes_from_hex(hex_str: string) bytes")]
     pub fn bytes_from_hex<E: Engine>(
         &self,
         _ctx: &CommandContext,
@@ -146,7 +146,7 @@ impl<'o, KS: KeyStore> TestingFfi<'o, KS> {
         Ok(bytes)
     }
 
-    #[ffi_export(def = "function id_from_base58(b58_str string) id")]
+    #[ffi_export(def = "function id_from_base58(b58_str: string) id")]
     pub fn id_from_base58<E: Engine>(
         &self,
         _ctx: &CommandContext,

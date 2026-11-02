@@ -1,9 +1,9 @@
-struct Bar { a int }
-struct Baz { +Bar, b string }
-command Foo {
+struct Bar { a: int }
+struct Baz { +Bar, b: string }
+command Foo with StubBase {
     fields {
         +Baz,
-        c bool
+        c: bool
     }
     policy {
         finish {}

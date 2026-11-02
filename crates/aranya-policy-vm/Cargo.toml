@@ -36,7 +36,7 @@ proptest = [
 	"std",
 ]
 
-bench = ["dep:table_formatter", "std"]
+bench = ["std"]
 
 [dependencies]
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false }
@@ -49,7 +49,6 @@ buggy = { version = "0.1.0", features = ["alloc"] }
 heapless = { workspace = true }
 postcard-core = "0.1.0"
 serde = { workspace = true, default-features = false, features = ["derive"] }
-table_formatter = { version = "0.6.1", optional = true }
 thiserror = { workspace = true }
 
 # Optional proptest impls

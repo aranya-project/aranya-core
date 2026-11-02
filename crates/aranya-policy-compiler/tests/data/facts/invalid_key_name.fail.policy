@@ -1,4 +1,4 @@
-fact Foo[i int] => {a string}
-action test() {
+fact Foo[i: int] => {a: string}
+action[null] test() {
     check exists Foo[k: 1] else test_fail()
 }

@@ -22,6 +22,26 @@ criteria = "safe-to-deploy"
 delta = "1.10.1 -> 1.11.1"
 notes = "Code updates align with release notes. Replaced instances of unchecked arithmetic. New tests added to verify fixes."
 
+[[audits.chacha20]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.10.1 -> 0.10.2"
+
+[[audits.crypto-bigint]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.7.5 -> 0.7.10"
+
+[[audits.ctutils]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.4.2 -> 0.4.5"
+
+[[audits.ctutils]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.4.5 -> 0.4.6"
+
 [[audits.deranged]]
 who = "Steve Sweetney <ssweetney@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -68,10 +88,20 @@ criteria = "safe-to-deploy"
 delta = "0.1.5 -> 0.1.6"
 notes = "Minor bugfix: ARMv8 asm operand types changed from in to inout => _ for clobbered registers. Version bump and Cargo.toml formatting only."
 
+[[audits.libc]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.2.190 -> 0.2.191"
+
 [[audits.macro-string]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 version = "0.1.4"
+
+[[audits.markdown]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.0.0-alpha.17 -> 1.0.0"
 
 [[audits.matchers]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
@@ -218,6 +248,11 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "2.0.90 -> 2.0.101"
 
+[[audits.tempfile]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "3.14.0 -> 3.16.0"
+
 [[audits.time]]
 who = "gknopf <gknopf@spideroak.com>"
 criteria = "safe-to-deploy"
@@ -282,6 +317,11 @@ delta = "2.4.0 -> 2.5.0"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "0.3.19 -> 0.3.20"
+
+[[audits.wnaf]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.14.0 -> 0.14.1"
 
 [[audits.zerocopy]]
 who = "Eric Lagergren <elagergren@spideroak.com>"
@@ -398,12 +438,6 @@ user-id = 293722 # aranya-project-bot
 start = "2024-10-16"
 end = "2025-12-19"
 
-[[trusted.aranya-envelope-ffi]]
-criteria = "safe-to-deploy"
-user-id = 293722 # aranya-project-bot
-start = "2024-10-16"
-end = "2025-12-19"
-
 [[trusted.aranya-fast-channels]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
@@ -512,6 +546,12 @@ user-id = 6743 # Ed Page (epage)
 start = "2023-04-13"
 end = "2026-11-19"
 
+[[trusted.encoding_rs_io]]
+criteria = "safe-to-deploy"
+user-id = 189 # Andrew Gallant (BurntSushi)
+start = "2019-03-03"
+end = "2027-10-13"
+
 [[trusted.ff]]
 criteria = "safe-to-deploy"
 user-id = 1244 # Sean Bowe (ebfull)
@@ -530,11 +570,29 @@ user-id = 6743 # Ed Page (epage)
 start = "2024-05-02"
 end = "2026-11-19"
 
+[[trusted.libc]]
+criteria = "safe-to-deploy"
+user-id = 55123 # rust-lang-owner
+start = "2024-08-15"
+end = "2027-10-27"
+
+[[trusted.linux-raw-sys]]
+criteria = "safe-to-deploy"
+user-id = 6825 # Dan Gohman (sunfishcode)
+start = "2021-06-12"
+end = "2027-10-27"
+
 [[trusted.proc-macro2]]
 criteria = "safe-to-deploy"
 user-id = 3618 # David Tolnay (dtolnay)
 start = "2019-04-23"
 end = "2027-09-01"
+
+[[trusted.rustix]]
+criteria = "safe-to-deploy"
+user-id = 6825 # Dan Gohman (sunfishcode)
+start = "2021-10-29"
+end = "2027-10-27"
 
 [[trusted.spideroak-base58]]
 criteria = "safe-to-deploy"

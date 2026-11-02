@@ -2,9 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: the name `x` is defined multiple times
+error: field `x` specified more than once
   |
 6 |         x: 1,
-  |         - previous defintion here
+  |         ^ first use of `x`
 7 |         x: 2,
-  |         ^ re-defined here
+  |         - used again
