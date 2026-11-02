@@ -4,9 +4,6 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 mod ffi;
 mod tests;
 

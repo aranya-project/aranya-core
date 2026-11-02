@@ -4,7 +4,6 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
 
 mod ffi;
@@ -14,8 +13,6 @@ pub mod testing;
 mod tests;
 mod transform;
 
-#[cfg(feature = "alloc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub use ffi::*;
 pub use handler::*;
 pub use transform::Transform;

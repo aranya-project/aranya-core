@@ -1,5 +1,3 @@
-use alloc::string::String;
-
 use aranya_crypto::policy::CmdId;
 use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, ffi::ffi};
 
@@ -21,9 +19,9 @@ impl FfiPerspective {
     ) -> Result<CmdId, MachineError> {
         match ctx {
             CommandContext::Action(actx) => Ok(actx.head_id),
-            _ => Err(MachineError::new(MachineErrorType::Unknown(String::from(
-                "head_id is only available in Action context",
-            )))),
+            _ => Err(MachineError::new(MachineErrorType::Unknown(
+                "head_id is only available in Action context".into(),
+            ))),
         }
     }
 }
