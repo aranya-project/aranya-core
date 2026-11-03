@@ -165,7 +165,7 @@ impl SyncRequester {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
@@ -366,7 +366,7 @@ impl SyncRequester {
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         buffer: &mut TraversalBuffer,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
@@ -462,7 +462,7 @@ impl SyncRequester {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         remain_open: u64,
         max_bytes: u64,
         buffer: &mut TraversalBuffer,
@@ -492,7 +492,7 @@ impl SyncRequester {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(

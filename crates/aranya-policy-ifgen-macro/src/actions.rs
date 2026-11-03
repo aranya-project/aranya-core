@@ -13,7 +13,7 @@ struct Attrs {
 }
 
 impl syn::parse::Parse for Attrs {
-    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         input.parse::<kw::interface>()?;
         input.parse::<syn::Token![=]>()?;
         let value = input.parse::<syn::Path>()?;

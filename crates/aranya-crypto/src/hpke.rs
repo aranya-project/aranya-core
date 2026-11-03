@@ -46,7 +46,7 @@ where
 #[allow(clippy::type_complexity)]
 pub(crate) fn setup_send<'a, CS, R>(
     rng: R,
-    mode: Mode<'_, &DecapKey<CS>>,
+    mode: Mode<&DecapKey<CS>>,
     pkR: &EncapKey<CS>,
     info: impl IntoIterator<Item = &'a [u8]>,
 ) -> Result<(Encap<CS>, SendCtx<CS>), HpkeError>
@@ -63,7 +63,7 @@ where
 #[cfg(feature = "afc")]
 #[allow(clippy::type_complexity)]
 pub(crate) fn setup_send_deterministically<'a, CS>(
-    mode: Mode<'_, &DecapKey<CS>>,
+    mode: Mode<&DecapKey<CS>>,
     pkR: &EncapKey<CS>,
     info: impl IntoIterator<Item = &'a [u8]>,
     skE: DecapKey<CS>,
@@ -77,7 +77,7 @@ where
 /// Same as [`setup_recv`][hpe::Hpke::setup_recv], but augments
 /// `info` with [`CipherSuite::OIDS`].
 pub(crate) fn setup_recv<'a, CS>(
-    mode: Mode<'_, &EncapKey<CS>>,
+    mode: Mode<&EncapKey<CS>>,
     enc: &Encap<CS>,
     skR: &DecapKey<CS>,
     info: impl IntoIterator<Item = &'a [u8]>,

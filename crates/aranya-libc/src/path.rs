@@ -322,13 +322,13 @@ impl<'a> From<Result<&'a Path, &'a Path>> for &'a Path {
 }
 
 impl fmt::Display for Path {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.display().fmt(f)
     }
 }
 
 impl fmt::Debug for Path {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Path").field(&self.display()).finish()
     }
 }
@@ -344,7 +344,7 @@ impl MaybeUtf8<'_> {
 }
 
 impl fmt::Display for MaybeUtf8<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.try_as_str() {
             Ok(s) => s.fmt(f),
             Err(v) => write!(f, "{v:?}"),
@@ -353,7 +353,7 @@ impl fmt::Display for MaybeUtf8<'_> {
 }
 
 impl fmt::Debug for MaybeUtf8<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.try_as_str() {
             Ok(s) => s.fmt(f),
             Err(v) => write!(f, "{v:?}"),
@@ -456,13 +456,13 @@ where
 }
 
 impl fmt::Display for PathBuf {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
 }
 
 impl fmt::Debug for PathBuf {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }

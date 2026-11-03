@@ -116,7 +116,7 @@ impl<CE> VmPolicy<CE> {
         })
     }
 
-    fn source_location<M>(&self, rs: &RunState<'_, M>) -> String
+    fn source_location<M>(&self, rs: &RunState<M>) -> String
     where
         M: MachineIO<MachineStack>,
     {
@@ -139,7 +139,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         &self,
         name: Identifier,
         fields: &[KVPair],
-        envelope: Envelope<'_>,
+        envelope: Envelope,
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: CommandContext,
@@ -202,7 +202,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         &self,
         command_struct: &Struct,
         payload: &[u8],
-        envelope: &Envelope<'_>,
+        envelope: &Envelope,
         facts: &mut impl FactPerspective,
     ) -> Result<(), PolicyError> {
         let mut sink = NullSink;

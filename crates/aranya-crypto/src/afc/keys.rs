@@ -67,7 +67,7 @@ impl PartialOrd<u64> for Seq {
 }
 
 impl fmt::Display for Seq {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }

@@ -8,7 +8,7 @@ use syn::{GenericArgument, Ident, Path, PathArguments, Type, TypePath};
 pub struct Trimmed<'a, T>(pub &'a T);
 
 impl fmt::Display for Trimmed<'_, TypePath> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.0.qself.is_some() {
             // TODO(eric): proper qself support?
             write!(f, "<...>::")?;
@@ -18,18 +18,18 @@ impl fmt::Display for Trimmed<'_, TypePath> {
 }
 
 impl fmt::Display for Trimmed<'_, Path> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write_path(f, self.0)
     }
 }
 
 impl fmt::Display for Trimmed<'_, Ident> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write_path(f, &self.0.clone().into())
     }
 }
 
-fn write_path(f: &mut fmt::Formatter<'_>, path: &Path) -> fmt::Result {
+fn write_path(f: &mut fmt::Formatter, path: &Path) -> fmt::Result {
     write!(f, "\"")?;
     if path.leading_colon.is_some() {
         write!(f, "::")?;
@@ -61,7 +61,7 @@ fn write_path(f: &mut fmt::Formatter<'_>, path: &Path) -> fmt::Result {
     write!(f, "\"")
 }
 
-fn write_type(f: &mut fmt::Formatter<'_>, ty: &Type) -> fmt::Result {
+fn write_type(f: &mut fmt::Formatter, ty: &Type) -> fmt::Result {
     let mut code = quote!(const _: #ty = ();).to_string();
     if let Ok(file) = syn::parse_file(&code) {
         code = prettyplease::unparse(&file);
@@ -95,7 +95,7 @@ fn write_type(f: &mut fmt::Formatter<'_>, ty: &Type) -> fmt::Result {
 pub(super) struct Quote<'a, T>(pub &'a T);
 
 impl<T: ToTokens> fmt::Display for Quote<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let v = &self.0;
         write!(f, "\"{}\"", quote!(#v))
     }

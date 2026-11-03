@@ -99,7 +99,7 @@ impl From<ast::TypeKind> for TypeKind {
 }
 
 impl Display for TypeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Unit => write!(f, "unit"),
             Self::String => write!(f, "string"),
@@ -243,7 +243,7 @@ impl ConstValue {
 }
 
 impl Display for ConstValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Unit => write!(f, "()"),
             Self::Int(i) => write!(f, "{}", i),
@@ -301,7 +301,7 @@ impl ConstStruct {
 }
 
 impl Display for ConstStruct {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{{", self.name)?;
         let mut i = false;
         for (k, v) in &self.fields {

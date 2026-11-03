@@ -138,7 +138,7 @@ impl<S, X> Lender<S, X> {
 }
 
 impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Lender<S, X> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Lender")
             .field("shared", self.shared())
             .finish_non_exhaustive()
@@ -170,7 +170,7 @@ impl<S, X> Loan<S, X> {
 }
 
 impl<S: fmt::Debug, X: fmt::Debug> fmt::Debug for Loan<S, X> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = f.debug_struct("Loan");
         match self.get_ref() {
             Some((shared, exclusive)) => s

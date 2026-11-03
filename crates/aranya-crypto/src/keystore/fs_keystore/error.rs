@@ -23,7 +23,7 @@ impl Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -164,7 +164,7 @@ impl Repr {
 }
 
 impl fmt::Display for Repr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::AlreadyExists => write!(f, "entry already exists"),
             Self::UnexpectedEof(err) => err.fmt(f),
@@ -194,13 +194,13 @@ pub struct RootDeleted(pub(crate) ());
 struct Trouble<E>(E);
 
 impl<E: fmt::Display> fmt::Display for Trouble<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
 impl<E: fmt::Debug> fmt::Debug for Trouble<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }

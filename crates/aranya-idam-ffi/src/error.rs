@@ -136,7 +136,7 @@ pub enum ErrorKind {
 }
 
 impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Alloc => write!(f, "unable to allocate memory"),
             Self::Crypto => write!(f, "crypto error"),

@@ -77,7 +77,7 @@ impl<T> core::ops::Deref for WithSpan<T> {
 }
 
 impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.inner.fmt(f)?;
         write!(f, " @ {:?}", self.span)?;
         Ok(())
@@ -85,7 +85,7 @@ impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
 }
 
 impl<T: fmt::Display> fmt::Display for WithSpan<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.inner.fmt(f)
     }
 }
@@ -237,7 +237,7 @@ impl From<Span> for Range<usize> {
 }
 
 impl fmt::Debug for Span {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Range::from(*self).fmt(f)
     }
 }
