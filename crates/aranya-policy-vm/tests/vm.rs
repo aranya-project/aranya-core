@@ -17,6 +17,9 @@ use aranya_policy_vm::{
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
 
+/// A command for actions to publish, since every action must publish or call another action.
+const PUB_COMMAND: &str = "\ncommand Pub with StubBase { fields {} policy { finish {} } }";
+
 #[track_caller]
 fn parse(text: &str) -> aranya_policy_ast::Policy {
     let text = text.trim_start_matches('\n').to_owned()
@@ -27,7 +30,7 @@ fn parse(text: &str) -> aranya_policy_ast::Policy {
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
 fn compile(text: &str) -> Machine {
-    let policy = parse(text);
+    let policy = parse(&(text.to_owned() + PUB_COMMAND));
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .debug(true)
@@ -268,6 +271,7 @@ fn test_action_call_expression() -> anyhow::Result<()> {
     let machine = compile(
         r#"
         action[null] inner() result[unit, string] {
+            if false { publish Pub {} }
             return Err("inner fail")
         }
 
@@ -501,6 +505,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
 
     action[null] testExists() {
+        if false { publish Pub {} }
         check exists Foo[] => {x: 3} else test_fail()
         check exists Foo[] else test_fail()
         check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail()
@@ -767,6 +772,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action[null] test_query() {
+            if false { publish Pub {} }
             let f = query Foo[i: 1, j: ?] or test_fail()
             check f.x == 1 else test_fail()
             let f2 = query Foo[i: ?, j: ?] or test_fail()
@@ -783,10 +789,12 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action[null] test_nonexistent() {
+            if false { publish Pub {} }
             let f = query Foo[i:?, j:?] or test_fail()
         }
 
         action[null] test_exists() {
+            if false { publish Pub {} }
             check exists Foo[i:1, j:?] else test_fail()
             check exists Foo[i:-1, j:?] == false else test_fail()
             check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail()
@@ -845,6 +853,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action[null] test_query() {
+            if false { publish Pub {} }
             let f = query Bar[i:Foo::A] => {x: ?} or test_fail()
             check f.x == Foo::A else test_fail()
         }
@@ -883,6 +892,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 fn test_not_operator() -> anyhow::Result<()> {
     let text = r#"
         action[null] test() {
+            if false { publish Pub {} }
             check !false else test_fail()
         }
     "#;
@@ -901,6 +911,7 @@ fn test_not_operator() -> anyhow::Result<()> {
 fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo(x: bool) {
+            if false { publish Pub {} }
             if x == true {
                 check false else test_fail()
             }
@@ -1094,6 +1105,7 @@ fn test_match_default() -> anyhow::Result<()> {
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo(val: int) {
+            if false { publish Pub {} }
             check val == bar() else test_fail()
         }
 
@@ -1220,6 +1232,7 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action[null] foo(x: bool, y: bool) {
+        if false { publish Pub {} }
         if x {
             check x else test_fail()
         }
@@ -1375,21 +1388,25 @@ fn test_coalesce_or() -> anyhow::Result<()> {
         }
 
         action[null] test_some_or() {
+            if false { publish Pub {} }
             let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
             check f.x == 42 else test_fail()
         }
 
         action[null] test_none_or() {
+            if false { publish Pub {} }
             let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
             check f.x == 99 else test_fail()
         }
 
         action[null] test_chain() {
+            if false { publish Pub {} }
             let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
             check f.x == 77 else test_fail()
         }
 
         action[null] test_chain_first_some() {
+            if false { publish Pub {} }
             let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
             check f.x == 42 else test_fail()
         }
@@ -1466,7 +1483,9 @@ fn test_nested_optionals() -> anyhow::Result<()> {
         .iter()
         .enumerate()
         .map(|(i, c)| {
-            format!("action[null] c{i}() {{ check {c} else test_fail(\"check failed\") }}")
+            format!(
+                "action[null] c{i}() {{ if false {{ publish Pub {{}} }} check {c} else test_fail(\"check failed\") }}"
+            )
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -1561,10 +1580,12 @@ fn test_debug_assert() -> anyhow::Result<()> {
     }
 
     action[null] test_debug_assert_failure() {
+        if false { publish Pub {} }
         debug_assert(false)
     }
 
     action[null] test_debug_assert_failure_expression() {
+        if false { publish Pub {} }
         debug_assert(get_false())
     }
 
@@ -1573,12 +1594,13 @@ fn test_debug_assert() -> anyhow::Result<()> {
     }
 
     action[null] test_debug_assert_pass() {
+        if false { publish Pub {} }
         debug_assert(true)
         debug_assert(get_true())
     }
     "#;
 
-    let policy = parse(text);
+    let policy = parse(&(text.to_owned() + PUB_COMMAND));
 
     let module = Compiler::new(&policy).debug(true).compile()?;
     let machine = Machine::from_module(module)?;
@@ -2207,7 +2229,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 fn test_boolean_operators() {
     fn check(expr: &str) {
         let machine = compile(&format!(
-            "action[null] f() {{ check {expr} else test_fail() }}"
+            "action[null] f() {{ if false {{ publish Pub {{}} }} check {expr} else test_fail() }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2234,7 +2256,7 @@ fn test_boolean_operators() {
 fn test_boolean_short_circuit() {
     fn run(expr: &str) -> ExitReason {
         let machine = compile(&format!(
-            "action[null] f() result[unit, int] {{ check {expr} else return Err(0) return Ok(Unit) }}"
+            "action[null] f() result[unit, int] {{ if false {{ publish Pub {{}} }} check {expr} else return Err(0) return Ok(Unit) }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2257,7 +2279,7 @@ fn test_boolean_short_circuit() {
 fn test_test_fail() {
     fn run(cond: &str) -> ExitReason {
         let machine = compile(&format!(
-            "action[null] f() {{ check {cond} else test_fail() }}"
+            "action[null] f() {{ if false {{ publish Pub {{}} }} check {cond} else test_fail() }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2277,7 +2299,7 @@ fn test_test_fail() {
 fn test_comparison_operators() {
     fn check(expr: &str) {
         let machine = compile(&format!(
-            "action[null] f() {{ check {expr} else test_fail() }}"
+            "action[null] f() {{ if false {{ publish Pub {{}} }} check {expr} else test_fail() }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2368,7 +2390,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 #[test]
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
-        action[null] foo() {
+        action[null] foo() { if false { publish Pub {} }
             check true else test_fail()
             // before
             check false else test_fail()
@@ -2400,6 +2422,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
 fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo() {
+            if false { publish Pub {} }
             check 42 == bar() else test_fail()
         }
 
@@ -2432,6 +2455,7 @@ fn test_return_expression() -> anyhow::Result<()> {
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo() {
+            if false { publish Pub {} }
             check 42 == bar() else test_fail()
         }
 
