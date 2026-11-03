@@ -5,34 +5,14 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <get_key 'Pub'>: 1,
-        <policy 'Pub'>: 8,
-        <action 'test'>: 15,
+        <fn 'test'>: 1,
     },
-    action_defs: [
-        ActionDef {
-            name: "test",
-            flavor: "null",
-            params: [],
-            result_type: Unit,
-        },
-    ],
-    command_defs: [
-        CommandDef {
-            name: "Pub",
-            flavor: "null",
-            attributes: [],
-            fields: [],
-        },
-    ],
+    action_defs: [],
+    command_defs: [],
     fact_defs: [],
     struct_defs: [
         StructDef {
             name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "Pub",
             items: [],
         },
         StructDef {
@@ -60,7 +40,47 @@ Module {
 }
 ---
     exit panic
-<get_key 'Pub'>:
+<fn 'test'>:
+    save SP
+    const Result::0
+    def 'ok'
+    get 'ok'
+    const Result::0
+    eq
+    branch 9
+    exit panic
+<9>:
+    get 'ok'
+    const Result::1
+    eq
+    not
+    branch 15
+    exit panic
+<15>:
+    get 'ok'
+    dup
+    const Result::0
+    eq
+    branch 24
+    dup
+    const Result::1
+    eq
+    branch 28
+<24>:
+    block
+    pop
+    end
+    jump 32
+<28>:
+    block
+    pop
+    end
+    jump 32
+<32>:
+    const true
+    restore SP
+    return
+    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -68,50 +88,3 @@ Module {
     restore SP
     return
     exit panic
-<policy 'Pub'>:
-    def 'envelope'
-    def 'this'
-    meta: finish enabled
-    block
-    end
-    exit normal
-    exit panic
-<action 'test'>:
-    struct.new 'Pub'
-    publish
-    const Result::0
-    def 'ok'
-    get 'ok'
-    const Result::0
-    eq
-    branch 24
-    exit panic
-<24>:
-    get 'ok'
-    const Result::1
-    eq
-    not
-    branch 30
-    exit panic
-<30>:
-    get 'ok'
-    dup
-    const Result::0
-    eq
-    branch 39
-    dup
-    const Result::1
-    eq
-    branch 43
-<39>:
-    block
-    pop
-    end
-    jump 47
-<43>:
-    block
-    pop
-    end
-    jump 47
-<47>:
-    return

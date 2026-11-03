@@ -5,33 +5,10 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <get_key 'Pub'>: 1,
-        <policy 'Pub'>: 8,
-        <action 'f'>: 15,
+        <fn 'f'>: 1,
     },
-    action_defs: [
-        ActionDef {
-            name: "f",
-            flavor: "null",
-            params: [
-                Field {
-                    name: "traffic",
-                    vtype: Struct(
-                        "Light",
-                    ),
-                },
-            ],
-            result_type: Unit,
-        },
-    ],
-    command_defs: [
-        CommandDef {
-            name: "Pub",
-            flavor: "null",
-            attributes: [],
-            fields: [],
-        },
-    ],
+    action_defs: [],
+    command_defs: [],
     fact_defs: [],
     struct_defs: [
         StructDef {
@@ -51,10 +28,6 @@ Module {
         },
         StructDef {
             name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "Pub",
             items: [],
         },
         StructDef {
@@ -86,26 +59,9 @@ Module {
 }
 ---
     exit panic
-<get_key 'Pub'>:
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
-    exit panic
-<policy 'Pub'>:
-    def 'envelope'
-    def 'this'
-    meta: finish enabled
-    block
-    end
-    exit normal
-    exit panic
-<action 'f'>:
+<fn 'f'>:
     def 'traffic'
-    struct.new 'Pub'
-    publish
+    save SP
     get 'traffic'
     dup
     struct.new 'Light'
@@ -114,7 +70,7 @@ Module {
     const false
     struct.set 'go'
     eq
-    branch 67
+    branch 52
     dup
     struct.new 'Light'
     const LightColor::0
@@ -122,75 +78,85 @@ Module {
     const true
     struct.set 'go'
     eq
+    branch 57
+    dup
+    struct.new 'Light'
+    const LightColor::1
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
+    branch 62
+    dup
+    struct.new 'Light'
+    const LightColor::1
+    struct.set 'color'
+    const true
+    struct.set 'go'
+    eq
+    branch 67
+    dup
+    struct.new 'Light'
+    const LightColor::2
+    struct.set 'color'
+    const false
+    struct.set 'go'
+    eq
     branch 72
     dup
     struct.new 'Light'
-    const LightColor::1
+    const LightColor::2
     struct.set 'color'
-    const false
+    const true
     struct.set 'go'
     eq
     branch 77
-    dup
-    struct.new 'Light'
-    const LightColor::1
-    struct.set 'color'
-    const true
-    struct.set 'go'
-    eq
-    branch 82
-    dup
-    struct.new 'Light'
-    const LightColor::2
-    struct.set 'color'
-    const false
-    struct.set 'go'
-    eq
-    branch 87
-    dup
-    struct.new 'Light'
-    const LightColor::2
-    struct.set 'color'
-    const true
-    struct.set 'go'
-    eq
-    branch 92
-<67>:
+<52>:
     block
     pop
     const 0
     end
-    jump 97
-<72>:
+    jump 82
+<57>:
     block
     pop
     const 1
     end
-    jump 97
-<77>:
+    jump 82
+<62>:
     block
     pop
     const 2
     end
-    jump 97
-<82>:
+    jump 82
+<67>:
     block
     pop
     const 3
     end
-    jump 97
-<87>:
+    jump 82
+<72>:
     block
     pop
     const 4
     end
-    jump 97
-<92>:
+    jump 82
+<77>:
     block
     pop
     const 5
     end
-    jump 97
-<97>:
+    jump 82
+<82>:
     def 'x'
+    const true
+    restore SP
     return
+    exit panic
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
+    exit panic

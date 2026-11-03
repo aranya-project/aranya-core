@@ -1,14 +1,7 @@
-action[null] f(n: int) {
-    publish Pub {}
+function f(n: int) bool {
     let x = match n {
         0 => None
         _ => Some(0)
     }
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
+    return true
 }

@@ -1,17 +1,10 @@
 fact Foo[i: int]=>{x: int}
 
-action[null] test() {
-    publish Pub {}
+function test() bool {
     let n = match query Foo[i: 1] {
         Some(f) => f.x
         None => 0
     }
     check n == 0 else test_fail()
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
+    return true
 }

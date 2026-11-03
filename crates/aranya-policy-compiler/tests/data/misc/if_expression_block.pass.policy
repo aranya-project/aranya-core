@@ -1,14 +1,7 @@
-action[null] f(n: int) {
-    publish Pub {}
+function f(n: int) bool {
     let x = if n > 1 {
         let x = saturating_add(n, 1)
         :x
     } else { :0 }
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
+    return true
 }

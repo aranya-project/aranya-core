@@ -5,25 +5,11 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <get_key 'Foo'>: 1,
-        <policy 'Foo'>: 8,
-        <get_key 'Pub'>: 1,
-        <policy 'Pub'>: 15,
-        <action 'foo'>: 22,
+        <get_key 'Foo'>: 29,
+        <policy 'Foo'>: 36,
+        <fn 'foo'>: 1,
     },
-    action_defs: [
-        ActionDef {
-            name: "foo",
-            flavor: "null",
-            params: [
-                Field {
-                    name: "b",
-                    vtype: Int,
-                },
-            ],
-            result_type: Unit,
-        },
-    ],
+    action_defs: [],
     command_defs: [
         CommandDef {
             name: "Foo",
@@ -39,12 +25,6 @@ Module {
                     vtype: Int,
                 },
             ],
-        },
-        CommandDef {
-            name: "Pub",
-            flavor: "null",
-            attributes: [],
-            fields: [],
         },
     ],
     fact_defs: [],
@@ -67,10 +47,6 @@ Module {
             items: [],
         },
         StructDef {
-            name: "Pub",
-            items: [],
-        },
-        StructDef {
             name: "StubBase",
             items: [],
         },
@@ -81,8 +57,38 @@ Module {
 }
 ---
     exit panic
+<fn 'foo'>:
+    def 'b'
+    save SP
+    const 4
+    def 'i'
+    get 'b'
+    const 0
+    eq
+    branch 13
+    block
+    const 3
+    end
+    jump 18
+<13>:
+    block
+    const 4
+    get 'i'
+    saturating_add
+    end
+<18>:
+    def 'x'
+    struct.new 'Foo'
+    get 'x'
+    struct.set 'a'
+    const 4
+    struct.set 'b'
+    def 'y'
+    const true
+    restore SP
+    return
+    exit panic
 <get_key 'Foo'>:
-<get_key 'Pub'>:
     def 'author_id'
     def 'this'
     save SP
@@ -98,40 +104,3 @@ Module {
     end
     exit normal
     exit panic
-<policy 'Pub'>:
-    def 'envelope'
-    def 'this'
-    meta: finish enabled
-    block
-    end
-    exit normal
-    exit panic
-<action 'foo'>:
-    def 'b'
-    struct.new 'Pub'
-    publish
-    const 4
-    def 'i'
-    get 'b'
-    const 0
-    eq
-    branch 35
-    block
-    const 3
-    end
-    jump 40
-<35>:
-    block
-    const 4
-    get 'i'
-    saturating_add
-    end
-<40>:
-    def 'x'
-    struct.new 'Foo'
-    get 'x'
-    struct.set 'a'
-    const 4
-    struct.set 'b'
-    def 'y'
-    return

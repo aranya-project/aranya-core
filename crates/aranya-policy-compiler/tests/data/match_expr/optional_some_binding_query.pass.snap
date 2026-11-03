@@ -5,26 +5,10 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <get_key 'Pub'>: 1,
-        <policy 'Pub'>: 8,
-        <action 'test'>: 15,
+        <fn 'test'>: 1,
     },
-    action_defs: [
-        ActionDef {
-            name: "test",
-            flavor: "null",
-            params: [],
-            result_type: Unit,
-        },
-    ],
-    command_defs: [
-        CommandDef {
-            name: "Pub",
-            flavor: "null",
-            attributes: [],
-            fields: [],
-        },
-    ],
+    action_defs: [],
+    command_defs: [],
     fact_defs: [
         FactDef {
             name: "Foo",
@@ -62,10 +46,6 @@ Module {
             items: [],
         },
         StructDef {
-            name: "Pub",
-            items: [],
-        },
-        StructDef {
             name: "StubBase",
             items: [],
         },
@@ -76,7 +56,45 @@ Module {
 }
 ---
     exit panic
-<get_key 'Pub'>:
+<fn 'test'>:
+    save SP
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    query
+    dup
+    is some
+    branch 13
+    dup
+    const None
+    eq
+    branch 20
+<13>:
+    block
+    unwrap some
+    def 'f'
+    get 'f'
+    struct.get 'x'
+    end
+    jump 25
+<20>:
+    block
+    pop
+    const 0
+    end
+    jump 25
+<25>:
+    def 'n'
+    get 'n'
+    const 0
+    eq
+    branch 31
+    exit panic
+<31>:
+    const true
+    restore SP
+    return
+    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -84,48 +102,3 @@ Module {
     restore SP
     return
     exit panic
-<policy 'Pub'>:
-    def 'envelope'
-    def 'this'
-    meta: finish enabled
-    block
-    end
-    exit normal
-    exit panic
-<action 'test'>:
-    struct.new 'Pub'
-    publish
-    fact.new 'Foo'
-    const 1
-    fact.kset 'i'
-    query
-    dup
-    is some
-    branch 28
-    dup
-    const None
-    eq
-    branch 35
-<28>:
-    block
-    unwrap some
-    def 'f'
-    get 'f'
-    struct.get 'x'
-    end
-    jump 40
-<35>:
-    block
-    pop
-    const 0
-    end
-    jump 40
-<40>:
-    def 'n'
-    get 'n'
-    const 0
-    eq
-    branch 46
-    exit panic
-<46>:
-    return

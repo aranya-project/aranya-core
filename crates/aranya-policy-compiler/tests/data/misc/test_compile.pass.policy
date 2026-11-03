@@ -7,19 +7,12 @@ command Foo with StubBase {
         finish {}
     }
 }
-action[null] foo(b: int) {
-    publish Pub {}
+function foo(b: int) bool {
     let i = 4
     let x = if b == 0 { :saturating_add(4, i) } else { :3 }
     let y = Foo{
         a: x,
         b: 4
     }
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
+    return true
 }

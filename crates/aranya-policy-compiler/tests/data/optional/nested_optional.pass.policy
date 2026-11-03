@@ -2,14 +2,7 @@ function f() option[option[int]] {
     return Some(Some(1))
 }
 
-action[null] a() {
-    publish Pub {}
+function a() bool {
     let x = f()
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
+    return true
 }

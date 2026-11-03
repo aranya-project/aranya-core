@@ -1,15 +1,8 @@
-action[null] f(n: int) {
-    publish Pub {}
+function f(n: int) bool {
     let b = match n {
         0 => false
         _ => true
     }
     check b else test_fail()
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
+    return true
 }

@@ -5,39 +5,14 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <get_key 'Pub'>: 1,
-        <policy 'Pub'>: 8,
-        <action 'f'>: 15,
+        <fn 'f'>: 1,
     },
-    action_defs: [
-        ActionDef {
-            name: "f",
-            flavor: "null",
-            params: [
-                Field {
-                    name: "n",
-                    vtype: Int,
-                },
-            ],
-            result_type: Unit,
-        },
-    ],
-    command_defs: [
-        CommandDef {
-            name: "Pub",
-            flavor: "null",
-            attributes: [],
-            fields: [],
-        },
-    ],
+    action_defs: [],
+    command_defs: [],
     fact_defs: [],
     struct_defs: [
         StructDef {
             name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "Pub",
             items: [],
         },
         StructDef {
@@ -51,7 +26,37 @@ Module {
 }
 ---
     exit panic
-<get_key 'Pub'>:
+<fn 'f'>:
+    def 'n'
+    save SP
+    get 'n'
+    dup
+    const 0
+    eq
+    branch 9
+    jump 14
+<9>:
+    block
+    pop
+    const false
+    end
+    jump 19
+<14>:
+    block
+    pop
+    const true
+    end
+    jump 19
+<19>:
+    def 'b'
+    get 'b'
+    branch 23
+    exit panic
+<23>:
+    const true
+    restore SP
+    return
+    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -59,40 +64,3 @@ Module {
     restore SP
     return
     exit panic
-<policy 'Pub'>:
-    def 'envelope'
-    def 'this'
-    meta: finish enabled
-    block
-    end
-    exit normal
-    exit panic
-<action 'f'>:
-    def 'n'
-    struct.new 'Pub'
-    publish
-    get 'n'
-    dup
-    const 0
-    eq
-    branch 24
-    jump 29
-<24>:
-    block
-    pop
-    const false
-    end
-    jump 34
-<29>:
-    block
-    pop
-    const true
-    end
-    jump 34
-<34>:
-    def 'b'
-    get 'b'
-    branch 38
-    exit panic
-<38>:
-    return
