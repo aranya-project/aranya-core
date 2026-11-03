@@ -93,7 +93,7 @@ heapless = { workspace = true }
 hex = { workspace = true, features = ["std"], optional = true }
 libc = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 thiserror = { workspace = true }
 
 

@@ -1,7 +1,7 @@
 use alloc::string::String;
 use core::{borrow::Borrow, fmt, num::NonZeroUsize, str::FromStr};
 
-use serde::de;
+use serde_core::de;
 
 use crate::{
     Text,
@@ -139,10 +139,10 @@ impl Borrow<str> for Identifier {
     }
 }
 
-impl serde::Serialize for Identifier {
+impl serde_core::Serialize for Identifier {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: serde_core::Serializer,
     {
         self.0.serialize(serializer)
     }

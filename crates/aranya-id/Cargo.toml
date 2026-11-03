@@ -33,7 +33,7 @@ derive-where = { workspace = true }
 paste = { workspace = true }
 proptest = { workspace = true, optional = true }
 rkyv = { workspace = true }
-serde = { workspace = true }
+serde_core = { workspace = true }
 zerocopy = { workspace = true }
 zerocopy-derive = { workspace = true }
 

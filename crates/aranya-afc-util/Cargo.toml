@@ -46,7 +46,7 @@ aranya-fast-channels = { version = "0.20.0", path = "../aranya-fast-channels", d
 aranya-policy-vm = { version = "0.24.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
 buggy = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 spin = { workspace = true, features = ["mutex", "spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }

@@ -31,7 +31,7 @@ aranya-idam-ffi = { path = "../aranya-idam-ffi" }
 aranya-perspective-ffi = { path = "../aranya-perspective-ffi" }
 
 postcard = { workspace = true, features = ["alloc"] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 tempfile = { workspace = true }
 test-log = { workspace = true }
 

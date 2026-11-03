@@ -30,7 +30,7 @@ heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
 rend = { workspace = true, features = ["zerocopy-0_8"] }
 rkyv = { workspace = true }
-serde = { workspace = true, features = ["derive", "alloc"] }
+serde = { workspace = true, features = ["alloc"] }
 spideroak-base58 = { workspace = true }
 stable_deref_trait = { workspace = true, features = ["alloc"] }
 thiserror = { workspace = true }
