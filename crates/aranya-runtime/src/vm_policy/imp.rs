@@ -457,7 +457,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
                         let data = VmProtocolData {
                             author_id: envelope.author_id,
-                            kind: command_name.clone(),
+                            kind: command_name,
                             serialized_fields: &payload,
                             signature: &envelope.signature,
                         };

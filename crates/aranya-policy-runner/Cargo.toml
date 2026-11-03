@@ -35,9 +35,6 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
-[build-dependencies]
-aranya-policy-ifgen-build = { version = "0.18.0", path = "../aranya-policy-ifgen-build" }
-
 [lints]
 workspace = true
 

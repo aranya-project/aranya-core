@@ -191,7 +191,7 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
             data
         };
         let (plaintext, got_seq) = {
-            let mut data = ciphertext.clone();
+            let mut data = ciphertext;
             let d2_channel_id = d2.get_local_channel_id(global_id).unwrap_or_else(|| {
                 panic!("device {id2} should have channel for global_id {global_id:?}")
             });
@@ -380,7 +380,7 @@ pub fn test_remove<T: TestImpl, A: Aead>() {
                 data
             };
             let (plaintext, got_seq) = {
-                let mut data = ciphertext.clone();
+                let mut data = ciphertext;
                 let mut open_ctx = c.setup_open_ctx(device_channel_id).expect("can set up ctx");
                 let (_, seq) = c
                     .open_in_place(&mut open_ctx, &mut data)
@@ -443,7 +443,7 @@ pub fn test_remove_all<T: TestImpl, A: Aead>() {
                 data
             };
             let (plaintext, got_seq) = {
-                let mut data = ciphertext.clone();
+                let mut data = ciphertext;
 
                 let mut open_ctx = c.setup_open_ctx(device_channel_id).expect("can set up ctx");
                 let (_, seq) = c
@@ -517,7 +517,7 @@ pub fn test_remove_if<T: TestImpl, A: Aead>() {
                 data
             };
             let (plaintext, got_seq) = {
-                let mut data = ciphertext.clone();
+                let mut data = ciphertext;
                 let mut open_ctx = c.setup_open_ctx(device_channel_id).expect("can set up ctx");
                 let (_, seq) = c
                     .open_in_place(&mut open_ctx, &mut data)
@@ -602,7 +602,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
                 data
             };
             let (plaintext, got_seq) = {
-                let mut data = ciphertext.clone();
+                let mut data = ciphertext;
                 let mut open_ctx = c.setup_open_ctx(device_channel_id).expect("can set up ctx");
                 let (_, seq) = c
                     .open_in_place(&mut open_ctx, &mut data)
@@ -676,7 +676,7 @@ pub fn test_channels_exist<T: TestImpl, A: Aead>() {
                 data
             };
             let (plaintext, got_seq) = {
-                let mut data = ciphertext.clone();
+                let mut data = ciphertext;
                 let mut open_ctx = c.setup_open_ctx(device_channel_id).expect("can set up ctx");
                 let (_, seq) = c
                     .open_in_place(&mut open_ctx, &mut data)
@@ -757,7 +757,7 @@ pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
                 data
             };
             let (plaintext, got_seq) = {
-                let mut data = ciphertext.clone();
+                let mut data = ciphertext;
                 let mut open_ctx = c.setup_open_ctx(device_channel_id).expect("can set up ctx");
                 let (_, seq) = c
                     .open_in_place(&mut open_ctx, &mut data)

@@ -208,6 +208,14 @@ mod alloc_impls {
         }
     }
 
+    impl core::str::FromStr for Box<Path> {
+        type Err = InvalidPathError;
+
+        fn from_str(path: &str) -> Result<Self, Self::Err> {
+            Self::try_from(path)
+        }
+    }
+
     impl TryFrom<&[u8]> for Box<Path> {
         type Error = InvalidPathError;
 

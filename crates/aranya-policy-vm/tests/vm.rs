@@ -1350,7 +1350,7 @@ fn test_check_errors() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name.clone());
         let mut rs = machine.create_run_state(&mut io, ctx);
         let self_struct = Struct {
-            name: name.clone(),
+            name,
             fields: BTreeMap::new(),
         };
         let result = rs.call_command_policy(self_struct, null_envelope())?;
@@ -2035,8 +2035,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             let action_args = args.iter().map(KVPair::value).cloned();
 
             assert_eq!(
-                call_action(&mut rs, &mut published, name.clone(), action_args)
-                    .map_err(|e| e.err_type),
+                call_action(&mut rs, &mut published, name, action_args).map_err(|e| e.err_type),
                 expected
             );
         }
@@ -2048,7 +2047,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             let mut rs = machine.create_run_state(&mut io, ctx);
 
             assert_eq!(
-                rs.call_command_policy(Struct::new(name.clone(), args), null_envelope())
+                rs.call_command_policy(Struct::new(name, args), null_envelope())
                     .map_err(|e| e.err_type),
                 expected
             );
