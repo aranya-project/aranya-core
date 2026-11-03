@@ -36,15 +36,8 @@ proptest = [
 aranya-policy-text = { version = "0.1.5", path = "../aranya-policy-text", default-features = false }
 
 rkyv = { workspace = true, features = ["alloc"] }
-serde = { workspace = true, default-features = false, features = ["alloc"] }
-serde_derive = { workspace = true }
-thiserror = { workspace = true, default-features = false }
+serde = { workspace = true, features = ["alloc"] }
+thiserror = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true
-
-
-[package.metadata.cargo-machete]
-ignored = [
-	"serde", # Used by serde_derive.
-]

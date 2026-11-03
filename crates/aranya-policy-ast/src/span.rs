@@ -4,7 +4,7 @@ use core::{
     ops::{Bound, Range, RangeBounds},
 };
 
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// Wraps a type to add a [`Span`].
 ///

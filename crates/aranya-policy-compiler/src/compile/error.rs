@@ -239,6 +239,13 @@ pub(crate) struct InvalidCast {
 /// Cyclic type definitions detected.
 pub(crate) struct CyclicTypeDefinitions(pub String, pub Vec<Vec<Ident>>);
 
+/// A group of mutually recursive callables.
+pub(crate) struct RecursiveCall {
+    /// The calls in the recursion, as the caller's name and the callee name at the call
+    /// site, in source order.
+    pub calls: Vec<(Identifier, Ident)>,
+}
+
 /// Type mismatch in struct composition — a source struct field has a different type
 /// than the corresponding field in the target struct.
 pub(crate) struct StructCompositionTypeMismatch {

@@ -6,7 +6,7 @@ use core::{
     str::FromStr,
 };
 
-use serde::de;
+use serde_core::de;
 
 use crate::{
     error::{InvalidText, InvalidTextRepr},
@@ -156,19 +156,19 @@ impl Add for &Text {
     }
 }
 
-impl serde::Serialize for Text {
+impl serde_core::Serialize for Text {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: serde_core::Serializer,
     {
         self.0.serialize(serializer)
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Text {
+impl<'de> serde_core::Deserialize<'de> for Text {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: serde_core::Deserializer<'de>,
     {
         let r = Repr::deserialize(deserializer)?;
         Self::validate(r.as_str()).map_err(|_| {
