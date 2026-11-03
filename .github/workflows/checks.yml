@@ -49,7 +49,7 @@ jobs:
   # ==== Correctness =====
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -57,7 +57,7 @@ jobs:
       - name: Install taplo-cli
         run: |
           curl -L https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz \
-            | gunzip > ~/.cargo/bin/taplo-cli
+            | gunzip > ~/.cargo/bin/taplo
 
       - name: Check formatting
         run: cargo make check-fmt
@@ -81,7 +81,7 @@ jobs:
         run: cargo make clippy
 
   machete:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -198,15 +198,10 @@ jobs:
   # ==== Security ====
 
   security-checks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-
-      - name: Install cargo-audit
-        uses: aranya-project/install-action@main
-        with:
-          tool: cargo-audit@0.22.0
 
       - name: Install cargo-deny
         uses: aranya-project/install-action@main
@@ -277,7 +272,7 @@ jobs:
 
   failure-alert:
     if: ${{ cancelled() || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'failure') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     needs:
       # ==== Build ====
