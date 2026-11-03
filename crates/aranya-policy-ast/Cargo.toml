@@ -34,7 +34,7 @@ proptest = [
 [dependencies]
 aranya-policy-text = { version = "0.1.5", path = "../aranya-policy-text", default-features = false }
 
-thiserror = { workspace = true, default-features = false }
+thiserror = { workspace = true }
 
 
 [package.metadata.docs.rs]
