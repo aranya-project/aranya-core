@@ -137,8 +137,7 @@ client-daemon model with shared memory backend.
 ### Code Quality Standards
 
 - Clippy linting with custom rules in `clippy.toml`.
-- Comprehensive security checks via `cargo-deny`, `cargo-audit`,
-  `cargo-vet`.
+- Comprehensive security checks via `cargo-deny` and `cargo-vet`.
 - Strict linting: arithmetic side effects warnings, unwrap/panic
   restrictions.
 - Feature compatibility testing across all crate feature
