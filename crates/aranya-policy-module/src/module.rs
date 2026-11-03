@@ -1,7 +1,5 @@
 //! Serializable [`Machine`][super::machine::Machine] state.
 
-extern crate alloc;
-
 mod contract;
 mod io;
 pub mod v1;

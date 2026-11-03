@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::borrow::Cow;
 
 use aranya_crypto::DeviceId;
