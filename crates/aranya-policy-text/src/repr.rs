@@ -92,10 +92,10 @@ impl core::hash::Hash for Repr {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Repr {
+impl<'de> serde_core::Deserialize<'de> for Repr {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: serde_core::Deserializer<'de>,
     {
         // No arc pooling for serde :(
         // We use `Cow` so we can often avoid allocating when the string
@@ -105,10 +105,10 @@ impl<'de> serde::Deserialize<'de> for Repr {
     }
 }
 
-impl serde::Serialize for Repr {
+impl serde_core::Serialize for Repr {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: serde_core::Serializer,
     {
         self.as_str().serialize(serializer)
     }

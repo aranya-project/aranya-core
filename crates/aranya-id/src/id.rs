@@ -5,7 +5,7 @@ use core::{
 };
 
 use derive_where::derive_where;
-use serde::{
+use serde_core::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{self, SeqAccess, Visitor},
 };

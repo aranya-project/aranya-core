@@ -19,7 +19,7 @@ test_cfg = []
 
 [dependencies]
 aranya-capi-core = { path = "../aranya-capi-core", features = ["debug"] }
-buggy = { version = "0.1.0" }
+buggy = { workspace = true }
 
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -31,7 +31,6 @@ anyhow = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true, features = ["extra-traits", "full"] }
 tracing = { workspace = true, features = ["std"] }
-tracing-appender = { version = "0.2.3" }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry", "std"] }
 
 

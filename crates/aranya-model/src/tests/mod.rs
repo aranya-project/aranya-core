@@ -132,7 +132,7 @@ impl ClientFactory for FfiClientFactory {
     fn create_client(&mut self, (): ()) -> ModelClient<Self> {
         // Setup keystore
         let temp_dir = tempdir().expect("should create temp directory");
-        let root = temp_dir.into_path().join("client");
+        let root = temp_dir.keep().join("client");
         assert!(
             !root.try_exists().expect("should create root path"),
             "duplicate client name"
@@ -1405,7 +1405,7 @@ fn should_create_clients_with_args() {
         .add_client_with(Device::A, {
             // Setup keystore
             let temp_dir = tempdir().expect("should create temp directory");
-            let root = temp_dir.into_path().join("client");
+            let root = temp_dir.keep().join("client");
             assert!(
                 !root.try_exists().expect("should create root path"),
                 "duplicate client name"
@@ -1486,7 +1486,7 @@ fn should_create_clients_with_args() {
         .add_client_with(Device::B, {
             // Setup keystore
             let temp_dir = tempdir().expect("should create temp directory");
-            let root = temp_dir.into_path().join("client");
+            let root = temp_dir.keep().join("client");
             assert!(
                 !root.try_exists().expect("should create root path"),
                 "duplicate client name"
