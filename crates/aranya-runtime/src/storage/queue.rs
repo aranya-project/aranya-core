@@ -240,7 +240,7 @@ impl TraversalQueueNoDuplicates {
         self.entries.clear();
     }
 
-    /// Enqueues a location as uncovered.
+    /// Enqueues a location while deduplicating segments.
     ///
     /// If an entry with the same segment exists, its max cut will be updated
     /// to the max of the two.
@@ -253,7 +253,7 @@ impl TraversalQueueNoDuplicates {
         Ok(())
     }
 
-    /// Pop the location with the highest max cut, discarding the covered flag.
+    /// Pop the location with the highest max cut.
     pub(crate) fn pop(&mut self) -> Result<Option<Location>, StorageError> {
         let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
             return Ok(None);
@@ -276,9 +276,8 @@ impl TraversalQueueWithDuplicates {
 
     /// Enqueues a location without deduplication.
     ///
-    /// Unlike [`Self::push`], each call adds a new entry even if the location
-    /// is already present. Used by the convergence pre-pass where
-    /// duplicate tracking is needed.
+    /// Each call adds a new entry even if the location is already present.
+    /// Used by the convergence pre-pass where duplicate tracking is needed.
     pub(crate) fn push_duplicate(&mut self, loc: Location) -> Result<(), StorageError> {
         self.entries.push(loc);
         Ok(())
