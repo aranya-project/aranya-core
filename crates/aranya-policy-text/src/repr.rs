@@ -61,7 +61,7 @@ impl Default for Repr {
 }
 
 impl core::fmt::Debug for Repr {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         self.as_str().fmt(f)
     }
 }

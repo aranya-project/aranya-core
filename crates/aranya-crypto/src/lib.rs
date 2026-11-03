@@ -43,6 +43,9 @@
 #![warn(missing_docs)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 pub mod afc;
 pub mod apq;
 mod aranya;

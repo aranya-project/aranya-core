@@ -66,7 +66,7 @@ impl From<syn::Item> for Item {
 }
 
 impl Parse for Item {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let item = input.parse::<syn::Item>()?;
         Ok(item.into())
     }

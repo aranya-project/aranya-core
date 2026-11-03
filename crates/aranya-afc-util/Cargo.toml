@@ -15,12 +15,7 @@ workspace = true
 bench = false
 
 [features]
-default = [
-	"alloc",
-]
-
-# Enable allocations.
-alloc = []
+default = []
 
 std = [
 	"aranya-crypto/std",
@@ -35,8 +30,6 @@ std = [
 
 # Enable the `testing` module.
 testing = [
-	"alloc",
-
 	"aranya-crypto/memstore",
 ]
 

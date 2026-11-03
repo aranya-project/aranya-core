@@ -1,5 +1,5 @@
 //! Data definitions used by the FFI interface
-extern crate alloc;
+
 use alloc::boxed::Box;
 
 use aranya_policy_ast::{Identifier, ResultTypeKind, Span, TypeKind, VType, WithSpanExt as _};
@@ -48,7 +48,7 @@ impl Type<'_> {
 }
 
 impl From<&Type<'_>> for VType {
-    fn from(value: &Type<'_>) -> Self {
+    fn from(value: &Type) -> Self {
         let kind = match value {
             Type::Unit => TypeKind::Unit,
             Type::String => TypeKind::String,

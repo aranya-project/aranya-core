@@ -15,17 +15,10 @@ workspace = true
 bench = false
 
 [features]
-default = ["alloc"]
-
-# Enable allocations.
-alloc = [
-	"aranya-crypto/alloc",
-]
+default = []
 
 # Enable `std`.
 std = [
-	"alloc",
-
 	"aranya-crypto/std",
 	"aranya-policy-vm/std",
 	"postcard/use-std",
@@ -54,6 +47,5 @@ all-features = true
 
 [package.metadata.cargo-all-features]
 always_include_features = [
-	"alloc",
 	"testing",
 ]

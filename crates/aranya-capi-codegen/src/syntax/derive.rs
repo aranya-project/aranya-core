@@ -24,7 +24,7 @@ impl Derives {
         self.0.iter().any(|d| d.what == what)
     }
 
-    pub(super) fn parse(ctx: &Ctx, input: ParseStream<'_>) -> Result<Self> {
+    pub(super) fn parse(ctx: &Ctx, input: ParseStream) -> Result<Self> {
         let paths = input.parse_terminated(Path::parse_mod_style, Token![,])?;
         let mut derives = Vec::new();
         for path in paths {

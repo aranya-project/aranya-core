@@ -18,7 +18,7 @@ pub struct InvalidOperator {
 }
 
 impl Display for InvalidOperator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Invalid operator")
     }
 }
@@ -31,7 +31,7 @@ pub struct InvalidVersion {
 }
 
 impl Display for InvalidVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let found = &self.found;
         let required = &self.required;
         write!(
@@ -51,7 +51,7 @@ pub struct InvalidNestedOption {
 }
 
 impl Display for InvalidNestedOption {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Invalid nested option")
     }
 }
@@ -115,7 +115,7 @@ impl From<InvalidNestedOption> for ParseErrorKind {
 }
 
 impl Display for ParseErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::InvalidOperator(inner) => write!(f, "{inner}"),
             Self::InvalidNestedOption(inner) => write!(f, "{inner}"),
@@ -213,7 +213,7 @@ impl core::error::Error for ParseError {}
 
 // Forward to display impl so e.g. `unwrap` looks good.
 impl Debug for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
     }
 }

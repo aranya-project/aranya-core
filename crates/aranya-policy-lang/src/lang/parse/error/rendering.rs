@@ -108,7 +108,7 @@ impl Report for InvalidNestedOption {
 }
 
 impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let Self {
             kind,
             message,

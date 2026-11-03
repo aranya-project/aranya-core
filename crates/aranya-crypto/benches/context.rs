@@ -57,7 +57,7 @@ where
 // HKDF-SHA256/hashed/32/0
 // HKDF-SHA256/hashed/32/16
 fn bench_expand<K: Kdf>(c: &mut Criterion, name: &str) {
-    fn bench<S, K, M>(g: &mut BenchmarkGroup<'_, M>, name: &str, out: &mut [u8], info: &[u8])
+    fn bench<S, K, M>(g: &mut BenchmarkGroup<M>, name: &str, out: &mut [u8], info: &[u8])
     where
         S: Spec<K>,
         K: Kdf,

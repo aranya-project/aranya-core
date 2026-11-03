@@ -6,6 +6,8 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
+extern crate alloc;
+
 pub mod automap;
 mod codemap;
 mod data;

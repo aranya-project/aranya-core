@@ -331,7 +331,7 @@ fn type_path_matches(path: &TypePath, want: &str) -> bool {
 }
 
 impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let name = match self {
             Self::CBytes(_) => "CBytes",
             Self::CStr(_) => "CStr",
@@ -740,7 +740,7 @@ impl ToTokens for ReturnType {
 }
 
 impl fmt::Display for ReturnType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Default => write!(f, "(default)"),
             Self::Type(_, ty) => ty.fmt(f),

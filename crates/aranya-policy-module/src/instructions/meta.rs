@@ -23,7 +23,7 @@ pub enum Meta {
 }
 
 impl fmt::Display for Meta {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Finish(b) => {
                 if *b {

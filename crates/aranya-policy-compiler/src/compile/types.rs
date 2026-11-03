@@ -170,7 +170,7 @@ impl IdentifierTypeStack {
 pub(crate) struct IdentNotDefined;
 
 impl Display for IdentNotDefined {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("identifier not found")
     }
 }
@@ -203,7 +203,7 @@ pub fn check_type(vtype: VType, target_type: VType) -> Result<VType, InvalidType
 pub struct DisplayType<'a>(pub &'a VType);
 
 impl Display for DisplayType<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.0.inner {
             TypeKind::String => f.write_str("string"),
             TypeKind::Bytes => f.write_str("bytes"),
