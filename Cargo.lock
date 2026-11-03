@@ -284,7 +284,7 @@ dependencies = [
  "postcard",
  "proptest",
  "rkyv",
- "serde",
+ "serde_core",
  "serde_json",
  "spideroak-base58",
  "zerocopy 0.8.25",
@@ -299,7 +299,6 @@ dependencies = [
  "aranya-idam-ffi",
  "aranya-policy-vm",
  "postcard",
- "serde",
  "thiserror",
  "tracing",
 ]
@@ -350,7 +349,6 @@ dependencies = [
  "aranya-policy-text",
  "rkyv",
  "serde",
- "serde_derive",
  "thiserror",
 ]
 
@@ -490,7 +488,7 @@ dependencies = [
  "aranya-policy-text-macro",
  "proptest",
  "rkyv",
- "serde",
+ "serde_core",
  "thiserror",
 ]
 
