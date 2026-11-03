@@ -28,7 +28,7 @@ aranya-policy-vm = { version = "0.24.0", path = "../aranya-policy-vm" }
 aranya-runtime = { version = "0.25.0", path = "../aranya-runtime", features = ["std", "libc"] }
 
 anyhow = { workspace = true }
-clap = { version = "4.5", features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
 postcard = { workspace = true }
 rand = { workspace = true, features = ["std_rng"] }
 thiserror = { workspace = true }
