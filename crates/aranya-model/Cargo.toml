@@ -32,7 +32,7 @@ aranya-perspective-ffi = { path = "../aranya-perspective-ffi" }
 
 postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, features = ["derive"] }
-tempfile = { version = "3.8.1" }
+tempfile = { workspace = true }
 test-log = { workspace = true }
 
 [package.metadata.docs.rs]

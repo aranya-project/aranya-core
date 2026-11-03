@@ -82,18 +82,18 @@ unsafe_debug = [
 
 [dependencies]
 aranya-crypto = { version = "0.15.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
-buggy = { version = "0.1.0", default-features = false }
+buggy = { workspace = true }
 
-const_format = { version = "0.2.31", features = ["assertcp"] }
+const_format = { workspace = true, features = ["assertcp"] }
 derive-where = { workspace = true }
-errno = { workspace = true, default-features = false }
-heapless = { workspace = true, default-features = false }
+errno = { workspace = true }
+heapless = { workspace = true }
 # Only enabled by the `testing` feature which already enables
 # `std`.
-hex = { version = "0.4", default-features = false, features = ["std"], optional = true }
-libc = { workspace = true, default-features = false, optional = true }
-log = { workspace = true, default-features = false, optional = true }
-serde = { workspace = true, default-features = false, features = ["derive"] }
+hex = { workspace = true, features = ["std"], optional = true }
+libc = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 
 
@@ -101,8 +101,8 @@ thiserror = { workspace = true }
 aranya-fast-channels = { path = ".", features = ["testing"] }
 
 criterion = { workspace = true }
-serde_test = { version = "1" }
-serial_test = { version = "3.5", default-features = false }
+serde_test = { workspace = true }
+serial_test = { workspace = true }
 
 
 [[bench]]
