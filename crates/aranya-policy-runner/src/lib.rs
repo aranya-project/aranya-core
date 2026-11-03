@@ -245,9 +245,7 @@ impl PolicyRunner {
         tracing::debug!("Policy compiled successfully");
         if self.validator {
             tracing::debug!("Running validator");
-            if validate(&module) {
-                return Err(anyhow::anyhow!("Could not validate module"));
-            }
+            validate(&module).context("could not validate module")?;
             tracing::debug!("Policy validated");
         }
         tracing::debug!("Creating VM");
