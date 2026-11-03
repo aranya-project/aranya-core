@@ -3,5 +3,13 @@ function f() option[option[int]] {
 }
 
 action[null] a() {
+    publish Pub {}
     let x = f()
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
+    }
 }

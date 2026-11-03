@@ -5,8 +5,10 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'can_fail'>: 9,
-        <action 'infallible'>: 8,
+        <get_key 'Pub'>: 1,
+        <policy 'Pub'>: 8,
+        <action 'can_fail'>: 18,
+        <action 'infallible'>: 15,
     },
     action_defs: [
         ActionDef {
@@ -32,11 +34,22 @@ Module {
             ),
         },
     ],
-    command_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "Pub",
+            flavor: "null",
+            attributes: [],
+            fields: [],
+        },
+    ],
     fact_defs: [],
     struct_defs: [
         StructDef {
             name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "Pub",
             items: [],
         },
         StructDef {
@@ -50,6 +63,7 @@ Module {
 }
 ---
     exit panic
+<get_key 'Pub'>:
     def 'author_id'
     def 'this'
     save SP
@@ -57,7 +71,17 @@ Module {
     restore SP
     return
     exit panic
+<policy 'Pub'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
 <action 'infallible'>:
+    struct.new 'Pub'
+    publish
     return
 <action 'can_fail'>:
     def 'x'
@@ -66,15 +90,17 @@ Module {
     const 0
     gt
     not
-    branch 23
+    branch 34
     block
+    struct.new 'Pub'
+    publish
     const ()
     wrap ok
     restore SP
     return
     end
-    jump 23
-<23>:
+    jump 34
+<34>:
     const "negative input"
     wrap err
     restore SP

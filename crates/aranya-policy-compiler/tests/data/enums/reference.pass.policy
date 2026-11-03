@@ -1,5 +1,6 @@
 enum Result { OK, Error }
 action[null] test() {
+    publish Pub {}
     let ok = Result::OK
     check ok == Result::OK else test_fail()
     check ok != Result::Error else test_fail()
@@ -7,5 +8,12 @@ action[null] test() {
     match ok {
         Result::OK => {}
         Result::Error => {}
+    }
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
     }
 }

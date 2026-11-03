@@ -1,7 +1,15 @@
 action[null] f(maybe_bool: option[bool]) {
+    publish Pub {}
     let x = match maybe_bool {
         None => 0
         Some(true) => 1
         Some(false) => 2
+    }
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
     }
 }

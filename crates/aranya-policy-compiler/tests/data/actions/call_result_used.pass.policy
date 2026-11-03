@@ -1,8 +1,16 @@
 // Using a fallible action's result satisfies the "must be used" rule.
 action[null] can_fail() result[unit, string] {
+    publish Pub {}
     return Err("nope")
 }
 
 action[null] propagates() result[unit, string] {
     return action can_fail()
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
+    }
 }

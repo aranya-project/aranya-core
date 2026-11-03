@@ -1,4 +1,12 @@
 fact Foo[i: int] => {a: string}
 action[null] test() {
+    publish Pub {}
     check exists Foo[i: 1] => {a: ?} else test_fail()
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
+    }
 }

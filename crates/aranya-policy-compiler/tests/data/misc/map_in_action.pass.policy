@@ -1,6 +1,14 @@
 fact Pet[name: string]=>{age: int}
 action[null] pets() {
+    publish Pub {}
     map Pet[name:?] as p {
         let age = p.age
+    }
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
     }
 }

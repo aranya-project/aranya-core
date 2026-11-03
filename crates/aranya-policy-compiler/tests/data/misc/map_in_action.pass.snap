@@ -5,7 +5,9 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'pets'>: 8,
+        <get_key 'Pub'>: 1,
+        <policy 'Pub'>: 8,
+        <action 'pets'>: 15,
     },
     action_defs: [
         ActionDef {
@@ -15,7 +17,14 @@ Module {
             result_type: Unit,
         },
     ],
-    command_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "Pub",
+            flavor: "null",
+            attributes: [],
+            fields: [],
+        },
+    ],
     fact_defs: [
         FactDef {
             name: "Pet",
@@ -53,6 +62,10 @@ Module {
             ],
         },
         StructDef {
+            name: "Pub",
+            items: [],
+        },
+        StructDef {
             name: "StubBase",
             items: [],
         },
@@ -63,6 +76,7 @@ Module {
 }
 ---
     exit panic
+<get_key 'Pub'>:
     def 'author_id'
     def 'this'
     save SP
@@ -70,18 +84,28 @@ Module {
     restore SP
     return
     exit panic
+<policy 'Pub'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
 <action 'pets'>:
+    struct.new 'Pub'
+    publish
     fact.new 'Pet'
     query.start
-<10>:
+<19>:
     block
     query.next 'p'
-    branch 18
+    branch 27
     get 'p'
     struct.get 'age'
     def 'age'
     end
-    jump 10
-<18>:
+    jump 19
+<27>:
     end
     return

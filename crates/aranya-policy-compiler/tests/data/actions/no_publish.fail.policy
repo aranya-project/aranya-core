@@ -1,4 +1,4 @@
-// An action must publish a command.
+// An action must publish a command or call another action.
 action[null] oops(x: int) {
     let y = x
 }

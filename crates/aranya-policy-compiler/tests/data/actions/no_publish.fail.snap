@@ -2,9 +2,9 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: missing publish statement
+error: action must publish or call another action
   |
 2 | / action[null] oops(x: int) {
 3 | |     let y = x
 4 | | }
-  | |_^ no publish found in this action
+  | |_^ no publish or action call found in this action

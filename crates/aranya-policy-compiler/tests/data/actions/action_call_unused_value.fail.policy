@@ -1,7 +1,14 @@
 action[null] can_fail() result[unit, string] {
+    publish Pub {}
     return Err("nope")
 }
-
 action[null] foo() {
     action can_fail() // return value not used
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
+    }
 }

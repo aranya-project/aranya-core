@@ -36,8 +36,9 @@ use self::{
     call_graph::CallGraph,
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
-        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublish, NoReturn,
-        NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublishOrActionCall,
+        NoReturn, NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
+        UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -1236,9 +1237,18 @@ impl<'a> CompileState<'a> {
             self.append_instruction(Instruction::Return);
         }
 
-        // Actions should publish, so check that there is a publish statement somewhere in the compiled instructions.
-        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Publish)) {
-            return Err(self.err(NoPublish(action_node.span)));
+        // Actions should publish or call another action, so check for either somewhere in the compiled instructions.
+        if !self.instruction_range_contains(from..self.wp, |i| {
+            matches!(
+                i,
+                Instruction::Publish
+                    | Instruction::Call(Target::Unresolved(Label {
+                        ltype: LabelType::Action,
+                        ..
+                    }))
+            )
+        }) {
+            return Err(self.err(NoPublishOrActionCall(action_node.span)));
         }
 
         self.exit_statement_context();

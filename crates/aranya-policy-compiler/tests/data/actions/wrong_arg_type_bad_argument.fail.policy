@@ -1,4 +1,11 @@
-action[null] bar(n: int) {}
+action[null] bar(n: int) { publish Pub {} }
 action[null] foo() {
     action bar(false)
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
+    }
 }

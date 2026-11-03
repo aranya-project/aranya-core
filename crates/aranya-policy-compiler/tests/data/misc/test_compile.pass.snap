@@ -7,7 +7,9 @@ Module {
     labels: {
         <get_key 'Foo'>: 1,
         <policy 'Foo'>: 8,
-        <action 'foo'>: 15,
+        <get_key 'Pub'>: 1,
+        <policy 'Pub'>: 15,
+        <action 'foo'>: 22,
     },
     action_defs: [
         ActionDef {
@@ -38,6 +40,12 @@ Module {
                 },
             ],
         },
+        CommandDef {
+            name: "Pub",
+            flavor: "null",
+            attributes: [],
+            fields: [],
+        },
     ],
     fact_defs: [],
     struct_defs: [
@@ -59,6 +67,10 @@ Module {
             items: [],
         },
         StructDef {
+            name: "Pub",
+            items: [],
+        },
+        StructDef {
             name: "StubBase",
             items: [],
         },
@@ -70,6 +82,7 @@ Module {
 ---
     exit panic
 <get_key 'Foo'>:
+<get_key 'Pub'>:
     def 'author_id'
     def 'this'
     save SP
@@ -85,25 +98,35 @@ Module {
     end
     exit normal
     exit panic
+<policy 'Pub'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
 <action 'foo'>:
     def 'b'
+    struct.new 'Pub'
+    publish
     const 4
     def 'i'
     get 'b'
     const 0
     eq
-    branch 26
+    branch 35
     block
     const 3
     end
-    jump 31
-<26>:
+    jump 40
+<35>:
     block
     const 4
     get 'i'
     saturating_add
     end
-<31>:
+<40>:
     def 'x'
     struct.new 'Foo'
     get 'x'

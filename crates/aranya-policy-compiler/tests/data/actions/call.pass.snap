@@ -5,23 +5,16 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'bar'>: 8,
-        <action 'foo'>: 11,
+        <get_key 'Pub'>: 1,
+        <policy 'Pub'>: 8,
+        <action 'bar'>: 15,
+        <action 'foo'>: 18,
     },
     action_defs: [
         ActionDef {
             name: "bar",
             flavor: "null",
-            params: [
-                Field {
-                    name: "n",
-                    vtype: Int,
-                },
-                Field {
-                    name: "s",
-                    vtype: String,
-                },
-            ],
+            params: [],
             result_type: Unit,
         },
         ActionDef {
@@ -31,11 +24,22 @@ Module {
             result_type: Unit,
         },
     ],
-    command_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "Pub",
+            flavor: "null",
+            attributes: [],
+            fields: [],
+        },
+    ],
     fact_defs: [],
     struct_defs: [
         StructDef {
             name: "NullEnvelope",
+            items: [],
+        },
+        StructDef {
+            name: "Pub",
             items: [],
         },
         StructDef {
@@ -49,6 +53,7 @@ Module {
 }
 ---
     exit panic
+<get_key 'Pub'>:
     def 'author_id'
     def 'this'
     save SP
@@ -56,12 +61,18 @@ Module {
     restore SP
     return
     exit panic
+<policy 'Pub'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
 <action 'bar'>:
-    def 's'
-    def 'n'
+    struct.new 'Pub'
+    publish
     return
 <action 'foo'>:
-    const 1
-    const "abc"
     call <action 'bar'>
     return

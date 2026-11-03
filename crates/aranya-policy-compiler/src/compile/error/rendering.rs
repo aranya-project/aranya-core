@@ -8,10 +8,10 @@ use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
     InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidStructLiteral,
-    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoPublish,
-    NoReturn, NotDefined, RecursiveCall, RedundantMatchArm, SourceStructNotSubsetOfBase,
-    StructCompositionTypeMismatch, UnknownError, UnknownField, UnreachableMatchArm, UnusedValue,
-    UnusedVariable,
+    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp,
+    NoPublishOrActionCall, NoReturn, NotDefined, RecursiveCall, RedundantMatchArm,
+    SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError, UnknownField,
+    UnreachableMatchArm, UnusedValue, UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -283,12 +283,15 @@ impl SimpleError for NoReturn {
     }
 }
 
-impl SimpleError for NoPublish {
+impl SimpleError for NoPublishOrActionCall {
     fn description(&self) -> Cow<'_, str> {
-        "missing publish statement".into()
+        "action must publish or call another action".into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
-        once((self.0, "no publish found in this action".into()))
+        once((
+            self.0,
+            "no publish or action call found in this action".into(),
+        ))
     }
 }
 

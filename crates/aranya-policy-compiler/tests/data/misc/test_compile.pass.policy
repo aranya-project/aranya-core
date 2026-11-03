@@ -8,10 +8,18 @@ command Foo with StubBase {
     }
 }
 action[null] foo(b: int) {
+    publish Pub {}
     let i = 4
     let x = if b == 0 { :saturating_add(4, i) } else { :3 }
     let y = Foo{
         a: x,
         b: 4
+    }
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
     }
 }

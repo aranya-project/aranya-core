@@ -1,6 +1,14 @@
 action[null] f(n: int) {
+    publish Pub {}
     let x = match n {
         0 => None
         _ => Some(0)
+    }
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
     }
 }

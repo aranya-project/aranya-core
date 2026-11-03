@@ -5,7 +5,9 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'test'>: 8,
+        <get_key 'Pub'>: 1,
+        <policy 'Pub'>: 8,
+        <action 'test'>: 15,
     },
     action_defs: [
         ActionDef {
@@ -15,7 +17,14 @@ Module {
             result_type: Unit,
         },
     ],
-    command_defs: [],
+    command_defs: [
+        CommandDef {
+            name: "Pub",
+            flavor: "null",
+            attributes: [],
+            fields: [],
+        },
+    ],
     fact_defs: [
         FactDef {
             name: "Foo",
@@ -53,6 +62,10 @@ Module {
             items: [],
         },
         StructDef {
+            name: "Pub",
+            items: [],
+        },
+        StructDef {
             name: "StubBase",
             items: [],
         },
@@ -63,6 +76,7 @@ Module {
 }
 ---
     exit panic
+<get_key 'Pub'>:
     def 'author_id'
     def 'this'
     save SP
@@ -70,7 +84,17 @@ Module {
     restore SP
     return
     exit panic
+<policy 'Pub'>:
+    def 'envelope'
+    def 'this'
+    meta: finish enabled
+    block
+    end
+    exit normal
+    exit panic
 <action 'test'>:
+    struct.new 'Pub'
+    publish
     fact.new 'Foo'
     const 1
     fact.kset 'i'
@@ -78,7 +102,7 @@ Module {
     const None
     eq
     not
-    branch 17
+    branch 26
     exit panic
-<17>:
+<26>:
     return

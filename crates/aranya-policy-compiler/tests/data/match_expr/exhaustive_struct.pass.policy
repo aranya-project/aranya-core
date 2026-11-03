@@ -8,6 +8,7 @@ struct Light {
 }
 
 action[null] f(traffic: struct Light) {
+    publish Pub {}
     let x = match traffic {
         Light {  color: LightColor::Red, go: false } => 0
         Light {  color: LightColor::Red, go: true } => 1
@@ -15,5 +16,12 @@ action[null] f(traffic: struct Light) {
         Light {  color: LightColor::Yellow, go: true } => 3
         Light {  color: LightColor::Green, go: false } => 4
         Light {  color: LightColor::Green, go: true } => 5
+    }
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
     }
 }

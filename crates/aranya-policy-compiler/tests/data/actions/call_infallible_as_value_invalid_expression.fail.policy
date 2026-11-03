@@ -1,6 +1,13 @@
-action[null] infallible() {}
+action[null] infallible() { publish Pub {} }
 
 action[null] foo() {
     // there's no value on the stack to assign
     let x = action infallible()
+}
+
+command Pub with StubBase {
+    fields {}
+    policy {
+        finish {}
+    }
 }
