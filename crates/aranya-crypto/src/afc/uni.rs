@@ -45,7 +45,7 @@ use crate::{
 /// };
 ///
 /// fn key_from_author<CS: CipherSuite>(
-///     ch: &UniChannel<'_, CS>,
+///     ch: &UniChannel<CS>,
 ///     secret: UniAuthorSecret<CS>,
 /// ) -> SealKey<CS> {
 ///     let key = UniSealKey::from_author_secret(ch, secret)
@@ -53,10 +53,7 @@ use crate::{
 ///     key.into_key().expect("should be able to create `SealKey`")
 /// }
 ///
-/// fn key_from_peer<CS: CipherSuite>(
-///     ch: &UniChannel<'_, CS>,
-///     encap: UniPeerEncap<CS>,
-/// ) -> OpenKey<CS> {
+/// fn key_from_peer<CS: CipherSuite>(ch: &UniChannel<CS>, encap: UniPeerEncap<CS>) -> OpenKey<CS> {
 ///     let key =
 ///         UniOpenKey::from_peer_encap(ch, encap).expect("should be able to decapsulate peer key");
 ///     key.into_key().expect("should be able to create `OpenKey`")
@@ -252,7 +249,7 @@ pub struct UniSecrets<CS: CipherSuite> {
 impl<CS: CipherSuite> UniSecrets<CS> {
     /// Creates a new set of encapsulated secrets for the
     /// unidirectional channel.
-    pub fn new<E: Engine<CS = CS>>(eng: &E, ch: &UniChannel<'_, CS>) -> Result<Self, Error> {
+    pub fn new<E: Engine<CS = CS>>(eng: &E, ch: &UniChannel<CS>) -> Result<Self, Error> {
         // Only the channel author calls this function.
         let author_sk = ch.our_sk;
         let peer_pk = ch.their_pk;
@@ -299,7 +296,7 @@ macro_rules! uni_key {
             /// Creates the channel author's unidirectional
             /// channel key.
             pub fn from_author_secret(
-                ch: &UniChannel<'_, CS>,
+                ch: &UniChannel<CS>,
                 secret: UniAuthorSecret<CS>,
             ) -> Result<Self, Error> {
                 // Only the channel author calls this function.
@@ -331,7 +328,7 @@ macro_rules! uni_key {
             /// Decrypts and authenticates an encapsulated key
             /// received from a peer.
             pub fn from_peer_encap(
-                ch: &UniChannel<'_, CS>,
+                ch: &UniChannel<CS>,
                 enc: UniPeerEncap<CS>,
             ) -> Result<Self, Error> {
                 // Only the channel peer calls this function.

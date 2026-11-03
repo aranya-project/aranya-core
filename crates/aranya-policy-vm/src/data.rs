@@ -490,7 +490,7 @@ impl TryAsMut<Fact> for Value {
 }
 
 impl Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Unit => write!(f, "()"),
             Self::Int(i) => write!(f, "{}", i),
@@ -580,7 +580,7 @@ impl From<HashableValue> for Value {
 }
 
 impl Display for HashableValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let real_value: Value = self.to_owned().into();
         write!(f, "{}", real_value)
     }
@@ -605,7 +605,7 @@ impl FactKey {
 }
 
 impl Display for FactKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.name, self.value)
     }
 }
@@ -627,7 +627,7 @@ impl FactValue {
 }
 
 impl Display for FactValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.name, self.value)
     }
 }
@@ -667,7 +667,7 @@ impl KVPair {
 }
 
 impl Display for KVPair {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.0, self.1)
     }
 }
@@ -744,7 +744,7 @@ impl Fact {
 }
 
 impl Display for Fact {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}[", self.name)?;
         let mut i = false;
         for FactKey { name, value } in &self.keys {
@@ -790,7 +790,7 @@ impl Struct {
 }
 
 impl Display for Struct {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{{", self.name)?;
         let mut i = false;
         for (k, v) in &self.fields {

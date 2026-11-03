@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, vec::Vec};
 use core::{fmt, str::FromStr};
 
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     Identifier, Span, Spanned, Text,
@@ -107,7 +107,7 @@ impl FromStr for Version {
 
 impl fmt::Display for Version {
     #[allow(deprecated)]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::V1 => write!(f, "1"),
             Self::V2 => write!(f, "2"),
@@ -263,7 +263,7 @@ impl TypeKind {
 }
 
 impl fmt::Display for TypeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Unit => write!(f, "unit"),
             Self::String => write!(f, "string"),
@@ -461,7 +461,7 @@ pub enum FactCountType {
 }
 
 impl fmt::Display for FactCountType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::UpTo(_) => write!(f, "up_to"),
             Self::AtLeast(_) => write!(f, "at_least"),

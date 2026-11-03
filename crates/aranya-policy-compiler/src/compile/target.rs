@@ -35,7 +35,7 @@ pub(crate) struct CompileTarget {
 
 impl CompileTarget {
     /// Creates an empty `CompileTarget` with a given codemap. Used by the compiler.
-    pub fn new(codemap: CodeMap, ffi_schemas: &[ModuleSchema<'_>]) -> Self {
+    pub fn new(codemap: CodeMap, ffi_schemas: &[ModuleSchema]) -> Self {
         Self {
             progmem: vec![],
             labels: BTreeMap::new(),
@@ -135,7 +135,7 @@ impl CompileTarget {
 }
 
 impl Display for CompileTarget {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         writeln!(f, "Program memory:")?;
         for (addr, instr) in self.progmem.iter().enumerate() {
             writeln!(f, "  {:4}  {}", addr, instr)?;

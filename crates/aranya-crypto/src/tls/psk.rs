@@ -406,7 +406,7 @@ impl CtEq for PskId {
 }
 
 impl fmt::Display for PskId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Hex::new(self.as_bytes()).fmt(f)
     }
 }

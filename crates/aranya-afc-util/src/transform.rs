@@ -29,7 +29,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
     type Error = aranya_crypto::Error;
 
     fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniAuthorSecret<CS>),
+        (ch, secret): (&UniChannel<CS>, UniAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
         Self::from_author_secret(ch, secret)
     }
@@ -39,7 +39,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
     type Error = aranya_crypto::Error;
 
     fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniAuthorSecret<CS>),
+        (ch, secret): (&UniChannel<CS>, UniAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
         Self::from_author_secret(ch, secret)
     }
@@ -49,7 +49,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
     type Error = aranya_crypto::Error;
 
     fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniAuthorSecret<CS>),
+        (ch, secret): (&UniChannel<CS>, UniAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
         UniSealKey::from_author_secret(ch, secret)?.into_key()
     }
@@ -59,7 +59,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
     type Error = aranya_crypto::Error;
 
     fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniAuthorSecret<CS>),
+        (ch, secret): (&UniChannel<CS>, UniAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
         UniOpenKey::from_author_secret(ch, secret)?.into_key()
     }
@@ -69,7 +69,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
     type Error = aranya_crypto::Error;
 
     fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniAuthorSecret<CS>),
+        (ch, secret): (&UniChannel<CS>, UniAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
         Ok(UniSealKey::from_author_secret(ch, secret)?.into_raw_key())
     }
@@ -79,7 +79,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
     type Error = aranya_crypto::Error;
 
     fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniAuthorSecret<CS>),
+        (ch, secret): (&UniChannel<CS>, UniAuthorSecret<CS>),
     ) -> Result<Self, Self::Error> {
         Ok(UniOpenKey::from_author_secret(ch, secret)?.into_raw_key())
     }
@@ -88,9 +88,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniAuthorSecret<CS>)> for 
 impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for UniSealKey<CS> {
     type Error = aranya_crypto::Error;
 
-    fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
+    fn transform((ch, secret): (&UniChannel<CS>, UniPeerEncap<CS>)) -> Result<Self, Self::Error> {
         Self::from_peer_encap(ch, secret)
     }
 }
@@ -98,9 +96,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for Uni
 impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for UniOpenKey<CS> {
     type Error = aranya_crypto::Error;
 
-    fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
+    fn transform((ch, secret): (&UniChannel<CS>, UniPeerEncap<CS>)) -> Result<Self, Self::Error> {
         Self::from_peer_encap(ch, secret)
     }
 }
@@ -108,9 +104,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for Uni
 impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for SealKey<CS> {
     type Error = aranya_crypto::Error;
 
-    fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
+    fn transform((ch, secret): (&UniChannel<CS>, UniPeerEncap<CS>)) -> Result<Self, Self::Error> {
         UniSealKey::from_peer_encap(ch, secret)?.into_key()
     }
 }
@@ -118,9 +112,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for Sea
 impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for OpenKey<CS> {
     type Error = aranya_crypto::Error;
 
-    fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
+    fn transform((ch, secret): (&UniChannel<CS>, UniPeerEncap<CS>)) -> Result<Self, Self::Error> {
         UniOpenKey::from_peer_encap(ch, secret)?.into_key()
     }
 }
@@ -128,9 +120,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for Ope
 impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for RawSealKey<CS> {
     type Error = aranya_crypto::Error;
 
-    fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
+    fn transform((ch, secret): (&UniChannel<CS>, UniPeerEncap<CS>)) -> Result<Self, Self::Error> {
         Ok(UniSealKey::from_peer_encap(ch, secret)?.into_raw_key())
     }
 }
@@ -138,9 +128,7 @@ impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for Raw
 impl<CS: CipherSuite> Transform<(&UniChannel<'_, CS>, UniPeerEncap<CS>)> for RawOpenKey<CS> {
     type Error = aranya_crypto::Error;
 
-    fn transform(
-        (ch, secret): (&UniChannel<'_, CS>, UniPeerEncap<CS>),
-    ) -> Result<Self, Self::Error> {
+    fn transform((ch, secret): (&UniChannel<CS>, UniPeerEncap<CS>)) -> Result<Self, Self::Error> {
         Ok(UniOpenKey::from_peer_encap(ch, secret)?.into_raw_key())
     }
 }

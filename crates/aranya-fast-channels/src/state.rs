@@ -148,7 +148,7 @@ impl LocalChannelId {
 }
 
 impl fmt::Display for LocalChannelId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -299,7 +299,7 @@ where
 
 // Manually implement `Debug` so that we don't leak secrets.
 impl<S, O> Debug for Directed<S, O> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::SealOnly { .. } => f.write_str("SealOnly { .. }"),
             Self::OpenOnly { .. } => f.write_str("OpenOnly { .. }"),

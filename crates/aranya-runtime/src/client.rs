@@ -61,7 +61,7 @@ pub struct ClientState<PS, SP> {
 
 // Manual Debug impl to exclude `buffers` (large, not useful in debug output).
 impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ClientState")
             .field("policy_store", &self.policy_store)
             .field("provider", &self.provider)

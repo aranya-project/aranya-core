@@ -1,6 +1,5 @@
 //! VM tests.
 
-extern crate alloc;
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 use core::assert_matches;
 

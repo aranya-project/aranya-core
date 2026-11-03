@@ -17,11 +17,8 @@ bench = false
 [features]
 default = []
 
-# Enable allocations.
-alloc = []
-
 # Enable std.
-std = ["alloc"]
+std = []
 
 # Enable the `testing` module.
 testing = []

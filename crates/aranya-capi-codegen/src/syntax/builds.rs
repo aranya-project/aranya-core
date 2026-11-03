@@ -15,7 +15,7 @@ pub struct Builds {
 }
 
 impl Builds {
-    pub(super) fn parse(input: ParseStream<'_>) -> Result<Self> {
+    pub(super) fn parse(input: ParseStream) -> Result<Self> {
         let ty = input.parse()?;
         if !input.is_empty() {
             return Err(Error::new(input.span(), "unexpected data"));
@@ -25,7 +25,7 @@ impl Builds {
 }
 
 impl Parse for Builds {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         Self::parse(input)
     }
 }
