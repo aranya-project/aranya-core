@@ -1350,7 +1350,7 @@ impl FactStack {
         self.0.pop().ok_or(MachineErrorType::StackUnderflow)
     }
     fn peek_mut(&mut self) -> Result<&mut Fact, MachineErrorType> {
-        self.0.last_mut().ok_or(MachineErrorType::StackOverflow)
+        self.0.last_mut().ok_or(MachineErrorType::StackUnderflow)
     }
 }
 
