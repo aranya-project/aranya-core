@@ -92,11 +92,8 @@ impl PolicyStore for ProbePolicyStore {
         Ok(&ProbePolicy)
     }
 
-    fn seal_ctx(
-        &self,
-        _id: PolicyId,
-    ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyStoreError> {
-        Err(PolicyStoreError::Panic)
+    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+        unreachable!()
     }
 }
 

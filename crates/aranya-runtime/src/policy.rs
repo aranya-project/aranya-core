@@ -75,10 +75,7 @@ pub trait PolicyStore {
     fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError>;
 
     // TODO: Pass into actions instead?
-    fn seal_ctx(
-        &self,
-        id: PolicyId,
-    ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyStoreError>;
+    fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
@@ -253,10 +250,7 @@ mod impls {
             PS::get_policy(self, id)
         }
 
-        fn seal_ctx(
-            &self,
-            id: PolicyId,
-        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyStoreError> {
+        fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as super::Policy>::SealCtx> {
             PS::seal_ctx(self, id)
         }
     }
@@ -273,10 +267,7 @@ mod impls {
             PS::get_policy(self, id)
         }
 
-        fn seal_ctx(
-            &self,
-            id: PolicyId,
-        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyStoreError> {
+        fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as super::Policy>::SealCtx> {
             PS::seal_ctx(self, id)
         }
     }

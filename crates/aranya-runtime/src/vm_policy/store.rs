@@ -123,13 +123,8 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
             .ok_or(PolicyStoreError::InternalError)
     }
 
-    fn seal_ctx(
-        &self,
-        _id: PolicyId,
-    ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyStoreError> {
-        self.seal_ctx
-            .as_ref()
-            .ok_or(PolicyStoreError::InternalError)
+    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+        self.seal_ctx.as_ref()
     }
 }
 

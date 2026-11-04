@@ -48,6 +48,8 @@ pub enum ClientError {
     ParallelFinalize,
     #[error("concurrent transaction usage")]
     ConcurrentTransaction,
+    #[error("this client cannot author commands")]
+    NotAnAuthor,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -103,7 +105,10 @@ where
     ) -> Result<GraphId, ClientError> {
         let policy_id = self.policy_store.add_policy(policy_data)?;
         let policy = self.policy_store.get_policy(policy_id)?;
-        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
+        let seal_ctx = self
+            .policy_store
+            .seal_ctx(policy_id)
+            .ok_or(ClientError::NotAnAuthor)?;
 
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
@@ -295,7 +300,10 @@ where
 
         let policy_id = perspective.policy();
         let policy = self.policy_store.get_policy(policy_id)?;
-        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
+        let seal_ctx = self
+            .policy_store
+            .seal_ctx(policy_id)
+            .ok_or(ClientError::NotAnAuthor)?;
 
         // No need to checkpoint the perspective since it is only for this action.
         // Must checkpoint once we add action transactions.

@@ -144,11 +144,8 @@ impl PolicyStore for TestPolicyStore {
         Ok(&self.policy)
     }
 
-    fn seal_ctx(
-        &self,
-        _id: PolicyId,
-    ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyStoreError> {
-        Ok(&())
+    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+        Some(&())
     }
 }
 

@@ -87,7 +87,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         MS: for<'b> Sink<&'b [u8]>,
     {
         let policy = client.policy_store.get_policy(self.policy_id)?;
-        let seal_ctx = client.policy_store.seal_ctx(self.policy_id)?;
+        let seal_ctx = client
+            .policy_store
+            .seal_ctx(self.policy_id)
+            .ok_or(ClientError::NotAnAuthor)?;
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
@@ -530,11 +533,8 @@ mod test {
             Ok(&SeqPolicy)
         }
 
-        fn seal_ctx(
-            &self,
-            _id: PolicyId,
-        ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyStoreError> {
-            Ok(&())
+        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+            Some(&())
         }
     }
 
