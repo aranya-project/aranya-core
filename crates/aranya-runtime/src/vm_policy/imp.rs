@@ -345,7 +345,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::InternalError
         })?;
 
-        let parent_id: CmdId;
+        let mut parent_id: CmdId;
         let command_placement: CommandPlacement;
         let maybe_policy: Option<&[u8]>;
         match (&flavor_ctx, def.flavor.as_str(), facts.head_address()?) {
@@ -467,11 +467,11 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        let new_head = match rs.io.facts.head_address()? {
+                        parent_id = match rs.io.facts.head_address()? {
                             Prior::Single(addr) => addr.id,
                             _ => bug!("expected single head after adding command"),
                         };
-                        rs.update_context_with_new_head(new_head)?;
+                        rs.update_context_with_new_head(parent_id)?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {
