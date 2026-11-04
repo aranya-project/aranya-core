@@ -4,22 +4,11 @@
 use alloc::vec::Vec;
 
 use aranya_policy_ast::{self as ast, Ident, Param, VType};
-use serde::{Deserialize, Serialize};
 
 use crate::{ConstValue, named::named};
 
 /// A cut-down version of [`ast::ActionDefinition`] used for the policy interface.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
+#[derive(Clone, Debug)]
 pub struct ActionDefinition {
     /// The name of the action.
     pub name: Ident,
@@ -44,17 +33,7 @@ impl From<ast::ActionDefinition> for ActionDefinition {
 }
 
 /// A command definition.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
+#[derive(Clone, Debug)]
 pub struct CommandDefinition {
     /// The name of the command.
     pub name: Ident,
@@ -68,17 +47,7 @@ pub struct CommandDefinition {
 named!(CommandDefinition);
 
 /// A command attribute.
-#[derive(
-    Clone,
-    Debug,
-    Eq,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
+#[derive(Clone, Debug)]
 pub struct Attribute {
     /// The name of the attribute.
     pub name: Ident,

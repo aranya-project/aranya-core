@@ -57,7 +57,8 @@ jobs:
       - name: Install taplo-cli
         run: |
           curl -L https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz \
-            | gunzip > ~/.cargo/bin/taplo-cli
+            | gunzip > ~/.cargo/bin/taplo
+          chmod +x ~/.cargo/bin/taplo
 
       - name: Check formatting
         run: cargo make check-fmt
@@ -202,11 +203,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-
-      - name: Install cargo-audit
-        uses: aranya-project/install-action@main
-        with:
-          tool: cargo-audit@0.22.0
 
       - name: Install cargo-deny
         uses: aranya-project/install-action@main
