@@ -16,16 +16,12 @@ use crate::{
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PolicyStoreError {
-    #[error("read error")]
-    Read,
-    #[error("write error")]
-    Write,
-    #[error("operation was rejected by the policy")]
-    Rejected,
-    #[error("panic")]
-    Panic,
-    #[error("internal error")]
-    InternalError,
+    #[error("invalid policy")]
+    InvalidPolicy,
+    #[error("unsupported policy")]
+    UnsupportedPolicy,
+    #[error("unknown policy")]
+    UnknownPolicy,
     #[error(transparent)]
     Bug(#[from] Bug),
 }

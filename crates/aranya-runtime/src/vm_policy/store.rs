@@ -69,30 +69,30 @@ impl<CE: Engine + Clone> VmPolicyStore<CE> {
     fn load_policy(&mut self, policy: &[u8]) -> Result<VmPolicy<CE>, PolicyStoreError> {
         let module = Module::read_from_slice(policy).map_err(|error| {
             error!(%error, "could not load policy");
-            PolicyStoreError::InternalError
+            PolicyStoreError::InvalidPolicy
         })?;
 
         let ffi_names = match &module.data {
             ModuleData::V0(_) => {
                 error!("cannot add module V0 into policy store");
-                return Err(PolicyStoreError::InternalError);
+                return Err(PolicyStoreError::UnsupportedPolicy);
             }
             ModuleData::V1(m) => m.contract.ffis.iter().map(|f| f.name.clone()),
         };
 
         let ffis = self.ffis.select(ffi_names).map_err(|error| {
             error!(%error, "could not select FFIs for module");
-            PolicyStoreError::InternalError
+            PolicyStoreError::UnsupportedPolicy
         })?;
 
         let machine = Machine::from_module(module).map_err(|error| {
             error!(%error, "could not create VM from module");
-            PolicyStoreError::InternalError
+            PolicyStoreError::UnsupportedPolicy
         })?;
 
         let policy = VmPolicy::new(machine, self.engine.clone(), ffis).map_err(|error| {
             error!(%error, "could not create VmPolicy");
-            PolicyStoreError::InternalError
+            PolicyStoreError::UnsupportedPolicy
         })?;
 
         Ok(policy)
@@ -120,7 +120,7 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
     fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
         self.policies
             .get(&id)
-            .ok_or(PolicyStoreError::InternalError)
+            .ok_or(PolicyStoreError::UnknownPolicy)
     }
 
     fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
