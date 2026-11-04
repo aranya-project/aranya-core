@@ -8,8 +8,8 @@ use tracing::{error, trace};
 
 use crate::{
     Address, CmdId, Command, FactPerspective, FlavorCtx, Keys, MAX_COMMAND_LENGTH, MaxCut,
-    MergeIds, Perspective, Policy, PolicyError, PolicyId, PolicyStore, Prior, Priority, Sink,
-    alloc, testing::hash_for_testing_only,
+    MergeIds, Perspective, Policy, PolicyError, PolicyId, PolicyStore, PolicyStoreError, Prior,
+    Priority, Sink, alloc, testing::hash_for_testing_only,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -136,15 +136,18 @@ impl PolicyStore for TestPolicyStore {
     type Policy = TestPolicy;
     type Effect = TestEffect;
 
-    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
         Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
         Ok(&self.policy)
     }
 
-    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+    fn seal_ctx(
+        &self,
+        _id: PolicyId,
+    ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyStoreError> {
         Ok(&())
     }
 }

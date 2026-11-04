@@ -4,8 +4,8 @@ use buggy::Bug;
 
 use crate::{
     Address, CmdId, Command, FlavorCtx, GraphId, LocatedAddress, PeerCache, Perspective as _,
-    Policy, PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError,
-    StorageProvider, TraversalBuffer,
+    Policy, PolicyError, PolicyStore, PolicyStoreError, Segment as _, Sink, Storage as _,
+    StorageError, StorageProvider, TraversalBuffer,
     policy::ActionPlacement,
     storage::{HeadSet, Spill},
 };
@@ -27,6 +27,8 @@ pub use self::{session::Session, transaction::Transaction};
 pub enum ClientError {
     #[error("no such parent: {0}")]
     NoSuchParent(CmdId),
+    #[error("policy store error: {0}")]
+    PolicyStoreError(#[from] PolicyStoreError),
     #[error("policy error: {0}")]
     PolicyError(#[from] PolicyError),
     #[error("storage error: {0}")]

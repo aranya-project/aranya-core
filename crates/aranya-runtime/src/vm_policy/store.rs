@@ -9,7 +9,7 @@ use aranya_policy_vm::{Identifier, Machine, Module, ModuleData};
 use tracing::error;
 
 use super::{FfiCallable, SealCtx, VmEffect, VmPolicy};
-use crate::{Policy, PolicyError, PolicyStore};
+use crate::{Policy, PolicyStore, PolicyStoreError};
 
 #[derive(Debug, thiserror::Error)]
 #[error("duplicate ffi name: {0}")]
@@ -66,33 +66,33 @@ impl<CE: Engine> VmPolicyStore<CE> {
 
 impl<CE: Engine + Clone> VmPolicyStore<CE> {
     /// Load a serialized policy module into a vm policy instance.
-    fn load_policy(&mut self, policy: &[u8]) -> Result<VmPolicy<CE>, PolicyError> {
+    fn load_policy(&mut self, policy: &[u8]) -> Result<VmPolicy<CE>, PolicyStoreError> {
         let module = Module::read_from_slice(policy).map_err(|error| {
             error!(%error, "could not load policy");
-            PolicyError::InternalError
+            PolicyStoreError::InternalError
         })?;
 
         let ffi_names = match &module.data {
             ModuleData::V0(_) => {
                 error!("cannot add module V0 into policy store");
-                return Err(PolicyError::InternalError);
+                return Err(PolicyStoreError::InternalError);
             }
             ModuleData::V1(m) => m.contract.ffis.iter().map(|f| f.name.clone()),
         };
 
         let ffis = self.ffis.select(ffi_names).map_err(|error| {
             error!(%error, "could not select FFIs for module");
-            PolicyError::InternalError
+            PolicyStoreError::InternalError
         })?;
 
         let machine = Machine::from_module(module).map_err(|error| {
             error!(%error, "could not create VM from module");
-            PolicyError::InternalError
+            PolicyStoreError::InternalError
         })?;
 
         let policy = VmPolicy::new(machine, self.engine.clone(), ffis).map_err(|error| {
             error!(%error, "could not create VmPolicy");
-            PolicyError::InternalError
+            PolicyStoreError::InternalError
         })?;
 
         Ok(policy)
@@ -103,7 +103,7 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
     type Policy = VmPolicy<CE>;
     type Effect = VmEffect;
 
-    fn add_policy(&mut self, policy_bytes: &[u8]) -> Result<PolicyId, PolicyError> {
+    fn add_policy(&mut self, policy_bytes: &[u8]) -> Result<PolicyId, PolicyStoreError> {
         use aranya_crypto::id::IdExt as _;
 
         let id =
@@ -117,12 +117,19 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
         Ok(id)
     }
 
-    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
-        self.policies.get(&id).ok_or(PolicyError::InternalError)
+    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
+        self.policies
+            .get(&id)
+            .ok_or(PolicyStoreError::InternalError)
     }
 
-    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
-        self.seal_ctx.as_ref().ok_or(PolicyError::InternalError)
+    fn seal_ctx(
+        &self,
+        _id: PolicyId,
+    ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyStoreError> {
+        self.seal_ctx
+            .as_ref()
+            .ok_or(PolicyStoreError::InternalError)
     }
 }
 
