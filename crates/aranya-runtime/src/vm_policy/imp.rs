@@ -341,11 +341,6 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
     ) -> Result<(), PolicyError> {
         let VmAction { name, args } = action;
 
-        let policy = match flavor_ctx {
-            FlavorCtx::Init { policy } => Some(policy),
-            FlavorCtx::Basic => None,
-        };
-
         let def = self.machine.action_defs.get(&name).ok_or_else(|| {
             error!("action not found");
             PolicyError::InternalError
@@ -431,30 +426,27 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
                         let priority = self.get_command_priority(&command_name)?.into();
 
-                        let parent_id;
-                        let policy = match parent {
-                            Prior::None => {
-                                parent_id = CmdId::default();
-                                // TODO(chip): where does the policy value come from?
-                                if !matches!(priority, Priority::Init) {
-                                    error!(
-                                        "Command {command_name} has invalid priority {priority:?}"
-                                    );
-                                    return Err(PolicyError::InternalError);
-                                }
-                                Some(policy.unwrap_or(&[0u8; 8]))
+                        let (parent_id, policy) = match (parent, &priority, &flavor_ctx) {
+                            (Prior::None, Priority::Init, &FlavorCtx::Init { policy }) => {
+                                (CmdId::default(), Some(policy))
                             }
-                            Prior::Single(p) => {
-                                parent_id = p.id;
-                                if !matches!(priority, Priority::Basic(_) | Priority::Finalize) {
-                                    error!(
-                                        "Command {command_name} has invalid priority {priority:?}"
-                                    );
-                                    return Err(PolicyError::InternalError);
-                                }
-                                None
+                            (Prior::Single(p), Priority::Basic(_), FlavorCtx::Basic) => {
+                                (p.id, None)
                             }
-                            Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
+                            _ => {
+                                // NB: This should only be reachable in these cases:
+                                // - You call this method directly with invalid context.
+                                // - You manipulate compiled policy.
+                                // - Your init action publishes multiple init commands.
+                                // - We forgot to handle a new variant.
+                                error!(
+                                    ?parent,
+                                    ?priority,
+                                    ?flavor_ctx,
+                                    "invalid command published"
+                                );
+                                return Err(PolicyError::InternalError);
+                            }
                         };
 
                         let (payload, envelope) =
