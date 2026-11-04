@@ -170,7 +170,7 @@ impl IdentifierTypeStack {
 pub(crate) struct IdentNotDefined;
 
 impl Display for IdentNotDefined {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("identifier not found")
     }
 }

@@ -101,7 +101,7 @@ impl Node {
 }
 
 impl fmt::Display for Node {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Alias(v) => write!(f, "Alias({})", v.ident),
             Self::Enum(v) => write!(f, "Enum({})", v.ident),
@@ -158,7 +158,7 @@ macro_rules! fmt_impl {
     ($($name:ident => $($ident:tt).+),+ $(,)?) => {
         $(
             impl fmt::Display for $name {
-                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                     let ident = &self.$($ident).+;
                     write!(f, "{}({ident})", stringify!($name))
                 }

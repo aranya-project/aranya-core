@@ -56,7 +56,7 @@ struct Args {
     args: Vec<String>,
 }
 
-fn debug_loop<M>(rs: &mut RunState<'_, M>) -> anyhow::Result<()>
+fn debug_loop<M>(rs: &mut RunState<M>) -> anyhow::Result<()>
 where
     M: MachineIO<MachineStack>,
 {
@@ -74,7 +74,7 @@ where
     Ok(())
 }
 
-fn print_machine_status<M>(reason: ExitReason, rs: &RunState<'_, M>)
+fn print_machine_status<M>(reason: ExitReason, rs: &RunState<M>)
 where
     M: MachineIO<MachineStack>,
 {

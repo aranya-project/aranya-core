@@ -37,7 +37,7 @@ impl PartialEq<Symbol> for &Path {
 }
 
 impl fmt::Display for Symbol {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -80,14 +80,14 @@ impl<T> Attr<T> {
     }
 }
 
-pub(crate) fn get_lit_str(name: Symbol, meta: &ParseNestedMeta<'_>) -> syn::Result<LitStr> {
+pub(crate) fn get_lit_str(name: Symbol, meta: &ParseNestedMeta) -> syn::Result<LitStr> {
     get_lit_str2(name, name, meta)
 }
 
 fn get_lit_str2(
     name: Symbol,
     meta_item_name: Symbol,
-    meta: &ParseNestedMeta<'_>,
+    meta: &ParseNestedMeta,
 ) -> syn::Result<LitStr> {
     let expr: Expr = meta.value()?.parse()?;
     let mut value = &expr;

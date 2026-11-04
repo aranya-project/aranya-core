@@ -22,7 +22,7 @@ macro_rules! parse_doc {
 pub(crate) use parse_doc;
 
 /// Skips the next token if it's a comma.
-pub fn skip_comma(input: ParseStream<'_>) -> Result<()> {
+pub fn skip_comma(input: ParseStream) -> Result<()> {
     let lookahead = input.lookahead1();
     if lookahead.peek(Token![,]) {
         let _: Token![,] = input.parse()?;
@@ -141,7 +141,7 @@ where
     K: Parse,
     V: Parse,
 {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let key = input.parse()?;
         let _: Token![=] = input.parse()?;
         let val = input.parse()?;

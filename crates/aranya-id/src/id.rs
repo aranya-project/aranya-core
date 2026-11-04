@@ -147,13 +147,13 @@ impl<Tag: IdTag> FromStr for Id<Tag> {
 }
 
 impl<Tag: IdTag> Debug for Id<Tag> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}({})", Tag::__NAME, self.to_base58())
     }
 }
 
 impl<Tag: IdTag> Display for Id<Tag> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_base58())
     }
 }
@@ -188,7 +188,7 @@ impl<'de, Tag: IdTag> Deserialize<'de> for Id<Tag> {
         impl<Tag: IdTag> Visitor<'_> for Base58Visitor<Tag> {
             type Value = Id<Tag>;
 
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "a base58 string")
             }
 
@@ -206,7 +206,7 @@ impl<'de, Tag: IdTag> Deserialize<'de> for Id<Tag> {
         impl<'de, Tag: IdTag> Visitor<'de> for IdVisitor<Tag> {
             type Value = Id<Tag>;
 
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(
                     f,
                     "an array of length {}",
@@ -309,7 +309,7 @@ impl<Tag: IdTag> proptest::arbitrary::Arbitrary for Id<Tag> {
 pub struct ParseIdError(spideroak_base58::DecodeError);
 
 impl Display for ParseIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "could not parse ID: {}", self.0)
     }
 }

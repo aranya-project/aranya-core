@@ -470,7 +470,6 @@ dependencies = [
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-compiler",
- "aranya-policy-ifgen-build",
  "aranya-policy-lang",
  "aranya-policy-vm",
  "aranya-runtime",

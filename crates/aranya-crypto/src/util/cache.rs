@@ -106,7 +106,7 @@ impl<T: Clone> Clone for CacheCell<T> {
 }
 
 impl<T: fmt::Debug> fmt::Debug for CacheCell<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.get() {
             Some(val) => fmt::Debug::fmt(val, f),
             None => f.write_str("<uninit>"),
@@ -252,7 +252,7 @@ mod test {
         }
         let count = AtomicUsize::new(0);
 
-        let cell = CacheCell::<Counter<'_>>::new();
+        let cell = CacheCell::<Counter>::new();
 
         // Initialize cell from two threads concurrently.
         let barrier = Barrier::new(2);

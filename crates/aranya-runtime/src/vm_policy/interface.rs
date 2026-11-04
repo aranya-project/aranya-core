@@ -96,7 +96,7 @@ pub struct VmEffect {
 }
 
 impl fmt::Display for VmAction<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut d = f.debug_tuple(self.name.as_str());
         for arg in self.args.as_ref() {
             d.field(&DebugViaDisplay(arg));
@@ -106,7 +106,7 @@ impl fmt::Display for VmAction<'_> {
 }
 
 impl fmt::Display for VmEffect {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut d = f.debug_struct(self.name.as_str());
         for field in &self.fields {
             d.field(field.key().as_str(), &DebugViaDisplay(field.value()));
@@ -119,7 +119,7 @@ impl fmt::Display for VmEffect {
 struct DebugViaDisplay<T>(T);
 
 impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }

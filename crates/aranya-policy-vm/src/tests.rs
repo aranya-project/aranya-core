@@ -404,7 +404,7 @@ fn general_test_harness<F, G>(
     ctx: CommandContext,
 ) where
     F: FnMut(&mut Machine) -> anyhow::Result<()>,
-    G: FnMut(&mut RunState<'_, TestIO>) -> anyhow::Result<()>,
+    G: FnMut(&mut RunState<TestIO>) -> anyhow::Result<()>,
 {
     let mut m = Machine::new(instructions.to_owned());
 

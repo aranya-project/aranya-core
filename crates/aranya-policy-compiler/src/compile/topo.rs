@@ -23,7 +23,7 @@ impl CycleError {
     // for structs defined in FFI modules.
     pub(super) fn into_compile_error(
         self,
-        ctx: &HashMap<Ident, UserType<'_>>,
+        ctx: &HashMap<Ident, UserType>,
     ) -> CyclicTypeDefinitions {
         let note = self.to_string();
         let idents = self
@@ -43,7 +43,7 @@ impl CycleError {
 }
 
 impl Display for CycleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // This outputs a comma separated list of the nodes in each cycle/SCC.
         // A direct path is not shown.
         write!(f, "Found cyclic dependencies when compiling structs:")?;

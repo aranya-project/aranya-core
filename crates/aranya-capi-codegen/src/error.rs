@@ -62,13 +62,13 @@ impl From<anyhow::Error> for BuildError {
 }
 
 impl fmt::Debug for BuildError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "unable to generate C API")
     }
 }
 
 impl fmt::Display for BuildError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", report(self))
     }
 }
@@ -96,7 +96,7 @@ impl BuildError {
 fn report(err: impl Error) -> impl fmt::Display {
     struct Report<E>(E);
     impl<E: Error> fmt::Display for Report<E> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, "{}", self.0)?;
             let mut error: &dyn Error = &self.0;
 

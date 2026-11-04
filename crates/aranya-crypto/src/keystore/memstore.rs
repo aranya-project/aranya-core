@@ -4,8 +4,6 @@
 #![cfg_attr(docsrs, doc(cfg(feature = "memstore")))]
 #![forbid(unsafe_code)]
 
-extern crate alloc;
-
 use alloc::{
     boxed::Box,
     collections::btree_map::{self, BTreeMap},

@@ -22,6 +22,8 @@
 #![cfg_attr(not(any(test, doctest)), no_std)]
 #![warn(missing_docs)]
 
+extern crate alloc;
+
 mod error;
 mod ffi;
 pub mod testing;

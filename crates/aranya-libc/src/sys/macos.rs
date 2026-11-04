@@ -10,19 +10,19 @@ use crate::{
 };
 
 /// See `fallocate(2)`.
-pub fn fallocate(_fd: BorrowedFd<'_>, _mode: c_int, _off: i64, _len: i64) -> Result<(), Errno> {
+pub fn fallocate(_fd: BorrowedFd, _mode: c_int, _off: i64, _len: i64) -> Result<(), Errno> {
     Ok(())
 }
 
 /// See `fdatasync(2)`.
 ///
 /// macOS has no distinct `fdatasync`, so fall back to `fsync`.
-pub fn fdatasync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
+pub fn fdatasync(fd: BorrowedFd) -> Result<(), Errno> {
     fsync(fd)
 }
 
 /// See `read(2)`.
-pub fn pread(fd: BorrowedFd<'_>, buf: &mut [u8], off: i64) -> Result<usize, Errno> {
+pub fn pread(fd: BorrowedFd, buf: &mut [u8], off: i64) -> Result<usize, Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::pread(fd.fd, buf.as_mut_ptr().cast(), buf.len(), off) };
     if ret < 0 {
@@ -36,7 +36,7 @@ pub fn pread(fd: BorrowedFd<'_>, buf: &mut [u8], off: i64) -> Result<usize, Errn
 }
 
 /// See `write(2)`.
-pub fn pwrite(fd: BorrowedFd<'_>, buf: &[u8], off: i64) -> Result<usize, Errno> {
+pub fn pwrite(fd: BorrowedFd, buf: &[u8], off: i64) -> Result<usize, Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::pwrite(fd.fd, buf.as_ptr().cast(), buf.len(), off) };
     if ret < 0 {

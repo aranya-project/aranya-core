@@ -117,7 +117,7 @@ pub enum ErrorKind {
 }
 
 impl Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(match self {
             Self::AlreadyExists => "key entry already exists",
             Self::Other => "some keystore error occurred",
