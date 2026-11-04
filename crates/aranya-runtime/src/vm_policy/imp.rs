@@ -5,7 +5,7 @@ use aranya_policy_vm::{
     PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier, ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 use super::{
     error::VmPolicyError,
@@ -105,7 +105,7 @@ impl<CE> VmPolicy<CE> {
         if let Some(module_ffis) = &machine.ffis {
             ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;
         } else {
-            tracing::warn!("Module does not have contract; cannot validate FFI");
+            warn!("Module does not have contract; cannot validate FFI");
         }
         let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
@@ -211,16 +211,22 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         let (_, value) = self
             .machine
             .call_get_key(command_struct.clone(), envelope.author_id, &mut io)
+            .inspect_err(|e| warn!(error = %e, "failed getting key"))
             .map_err(|_| PolicyError::Panic)?;
 
-        let key_bytes = value.ok_or(PolicyError::Panic)?;
+        let key_bytes = value.ok_or_else(|| {
+            warn!("no key present");
+            PolicyError::Panic
+        })?;
         let key: aranya_crypto::VerifyingKey<CE::CS> =
             postcard::from_bytes(&key_bytes).map_err(|_| {
-                tracing::warn!("could not deserialize open key");
+                warn!("could not deserialize open key");
                 PolicyError::Panic
             })?;
 
-        open_with_key(key, command_struct, payload, envelope).map_err(|_| PolicyError::Panic)
+        open_with_key(key, command_struct, payload, envelope)
+            .inspect_err(|e| warn!(error = %e, "open_with_key failed"))
+            .map_err(|_| PolicyError::Panic)
     }
 }
 
