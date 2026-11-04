@@ -16,8 +16,8 @@ use super::{
     seal_open::{SealCtx, open_with_key, seal_with_key},
 };
 use crate::{
-    ActionPlacement, Address, CommandPlacement, FactPerspective, FlavorCtx, MergeIds, NullSink,
-    Perspective, Prior, Priority,
+    Address, CommandPlacement, FactPerspective, FlavorCtx, MergeIds, NullSink, Perspective, Prior,
+    Priority,
     command::{CmdId, Command},
     policy::{Policy, PolicyError, Sink},
 };
@@ -335,7 +335,6 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        action_placement: ActionPlacement,
         seal_ctx: &SealCtx<CE>,
         flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
@@ -346,38 +345,45 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::InternalError
         })?;
 
-        let def_is_ephemeral = def.flavor == "ephemeral";
-
-        match (action_placement, def_is_ephemeral) {
-            (ActionPlacement::OnGraph, false) => {}
-            (ActionPlacement::OffGraph, true) => {}
-            (ActionPlacement::OnGraph, true) => {
-                error!("cannot call ephemeral action on-graph");
-                return Err(PolicyError::InternalError);
+        let parent_id: CmdId;
+        let command_placement: CommandPlacement;
+        let maybe_policy: Option<&[u8]>;
+        match (&flavor_ctx, def.flavor.as_str(), facts.head_address()?) {
+            (&FlavorCtx::Init { policy }, "init", Prior::None) => {
+                parent_id = CmdId::default();
+                command_placement = CommandPlacement::OnGraphAtOrigin;
+                maybe_policy = Some(policy);
             }
-            (ActionPlacement::OffGraph, false) => {
-                error!("cannot call persistent action off-graph");
+            (&FlavorCtx::Basic, "basic", Prior::Single(p)) => {
+                parent_id = p.id;
+                command_placement = CommandPlacement::OnGraphAtOrigin;
+                maybe_policy = None;
+            }
+            (&FlavorCtx::Ephemeral, "ephemeral", Prior::Single(p)) => {
+                parent_id = p.id;
+                command_placement = CommandPlacement::OffGraph;
+                maybe_policy = None;
+            }
+            (flavor_ctx, flavor_def, head_address) => {
+                // NB: This should only be reachable in these cases:
+                // - You call this method directly with invalid context.
+                // - You manipulate compiled policy.
+                // - We forgot to handle a new variant.
+                error!(
+                    ?flavor_ctx,
+                    ?flavor_def,
+                    ?head_address,
+                    "invalid action call"
+                );
                 return Err(PolicyError::InternalError);
             }
         }
 
-        let parent = match facts.head_address()? {
-            Prior::None => None,
-            Prior::Single(id) => Some(id),
-            Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
-        };
-        // FIXME(chip): This is kind of wrong, but it avoids having to
-        // plumb `Option<CmdId>` into the VM and FFI
-        let ctx_parent = parent.map(|a| a.id).unwrap_or_default();
         let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
         let ctx = CommandContext::Action(ActionContext {
             name: name.clone(),
-            head_id: ctx_parent,
+            head_id: parent_id,
         });
-        let command_placement = match action_placement {
-            ActionPlacement::OnGraph => CommandPlacement::OnGraphAtOrigin,
-            ActionPlacement::OffGraph => CommandPlacement::OffGraph,
-        };
         {
             let mut rs = self.machine.create_run_state(&mut io, ctx);
             let mut exit_reason = match args {
@@ -426,28 +432,10 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
                         let priority = self.get_command_priority(&command_name)?.into();
 
-                        let (parent_id, policy) = match (parent, &priority, &flavor_ctx) {
-                            (Prior::None, Priority::Init, &FlavorCtx::Init { policy }) => {
-                                (CmdId::default(), Some(policy))
-                            }
-                            (Prior::Single(p), Priority::Basic(_), FlavorCtx::Basic) => {
-                                (p.id, None)
-                            }
-                            _ => {
-                                // NB: This should only be reachable in these cases:
-                                // - You call this method directly with invalid context.
-                                // - You manipulate compiled policy.
-                                // - Your init action publishes multiple init commands.
-                                // - We forgot to handle a new variant.
-                                error!(
-                                    ?parent,
-                                    ?priority,
-                                    ?flavor_ctx,
-                                    "invalid command published"
-                                );
-                                return Err(PolicyError::InternalError);
-                            }
-                        };
+                        if matches!(flavor_ctx, FlavorCtx::Init { .. }) && parent != Prior::None {
+                            error!("can't publish multiple init commands");
+                            return Err(PolicyError::InternalError);
+                        }
 
                         let (payload, envelope) =
                             self.seal_command(&command_struct, parent_id, seal_ctx)?;
@@ -465,7 +453,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                         let new_command = VmProtocol {
                             id: envelope.command_id,
                             parent,
-                            policy,
+                            policy: maybe_policy,
                             data: &wrapped,
                         };
 

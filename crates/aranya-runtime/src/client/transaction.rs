@@ -727,7 +727,7 @@ mod test {
     use crate::{
         Bytes, ClientState, FlavorCtx, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
         Prioritized as _, Priority, TraversalBuffer, mem_spill,
-        policy::{ActionPlacement, CommandPlacement, PolicyStoreError},
+        policy::{CommandPlacement, PolicyStoreError},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -830,7 +830,6 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _placement: ActionPlacement,
             _seal_ctx: &(),
             _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
