@@ -8,9 +8,16 @@ user-id = 6743
 user-login = "epage"
 user-name = "Ed Page"
 
+[[publisher.anstream]]
+version = "1.0.0"
+when = "2026-02-11"
+user-id = 6743
+user-login = "epage"
+user-name = "Ed Page"
+
 [[publisher.anstyle]]
-version = "1.0.10"
-when = "2024-11-01"
+version = "1.0.14"
+when = "2026-03-13"
 user-id = 6743
 user-login = "epage"
 user-name = "Ed Page"
@@ -18,6 +25,13 @@ user-name = "Ed Page"
 [[publisher.anstyle-parse]]
 version = "0.2.6"
 when = "2024-10-24"
+user-id = 6743
+user-login = "epage"
+user-name = "Ed Page"
+
+[[publisher.anstyle-parse]]
+version = "1.0.0"
+when = "2026-02-11"
 user-id = 6743
 user-login = "epage"
 user-name = "Ed Page"
@@ -91,12 +105,26 @@ user-id = 1244
 user-login = "ebfull"
 user-name = "Sean Bowe"
 
+[[publisher.globset]]
+version = "0.4.21"
+when = "2026-10-27"
+user-id = 189
+user-login = "BurntSushi"
+user-name = "Andrew Gallant"
+
 [[publisher.group]]
 version = "0.14.0"
 when = "2026-06-01"
 user-id = 1244
 user-login = "ebfull"
 user-name = "Sean Bowe"
+
+[[publisher.ignore]]
+version = "0.4.34"
+when = "2026-10-27"
+user-id = 189
+user-login = "BurntSushi"
+user-name = "Andrew Gallant"
 
 [[publisher.is_terminal_polyfill]]
 version = "1.70.1"
@@ -125,12 +153,33 @@ user-id = 3618
 user-login = "dtolnay"
 user-name = "David Tolnay"
 
+[[publisher.regex-automata]]
+version = "0.4.18"
+when = "2026-08-04"
+user-id = 189
+user-login = "BurntSushi"
+user-name = "Andrew Gallant"
+
 [[publisher.rustix]]
 version = "1.1.6"
 when = "2026-10-27"
 user-id = 6825
 user-login = "sunfishcode"
 user-name = "Dan Gohman"
+
+[[publisher.snapbox]]
+version = "1.2.2"
+when = "2026-05-26"
+user-id = 6743
+user-login = "epage"
+user-name = "Ed Page"
+
+[[publisher.snapbox-macros]]
+version = "1.1.0"
+when = "2026-03-23"
+user-id = 6743
+user-login = "epage"
+user-name = "Ed Page"
 
 [[publisher.spideroak-base58]]
 version = "0.2.0"
@@ -150,12 +199,12 @@ when = "2026-08-18"
 user-id = 293722
 user-login = "aranya-project-bot"
 
-[[publisher.unicode-segmentation]]
-version = "1.12.0"
-when = "2024-09-13"
-user-id = 1139
-user-login = "Manishearth"
-user-name = "Manish Goregaokar"
+[[publisher.tryfn]]
+version = "1.1.0"
+when = "2026-03-23"
+user-id = 6743
+user-login = "epage"
+user-name = "Ed Page"
 
 [[publisher.unicode-width]]
 version = "0.2.2"
@@ -299,6 +348,12 @@ who = "Dan Gohman <dev@sunfishcode.online>"
 criteria = "safe-to-deploy"
 delta = "0.3.9 -> 0.3.10"
 
+[[audits.bytecode-alliance.audits.escape8259]]
+who = "Alex Crichton <alex@alexcrichton.com>"
+criteria = "safe-to-run"
+version = "0.5.2"
+notes = "No unsafe code, crate does what it says on the tin, small crate."
+
 [[audits.bytecode-alliance.audits.fastrand]]
 who = "Alex Crichton <alex@alexcrichton.com>"
 criteria = "safe-to-deploy"
@@ -347,6 +402,18 @@ criteria = "safe-to-deploy"
 delta = "0.2.189 -> 0.2.190"
 notes = "All in line with changes one would expect from `libc`"
 
+[[audits.bytecode-alliance.audits.libtest-mimic]]
+who = "Alex Crichton <alex@alexcrichton.com>"
+criteria = "safe-to-run"
+delta = "0.6.1 -> 0.7.0"
+notes = "Only minor changes with new flags and such, no major updates to `unsafe` or anything outside of a test framework."
+
+[[audits.bytecode-alliance.audits.libtest-mimic]]
+who = "Alex Crichton <alex@alexcrichton.com>"
+criteria = "safe-to-run"
+delta = "0.7.0 -> 0.8.1"
+notes = "Nothing major that's new in this update, mostly just updating a few things here and there. Nothing suspicious."
+
 [[audits.bytecode-alliance.audits.matchers]]
 who = "Pat Hickey <phickey@fastly.com>"
 criteria = "safe-to-deploy"
@@ -381,6 +448,12 @@ who = "Pat Hickey <phickey@fastly.com>"
 criteria = "safe-to-deploy"
 version = "0.1.4"
 notes = "I always really enjoy reading eliza's code, she left perfect comments at every use of unsafe."
+
+[[audits.bytecode-alliance.audits.similar]]
+who = "Alex Crichton <alex@alexcrichton.com>"
+criteria = "safe-to-deploy"
+delta = "2.7.0 -> 3.1.1"
+notes = "Lots of crate changes, new algorithms, etc, but nothing awry. No `unsafe` changes"
 
 [[audits.bytecode-alliance.audits.test-log]]
 who = "Pat Hickey <phickey@fastly.com>"
@@ -474,6 +547,11 @@ criteria = "safe-to-deploy"
 version = "1.4.0"
 notes = "I have read over the macros, and audited the unsafe code."
 
+[[audits.cargo-vet.audits.similar]]
+who = "Nika Layzell <nika@thelayzells.com>"
+criteria = "safe-to-deploy"
+delta = "2.2.1 -> 2.7.0"
+
 [[audits.cargo-vet.audits.utf8parse]]
 who = "Nika Layzell <nika@thelayzells.com>"
 criteria = "safe-to-deploy"
@@ -483,6 +561,12 @@ delta = "0.2.1 -> 0.2.2"
 who = "Johan Andersson <opensource@embark-studios.com>"
 criteria = "safe-to-deploy"
 version = "1.0.58"
+
+[[audits.embark.audits.similar]]
+who = "Johan Andersson <opensource@embark-studios.com>"
+criteria = "safe-to-deploy"
+version = "2.2.1"
+notes = "No unsafe usage or ambient capabilities"
 
 [[audits.embark.audits.utf8parse]]
 who = "Johan Andersson <opensource@embark-studios.com>"
@@ -600,12 +684,6 @@ delta = "0.1.3 -> 0.1.4"
 notes = "No changes to safety-relevant code"
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
-[[audits.google.audits.glob]]
-who = "George Burgess IV <gbiv@google.com>"
-criteria = "safe-to-deploy"
-version = "0.3.1"
-aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
-
 [[audits.google.audits.heck]]
 who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = "safe-to-deploy"
@@ -706,6 +784,19 @@ delta = "1.4.0 -> 1.5.0"
 notes = "Unsafe review notes: https://crrev.com/c/5650836"
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
+[[audits.google.audits.libtest-mimic]]
+who = "Dennis Kempin <denniskempin@google.com>"
+criteria = "safe-to-run"
+version = "0.6.0"
+notes = "Used in tests only"
+aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
+
+[[audits.google.audits.libtest-mimic]]
+who = "George Burgess IV <gbiv@google.com>"
+criteria = "safe-to-run"
+delta = "0.6.0 -> 0.6.1"
+aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
+
 [[audits.google.audits.log]]
 who = "danakj <danakj@chromium.org>"
 criteria = "safe-to-deploy"
@@ -717,6 +808,12 @@ Unsafety is generally very well-documented, with one exception, which we
 describe in the review doc.
 """
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.normalize-line-endings]]
+who = "Max Lee <endlesspring@google.com>"
+criteria = "safe-to-run"
+version = "0.3.0"
+aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
 
 [[audits.google.audits.parking_lot]]
 who = "George Burgess IV <gbiv@google.com>"
@@ -794,49 +891,6 @@ who = "Manish Goregaokar <manishearth@google.com>"
 criteria = "safe-to-deploy"
 version = "0.8.5"
 notes = "Contains no unsafe"
-aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
-
-[[audits.google.audits.relative-path]]
-who = "danakj <danakj@chromium.org>"
-criteria = "safe-to-deploy"
-version = "1.9.3"
-notes = """
-There is no net or fs usage, no crypto.
-There is unsafe to convert pointers from str to RelativePath, where the latter
-is a transparent wrapper around str so the pointer will be to a valid
-type/value always.
-"""
-aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
-
-[[audits.google.audits.rstest]]
-who = "danakj@chromium.org"
-criteria = "safe-to-run"
-version = "0.17.0"
-notes = """
-Reviewed in https://crrev.com/c/5171063
-
-Previously reviewed during security review and the audit is grandparented in.
-"""
-aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
-
-[[audits.google.audits.rstest]]
-who = "danakj <danakj@chromium.org>"
-criteria = "safe-to-run"
-delta = "0.17.0 -> 0.22.0"
-notes = "No new unsafe. fs and net usage, but only in its own tests."
-aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
-
-[[audits.google.audits.rstest_macros]]
-who = "danakj <danakj@chromium.org>"
-criteria = "safe-to-run"
-version = "0.22.0"
-notes = """
-There is no fs or net usage directly, though there is fs
-usage through the glob crate to get lists of files if the user
-asks for it in their macro.
-
-There is no unsafe. Scanned through all the code.
-"""
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.google.audits.rustversion]]
@@ -1566,15 +1620,6 @@ user-id = 4484 # Henri Sivonen (hsivonen)
 start = "2019-02-26"
 end = "2027-09-07"
 notes = "I, Henri Sivonen, wrote encoding_rs for Gecko and have reviewed contributions by others."
-aggregated-from = "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/supply-chain/audits.toml"
-
-[[audits.mozilla.wildcard-audits.unicode-segmentation]]
-who = "Manish Goregaokar <manishsmail@gmail.com>"
-criteria = "safe-to-deploy"
-user-id = 1139 # Manish Goregaokar (Manishearth)
-start = "2019-05-15"
-end = "2027-04-23"
-notes = "All code written or reviewed by Manish"
 aggregated-from = "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/supply-chain/audits.toml"
 
 [[audits.mozilla.wildcard-audits.unicode-width]]
