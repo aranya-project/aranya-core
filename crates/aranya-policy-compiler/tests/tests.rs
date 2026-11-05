@@ -96,7 +96,10 @@ const TEST_FLAVORS: &flavor::Flavors = &flavor::Flavors {
 
 #[track_caller]
 fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let text = text.to_owned() + "\n\nbase[null] StubBase { get_key { return None } }";
+    let mut text = text.to_owned();
+    if text.contains("StubBase") {
+        text.push_str("\n\nbase[null] StubBase { get_key { return None } }");
+    }
     let policy = parse_policy_str(&text, Version::V2).unwrap();
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
