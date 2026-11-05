@@ -12,7 +12,21 @@ use crate::{
     storage::{FactPerspective, Perspective},
 };
 
-/// An error returned by a runtime policy store or policy.
+/// An error returned by a runtime policy store.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum PolicyStoreError {
+    #[error("invalid policy")]
+    InvalidPolicy,
+    #[error("unsupported policy")]
+    UnsupportedPolicy,
+    #[error("unknown policy")]
+    UnknownPolicy,
+    #[error(transparent)]
+    Bug(#[from] Bug),
+}
+
+/// An error returned by a runtime policy.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PolicyError {
@@ -47,17 +61,17 @@ pub trait PolicyStore {
     /// # Arguments
     ///
     /// * `policy` - Byte slice that holds a policy.
-    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError>;
+    fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyStoreError>;
 
     /// Get a policy from this runtime.
     ///
     /// # Arguments
     ///
     /// * `policy` - Byte slice representing a [`PolicyId`].
-    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError>;
+    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError>;
 
     // TODO: Pass into actions instead?
-    fn seal_ctx(&self, id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError>;
+    fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
@@ -218,24 +232,21 @@ pub enum FlavorCtx<'a> {
 mod impls {
     use alloc::boxed::Box;
 
-    use super::{PolicyError, PolicyId, PolicyStore, Sink};
+    use super::{PolicyId, PolicyStore, PolicyStoreError, Sink};
 
     impl<PS: PolicyStore> PolicyStore for &mut PS {
         type Policy = PS::Policy;
         type Effect = PS::Effect;
 
-        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             PS::add_policy(self, policy)
         }
 
-        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             PS::get_policy(self, id)
         }
 
-        fn seal_ctx(
-            &self,
-            id: PolicyId,
-        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyError> {
+        fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as super::Policy>::SealCtx> {
             PS::seal_ctx(self, id)
         }
     }
@@ -244,18 +255,15 @@ mod impls {
         type Policy = PS::Policy;
         type Effect = PS::Effect;
 
-        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             PS::add_policy(self, policy)
         }
 
-        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             PS::get_policy(self, id)
         }
 
-        fn seal_ctx(
-            &self,
-            id: PolicyId,
-        ) -> Result<&<Self::Policy as super::Policy>::SealCtx, PolicyError> {
+        fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as super::Policy>::SealCtx> {
             PS::seal_ctx(self, id)
         }
     }

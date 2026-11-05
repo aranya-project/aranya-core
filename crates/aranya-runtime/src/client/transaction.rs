@@ -727,7 +727,7 @@ mod test {
     use crate::{
         Bytes, ClientState, FlavorCtx, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
         Prioritized as _, Priority, TraversalBuffer, mem_spill,
-        policy::{ActionPlacement, CommandPlacement},
+        policy::{ActionPlacement, CommandPlacement, PolicyStoreError},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -756,19 +756,16 @@ mod test {
         type Policy = SeqPolicy;
         type Effect = ();
 
-        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             Ok(&SeqPolicy)
         }
 
-        fn seal_ctx(
-            &self,
-            _id: PolicyId,
-        ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
-            Ok(&())
+        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+            Some(&())
         }
     }
 
