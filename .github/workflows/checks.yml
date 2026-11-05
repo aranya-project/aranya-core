@@ -19,6 +19,7 @@ permissions:
 
 env:
   REV: ${{ github.run_id }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
