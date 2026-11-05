@@ -359,7 +359,6 @@ dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
  "aranya-device-ffi",
- "aranya-envelope-ffi",
  "aranya-idam-ffi",
  "aranya-perspective-ffi",
  "aranya-policy-ast",
