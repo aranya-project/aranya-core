@@ -15,7 +15,7 @@ use alloc::boxed::Box;
 use buggy::{BugExt as _, bug};
 
 use crate::{
-    Address, CmdId, Command, Prior, Priority,
+    Address, CmdId, Command, FlavorCtx, Prior, Priority,
     policy::{
         ActionPlacement, CommandPlacement, MergeIds, Policy, PolicyError, PolicyId, PolicyStore,
         Sink,
@@ -149,6 +149,7 @@ impl Policy for ProbePolicy {
         _sink: &mut impl Sink<Self::Effect>,
         _placement: ActionPlacement,
         _seal_ctx: &Self::SealCtx,
+        _flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
         match action {}
     }

@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use aranya_crypto::{
-    Rng,
+    DeviceId, Rng, SigningKey,
     default::{DefaultCipherSuite, DefaultEngine},
 };
 use aranya_policy_compiler::Compiler;
@@ -12,42 +12,65 @@ use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{FfiContract, Machine, TypeContract, ffi::FfiModule as _, ident};
 use aranya_runtime::{
     testing::vm::{self, TestPolicyStore},
-    vm_policy::{FLAVORS, VmPolicy, VmPolicyError},
+    vm_policy::{FLAVORS, FfiSet, SealCtx, VmPolicy, VmPolicyError, VmPolicyStore},
 };
 use test_log::test;
 
-/// Creates a `TestPolicyStore` from a policy document.
+/// Create a `TestPolicyStore`.
 fn new_policy_store() -> TestPolicyStore {
+    let [store] = new_policy_stores::<1>();
+    store
+}
+
+/// Create multiple `TestPolicyStore`s with the same seal context.
+fn new_policy_stores<const N: usize>() -> [TestPolicyStore; N] {
+    let seal_ctx = generate_seal_context();
+    core::array::from_fn(|_| {
+        let (eng, _) = DefaultEngine::from_entropy(Rng);
+        VmPolicyStore::new(Arc::new(eng), FfiSet::new(), seal_ctx.clone())
+    })
+}
+
+/// Compile and serialize the policy.
+fn compile_policy() -> Vec<u8> {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap();
     let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
-    TestPolicyStore::from_module(module)
+    module.write_to_vec().expect("can serialize test module")
+}
+
+/// Generate a random seal context.
+fn generate_seal_context() -> SealCtx<Arc<DefaultEngine>> {
+    use aranya_crypto::id::IdExt as _;
+    SealCtx {
+        author: DeviceId::random(Rng),
+        key: SigningKey::new(Rng),
+    }
 }
 
 #[test]
 fn test_vmpolicy() {
-    vm::test_vmpolicy(new_policy_store()).unwrap();
+    vm::test_vmpolicy(new_policy_store(), &compile_policy()).unwrap();
 }
 
 #[test]
 fn test_action_result() {
-    vm::test_action_result(new_policy_store()).unwrap();
+    vm::test_action_result(new_policy_store(), &compile_policy()).unwrap();
 }
 
 #[test]
 fn test_query_fact_value() {
-    vm::test_query_fact_value(new_policy_store()).unwrap();
+    vm::test_query_fact_value(new_policy_store(), &compile_policy()).unwrap();
 }
 
 #[test]
 fn test_aranya_session() {
-    vm::test_aranya_session(new_policy_store()).unwrap();
+    vm::test_aranya_session(new_policy_store(), &compile_policy()).unwrap();
 }
 
 #[test]
 fn test_effect_metadata() {
-    let store1 = new_policy_store();
-    let store2 = new_policy_store().with_seal_ctx(store1.seal_ctx());
-    vm::test_effect_metadata(store1, store2).unwrap();
+    let [store1, store2] = new_policy_stores();
+    vm::test_effect_metadata(store1, store2, &compile_policy()).unwrap();
 }
 
 fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect_error: &str) {
