@@ -150,7 +150,7 @@ fn if_expression_query_or_recall_proves() {
 fn helper_returning_if_expression_proves() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function has(u int) bool {
+        function has(u: int) bool {
             return if u == 1 { : exists Account[user: 1] } else { : false }
         }
         "#,
@@ -198,7 +198,7 @@ fn helper_match_arm_return_is_an_exit() {
     // proves nothing.
     let warnings = warnings_for(&with_defs(
         r#"
-        function has(u int) bool {
+        function has(u: int) bool {
             let x = match u {
                 1 => 1
                 _ => return true
@@ -219,7 +219,7 @@ fn helper_match_arm_return_is_an_exit() {
 fn arm_bound_name_does_not_leak() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
         fact Other[k int]=>{v int}
         "#,
         r#"

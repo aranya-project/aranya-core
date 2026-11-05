@@ -11,12 +11,12 @@ fn two_keys(proof: &str, finish: &str) -> String {
         r#"
         fact Item[k int]=>{{}}
 
-        function differ(a int, b int) bool {{
+        function differ(a: int, b: int) bool {{
             return a != b
         }}
 
-        command Foo {{
-            fields {{ x int, y int }}
+        command Foo with Signed {{
+            fields {{ x: int, y: int }}
             policy {{
                 {proof}
                 finish {{ {finish} }}
@@ -70,9 +70,9 @@ fn init_command_creates_keys_known_to_differ() {
         r#"
         fact Item[k int]=>{}
 
-        command Init {
+        command Init with Signed {
             attributes { init: true }
-            fields { x int, y int }
+            fields { x: int, y: int }
             policy {
                 check this.x != this.y else test_fail()
                 finish {

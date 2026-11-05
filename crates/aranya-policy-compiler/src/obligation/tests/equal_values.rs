@@ -22,7 +22,7 @@ fn command_with(proof: &str, finish: &str) -> String {
             return a
         }}
 
-        command Foo {{
+        command Foo with Signed {{
             fields {{ x int, y int, z int, k int, color enum Color }}
             policy {{
                 {proof}
@@ -77,7 +77,7 @@ fn reference_read_from_a_fact_passes() {
         fact AssignedRole[device_id int]=>{role_id int}
         fact RoleIndex[role_id int, device_id int]=>{}
 
-        command Revoke {
+        command Revoke with Signed {
             fields { x int, y int }
             policy {
                 let assignment = query AssignedRole[device_id: this.x] or recall failed()
@@ -107,7 +107,7 @@ fn self_branch_passes() {
             return r.rank
         }
 
-        command Lower {
+        command Lower with Signed {
             fields { author int, target int, new_rank int }
             policy {
                 let author_rank = rank_of(this.author)

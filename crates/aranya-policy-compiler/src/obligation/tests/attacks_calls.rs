@@ -6,19 +6,19 @@ use super::{warnings_for, with_defs};
 /// Helpers that only return if `Account[user: u]` exists, or only on
 /// some exits.
 const HELPERS: &str = r#"
-    function balance_of(u int) int {
+    function balance_of(u: int) int {
         let a = query Account[user: u] or test_fail()
         return a.balance
     }
 
-    function maybe(u int) option[int] {
+    function maybe(u: int) option[int] {
         if u > 1 {
             return Some(u)
         }
         return None
     }
 
-    function some_balance(u int) int {
+    function some_balance(u: int) int {
         if u > 1 {
             let a = query Account[user: u] or test_fail()
             return a.balance
@@ -26,7 +26,7 @@ const HELPERS: &str = r#"
         return 0
     }
 
-    function both_balances(u int) int {
+    function both_balances(u: int) int {
         if u > 1 {
             let a = query Account[user: u] or test_fail()
             return a.balance

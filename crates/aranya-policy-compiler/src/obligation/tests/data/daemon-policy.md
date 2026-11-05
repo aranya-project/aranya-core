@@ -157,7 +157,7 @@ Priorities can be defined for commands by specifying the `priority`
 attribute in the command's `attributes` block:
 
 ```
-command CommandFoo {
+command CommandFoo with Signed {
     attributes {
         priority: 100
     }
@@ -204,9 +204,9 @@ Facts and commands are *not* part of a policy's public API.
 Fact definitions enforce uniqueness constraints through their key
 structure:
 
-- **Single-key facts** (e.g., `Fact[a id]`) allow
+- **Single-key facts** (e.g., `Fact[a: id]`) allow
   exactly one fact per key value.
-- **Composite-key facts** (e.g., `Fact[a id, b id]`)
+- **Composite-key facts** (e.g., `Fact[a: id, b: id]`)
   allow exactly one fact per key combination.
 - **Empty-key facts** (e.g., `TeamStart[]`) allow exactly one
   instance, implementing a singleton pattern.
@@ -232,10 +232,10 @@ command's `get_key` block instead of `seal` and `open` blocks.
 ```policy
 // `CreateTeam` is the first command in the graph, so its key comes from
 // its own fields.
-base command TeamInit {
+base[basic] TeamInit {
     fields {
         // The initial owner's public Device Keys.
-        owner_keys struct PublicKeyBundle,
+        owner_keys: struct PublicKeyBundle,
     }
     get_key {
         return Some(this.owner_keys.sign_key)
@@ -243,7 +243,17 @@ base command TeamInit {
 }
 
 // Every other command is verified with the author's Device Signing Key.
-base command Signed {
+base[basic] Signed {
+    get_key {
+        return match query DeviceSignPubKey[device_id: author_id] {
+            Some(f) => Some(f.key)
+            None => None
+        }
+    }
+}
+
+// For ephemeral commands and queries
+base[ephemeral] SignedEphemeral {
     get_key {
         return match query DeviceSignPubKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -263,10 +273,10 @@ A device can operate on other objects within the system as long as it has the pr
 
 ```policy
 // Records the existence of a device.
-fact Device[device_id id]=>{}
+fact Device[device_id: id]=>{}
 
 // Reports whether the invariants for the device are being upheld.
-function valid_device_invariants(device_id id) bool {
+function valid_device_invariants(device_id: id) bool {
     let device = query Device[device_id: device_id]
     if device is None {
         // The device does not exist, so there should not be any
@@ -312,7 +322,7 @@ Identity Key.
 
 ```policy
 // Records the public half of a device's Identity Key.
-fact DeviceIdentPubKey[device_id id]=>{key bytes}
+fact DeviceIdentPubKey[device_id: id]=>{key: bytes}
 ```
 
 #### Device Signing Key
@@ -322,7 +332,7 @@ that the device publishes to the graph.
 
 ```policy
 // Records the public half of the device's Signing Key.
-fact DeviceSignPubKey[device_id id]=>{key bytes}
+fact DeviceSignPubKey[device_id: id]=>{key: bytes}
 ```
 
 #### Device Encryption Key
@@ -332,14 +342,14 @@ encapsulated secret keys to other devices. It is primarily used to securely tran
 
 ```policy
 // Records the public half of the device's Encryption Key.
-fact DeviceEncPubKey[device_id id]=>{key bytes}
+fact DeviceEncPubKey[device_id: id]=>{key: bytes}
 ```
 
 ### Device Functions
 
 ```policy
 // Returns a device if one exists, or `None` otherwise.
-function try_find_device(device_id id) optional struct Device {
+function try_find_device(device_id: id) optional struct Device {
     // This function is a little too expensive to call every
     // time we need to get a device, so this is only checked
     // during debugging/developing by debug_assert().
@@ -358,21 +368,21 @@ function try_find_device(device_id id) optional struct Device {
 
 // Returns a device if it exists, or raises a check error
 // otherwise.
-function get_device(device_id id) struct Device {
+function get_device(device_id: id) struct Device {
     return try_find_device(device_id) or test_fail()
 }
 
 // Returns the device corresponding with the author of the
 // envelope.
-function get_author(evp struct Envelope) struct Device {
+function get_author(evp: struct Envelope) struct Device {
     return get_device(envelope::author_id(evp))
 }
 
 // Collection of public Device Keys for a device.
 struct PublicKeyBundle {
-    ident_key bytes,
-    sign_key bytes,
-    enc_key bytes,
+    ident_key: bytes,
+    sign_key: bytes,
+    enc_key: bytes,
 }
 
 // Returns the device's public key bundle.
@@ -384,7 +394,7 @@ struct PublicKeyBundle {
 // between devices and keys so it would be a very significant
 // violation if a device's key existed without the device also
 // existing. See `valid_device_invariants`.
-function get_device_public_key_bundle(device_id id) struct PublicKeyBundle {
+function get_device_public_key_bundle(device_id: id) struct PublicKeyBundle {
     // This function is a little too expensive to call every
     // time we need to get a device, so only uncomment this when
     // debugging/developing.
@@ -412,7 +422,7 @@ function get_device_public_key_bundle(device_id id) struct PublicKeyBundle {
 // exists. However, it would be a very significant invariant
 // violation if a device's key existed without the device also
 // existing. See `valid_device_invariants`.
-function get_enc_pk(device_id id) bytes {
+function get_enc_pk(device_id: id) bytes {
     // This function is a little too expensive to call every
     // time we need to get a device, so it is only checked during
     // debugging/developing.
@@ -426,7 +436,7 @@ function get_enc_pk(device_id id) bytes {
 }
 
 // Returns the device's encryption key ID.
-function get_enc_key_id(device_id id) id {
+function get_enc_key_id(device_id: id) id {
     let device_enc_pk = query DeviceEncPubKey[device_id: device_id] or test_fail()
     return idam::derive_enc_key_id(device_enc_pk.key)
 }
@@ -450,7 +460,7 @@ incremented each time the device is removed from the team.
 // # Foreign Keys
 //
 // - `device_id` refers to the `Device` fact
-fact DeviceGeneration[device_id id]=>{generation int}
+fact DeviceGeneration[device_id: id]=>{generation: int}
 
 // Returns the device's current generation counter.
 
@@ -461,7 +471,7 @@ fact DeviceGeneration[device_id id]=>{generation int}
 // # Errors
 //
 // Raises a check error if the generation fact does not exist.
-function get_device_gen(device_id id) int {
+function get_device_gen(device_id: id) int {
     let f = query DeviceGeneration[device_id: device_id] or test_fail()
     return f.generation
 }
@@ -480,7 +490,7 @@ Returns all devices on the team.
 
 ```policy
 // Emits `QueryDevicesOnTeamResult` for each device on the team.
-ephemeral action query_devices_on_team() {
+action[ephemeral] query_devices_on_team() {
     // Publishing `QueryDevicesOnTeam` emits
     // `QueryDevicesOnTeamResult`.
     map Device[device_id: ?] as f {
@@ -493,13 +503,13 @@ ephemeral action query_devices_on_team() {
 // Emitted when a device is queried by `query_devices_on_team`.
 effect QueryDevicesOnTeamResult {
     // The ID of a device on the team.
-    device_id id,
+    device_id: id,
 }
 
 // A trampoline that forwards `device_id` to the effect.
-ephemeral command QueryDevicesOnTeam with Signed {
+command QueryDevicesOnTeam with SignedEphemeral {
     fields {
-        device_id id,
+        device_id: id,
     }
 
 
@@ -521,7 +531,7 @@ Returns whether an AFC channel is valid.
 
 ```policy
 // Emits `QueryAfcChannelIsValid` indicating whether the specified AFC channel is valid.
-ephemeral action query_afc_channel_is_valid(sender_id id, receiver_id id, label_id id) {
+action[ephemeral] query_afc_channel_is_valid(sender_id: id, receiver_id: id, label_id: id) {
     // Publishing `QueryAfcChannelIsValid` emits
     // `QueryAfcChannelIsValidResult`.
     publish QueryAfcChannelIsValid {
@@ -534,24 +544,24 @@ ephemeral action query_afc_channel_is_valid(sender_id id, receiver_id id, label_
 // Emitted when an AFC channel is queried by `query_afc_channel_is_valid`.
 effect QueryAfcChannelIsValidResult {
     // The ID of the sender device.
-    sender_id id,
+    sender_id: id,
     // The ID of the receiver device.
-    receiver_id id,
+    receiver_id: id,
     // The ID of the label.
-    label_id id,
+    label_id: id,
     // Whether the AFC channel is valid.
-    is_valid bool,
+    is_valid: bool,
 }
 
 // Returns a `QueryAfcChannelIsValidResult` effect indicating whether the AFC channel is valid.
-ephemeral command QueryAfcChannelIsValid with Signed {
+command QueryAfcChannelIsValid with SignedEphemeral {
     fields {
         // The ID of the sender device.
-        sender_id id,
+        sender_id: id,
         // The ID of the receiver device.
-        receiver_id id,
+        receiver_id: id,
         // The ID of the label.
-        label_id id,
+        label_id: id,
     }
 
 
@@ -581,7 +591,7 @@ Returns the role assigned to a device.
 // Emits `QueryDeviceRoleResult` if a role is assigned to the
 // device.
 // If the device does not have a role assigned to it, then no effect is emitted.
-ephemeral action query_device_role(device_id id) {
+action[ephemeral] query_device_role(device_id: id) {
     publish QueryDeviceRole {
         device_id: device_id,
     }
@@ -592,18 +602,18 @@ ephemeral action query_device_role(device_id id) {
 // `Role` fact.
 effect QueryDeviceRoleResult {
     // The role's ID.
-    role_id id,
+    role_id: id,
     // The role's name.
-    name string,
+    name: string,
     // The ID of the device that created the role.
-    author_id id,
+    author_id: id,
     // Is this a default role?
-    default bool,
+    default: bool,
 }
 
-ephemeral command QueryDeviceRole with Signed {
+command QueryDeviceRole with SignedEphemeral {
     fields {
-        device_id id,
+        device_id: id,
     }
 
 
@@ -633,7 +643,7 @@ Returns a device's `PublicKeyBundle`.
 ```policy
 // Emits `QueryDeviceKeyBundleResult` with the device's key
 // bundle.
-ephemeral action query_device_public_key_bundle(device_id id) {
+action[ephemeral] query_device_public_key_bundle(device_id: id) {
     publish QueryDeviceKeyBundle {
         device_id: device_id,
     }
@@ -644,13 +654,13 @@ ephemeral action query_device_public_key_bundle(device_id id) {
 effect QueryDeviceKeyBundleResult {
     // NB: We don't include the device ID here since the caller
     // must already know it as it was provided to the action.
-    device_keys struct PublicKeyBundle,
+    device_keys: struct PublicKeyBundle,
 }
 
-ephemeral command QueryDeviceKeyBundle with Signed {
+command QueryDeviceKeyBundle with SignedEphemeral {
     fields {
         // The device whose key bundle is being queried.
-        device_id id,
+        device_id: id,
     }
 
 
@@ -797,7 +807,7 @@ Each object in Aranya's RBAC system has at most one rank associated with its Ara
 
 ```policy
 // An object rank.
-fact Rank[object_id id]=>{rank int}
+fact Rank[object_id: id]=>{rank: int}
 ```
 
 ### Rank Comparison
@@ -808,7 +818,7 @@ Utility method for checking object ranks before allowing operations to be perfor
 // Returns whether the command author object has permission to perform an operation on the target object.
 // The command author's role must have permission to perform the operation.
 // The command author must have a higher rank than the object it is operating on.
-function author_has_perm_one_target(author_id id, perm enum Perm, target_id id) bool {
+function author_has_perm_one_target(author_id: id, perm: enum Perm, target_id: id) bool {
     check device_has_perm(author_id, perm) else test_fail()
     let author_rank = get_object_rank(author_id)
     if !author_can_operate_on_target(author_rank, target_id) {
@@ -821,7 +831,7 @@ function author_has_perm_one_target(author_id id, perm enum Perm, target_id id) 
 // Returns whether the command author object has permission to perform an operation on a set of two target objects.
 // The command author's role must have permission to perform the operation.
 // The command author must have a higher rank than all the objects it is operating on.
-function author_has_perm_two_targets(author_id id, perm enum Perm, target_id1 id, target_id2 id) bool {
+function author_has_perm_two_targets(author_id: id, perm: enum Perm, target_id1: id, target_id2: id) bool {
     check device_has_perm(author_id, perm) else test_fail()
     let author_rank = get_object_rank(author_id)
     if !author_can_operate_on_target(author_rank, target_id1) {
@@ -839,7 +849,7 @@ function author_has_perm_two_targets(author_id id, perm enum Perm, target_id1 id
 // Note: Uses strict greater-than (>) comparison. A device cannot operate on
 // objects of equal rank, enforcing a strict hierarchy where devices can only
 // modify objects below them in the rank hierarchy.
-function author_can_operate_on_target(author_rank int, target_id id) bool {
+function author_can_operate_on_target(author_rank: int, target_id: id) bool {
     let object_rank = get_object_rank(target_id)
     if author_rank > object_rank {
         return true
@@ -855,7 +865,7 @@ Utility methods for getting/setting rank values on objects.
 
 ```policy
 // Get the rank of an object.
-function get_object_rank(object_id id) int {
+function get_object_rank(object_id: id) int {
     let rank = query Rank[object_id: object_id] or test_fail()
 
     return rank.rank
@@ -866,7 +876,7 @@ function get_object_rank(object_id id) int {
 // Assumptions:
 // - Object rank must not exist yet.
 // - Author must have rank >= rank it is setting.
-finish function set_object_rank(object_id id, rank int) {
+finish function set_object_rank(object_id: id, rank: int) {
     // Create new rank fact.
     create Rank[object_id: object_id]=>{rank: rank}
 }
@@ -883,14 +893,14 @@ finish function set_object_rank(object_id id, rank int) {
 //
 // The owner device is exempt from this check because its role is assigned
 // directly during team creation (see CreateTeam), bypassing AssignRole.
-function role_rank_gte_device_rank(role_id id, device_id id) bool {
+function role_rank_gte_device_rank(role_id: id, device_id: id) bool {
     let role_rank = get_object_rank(role_id)
     let device_rank = get_object_rank(device_id)
     return role_rank >= device_rank
 }
 
 // Returns whether an object exists.
-function object_exists(object_id id) bool {
+function object_exists(object_id: id) bool {
     let device_exists = exists Device[device_id: object_id]
     let role_exists = exists Role[role_id: object_id]
     let label_exists = exists Label[label_id: object_id]
@@ -947,11 +957,11 @@ let DEFAULT_MEMBER_ROLE_RANK = 600
 // - The command author must have rank > the old rank.
 // - The command author must have rank >= the new rank.
 // - The command author must know the current rank before setting the new rank (to prevent an accidental race condition).
-finish function change_object_rank(object_id id, old_rank int, new_rank int) {
+finish function change_object_rank(object_id: id, old_rank: int, new_rank: int) {
     update Rank[object_id: object_id]=>{rank: old_rank} to {rank: new_rank}
 }
 
-action change_rank(object_id id, old_rank int, new_rank int) {
+action[basic] change_rank(object_id: id, old_rank: int, new_rank: int) {
     publish ChangeRank {
         object_id: object_id,
         old_rank: old_rank,
@@ -961,11 +971,11 @@ action change_rank(object_id id, old_rank int, new_rank int) {
 
 effect RankChanged {
     // The ID of the object rank was set on.
-    object_id id,
+    object_id: id,
     // The old rank associated with the object.
-    old_rank int,
+    old_rank: int,
     // The new rank associated with the object.
-    new_rank int,
+    new_rank: int,
 }
 
 command ChangeRank with Signed {
@@ -975,11 +985,11 @@ command ChangeRank with Signed {
 
     fields {
         // The ID of the object to set the rank on.
-        object_id id,
+        object_id: id,
         // The old rank associated with the object.
-        old_rank int,
+        old_rank: int,
         // The new rank to associate with the object.
-        new_rank int,
+        new_rank: int,
     }
 
 
@@ -1044,7 +1054,7 @@ Returns the rank of an object.
 ```policy
 // Emits `QueryRankResult` with the rank of the object.
 // If the object does not have a rank, then no effect is emitted.
-ephemeral action query_rank(object_id id) {
+action[ephemeral] query_rank(object_id: id) {
     publish QueryRank {
         object_id: object_id,
     }
@@ -1052,14 +1062,14 @@ ephemeral action query_rank(object_id id) {
 
 effect QueryRankResult {
     // The object's unique ID.
-    object_id id,
+    object_id: id,
     // The rank of the object.
-    rank int,
+    rank: int,
 }
 
-ephemeral command QueryRank with Signed {
+command QueryRank with SignedEphemeral {
     fields {
-        object_id id,
+        object_id: id,
     }
 
 
@@ -1096,7 +1106,7 @@ for testing only and should not be exposed via any public APIs.
 // Emits `QueryDeviceGenerationResult` with the generation counter
 // for the device. If the device does not have a generation counter,
 // then no effect is emitted.
-ephemeral action query_device_generation(device_id id) {
+action[ephemeral] query_device_generation(device_id: id) {
     publish QueryDeviceGeneration {
         device_id: device_id,
     }
@@ -1104,14 +1114,14 @@ ephemeral action query_device_generation(device_id id) {
 
 effect QueryDeviceGenerationResult {
     // The device's unique ID.
-    device_id id,
+    device_id: id,
     // The device's generation counter.
-    generation int,
+    generation: int,
 }
 
-ephemeral command QueryDeviceGeneration with Signed {
+command QueryDeviceGeneration with SignedEphemeral {
     fields {
-        device_id id,
+        device_id: id,
     }
 
 
@@ -1160,7 +1170,7 @@ where
 
 ```policy
 // An RBAC role.
-fact Role[role_id id]=>{name string, author_id id, default bool}
+fact Role[role_id: id]=>{name: string, author_id: id, default: bool}
 ```
 
 Generating a role's ID from its originating command prevents
@@ -1177,7 +1187,7 @@ about this situation. -->
 // NB: This function is deterministic and injective for the
 // current policy. Calling it multiple times for the same
 // envelope will always return the same ID.
-function derive_role_id(evp struct Envelope) id {
+function derive_role_id(evp: struct Envelope) id {
     // The role ID is the ID of the command that created it.
     // TODO: Or we could use H(cmd_id, ...).
     return envelope::command_id(evp)
@@ -1335,10 +1345,10 @@ enum Perm {
 // verify whether a role grants a permission and use
 // `device_has_perm` to verify whether a device has
 // a permission.
-fact RoleHasPerm[role_id id, perm enum Perm]=>{}
+fact RoleHasPerm[role_id: id, perm: enum Perm]=>{}
 
 // A wrapper for `create RoleHasPerm`.
-finish function assign_perm_to_role(role_id id, perm enum Perm) {
+finish function assign_perm_to_role(role_id: id, perm: enum Perm) {
     create RoleHasPerm[
         role_id: role_id,
         perm: perm,
@@ -1350,7 +1360,7 @@ finish function assign_perm_to_role(role_id id, perm enum Perm) {
 // # Errors
 //
 // It raises a check failure if the role does not exist.
-function role_has_perm(role_id id, perm enum Perm) bool {
+function role_has_perm(role_id: id, perm: enum Perm) bool {
     check exists Role[role_id: role_id] else test_fail()
 
     return exists RoleHasPerm[
@@ -1364,7 +1374,7 @@ function role_has_perm(role_id id, perm enum Perm) bool {
 // # Caveats
 //
 // This function does NOT check whether the device exists.
-function device_has_perm(device_id id, perm enum Perm) bool {
+function device_has_perm(device_id: id, perm: enum Perm) bool {
     let role = query AssignedRole[device_id: device_id] or test_fail()
     return role_has_perm(role.role_id, perm)
 }
@@ -1382,7 +1392,7 @@ function device_has_perm(device_id id, perm enum Perm) bool {
 //
 // 1. The author has the `ChangeRolePerms` permission.
 // 2. The target role does not already have the permission.
-action add_perm_to_role(role_id id, perm enum Perm) {
+action[basic] add_perm_to_role(role_id: id, perm: enum Perm) {
     publish AddPermToRole {
         role_id: role_id,
         perm: perm,
@@ -1392,11 +1402,11 @@ action add_perm_to_role(role_id id, perm enum Perm) {
 // Emitted when a permission is added to a role.
 effect PermAddedToRole {
     // The role that was updated.
-    role_id id,
+    role_id: id,
     // The permission that was added to the role.
-    perm enum Perm,
+    perm: enum Perm,
     // The device that added the permission to the role.
-    author_id id,
+    author_id: id,
 }
 
 command AddPermToRole with Signed {
@@ -1407,9 +1417,9 @@ command AddPermToRole with Signed {
     fields {
         // The ID of the role to which the permission is being
         // added.
-        role_id id,
+        role_id: id,
         // The permission being added.
-        perm enum Perm,
+        perm: enum Perm,
     }
 
 
@@ -1441,7 +1451,7 @@ command AddPermToRole with Signed {
 // Assumptions:
 // 1. The author has the `ChangeRolePerms` permission.
 // 2. The target role has the permission that is being removed.
-action remove_perm_from_role(role_id id, perm enum Perm) {
+action[basic] remove_perm_from_role(role_id: id, perm: enum Perm) {
     publish RemovePermFromRole {
         role_id: role_id,
         perm: perm,
@@ -1451,11 +1461,11 @@ action remove_perm_from_role(role_id id, perm enum Perm) {
 // Emitted when a permission is removed from a role.
 effect PermRemovedFromRole {
     // The role from which the permission was removed.
-    role_id id,
+    role_id: id,
     // The permission that was removed from the role.
-    perm enum Perm,
+    perm: enum Perm,
     // The device that removed the permission from the role.
-    author_id id,
+    author_id: id,
 }
 
 command RemovePermFromRole with Signed {
@@ -1466,9 +1476,9 @@ command RemovePermFromRole with Signed {
     fields {
         // The ID of the role from which the permission is being
         // removed.
-        role_id id,
+        role_id: id,
         // The permission being removed.
-        perm enum Perm,
+        perm: enum Perm,
     }
 
 
@@ -1525,21 +1535,21 @@ effect.
 // has neither named args nor good IDE support.
 struct RoleInfo {
     // The ID of the role.
-    role_id id,
+    role_id: id,
     // The name of the role.
-    name string,
+    name: string,
     // The ID of the device that created the role.
-    author_id id,
+    author_id: id,
     // The rank of the role object.
-    rank int,
+    rank: int,
     // Is this a default role?
-    default bool,
+    default: bool,
 }
 
 // Creates the following facts for a role
 //
 // - Role
-finish function create_role_facts(role struct RoleInfo) {
+finish function create_role_facts(role: struct RoleInfo) {
     create Role[role_id: role.role_id]=>{
         name: role.name,
         author_id: role.author_id,
@@ -1551,15 +1561,15 @@ finish function create_role_facts(role struct RoleInfo) {
 // Emitted when a role is created.
 effect RoleCreated {
     // ID of the role.
-    role_id id,
+    role_id: id,
     // Name of the role.
-    name string,
+    name: string,
     // ID of device that created the role.
-    author_id id,
+    author_id: id,
     // The rank of the role object.
-    rank int,
+    rank: int,
     // Is this a "default" role?
-    default bool,
+    default: bool,
 }
 ```
 
@@ -1576,7 +1586,7 @@ effect RoleCreated {
 // # Required Permissions
 //
 // - `CreateRole`
-action create_role(role_name string, rank int) {
+action[basic] create_role(role_name: string, rank: int) {
     publish CreateRole {
         role_name: role_name,
         rank: rank,
@@ -1589,8 +1599,8 @@ command CreateRole with Signed {
     }
 
     fields {
-        role_name string,
-        rank int,
+        role_name: string,
+        rank: int,
     }
 
 
@@ -1661,7 +1671,7 @@ Default role permissions:
 | Member | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 
 ```policy
-fact DefaultRoleSeeded[name enum DefaultRoleName]=>{role_id id}
+fact DefaultRoleSeeded[name: enum DefaultRoleName]=>{role_id: id}
 
 enum DefaultRoleName {
     Admin,
@@ -1669,7 +1679,7 @@ enum DefaultRoleName {
     Member,
 }
 
-function default_role_name_to_str(name enum DefaultRoleName) string {
+function default_role_name_to_str(name: enum DefaultRoleName) string {
     match name {
         DefaultRoleName::Admin => { return "admin" }
         DefaultRoleName::Operator => { return "operator" }
@@ -1678,7 +1688,7 @@ function default_role_name_to_str(name enum DefaultRoleName) string {
 }
 
 // Setup default roles on a team.
-action setup_default_roles() {
+action[basic] setup_default_roles() {
     publish SetupDefaultRole {
         name: DefaultRoleName::Admin,
     }
@@ -1697,7 +1707,7 @@ command SetupDefaultRole with Signed {
 
     fields {
         // The name of the default role.
-        name enum DefaultRoleName,
+        name: enum DefaultRoleName,
     }
 
 
@@ -1819,15 +1829,15 @@ command SetupDefaultRole with Signed {
 // # Required Permissions
 //
 // - `DeleteRole`
-action delete_role(role_id id) {
+action[basic] delete_role(role_id: id) {
     publish DeleteRole {
         role_id: role_id
     }
 }
 
 effect RoleDeleted {
-    name string,
-    role_id id,
+    name: string,
+    role_id: id,
 }
 
 command DeleteRole with Signed {
@@ -1836,7 +1846,7 @@ command DeleteRole with Signed {
     }
 
     fields {
-        role_id id
+        role_id: id
     }
 
 
@@ -1891,7 +1901,7 @@ A device can be assigned zero or one roles.
 // - `try_get_assigned_role`
 // - `get_assigned_role`
 // - `get_assigned_role_id`
-fact AssignedRole[device_id id]=>{role_id id}
+fact AssignedRole[device_id: id]=>{role_id: id}
 
 // Secondary index over role assignments to support efficient
 // queries keyed by `role_id`.
@@ -1905,25 +1915,25 @@ fact AssignedRole[device_id id]=>{role_id id}
 //
 // - `role_id` refers to the `Role` fact
 // - `device_id` refers to the `Device` fact
-fact RoleAssignmentIndex[role_id id, device_id id]=>{}
+fact RoleAssignmentIndex[role_id: id, device_id: id]=>{}
 
 // Records a new role assignment while keeping the index in sync.
-finish function create_role_assignment(device_id id, role_id id) {
+finish function create_role_assignment(device_id: id, role_id: id) {
     create AssignedRole[device_id: device_id]=>{role_id: role_id}
     create RoleAssignmentIndex[role_id: role_id, device_id: device_id]=>{}
 }
 
 // Deletes an existing role assignment and its index entry.
-finish function delete_role_assignment(device_id id, role_id id) {
+finish function delete_role_assignment(device_id: id, role_id: id) {
     delete AssignedRole[device_id: device_id]
     delete RoleAssignmentIndex[role_id: role_id, device_id: device_id]
 }
 
 // Updates a device's role assignment and corresponding index entry.
 finish function update_role_assignment(
-    device_id id,
-    old_role_id id,
-    new_role_id id,
+    device_id: id,
+    old_role_id: id,
+    new_role_id: id,
 ) {
     update AssignedRole[device_id: device_id]=>{role_id: old_role_id} to {
         role_id: new_role_id,
@@ -1945,7 +1955,7 @@ finish function update_role_assignment(
 // # Caveats
 //
 // - It does NOT check whether the device exists.
-function try_get_assigned_role(device_id id) optional struct Role {
+function try_get_assigned_role(device_id: id) optional struct Role {
     let assigned_role = query AssignedRole[device_id: device_id]
     if assigned_role is None {
         return None
@@ -1963,7 +1973,7 @@ function try_get_assigned_role(device_id id) optional struct Role {
 // # Caveats
 //
 // - It does NOT check whether the device exists.
-function get_assigned_role(device_id id) struct Role {
+function get_assigned_role(device_id: id) struct Role {
     // NB: We could implement this with `try_get_assigned_role`,
     // but the generated check errors would be much less
     // informative, so we manually implement it instead.
@@ -1986,7 +1996,7 @@ function get_assigned_role(device_id id) struct Role {
 }
 
 // Reports whether the provided role represents the default owner role.
-function is_owner(role struct Role) bool {
+function is_owner(role: struct Role) bool {
     return role.default && role.name == "owner"
 }
 
@@ -2000,7 +2010,7 @@ function is_owner(role struct Role) bool {
 // # Caveats
 //
 // - It does NOT check whether the device exists.
-function get_assigned_role_id(device_id id) id {
+function get_assigned_role_id(device_id: id) id {
     return get_assigned_role(device_id).role_id
 }
 
@@ -2009,7 +2019,7 @@ function get_assigned_role_id(device_id id) id {
 // # Caveats
 //
 // - It does NOT check whether the device exists.
-function try_get_assigned_role_id(device_id id) optional id {
+function try_get_assigned_role_id(device_id: id) optional id {
     let role = try_get_assigned_role(device_id)
     if role is None {
         return None
@@ -2033,7 +2043,7 @@ function try_get_assigned_role_id(device_id id) optional id {
 // # Required Permissions
 //
 // - `AssignRole`
-action assign_role(device_id id, role_id id) {
+action[basic] assign_role(device_id: id, role_id: id) {
     publish AssignRole {
         device_id: device_id,
         role_id: role_id,
@@ -2043,11 +2053,11 @@ action assign_role(device_id id, role_id id) {
 // Emitted when a device is assigned a role.
 effect RoleAssigned {
     // The ID of the device that was assigned a role.
-    device_id id,
+    device_id: id,
     // The ID of the role that was assigned.
-    role_id id,
+    role_id: id,
     // The ID of the device that assigned the role.
-    author_id id,
+    author_id: id,
 }
 
 command AssignRole with Signed {
@@ -2057,9 +2067,9 @@ command AssignRole with Signed {
 
     fields {
         // The ID of the device being assigned the role.
-        device_id id,
+        device_id: id,
         // The ID of the role being assigned to the device.
-        role_id id,
+        role_id: id,
     }
 
 
@@ -2129,10 +2139,10 @@ command AssignRole with Signed {
 //
 // - `RevokeRole` for the old role
 // - `AssignRole` for the new role
-action change_role(
-    device_id id,
-    old_role_id id,
-    new_role_id id,
+action[basic] change_role(
+    device_id: id,
+    old_role_id: id,
+    new_role_id: id,
 ) {
     publish ChangeRole {
         device_id: device_id,
@@ -2144,13 +2154,13 @@ action change_role(
 // Emitted when a device's role is changed.
 effect RoleChanged {
     // The ID of the device whose role is being changed.
-    device_id id,
+    device_id: id,
     // The ID of the device's old role.
-    old_role_id id,
+    old_role_id: id,
     // The ID of the device's new role.
-    new_role_id id,
+    new_role_id: id,
     // The ID of the device that changed the device's role.
-    author_id id,
+    author_id: id,
 }
 
 command ChangeRole with Signed {
@@ -2160,11 +2170,11 @@ command ChangeRole with Signed {
 
     fields {
         // The ID of the device being assigned the role.
-        device_id id,
+        device_id: id,
         // The ID of the device's old role.
-        old_role_id id,
+        old_role_id: id,
         // The new role being assigned to the device.
-        new_role_id id,
+        new_role_id: id,
     }
 
 
@@ -2245,7 +2255,7 @@ command ChangeRole with Signed {
 // # Required Permissions
 //
 // - `RevokeRole`
-action revoke_role(device_id id, role_id id) {
+action[basic] revoke_role(device_id: id, role_id: id) {
     publish RevokeRole {
         device_id: device_id,
         role_id: role_id,
@@ -2255,11 +2265,11 @@ action revoke_role(device_id id, role_id id) {
 // Emitted when a device has its role revoked.
 effect RoleRevoked {
     // The ID of the device that had its role revoked.
-    device_id id,
+    device_id: id,
     // The ID of the role that was revoked.
-    role_id id,
+    role_id: id,
     // The ID of the device that revoked the role.
-    author_id id,
+    author_id: id,
 }
 
 command RevokeRole with Signed {
@@ -2269,9 +2279,9 @@ command RevokeRole with Signed {
 
     fields {
         // The ID of the device having its role revoked.
-        device_id id,
+        device_id: id,
         // The ID of the role being revoked.
-        role_id id,
+        role_id: id,
     }
 
 
@@ -2332,7 +2342,7 @@ command RevokeRole with Signed {
 
 ```policy
 // Emits `QueryTeamRolesResult` for each role on the team.
-ephemeral action query_team_roles() {
+action[ephemeral] query_team_roles() {
     map Role[role_id: ?] as f {
         publish QueryTeamRoles {
             role_id: f.role_id,
@@ -2346,22 +2356,22 @@ ephemeral action query_team_roles() {
 // Emitted when a role is queried by `query_team_roles`.
 effect QueryTeamRolesResult {
     // The ID of the role.
-    role_id id,
+    role_id: id,
     // The name of the role.
-    name string,
+    name: string,
     // The ID of the device that created the role.
-    author_id id,
+    author_id: id,
     // Is this a default role?
-    default bool,
+    default: bool,
 }
 
 // A trampoline command to forward data to `QueryTeamRolesResult`.
-ephemeral command QueryTeamRoles with Signed {
+command QueryTeamRoles with SignedEphemeral {
     fields {
-        role_id id,
-        name string,
-        author_id id,
-        default bool,
+        role_id: id,
+        name: string,
+        author_id: id,
+        default: bool,
     }
 
 
@@ -2394,7 +2404,7 @@ is associated with exactly one team.
 //
 // However, this fact is required to ensure that we reject all
 // subsequent `CreateTeam` commands.
-fact TeamStart[]=>{team_id id}
+fact TeamStart[]=>{team_id: id}
 
 // Reports whether the team exists.
 //
@@ -2421,7 +2431,7 @@ which creates the `TeamStart` fact.
 
 ```policy
 // Creates a Team.
-action create_team(owner_keys struct PublicKeyBundle, nonce bytes) {
+action[basic] create_team(owner_keys: struct PublicKeyBundle, nonce: bytes) {
     publish CreateTeam {
         owner_keys: owner_keys,
         nonce: nonce,
@@ -2431,9 +2441,9 @@ action create_team(owner_keys struct PublicKeyBundle, nonce bytes) {
 // Emitted when a team is created.
 effect TeamCreated {
     // The ID of the team.
-    team_id id,
+    team_id: id,
     // The ID of the device that owns the team.
-    owner_id id,
+    owner_id: id,
 }
 
 command CreateTeam with TeamInit {
@@ -2443,7 +2453,7 @@ command CreateTeam with TeamInit {
 
     fields {
         // Random nonce to enforce this team's uniqueness.
-        nonce bytes,
+        nonce: bytes,
     }
 
     // As the first command in the graph, the `CreateTeam`
@@ -2552,9 +2562,9 @@ command CreateTeam with TeamInit {
 
 // Adds the device to the team.
 finish function add_new_device(
-    device_id id,
-    kb struct PublicKeyBundle,
-    rank int,
+    device_id: id,
+    kb: struct PublicKeyBundle,
+    rank: int,
 ) {
     create Device[device_id: device_id]=>{}
     create DeviceIdentPubKey[device_id: device_id]=>{
@@ -2571,7 +2581,7 @@ finish function add_new_device(
 }
 
 // Deletes the core device facts for `device_id`.
-finish function delete_device_core(device_id id) {
+finish function delete_device_core(device_id: id) {
     delete Device[device_id: device_id]
     delete DeviceIdentPubKey[device_id: device_id]
     delete DeviceSignPubKey[device_id: device_id]
@@ -2590,7 +2600,7 @@ Teams can also be terminated with the `TerminateTeam` command.
 // # Required Permissions
 //
 // - `TerminateTeam`
-action terminate_team(team_id id) {
+action[basic] terminate_team(team_id: id) {
     publish TerminateTeam {
         team_id: team_id,
     }
@@ -2598,9 +2608,9 @@ action terminate_team(team_id id) {
 
 effect TeamTerminated {
     // The ID of the team that was terminated.
-    team_id id,
+    team_id: id,
     // The ID of the device that terminated the team.
-    owner_id id,
+    owner_id: id,
 }
 
 // This effect is emitted when a command could cause certain AFC channels to be invalidated.
@@ -2614,7 +2624,7 @@ command TerminateTeam with Signed {
 
     fields {
         // The ID of the team being terminated.
-        team_id id,
+        team_id: id,
     }
 
 
@@ -2657,7 +2667,7 @@ command TerminateTeam with Signed {
 //
 // - `AddDevice`
 // - `AssignRole` (if assigned an initial role)
-action add_device(device_keys struct PublicKeyBundle, initial_role_id optional id, rank int) {
+action[basic] add_device(device_keys: struct PublicKeyBundle, initial_role_id: optional id, rank: int) {
     publish AddDevice {
         device_keys: device_keys,
         rank: rank,
@@ -2675,11 +2685,11 @@ action add_device(device_keys struct PublicKeyBundle, initial_role_id optional i
 // Emitted when a device is added to the team.
 effect DeviceAdded {
     // Uniquely identifies the device.
-    device_id id,
+    device_id: id,
     // The device's set of public Device Keys.
-    device_keys struct PublicKeyBundle,
+    device_keys: struct PublicKeyBundle,
     // The rank of the device object.
-    rank int,
+    rank: int,
 }
 
 command AddDevice with Signed {
@@ -2689,9 +2699,9 @@ command AddDevice with Signed {
 
     fields {
         // The new device's public Device Keys.
-        device_keys struct PublicKeyBundle,
+        device_keys: struct PublicKeyBundle,
         // Device rank.
-        rank int,
+        rank: int,
     }
 
 
@@ -2769,7 +2779,7 @@ initiated by another device.
 // # Required Permissions
 //
 // - `RemoveDevice`
-action remove_device(device_id id) {
+action[basic] remove_device(device_id: id) {
     publish RemoveDevice {
         device_id: device_id,
     }
@@ -2778,9 +2788,9 @@ action remove_device(device_id id) {
 // Emitted when a device is removed from the team.
 effect DeviceRemoved {
     // The ID of the device that was removed from the team.
-    device_id id,
+    device_id: id,
     // The ID of the device that removed `device_id`.
-    author_id id,
+    author_id: id,
 }
 
 command RemoveDevice with Signed {
@@ -2790,7 +2800,7 @@ command RemoveDevice with Signed {
 
     fields {
         // The ID of the device being removed from the team.
-        device_id id,
+        device_id: id,
     }
 
 
@@ -2879,7 +2889,7 @@ labels.
 
 ```policy
 // Records a label.
-fact Label[label_id id]=>{name string, author_id id}
+fact Label[label_id: id]=>{name: string, author_id: id}
 ```
 
 - `label_id` is a globally unique ID for the label,
@@ -2903,7 +2913,7 @@ branches, which could cause a fail-open security bug.
 // NB: This function is deterministic and injective for the
 // current policy. Calling it multiple times for the same
 // envelope will always return the same ID.
-function derive_label_id(evp struct Envelope) id {
+function derive_label_id(evp: struct Envelope) id {
     // The label ID is the ID of the command that created it.
     // TODO: Or we could use H(cmd_id, ...).
     return envelope::command_id(evp)
@@ -2926,7 +2936,7 @@ function derive_label_id(evp struct Envelope) id {
 // # Required Permissions
 //
 // - `CreateLabel`
-action create_label(name string, rank int) {
+action[basic] create_label(name: string, rank: int) {
     publish CreateLabel {
         label_name: name,
         rank: rank,
@@ -2937,13 +2947,13 @@ action create_label(name string, rank int) {
 // processed.
 effect LabelCreated {
     // Uniquely identifies the label.
-    label_id id,
+    label_id: id,
     // The label name.
-    label_name string,
+    label_name: string,
     // The rank of the label.
-    rank int,
+    rank: int,
     // The ID of the device that created the label.
-    label_author_id id,
+    label_author_id: id,
 }
 
 command CreateLabel with Signed {
@@ -2953,9 +2963,9 @@ command CreateLabel with Signed {
 
     fields {
         // The label name.
-        label_name string,
+        label_name: string,
         // The initial rank of the label.
-        rank int,
+        rank: int,
     }
 
 
@@ -3006,7 +3016,7 @@ granted permission to use it.
 // # Required Permissions
 //
 // - `DeleteLabel`
-action delete_label(label_id id) {
+action[basic] delete_label(label_id: id) {
     // TODO: Should we add a `reason` field?
     publish DeleteLabel {
         label_id: label_id,
@@ -3017,13 +3027,13 @@ action delete_label(label_id id) {
 // processed.
 effect LabelDeleted {
     // The label name.
-    label_name string,
+    label_name: string,
     // The label author's device ID.
-    label_author_id id,
+    label_author_id: id,
     // Uniquely identifies the label.
-    label_id id,
+    label_id: id,
     // The ID of the device that deleted the label.
-    author_id id,
+    author_id: id,
 }
 
 command DeleteLabel with Signed {
@@ -3033,7 +3043,7 @@ command DeleteLabel with Signed {
 
     fields {
         // The unique ID of the label being deleted.
-        label_id id,
+        label_id: id,
     }
 
 
@@ -3101,7 +3111,7 @@ is used.
 // TODO: https://github.com/aranya-project/aranya-core/issues/229
 // We do not yet support prefix deletion, so this fact is NOT
 // deleted when the label is deleted.
-fact LabelAssignedToDevice[label_id id, device_id id]=>{op enum ChanOp, device_gen int}
+fact LabelAssignedToDevice[label_id: id, device_id: id]=>{op: enum ChanOp, device_gen: int}
 
 // Grants the device permission to use the label.
 //
@@ -3122,7 +3132,7 @@ fact LabelAssignedToDevice[label_id id, device_id id]=>{op enum ChanOp, device_g
 // - `AssignLabel`
 //
 // Additionally, the target device must have `CanUseAfc` permissions
-action assign_label_to_device(device_id id, label_id id, op enum ChanOp) {
+action[basic] assign_label_to_device(device_id: id, label_id: id, op: enum ChanOp) {
     // Bind the command to this membership epoch.
     let gen = get_device_gen(device_id)
     publish AssignLabelToDevice {
@@ -3137,11 +3147,11 @@ action assign_label_to_device(device_id id, label_id id, op enum ChanOp) {
 // processed.
 effect AssignedLabelToDevice {
     // The ID of the device that was assigned the label.
-    device id,
+    device: id,
     // The ID of the label that was assigned.
-    label_id id,
+    label_id: id,
     // The ID of the device that assigned the label.
-    author_id id,
+    author_id: id,
 }
 
 command AssignLabelToDevice with Signed {
@@ -3151,14 +3161,14 @@ command AssignLabelToDevice with Signed {
 
     fields {
         // The target device.
-        device_id id,
+        device_id: id,
         // The label being assigned to the target device.
-        label_id id,
+        label_id: id,
         // The channel operations the device is allowed to use
         // the label for.
-        op enum ChanOp,
+        op: enum ChanOp,
         // Device generation at authoring time; rejects stale epochs.
-        device_gen int,
+        device_gen: int,
     }
 
 
@@ -3263,7 +3273,7 @@ command AssignLabelToDevice with Signed {
 // # Required Permissions
 //
 // - `RevokeLabel`
-action revoke_label_from_device(device_id id, label_id id) {
+action[basic] revoke_label_from_device(device_id: id, label_id: id) {
     publish RevokeLabelFromDevice {
         device_id: device_id,
         label_id: label_id,
@@ -3274,15 +3284,15 @@ action revoke_label_from_device(device_id id, label_id id) {
 // successfully processed.
 effect LabelRevokedFromDevice {
     // The ID of the device the label was removed from.
-    device_id id,
+    device_id: id,
     // The ID of the label that was revoked.
-    label_id id,
+    label_id: id,
     // The name of the label that was revoked.
-    label_name string,
+    label_name: string,
     // The ID of the author of the label.
-    label_author_id id,
+    label_author_id: id,
     // The ID of the device that revoked the label.
-    author_id id,
+    author_id: id,
 }
 
 command RevokeLabelFromDevice with Signed {
@@ -3292,9 +3302,9 @@ command RevokeLabelFromDevice with Signed {
 
     fields {
         // The target device.
-        device_id id,
+        device_id: id,
         // The label being revoked from the target device.
-        label_id id,
+        label_id: id,
     }
 
 
@@ -3361,7 +3371,7 @@ command RevokeLabelFromDevice with Signed {
 // # Caveats
 //
 // - It does NOT check whether the device exists.
-function get_allowed_chan_op_for_label(device_id id, label_id id) optional enum ChanOp {
+function get_allowed_chan_op_for_label(device_id: id, label_id: id) optional enum ChanOp {
 
     // Now see if the device was directly granted permission
     // to use the label.
@@ -3376,8 +3386,8 @@ function get_allowed_chan_op_for_label(device_id id, label_id id) optional enum 
 // Returns the channel operation for a device-specific label
 // assignment if it matches the device's current generation.
 function device_assignment_op(
-    device_id id,
-    assignment optional struct LabelAssignedToDevice,
+    device_id: id,
+    assignment: optional struct LabelAssignedToDevice,
 ) optional enum ChanOp {
     if assignment is None {
         return None
@@ -3395,8 +3405,8 @@ function device_assignment_op(
 // Reports whether a device's direct label assignment generation
 // matches the device's current generation counter.
 function label_assignment_matches_gen(
-    device_id id,
-    assignment_gen int,
+    device_id: id,
+    assignment_gen: int,
 ) bool {
     let maybe_gen = query DeviceGeneration[device_id: device_id]
     if maybe_gen is None {
@@ -3418,7 +3428,7 @@ If the role does not have the permission, no effect is emitted.
 ```policy
 // Emits `QueryRoleHasPermResult` if the role has the permission.
 // If the role does not have the permission, no effect is emitted.
-ephemeral action query_role_has_perm(role_id id, perm enum Perm) {
+action[ephemeral] query_role_has_perm(role_id: id, perm: enum Perm) {
     publish QueryRoleHasPerm {
         role_id: role_id,
         perm: perm,
@@ -3427,15 +3437,15 @@ ephemeral action query_role_has_perm(role_id id, perm enum Perm) {
 
 effect QueryRoleHasPermResult {
     // The role's unique ID.
-    role_id id,
+    role_id: id,
     // The permission the role has.
-    perm enum Perm,
+    perm: enum Perm,
 }
 
-ephemeral command QueryRoleHasPerm with Signed {
+command QueryRoleHasPerm with SignedEphemeral {
     fields {
-        role_id id,
-        perm enum Perm,
+        role_id: id,
+        perm: enum Perm,
     }
 
 
@@ -3469,7 +3479,7 @@ If the role does not have any permissions, no effects are emitted.
 ```policy
 // Emits `QueryRolePermsResult` for each permission assigned to the role.
 // If the role does not have any permissions, no effects are emitted.
-ephemeral action query_role_perms(role_id id) {
+action[ephemeral] query_role_perms(role_id: id) {
     map RoleHasPerm[role_id: role_id, perm: ?] as f {
         publish QueryRolePerms {
             role_id: f.role_id,
@@ -3480,15 +3490,15 @@ ephemeral action query_role_perms(role_id id) {
 
 effect QueryRolePermsResult {
     // The role's unique ID.
-    role_id id,
+    role_id: id,
     // The permission assigned to the role.
-    perm enum Perm,
+    perm: enum Perm,
 }
 
-ephemeral command QueryRolePerms with Signed {
+command QueryRolePerms with SignedEphemeral {
     fields {
-        role_id id,
-        perm enum Perm,
+        role_id: id,
+        perm: enum Perm,
     }
 
 
@@ -3522,7 +3532,7 @@ Returns a specific label if it exists.
 ```policy
 // Emits `QueryLabelResult` for the label if it exists.
 // If the label does not exist then no effect is emitted.
-ephemeral action query_label(label_id id) {
+action[ephemeral] query_label(label_id: id) {
     publish QueryLabel {
         label_id: label_id,
     }
@@ -3530,16 +3540,16 @@ ephemeral action query_label(label_id id) {
 
 effect QueryLabelResult {
     // The label's unique ID.
-    label_id id,
+    label_id: id,
     // The label name.
-    label_name string,
+    label_name: string,
     // The ID of the device that created the label.
-    label_author_id id,
+    label_author_id: id,
 }
 
-ephemeral command QueryLabel with Signed {
+command QueryLabel with SignedEphemeral {
     fields {
-        label_id id,
+        label_id: id,
     }
 
 
@@ -3571,7 +3581,7 @@ Returns a list of all labels that exist in the team.
 // Emits one `QueryLabelsResult` for each label in the team.
 // If the team does not have any labels then no effects are
 // emitted.
-ephemeral action query_labels() {
+action[ephemeral] query_labels() {
     map Label[label_id: ?] as f {
         publish QueryLabels {
             label_id: f.label_id,
@@ -3583,19 +3593,19 @@ ephemeral action query_labels() {
 
 effect QueryLabelsResult {
     // The label's unique ID.
-    label_id id,
+    label_id: id,
     // The label name.
-    label_name string,
+    label_name: string,
     // The ID of the device that created the label.
-    label_author_id id,
+    label_author_id: id,
 }
 
 // Trampoline to forward info to `QueryLabelsResult`.
-ephemeral command QueryLabels with Signed {
+command QueryLabels with SignedEphemeral {
     fields {
-        label_id id,
-        label_name string,
-        label_author_id id,
+        label_id: id,
+        label_name: string,
+        label_author_id: id,
     }
 
 
@@ -3618,7 +3628,7 @@ ephemeral command QueryLabels with Signed {
 ```policy
 // Emits `QueryLabelsAssignedToDeviceResult` for all labels the
 // device has been granted permission to use.
-ephemeral action query_labels_assigned_to_device(device_id id) {
+action[ephemeral] query_labels_assigned_to_device(device_id: id) {
     // TODO: make this query more efficient when policy supports
     // it. The key order is optimized for `delete`.
     map LabelAssignedToDevice[label_id: ?, device_id: ?] as f {
@@ -3638,21 +3648,21 @@ ephemeral action query_labels_assigned_to_device(device_id id) {
 
 effect QueryLabelsAssignedToDeviceResult {
     // The device's unique ID.
-    device_id id,
+    device_id: id,
     // The label's unique ID.
-    label_id id,
+    label_id: id,
     // The label name.
-    label_name string,
+    label_name: string,
     // The ID of the device that created the label.
-    label_author_id id,
+    label_author_id: id,
 }
 
-ephemeral command QueryLabelsAssignedToDevice with Signed {
+command QueryLabelsAssignedToDevice with SignedEphemeral {
     fields {
-        device_id id,
-        label_id id,
-        label_name string,
-        label_author_id id,
+        device_id: id,
+        label_id: id,
+        label_name: string,
+        label_author_id: id,
     }
 
 
@@ -3712,7 +3722,7 @@ corresponding recipient will decapsulate their key and store it in the
 shared memory DB.
 
 ```policy
-ephemeral action create_afc_uni_channel(receiver_id id, label_id id) {
+action[ephemeral] create_afc_uni_channel(receiver_id: id, label_id: id) {
     let parent_cmd_id = perspective::head_id()
     let author_id = device::current_device_id()
     let author_enc_key_id = get_enc_key_id(author_id)
@@ -3739,49 +3749,49 @@ ephemeral action create_afc_uni_channel(receiver_id id, label_id id) {
 // successfully processes the `AfcCreateUniChannel` command.
 effect AfcUniChannelCreated {
     // The unique ID of the previous command.
-    parent_cmd_id id,
+    parent_cmd_id: id,
     // The device ID of the participant that can receive data.
-    receiver_id id,
+    receiver_id: id,
     // The channel author's encryption key ID.
-    author_enc_key_id id,
+    author_enc_key_id: id,
     // The channel peer's encoded public encryption key.
-    peer_enc_pk bytes,
+    peer_enc_pk: bytes,
     // The channel label.
-    label_id id,
+    label_id: id,
     // The channel key ID.
-    channel_key_id id,
+    channel_key_id: id,
     // The channel peer's encapsulated KEM shared secret.
-    encap bytes,
+    encap: bytes,
 }
 
 // Emitted when the peer of a unidirectional AFC channel
 // successfully processes the `AfcCreateUniChannel` command.
 effect AfcUniChannelReceived {
     // The unique ID of the previous command.
-    parent_cmd_id id,
+    parent_cmd_id: id,
     // The device ID of the participant that can send data.
-    sender_id id,
+    sender_id: id,
     // The channel author's encryption key ID.
-    author_enc_pk bytes,
+    author_enc_pk: bytes,
     // The channel peer's encryption key ID.
-    peer_enc_key_id id,
+    peer_enc_key_id: id,
     // The channel label.
-    label_id id,
+    label_id: id,
     // The channel peer's encapsulated KEM shared secret.
-    encap bytes,
+    encap: bytes,
 }
 
-ephemeral command AfcCreateUniChannel with Signed {
+command AfcCreateUniChannel with SignedEphemeral {
     fields {
         // The device ID of the participant that can receive
         // data.
-        receiver_id id,
+        receiver_id: id,
         // The label applied to the channel.
-        label_id id,
+        label_id: id,
         // The channel peer's encapsulated KEM shared secret.
-        peer_encap bytes,
+        peer_encap: bytes,
         // The ID of the AFC channel key.
-        channel_key_id id,
+        channel_key_id: id,
     }
 
 
@@ -3849,7 +3859,7 @@ ephemeral command AfcCreateUniChannel with Signed {
 //   - Be members of the team
 //   - Not have matching device IDs
 //   - Have `CanUseAfc` permission assigned to their respective roles
-function afc_uni_channel_is_valid(sender_id id, receiver_id id, label_id id) bool {
+function afc_uni_channel_is_valid(sender_id: id, receiver_id: id, label_id: id) bool {
     // The label must exist.
     let label = query Label[label_id: label_id]
     if label is None {

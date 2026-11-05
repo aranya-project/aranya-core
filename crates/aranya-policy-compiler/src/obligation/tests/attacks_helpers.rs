@@ -7,7 +7,7 @@ use super::{warnings_for, with_defs};
 fn attack_early_exit_returning_true() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: u] else return true
             return exists Owner[]
         }
@@ -25,7 +25,7 @@ fn attack_early_exit_returning_true() {
 fn control_early_exit_returning_false() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: u] else return false
             return exists Owner[]
         }
@@ -42,7 +42,7 @@ fn control_early_exit_returning_false() {
 fn attack_exit_inside_block_in_match_arm() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = match u {
                 1 => {
                     let y = query Account[user: u] or return true
@@ -66,7 +66,7 @@ fn attack_exit_inside_block_in_match_arm() {
 fn control_exit_inside_block_returning_false() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = match u {
                 1 => {
                     let y = query Account[user: u] or return false
@@ -92,7 +92,7 @@ fn attack_return_inside_fact_key_is_an_exit() {
     // nothing, so its true side cannot keep `Owner[]`.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: match u { 1 => 1  _ => return true }] && exists Owner[]
                 else return false
             return true
@@ -116,8 +116,8 @@ fn attack_return_inside_call_argument_is_an_exit() {
     // As above, with the `return` in a call argument evaluated first.
     let warnings = warnings_for(&with_defs(
         r#"
-        function same(n int) int { return n }
-        function f(u int) bool {
+        function same(n: int) int { return n }
+        function f(u: int) bool {
             check same(match u { 1 => 1  _ => return true }) == 1 && exists Owner[]
                 else return false
             return true
@@ -140,7 +140,7 @@ fn attack_return_inside_call_argument_is_an_exit() {
 fn control_match_inside_fact_key_without_return() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Owner[] && exists Account[user: match u { 1 => 1  _ => 2 }]
                 else return false
             return true
@@ -158,8 +158,8 @@ fn control_match_inside_fact_key_without_return() {
 fn attack_mutual_recursion_terminates() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool { return g(u) }
-        function g(u int) bool { return f(u) }
+        function f(u: int) bool { return g(u) }
+        function g(u: int) bool { return f(u) }
         "#,
         r#"
         check f(this.user) else recall failed()
@@ -211,10 +211,10 @@ fn control_substitutable_local_in_exit_facts() {
 fn attack_argument_rebound_after_call() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
 
-        function has(d int) bool { return exists Other[k: d] }
+        function has(d: int) bool { return exists Other[k: d] }
         "#,
         r#"
         if this.user == 1 {
@@ -236,10 +236,10 @@ fn attack_argument_rebound_after_call() {
 fn control_argument_proves_current_binding() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
 
-        function has(d int) bool { return exists Other[k: d] }
+        function has(d: int) bool { return exists Other[k: d] }
         "#,
         r#"
         let m = query Member[team: 1, device: ?] or recall failed()
@@ -254,12 +254,12 @@ fn control_argument_proves_current_binding() {
 fn attack_summary_reused_across_commands() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        function has(u int) bool { return exists Account[user: u] }
+        function has(u: int) bool { return exists Account[user: u] }
 
         command One {
-            fields { user int }
+            fields { user: int }
             policy {
                 check has(1) else recall failed()
                 finish { delete Account[user: 1] }
@@ -268,7 +268,7 @@ fn attack_summary_reused_across_commands() {
         }
 
         command Two {
-            fields { user int }
+            fields { user: int }
             policy {
                 check has(2) else recall failed()
                 finish { delete Account[user: 2] }
@@ -277,7 +277,7 @@ fn attack_summary_reused_across_commands() {
         }
 
         command Three {
-            fields { user int }
+            fields { user: int }
             policy {
                 check has(2) else recall failed()
                 finish { delete Account[user: 1] }
@@ -306,7 +306,7 @@ fn attack_return_inside_returned_value() {
     // When `u` is not 1, the inner `return true` returns without the fact.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             return match u { 1 => exists Account[user: u]  _ => return true }
         }
         "#,
@@ -320,7 +320,7 @@ fn attack_return_inside_returned_value() {
 fn control_returned_match_without_return() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             return match u { 1 => exists Account[user: u]  _ => false }
         }
         "#,
@@ -335,7 +335,7 @@ fn attack_returns_inside_returned_value_hide_later_warnings() {
     // the call look like it never returns, hiding the unchecked create.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             return match u { 1 => return true  _ => return false }
         }
         "#,
@@ -354,7 +354,7 @@ fn attack_return_inside_returned_block() {
     // missing, so `!f(..)` says nothing about the account.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             return {
                 check exists Account[user: u] else return false
                 : exists Owner[]
@@ -375,7 +375,7 @@ fn attack_return_in_match_statement_scrutinee() {
     // `f(2)` returns true from inside the scrutinee, before any check.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             match (match u { 1 => 1  _ => return true }) {
                 1 => { return exists Account[user: u] }
                 _ => { return exists Account[user: u] }
@@ -392,7 +392,7 @@ fn attack_return_in_match_statement_scrutinee() {
 fn attack_return_in_match_expression_scrutinee() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = match (match u { 1 => 1  _ => return true }) { 1 => 1  _ => 2 }
             return exists Account[user: u]
         }
@@ -407,7 +407,7 @@ fn attack_return_in_match_expression_scrutinee() {
 fn control_match_scrutinee_without_return() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = match (match u { 1 => 1  _ => 2 }) { 1 => 1  _ => 2 }
             return exists Account[user: u]
         }
@@ -422,7 +422,7 @@ fn attack_return_statement_in_block_argument() {
     // `f(1)` returns true from inside the block, before the final check.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let a = saturating_add(1, { if u == 1 { return true } : 1 })
             return exists Account[user: u]
         }
@@ -437,7 +437,7 @@ fn attack_return_statement_in_block_argument() {
 fn control_block_argument_without_return() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let a = saturating_add(1, { let b = 1 : b })
             return exists Account[user: u]
         }
@@ -452,7 +452,7 @@ fn control_block_argument_without_return() {
 fn with_get_key(base_body: &str, function_body: &str) -> String {
     format!(
         r#"
-        fact Owner[]=>{{user int}}
+        fact Owner[]=>{{user: int}}
 
         base command B {{
             get_key {{
@@ -460,10 +460,10 @@ fn with_get_key(base_body: &str, function_body: &str) -> String {
             }}
         }}
 
-        function get_key(a int, b int) bool {{ {function_body} }}
+        function get_key(a: int, b: int) bool {{ {function_body} }}
 
         command Foo with B {{
-            fields {{ user int }}
+            fields {{ user: int }}
             policy {{
                 check get_key(1, 2) else recall failed()
                 finish {{ delete Owner[] }}
@@ -502,7 +502,7 @@ fn attack_return_in_if_expression_arm() {
     // a block. When the account is missing, `f` returns true without it.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = if !exists Account[user: u] { : return true } else { : 1 }
             return exists Account[user: u]
         }
@@ -520,7 +520,7 @@ fn with_branching_arm(value: &str) -> String {
     with_defs(
         &format!(
             r#"
-            function f(u int) bool {{
+            function f(u: int) bool {{
                 if u == 1 {{
                     check exists Owner[] else test_fail("no owner")
                 }}

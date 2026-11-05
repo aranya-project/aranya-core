@@ -18,7 +18,6 @@ fn rendered_warning_shows_label_note_and_help() {
     let policy = parse_policy_str(&text, Version::V2).expect("parse");
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
-        .allow_baseless(true)
         .compile_with_diagnostics()
         .expect("compile");
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");
@@ -49,7 +48,6 @@ fn fact_read_in_a_block_statement_gets_a_note() {
     let policy = parse_policy_str(&text, Version::V2).expect("parse");
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
-        .allow_baseless(true)
         .compile_with_diagnostics()
         .expect("compile");
     assert_eq!(warnings.len(), 1, "warnings: {warnings:?}");

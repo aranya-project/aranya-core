@@ -6,14 +6,14 @@ use super::warnings_for;
 fn with_open_function(policy_block: &str) -> String {
     format!(
         r#"
-        fact Account[user int]=>{{balance int}}
+        fact Account[user: int]=>{{balance: int}}
 
-        finish function open_account(u int) {{
+        finish function open_account(u: int) {{
             create Account[user: u]=>{{balance: 0}}
         }}
 
-        command Foo {{
-            fields {{ user int }}
+        command Foo with Signed {{
+            fields {{ user: int }}
             policy {{
                 {policy_block}
             }}
@@ -97,18 +97,18 @@ fn finish_function_double_manipulation_across_call() {
 fn nested_finish_functions_are_followed() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function open_inner(u int) {
+        finish function open_inner(u: int) {
             create Account[user: u]=>{balance: 0}
         }
 
-        finish function open_outer(v int) {
+        finish function open_outer(v: int) {
             open_inner(v)
         }
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 check !exists Account[user: this.user] else recall failed()
                 finish {
@@ -126,21 +126,21 @@ fn nested_finish_functions_are_followed() {
 fn shared_finish_function_warns_once_with_each_call() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function open_account(u int) {
+        finish function open_account(u: int) {
             create Account[user: u]=>{balance: 0}
         }
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 finish { open_account(this.user) }
             }
         }
 
-        command Bar {
-            fields { user int }
+        command Bar with Signed {
+            fields { user: int }
             policy {
                 finish { open_account(this.user) }
             }
@@ -162,14 +162,14 @@ fn shared_finish_function_warns_once_with_each_call() {
 fn finish_function_update_uses_caller_query() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function set_balance(u int, old int, new int) {
+        finish function set_balance(u: int, old: int, new: int) {
             update Account[user: u]=>{balance: old} to {balance: new}
         }
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 let account = query Account[user: this.user] or recall failed()
                 finish {
@@ -187,19 +187,19 @@ fn finish_function_update_uses_caller_query() {
 fn recursive_finish_function_warns() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function ping(u int) {
+        finish function ping(u: int) {
             pong(u)
         }
 
-        finish function pong(u int) {
+        finish function pong(u: int) {
             create Account[user: u]=>{balance: 0}
             ping(u)
         }
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 check !exists Account[user: this.user] else recall failed()
                 finish { ping(this.user) }
@@ -221,18 +221,18 @@ fn call_notes_name_each_caller() {
     // command.
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function open_account(u int) {
+        finish function open_account(u: int) {
             create Account[user: u]=>{balance: 0}
         }
 
-        finish function welcome(u int) {
+        finish function welcome(u: int) {
             open_account(u)
         }
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 finish { welcome(this.user) }
             }
@@ -257,22 +257,22 @@ fn shared_finish_function_keeps_each_callers_footnotes() {
     // is about, and puts its notes before its help.
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function close(u int) {
+        finish function close(u: int) {
             delete Account[user: u]
         }
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 finish { close(this.user) }
             }
         }
 
-        command Init {
+        command Init with TeamInit {
             attributes { init: true }
-            fields { user int }
+            fields { user: int }
             policy {
                 finish { close(this.user) }
             }

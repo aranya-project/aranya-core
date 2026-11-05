@@ -38,7 +38,7 @@ fn control_single_delete_of_checked_key() {
 fn attack_aliasing_keys_through_finish_function() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
         finish function rm(d int) {
             delete Member[team: 1, device: d]
@@ -67,7 +67,7 @@ fn attack_aliasing_keys_through_finish_function() {
 fn attack_known_finish_function_forgets_other_keys() {
     let warnings = warnings_for(&with_defs(
         r#"
-        finish function bump(u int) {
+        finish function bump(u: int) {
             update Account[user: u] to {balance: 0}
         }
         "#,
@@ -88,7 +88,7 @@ fn attack_known_finish_function_forgets_other_keys() {
 fn control_binding_survives_without_the_call() {
     let warnings = warnings_for(&with_defs(
         r#"
-        finish function bump(u int) {
+        finish function bump(u: int) {
             update Account[user: u] to {balance: 0}
         }
         "#,
@@ -107,14 +107,14 @@ fn control_binding_survives_without_the_call() {
 fn attack_recursive_call_in_init_forgets_empty_db() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function ping(u int) { pong(u) }
-        finish function pong(u int) { ping(u) }
+        finish function ping(u: int) { pong(u) }
+        finish function pong(u: int) { ping(u) }
 
-        command Init {
+        command Init with TeamInit {
             attributes { init: true }
-            fields { user int }
+            fields { user: int }
             policy {
                 finish {
                     ping(this.user)
@@ -136,14 +136,14 @@ fn attack_recursive_call_in_init_forgets_empty_db() {
 fn control_init_create_after_known_call() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
-        fact Owner[]=>{user int}
+        fact Account[user: int]=>{balance: int}
+        fact Owner[]=>{user: int}
 
-        finish function own(u int) { create Owner[]=>{user: u} }
+        finish function own(u: int) { create Owner[]=>{user: u} }
 
-        command Init {
+        command Init with TeamInit {
             attributes { init: true }
-            fields { user int }
+            fields { user: int }
             policy {
                 finish {
                     own(this.user)
@@ -160,10 +160,10 @@ fn control_init_create_after_known_call() {
 fn attack_recall_block_does_not_inherit_policy_knowledge() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 check exists Account[user: this.user] else recall failed()
                 finish {}
@@ -182,10 +182,10 @@ fn attack_recall_block_does_not_inherit_policy_knowledge() {
 fn control_recall_block_with_its_own_check() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 check exists Account[user: this.user] else recall failed()
                 finish {}
@@ -204,7 +204,7 @@ fn control_recall_block_with_its_own_check() {
 fn attack_finish_function_create_then_caller_update() {
     let warnings = warnings_for(&with_defs(
         r#"
-        finish function mk(u int) { create Account[user: u]=>{balance: 0} }
+        finish function mk(u: int) { create Account[user: u]=>{balance: 0} }
         "#,
         r#"
         check !exists Account[user: this.user] else recall failed()
@@ -272,10 +272,10 @@ fn paint_two(first: &str, second: &str) -> String {
     format!(
         r#"
         enum Color {{ Red, Blue }}
-        fact Paint[user int, color enum Color]=>{{}}
+        fact Paint[user: int, color: enum Color]=>{{}}
 
-        command Foo {{
-            fields {{ user int, color enum Color }}
+        command Foo with Signed {{
+            fields {{ user: int, color: enum Color }}
             policy {{
                 check !exists Paint[user: this.user, color: ?] else test_fail()
                 finish {{
@@ -399,7 +399,7 @@ fn create_two_items(proof: &str) -> String {
         r#"
         fact Item[k int]=>{{}}
 
-        command Foo {{
+        command Foo with Signed {{
             fields {{ x int, y int }}
             policy {{
                 check !exists Item[k: this.x] else recall failed()
@@ -459,7 +459,7 @@ fn attack_unequal_value_bound_again() {
         r#"
         fact Item[k int]=>{}
 
-        command Foo {
+        command Foo with Signed {
             fields { x int, y int }
             policy {
                 match this.x {
@@ -492,7 +492,7 @@ fn delete_other_item(proof: &str) -> String {
         r#"
         fact Item[k int]=>{{}}
 
-        command Foo {{
+        command Foo with Signed {{
             fields {{ x int, y int, k int }}
             policy {{
                 {proof}
@@ -564,7 +564,7 @@ fn attack_match_arm_value_after_the_match() {
         r#"
         fact Item[k int]=>{}
 
-        command Foo {
+        command Foo with Signed {
             fields { x int, y int }
             policy {
                 match this.y {
@@ -588,7 +588,7 @@ fn control_match_arm_value_in_the_arm() {
         r#"
         fact Item[k int]=>{}
 
-        command Foo {
+        command Foo with Signed {
             fields { x int, y int }
             policy {
                 check exists Item[k: 1] else recall failed()

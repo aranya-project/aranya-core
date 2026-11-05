@@ -231,7 +231,7 @@ fn attack_scoped_env_in_condition_block() {
 fn attack_nested_return_in_if_arm_in_argument() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = saturating_add(1, if u == 1 { : 1 } else { : return true })
             return exists Account[user: u]
         }
@@ -319,24 +319,24 @@ fn control_checked_finish_inside_check_else_block() {
 
 /// Definitions for the positions a block can sit in below.
 const NESTED_DEFS: &str = r#"
-    struct Pair { a int, b int }
+    struct Pair { a: int, b: int }
 
-    function same(x int) int {
+    function same(x: int) int {
         return x
     }
 
-    function maybe(u int) option[int] {
+    function maybe(u: int) option[int] {
         if u > 1 {
             return Some(u)
         }
         return None
     }
 
-    function always(x int) bool {
+    function always(x: int) bool {
         return true
     }
 
-    function one_of(x int) option[int] {
+    function one_of(x: int) option[int] {
         return Some(1)
     }
 "#;
@@ -396,15 +396,15 @@ fn attack_finish_inside_nested_block(#[case] statement: &str) {
 fn with_recall_argument(statement: &str) -> String {
     format!(
         r#"
-        fact Owner[]=>{{user int}}
+        fact Owner[]=>{{user: int}}
 
-        command Foo {{
-            fields {{ user int }}
+        command Foo with Signed {{
+            fields {{ user: int }}
             policy {{
                 {}
             }}
             recall failed() {{ finish {{}} }}
-            recall failed_with(n int) {{ finish {{}} }}
+            recall failed_with(n: int) {{ finish {{}} }}
         }}
         "#,
         nested(statement)
@@ -459,7 +459,6 @@ fn attack_finish_inside_ffi_argument() {
         let (_module, warnings) = Compiler::new(&policy)
             .ffi_modules(FFI)
             .debug(true)
-            .allow_baseless(true)
             .compile_with_diagnostics()
             .expect("compile");
         warnings

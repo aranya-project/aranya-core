@@ -91,7 +91,7 @@ fn control_value_of_the_same_fact() {
 /// stating `stated`.
 fn pair_update(stated: &str) -> String {
     with_defs(
-        "fact Pair[k int]=>{x int, y int}",
+        "fact Pair[k: int]=>{x: int, y: int}",
         &format!(
             r#"
             let p = query Pair[k: 1] or recall failed()
@@ -119,7 +119,7 @@ fn control_value_of_the_checked_field() {
 fn attack_value_filtered_on_a_key_prefix() {
     // Some member of the team has rank 2, not necessarily device 5.
     let warnings = warnings_for(&with_defs(
-        "fact Member[team int, device int]=>{rank int}",
+        "fact Member[team: int, device: int]=>{rank: int}",
         r#"
         check exists Member[team: this.user, device: ?]=>{rank: 2} else recall failed()
         check exists Member[team: this.user, device: 5] else recall failed()
@@ -136,7 +136,7 @@ fn attack_value_filtered_on_a_key_prefix() {
 fn attack_value_filtered_on_a_key_prefix_is_not_a_key() {
     // The rank filtered on must not stand in for the missing key.
     let warnings = warnings_for(&with_defs(
-        "fact Member[team int, device int]=>{rank int}",
+        "fact Member[team: int, device: int]=>{rank: int}",
         r#"
         check exists Member[team: this.user, device: ?]=>{rank: 2} else recall failed()
         finish {
@@ -151,7 +151,7 @@ fn attack_value_filtered_on_a_key_prefix_is_not_a_key() {
 #[test]
 fn control_value_filtered_on_the_whole_key() {
     let warnings = warnings_for(&with_defs(
-        "fact Member[team int, device int]=>{rank int}",
+        "fact Member[team: int, device: int]=>{rank: int}",
         r#"
         check exists Member[team: this.user, device: 5]=>{rank: 2} else recall failed()
         finish {
@@ -165,10 +165,10 @@ fn control_value_filtered_on_the_whole_key() {
 /// Helpers whose exits return different stored values, or one read
 /// through a key the helper bound.
 const HELPERS: &str = r#"
-    fact Limit[user int]=>{balance int}
-    fact Member[team int, device int]=>{rank int}
+    fact Limit[user: int]=>{balance: int}
+    fact Member[team: int, device: int]=>{rank: int}
 
-    function limit_or_balance(u int) int {
+    function limit_or_balance(u: int) int {
         if u > 1 {
             let l = query Limit[user: u] or test_fail()
             return l.balance
@@ -177,7 +177,7 @@ const HELPERS: &str = r#"
         return a.balance
     }
 
-    function rank_of(t int) int {
+    function rank_of(t: int) int {
         let m = query Member[team: t, device: ?] or test_fail()
         return m.rank
     }

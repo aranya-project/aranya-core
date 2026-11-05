@@ -7,7 +7,7 @@ use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType};
 /// A fact and its key/value field values.
 ///
 /// It is used to create, read, update, and delete facts.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FactLiteral {
     /// the fact's name
     pub name: Ident,
@@ -15,12 +15,20 @@ pub struct FactLiteral {
     pub key_fields: Vec<(Ident, Expression)>,
     /// values for the fields of the fact value, which can be absent
     pub value_fields: Option<Vec<(Ident, Expression)>>,
+    /// The source location of this literal
+    pub span: Span,
+}
+
+impl Spanned for FactLiteral {
+    fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// A function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionCall {
     /// the function's name
     pub name: Ident,
@@ -29,7 +37,7 @@ pub struct FunctionCall {
 }
 
 /// Call to a command's recall block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecallCall {
     /// the command being recalled
     pub command_name: Ident,
@@ -40,7 +48,7 @@ pub struct RecallCall {
 }
 
 /// A named struct literal
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
     pub name: Ident,
@@ -51,7 +59,7 @@ pub struct NamedStruct {
 }
 
 /// A reference to an enumeration, e.g. `Color::Red`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumReference {
     /// enum name
     pub enumeration: Ident,
@@ -60,7 +68,7 @@ pub struct EnumReference {
 }
 
 /// Expression atoms with special rules or effects.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InternalFunction {
     /// A `query` expression
     Query(FactLiteral),
@@ -80,7 +88,7 @@ pub enum InternalFunction {
 /// A foreign function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Ident,
@@ -95,7 +103,7 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expression {
     /// The expression kind
     pub kind: ExprKind,
@@ -112,7 +120,7 @@ impl Spanned for Expression {
 }
 
 /// The kind of [`Expression`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExprKind {
     /// A unit literal
     Unit,
@@ -183,7 +191,7 @@ pub enum ExprKind {
 }
 
 /// Define a variable with an expression
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetStatement {
     /// The variable's name
     pub name: Ident,
@@ -192,7 +200,7 @@ pub struct LetStatement {
 }
 
 /// Check that a boolean expression is true, and fail otherwise
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub condition: Expression,
@@ -201,7 +209,7 @@ pub struct CheckStatement {
 }
 
 /// Match arm pattern
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
@@ -211,7 +219,7 @@ pub enum MatchPattern {
 }
 
 /// One arm of a match statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchArm {
     /// The values to check against. Matches any value if the option is None.
     // TODO(chip): Restrict this to only literal values so we can do
@@ -224,7 +232,7 @@ pub struct MatchArm {
 /// Match a value and execute one possibility out of many
 ///
 /// Match arms are tested in order.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchStatement {
     /// The value to match against
     pub scrutinee: Expression,
@@ -233,7 +241,7 @@ pub struct MatchStatement {
 }
 
 /// Match statement expression
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchExpression {
     /// Value to match against
     pub scrutinee: Expression,
@@ -242,7 +250,7 @@ pub struct MatchExpression {
 }
 
 /// Match arm expression
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
@@ -253,7 +261,7 @@ pub struct MatchExpressionArm {
 }
 
 /// Test a series of conditions and execute the statements for the first true condition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IfStatement {
     /// Each `if` and `else if` branch.
     pub branches: Vec<(Expression, Vec<Statement>)>,
@@ -262,7 +270,7 @@ pub struct IfStatement {
 }
 
 /// Iterate over the results of a query, and execute some statements for each one.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapStatement {
     /// Query
     pub fact: FactLiteral,
@@ -273,14 +281,14 @@ pub struct MapStatement {
 }
 
 /// Create a fact
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateStatement {
     /// The fact to create
     pub fact: FactLiteral,
 }
 
 /// Update a fact
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
@@ -289,7 +297,7 @@ pub struct UpdateStatement {
 }
 
 /// Delete a fact
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteStatement {
     /// The fact to delete
     pub fact: FactLiteral,
@@ -298,7 +306,7 @@ pub struct DeleteStatement {
 /// Return from a function
 ///
 /// Only valid within functions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReturnStatement {
     /// The value to return
     pub value: Expression,
@@ -306,7 +314,7 @@ pub struct ReturnStatement {
 
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Statement {
     /// The statement kind
     pub kind: StmtKind,
@@ -321,7 +329,7 @@ impl Spanned for Statement {
 }
 
 /// The kind of [`Statement`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StmtKind {
     /// A [LetStatement]
     Let(LetStatement),

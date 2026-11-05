@@ -16,7 +16,6 @@ fn compiles(text: &str) -> bool {
     let policy = parse_policy_str(text, Version::V2).expect("the policy should parse");
     Compiler::new(&policy)
         .debug(true)
-        .allow_baseless(true)
         .compile_with_diagnostics()
         .is_ok()
 }
@@ -163,7 +162,6 @@ fn finish_inside_a_block_expression_exits() {
     .expect("parse");
     let module = Compiler::new(&policy)
         .debug(true)
-        .allow_baseless(true)
         .compile()
         .expect("compile");
     let m: ModuleV0 = match module.data {
@@ -195,7 +193,7 @@ fn recursion_is_accepted() {
     // The recursion guards exist because the compiler does not reject
     // this yet (#607, #751).
     assert!(compiles(&with_defs(
-        "function f(u int) bool { return f(u) }",
+        "function f(u: int) bool { return f(u) }",
         r#"
         check f(this.user) else recall failed()
         finish {}

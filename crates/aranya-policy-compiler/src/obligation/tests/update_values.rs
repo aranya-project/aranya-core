@@ -50,11 +50,13 @@ fn update_literal_values_warn() {
 fn update_values_from_query_of_other_fact_warn() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
-        fact Limit[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
+        fact Limit[user: int]=>{balance: int}
 
-        command Foo {
-            fields { user int }
+        base[null] StubBase { get_key { return None } }
+
+        command Foo with StubBase {
+            fields { user: int }
             policy {
                 let limit = query Limit[user: this.user] or recall failed()
                 check exists Account[user: this.user] else recall failed()
@@ -87,11 +89,13 @@ fn update_value_from_other_field_warns() {
 fn update_value_from_nested_field_warns() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
-        struct Inner { balance int }
+        fact Account[user: int]=>{balance: int}
+        struct Inner { balance: int }
 
-        command Foo {
-            fields { user int, inner struct Inner }
+        base[null] StubBase { get_key { return None } }
+
+        command Foo with StubBase {
+            fields { user: int, inner: struct Inner }
             policy {
                 check exists Account[user: this.user] else recall failed()
                 finish {
@@ -109,7 +113,7 @@ fn update_value_from_nested_field_warns() {
 /// A fact with two values, read by a query and then updated.
 fn update_pair(stated: &str) -> String {
     with_defs(
-        "fact Pair[k int]=>{a int, b int}",
+        "fact Pair[k: int]=>{a: int, b: int}",
         &format!(
             "let p = query Pair[k: this.user] or recall failed()\n\
              finish {{ update Pair[k: this.user]=>{{{stated}}} to {{a: 1, b: 2}} }}"
@@ -145,12 +149,12 @@ fn update_binding_every_value_passes() {
 /// Helpers returning the stored balance of `u`, directly and through
 /// another helper.
 const BALANCE_OF: &str = r#"
-    function balance_of(u int) int {
+    function balance_of(u: int) int {
         let a = query Account[user: u] or test_fail()
         return a.balance
     }
 
-    function balance_via(u int) int {
+    function balance_via(u: int) int {
         return balance_of(u)
     }
 "#;
@@ -224,7 +228,7 @@ fn update_value_filtered_on_in_a_match_arm_passes() {
 #[test]
 fn update_value_filtered_on_by_a_bound_key_query_passes() {
     let warnings = warnings_for(&with_defs(
-        "fact Member[team int, device int]=>{rank int}",
+        "fact Member[team: int, device: int]=>{rank: int}",
         r#"
         let m = query Member[team: this.user, device: ?]=>{rank: 2} or recall failed()
         finish {
@@ -239,7 +243,7 @@ fn update_value_filtered_on_by_a_bound_key_query_passes() {
 fn update_value_known_equal_through_a_finish_function_passes() {
     let warnings = warnings_for(&with_defs(
         r#"
-        finish function set_balance(u int, old int, new int) {
+        finish function set_balance(u: int, old: int, new: int) {
             update Account[user: u]=>{balance: old} to {balance: new}
         }
         "#,

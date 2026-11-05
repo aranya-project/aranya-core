@@ -111,7 +111,7 @@ fn control_unfiltered_count_proves_absent() {
 fn attack_filtered_helper_does_not_prove_absent() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function free(u int) bool {
+        function free(u: int) bool {
             return !exists Account[user: u]=>{balance: 0}
         }
         "#,
@@ -128,7 +128,7 @@ fn attack_filtered_helper_does_not_prove_absent() {
 fn control_unfiltered_helper_proves_absent() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function free(u int) bool {
+        function free(u: int) bool {
             return !exists Account[user: u]
         }
         "#,

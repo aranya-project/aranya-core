@@ -296,7 +296,7 @@ fn branches_on_facts_stay_bounded() {
 /// A helper whose `if` splits its paths on `Owner`, and a command that
 /// calls it.
 const HELPER_WITH_BRANCH: &str = r#"
-    function f(u int) bool {
+    function f(u: int) bool {
         if exists Owner[] {
             check exists Account[user: u] else return false
         }
@@ -352,21 +352,21 @@ fn merged_warning_keeps_a_later_paths_join_note() {
     // one. The merged warning says it may come from the join.
     let warnings = warnings_with_paths(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        finish function close(u int) {
+        finish function close(u: int) {
             delete Account[user: u]
         }
 
-        command Bar {
-            fields { user int }
+        command Bar with Signed {
+            fields { user: int }
             policy {
                 finish { close(this.user) }
             }
         }
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 if this.user == 1 {
                     check exists Account[user: this.user] else test_fail()

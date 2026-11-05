@@ -9,7 +9,7 @@ use super::{warnings_for, warnings_with_cap, with_defs};
 fn one_line_helper_proves() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function account_exists(u int) bool {
+        function account_exists(u: int) bool {
             return exists Account[user: u]
         }
         "#,
@@ -25,7 +25,7 @@ fn one_line_helper_proves() {
 fn helper_in_if_condition_proves() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function account_exists(u int) bool {
+        function account_exists(u: int) bool {
             return exists Account[user: u]
         }
         "#,
@@ -43,7 +43,7 @@ fn helper_in_if_condition_proves() {
 fn helper_returning_false_on_missing_fact_proves_exists() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function has_account(u int) bool {
+        function has_account(u: int) bool {
             let account = query Account[user: u] or return false
             return account.balance >= 0
         }
@@ -60,7 +60,7 @@ fn helper_returning_false_on_missing_fact_proves_exists() {
 fn helper_returning_query_used_as_value() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function find_account(u int) option[struct Account] {
+        function find_account(u: int) option[struct Account] {
             return query Account[user: u]
         }
         "#,
@@ -79,7 +79,7 @@ fn helper_returning_query_used_as_value() {
 fn helper_combining_checks_with_or() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function taken(u int) bool {
+        function taken(u: int) bool {
             let has_account = exists Account[user: u]
             let has_owner = exists Owner[]
             return has_account || has_owner
@@ -100,7 +100,7 @@ fn helper_combining_checks_with_or() {
 fn exit_path_cap_makes_calls_unknown() {
     let text = with_defs(
         r#"
-        function has_account(u int) bool {
+        function has_account(u: int) bool {
             let account = query Account[user: u] or return false
             return true
         }
@@ -127,7 +127,7 @@ fn exit_path_cap_makes_calls_unknown() {
 fn recursive_pure_function_terminates() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function spin(u int) bool {
+        function spin(u: int) bool {
             return spin(u)
         }
         "#,
@@ -146,7 +146,7 @@ fn impossible_check_exit_in_helper_is_not_recorded() {
     // `return true` exit can't weaken the call.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: u] else return false
             check exists Account[user: u] else return true
             return true
@@ -164,7 +164,7 @@ fn impossible_check_exit_in_helper_is_not_recorded() {
 fn impossible_or_return_exit_in_helper_is_not_recorded() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: u] else return false
             let a = query Account[user: u] or return true
             return true
@@ -182,11 +182,11 @@ fn impossible_or_return_exit_in_helper_is_not_recorded() {
 fn mutual_recursion_through_checks_terminates() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check g(u) else return false
             return true
         }
-        function g(u int) bool {
+        function g(u: int) bool {
             check f(u) else return false
             return true
         }
@@ -204,8 +204,8 @@ fn mutual_recursion_through_checks_terminates() {
 fn mutual_recursion_through_query_helpers_terminates() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) option[struct Account] { return g(u) }
-        function g(u int) option[struct Account] { return f(u) }
+        function f(u: int) option[struct Account] { return g(u) }
+        function g(u: int) option[struct Account] { return f(u) }
         "#,
         r#"
         let a = f(this.user) or recall failed()
@@ -220,7 +220,7 @@ fn mutual_recursion_through_query_helpers_terminates() {
 fn unknown_call_notes_facts_in_if_without_else() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             if u == 1 {
                 return f(u)
             }
@@ -250,7 +250,7 @@ fn unknown_call_notes_facts_in_if_without_else() {
 fn helper_check_else_test_fail_is_not_an_exit() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: u] else test_fail("gone")
             let a = query Account[user: u] or test_fail("gone")
             return true
@@ -268,7 +268,7 @@ fn helper_check_else_test_fail_is_not_an_exit() {
 fn helper_arm_test_fail_is_not_an_exit() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = match u {
                 1 => 1
                 _ => test_fail("no")
@@ -312,7 +312,7 @@ fn nested_return_in_each_unmodeled_position() {
     ] {
         let warnings = warnings_for(&with_defs(
             &format!(
-                "function f(u int) bool {{\n\
+                "function f(u: int) bool {{\n\
                      let a = {body}\n\
                      return exists Account[user: u]\n\
                  }}"
@@ -342,7 +342,7 @@ fn nested_return_in_each_unmodeled_position() {
 fn nested_return_makes_helper_unknown() {
     let warnings = warnings_for(&with_defs(
         r#"
-        function has(u int) bool {
+        function has(u: int) bool {
             let x = saturating_add(1, match u {
                 1 => 1
                 _ => return true
@@ -372,7 +372,7 @@ fn dead_statement_level_return_keeps_helper_usable() {
     // so the helper stays usable.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: u] else return false
             if !exists Account[user: u] { return false }
             return true
@@ -392,7 +392,7 @@ fn dead_arm_return_keeps_helper_usable() {
     // the walk records when the arm can run.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             check exists Account[user: u] else return false
             let x = if exists Account[user: u] { : 1 } else { : return false }
             return true
@@ -412,7 +412,7 @@ fn early_return_arm_is_an_exit() {
     // usable, and its true side knows the account exists.
     let warnings = warnings_for(&with_defs(
         r#"
-        function f(u int) bool {
+        function f(u: int) bool {
             let x = if !exists Account[user: u] { : return false } else { : 1 }
             return true
         }

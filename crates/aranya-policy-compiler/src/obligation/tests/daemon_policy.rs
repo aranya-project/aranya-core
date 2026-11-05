@@ -12,7 +12,6 @@ use std::ops::Range;
 use aranya_afc_util::Ffi as AfcFfi;
 use aranya_crypto::keystore::memstore::MemStore;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
-use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_ast::Span;
@@ -26,10 +25,9 @@ use crate::Compiler;
 const POLICY: &str = include_str!("data/daemon-policy.md");
 
 /// The daemon's FFI modules, as the policy runner lists them.
-const FFI_MODULES: [ModuleSchema<'static>; 5] = [
+const FFI_MODULES: [ModuleSchema<'static>; 4] = [
     AfcFfi::<MemStore>::SCHEMA,
     DeviceFfi::SCHEMA,
-    EnvelopeFfi::SCHEMA,
     IdamFfi::<MemStore>::SCHEMA,
     PerspectiveFfi::SCHEMA,
 ];

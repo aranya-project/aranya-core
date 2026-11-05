@@ -36,14 +36,13 @@ mod unequal_values;
 mod update_values;
 
 /// A fact with a two-part key, for queries with a bound key.
-const MEMBER: &str = "fact Member[team int, device int]=>{rank int}";
+const MEMBER: &str = "fact Member[team: int, device: int]=>{rank: int}";
 
 #[track_caller]
 fn warnings_for(text: &str) -> Vec<ObligationWarning> {
     let policy = parse_policy_str(text, Version::V2).expect("parse");
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
-        .allow_baseless(true)
         .compile_with_diagnostics()
         .expect("compile");
     warnings
@@ -53,10 +52,12 @@ fn warnings_for(text: &str) -> Vec<ObligationWarning> {
 fn command(policy_block: &str) -> String {
     format!(
         r#"
-        fact Account[user int]=>{{balance int}}
+        fact Account[user: int]=>{{balance: int}}
 
-        command Foo {{
-            fields {{ user int }}
+        base[null] StubBase {{ get_key {{ return None }} }}
+
+        command Foo with StubBase {{
+            fields {{ user: int }}
             policy {{
                 {policy_block}
             }}
@@ -70,12 +71,14 @@ fn command(policy_block: &str) -> String {
 fn init_command(policy_block: &str) -> String {
     format!(
         r#"
-        fact Account[user int]=>{{balance int}}
-        fact Owner[]=>{{user int}}
+        fact Account[user: int]=>{{balance: int}}
+        fact Owner[]=>{{user: int}}
 
-        command Init {{
+        base[null] StubBase {{ get_key {{ return None }} }}
+
+        command Init with StubBase {{
             attributes {{ init: true }}
-            fields {{ user int }}
+            fields {{ user: int }}
             policy {{
                 {policy_block}
             }}
@@ -89,13 +92,15 @@ fn init_command(policy_block: &str) -> String {
 fn with_defs(defs: &str, policy_block: &str) -> String {
     format!(
         r#"
-        fact Account[user int]=>{{balance int}}
-        fact Owner[]=>{{user int}}
+        fact Account[user: int]=>{{balance: int}}
+        fact Owner[]=>{{user: int}}
+
+        base[null] StubBase {{ get_key {{ return None }} }}
 
         {defs}
 
-        command Foo {{
-            fields {{ user int }}
+        command Foo with StubBase {{
+            fields {{ user: int }}
             policy {{
                 {policy_block}
             }}
@@ -110,7 +115,6 @@ fn warnings_with_cap(text: &str, cap: usize) -> Vec<ObligationWarning> {
     let policy = parse_policy_str(text, Version::V2).expect("parse");
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
-        .allow_baseless(true)
         .max_exit_paths(cap)
         .compile_with_diagnostics()
         .expect("compile");
@@ -122,7 +126,6 @@ fn warnings_with_paths(text: &str, max_paths: usize) -> Vec<ObligationWarning> {
     let policy = parse_policy_str(text, Version::V2).expect("parse");
     let (_module, warnings) = Compiler::new(&policy)
         .debug(true)
-        .allow_baseless(true)
         .max_paths(max_paths)
         .compile_with_diagnostics()
         .expect("compile");

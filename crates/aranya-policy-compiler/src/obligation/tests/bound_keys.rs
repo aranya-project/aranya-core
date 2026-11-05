@@ -75,9 +75,9 @@ fn bound_key_through_let_alias_passes() {
 fn bound_key_through_finish_function_passes() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        finish function remove_member(t int, d int) {
+        finish function remove_member(t: int, d: int) {
             delete Member[team: t, device: d]
         }
         "#,
@@ -93,9 +93,9 @@ fn bound_key_through_finish_function_passes() {
 fn helper_returning_bound_key_query_with_let_passes() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        function find_member(t int) option[struct Member] {
+        function find_member(t: int) option[struct Member] {
             return query Member[team: t, device: ?]
         }
         "#,
@@ -111,9 +111,9 @@ fn helper_returning_bound_key_query_with_let_passes() {
 fn helper_returning_bound_key_query_with_match_passes() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        function find_member(t int) option[struct Member] {
+        function find_member(t: int) option[struct Member] {
             return query Member[team: t, device: ?]
         }
         "#,
@@ -137,12 +137,12 @@ fn bound_key_query_in_init_command_reports_nothing() {
     // the unchecked create on it is not reported.
     let warnings = warnings_for(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Owner[]=>{user int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Owner[]=>{user: int}
 
         command Init {
             attributes { init: true }
-            fields { user int }
+            fields { user: int }
             policy {
                 let m = query Member[team: this.user, device: ?] or recall failed()
                 finish {
@@ -216,8 +216,8 @@ fn rebound_match_arm_forgets_earlier_binding() {
 fn rebinding_forgets_nested_mention() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
         "#,
         r#"
         if this.user == 1 {
@@ -256,9 +256,9 @@ fn mutation_between_query_and_update_warns() {
 fn helper_with_differing_query_keys_warns() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        function find_member(t int) option[struct Member] {
+        function find_member(t: int) option[struct Member] {
             if t == 1 {
                 return query Member[team: 1, device: ?]
             }
@@ -278,9 +278,9 @@ fn helper_with_differing_query_keys_warns() {
 fn helper_returning_some_local_warns() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        function find_member(t int) option[struct Member] {
+        function find_member(t: int) option[struct Member] {
             let m = query Member[team: t, device: ?] or return None
             return Some(m)
         }
@@ -298,9 +298,9 @@ fn helper_returning_some_local_warns() {
 fn helper_exits_returning_same_query_bind() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        function find(t int) option[struct Member] {
+        function find(t: int) option[struct Member] {
             if t == 1 {
                 return query Member[team: t, device: ?]
             }
@@ -379,8 +379,8 @@ fn key_read_back_from_a_query_passes() {
 fn key_read_back_survives_a_mutation() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
         "#,
         r#"
         let m = query Member[team: this.user, device: 1] or recall failed()
@@ -415,7 +415,7 @@ fn key_read_back_in_a_match_arm_passes() {
 fn key_read_back_through_a_finish_function_passes() {
     let warnings = warnings_for(&with_defs(
         r#"
-        finish function remove(u int) {
+        finish function remove(u: int) {
             delete Account[user: u]
         }
         "#,

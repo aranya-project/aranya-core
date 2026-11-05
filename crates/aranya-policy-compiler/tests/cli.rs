@@ -18,7 +18,7 @@ policy-version: 2
 ---
 
 ```policy
-fact Account[user int]=>{balance int}
+fact Account[user: int]=>{balance: int}
 
 base command B {
     fields { }
@@ -31,7 +31,7 @@ base command B {
 /// Creates an `Account` without checking that it does not exist.
 const UNCHECKED: &str = "
 command Open with B {
-    fields { user int }
+    fields { user: int }
     policy {
         finish {
             create Account[user: this.user]=>{balance: 0}
@@ -43,7 +43,7 @@ command Open with B {
 /// Creates an `Account` after checking that it does not exist.
 const CHECKED: &str = "
 command Open with B {
-    fields { user int }
+    fields { user: int }
     policy {
         check !exists Account[user: this.user] else test_fail()
         finish {

@@ -4,8 +4,8 @@
 use super::{warnings_for, with_defs};
 
 const MEMBER_AND_OTHER: &str = r#"
-    fact Member[team int, device int]=>{rank int}
-    fact Other[k int]=>{v int}
+    fact Member[team: int, device: int]=>{rank: int}
+    fact Other[k: int]=>{v: int}
 "#;
 
 #[test]
@@ -14,9 +14,9 @@ fn attack_ok_arm_rebinding() {
     // knowledge about `x` must not survive into it.
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Other[k int]=>{v int}
+        fact Other[k: int]=>{v: int}
 
-        function lookup(u int) result[int, int] {
+        function lookup(u: int) result[int, int] {
             if u == 1 { return Ok(u) }
             return Err(0)
         }
@@ -40,9 +40,9 @@ fn attack_ok_arm_rebinding() {
 fn control_ok_arm_binding_proves_in_arm() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Other[k int]=>{v int}
+        fact Other[k: int]=>{v: int}
 
-        function lookup(u int) result[int, int] {
+        function lookup(u: int) result[int, int] {
             if u == 1 { return Ok(u) }
             return Err(0)
         }
@@ -64,9 +64,9 @@ fn control_ok_arm_binding_proves_in_arm() {
 fn attack_finish_function_param_named_like_caller_var() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        finish function remove(m struct Member) {
+        finish function remove(m: struct Member) {
             delete Member[team: 1, device: m.device]
         }
         "#,
@@ -84,9 +84,9 @@ fn attack_finish_function_param_named_like_caller_var() {
 fn control_finish_function_param_bound_to_caller_var() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        finish function remove(m struct Member) {
+        finish function remove(m: struct Member) {
             delete Member[team: 1, device: m.device]
         }
         "#,
@@ -103,10 +103,10 @@ fn control_finish_function_param_bound_to_caller_var() {
 fn attack_helper_param_named_like_caller_var() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
 
-        function has(m struct Member) bool {
+        function has(m: struct Member) bool {
             return exists Other[k: m.device]
         }
         "#,
@@ -125,10 +125,10 @@ fn attack_helper_param_named_like_caller_var() {
 fn control_helper_param_bound_to_caller_var() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
 
-        function has(m struct Member) bool {
+        function has(m: struct Member) bool {
             return exists Other[k: m.device]
         }
         "#,
@@ -148,10 +148,10 @@ fn attack_rebinding_through_call_argument() {
     // would prove the create for the new `m`.
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
 
-        function f(d int) int { return d }
+        function f(d: int) int { return d }
         "#,
         r#"
         if this.user == 1 {
@@ -174,10 +174,10 @@ fn attack_rebinding_through_call_argument() {
 fn control_call_argument_proves_current_binding() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
-        fact Other[k int]=>{v int}
+        fact Member[team: int, device: int]=>{rank: int}
+        fact Other[k: int]=>{v: int}
 
-        function f(d int) int { return d }
+        function f(d: int) int { return d }
         "#,
         r#"
         let m = query Member[team: 1, device: ?] or recall failed()
@@ -211,9 +211,9 @@ fn attack_helper_arm_name_does_not_leak() {
     // The helper's `m` is `Account[1]`, not the caller's `m`.
     let warnings = warnings_for(&with_defs(
         r#"
-        fact G[b int]=>{}
+        fact G[b: int]=>{}
 
-        function f(p int) bool {
+        function f(p: int) bool {
             return match query Account[user: p] { Some(m) => exists G[b: m.balance]  None => false }
         }
         "#,
@@ -232,9 +232,9 @@ fn control_helper_arm_fact_in_parameters() {
     // What the arm proves about the parameters still reaches the caller.
     let warnings = warnings_for(&with_defs(
         r#"
-        fact G[b int]=>{}
+        fact G[b: int]=>{}
 
-        function f(p int) bool {
+        function f(p: int) bool {
             return match query Account[user: p] { Some(m) => exists G[b: p]  None => false }
         }
         "#,
@@ -253,9 +253,9 @@ fn attack_argument_captured_by_helper_binder() {
     // block's `m`.
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Pair2[k int, j int]=>{}
+        fact Pair2[k: int, j: int]=>{}
 
-        function f(p int) bool { return { let m = 1 : exists Pair2[k: p, j: m] } }
+        function f(p: int) bool { return { let m = 1 : exists Pair2[k: p, j: m] } }
         "#,
         r#"
         let m = if this.user == 1 { : 3 } else { : 4 }
@@ -271,9 +271,9 @@ fn attack_argument_captured_by_helper_binder() {
 fn control_helper_block_binder_without_capture() {
     let warnings = warnings_for(&with_defs(
         r#"
-        fact Pair2[k int, j int]=>{}
+        fact Pair2[k: int, j: int]=>{}
 
-        function f(p int) bool { return { let m = 1 : exists Pair2[k: p, j: m] } }
+        function f(p: int) bool { return { let m = 1 : exists Pair2[k: p, j: m] } }
         "#,
         r#"
         check f(1) else recall failed()
@@ -285,7 +285,7 @@ fn control_helper_block_binder_without_capture() {
 
 /// A helper returning the account a user must have.
 const ACCOUNT_OF: &str = r#"
-    function account_of(u int) struct Account {
+    function account_of(u: int) struct Account {
         return query Account[user: u] or test_fail()
     }
 "#;
@@ -331,9 +331,9 @@ fn control_key_read_back_in_the_binding_arm() {
 fn remove_member(arg: &str) -> String {
     with_defs(
         r#"
-        fact Member[team int, device int]=>{rank int}
+        fact Member[team: int, device: int]=>{rank: int}
 
-        finish function remove(m struct Member) {
+        finish function remove(m: struct Member) {
             delete Member[team: m.team, device: 5]
         }
         "#,
@@ -367,10 +367,10 @@ fn control_key_read_back_from_the_caller_var_passed_in() {
 fn make_item(setup: &str, call: &str) -> String {
     with_defs(
         r#"
-        struct Info { k int, v int }
-        fact Item[k int]=>{v int}
+        struct Info { k: int, v: int }
+        fact Item[k: int]=>{v: int}
 
-        finish function make(i struct Info) {
+        finish function make(i: struct Info) {
             create Item[k: i.k]=>{v: i.v}
         }
         "#,
@@ -426,10 +426,10 @@ fn attack_equal_value_bound_again() {
     // The first `y` equals `this.x`. The second may not.
     let warnings = warnings_for(
         r#"
-        fact Item[k int]=>{}
+        fact Item[k: int]=>{}
 
-        command Foo {
-            fields { x int, y int, z int }
+        command Foo with Signed {
+            fields { x: int, y: int, z: int }
             policy {
                 match this.x {
                     0 => { recall failed() }
@@ -454,10 +454,10 @@ fn attack_equal_value_bound_again() {
 fn control_equal_value_in_its_own_scope() {
     let warnings = warnings_for(
         r#"
-        fact Item[k int]=>{}
+        fact Item[k: int]=>{}
 
-        command Foo {
-            fields { x int, y int, z int }
+        command Foo with Signed {
+            fields { x: int, y: int, z: int }
             policy {
                 check exists Item[k: this.x] else recall failed()
                 match this.x {

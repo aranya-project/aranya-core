@@ -13,8 +13,8 @@ fn create_two(key_type: &str, first: &str, second: &str) -> String {
         enum Color {{ Red, Blue }}
         fact Item[k {key_type}]=>{{}}
 
-        command Foo {{
-            fields {{ user int }}
+        command Foo with Signed {{
+            fields {{ user: int }}
             policy {{
                 check !exists Item[k: {first}] else test_fail()
                 check !exists Item[k: {second}] else test_fail()
@@ -60,10 +60,10 @@ fn absence_of_a_prefix_survives_creating_some_of_it() {
     let warnings = warnings_for(
         r#"
         enum Color { Red, Blue }
-        fact Paint[user int, color enum Color]=>{}
+        fact Paint[user: int, color: enum Color]=>{}
 
-        command Foo {
-            fields { user int }
+        command Foo with Signed {
+            fields { user: int }
             policy {
                 check !exists Paint[user: this.user, color: ?] else test_fail()
                 finish {

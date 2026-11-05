@@ -33,11 +33,11 @@ fn init_command_double_create_warns() {
 fn init_false_is_not_init() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
+        fact Account[user: int]=>{balance: int}
 
-        command Foo {
+        command Foo with Signed {
             attributes { init: false }
-            fields { user int }
+            fields { user: int }
             policy {
                 finish {
                     create Account[user: this.user]=>{balance: 0}

@@ -1,5 +1,5 @@
 //! A helper's facts wherever its call always runs: compared, bound by
-//! `let`, passed to another call, in a key, a struct, or a `match`
+//! `let`, passed to another call, in a key, a: struct, or a `match`
 //! scrutinee, and through helpers that call helpers.
 
 use rstest::rstest;
@@ -8,27 +8,27 @@ use super::{warnings_for, with_defs};
 
 /// Helpers that only return if `Account[user: u]` exists.
 const BALANCE_OF: &str = r#"
-    struct Pair { a int, b int }
-    fact Other[k int]=>{v int}
+    struct Pair { a: int, b: int }
+    fact Other[k: int]=>{v: int}
 
-    function balance_of(u int) int {
+    function balance_of(u: int) int {
         let a = query Account[user: u] or test_fail()
         return a.balance
     }
 
-    function account_of(u int) struct Account {
+    function account_of(u: int) struct Account {
         return query Account[user: u] or test_fail()
     }
 
-    function is_positive(n int) bool {
+    function is_positive(n: int) bool {
         return n > 0
     }
 
-    function has_balance(u int) bool {
+    function has_balance(u: int) bool {
         return balance_of(u) > 0
     }
 
-    function can_spend(u int, n int) bool {
+    function can_spend(u: int, n: int) bool {
         let b = balance_of(u)
         if b < n {
             return false
@@ -100,7 +100,7 @@ fn exit_whose_value_cannot_be_computed_is_not_an_exit() {
             r#"
             {BALANCE_OF}
 
-            function f(u int) int {{
+            function f(u: int) int {{
                 check !exists Account[user: u] else return 0
                 return balance_of(u)
             }}

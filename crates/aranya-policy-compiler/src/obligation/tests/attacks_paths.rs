@@ -86,12 +86,12 @@ fn attack_at_least_two_then_not_exists_exact() {
 fn control_init_prunes_exists_branch() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
-        fact Owner[]=>{user int}
+        fact Account[user: int]=>{balance: int}
+        fact Owner[]=>{user: int}
 
-        command Init {
+        command Init with TeamInit {
             attributes { init: true }
-            fields { user int }
+            fields { user: int }
             policy {
                 if exists Account[user: this.user] {
                     finish { create Owner[]=>{user: this.user} }
@@ -108,12 +108,12 @@ fn control_init_prunes_exists_branch() {
 fn attack_non_init_does_not_prune_exists_branch() {
     let warnings = warnings_for(
         r#"
-        fact Account[user int]=>{balance int}
-        fact Owner[]=>{user int}
+        fact Account[user: int]=>{balance: int}
+        fact Owner[]=>{user: int}
 
-        command Foo {
+        command Foo with Signed {
             attributes { init: false }
-            fields { user int }
+            fields { user: int }
             policy {
                 if exists Account[user: this.user] {
                     finish { create Owner[]=>{user: this.user} }
@@ -132,7 +132,7 @@ fn attack_some_literal_arm_does_not_prune_binding_arm() {
     // `Some(1)` not matching does not mean `None`: the value may be
     // `Some(2)`, so the `Some(x)` arm can run.
     let warnings = warnings_for(&with_defs(
-        "function maybe(u int) option[int] { return Some(u) }",
+        "function maybe(u: int) option[int] { return Some(u) }",
         r#"
         match maybe(this.user) {
             Some(1) => { finish {} }
@@ -178,7 +178,7 @@ fn control_none_arm_after_literal_proves_absent() {
 #[test]
 fn attack_ok_literal_arm_does_not_prune_binding_arm() {
     let warnings = warnings_for(&with_defs(
-        "function lookup(u int) result[int, int] { return Ok(u) }",
+        "function lookup(u: int) result[int, int] { return Ok(u) }",
         r#"
         match lookup(this.user) {
             Ok(1) => { finish {} }
@@ -196,7 +196,7 @@ fn control_some_binding_arm_prunes_none_arm() {
     // `Some(x)` matches every `Some`, and the helper never returns
     // `None`, so the `None` arm cannot run.
     let warnings = warnings_for(&with_defs(
-        "function maybe(u int) option[int] { return Some(u) }",
+        "function maybe(u: int) option[int] { return Some(u) }",
         r#"
         match maybe(this.user) {
             Some(x) => { finish {} }

@@ -794,7 +794,7 @@ fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'
             StmtKind::Check(c) => paths
                 .into_iter()
                 .filter_map(|mut st| {
-                    let (when_true, when_false) = cond_of(&mut st, &c.expression, out);
+                    let (when_true, when_false) = cond_of(&mut st, &c.else_expression, out);
                     terminal_branch(&st, when_false, &c.else_expression, out);
                     st.assume(when_true).then_some(st)
                 })
@@ -830,7 +830,7 @@ fn walk<'a>(stmts: &[Statement], mut paths: Paths<'a>, out: &mut Out) -> Paths<'
                 // for a command block are never read.
                 out.modeled_returns.insert(stmt.span);
                 for st in paths {
-                    record_exit(st, &r.expression, out);
+                    record_exit(st, &r.value, out);
                 }
                 Vec::new()
             }
@@ -888,7 +888,7 @@ fn walk_if<'a>(ifs: &IfStatement, span: Span, paths: Paths<'a>, out: &mut Out) -
 fn walk_match<'a>(m: &MatchStatement, paths: Paths<'a>, out: &mut Out) -> Paths<'a> {
     let mut entering: Vec<Paths<'a>> = m.arms.iter().map(|_| Vec::new()).collect();
     for mut st in paths {
-        let scrutinee = resolve(&st, &m.expression);
+        let scrutinee = resolve(&st, &m.scrutinee);
         // The scrutinee runs before any arm.
         let mut earlier_false = call_facts(&mut st, &scrutinee, out);
         walk_blocks_in(&st, &scrutinee, out);
@@ -910,13 +910,13 @@ fn walk_match<'a>(m: &MatchStatement, paths: Paths<'a>, out: &mut Out) -> Paths<
     let mut next = Vec::new();
     for (arm, arm_paths) in m.arms.iter().zip(entering) {
         next.extend(walk_scope(
-            &arm.statements,
+            &arm.body,
             &arm_names(&arm.pattern),
             arm_paths,
             out,
         ));
     }
-    limit(merge(next), m.expression.span, out)
+    limit(merge(next), m.scrutinee.span, out)
 }
 
 /// Walk `body`, a scope of its own, from `paths`. On each path out of it,
@@ -1115,7 +1115,7 @@ fn mark_arm_exits(e: &Expression, sites: &mut BTreeSet<Span>) {
         }
         ExprKind::Match(m) => {
             for arm in &m.arms {
-                mark_arm_exits(&arm.expression, sites);
+                mark_arm_exits(&arm.body, sites);
             }
         }
         _ => {}
@@ -1247,10 +1247,10 @@ fn statement_exits(stmts: &[Statement], sites: &mut BTreeSet<Span>) {
             }
             StmtKind::Check(c) => mark_arm_exits(&c.else_expression, sites),
             StmtKind::Let(l) => {
-                if let ExprKind::Coalesce(_, rhs) = &l.expression.kind
+                if let ExprKind::Coalesce(_, rhs) = &l.value.kind
                     && matches!(rhs.vtype.inner, TypeKind::Never)
                 {
-                    mark_arm_exits(rhs, sites);
+                    mark_arm_exits(&rhs, sites);
                 }
             }
             StmtKind::If(ifs) => {
@@ -1263,7 +1263,7 @@ fn statement_exits(stmts: &[Statement], sites: &mut BTreeSet<Span>) {
             }
             StmtKind::Match(m) => {
                 for arm in &m.arms {
-                    statement_exits(&arm.statements, sites);
+                    statement_exits(&arm.body, sites);
                 }
             }
             _ => {}
@@ -1533,7 +1533,7 @@ fn through_call<'a>(
     out: &mut Out,
     eval: &mut Eval<'_, 'a>,
 ) -> (Know, Know) {
-    let name = &fc.identifier.inner;
+    let name = &fc.name.inner;
     let summary = if st.evaluating.contains(name) {
         None
     } else {
@@ -1697,7 +1697,7 @@ fn branch_cond<'a>(
             for arm in &m.arms {
                 let (at, af, bound) = arm_cond(st, &m.scrutinee, &arm.pattern, out);
                 let know = both(at, earlier_false.clone());
-                let (t, f) = under(st, know, &bound, &arm.expression, out, eval);
+                let (t, f) = under(st, know, &bound, &arm.body, out, eval);
                 when_true = either_noted(st, expr.span, when_true, t);
                 when_false = either_noted(st, expr.span, when_false, f);
                 earlier_false = both(earlier_false, af);
@@ -1805,7 +1805,7 @@ fn bound_names(stmts: &[Statement]) -> Vec<Identifier> {
 fn collect_bound(stmts: &[Statement], names: &mut Vec<Identifier>) {
     for stmt in stmts {
         match &stmt.kind {
-            StmtKind::Let(l) => names.push(l.identifier.inner.clone()),
+            StmtKind::Let(l) => names.push(l.name.inner.clone()),
             StmtKind::If(ifs) => {
                 for (_, body) in &ifs.branches {
                     collect_bound(body, names);
@@ -1817,12 +1817,12 @@ fn collect_bound(stmts: &[Statement], names: &mut Vec<Identifier>) {
             StmtKind::Match(m) => {
                 for arm in &m.arms {
                     names.extend(arm_names(&arm.pattern));
-                    collect_bound(&arm.statements, names);
+                    collect_bound(&arm.body, names);
                 }
             }
             StmtKind::Map(m) => {
                 names.push(m.identifier.inner.clone());
-                collect_bound(&m.statements, names);
+                collect_bound(&m.body, names);
             }
             StmtKind::Finish(body) => collect_bound(body, names),
             _ => {}
@@ -1859,7 +1859,7 @@ fn record_call_opaque(st: &mut PathState<'_>, name: &Identifier, span: Span) {
         .map_or_else(Vec::new, |body| {
             let mut names = Vec::new();
             stmt_exprs(&body.statements, &mut |e| {
-                visit_facts(e, &mut |fact, _| names.push(fact.identifier.clone()));
+                visit_facts(e, &mut |fact, _| names.push(fact.name.clone()));
             });
             names
         });
@@ -1873,9 +1873,9 @@ fn record_call_opaque(st: &mut PathState<'_>, name: &Identifier, span: Span) {
 fn stmt_exprs(stmts: &[Statement], f: &mut impl FnMut(&Expression)) {
     for stmt in stmts {
         match &stmt.kind {
-            StmtKind::Let(l) => f(&l.expression),
+            StmtKind::Let(l) => f(&l.value),
             StmtKind::Check(c) => {
-                f(&c.expression);
+                f(&c.condition);
                 f(&c.else_expression);
             }
             StmtKind::If(ifs) => {
@@ -1888,13 +1888,13 @@ fn stmt_exprs(stmts: &[Statement], f: &mut impl FnMut(&Expression)) {
                 }
             }
             StmtKind::Match(m) => {
-                f(&m.expression);
+                f(&m.scrutinee);
                 for arm in &m.arms {
-                    stmt_exprs(&arm.statements, f);
+                    stmt_exprs(&arm.body, f);
                 }
             }
-            StmtKind::Map(m) => stmt_exprs(&m.statements, f),
-            StmtKind::Return(r) => f(&r.expression),
+            StmtKind::Map(m) => stmt_exprs(&m.body, f),
+            StmtKind::Return(r) => f(&r.value),
             StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => f(e),
             _ => {}
         }
@@ -1969,7 +1969,7 @@ fn finish_statements<'a>(
                 touched.push(pat);
             }
             StmtKind::FunctionCall(fc) => {
-                let name = &fc.identifier.inner;
+                let name = &fc.name.inner;
                 let recursive = calls.iter().any(|(n, _)| n == name);
                 let az = st.az;
                 match (az.finish_functions.get(name), recursive) {
@@ -2165,7 +2165,7 @@ fn call_returns_value(
 ) -> Option<(FactPattern, Identifier)> {
     let summary = st
         .az
-        .summary(&fc.identifier.inner)
+        .summary(&fc.name)
         .filter(|s| s.params.len() == fc.arguments.len())?;
     let map: BTreeMap<Identifier, Expression> = summary
         .params
@@ -2209,7 +2209,7 @@ fn partially_stated(st: &PathState<'_>, fact: &FactLiteral) -> bool {
     let total = st
         .az
         .facts
-        .get(&fact.identifier.inner)
+        .get(&fact.name.inner)
         .map_or(0, |schema| schema.values);
     stated > 0 && stated < total
 }
@@ -2469,13 +2469,13 @@ fn double_manipulation(span: Span, pat: &FactPattern, prev: &FactPattern) -> Obl
 /// values are remembered so later uses of `x` are compared by what it
 /// holds.
 fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out) -> bool {
-    let var = stmt.identifier.inner.clone();
-    if let ExprKind::Coalesce(lhs, rhs) = &stmt.expression.kind
+    let var = stmt.name.inner.clone();
+    if let ExprKind::Coalesce(lhs, rhs) = &stmt.value.kind
         && matches!(rhs.vtype.inner, TypeKind::Never)
     {
-        let lhs = resolve(st, lhs);
+        let lhs = resolve(st, &lhs);
         let (mut when_some, when_none) = cond_is(st, &lhs, true, out);
-        terminal_branch(st, when_none, rhs, out);
+        terminal_branch(st, when_none, &rhs, out);
         // The compiler forbids shadowing, so `lhs` can't mention `var`.
         st.forget_name(&var);
         if let Some(fact) = query_of(st, &lhs) {
@@ -2486,8 +2486,8 @@ fn observe_let<'a>(st: &mut PathState<'a>, stmt: &LetStatement, out: &mut Out) -
         return st.assume(when_some);
     }
     st.forget_name(&var);
-    let value = resolve(st, &stmt.expression);
-    if is_substitutable(&stmt.expression) {
+    let value = resolve(st, &stmt.value);
+    if is_substitutable(&stmt.value) {
         let calls = call_facts(st, &value, out);
         st.env.insert(var, value);
         return st.assume(calls);
@@ -2523,7 +2523,7 @@ fn match_returns_query(st: &mut PathState<'_>, expr: &Expression) -> Option<Fact
     };
     let fact = query_of(st, &m.scrutinee)?;
     let passes_through = m.arms.iter().all(|arm| {
-        if matches!(arm.expression.vtype.inner, TypeKind::Never) {
+        if matches!(arm.body.vtype.inner, TypeKind::Never) {
             return true;
         }
         let MatchPattern::Values(values) = &arm.pattern else {
@@ -2535,7 +2535,7 @@ fn match_returns_query(st: &mut PathState<'_>, expr: &Expression) -> Option<Fact
         let ExprKind::Optional(Some(inner)) = &value.kind else {
             return false;
         };
-        match (&inner.kind, &arm.expression.kind) {
+        match (&inner.kind, &arm.body.kind) {
             (ExprKind::Identifier(x), ExprKind::Identifier(y)) => x.inner == y.inner,
             _ => false,
         }
@@ -2546,7 +2546,7 @@ fn match_returns_query(st: &mut PathState<'_>, expr: &Expression) -> Option<Fact
 /// The pattern for a fact literal as written, in the path's terms.
 fn pattern_of(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
     FactPattern {
-        name: fact.identifier.clone(),
+        name: fact.name.clone(),
         keys: fact
             .key_fields
             .iter()
@@ -2560,7 +2560,7 @@ fn pattern_of(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
 /// The pattern for a fact literal already in the path's terms.
 fn pattern_raw(fact: &FactLiteral, st: &PathState<'_>) -> FactPattern {
     FactPattern {
-        name: fact.identifier.clone(),
+        name: fact.name.clone(),
         keys: fact
             .key_fields
             .iter()
@@ -2624,7 +2624,7 @@ fn query_of(st: &mut PathState<'_>, expr: &Expression) -> Option<FactLiteral> {
 /// exit that can return `Some` returns a query of the same fact with the
 /// same keys. Exits returning the literal `None` are ignored.
 fn call_returns_query(st: &mut PathState<'_>, fc: &FunctionCall) -> Option<FactLiteral> {
-    let name = &fc.identifier.inner;
+    let name = &fc.name.inner;
     if st.evaluating.contains(name) {
         return None;
     }
@@ -2702,9 +2702,9 @@ fn visit_stmts<'n>(stmts: &'n [Statement], f: &mut impl FnMut(Node<'n>)) {
     for stmt in stmts {
         f(Node::Stmt(stmt));
         match &stmt.kind {
-            StmtKind::Let(l) => visit_expr(&l.expression, f),
+            StmtKind::Let(l) => visit_expr(&l.value, f),
             StmtKind::Check(c) => {
-                visit_expr(&c.expression, f);
+                visit_expr(&c.condition, f);
                 visit_expr(&c.else_expression, f);
             }
             StmtKind::If(ifs) => {
@@ -2717,18 +2717,18 @@ fn visit_stmts<'n>(stmts: &'n [Statement], f: &mut impl FnMut(Node<'n>)) {
                 }
             }
             StmtKind::Match(m) => {
-                visit_expr(&m.expression, f);
+                visit_expr(&m.scrutinee, f);
                 for arm in &m.arms {
                     visit_pattern(&arm.pattern, f);
-                    visit_stmts(&arm.statements, f);
+                    visit_stmts(&arm.body, f);
                 }
             }
             StmtKind::Map(m) => {
                 visit_fact(&m.fact, f);
-                visit_stmts(&m.statements, f);
+                visit_stmts(&m.body, f);
             }
             StmtKind::Finish(body) => visit_stmts(body, f),
-            StmtKind::Return(r) => visit_expr(&r.expression, f),
+            StmtKind::Return(r) => visit_expr(&r.value, f),
             StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
                 visit_expr(e, f);
             }
@@ -2763,6 +2763,8 @@ fn visit_expr<'n>(expr: &'n Expression, f: &mut impl FnMut(Node<'n>)) {
         | ExprKind::Int(_)
         | ExprKind::String(_)
         | ExprKind::Bool(_)
+        | ExprKind::ActionCall(_) 
+        | ExprKind::Try(_) => todo!(),
         | ExprKind::EnumReference(_) => {}
         ExprKind::Optional(inner) => {
             if let Some(e) = inner {
@@ -2828,7 +2830,7 @@ fn visit_expr<'n>(expr: &'n Expression, f: &mut impl FnMut(Node<'n>)) {
             visit_expr(&m.scrutinee, f);
             for arm in &m.arms {
                 visit_pattern(&arm.pattern, f);
-                visit_expr(&arm.expression, f);
+                visit_expr(&arm.body, f);
             }
         }
     }
@@ -2965,7 +2967,9 @@ fn rewrite_parts(expr: &mut Expression, sub: &Subst<'_>, binders: &mut Vec<Ident
         | ExprKind::Int(_)
         | ExprKind::String(_)
         | ExprKind::Bool(_)
-        | ExprKind::EnumReference(_) => true,
+        | ExprKind::EnumReference(_)
+        | ExprKind::ActionCall(_) 
+        | ExprKind::Try(_) => true,
         ExprKind::Optional(inner) => inner.as_mut().is_none_or(|e| rewrite(e, sub, binders)),
         ExprKind::NamedStruct(s) => {
             (sub.strict.is_none() || s.sources.is_empty())
@@ -3041,7 +3045,7 @@ fn rewrite_parts(expr: &mut Expression, sub: &Subst<'_>, binders: &mut Vec<Ident
                 && m.arms.iter_mut().all(|arm| {
                     let depth = binders.len();
                     binders.extend(arm_names(&arm.pattern));
-                    let ok = rewrite(&mut arm.expression, sub, binders);
+                    let ok = rewrite(&mut arm.body, sub, binders);
                     binders.truncate(depth);
                     ok
                 })
@@ -3053,9 +3057,9 @@ fn rewrite_parts(expr: &mut Expression, sub: &Subst<'_>, binders: &mut Vec<Ident
 /// expression.
 fn rewrite_stmts(stmts: &mut [Statement], sub: &Subst<'_>, binders: &mut Vec<Identifier>) -> bool {
     stmts.iter_mut().all(|stmt| match &mut stmt.kind {
-        StmtKind::Let(l) => rewrite(&mut l.expression, sub, binders),
+        StmtKind::Let(l) => rewrite(&mut l.value, sub, binders),
         StmtKind::Check(c) => {
-            rewrite(&mut c.expression, sub, binders)
+            rewrite(&mut c.condition, sub, binders)
                 && rewrite(&mut c.else_expression, sub, binders)
         }
         StmtKind::If(ifs) => {
@@ -3068,15 +3072,15 @@ fn rewrite_stmts(stmts: &mut [Statement], sub: &Subst<'_>, binders: &mut Vec<Ide
                     .is_none_or(|body| rewrite_stmts(body, sub, binders))
         }
         StmtKind::Match(m) => {
-            rewrite(&mut m.expression, sub, binders)
+            rewrite(&mut m.scrutinee, sub, binders)
                 && m.arms
                     .iter_mut()
-                    .all(|arm| rewrite_stmts(&mut arm.statements, sub, binders))
+                    .all(|arm| rewrite_stmts(&mut arm.body, sub, binders))
         }
         // `map` is only allowed in actions, which are never rewritten.
         StmtKind::Map(_) => false,
         StmtKind::Finish(body) => rewrite_stmts(body, sub, binders),
-        StmtKind::Return(r) => rewrite(&mut r.expression, sub, binders),
+        StmtKind::Return(r) => rewrite(&mut r.value, sub, binders),
         StmtKind::Emit(e) | StmtKind::Publish(e) | StmtKind::DebugAssert(e) => {
             rewrite(e, sub, binders)
         }
@@ -3309,7 +3313,7 @@ fn literals_differ(a: &Expression, b: &Expression) -> bool {
         (ExprKind::String(x), ExprKind::String(y)) => x != y,
         (ExprKind::Bool(x), ExprKind::Bool(y)) => x != y,
         (ExprKind::EnumReference(x), ExprKind::EnumReference(y)) => {
-            (&x.identifier, &x.value) != (&y.identifier, &y.value)
+            (&x.enumeration, &x.value) != (&y.enumeration, &y.value)
         }
         _ => false,
     }
@@ -3326,7 +3330,7 @@ fn fact_text(fact: &FactLiteral, src: &str) -> String {
             format!("{name}: {value}")
         })
         .collect();
-    format!("{}[{}]", fact.identifier, keys.join(", "))
+    format!("{}[{}]", fact.name, keys.join(", "))
 }
 
 /// Does a `NotExists` observation of `obs` prove `NotExists` for `obl`?
@@ -3360,13 +3364,13 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
         (ExprKind::Identifier(x), ExprKind::Identifier(y)) => x == y,
         // The key's type makes the enum names agree.
         (ExprKind::EnumReference(x), ExprKind::EnumReference(y)) => {
-            (&x.identifier, &x.value) == (&y.identifier, &y.value)
+            (&x.enumeration, &x.value) == (&y.enumeration, &y.value)
         }
         (ExprKind::Dot(b1, f1), ExprKind::Dot(b2, f2)) => f1 == f2 && matches_expr(b1, b2),
         // Pure functions are deterministic and fact state cannot change
         // between policy statements, so equal calls yield equal values.
         (ExprKind::FunctionCall(f1), ExprKind::FunctionCall(f2)) => {
-            f1.identifier == f2.identifier
+            f1.name == f2.name
                 && f1
                     .arguments
                     .iter()
@@ -3380,7 +3384,7 @@ fn matches_expr(a: &Expression, b: &Expression) -> bool {
 /// Record every fact-touching subexpression as an opaque observation point.
 fn collect_opaque(st: &mut PathState<'_>, expr: &Expression) {
     visit_facts(expr, &mut |fact, span| {
-        st.lose_track(fact.identifier.clone(), span, Why::TooComplex);
+        st.lose_track(fact.name.clone(), span, Why::TooComplex);
     });
 }
 
