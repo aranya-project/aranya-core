@@ -17,8 +17,8 @@ use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
     ClientError, ClientState, Inbound, LibcSpill, Limits, MAX_SYNC_MESSAGE_SIZE, Outcome,
-    PeerConfig, RuntimeBuffers, SubscribeResponse, SyncContext, SyncError, SyncIncoming,
-    SyncRequester, SyncResponder,
+    RuntimeBuffers, SubscribeResponse, SyncContext, SyncError, SyncIncoming, SyncRequester,
+    SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -148,13 +148,10 @@ where
         sink: &mut S,
         graph_id: GraphId,
     ) -> Result<usize> {
+        // Keep the cache if the poll fails and the peer is dropped.
         self.poller.peer_cache(graph_id, &peer_address)?;
-        self.poller.add_peer(
-            peer_address,
-            graph_id,
-            PeerConfig::immediate(),
-            Instant::now(),
-        )?;
+        self.poller
+            .sync_now(&peer_address, graph_id, Instant::now())?;
 
         let spill_dir = self.spill_dir.as_path();
         let make_spill = || LibcSpill::new(spill_dir);
@@ -274,11 +271,7 @@ where
         target: &mut [u8],
     ) -> Result<usize> {
         let len = match SyncIncoming::decode(data)? {
-            SyncIncoming::Poll(poll) => {
-                // Keep what answering teaches us about the peer.
-                if let Some(graph_id) = poll.graph_id() {
-                    self.poller.peer_cache(graph_id, &peer_address)?;
-                }
+            SyncIncoming::Poll(_) => {
                 let mut client = self.client_state.lock().expect("poisoned");
                 // Answering commits nothing, so needs no sink or spill.
                 let mut cx = SyncContext {

@@ -61,8 +61,7 @@ where
     );
     let bug = |msg| SyncerError::from(SyncError::from(Bug::new(msg)));
 
-    request_syncer.add_peer(responder.clone(), graph_id, PeerConfig::immediate(), now)?;
-    response_syncer.peer_cache(graph_id, &requester)?;
+    request_syncer.sync_now(&responder, graph_id, now)?;
 
     let mut received = 0usize;
     for _ in 0..max_exchanges {

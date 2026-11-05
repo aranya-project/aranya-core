@@ -3,6 +3,7 @@
 use core::fmt;
 
 use aranya_crypto::Csprng;
+use buggy::Bug;
 
 use crate::{
     Address, ClientError, ClientState, RuntimeBuffers,
@@ -223,6 +224,24 @@ where
     }
 }
 
+/// Answers a poll with a cache that is dropped afterwards, for when the
+/// slots are full. Kept out of line so the common path's stack frame does
+/// not hold a [`PeerCache`].
+#[inline(never)]
+fn answer_with_fresh_cache<PS, SP: StorageProvider, K, R: Csprng, MS>(
+    responder: &mut SyncResponder,
+    out: &mut [u8],
+    cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
+) -> Result<usize, SyncError> {
+    responder.poll(
+        out,
+        cx.client.provider(),
+        &mut PeerCache::new(),
+        &mut cx.buffers.traversal,
+        cx.rng,
+    )
+}
+
 /// A sans-I/O syncer state machine.
 ///
 /// [`Syncer`] decides when to poll which peer, sends poll requests, commits
@@ -274,8 +293,6 @@ where
 /// grows on demand, [`FixedSlots`] is inline and allocation-free.
 pub struct Syncer<A, T, S = HeapSlots<A, T>> {
     schedule: Schedule<A, T, S>,
-    /// Cache for answering peers that have no slot.
-    scratch_cache: PeerCache,
     seq: u32,
 }
 
@@ -340,7 +357,6 @@ where
     pub fn with_limits_in(limits: Limits, slots: S) -> Self {
         Self {
             schedule: Schedule::new(limits, slots),
-            scratch_cache: PeerCache::new(),
             seq: 0,
         }
     }
@@ -372,22 +388,24 @@ where
         self.schedule.remove_peer(peer, graph_id)
     }
 
-    /// Schedules an immediate poll of a registered `peer`, keeping any
-    /// recurring interval. With a request in flight, the poll follows its
-    /// reply. Returns whether the peer is registered.
-    pub fn sync_now(&mut self, peer: &A, graph_id: GraphId, now: T) -> bool {
-        self.schedule.sync_now(peer, graph_id, now)
+    /// Schedules an immediate poll of `peer`. A registered peer keeps its
+    /// recurring interval, and with a request in flight the poll follows
+    /// its reply. An unregistered peer is registered to be polled once, as
+    /// with [`PeerConfig::immediate`].
+    pub fn sync_now(&mut self, peer: &A, graph_id: GraphId, now: T) -> Result<(), OutOfSlots> {
+        if !self.schedule.sync_now(peer, graph_id, now) {
+            self.schedule
+                .add_peer(peer.clone(), graph_id, PeerConfig::immediate(), now)?;
+        }
+        Ok(())
     }
 
     /// The [`PeerCache`] recording what `peer` is known to hold of
     /// `graph_id`, kept until [`remove_peer`](Self::remove_peer) or
     /// [`remove_graph`](Self::remove_graph).
     ///
-    /// Polls in both directions use this cache. Calling this also lets the
-    /// syncer keep what it learns answering a peer it does not poll; without
-    /// it, such a peer is answered with a fresh cache each time. Code that
-    /// exchanges other messages with the peer (subscribe, push) should use
-    /// it too.
+    /// Polls in both directions use this cache, and code that exchanges
+    /// other messages with the peer (subscribe, push) should use it too.
     pub fn peer_cache(
         &mut self,
         graph_id: GraphId,
@@ -478,6 +496,11 @@ where
     ///
     /// `peer` is whatever identity the transport authenticated; the syncer
     /// keys all state by it. Decode failures leave no partial state.
+    ///
+    /// Answering a poll for a graph we hold keeps a cache for `peer` (see
+    /// [`peer_cache`](Self::peer_cache)), so later replies skip what it is
+    /// known to hold. When the slots are full, the reply is built from a
+    /// fresh cache instead.
     pub fn handle_incoming<PS, SP, K, R, MS>(
         &mut self,
         peer: A,
@@ -492,32 +515,28 @@ where
     {
         match SyncIncoming::decode(data)? {
             SyncIncoming::Poll(poll) => {
-                let graph_id = poll.graph_id();
+                // Only a session-opening request names a graph, and the
+                // syncer's polls always open one.
+                let Some(graph_id) = poll.graph_id() else {
+                    return Ok(Inbound::Ignored(IgnoreReason::Unsupported));
+                };
+                // We do not hold the graph: an empty reply says so. Checked
+                // first so a peer cannot make us keep state for any graph id.
+                if let Err(StorageError::NoSuchStorage) = cx.client.provider().get_storage(graph_id)
+                {
+                    return Ok(Inbound::Reply { len: 0 });
+                }
                 let mut responder = SyncResponder::new();
                 responder.receive(poll)?;
-                let Self {
-                    schedule,
-                    scratch_cache,
-                    ..
-                } = self;
-                let cache = match graph_id.and_then(|g| schedule.cache_mut(g, &peer)) {
-                    Some(cache) => cache,
-                    None => {
-                        *scratch_cache = PeerCache::new();
-                        scratch_cache
-                    }
-                };
-                let len = match responder.poll(
-                    out,
-                    cx.client.provider(),
-                    cache,
-                    &mut cx.buffers.traversal,
-                    cx.rng,
-                ) {
-                    Ok(len) => len,
-                    // We do not hold the graph: an empty reply says so.
-                    Err(SyncError::Storage(StorageError::NoSuchStorage)) => 0,
-                    Err(err) => return Err(err.into()),
+                let len = match self.schedule.pinned_cache(graph_id, &peer) {
+                    Ok(cache) => responder.poll(
+                        out,
+                        cx.client.provider(),
+                        cache,
+                        &mut cx.buffers.traversal,
+                        cx.rng,
+                    )?,
+                    Err(OutOfSlots) => answer_with_fresh_cache(&mut responder, out, cx)?,
                 };
                 Ok(Inbound::Reply { len })
             }
@@ -560,7 +579,10 @@ where
         };
         match self.apply_poll_reply(&mut requester, graph_id, &peer, data, cx) {
             Ok((count, more)) => {
-                let result = if more {
+                // Asking again after a reply that added nothing would send
+                // the same request, so a peer that keeps claiming more
+                // without sending anything new cannot keep us polling.
+                let result = if more && count > 0 {
                     PollResult::More
                 } else {
                     PollResult::Done
@@ -598,12 +620,8 @@ where
         let mut requester = SyncRequester::new(graph_id, cx.rng);
         let encoded = match self.schedule.cache(graph_id, &peer) {
             Some(cache) => requester.poll(out, cx.client.provider(), cache.session_heads(), cx.rng),
-            None => requester.poll(
-                out,
-                cx.client.provider(),
-                PeerCache::new().session_heads(),
-                cx.rng,
-            ),
+            // A poll only comes due from a slot, which holds the cache.
+            None => Err(Bug::new("a due poll has a slot").into()),
         };
         let len = match encoded {
             Ok((len, _)) => len,

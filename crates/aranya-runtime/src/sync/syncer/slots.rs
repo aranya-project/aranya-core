@@ -57,7 +57,7 @@ pub struct SyncSlot<A, T> {
     peer: A,
     pub(crate) poll: Option<PollTarget<T>>,
     pub(crate) cache: PeerCache,
-    /// The caller asked for this peer's cache
+    /// The peer polled us or the caller asked for its cache
     /// ([`Syncer::peer_cache`](super::Syncer::peer_cache)), so the slot stays
     /// without a poll role.
     pub(crate) pinned: bool,

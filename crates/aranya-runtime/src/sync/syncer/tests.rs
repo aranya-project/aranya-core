@@ -14,7 +14,7 @@ use super::*;
 use crate::{
     MemSpill,
     storage::linear::testing::MemStorageProvider,
-    sync::{MAX_SYNC_MESSAGE_SIZE, SubscribeResponse},
+    sync::{MAX_SYNC_MESSAGE_SIZE, SubscribeResponse, SyncIncoming},
     testing::protocol::{TestActions, TestPolicyStore, TestSink},
 };
 
@@ -277,7 +277,7 @@ fn up_to_date_poll_commits_nothing() {
         .unwrap();
     net.settle(secs(0));
     net.node("b").got.clear();
-    net.node("b").syncer.sync_now(&"a", g, secs(1));
+    net.node("b").syncer.sync_now(&"a", g, secs(1)).unwrap();
     net.settle(secs(1));
     assert_eq!(net.node("b").got, [Inbound::Handled]);
 }
@@ -443,18 +443,9 @@ fn remove_graph_drops_the_request_in_flight() {
 }
 
 #[test]
-fn pinned_cache_keeps_what_answering_learns() {
+fn answering_keeps_a_cache_for_the_peer() {
     let mut net = Net::new(&["a", "b"]);
     let g = seeded(&mut net, "a", 3);
-    // "a" never polls "b", but keeps a cache for it.
-    assert!(
-        net.node("a")
-            .syncer
-            .peer_cache(g, &"b")
-            .unwrap()
-            .heads()
-            .is_empty()
-    );
     net.node("b")
         .syncer
         .add_peer("a", g, PeerConfig::immediate(), secs(0))
@@ -462,14 +453,98 @@ fn pinned_cache_keeps_what_answering_learns() {
     net.settle(secs(0));
     // Once "b" holds the graph, its next poll's sample tells "a" what it has.
     net.node("a").action(g, 100);
-    net.node("b").syncer.sync_now(&"a", g, secs(1));
+    net.node("b").syncer.sync_now(&"a", g, secs(1)).unwrap();
     net.settle(secs(1));
+    // "a" never polls "b", but kept what answering taught it.
     let a = net.node("a");
-    assert!(!a.syncer.peer_cache(g, &"b").unwrap().heads().is_empty());
     assert_eq!(a.syncer.peers().count(), 0);
+    assert!(!a.syncer.peer_cache(g, &"b").unwrap().heads().is_empty());
     // Removing the peer forgets the cache.
     assert!(!a.syncer.remove_peer(&"b", g));
-    assert!(a.syncer.peer_cache(g, &"b").unwrap().heads().is_empty());
+    assert_eq!(a.syncer.schedule.slot_count(), 0);
+}
+
+#[test]
+fn polls_for_a_graph_we_lack_keep_no_state() {
+    let mut net = Net::new(&["a", "b"]);
+    let g = seeded(&mut net, "a", 2);
+    net.node("a")
+        .syncer
+        .add_peer("b", g, PeerConfig::immediate(), secs(0))
+        .unwrap();
+    net.settle(secs(0));
+    assert_eq!(net.node("b").got, [Inbound::Reply { len: 0 }]);
+    assert_eq!(net.node("b").syncer.schedule.slot_count(), 0);
+}
+
+#[test]
+fn full_slots_still_answer_polls() {
+    type One = FixedSlots<Peer, Duration, 1>;
+    let mut net = Net::new(&["b"]);
+    let mut a: Node<One> = Node::with_syncer("a", Syncer::new_in(One::new()));
+    let g = a.new_graph();
+    a.action(g, 1);
+    // "a" spends its only slot on polling "c".
+    a.syncer
+        .add_peer("c", g, PeerConfig::periodic(secs(60)), secs(0))
+        .unwrap();
+    let b = net.node("b");
+    b.syncer
+        .add_peer("a", g, PeerConfig::immediate(), secs(0))
+        .unwrap();
+    let ob = b.next_outbound(secs(0)).unwrap().expect("poll");
+    let request = b.out[..ob.len()].to_vec();
+    let Inbound::Reply { len } = a.handle_incoming("b", &request, secs(0)).unwrap() else {
+        panic!("poll not answered");
+    };
+    let reply = a.out[..len].to_vec();
+    net.node("b")
+        .handle_reply(ob.token(), &reply, secs(0))
+        .unwrap();
+    assert_eq!(net.node("b").head(g), a.head(g));
+}
+
+#[test]
+fn sync_now_registers_an_unknown_peer() {
+    let mut net = Net::new(&["a", "b"]);
+    let g = seeded(&mut net, "a", 2);
+    net.node("b").syncer.sync_now(&"a", g, secs(0)).unwrap();
+    net.settle(secs(0));
+    net.assert_same_head(g, "a", "b");
+    assert_eq!(net.node("b").syncer.peers().count(), 1);
+}
+
+#[test]
+fn claiming_more_without_progress_ends_the_catch_up() {
+    let mut net = Net::new(&["a", "b"]);
+    let g = seeded(&mut net, "a", 2);
+    let head = net.node("a").head(g).expect("head");
+    let b = net.node("b");
+    b.syncer.sync_now(&"a", g, secs(0)).unwrap();
+    // "a" answers with only a sample: it claims more but sends nothing.
+    let mut first = true;
+    while let Some(ob) = b.next_outbound(secs(0)).unwrap() {
+        assert!(first, "polled again after a reply that added nothing");
+        first = false;
+        let Ok(SyncIncoming::Poll(poll)) = SyncIncoming::decode(&b.out[..ob.len()]) else {
+            panic!("not a poll");
+        };
+        let mut sample = heapless::Vec::new();
+        sample.push(head).unwrap();
+        let message = crate::sync::SyncResponseMessage::SyncResponse {
+            session_id: poll.session_id(),
+            response_index: 0,
+            commands: heapless::Vec::new(),
+            sample,
+        };
+        let mut reply = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = postcard::to_slice(&message, &mut reply).unwrap().len();
+        assert_eq!(
+            b.handle_reply(ob.token(), &reply[..len], secs(0)).unwrap(),
+            Inbound::Handled
+        );
+    }
+    assert!(!first);
 }
 
 #[test]
