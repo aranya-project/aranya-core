@@ -5,9 +5,16 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'test'>: 1,
+        <action 'test'>: 8,
     },
-    action_defs: [],
+    action_defs: [
+        ActionDef {
+            name: "test",
+            flavor: "null",
+            params: [],
+            result_type: Unit,
+        },
+    ],
     command_defs: [],
     fact_defs: [
         FactDef {
@@ -56,45 +63,6 @@ Module {
 }
 ---
     exit panic
-<fn 'test'>:
-    save SP
-    fact.new 'Foo'
-    const 1
-    fact.kset 'i'
-    query
-    dup
-    is some
-    branch 13
-    dup
-    const None
-    eq
-    branch 20
-<13>:
-    block
-    unwrap some
-    def 'f'
-    get 'f'
-    struct.get 'x'
-    end
-    jump 25
-<20>:
-    block
-    pop
-    const 0
-    end
-    jump 25
-<25>:
-    def 'n'
-    get 'n'
-    const 0
-    eq
-    branch 31
-    exit panic
-<31>:
-    const true
-    restore SP
-    return
-    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -102,3 +70,38 @@ Module {
     restore SP
     return
     exit panic
+<action 'test'>:
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    query
+    dup
+    is some
+    branch 19
+    dup
+    const None
+    eq
+    branch 26
+<19>:
+    block
+    unwrap some
+    def 'f'
+    get 'f'
+    struct.get 'x'
+    end
+    jump 31
+<26>:
+    block
+    pop
+    const 0
+    end
+    jump 31
+<31>:
+    def 'n'
+    get 'n'
+    const 0
+    eq
+    branch 37
+    exit panic
+<37>:
+    return

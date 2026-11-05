@@ -5,10 +5,17 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'a'>: 8,
+        <action 'a'>: 15,
         <fn 'f'>: 1,
     },
-    action_defs: [],
+    action_defs: [
+        ActionDef {
+            name: "a",
+            flavor: "null",
+            params: [],
+            result_type: Unit,
+        },
+    ],
     command_defs: [],
     fact_defs: [],
     struct_defs: [
@@ -35,14 +42,6 @@ Module {
     restore SP
     return
     exit panic
-<fn 'a'>:
-    save SP
-    call <fn 'f'>
-    def 'x'
-    const true
-    restore SP
-    return
-    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -50,3 +49,7 @@ Module {
     restore SP
     return
     exit panic
+<action 'a'>:
+    call <fn 'f'>
+    def 'x'
+    return

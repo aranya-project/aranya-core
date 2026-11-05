@@ -143,9 +143,6 @@ action[basic] increment() {
 }
 
 action[ephemeral] try_result(fail: bool) result[unit, string] {
-    if false {
-        publish IncrementEphemeral { key: 1, amount: 1 }
-    }
     if fail {
         return Err("boom")
     }
@@ -196,9 +193,6 @@ action[ephemeral] incrementFour(n: int) result[unit, string] {
 }
 
 action[ephemeral] lookup(k: int, v: int, expected: bool) result[unit, string] {
-    if false {
-        publish IncrementEphemeral { key: 1, amount: 1 }
-    }
     let f = query Stuff[x: k]=>{y: v}
     match expected {
         true => { check f is Some else return Err("expected Some") }

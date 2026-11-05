@@ -1,7 +1,6 @@
-function f(maybe_bool: option[bool]) bool {
+action[null] f(maybe_bool: option[bool]) {
     let x = match maybe_bool {
         None | Some(false) => 0
         Some(true) => 1
     }
-    return true
 }

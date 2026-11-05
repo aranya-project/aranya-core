@@ -64,6 +64,30 @@ fn test_fail_requires_debug_mode() {
     );
 }
 
+// An action must publish or call another action. This is only a warning in debug mode.
+#[test]
+fn test_action_without_publish_requires_debug_mode() {
+    let text = r#"
+        action[null] f() {}
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+
+    Compiler::new(&policy)
+        .debug(true)
+        .compile()
+        .expect("compiles with debug mode enabled");
+
+    let err = Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect_err("action without publish fails without debug mode");
+    assert!(
+        err.to_string()
+            .contains("action must publish or call another action"),
+        "unexpected error: {err}"
+    );
+}
+
 #[test]
 fn test_validate_return() {
     let valid = [

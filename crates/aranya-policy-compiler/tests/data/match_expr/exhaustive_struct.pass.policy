@@ -7,7 +7,7 @@ struct Light {
     go: bool
 }
 
-function f(traffic: struct Light) bool {
+action[null] f(traffic: struct Light) {
     let x = match traffic {
         Light {  color: LightColor::Red, go: false } => 0
         Light {  color: LightColor::Red, go: true } => 1
@@ -16,5 +16,4 @@ function f(traffic: struct Light) bool {
         Light {  color: LightColor::Green, go: false } => 4
         Light {  color: LightColor::Green, go: true } => 5
     }
-    return true
 }

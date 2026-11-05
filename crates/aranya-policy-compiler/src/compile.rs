@@ -1238,7 +1238,8 @@ impl<'a> CompileState<'a> {
         }
 
         // Actions should publish or call another action, so check for either somewhere in the compiled instructions.
-        if !self.instruction_range_contains(from..self.wp, |i| {
+        // This is only a warning in debug mode, so test policies can use actions as entry points.
+        let publishes_or_calls = self.instruction_range_contains(from..self.wp, |i| {
             matches!(
                 i,
                 Instruction::Publish
@@ -1247,8 +1248,16 @@ impl<'a> CompileState<'a> {
                         ..
                     }))
             )
-        }) {
-            return Err(self.err(NoPublishOrActionCall(action_node.span)));
+        });
+        if !publishes_or_calls {
+            if self.config.is_debug {
+                warn!(
+                    "action `{}` neither publishes nor calls another action",
+                    action_node.name
+                );
+            } else {
+                return Err(self.err(NoPublishOrActionCall(action_node.span)));
+            }
         }
 
         self.exit_statement_context();

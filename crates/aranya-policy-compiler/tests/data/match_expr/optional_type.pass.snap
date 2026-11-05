@@ -5,9 +5,21 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'f'>: 1,
+        <action 'f'>: 8,
     },
-    action_defs: [],
+    action_defs: [
+        ActionDef {
+            name: "f",
+            flavor: "null",
+            params: [
+                Field {
+                    name: "n",
+                    vtype: Int,
+                },
+            ],
+            result_type: Unit,
+        },
+    ],
     command_defs: [],
     fact_defs: [],
     struct_defs: [
@@ -26,34 +38,6 @@ Module {
 }
 ---
     exit panic
-<fn 'f'>:
-    def 'n'
-    save SP
-    get 'n'
-    dup
-    const 0
-    eq
-    branch 9
-    jump 14
-<9>:
-    block
-    pop
-    const None
-    end
-    jump 20
-<14>:
-    block
-    pop
-    const 0
-    wrap some
-    end
-    jump 20
-<20>:
-    def 'x'
-    const true
-    restore SP
-    return
-    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -61,3 +45,27 @@ Module {
     restore SP
     return
     exit panic
+<action 'f'>:
+    def 'n'
+    get 'n'
+    dup
+    const 0
+    eq
+    branch 15
+    jump 20
+<15>:
+    block
+    pop
+    const None
+    end
+    jump 26
+<20>:
+    block
+    pop
+    const 0
+    wrap some
+    end
+    jump 26
+<26>:
+    def 'x'
+    return

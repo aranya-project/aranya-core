@@ -2,7 +2,6 @@ function f() option[option[int]] {
     return Some(Some(1))
 }
 
-function a() bool {
+action[null] a() {
     let x = f()
-    return true
 }

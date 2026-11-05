@@ -1,18 +1,10 @@
 // An infallible action has no result type and no return.
-action[null] infallible() { publish Pub {} }
+action[null] infallible() {}
 
 // A result-typed action must return Ok(unit)/Err(e) on every path.
 action[null] can_fail(x: int) result[unit, string] {
     if x > 0 {
-        publish Pub {}
         return Ok(Unit)
     }
     return Err("negative input")
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
 }

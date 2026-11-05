@@ -5,11 +5,23 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <get_key 'Foo'>: 29,
-        <policy 'Foo'>: 36,
-        <fn 'foo'>: 1,
+        <get_key 'Foo'>: 1,
+        <policy 'Foo'>: 8,
+        <action 'foo'>: 15,
     },
-    action_defs: [],
+    action_defs: [
+        ActionDef {
+            name: "foo",
+            flavor: "null",
+            params: [
+                Field {
+                    name: "b",
+                    vtype: Int,
+                },
+            ],
+            result_type: Unit,
+        },
+    ],
     command_defs: [
         CommandDef {
             name: "Foo",
@@ -57,37 +69,6 @@ Module {
 }
 ---
     exit panic
-<fn 'foo'>:
-    def 'b'
-    save SP
-    const 4
-    def 'i'
-    get 'b'
-    const 0
-    eq
-    branch 13
-    block
-    const 3
-    end
-    jump 18
-<13>:
-    block
-    const 4
-    get 'i'
-    saturating_add
-    end
-<18>:
-    def 'x'
-    struct.new 'Foo'
-    get 'x'
-    struct.set 'a'
-    const 4
-    struct.set 'b'
-    def 'y'
-    const true
-    restore SP
-    return
-    exit panic
 <get_key 'Foo'>:
     def 'author_id'
     def 'this'
@@ -104,3 +85,30 @@ Module {
     end
     exit normal
     exit panic
+<action 'foo'>:
+    def 'b'
+    const 4
+    def 'i'
+    get 'b'
+    const 0
+    eq
+    branch 26
+    block
+    const 3
+    end
+    jump 31
+<26>:
+    block
+    const 4
+    get 'i'
+    saturating_add
+    end
+<31>:
+    def 'x'
+    struct.new 'Foo'
+    get 'x'
+    struct.set 'a'
+    const 4
+    struct.set 'b'
+    def 'y'
+    return

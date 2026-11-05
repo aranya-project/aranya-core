@@ -5,9 +5,16 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'test'>: 1,
+        <action 'test'>: 8,
     },
-    action_defs: [],
+    action_defs: [
+        ActionDef {
+            name: "test",
+            flavor: "null",
+            params: [],
+            result_type: Unit,
+        },
+    ],
     command_defs: [],
     fact_defs: [
         FactDef {
@@ -56,22 +63,6 @@ Module {
 }
 ---
     exit panic
-<fn 'test'>:
-    save SP
-    fact.new 'Foo'
-    const 1
-    fact.kset 'i'
-    query
-    const None
-    eq
-    not
-    branch 11
-    exit panic
-<11>:
-    const true
-    restore SP
-    return
-    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -79,3 +70,15 @@ Module {
     restore SP
     return
     exit panic
+<action 'test'>:
+    fact.new 'Foo'
+    const 1
+    fact.kset 'i'
+    query
+    const None
+    eq
+    not
+    branch 17
+    exit panic
+<17>:
+    return

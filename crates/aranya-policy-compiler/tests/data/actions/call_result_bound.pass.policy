@@ -1,16 +1,8 @@
 action[null] can_fail() result[unit, string] {
-    publish Pub {}
     return Err("nope")
 }
 
 action[null] foo() result[unit, string] {
     let r = action can_fail()
     return r
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
-    }
 }

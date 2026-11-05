@@ -1,7 +1,6 @@
-function f(n: int) bool {
+action[null] f(n: int) {
     let x = if n > 1 {
         let x = saturating_add(n, 1)
         :x
     } else { :0 }
-    return true
 }

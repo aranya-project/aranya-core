@@ -1,16 +1,8 @@
 fact Pet[name: string]=>{age: int}
 action[null] pets() {
-    publish Pub {}
     let n = 42
     map Pet[name:?] as p {
         check p.age > 0 else test_fail()
         check n == 42 else test_fail()
-    }
-}
-
-command Pub with StubBase {
-    fields {}
-    policy {
-        finish {}
     }
 }

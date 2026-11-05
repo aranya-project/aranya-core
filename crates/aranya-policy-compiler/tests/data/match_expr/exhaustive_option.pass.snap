@@ -5,9 +5,23 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <fn 'f'>: 1,
+        <action 'f'>: 8,
     },
-    action_defs: [],
+    action_defs: [
+        ActionDef {
+            name: "f",
+            flavor: "null",
+            params: [
+                Field {
+                    name: "maybe_bool",
+                    vtype: Optional(
+                        Bool,
+                    ),
+                },
+            ],
+            result_type: Unit,
+        },
+    ],
     command_defs: [],
     fact_defs: [],
     struct_defs: [
@@ -26,48 +40,6 @@ Module {
 }
 ---
     exit panic
-<fn 'f'>:
-    def 'maybe_bool'
-    save SP
-    get 'maybe_bool'
-    dup
-    const None
-    eq
-    branch 18
-    dup
-    const true
-    wrap some
-    eq
-    branch 23
-    dup
-    const false
-    wrap some
-    eq
-    branch 28
-<18>:
-    block
-    pop
-    const 0
-    end
-    jump 33
-<23>:
-    block
-    pop
-    const 1
-    end
-    jump 33
-<28>:
-    block
-    pop
-    const 2
-    end
-    jump 33
-<33>:
-    def 'x'
-    const true
-    restore SP
-    return
-    exit panic
     def 'author_id'
     def 'this'
     save SP
@@ -75,3 +47,41 @@ Module {
     restore SP
     return
     exit panic
+<action 'f'>:
+    def 'maybe_bool'
+    get 'maybe_bool'
+    dup
+    const None
+    eq
+    branch 24
+    dup
+    const true
+    wrap some
+    eq
+    branch 29
+    dup
+    const false
+    wrap some
+    eq
+    branch 34
+<24>:
+    block
+    pop
+    const 0
+    end
+    jump 39
+<29>:
+    block
+    pop
+    const 1
+    end
+    jump 39
+<34>:
+    block
+    pop
+    const 2
+    end
+    jump 39
+<39>:
+    def 'x'
+    return
