@@ -31,11 +31,13 @@
 //! sync::run_syncer(...)
 //! ```
 //!
-//! To initiate a sync with another peer, construct a [`SyncRequester`]
-//! and send the sync request to the peer via the Aranya transport:
+//! To sync with other peers, register them with a [`Syncer`] and drive it
+//! from your transport: send what [`Syncer::next_outbound`] produces, hand
+//! replies to [`Syncer::handle_reply`] and peers' requests to
+//! [`Syncer::handle_incoming`]:
 //! ```ignore
-//! SyncRequester::new(...)
-//! sync::sync(...)
+//! syncer.add_peer(peer, graph_id, PeerConfig::periodic(interval), now)?;
+//! while let Some(outbound) = syncer.next_outbound(now, &mut cx, &mut buf)? { ... }
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]

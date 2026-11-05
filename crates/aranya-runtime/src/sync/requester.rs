@@ -151,6 +151,11 @@ impl SyncRequester {
         }
     }
 
+    /// The graph this requester syncs.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
+    }
+
     /// Returns true if [`Self::poll`] would produce a message.
     pub fn ready(&self) -> bool {
         use SyncRequesterState as S;

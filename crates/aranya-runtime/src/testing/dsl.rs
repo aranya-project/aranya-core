@@ -75,9 +75,9 @@ use tracing::{debug, error};
 use crate::{
     Address, Bytes, COMMAND_RESPONSE_MAX, ClientError, ClientState, CmdId, Command as _,
     CommandExt as _, GraphId, Keys, LocatedAddress, Location, MAX_COMMAND_LENGTH,
-    MAX_SYNC_MESSAGE_SIZE, MaxCut, PeerCache, PolicyError, Prior, Query as _, RuntimeBuffers,
-    Segment as _, Storage, StorageError, StorageProvider, SyncError, SyncHello, SyncIncoming,
-    SyncResponder, TraversalBuffer, TraversalBuffers, mem_spill,
+    MAX_SYNC_MESSAGE_SIZE, MaxCut, PolicyError, Prior, Query as _, RuntimeBuffers, Segment as _,
+    Storage, StorageError, StorageProvider, SyncError, SyncHello, SyncIncoming, TraversalBuffer,
+    mem_spill,
     sync::{
         SyncRequestMessage, Syncer, SyncerError,
         wire::{SyncHelloType, SyncType},
@@ -201,31 +201,6 @@ pub enum HelloTopology {
     HubAndSpoke,
     /// Each client subscribes to the next: 0→1, 1→2, ..., N-1→0.
     Ring,
-}
-
-/// Dispatches the sync message contained in data.
-/// This function is only for testing using polling. In production
-/// usage the syncer implementation will handle this.
-pub fn dispatch(
-    data: &[u8],
-    target: &mut [u8],
-    provider: &mut impl StorageProvider,
-    response_cache: &mut PeerCache,
-    buffers: &mut TraversalBuffers,
-) -> Result<usize, SyncError> {
-    let len = match SyncIncoming::decode(data)? {
-        SyncIncoming::Poll(poll) => {
-            let mut response_syncer = SyncResponder::new();
-            response_syncer.receive(poll)?;
-            assert!(response_syncer.ready());
-            response_syncer.poll(target, provider, response_cache, buffers, &Rng)?
-        }
-        SyncIncoming::Subscribe(_) => unimplemented!(),
-        SyncIncoming::Unsubscribe(_) => unimplemented!(),
-        SyncIncoming::Push(_) => unimplemented!(),
-        SyncIncoming::Hello(_) => unimplemented!(),
-    };
-    Ok(len)
 }
 
 /// Processes hello sync notifications cascading from a graph change.
