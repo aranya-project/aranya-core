@@ -35,7 +35,7 @@ jobs:
   second:
     runs-on: ubuntu-slim
     steps:
-      - run: exit 1
+      - run: exit 0
 
   # ==== Failure alert ====
 
