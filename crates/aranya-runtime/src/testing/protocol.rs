@@ -439,7 +439,6 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        _placement: crate::policy::ActionPlacement,
         _seal_ctx: &(),
         _flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
