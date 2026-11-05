@@ -9,10 +9,10 @@ use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value, ast::ident};
 use tracing::trace;
 
-use super::dsl::dispatch;
+use super::pull_in_process;
 use crate::{
-    ClientError, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache,
-    RuntimeBuffers, SyncRequester, VmEffect, VmEffectData, VmPolicy, VmPolicyError, mem_spill,
+    ClientError, ClientState, CmdId, GraphId, NullSink, RuntimeBuffers, Syncer, VmEffect,
+    VmEffectData, VmPolicy, VmPolicyError, mem_spill,
     policy::{PolicyError, PolicyId, PolicyStore, Sink},
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
@@ -718,49 +718,16 @@ fn test_sync<PS, P, S>(
     PS: PolicyStore,
     S: Sink<<PS>::Effect>,
 {
-    let mut sync_requester = SyncRequester::new(graph_id, Rng);
-
-    let mut req_transaction = cs1.transaction(graph_id);
-    let mut request_cache = PeerCache::new();
-
-    while sync_requester.ready() {
-        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let (len, _) = sync_requester
-            .poll(
-                &mut buffer,
-                cs2.provider(),
-                req_transaction.session_heads(&request_cache),
-                &Rng,
-            )
-            .expect("sync req->res");
-
-        let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = dispatch(
-            &buffer[..len],
-            &mut target,
-            cs1.provider(),
-            &mut PeerCache::new(),
-            &mut rt_buffers.traversal,
-        )
-        .expect("dispatch sync response");
-
-        if let Some(reply) = sync_requester
-            .receive(&target[..len], &mut request_cache)
-            .expect("recieve req")
-        {
-            cs2.add_commands(
-                &mut req_transaction,
-                sink,
-                reply.commands(),
-                rt_buffers,
-                mem_spill,
-            )
-            .expect("add commands");
-        }
-    }
-
-    cs2.commit(req_transaction, sink, rt_buffers, mem_spill)
-        .expect("commit");
+    pull_in_process(
+        graph_id,
+        (2, &mut Syncer::new(), cs2),
+        (1, &mut Syncer::new(), cs1),
+        sink,
+        rt_buffers,
+        u64::MAX,
+        |_| {},
+    )
+    .expect("sync");
 }
 
 /// Tests the command ID and recall status in emitted `VmEffect`s.

@@ -47,8 +47,8 @@ pub(crate) enum DueKind {
 /// One peer-graph pair's sync state: an entry in the caller-supplied
 /// [`SyncSlots`].
 ///
-/// A slot holds the pair's poll role and the [`PeerCache`] recording what
-/// the peer is known to hold. The contents are private; [`SyncSlots`]
+/// A slot holds the pair's poll role, if any, and the [`PeerCache`]
+/// recording what the peer is known to hold. The contents are private; [`SyncSlots`]
 /// implementations only construct empty slots ([`new`](Self::new)) and key
 /// them by [`graph_id`](Self::graph_id) and [`peer`](Self::peer).
 #[derive(Debug)]
@@ -57,6 +57,10 @@ pub struct SyncSlot<A, T> {
     peer: A,
     pub(crate) poll: Option<PollTarget<T>>,
     pub(crate) cache: PeerCache,
+    /// The caller asked for this peer's cache
+    /// ([`Syncer::peer_cache`](super::Syncer::peer_cache)), so the slot stays
+    /// without a poll role.
+    pub(crate) pinned: bool,
     /// Cached minimum of every armed timer; kept current by
     /// [`refresh`](Self::refresh).
     next_deadline: Option<T>,
@@ -72,6 +76,7 @@ impl<A, T> SyncSlot<A, T> {
             peer,
             poll: None,
             cache: PeerCache::new(),
+            pinned: false,
             next_deadline: None,
         }
     }
@@ -86,11 +91,12 @@ impl<A, T> SyncSlot<A, T> {
         &self.peer
     }
 
-    /// Returns whether no role is active. The syncer removes a slot as soon
-    /// as it becomes empty, so implementations never accumulate dead
+    /// Returns whether the slot holds nothing worth keeping: no poll role
+    /// and no cache the caller asked to keep. The syncer removes a slot as
+    /// soon as it becomes empty, so implementations never accumulate dead
     /// entries.
     pub fn is_empty(&self) -> bool {
-        self.poll.is_none()
+        self.poll.is_none() && !self.pinned
     }
 
     /// Whether a poll request is awaiting its reply.

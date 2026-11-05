@@ -365,9 +365,9 @@ where
         self.schedule.add_peer(peer, graph_id, cfg, now)
     }
 
-    /// Unregisters `peer` from polling. A request in flight is dropped: its
-    /// reply is ignored as [`IgnoreReason::StaleToken`]. Returns whether it
-    /// was registered.
+    /// Forgets `peer`: its polling, its cache, and any request in flight,
+    /// whose reply is then ignored as [`IgnoreReason::StaleToken`]. Returns
+    /// whether it was registered for polling.
     pub fn remove_peer(&mut self, peer: &A, graph_id: GraphId) -> bool {
         self.schedule.remove_peer(peer, graph_id)
     }
@@ -377,6 +377,23 @@ where
     /// reply. Returns whether the peer is registered.
     pub fn sync_now(&mut self, peer: &A, graph_id: GraphId, now: T) -> bool {
         self.schedule.sync_now(peer, graph_id, now)
+    }
+
+    /// The [`PeerCache`] recording what `peer` is known to hold of
+    /// `graph_id`, kept until [`remove_peer`](Self::remove_peer) or
+    /// [`remove_graph`](Self::remove_graph).
+    ///
+    /// Polls in both directions use this cache. Calling this also lets the
+    /// syncer keep what it learns answering a peer it does not poll; without
+    /// it, such a peer is answered with a fresh cache each time. Code that
+    /// exchanges other messages with the peer (subscribe, push) should use
+    /// it too.
+    pub fn peer_cache(
+        &mut self,
+        graph_id: GraphId,
+        peer: &A,
+    ) -> Result<&mut PeerCache, OutOfSlots> {
+        self.schedule.pinned_cache(graph_id, peer)
     }
 
     /// Drops all state for `graph_id`: registrations, caches, and requests

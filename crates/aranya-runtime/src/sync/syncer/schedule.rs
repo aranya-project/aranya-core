@@ -152,11 +152,14 @@ where
         })
     }
 
-    /// Unregisters `peer` from polling, dropping any request in flight.
-    /// Returns whether it was registered.
+    /// Forgets `peer`: its poll role, any request in flight, and its cache.
+    /// Returns whether it was registered for polling.
     pub(crate) fn remove_peer(&mut self, peer: &A, graph_id: GraphId) -> bool {
-        self.modify(graph_id, peer, |slot| slot.poll.take().is_some())
-            .unwrap_or(false)
+        self.modify(graph_id, peer, |slot| {
+            slot.pinned = false;
+            slot.poll.take().is_some()
+        })
+        .unwrap_or(false)
     }
 
     /// Schedules an immediate poll, keeping any recurring interval. With a
@@ -268,6 +271,18 @@ where
         self.slots
             .get_mut(graph_id, peer)
             .map(|slot| &mut slot.cache)
+    }
+
+    /// The cache for `(graph_id, peer)`, creating and pinning its slot so
+    /// the cache outlives any poll role.
+    pub(crate) fn pinned_cache(
+        &mut self,
+        graph_id: GraphId,
+        peer: &A,
+    ) -> Result<&mut PeerCache, OutOfSlots> {
+        let slot = self.slots.get_or_insert(graph_id, peer)?;
+        slot.pinned = true;
+        Ok(&mut slot.cache)
     }
 
     // ---- timers ----------------------------------------------------------

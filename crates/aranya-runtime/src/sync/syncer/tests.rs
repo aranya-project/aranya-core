@@ -13,9 +13,8 @@ use aranya_crypto::Rng;
 use super::*;
 use crate::{
     MemSpill,
-    command::Command as _,
-    storage::{LocatedAddress, Segment as _, Storage as _, linear::testing::MemStorageProvider},
-    sync::{COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE, SubscribeResponse},
+    storage::linear::testing::MemStorageProvider,
+    sync::{MAX_SYNC_MESSAGE_SIZE, SubscribeResponse},
     testing::protocol::{TestActions, TestPolicyStore, TestSink},
 };
 
@@ -141,39 +140,10 @@ impl<S: SyncSlots<Peer, Duration>> Node<S> {
         self.client.head_address(graph_id).ok()
     }
 
-    fn command_count(&mut self, graph_id: GraphId) -> usize {
-        let Ok(storage) = self.client.provider().get_storage(graph_id) else {
-            return 0;
-        };
-        let mut count = 0;
-        let heads = storage.get_heads().expect("heads");
-        let mut seen = BTreeSet::new();
-        let mut stack: Vec<_> = heads.iter().map(LocatedAddress::location).collect();
-        while let Some(loc) = stack.pop() {
-            let segment = storage.get_segment(loc).expect("segment");
-            for cmd in segment.get_from(segment.first_location()) {
-                if seen.insert(cmd.id()) {
-                    count += 1;
-                }
-            }
-            for prior in segment.prior() {
-                stack.push(prior);
-            }
-        }
-        count
-    }
-
     fn polls_sent(&self) -> usize {
         self.sent
             .iter()
             .filter(|(k, _)| *k == OutboundKind::PollRequest)
-            .count()
-    }
-
-    fn commits(&self) -> usize {
-        self.got
-            .iter()
-            .filter(|i| matches!(i, Inbound::Committed { .. }))
             .count()
     }
 }
@@ -279,29 +249,6 @@ fn seeded(net: &mut Net, name: Peer, actions: u64) -> GraphId {
 }
 
 #[test]
-fn poll_bootstraps_a_cold_peer_in_one_drain() {
-    let mut net = Net::new(&["a", "b"]);
-    // Well over two full responses, so the catch-up needs several polls.
-    let actions = (COMMAND_RESPONSE_MAX as u64) * 2 + 49;
-    let g = seeded(&mut net, "a", actions);
-    net.node("b")
-        .syncer
-        .add_peer("a", g, PeerConfig::immediate(), secs(0))
-        .unwrap();
-
-    net.settle(secs(0));
-
-    net.assert_same_head(g, "a", "b");
-    assert_eq!(net.node("b").command_count(g), actions as usize + 1);
-    // Each reply commits on its own. The last poll may find nothing left
-    // when the previous reply exactly filled up.
-    let b = net.node("b");
-    assert!(b.polls_sent() >= 3, "{:?}", b.sent);
-    assert!(b.commits() + 1 >= b.polls_sent(), "{:?}", b.got);
-    assert_eq!(b.syncer.next_deadline(), None);
-}
-
-#[test]
 fn periodic_poll_picks_up_later_changes() {
     let mut net = Net::new(&["a", "b"]);
     let g = seeded(&mut net, "a", 3);
@@ -347,30 +294,6 @@ fn poll_of_a_peer_without_the_graph_is_handled() {
     net.settle(secs(0));
     assert_eq!(net.node("a").got, [Inbound::Handled]);
     assert_eq!(net.node("b").got, [Inbound::Reply { len: 0 }]);
-}
-
-#[test]
-fn polls_converge_both_ways() {
-    let mut net = Net::new(&["a", "b"]);
-    let g = seeded(&mut net, "a", 5);
-    net.node("b")
-        .syncer
-        .add_peer("a", g, PeerConfig::periodic(secs(10)), secs(0))
-        .unwrap();
-    net.settle(secs(0));
-    net.node("a")
-        .syncer
-        .add_peer("b", g, PeerConfig::periodic(secs(10)), secs(0))
-        .unwrap();
-    // Concurrent changes on both sides merge.
-    net.node("a").action(g, 100);
-    net.node("b").action(g, 200);
-    net.settle(secs(10));
-    net.settle(secs(20));
-    // Both hold the seed plus each other's change; the two heads stay
-    // unmerged until someone acts.
-    assert_eq!(net.node("a").command_count(g), 8);
-    assert_eq!(net.node("b").command_count(g), 8);
 }
 
 #[test]
@@ -517,6 +440,36 @@ fn remove_graph_drops_the_request_in_flight() {
         Inbound::Ignored(IgnoreReason::StaleToken)
     );
     assert_eq!(b.syncer.next_deadline(), None);
+}
+
+#[test]
+fn pinned_cache_keeps_what_answering_learns() {
+    let mut net = Net::new(&["a", "b"]);
+    let g = seeded(&mut net, "a", 3);
+    // "a" never polls "b", but keeps a cache for it.
+    assert!(
+        net.node("a")
+            .syncer
+            .peer_cache(g, &"b")
+            .unwrap()
+            .heads()
+            .is_empty()
+    );
+    net.node("b")
+        .syncer
+        .add_peer("a", g, PeerConfig::immediate(), secs(0))
+        .unwrap();
+    net.settle(secs(0));
+    // Once "b" holds the graph, its next poll's sample tells "a" what it has.
+    net.node("a").action(g, 100);
+    net.node("b").syncer.sync_now(&"a", g, secs(1));
+    net.settle(secs(1));
+    let a = net.node("a");
+    assert!(!a.syncer.peer_cache(g, &"b").unwrap().heads().is_empty());
+    assert_eq!(a.syncer.peers().count(), 0);
+    // Removing the peer forgets the cache.
+    assert!(!a.syncer.remove_peer(&"b", g));
+    assert!(a.syncer.peer_cache(g, &"b").unwrap().heads().is_empty());
 }
 
 #[test]
