@@ -19,8 +19,7 @@ use crate::{
     Address, Bytes, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective,
     FlavorCtx, GraphId, Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior,
     Priority, Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError,
-    StorageProvider,
-    policy::{ActionPlacement, CommandPlacement},
+    StorageProvider, policy::CommandPlacement,
 };
 
 /// Ephemeral session used to handle/generate off-graph commands.
@@ -105,9 +104,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
             action,
             &mut perspective,
             effect_sink,
-            ActionPlacement::OffGraph,
             seal_ctx,
-            FlavorCtx::Basic,
+            FlavorCtx::Ephemeral,
         ) {
             Ok(()) => {
                 // Success, commit effects
@@ -498,9 +496,7 @@ mod test {
     use crate::{
         Address, Bytes, ClientState, FactPerspective, FlavorCtx, GraphId, Keys, MergeIds,
         Perspective, Policy, PolicyStore, Priority, RuntimeBuffers, mem_spill,
-        policy::{
-            ActionPlacement, CommandPlacement, NullSink, PolicyError, PolicyStoreError, Sink,
-        },
+        policy::{CommandPlacement, NullSink, PolicyError, PolicyStoreError, Sink},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -593,7 +589,6 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _placement: ActionPlacement,
             _seal_ctx: &(),
             _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {

@@ -17,8 +17,8 @@ use buggy::{BugExt as _, bug};
 use crate::{
     Address, CmdId, Command, FlavorCtx, Prior, Priority,
     policy::{
-        ActionPlacement, CommandPlacement, MergeIds, Policy, PolicyError, PolicyId, PolicyStore,
-        PolicyStoreError, Sink,
+        CommandPlacement, MergeIds, Policy, PolicyError, PolicyId, PolicyStore, PolicyStoreError,
+        Sink,
     },
     storage::{FactPerspective, Keys, Perspective},
     testing::{hash_for_testing_only, short_b58},
@@ -147,7 +147,6 @@ impl Policy for ProbePolicy {
         action: Self::Action<'_>,
         _facts: &mut impl Perspective,
         _sink: &mut impl Sink<Self::Effect>,
-        _placement: ActionPlacement,
         _seal_ctx: &Self::SealCtx,
         _flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
