@@ -7,14 +7,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::{Context as _, Result, bail};
 use aranya_policy_ast::{Version, ident};
-use aranya_policy_compiler::{CompileError, Compiler};
+use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     Instruction, Label, Module, ModuleData, arg,
     ffi::{self, ModuleSchema},
     flavor,
 };
+use tryfn::{Case, Data, Harness};
 
 const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     ModuleSchema {
@@ -93,32 +95,6 @@ const TEST_FLAVORS: &flavor::Flavors = &flavor::Flavors {
         ),
     ],
 };
-
-#[track_caller]
-fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let text = text.to_owned() + "\n\nbase[null] StubBase { get_key { return None } }";
-    let policy = parse_policy_str(&text, Version::V2).unwrap();
-    Compiler::new(&policy)
-        .ffi_modules(TEST_SCHEMAS)
-        .flavors(TEST_FLAVORS)
-        .debug(is_debug)
-        .compile()
-}
-
-// Helper function which parses and compiles policy expecting success.
-#[track_caller]
-fn compile_pass(text: &str, allow_unused: bool) -> Module {
-    compile(text, allow_unused).unwrap()
-}
-
-// Helper function which parses and compiles policy expecting compile failure.
-#[track_caller]
-fn compile_fail(text: &str, allow_unused: bool) -> CompileError {
-    match compile(text, allow_unused) {
-        Ok(_) => panic!("policy compilation should have failed - src: {text}"),
-        Err(err) => err,
-    }
-}
 
 /// Wraps [`aranya_policy_module::Module`] to provide a Debug impl
 /// that only prints data worth viewing.
@@ -239,49 +215,68 @@ fn write_instructions(m: &Module, f: &mut fmt::Formatter) -> Result<(), fmt::Err
     Ok(())
 }
 
-/// Compiles every fixture except those under `data/unused`, which get their own
-/// test below, and snapshots the resulting module or error.
-#[rstest::rstest]
-fn test_policy(
-    #[files("tests/data/**/*.policy")]
-    #[exclude("unused/")]
-    src: PathBuf,
-) {
-    check_policy_fixture(&src, true);
+fn main() {
+    Harness::new("tests/data", setup, test)
+        .select(["*.policy"])
+        .test();
 }
 
-/// Fixtures that exercise unused-variable detection. We need to disable debug mode in order to capture the errors.
-#[rstest::rstest]
-fn test_unused_policy(#[files("tests/data/unused/*.policy")] src: PathBuf) {
-    check_policy_fixture(&src, false);
+fn setup(path: PathBuf) -> Case {
+    let name = get_name(&path).unwrap();
+    let expected = Data::read_from(&path.with_extension("snap"), None).raw();
+    Case {
+        name,
+        fixture: path,
+        expected,
+    }
 }
 
-#[track_caller]
-fn check_policy_fixture(src: &Path, allow_unused: bool) {
-    let base = src.parent().expect("can't get parent");
-    let name = src
-        .file_stem()
-        .expect("can't get filename stem")
+fn test(path: &Path) -> Result<String> {
+    let should_pass = should_pass(path)?;
+    let debug = !path.starts_with("tests/data/unused/");
+
+    let text = std::fs::read_to_string(path).context("could not read source file")?;
+    let text = text + "\n\nbase[null] StubBase { get_key { return None } }";
+    let ast = parse_policy_str(&text, Version::V2).context("could not parse policy text")?;
+
+    let res = Compiler::new(&ast)
+        .ffi_modules(TEST_SCHEMAS)
+        .flavors(TEST_FLAVORS)
+        .debug(debug)
+        .compile();
+
+    Ok(match (res, should_pass) {
+        (Ok(module), true) => format!("{:#?}", ModuleSnapshotWrapper(module)),
+        (Err(error), false) => format!("{error}\n"),
+        (Ok(_), false) => bail!("module compiled unexpectedly"),
+        (Err(error), true) => bail!("unexpected compile error:\n{error}"),
+    })
+}
+
+fn get_name(path: &Path) -> Result<String> {
+    Ok(path
+        .strip_prefix("tests/data/")?
+        .with_extension("")
+        .to_string_lossy()
+        .into_owned())
+}
+
+fn should_pass(path: &Path) -> Result<bool> {
+    let filename = path
+        .file_name()
+        .context("no filename present")?
         .to_str()
-        .expect("filename not utf8");
-    let text = std::fs::read_to_string(src).expect("could not read source file");
-
-    if name.ends_with(".pass") {
-        let module = ModuleSnapshotWrapper(compile_pass(&text, allow_unused));
-
-        insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-            insta::assert_debug_snapshot!(name, module);
-        });
-    } else if name.ends_with(".fail") {
-        let error = compile_fail(&text, allow_unused);
-
-        insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-            insta::assert_snapshot!(name, error);
-        });
-    } else {
-        panic!(
+        .context("filename is not valid unicode")?;
+    let ext = filename
+        .split_once(".")
+        .context("filename does not contain '.'")?
+        .1;
+    match ext {
+        "pass.policy" => Ok(true),
+        "fail.policy" => Ok(false),
+        _ => bail!(
             "Test file '{}', must end in '.pass.policy' or '.fail.policy'.",
-            src.display()
-        );
+            path.display()
+        ),
     }
 }
