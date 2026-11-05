@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: missing field `forget_me_not` in struct literal for `S`
    |
  8 |     return S {

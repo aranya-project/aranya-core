@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-lang/tests/tests.rs
-expression: err
----
 error: Reserved identifier
   |
 1 | let this = 42

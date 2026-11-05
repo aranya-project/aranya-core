@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: cycle found: [Bar]
   |
 1 | struct Bar { self_ref: struct Bar }

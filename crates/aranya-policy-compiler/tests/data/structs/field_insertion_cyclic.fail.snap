@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: cycle found: [Foo]
   |
 1 | struct Foo { +Foo }
