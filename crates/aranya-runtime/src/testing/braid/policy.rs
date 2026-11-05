@@ -18,7 +18,7 @@ use crate::{
     Address, CmdId, Command, FlavorCtx, Prior, Priority,
     policy::{
         ActionPlacement, CommandPlacement, MergeIds, Policy, PolicyError, PolicyId, PolicyStore,
-        Sink,
+        PolicyStoreError, Sink,
     },
     storage::{FactPerspective, Keys, Perspective},
     testing::{hash_for_testing_only, short_b58},
@@ -84,16 +84,16 @@ impl PolicyStore for ProbePolicyStore {
     type Policy = ProbePolicy;
     type Effect = ();
 
-    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
         Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
         Ok(&ProbePolicy)
     }
 
-    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
-        Err(PolicyError::Panic)
+    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+        unreachable!()
     }
 }
 
