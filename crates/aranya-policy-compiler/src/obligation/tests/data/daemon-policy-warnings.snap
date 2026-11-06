@@ -1,0 +1,50 @@
+---
+source: crates/aranya-policy-compiler/src/obligation/tests/daemon_policy.rs
+expression: "summary(&text, &warnings)"
+---
+1543: cannot prove `Role[role_id: role.role_id]` does not exist before `create`
+    1620: `CreateRole` calls `create_role_facts` here
+    1723: `SetupDefaultRole` calls `create_role_facts` here
+    1755: `SetupDefaultRole` calls `create_role_facts` here
+    1783: `SetupDefaultRole` calls `create_role_facts` here
+871: cannot prove `Rank[object_id: object_id]` does not exist before `create`
+    1548: `create_role_facts` calls `set_object_rank` here
+    1620: `CreateRole` calls `create_role_facts` here
+    1723: `SetupDefaultRole` calls `create_role_facts` here
+    1755: `SetupDefaultRole` calls `create_role_facts` here
+    1783: `SetupDefaultRole` calls `create_role_facts` here
+    2489: `CreateTeam` calls `create_role_facts` here
+    2570: `add_new_device` calls `set_object_rank` here
+    2731: `AddDevice` calls `add_new_device` here
+    2744: `AddDevice` calls `add_new_device` here
+    2985: `CreateLabel` calls `set_object_rank` here
+1342: cannot prove `RoleHasPerm[role_id: role_id, perm: perm]` does not exist before `create`
+    1731: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1732: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1733: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1734: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1735: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1736: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1737: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1738: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1763: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1764: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1765: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1766: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1791: `SetupDefaultRole` calls `assign_perm_to_role` here
+    1792: `SetupDefaultRole` calls `assign_perm_to_role` here
+1937: cannot prove `RoleAssignmentIndex[role_id: new_role_id, device_id: device_id]` does not exist before `create`
+    2222: `ChangeRole` calls `update_role_assignment` here
+2576: cannot prove `DeviceIdentPubKey[device_id: device_id]` exists before `delete`
+    2842: `RemoveDevice` calls `delete_device_core` here
+    2858: `RemoveDevice` calls `delete_device_core` here
+2577: cannot prove `DeviceSignPubKey[device_id: device_id]` exists before `delete`
+    2842: `RemoveDevice` calls `delete_device_core` here
+    2858: `RemoveDevice` calls `delete_device_core` here
+2578: cannot prove `DeviceEncPubKey[device_id: device_id]` exists before `delete`
+    2842: `RemoveDevice` calls `delete_device_core` here
+    2858: `RemoveDevice` calls `delete_device_core` here
+2579: cannot prove `Rank[object_id: device_id]` exists before `delete`
+    2842: `RemoveDevice` calls `delete_device_core` here
+    2858: `RemoveDevice` calls `delete_device_core` here
+2981: cannot prove `Label[label_id: label_id]` does not exist before `create`
