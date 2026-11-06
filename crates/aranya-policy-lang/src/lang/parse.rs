@@ -718,6 +718,10 @@ impl ChunkParser<'_> {
                 inner: ident!("this"),
                 span,
             }),
+            Rule::envelope => ExprKind::Identifier(Ident {
+                inner: ident!("envelope"),
+                span,
+            }),
             Rule::todo => ExprKind::InternalFunction(InternalFunction::Todo(span)),
             Rule::test_fail => {
                 let mut pairs = primary.into_inner();
@@ -1496,6 +1500,33 @@ impl ChunkParser<'_> {
         })
     }
 
+    fn parse_method_params(&self, item: Pair) -> Result<ast::MethodParams, ParseError> {
+        assert_eq!(item.as_rule(), Rule::method_params);
+
+        let mut pc = self.descend(item);
+
+        let this = pc
+            .consume_optional(Rule::this)
+            .map(|token| self.to_ast_span(token.as_span()))
+            .transpose()?;
+
+        let envelope = pc
+            .consume_optional(Rule::envelope)
+            .map(|token| self.to_ast_span(token.as_span()))
+            .transpose()?;
+
+        let other_params = pc
+            .into_inner()
+            .map(|token| self.parse_parameter(token))
+            .collect::<Result<_, _>>()?;
+
+        Ok(ast::MethodParams {
+            this,
+            envelope,
+            other_params,
+        })
+    }
+
     /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
     fn parse_command_definition(&self, item: Pair) -> Result<ast::CommandDefinition> {
         assert_eq!(item.as_rule(), Rule::command_definition);
@@ -1554,8 +1585,16 @@ impl ChunkParser<'_> {
         };
 
         // 5. Required policy block
-        let token = pc.consume_of_type(Rule::policy_block)?;
-        let policy = self.parse_statement_list(token.into_inner())?;
+        let policy = {
+            let mut pc = self.descend(pc.consume_of_type(Rule::policy_block)?);
+            let parameters = self.parse_method_params(pc.consume_of_type(Rule::method_params)?)?;
+            let body = self.parse_statement_list(pc.into_inner())?;
+            ast::PolicyBlockDefinition {
+                parameters,
+                body,
+                span,
+            }
+        };
 
         // 6. Optional recall blocks (zero or more)
         let recalls = pc
@@ -1576,11 +1615,8 @@ impl ChunkParser<'_> {
                 let recall_name = self.parse_ident(recall_pc.consume_of_type(Rule::identifier)?)?;
 
                 // Parse parameters
-                let recall_parameters = recall_pc
-                    .consume_of_type(Rule::function_arguments)?
-                    .into_inner()
-                    .map(|field| self.parse_parameter(field))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let recall_parameters =
+                    self.parse_method_params(recall_pc.consume_of_type(Rule::method_params)?)?;
 
                 // Parse recall block statements
                 let body = self.parse_statement_list(recall_pc.into_inner())?;
@@ -1646,8 +1682,18 @@ impl ChunkParser<'_> {
             .transpose()?
             .unwrap_or_default();
 
-        let token = pc.consume_of_type(Rule::get_key_block)?;
-        let get_key = self.parse_statement_list(token.into_inner())?;
+        let get_key = {
+            let mut pc = self.descend(pc.consume_of_type(Rule::get_key_block)?);
+            let parameters = self.parse_method_params(pc.consume_of_type(Rule::method_params)?)?;
+            let return_type = pc.consume_type(self)?;
+            let body = self.parse_statement_list(pc.into_inner())?;
+            aranya_policy_ast::GetKeyBlockDefinition {
+                parameters,
+                return_type,
+                body,
+                span,
+            }
+        };
 
         Ok(ast::BaseCommandDefinition {
             flavor,
