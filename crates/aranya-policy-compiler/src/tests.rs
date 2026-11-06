@@ -86,6 +86,28 @@ fn test_action_without_publish_requires_debug_mode() {
             .contains("action must publish or call another action"),
         "unexpected error: {err}"
     );
+
+    // A publish on any path, or a call to another action, satisfies the check.
+    let text = r#"
+        base[null] Base { get_key { return None } }
+        command Foo with Base {
+            fields { a: int }
+            policy { finish {} }
+        }
+        action[null] conditional(a: int) {
+            if a > 0 {
+                publish Foo { a: a }
+            }
+        }
+        action[null] caller(a: int) {
+            action conditional(a)
+        }
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+    Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect("compiles without debug mode");
 }
 
 #[test]

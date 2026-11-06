@@ -1555,7 +1555,6 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
 
 #[test]
 fn test_debug_assert() -> anyhow::Result<()> {
-    // Actions compiled without debug mode must publish, so each has a publish that never runs.
     let text = r#"
     command Pub with StubBase {
         fields {}
@@ -1569,7 +1568,9 @@ fn test_debug_assert() -> anyhow::Result<()> {
     }
 
     action[null] test_debug_assert_failure() {
+        // Add dummy `publish` to keep the compiler happy in release mode.
         if false { publish Pub {} }
+
         debug_assert(false)
     }
 
