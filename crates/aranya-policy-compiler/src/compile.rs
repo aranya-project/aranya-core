@@ -37,8 +37,9 @@ use self::{
     call_graph::CallGraph,
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
-        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
-        SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublishOrActionCall,
+        NoReturn, NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
+        UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -1224,6 +1225,7 @@ impl<'a> CompileState<'a> {
             }
             _ => unreachable!("invalid action return type should have been caught during parsing"),
         };
+        let from = self.wp;
         self.compile_function_like(
             &action_node.parameters,
             ret.as_ref(),
@@ -1234,6 +1236,29 @@ impl<'a> CompileState<'a> {
         // An infallible action has no return statement, so add one.
         if ret.is_none() {
             self.append_instruction(Instruction::Return);
+        }
+
+        // Actions should publish or call another action, so check for either somewhere in the compiled instructions.
+        // This is only a warning in debug mode, so test policies can use actions as entry points.
+        let publishes_or_calls = self.instruction_range_contains(from..self.wp, |i| {
+            matches!(
+                i,
+                Instruction::Publish
+                    | Instruction::Call(Target::Unresolved(Label {
+                        ltype: LabelType::Action,
+                        ..
+                    }))
+            )
+        });
+        if !publishes_or_calls {
+            if self.config.is_debug {
+                warn!(
+                    "action `{}` neither publishes nor calls another action",
+                    action_node.name
+                );
+            } else {
+                return Err(self.err(NoPublishOrActionCall(action_node.span)));
+            }
         }
 
         self.exit_statement_context();
