@@ -3,16 +3,9 @@ use std::{borrow::Cow, iter::once};
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::{Span, Spanned as _};
 use indexmap::IndexSet;
+use itertools::Itertools;
 
-use super::{
-    AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
-    DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
-    InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidStructLiteral,
-    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoReturn,
-    NotDefined, RecursiveCall, RedundantMatchArm, SourceStructNotSubsetOfBase,
-    StructCompositionTypeMismatch, UnknownError, UnknownField, UnreachableMatchArm, UnusedValue,
-    UnusedVariable,
-};
+use crate::compile::error;
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
 ///
@@ -295,7 +288,7 @@ impl SimpleError for error::NoPublishOrActionCall {
     }
 }
 
-impl SimpleError for error::error::DuplicateSourceFields {
+impl SimpleError for error::DuplicateSourceFields {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "struct `{}` and struct `{}` have at least 1 field with the same name",
