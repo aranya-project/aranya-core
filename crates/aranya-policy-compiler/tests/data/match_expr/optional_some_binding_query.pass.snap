@@ -1,7 +1,7 @@
 Module {
     version: "1",
     labels: {
-        <action 'test'>: 8,
+        <action 'test'>: 1,
     },
     action_defs: [
         ActionDef {
@@ -44,27 +44,12 @@ Module {
                 },
             ],
         },
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
     ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
-    exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
     exit panic
 <action 'test'>:
     fact.new 'Foo'
@@ -73,31 +58,31 @@ Module {
     query
     dup
     is some
-    branch 19
+    branch 12
     dup
     const None
     eq
-    branch 26
-<19>:
+    branch 19
+<12>:
     block
     unwrap some
     def 'f'
     get 'f'
     struct.get 'x'
     end
-    jump 31
-<26>:
+    jump 24
+<19>:
     block
     pop
     const 0
     end
-    jump 31
-<31>:
+    jump 24
+<24>:
     def 'n'
     get 'n'
     const 0
     eq
-    branch 37
+    branch 30
     exit panic
-<37>:
+<30>:
     return

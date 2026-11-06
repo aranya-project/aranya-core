@@ -7,6 +7,7 @@ use alloc::{
 };
 use core::{
     fmt::{self, Display},
+    iter::{self, zip},
     str::FromStr as _,
 };
 
@@ -19,6 +20,7 @@ use aranya_policy_module::{
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
+use itertools::Itertools as _;
 
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
@@ -903,50 +905,35 @@ where
                 // Before we spend time fetching facts from storage, make sure the given fact literal is valid.
                 self.validate_fact_literal(&qf)?;
 
-                let result = {
-                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
-                    // Find the first match, or the first error
-                    iter.find_map(|r| match r {
-                        Ok(f) => {
-                            if fact_match(&qf, &f.0, &f.1) {
-                                Some(Ok(f))
-                            } else {
-                                None
-                            }
-                        }
-                        Err(e) => Some(Err(e)),
-                    })
-                };
-                let maybe_fact = result.transpose()?.map(|f| {
-                    let mut fields: Vec<KVPair> = vec![];
-                    fields.append(&mut f.0.into_iter().map(Into::into).collect());
-                    fields.append(&mut f.1.into_iter().map(Into::into).collect());
-                    Struct::new(qf.name, fields)
-                });
+                let mut matches = self
+                    .io
+                    .fact_query(qf.name.clone(), qf.keys.clone())?
+                    .filter_ok(|f| fact_match(&qf, &f.0, &f.1));
+                // Get the first match, or bail on the first error
+                let first_match = matches.next().transpose()?;
+                // Transform fact into struct.
+                let maybe_fact = first_match.map(|f| fact_to_struct(qf.name, f));
                 self.ipush(maybe_fact)?;
             }
             Instruction::FactCount(limit) => {
                 let fact: Fact = self.ipop()?;
                 self.validate_fact_literal(&fact)?;
 
-                let mut count = 0;
-                {
-                    let mut iter = self.io.fact_query(fact.name.clone(), fact.keys.clone())?;
+                let matches = self
+                    .io
+                    .fact_query(fact.name.clone(), fact.keys.clone())?
+                    .filter_ok(|f| fact_match(&fact, &f.0, &f.1));
 
-                    while count < limit {
-                        let Some(r) = iter.next() else { break };
-                        match r {
-                            Ok(f) => {
-                                if fact_match(&fact, &f.0, &f.1) {
-                                    count = count
-                                        .checked_add(1)
-                                        .assume("should be able to increment fact counter")?;
-                                }
-                            }
-                            Err(e) => return Err(self.err(MachineErrorType::IO(e))),
+                let count = matches
+                    .process_results(|mut iter| {
+                        let mut count = 0;
+                        while count < limit && iter.next().is_some() {
+                            // `count < limit` so this can't wrap.
+                            count = count.wrapping_add(1);
                         }
-                    }
-                }
+                        count
+                    })
+                    .map_err(|e| self.err(MachineErrorType::IO(e)))?;
 
                 self.ipush(Value::Int(count))?;
             }
@@ -966,13 +953,9 @@ where
                     )
                 })?;
                 // Update `as` variable value and push an end-of-results bool.
-                match iter.next() {
-                    Some(result) => {
-                        let (k, v) = result?;
-                        let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut k.into_iter().map(Into::into).collect());
-                        fields.append(&mut v.into_iter().map(Into::into).collect());
-                        let s = Struct::new(ident.clone(), fields);
+                match iter.next().transpose()? {
+                    Some(f) => {
+                        let s = fact_to_struct(ident.clone(), f);
                         self.scope.set(ident, Value::Struct(s))?;
                         self.ipush(Value::Bool(false))?;
                     }
@@ -1235,7 +1218,7 @@ where
                 ),
             )));
         }
-        for (arg, param) in args.iter().zip(action_def.params.iter()) {
+        for (arg, param) in zip(&args, &action_def.params) {
             if !arg.fits_type(&param.vtype) {
                 return Err(MachineError::new(MachineErrorType::invalid_type(
                     param.vtype.to_string(),
@@ -1404,4 +1387,12 @@ where
         }
         Ok(())
     }
+}
+
+fn fact_to_struct(name: Identifier, (keys, values): (Vec<FactKey>, Vec<FactValue>)) -> Struct {
+    let fields = iter::chain(
+        keys.into_iter().map_into::<KVPair>(),
+        values.into_iter().map_into::<KVPair>(),
+    );
+    Struct::new(name, fields)
 }

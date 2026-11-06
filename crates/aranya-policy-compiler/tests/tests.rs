@@ -235,8 +235,10 @@ fn test(path: &Path) -> Result<String> {
     let should_pass = should_pass(path)?;
     let debug = !path.starts_with("tests/data/unused/");
 
-    let text = std::fs::read_to_string(path).context("could not read source file")?;
-    let text = text + "\n\nbase[null] StubBase { get_key { return None } }";
+    let mut text = std::fs::read_to_string(path).context("could not read source file")?;
+    if text.contains("StubBase") {
+        text.push_str("\n\nbase[null] StubBase { get_key { return None } }");
+    }
     let ast = parse_policy_str(&text, Version::V2).context("could not parse policy text")?;
 
     let res = Compiler::new(&ast)

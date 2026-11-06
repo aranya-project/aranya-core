@@ -1,8 +1,8 @@
 Module {
     version: "1",
     labels: {
-        <action 'bar'>: 8,
-        <action 'foo'>: 11,
+        <action 'bar'>: 1,
+        <action 'foo'>: 4,
     },
     action_defs: [
         ActionDef {
@@ -29,28 +29,12 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
-    ],
+    struct_defs: [],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
-    exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
     exit panic
 <action 'bar'>:
     def 's'

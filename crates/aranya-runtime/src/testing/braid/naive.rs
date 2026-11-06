@@ -14,6 +14,8 @@
 
 use alloc::{format, string::String, vec, vec::Vec};
 
+use itertools::Itertools as _;
+
 /// Priority ordering restated from `graph.md`. Derived `Ord` on this exact
 /// variant order gives `Merge < Basic(..) < Finalize < Init`, matching
 /// production's `Priority` — deliberately restated, not imported.
@@ -58,9 +60,7 @@ impl<'a> NaiveGraph<'a> {
     fn children(&self, i: usize) -> impl Iterator<Item = usize> + '_ {
         self.commands
             .iter()
-            .enumerate()
-            .filter(move |(_, command)| command.parents.contains(&i))
-            .map(|(child, _)| child)
+            .positions(move |command| command.parents.contains(&i))
     }
 
     /// A command is frontier when it has not been taken and every one of

@@ -6,16 +6,7 @@ Module {
     action_defs: [],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
-    ],
+    struct_defs: [],
     enum_defs: [],
     globals: {},
     ..
@@ -37,13 +28,6 @@ Module {
     return
 <12>:
     const 1
-    restore SP
-    return
-    exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
     restore SP
     return
     exit panic

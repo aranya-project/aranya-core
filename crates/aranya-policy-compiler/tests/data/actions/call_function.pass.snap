@@ -1,7 +1,7 @@
 Module {
     version: "1",
     labels: {
-        <action 'f'>: 21,
+        <action 'f'>: 14,
         <fn 'f'>: 1,
         <fn 'g'>: 8,
     },
@@ -20,16 +20,7 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
-    ],
+    struct_defs: [],
     enum_defs: [],
     globals: {},
     ..
@@ -51,13 +42,6 @@ Module {
     restore SP
     return
     exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
-    exit panic
 <action 'f'>:
     def 'n'
     get 'n'
@@ -66,7 +50,7 @@ Module {
     get 'x'
     get 'n'
     eq
-    branch 30
+    branch 23
     exit panic
-<30>:
+<23>:
     return

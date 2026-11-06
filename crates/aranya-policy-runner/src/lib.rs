@@ -24,8 +24,8 @@ use aranya_policy_compiler::{Compiler, validate::validate};
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Identifier, Machine, Value};
 use aranya_runtime::{
-    ActionPlacement, FlavorCtx, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _,
-    Sink as _, Storage as _, StorageProvider as _, VmAction, vm_policy::SealCtx,
+    FlavorCtx, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _, Sink as _,
+    Storage as _, StorageProvider as _, VmAction, vm_policy::SealCtx,
 };
 pub use io::testing_ffi;
 use policy::create_vmpolicy;
@@ -342,7 +342,6 @@ impl PolicyRunner {
                         action,
                         &mut perspective,
                         &mut sink,
-                        ActionPlacement::OnGraph,
                         // TODO(jdygert): How should the policy runner manage keys?
                         &SealCtx {
                             author: DeviceId::default(),

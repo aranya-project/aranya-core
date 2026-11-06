@@ -6,7 +6,6 @@ use crate::{
     Address, CmdId, Command, FlavorCtx, GraphId, LocatedAddress, PeerCache, Perspective as _,
     Policy, PolicyError, PolicyStore, PolicyStoreError, Segment as _, Sink, Storage as _,
     StorageError, StorageProvider, TraversalBuffer,
-    policy::ActionPlacement,
     storage::{HeadSet, Spill},
 };
 
@@ -117,7 +116,6 @@ where
                 action,
                 &mut perspective,
                 sink,
-                ActionPlacement::OnGraph,
                 seal_ctx,
                 FlavorCtx::Init {
                     policy: policy_data,
@@ -309,14 +307,7 @@ where
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(
-            action,
-            &mut perspective,
-            sink,
-            ActionPlacement::OnGraph,
-            seal_ctx,
-            FlavorCtx::Basic,
-        ) {
+        match policy.call_action(action, &mut perspective, sink, seal_ctx, FlavorCtx::Basic) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
                 let new_head = LocatedAddress {

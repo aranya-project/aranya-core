@@ -47,6 +47,7 @@ aranya-policy-module = { version = "0.23.0", path = "../aranya-policy-module" }
 buggy = { workspace = true, features = ["alloc"] }
 
 heapless = { workspace = true }
+itertools = { workspace = true, features = ["use_alloc"] }
 postcard-core = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

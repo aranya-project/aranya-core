@@ -1263,8 +1263,7 @@ fn ffi_safe_ty(ty: &Type) -> Type {
             let span = cbytes.span();
             Type::Ptr(Box::new(Ptr {
                 star_token: Token![*](span),
-                const_token: Some(Token![const](span)),
-                mutability: None,
+                mutability: syn::PointerMutability::Const(Token![const](span)),
                 elem: Scalar::with_span(ScalarType::U8, span).into(),
             }))
         }
@@ -1272,8 +1271,7 @@ fn ffi_safe_ty(ty: &Type) -> Type {
             let span = cstr.span();
             Type::Ptr(Box::new(Ptr {
                 star_token: Token![*](span),
-                const_token: Some(Token![const](span)),
-                mutability: None,
+                mutability: syn::PointerMutability::Const(Token![const](span)),
                 elem: Scalar::with_span(ScalarType::CChar, span).into(),
             }))
         }
@@ -1282,8 +1280,7 @@ fn ffi_safe_ty(ty: &Type) -> Type {
             let span = ptr.span();
             Type::Ptr(Box::new(Ptr {
                 star_token: Token![*](span),
-                const_token: None,
-                mutability: Some(Token![mut](span)),
+                mutability: syn::PointerMutability::Mut(Token![mut](span)),
                 elem: ffi_safe_ty(&ptr.elem),
             }))
         }
@@ -1292,17 +1289,16 @@ fn ffi_safe_ty(ty: &Type) -> Type {
                 let span = str.span();
                 Type::Ptr(Box::new(Ptr {
                     star_token: Token![*](span),
-                    const_token: Some(Token![const](span)),
-                    mutability: None,
+                    mutability: syn::PointerMutability::Const(Token![const](span)),
                     elem: Scalar::with_span(ScalarType::U8, span).into(),
                 }))
             }
             elem => {
                 let span = xref.span();
-                let (const_token, mutability) = if xref.mutability.is_some() {
-                    (None, Some(Token![mut](span)))
+                let mutability = if xref.mutability.is_some() {
+                    syn::PointerMutability::Mut(Token![mut](span))
                 } else {
-                    (Some(Token![const](span)), None)
+                    syn::PointerMutability::Const(Token![const](span))
                 };
                 let elem = if let Type::Slice(slice) = &elem {
                     &slice.elem
@@ -1311,7 +1307,6 @@ fn ffi_safe_ty(ty: &Type) -> Type {
                 };
                 Type::Ptr(Box::new(Ptr {
                     star_token: Token![*](span),
-                    const_token,
                     mutability,
                     elem: ffi_safe_ty(elem),
                 }))
@@ -1325,8 +1320,7 @@ fn ffi_safe_ty(ty: &Type) -> Type {
             let span = writer.span();
             Type::Ptr(Box::new(Ptr {
                 star_token: Token![*](span),
-                const_token: None,
-                mutability: Some(Token![mut](span)),
+                mutability: syn::PointerMutability::Mut(Token![mut](span)),
                 elem: ffi_safe_ty(&writer.elem),
             }))
         }
@@ -1458,7 +1452,7 @@ fn unpack_newtype_glue(ctx: &Ctx, arg: &ExpandedArg) -> Option<Expr> {
             #capi::to_inner!(#ident)
         }),
         // `*const T`
-        Type::Ptr(ptr) if ptr.mutability.is_none() => {
+        Type::Ptr(ptr) if matches!(ptr.mutability, syn::PointerMutability::Const(_)) => {
             if let Type::Named(_) = &ptr.elem {
                 Some(parse_quote!(#capi::to_inner_ptr!(#ident)))
             } else {
@@ -1466,7 +1460,7 @@ fn unpack_newtype_glue(ctx: &Ctx, arg: &ExpandedArg) -> Option<Expr> {
             }
         }
         // `*mut T`
-        Type::Ptr(ptr) if ptr.mutability.is_some() => {
+        Type::Ptr(ptr) if matches!(ptr.mutability, syn::PointerMutability::Mut(_)) => {
             if let Type::MaybeUninit(_) | Type::Named(_) = &ptr.elem {
                 Some(parse_quote!(#capi::to_inner_mut_ptr!(#ident)))
             } else {
@@ -1521,7 +1515,7 @@ fn cast_output_ty(
             }
         }
         // `*const T`
-        Type::Ptr(ptr) if ptr.mutability.is_none() => {
+        Type::Ptr(ptr) if matches!(ptr.mutability, syn::PointerMutability::Const(_)) => {
             if let Type::Named(named) = &ptr.elem {
                 (quote!(from_inner_ptr), named)
             } else {
@@ -1529,7 +1523,7 @@ fn cast_output_ty(
             }
         }
         // `*mut T`
-        Type::Ptr(ptr) if ptr.mutability.is_some() => {
+        Type::Ptr(ptr) if matches!(ptr.mutability, syn::PointerMutability::Mut(_)) => {
             if let Type::Named(named) = &ptr.elem {
                 (quote!(from_inner_mut_ptr), named)
             } else {
@@ -1592,7 +1586,7 @@ fn check_valid_input_ty(ctx: &Ctx, arg: &FnArg) -> TokenStream {
                 #util::check_valid_input_ty_const_ptr(#name)
             }
         }
-        Type::Ptr(ptr) if ptr.mutability.is_none() => {
+        Type::Ptr(ptr) if matches!(ptr.mutability, syn::PointerMutability::Const(_)) => {
             quote! {
                 #util::check_valid_input_ty_const_ptr(#name)
             }
@@ -1602,7 +1596,7 @@ fn check_valid_input_ty(ctx: &Ctx, arg: &FnArg) -> TokenStream {
                 #util::check_valid_input_ty_mut_ptr(#name)
             }
         }
-        Type::Ptr(ptr) if ptr.mutability.is_some() => {
+        Type::Ptr(ptr) if matches!(ptr.mutability, syn::PointerMutability::Mut(_)) => {
             quote! {
                 #util::check_valid_input_ty_mut_ptr(#name)
             }

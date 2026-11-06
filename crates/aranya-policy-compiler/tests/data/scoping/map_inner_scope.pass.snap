@@ -1,7 +1,7 @@
 Module {
     version: "1",
     labels: {
-        <action 'pets'>: 8,
+        <action 'pets'>: 1,
     },
     action_defs: [
         ActionDef {
@@ -32,10 +32,6 @@ Module {
     ],
     struct_defs: [
         StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
             name: "Pet",
             items: [
                 Field {
@@ -48,10 +44,6 @@ Module {
                 },
             ],
         },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
     ],
     enum_defs: [],
     globals: {},
@@ -59,37 +51,30 @@ Module {
 }
 ---
     exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
-    exit panic
 <action 'pets'>:
     const 42
     def 'n'
     fact.new 'Pet'
     query.start
-<12>:
+<5>:
     block
     query.next 'p'
-    branch 28
+    branch 21
     get 'p'
     struct.get 'age'
     const 0
     gt
-    branch 21
+    branch 14
     exit panic
-<21>:
+<14>:
     get 'n'
     const 42
     eq
-    branch 26
+    branch 19
     exit panic
-<26>:
+<19>:
     end
-    jump 12
-<28>:
+    jump 5
+<21>:
     end
     return

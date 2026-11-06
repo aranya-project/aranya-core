@@ -1,7 +1,7 @@
 Module {
     version: "1",
     labels: {
-        <action 'test'>: 8,
+        <action 'test'>: 1,
     },
     action_defs: [
         ActionDef {
@@ -44,27 +44,12 @@ Module {
                 },
             ],
         },
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
     ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
-    exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
     exit panic
 <action 'test'>:
     fact.new 'Foo'
@@ -74,7 +59,7 @@ Module {
     const None
     eq
     not
-    branch 17
+    branch 10
     exit panic
-<17>:
+<10>:
     return

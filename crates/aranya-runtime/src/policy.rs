@@ -173,7 +173,6 @@ pub trait Policy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        placement: ActionPlacement,
         seal_ctx: &Self::SealCtx,
         flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError>;
@@ -202,15 +201,6 @@ pub trait Policy {
     }
 }
 
-/// Describes the placement when calling an action.
-#[derive(Copy, Clone, Debug)]
-pub enum ActionPlacement {
-    /// The action is being called on-graph and will be persisted.
-    OnGraph,
-    /// The action is being called off-graph in an ephemeral session.
-    OffGraph,
-}
-
 #[derive(Copy, Clone, Debug)]
 /// Describes the placement when evaluating a command.
 pub enum CommandPlacement {
@@ -227,6 +217,7 @@ pub enum CommandPlacement {
 pub enum FlavorCtx<'a> {
     Init { policy: &'a [u8] },
     Basic,
+    Ephemeral,
 }
 
 mod impls {
