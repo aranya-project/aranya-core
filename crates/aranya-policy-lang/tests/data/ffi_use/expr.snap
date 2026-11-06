@@ -5,4 +5,4 @@ expression: err
 error: Syntax error
   |
 1 | use one, two
-  |        ^ expected EOI, immutable_modifier, use_definition, action_definition, effect_definition, struct_definition, enum_definition, command_definition, base_command_definition, function_decl, finish_function_decl, or global_let_statement
+  |        ^ expected EOI, use_definition, immutable_modifier, action_definition, effect_definition, struct_definition, enum_definition, command_definition, base_command_definition, function_decl, finish_function_decl, or global_let_statement

@@ -217,10 +217,11 @@ fn parse_errors() -> Result<(), ParseError> {
         input: r#"function foo(x: int) bool { invalid }"#.to_string(),
         error_message: String::from(
             " --> 1:29\n  |\n1 | function foo(x: int) bool { invalid }\n  \
-                |                             ^---\n  |\n  = expected function_call, \
-                action_call, publish_statement, let_statement, check_statement, match_statement, \
-                if_statement, finish_statement, map_statement, create_statement, update_statement, \
-                delete_statement, emit_statement, return_statement, recall_statement, or debug_assert",
+                |                             ^---\n  |\n  = expected publish_statement, \
+                let_statement, check_statement, match_statement, if_statement, finish_statement, \
+                map_statement, create_statement, update_statement, delete_statement, \
+                emit_statement, return_statement, recall_statement, debug_assert, function_call, \
+                or action_call",
         ),
         rule: Rule::top_level_statement,
     }];
