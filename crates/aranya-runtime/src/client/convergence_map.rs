@@ -1,4 +1,5 @@
 use buggy::BugExt as _;
+use itertools::Itertools as _;
 use zerocopy::{FromZeros as _, IntoBytes as _};
 
 use crate::{
@@ -358,9 +359,7 @@ impl<'a, F: Spill> ConvergenceMap<'a, F> {
         if segments.is_full() {
             let mru = segments
                 .iter()
-                .enumerate()
-                .max_by_key(|(_, m)| m.last_accessed)
-                .map(|(i, _)| i)
+                .position_max_by_key(|m| m.last_accessed)
                 .assume("cache is full, so non-empty")?;
             segments.swap_remove(mru);
         }

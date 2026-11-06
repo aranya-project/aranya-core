@@ -156,7 +156,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
         rng: R,
         dst: &mut [u8],
         plaintext: &[u8],
-        ctx: Context<'_, CS>,
+        ctx: Context<CS>,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -178,12 +178,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// be at least as long as the original plaintext (i.e.,
     /// `ciphertext.len()` - [`overhead`][Self::overhead] bytes
     /// long).
-    pub fn open(
-        &self,
-        dst: &mut [u8],
-        ciphertext: &[u8],
-        ctx: Context<'_, CS>,
-    ) -> Result<(), Error> {
+    pub fn open(&self, dst: &mut [u8], ciphertext: &[u8], ctx: Context<CS>) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
             // invalid.

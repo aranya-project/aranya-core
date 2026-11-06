@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::borrow::Cow;
 
 use aranya_crypto::DeviceId;
@@ -64,7 +62,7 @@ pub struct Envelope<'a> {
 }
 
 impl From<Envelope<'_>> for Struct {
-    fn from(e: Envelope<'_>) -> Self {
+    fn from(e: Envelope) -> Self {
         Self::new(
             ident!("Envelope"),
             [

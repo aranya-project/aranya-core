@@ -34,7 +34,7 @@ pub(crate) enum UserType<'a> {
 #[derive(Debug)]
 pub struct IdentifierTypeStack {
     globals: HashMap<Ident, VType>,
-    locals: Vec<Vec<IndexMap<Ident, Local>>>,
+    locals: Vec<IndexMap<Ident, Local>>,
     /// When set, don't error on unused vars
     allow_unused: bool,
 }
@@ -50,7 +50,7 @@ impl IdentifierTypeStack {
     pub fn new(allow_unused: bool) -> Self {
         Self {
             globals: HashMap::new(),
-            locals: vec![vec![IndexMap::new()]],
+            locals: Vec::new(),
             allow_unused,
         }
     }
@@ -76,13 +76,12 @@ impl IdentifierTypeStack {
         if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
             return Err(AlreadyDefined::new(existing_global.clone(), ident));
         }
-        let locals = self.locals.last_mut().expect("no function scope");
-        for prev in locals.iter().rev() {
+        for prev in self.locals.iter().rev() {
             if let Some((existing_var, _)) = prev.get_key_value(&ident) {
                 return Err(AlreadyDefined::new(ident, existing_var.clone()));
             }
         }
-        let block = locals.last_mut().expect("no block scope");
+        let block = self.locals.last_mut().expect("no block scope");
         match block.entry(ident) {
             indexmap::map::Entry::Occupied(_) => {
                 unreachable!();
@@ -101,12 +100,10 @@ impl IdentifierTypeStack {
     /// found in the current scope.
     #[allow(clippy::result_large_err)]
     pub fn get(&self, name: &Identifier) -> Result<VType, IdentNotDefined> {
-        if let Some(locals) = self.locals.last() {
-            for scope in locals.iter().rev() {
-                if let Some(v) = scope.get(name) {
-                    v.used.store(true, Ordering::Relaxed);
-                    return Ok(v.vtype.clone());
-                }
+        for scope in self.locals.iter().rev() {
+            if let Some(v) = scope.get(name) {
+                v.used.store(true, Ordering::Relaxed);
+                return Ok(v.vtype.clone());
             }
         }
         if let Some(v) = self.globals.get(name) {
@@ -115,37 +112,28 @@ impl IdentifierTypeStack {
         Err(IdentNotDefined)
     }
 
-    /// Push a new, empty scope on top of the type stack.
+    /// Enters a function. This should add a block scope to an empty stack.
     pub fn enter_function(&mut self) {
-        self.locals.push(vec![IndexMap::new()]);
+        assert!(self.locals.is_empty());
+        self.enter_block();
     }
 
-    /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
-    /// stack, as this indicates a mistake in the compiler.
+    /// Exits a function. This should remove the last scope in the stack.
     pub fn exit_function(&mut self) -> Result<(), UnusedVariable> {
         let unused = self.exit_block();
-        let locals = self.locals.pop().expect("no function scope");
-        assert!(locals.is_empty());
+        assert!(self.locals.is_empty());
         unused
     }
 
     /// Enter a new block scope.
     pub fn enter_block(&mut self) {
-        self.locals
-            .last_mut()
-            .expect("no function scope")
-            .push(IndexMap::new());
+        self.locals.push(IndexMap::new());
     }
 
     /// Exit the current block scope, reporting any bindings in it that was never
     /// read.
     pub fn exit_block(&mut self) -> Result<(), UnusedVariable> {
-        let scope = self
-            .locals
-            .last_mut()
-            .expect("no function scope")
-            .pop()
-            .expect("no block scope");
+        let scope = self.locals.pop().expect("no block scope");
 
         let unused: Vec<Ident> = scope
             .into_iter()
@@ -170,7 +158,7 @@ impl IdentifierTypeStack {
 pub(crate) struct IdentNotDefined;
 
 impl Display for IdentNotDefined {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("identifier not found")
     }
 }
@@ -194,34 +182,6 @@ pub fn check_type(vtype: VType, target_type: VType) -> Result<VType, InvalidType
                     vtype.to_string(),
                     vtype.span,
                 ))
-            }
-        }
-    }
-}
-
-// Wrapper type for displaying Type since we can't implement Display for external types
-pub struct DisplayType<'a>(pub &'a VType);
-
-impl Display for DisplayType<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0.inner {
-            TypeKind::String => f.write_str("string"),
-            TypeKind::Bytes => f.write_str("bytes"),
-            TypeKind::Int => f.write_str("int"),
-            TypeKind::Bool => f.write_str("bool"),
-            TypeKind::Id => f.write_str("id"),
-            TypeKind::Struct(id) => write!(f, "struct {}", id),
-            TypeKind::Enum(id) => write!(f, "enum {}", id),
-            TypeKind::Optional(inner) => write!(f, "option[{}]", DisplayType(inner)),
-            TypeKind::Never => write!(f, "never"),
-            TypeKind::Unit => write!(f, "unit"),
-            TypeKind::Result(result_type) => {
-                write!(
-                    f,
-                    "result[{}, {}]",
-                    DisplayType(&result_type.ok),
-                    DisplayType(&result_type.err)
-                )
             }
         }
     }

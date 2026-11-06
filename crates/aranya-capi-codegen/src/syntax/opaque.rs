@@ -25,7 +25,7 @@ pub struct Opaque {
 }
 
 impl Opaque {
-    pub(super) fn parse(ctx: Option<&Ctx>, input: ParseStream<'_>) -> Result<Self> {
+    pub(super) fn parse(ctx: Option<&Ctx>, input: ParseStream) -> Result<Self> {
         mod kw {
             syn::custom_keyword!(size);
             syn::custom_keyword!(align);
@@ -69,7 +69,7 @@ impl Opaque {
 }
 
 impl Parse for Opaque {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         Self::parse(None, input)
     }
 }

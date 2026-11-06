@@ -6,6 +6,7 @@
 use std::{collections::HashMap, fmt::Display};
 
 use aranya_policy_ast::Ident;
+use itertools::Itertools as _;
 use petgraph::{
     algo::TarjanScc,
     graphmap::{DiGraphMap, NodeTrait},
@@ -22,7 +23,7 @@ impl CycleError {
     // for structs defined in FFI modules.
     pub(super) fn into_compile_error(
         self,
-        ctx: &HashMap<Ident, UserType<'_>>,
+        ctx: &HashMap<Ident, UserType>,
     ) -> CyclicTypeDefinitions {
         let note = self.to_string();
         let idents = self
@@ -42,19 +43,14 @@ impl CycleError {
 }
 
 impl Display for CycleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // This outputs a comma separated list of the nodes in each cycle/SCC.
         // A direct path is not shown.
-        let cycles: Vec<_> = self
-            .0
-            .iter()
-            .map(|cycle| format!("[{}]", cycle.as_slice().join(", ")))
-            .collect();
-        write!(
-            f,
-            "Found cyclic dependencies when compiling structs:\n- {}",
-            cycles.join("\n- ")
-        )
+        write!(f, "Found cyclic dependencies when compiling structs:")?;
+        for cycle in &self.0 {
+            write!(f, "\n- [{}]", cycle.iter().format(", "))?;
+        }
+        Ok(())
     }
 }
 

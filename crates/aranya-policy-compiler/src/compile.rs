@@ -30,6 +30,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
+use itertools::zip_eq;
 use tracing::warn;
 
 use self::{
@@ -156,7 +157,7 @@ mod param {
 
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
 /// statement is currently valid.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum StatementContext {
     /// An action
     Action(ast::ActionDefinition),
@@ -183,7 +184,7 @@ impl Spanned for StatementContext {
 }
 
 impl fmt::Display for StatementContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Action(_) => write!(f, "action"),
             Self::CommandPolicy(_) => write!(f, "command policy block"),
@@ -195,7 +196,7 @@ impl fmt::Display for StatementContext {
 }
 
 /// Called to compile a builtin function call.
-type BuiltinHandler = fn(&mut CompileState<'_>) -> Result<(), CompileError>;
+type BuiltinHandler = fn(&mut CompileState) -> Result<(), CompileError>;
 
 /// The "compile state" of the machine.
 struct CompileState<'a> {
@@ -1289,7 +1290,7 @@ impl<'a> CompileState<'a> {
     fn compile_command_policy(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: &Flavor<'_>,
+        flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
         let params = [
             param::this(command.name.clone()),
@@ -1333,7 +1334,7 @@ impl<'a> CompileState<'a> {
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: &Flavor<'_>,
+        flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
         let base_params = [
             param::this(command.name.clone()),
@@ -1678,9 +1679,7 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 thir::MatchPattern::Default(_) => {
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        arm_label.clone(),
-                    )));
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(arm_label)));
                 }
             }
         }
@@ -1688,9 +1687,7 @@ impl<'a> CompileState<'a> {
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for ((arm_start, pattern), statements) in
-                    iter::zip(iter::zip(arm_labels, &patterns), s)
-                {
+                for ((arm_start, pattern), statements) in zip_eq(zip_eq(arm_labels, &patterns), s) {
                     self.define_label(arm_start, self.wp)?;
 
                     // Enter a new scope for this match arm
@@ -1741,9 +1738,7 @@ impl<'a> CompileState<'a> {
                 }
             }
             LanguageContext::Expression(e) => {
-                for ((arm_start, pattern), expression) in
-                    iter::zip(iter::zip(arm_labels, &patterns), e)
-                {
+                for ((arm_start, pattern), expression) in zip_eq(zip_eq(arm_labels, &patterns), e) {
                     self.define_label(arm_start, self.wp)?;
 
                     // Enter a new scope for this match arm
@@ -2016,7 +2011,7 @@ impl<'a> CompileState<'a> {
 
     fn define_envelope(
         &mut self,
-        envelope: &aranya_policy_module::flavor::Struct<'_>,
+        envelope: &aranya_policy_module::flavor::Struct,
     ) -> Result<(), CompileError> {
         // TODO(jdygert): Allow defining twice with same fields?
         let name = envelope.name.clone().nowhere();

@@ -53,7 +53,7 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
     },
 ];
 
-const TEST_FLAVORS: &flavor::Flavors<'_> = &flavor::Flavors {
+const TEST_FLAVORS: &flavor::Flavors = &flavor::Flavors {
     flavors: &[
         (
             ident!("null"),
@@ -96,7 +96,10 @@ const TEST_FLAVORS: &flavor::Flavors<'_> = &flavor::Flavors {
 
 #[track_caller]
 fn compile(text: &str, is_debug: bool) -> Result<Module, CompileError> {
-    let text = text.to_owned() + "\n\nbase[null] StubBase { get_key { return None } }";
+    let mut text = text.to_owned();
+    if text.contains("StubBase") {
+        text.push_str("\n\nbase[null] StubBase { get_key { return None } }");
+    }
     let policy = parse_policy_str(&text, Version::V2).unwrap();
     Compiler::new(&policy)
         .ffi_modules(TEST_SCHEMAS)
@@ -125,7 +128,7 @@ fn compile_fail(text: &str, allow_unused: bool) -> CompileError {
 struct ModuleSnapshotWrapper(Module);
 
 impl fmt::Debug for ModuleSnapshotWrapper {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (
             version,
             labels,
@@ -177,7 +180,7 @@ impl fmt::Debug for ModuleSnapshotWrapper {
     }
 }
 
-fn write_instructions(m: &Module, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+fn write_instructions(m: &Module, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
     let (progmem, m_labels) = match &m.data {
         ModuleData::V0(m) => (&m.progmem, &m.labels),
         ModuleData::V1(m) => (&m.program.progmem, &m.program.labels),

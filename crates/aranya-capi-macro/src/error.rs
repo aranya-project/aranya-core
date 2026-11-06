@@ -159,7 +159,7 @@ struct VariantAttr {
 }
 
 impl Parse for VariantAttr {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         mod kw {
             syn::custom_keyword!(msg);
             syn::custom_keyword!(success);

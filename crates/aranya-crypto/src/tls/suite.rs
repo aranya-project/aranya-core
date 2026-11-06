@@ -95,7 +95,7 @@ impl CipherSuiteId {
 }
 
 impl fmt::Display for CipherSuiteId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use CipherSuiteId::*;
         let name = match self {
             TlsAes128GcmSha256 => "TLS_AES_128_GCM_SHA256",

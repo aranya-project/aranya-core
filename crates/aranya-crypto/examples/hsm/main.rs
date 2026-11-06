@@ -246,7 +246,7 @@ impl WrappedKeyImpl {
 pub struct WrappedKeyId(KeyIdImpl);
 
 impl fmt::Display for WrappedKeyId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0.into_id())
     }
 }

@@ -5,7 +5,7 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <action 'f'>: 8,
+        <action 'f'>: 1,
     },
     action_defs: [
         ActionDef {
@@ -22,28 +22,12 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
-    ],
+    struct_defs: [],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
-    exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
     exit panic
 <action 'f'>:
     def 'n'
@@ -51,24 +35,24 @@ Module {
     dup
     const 0
     eq
-    branch 15
-    jump 20
-<15>:
+    branch 8
+    jump 13
+<8>:
     block
     pop
     const false
     end
-    jump 25
-<20>:
+    jump 18
+<13>:
     block
     pop
     const true
     end
-    jump 25
-<25>:
+    jump 18
+<18>:
     def 'b'
     get 'b'
-    branch 29
+    branch 22
     exit panic
-<29>:
+<22>:
     return

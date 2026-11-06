@@ -148,7 +148,7 @@ aranya_crypto::custom_id! {
 pub struct SegmentIndex(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for SegmentIndex {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
 }
@@ -191,7 +191,7 @@ impl SegmentIndex {
 pub struct MaxCut(#[serde(with = "crate::util::u64_le_serde")] u64_le);
 
 impl fmt::Display for MaxCut {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
 }
@@ -288,7 +288,7 @@ impl Location {
 }
 
 impl fmt::Display for Location {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}:{}", self.segment, self.max_cut)
     }
 }

@@ -197,7 +197,7 @@ pub struct BenchStat {
 }
 
 impl Display for BenchStat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "{}: ({} samples), best: {:?}, worst: {:?}, mean: {:?}, SD: {:?}",

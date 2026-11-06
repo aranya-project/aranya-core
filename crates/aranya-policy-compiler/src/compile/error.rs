@@ -18,7 +18,7 @@ pub enum InvalidCallColorKind {
 }
 
 impl fmt::Display for InvalidCallColorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Pure => write!(f, "pure function not allowed in finish context"),
             Self::Finish => write!(f, "finish function not allowed in expression"),
@@ -82,7 +82,7 @@ impl AlreadyDefined {
     /// Creates an `AlreadyDefined` error with `prev` and `primary` ordered by their spans.
     pub(crate) fn new(mut prev: Ident, mut primary: Ident) -> Self {
         use std::cmp::Ordering;
-        match prev.span.cmp(&primary.span) {
+        match prev.span.start().cmp(&primary.span.start()) {
             // already in order
             Ordering::Less | Ordering::Equal => {}
             Ordering::Greater => {
@@ -296,14 +296,14 @@ impl CompileError {
 }
 
 impl fmt::Debug for CompileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Delegate to Display — the diagnostic message is more useful than struct internals.
         fmt::Display::fmt(self, f)
     }
 }
 
 impl fmt::Display for CompileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.source {
             Some(input) => write!(f, "{}", self.err_type.render(input)),
             None => write!(f, "{}", self.err_type.description()),
