@@ -273,8 +273,8 @@ jobs:
   # ==== Failure alert ====
 
   failure-alert:
-    if: ${{ cancelled() || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'failure') }}
-    runs-on: ubuntu-latest
+    if: always()
+    runs-on: ubuntu-slim
 
     needs:
       # ==== Build ====
@@ -297,6 +297,7 @@ jobs:
       - test-benchmarks
 
     steps:
-      - run: |
+      - if: ${{ cancelled() || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'failure') }}
+        run: |
           echo "Some workflows have failed!"
           exit 1
