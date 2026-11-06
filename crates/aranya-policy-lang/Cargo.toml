@@ -8,18 +8,29 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+
 [lints]
 workspace = true
 
+
 [lib]
 bench = false
+
 
 [[bin]]
 name = "parser-explorer"
 bench = false
 
+
+[[test]]
+name = "snap"
+harness = false
+bench = false
+
+
 [features]
 default = []
+
 
 [dependencies]
 buggy = { workspace = true, features = ["std"] }
@@ -37,9 +48,10 @@ serde = { workspace = true }
 serde-saphyr = { workspace = true, features = ["deserialize"] }
 tracing = { workspace = true }
 
+
 [dev-dependencies]
-insta = { workspace = true }
-rstest = { workspace = true }
+snapbox = { workspace = true }
+tryfn = { workspace = true }
 
 
 [package.metadata.docs.rs]
