@@ -8,7 +8,7 @@ command Work with StubBase {
     fields {
         n: int,
     }
-    policy {
+    policy(this) {
         finish {
             create F[k: 1]=>{v: may_fail(2)?}
         }

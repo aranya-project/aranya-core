@@ -114,7 +114,7 @@ fn spans_end_at_the_last_token() {
 fact F[v: int]=>{}
 command C with Base {
     fields { v: int }
-    policy {
+    policy(this) {
         let found = exists F[v: this.v]   // trailing comment
         let text = "a // not a comment"
         check found else recall failed()  /* block comment */

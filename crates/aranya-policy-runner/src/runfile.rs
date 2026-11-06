@@ -245,7 +245,7 @@ impl RunFile {
             base[null] Base {{ get_key(this, _dev: id) option[bytes] {{ return None }} }}
             command CaptureVariables with Base {{
                 fields {{ }}
-                policy {{ }}
+                policy(this) {{ }}
             }}
             action[null] preamble() {{
                 {}

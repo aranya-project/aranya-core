@@ -1,5 +1,5 @@
 command Foo with StubBase {
-    policy {
+    policy(this) {
         check 0 else test_fail("should fail")
     }
 }

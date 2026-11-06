@@ -92,7 +92,7 @@ fn test_action_without_publish_requires_debug_mode() {
         base[null] Base { get_key(_dev: id) option[bytes] { return None } }
         command Foo with Base {
             fields { a: int }
-            policy { finish {} }
+            policy() { finish {} }
         }
         action[null] conditional(a: int) {
             if a > 0 {
@@ -242,7 +242,7 @@ fn test_validate_get_key() {
     // Need to use base command so label is produced.
     let common = r#"
         command C with Base {
-            policy {}
+            policy(this) {}
         }
     "#;
 
@@ -268,7 +268,7 @@ fn test_validate_publish() {
                 fields {
                     a: int
                 }
-                policy {
+                policy(this) {
                     finish {}
                 }
                 recall default() {

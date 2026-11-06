@@ -41,7 +41,7 @@ command Init with BaseInit {
         owner_key: bytes,
     }
 
-    policy {
+    policy(this) {
         let device_id = device::current_device_id()
         finish {
             create Device[dev: device_id]=>{key: this.owner_key}
@@ -77,7 +77,7 @@ command AddUser with BasicBase {
         new_user_key: bytes,
     }
 
-    policy {
+    policy(this, envelope) {
         let dev_id = envelope.command_id
         // Check that this device has not already been added
         check !exists Device[dev: dev_id] else test_fail("no device")
@@ -113,7 +113,7 @@ command AddDevice with BasicBase {
         device_key: bytes,
     }
 
-    policy {
+    policy(this) {
         check !exists Device[dev: this.device_id] else test_fail("no device")
 
         finish {
@@ -154,7 +154,7 @@ command GetDevice with BasicBase {
         device_id: id,
     }
 
-    policy {
+    policy(this) {
         match query Device[dev: this.device_id] {
             Some(device_info) => {
                 finish {
@@ -195,7 +195,7 @@ command Hello with BasicBase {
         msg: string,
     }
 
-    policy {
+    policy(this) {
         finish {
             emit Message {
                 msg: this.msg

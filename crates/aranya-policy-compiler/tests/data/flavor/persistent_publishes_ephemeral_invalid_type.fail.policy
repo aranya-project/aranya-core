@@ -3,7 +3,7 @@ base[ephemeral] Ephemeral {
 }
 command Cmd with Ephemeral {
     fields {}
-    policy {
+    policy(this) {
         finish {}
     }
 }

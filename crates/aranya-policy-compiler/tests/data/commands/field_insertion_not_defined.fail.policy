@@ -3,7 +3,7 @@ command Foo with StubBase {
         +Bar, // Bar is not defined
         b: string
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

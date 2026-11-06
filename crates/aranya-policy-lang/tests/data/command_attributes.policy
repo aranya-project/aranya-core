@@ -2,5 +2,5 @@ command Foo with Base {
     attributes {
         priority: "high",
     }
-    policy {}
+    policy(this) {}
 }

@@ -133,7 +133,7 @@ command Init with BaseInit {
         nonce: int,
     }
 
-    policy {
+    policy(this) {
         check this.nonce > 0 else test_fail("nonce must be positive")
         finish {}
     }
@@ -152,7 +152,7 @@ command AddDeviceKeys with BaseSelfSigned {
         ident_pk: bytes,
     }
 
-    policy {
+    policy(this, envelope) {
         let author = envelope.author_id
         let device_id = idam::derive_device_id(this.ident_pk)
         check author == device_id else test_fail("author must be device")
@@ -194,7 +194,7 @@ command Create with Base {
         value: int,
     }
 
-    policy {
+    policy(this) {
         finish {
             create Stuff[a: this.key_a]=>{x: this.value}
             emit StuffHappened{a: this.key_a, x: this.value}
@@ -219,7 +219,7 @@ command Increment with Base {
         value: int,
     }
 
-    policy {
+    policy(this) {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = add(stuff.x, this.value) or test_fail()
         check new_x < 25 else test_fail("new_x out of range")
@@ -248,7 +248,7 @@ command Decrement with Base {
         value: int,
     }
 
-    policy {
+    policy(this) {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = sub(stuff.x, this.value) or test_fail()
 
@@ -272,7 +272,7 @@ command CreateGreeting with Ephemeral {
         value: string,
     }
 
-    policy {
+    policy(this) {
         finish {
             // Write the Message fact to the session factDB
             create Message[msg: this.key]=>{value: this.value}
@@ -308,7 +308,7 @@ command VerifyGreeting with Ephemeral {
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
     // with that data.
-    policy {
+    policy(this) {
         let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
@@ -332,7 +332,7 @@ command VerifyNoHello with Base {
 
     fields {}
 
-    policy {
+    policy(this) {
         check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")
         finish {
             emit Success{value: true}

@@ -86,7 +86,7 @@ command Init with BaseInit {
     }
 
     // The policy block contains statements which query data and check its validity.
-    policy {
+    policy(this) {
         check this.nonce > 0 else test_fail("nonce must be positive")
         // The finish block contains statements which mutate facts.
         finish {
@@ -116,7 +116,7 @@ command Create with Base {
         value: int,
     }
 
-    policy {
+    policy(this) {
         finish {
             create Stuff[a: this.key_a]=>{x: this.value}
             emit StuffHappened{a: this.key_a, x: this.value}
@@ -137,7 +137,7 @@ command CreateEphemeral with BaseEphemeral {
         value: int,
     }
 
-    policy {
+    policy(this) {
         finish {
             create Stuff[a: this.key_a]=>{x: this.value}
             emit StuffHappened{a: this.key_a, x: this.value}
@@ -166,7 +166,7 @@ command Increment with Base {
         value: int,
     }
 
-    policy {
+    policy(this) {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = add(stuff.x, this.value) or test_fail()
         check new_x < 25 else test_fail("new_x out of range")
@@ -191,7 +191,7 @@ command IncrementEphemeral with BaseEphemeral {
         value: int,
     }
 
-    policy {
+    policy(this) {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = add(stuff.x, this.value) or test_fail()
         check new_x < 25 else test_fail("new_x out of range")
@@ -224,7 +224,7 @@ command Decrement with Base {
         value: int,
     }
 
-    policy {
+    policy(this) {
         let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
         let new_x = sub(stuff.x, this.value) or test_fail()
 
@@ -249,7 +249,7 @@ command GetStuff with BaseEphemeral {
         key_a: int,
     }
 
-    policy {
+    policy(this) {
         let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
@@ -272,7 +272,7 @@ command GetStuffOnGraph with Base {
         key_a: int,
     }
 
-    policy {
+    policy(this) {
         let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
         finish {
             emit StuffHappened{a: this.key_a, x: stuff.x}
@@ -297,7 +297,7 @@ command CreateGreeting with BaseEphemeral {
         value: string,
     }
 
-    policy {
+    policy(this) {
         finish {
             // Write the Message fact to the session factDB
             create Message[msg: this.key]=>{value: this.value}
@@ -329,7 +329,7 @@ command VerifyGreeting with BaseEphemeral {
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
     // with that data.
-    policy {
+    policy(this) {
         let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
@@ -357,7 +357,7 @@ command VerifyGreetingOnGraph with Base {
         value: string,
     }
 
-    policy {
+    policy(this) {
         let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
         check greeting.value == this.value else test_fail("greeting mismatch")
         finish {
@@ -388,7 +388,7 @@ command StoreSessionData with Base {
         cmd: bytes,
     }
 
-    policy {
+    policy(this) {
         finish {
             create PersistedSessionData[command_type: this.key]=>{value: this.cmd}
             emit Success{value: true}
@@ -412,7 +412,7 @@ command Link with Base {
     // Local variables for command
     fields {}
 
-    policy {
+    policy(this, envelope) {
         finish {
             emit Relationship{parent_id: envelope.parent_id, command_id: envelope.command_id}
         }

@@ -19,15 +19,15 @@ base[basic] MyBasicBase {
 }
 
 command MyInit with MyInitBase {
-    policy {}
+    policy(this) {}
 }
 
 command MyBasic1 with MyBasicBase {
-    policy {}
+    policy(this) {}
 }
 
 command MyBasic2 with MyBasicBase {
-    policy {}
+    policy(this) {}
 }
 
 action[init] my_init(key: bytes) {

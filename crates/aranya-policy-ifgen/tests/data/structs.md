@@ -25,7 +25,7 @@ command AddUser with Base {
     fields {
         +User
     }
-    policy {
+    policy(this) {
         finish {
             emit UserAdded { uid: this.uid }
         }

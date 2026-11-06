@@ -19,17 +19,17 @@ command Add with Base {
     fields {
         count: int
     }
-    policy {
+    policy(this, envelope) {
         let envelope_id = envelope.command_id
         let author = envelope.author_id
         let new_x = add2(x, count)
-        check exists TestFact[v: "test"]=>{} else recall default()
+        check exists TestFact[v: "test"]=>{} else recall default(this, envelope)
         match x {
             0 => {
-                check positive(Some(new_x)) else recall default()
+                check positive(Some(new_x)) else recall default(this, envelope)
             }
             1 => {
-                check positive(None) else recall default()
+                check positive(None) else recall default(this, envelope)
             }
             _ => {
 
@@ -37,7 +37,7 @@ command Add with Base {
         }
 
         if x == 3 {
-            check new_x < 10 else recall default()
+            check new_x < 10 else recall default(this, envelope)
         }
 
         let a = foo::ext_func(x)
@@ -52,7 +52,7 @@ command Add with Base {
             }
         }
     }
-    recall default() {
+    recall default(this, envelope) {
         let envelope_id = envelope.command_id
         let author = envelope.author_id
         let new_x = add2(x, count)
@@ -90,7 +90,7 @@ command C with Ephemeral {
     fields {
         x: int
     }
-    policy {}
+    policy(this) {}
 }
 
 action[ephemeral] a() {}

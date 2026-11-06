@@ -100,7 +100,7 @@ policy-version: 2
         fact F[i: int]=>{ value: string }
 
         command Init with BaseInit {
-            policy {
+            policy(this) {
                 finish {
                     create Key[]=>{key: this.key}
                 }
@@ -123,7 +123,7 @@ policy-version: 2
                 i: int,
                 value: string
             }
-            policy {
+            policy(this) {
                 finish {
                     create F[i: this.i]=>{value: this.value}
                 }
@@ -141,7 +141,7 @@ policy-version: 2
                 priority: 5,
             }
             fields { i: int }
-            policy {
+            policy(this) {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }
                 }
