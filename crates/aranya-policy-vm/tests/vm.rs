@@ -16,6 +16,7 @@ use aranya_policy_vm::{
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
+use itertools::Itertools as _;
 
 #[track_caller]
 fn parse(text: &str) -> aranya_policy_ast::Policy {
@@ -1468,7 +1469,6 @@ fn test_nested_optionals() -> anyhow::Result<()> {
         .map(|(i, c)| {
             format!("action[null] c{i}() {{ check {c} else test_fail(\"check failed\") }}")
         })
-        .collect::<Vec<_>>()
         .join("\n");
     let machine = compile(&actions);
 

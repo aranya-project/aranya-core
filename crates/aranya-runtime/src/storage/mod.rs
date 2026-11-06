@@ -13,6 +13,7 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{borrow::Borrow, cmp::Ordering, fmt, ops::Deref};
 
 use buggy::{Bug, BugExt as _, bug};
+use itertools::Itertools as _;
 use rend::u64_le;
 
 #[cfg(feature = "libc")]
@@ -190,7 +191,7 @@ impl TraversalQueue {
 
     /// Pop the location with the highest max cut, including its covered flag.
     pub fn pop_covered(&mut self) -> Result<Option<(Location, bool)>, StorageError> {
-        let Some((i, _)) = self.entries.iter().enumerate().max_by_key(|&(_, loc)| *loc) else {
+        let Some(i) = self.entries.iter().position_max_by_key(|&&loc| loc) else {
             return Ok(None);
         };
         if i < self.partition {

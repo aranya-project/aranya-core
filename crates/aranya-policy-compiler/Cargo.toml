@@ -31,6 +31,7 @@ annotate-snippets = { workspace = true }
 ciborium = { workspace = true, features = ["std"] }
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
+itertools = { workspace = true }
 petgraph = { workspace = true }
 tracing = { workspace = true }
 
