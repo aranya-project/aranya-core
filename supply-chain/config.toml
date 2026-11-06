@@ -452,10 +452,6 @@ criteria = "safe-to-deploy"
 version = "0.2.20"
 criteria = "safe-to-deploy"
 
-[[exemptions.prettyplease]]
-version = "0.2.25"
-criteria = "safe-to-deploy"
-
 [[exemptions.primefield]]
 version = "0.14.0"
 criteria = "safe-to-deploy"
@@ -544,10 +540,6 @@ criteria = "safe-to-deploy"
 version = "1.0.133"
 criteria = "safe-to-deploy"
 
-[[exemptions.serde_repr]]
-version = "0.1.19"
-criteria = "safe-to-deploy"
-
 [[exemptions.serdect]]
 version = "0.4.3"
 criteria = "safe-to-deploy"
@@ -596,24 +588,12 @@ version = "0.8.0"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.syn]]
-version = "2.0.90"
-criteria = "safe-to-deploy"
-
 [[exemptions.tempfile]]
 version = "3.14.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.termcolor]]
 version = "1.4.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror]]
-version = "2.0.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror-impl]]
-version = "2.0.7"
 criteria = "safe-to-deploy"
 
 [[exemptions.tracing-test]]
@@ -679,10 +659,6 @@ criteria = "safe-to-run"
 
 [[exemptions.winapi-util]]
 version = "0.1.9"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-sys]]
-version = "0.59.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.windows-targets]]
