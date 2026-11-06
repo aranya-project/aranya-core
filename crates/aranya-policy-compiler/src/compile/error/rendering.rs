@@ -7,11 +7,11 @@ use indexmap::IndexSet;
 use super::{
     AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
     DuplicateField, DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
-    InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidStructLiteral,
-    InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields, NoOpStructComp, NoReturn,
-    NotDefined, RecursiveCall, RedundantMatchArm, SourceStructNotSubsetOfBase,
-    StructCompositionTypeMismatch, UnknownError, UnknownField, UnreachableMatchArm, UnusedValue,
-    UnusedVariable,
+    InvalidExpression, InvalidFactInitializer, InvalidReturn, InvalidStatement,
+    InvalidStructInitializer, InvalidSubstruct, InvalidType, MissingDefaultPattern, MissingFields,
+    NoOpStructComp, NoReturn, NotDefined, RecursiveCall, RedundantMatchArm,
+    SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError, UnknownField,
+    UnreachableMatchArm, UnusedValue, UnusedVariable,
 };
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
@@ -159,9 +159,9 @@ impl SimpleError for NotDefined {
     }
 }
 
-impl Error for InvalidStructLiteral {
+impl Error for InvalidStructInitializer {
     fn description(&self) -> Cow<'_, str> {
-        "invalid struct literal".into()
+        "invalid struct initializer".into()
     }
     fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
         if let Some(e) = &self.missing {
@@ -204,7 +204,7 @@ impl SimpleError for MissingFields {
         };
         let fields = self.fields();
         let name = self.literal.as_str();
-        format!("missing {pluralized} {fields} in struct literal for `{name}`").into()
+        format!("missing {pluralized} {fields} in struct initializer for `{name}`").into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         once((
@@ -264,9 +264,9 @@ impl SimpleError for DuplicateMatchPatterns {
     }
 }
 
-impl SimpleError for InvalidFactLiteral {
+impl SimpleError for InvalidFactInitializer {
     fn description(&self) -> Cow<'_, str> {
-        format!("fact literal does not match definition: {}", self.note).into()
+        format!("fact initializer does not match definition: {}", self.note).into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         once((self.span, self.note.as_str().into()))
@@ -320,7 +320,7 @@ impl SimpleError for SourceStructNotSubsetOfBase {
 
 impl SimpleError for NoOpStructComp {
     fn description(&self) -> Cow<'_, str> {
-        "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions".into()
+        "A struct initializer has all its fields explicitly specified while also having 1 or more struct compositions".into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         just(self.0)

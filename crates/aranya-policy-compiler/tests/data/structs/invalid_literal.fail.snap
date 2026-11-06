@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: missing field `forget_me_not` in struct literal for `S`
+error: missing field `forget_me_not` in struct initializer for `S`
    |
  8 |     return S {
    |            ^ missing `forget_me_not`

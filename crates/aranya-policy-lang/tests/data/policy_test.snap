@@ -163,7 +163,7 @@ Policy {
                     CheckStatement {
                         condition: InternalFunction(
                             Exists(
-                                FactLiteral {
+                                FactInitializer {
                                     name: "TestFact" @ 516..524,
                                     key_fields: [
                                         (
@@ -327,7 +327,7 @@ Policy {
                     [
                         Create(
                             CreateStatement {
-                                fact: FactLiteral {
+                                fact: FactInitializer {
                                     name: "F" @ 968..969,
                                     key_fields: [
                                         (
@@ -374,7 +374,7 @@ Policy {
                         ) @ 961..1011,
                         Update(
                             UpdateStatement {
-                                fact: FactLiteral {
+                                fact: FactInitializer {
                                     name: "F" @ 1031..1032,
                                     key_fields: [],
                                     value_fields: Some(
@@ -404,7 +404,7 @@ Policy {
                         ) @ 1024..1053,
                         Delete(
                             DeleteStatement {
-                                fact: FactLiteral {
+                                fact: FactInitializer {
                                     name: "F" @ 1073..1074,
                                     key_fields: [
                                         (
@@ -495,7 +495,7 @@ Policy {
                             [
                                 Create(
                                     CreateStatement {
-                                        fact: FactLiteral {
+                                        fact: FactInitializer {
                                             name: "F" @ 1374..1375,
                                             key_fields: [
                                                 (
@@ -542,7 +542,7 @@ Policy {
                                 ) @ 1367..1417,
                                 Update(
                                     UpdateStatement {
-                                        fact: FactLiteral {
+                                        fact: FactInitializer {
                                             name: "F" @ 1437..1438,
                                             key_fields: [],
                                             value_fields: Some(
@@ -572,7 +572,7 @@ Policy {
                                 ) @ 1430..1459,
                                 Delete(
                                     DeleteStatement {
-                                        fact: FactLiteral {
+                                        fact: FactInitializer {
                                             name: "F" @ 1479..1480,
                                             key_fields: [
                                                 (
@@ -733,7 +733,7 @@ Policy {
             body: [
                 Create(
                     CreateStatement {
-                        fact: FactLiteral {
+                        fact: FactInitializer {
                             name: "Next" @ 1769..1773,
                             key_fields: [],
                             value_fields: Some(

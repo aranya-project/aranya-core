@@ -35,7 +35,7 @@
 //!
 //! The "do" section defines a series of actions and commands to execute
 //! on the policy. Actions are specified with the usual function call
-//! syntax, and commands are specified as raw struct literals. The above
+//! syntax, and commands are specified as raw structs. The above
 //! example calls a hypothetical action `add_user` with the `my_id`
 //! variable defined in the preamble, then does the same thing as a raw
 //! command struct.
@@ -43,7 +43,7 @@
 //! Commands and actions must start on new lines, but can continue
 //! across multiple lines without explicit continuation syntax. The
 //! parser consumes lines until something parses as either an action
-//! call or struct literal.
+//! call or struct.
 use std::{
     fmt,
     fs::File,

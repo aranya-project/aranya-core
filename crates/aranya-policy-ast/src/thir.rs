@@ -8,7 +8,7 @@ use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType};
 ///
 /// It is used to create, read, update, and delete facts.
 #[derive(Debug, Clone)]
-pub struct FactLiteral {
+pub struct FactInitializer {
     /// the fact's name
     pub name: Ident,
     /// values for the fields of the fact key
@@ -39,7 +39,7 @@ pub struct RecallCall {
     pub arguments: Vec<Expression>,
 }
 
-/// A named struct literal
+/// A named struct initializer
 #[derive(Debug, Clone)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
@@ -63,12 +63,12 @@ pub struct EnumReference {
 #[derive(Debug, Clone)]
 pub enum InternalFunction {
     /// A `query` expression
-    Query(FactLiteral),
+    Query(FactInitializer),
     /// An `exists` fact query
-    Exists(FactLiteral),
+    Exists(FactInitializer),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
     // TODO(eric): make `i64` an expr or literal or something
-    FactCount(FactCountType, IntLiteral, FactLiteral),
+    FactCount(FactCountType, IntLiteral, FactInitializer),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Not yet implemented panic
@@ -265,7 +265,7 @@ pub struct IfStatement {
 #[derive(Debug, Clone)]
 pub struct MapStatement {
     /// Query
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
     /// Identifier of container struct
     pub identifier: Ident,
     /// Statements to execute for each fact
@@ -276,14 +276,14 @@ pub struct MapStatement {
 #[derive(Debug, Clone)]
 pub struct CreateStatement {
     /// The fact to create
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
 }
 
 /// Update a fact
 #[derive(Debug, Clone)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
     /// The value fields are updated to these values
     pub to: Vec<(Ident, Expression)>,
 }
@@ -292,7 +292,7 @@ pub struct UpdateStatement {
 #[derive(Debug, Clone)]
 pub struct DeleteStatement {
     /// The fact to delete
-    pub fact: FactLiteral,
+    pub fact: FactInitializer,
 }
 
 /// Return from a function

@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: A struct literal has all its fields explicitly specified while also having 1 or more struct compositions
+error: A struct initializer has all its fields explicitly specified while also having 1 or more struct compositions
   |
 3 |       let new_foo = Foo {
   |  ___________________^

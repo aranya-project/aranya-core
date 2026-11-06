@@ -66,7 +66,7 @@ fn validate_fact_schema(fact: &Fact, schema: &FactDef) -> bool {
 
 /// Compares a fact to the given keys and values.
 ///
-/// Bind keys/values are not included in the fact literal (see lower_fact_literal), so we only
+/// Bind keys/values are not included in the fact initializer (see lower_fact_initializer), so we only
 /// compare key/value pairs with exact values.
 ///
 /// Returns true if all given keys and values match the fact.
@@ -900,8 +900,8 @@ where
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
 
-                // Before we spend time fetching facts from storage, make sure the given fact literal is valid.
-                self.validate_fact_literal(&qf)?;
+                // Before we spend time fetching facts from storage, make sure the given fact initializer is valid.
+                self.validate_fact_initializer(&qf)?;
 
                 let result = {
                     let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
@@ -927,7 +927,7 @@ where
             }
             Instruction::FactCount(limit) => {
                 let fact: Fact = self.ipop()?;
-                self.validate_fact_literal(&fact)?;
+                self.validate_fact_initializer(&fact)?;
 
                 let mut count = 0;
                 {
@@ -952,7 +952,7 @@ where
             }
             Instruction::QueryStart => {
                 let fact: Fact = self.ipop()?;
-                self.validate_fact_literal(&fact)?;
+                self.validate_fact_initializer(&fact)?;
                 let iter = self.io.fact_query(fact.name, fact.keys)?;
                 self.query_iter_stack.push(iter);
             }
@@ -1286,9 +1286,9 @@ where
             .map_err(|t| MachineError::from_position(t, self.pc, self.machine.codemap.as_ref()))
     }
 
-    fn validate_fact_literal(&mut self, fact: &Fact) -> Result<(), MachineError> {
+    fn validate_fact_initializer(&mut self, fact: &Fact) -> Result<(), MachineError> {
         #[cfg(feature = "bench")]
-        self.stopwatch.start("validate_fact_literal");
+        self.stopwatch.start("validate_fact_initializer");
 
         if !self
             .machine

@@ -2,7 +2,7 @@
 source: crates/aranya-policy-compiler/tests/tests.rs
 expression: error
 ---
-error: fact literal does not match definition: Expected value x, got y
+error: fact initializer does not match definition: Expected value x, got y
   |
 1 | fact Foo[k: int]=>{x: int}
   |                    - expected because of this

@@ -18,7 +18,7 @@ Policy {
                         name: "x" @ 30..31,
                         value: InternalFunction(
                             Query(
-                                FactLiteral {
+                                FactInitializer {
                                     name: "A" @ 40..41,
                                     key_fields: [
                                         (

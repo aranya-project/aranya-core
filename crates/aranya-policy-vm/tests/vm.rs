@@ -2316,7 +2316,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
         action[null] test() {
             let foo = Foo { y: "abc", x: 42 }
             publish foo as Bar // var reference
-            publish Foo { y: "b", x: 1 } as Bar // struct literal
+            publish Foo { y: "b", x: 1 } as Bar // struct initializer
             publish new_foo(5, "def") as Bar // function return value
             publish Bar { x: 100, y: "xyz" } as Bar
         }
