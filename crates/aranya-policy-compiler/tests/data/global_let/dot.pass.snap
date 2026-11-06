@@ -18,14 +18,6 @@ Module {
                 },
             ],
         },
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
     ],
     enum_defs: [],
     globals: {
@@ -46,11 +38,4 @@ Module {
     ..
 }
 ---
-    exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
     exit panic
