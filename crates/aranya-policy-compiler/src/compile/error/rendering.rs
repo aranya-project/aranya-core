@@ -3,7 +3,7 @@ use std::{borrow::Cow, iter::once};
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::{Span, Spanned as _};
 use indexmap::IndexSet;
-use itertools::Itertools;
+use itertools::Itertools as _;
 
 use crate::compile::error;
 
