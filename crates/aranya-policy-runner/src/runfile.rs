@@ -242,7 +242,7 @@ impl RunFile {
     ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
             r#"use testing
-            base[null] Base {{ get_key {{ return None }} }}
+            base[null] Base {{ get_key(this, _dev: id) option[bytes] {{ return None }} }}
             command CaptureVariables with Base {{
                 fields {{ }}
                 policy {{ }}

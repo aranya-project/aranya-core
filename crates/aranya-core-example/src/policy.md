@@ -76,7 +76,7 @@ base[init] BaseInit {
     fields {
         owner_keys: struct PublicKeys,
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.owner_keys.sign_key)
     }
 }
@@ -108,8 +108,8 @@ command Init with BaseInit {
 
 ```policy
 base[basic] Base {
-    get_key {
-        return match query DeviceSignPubKey[device_id: author_id] {
+    get_key(device_id: id) option[bytes] {
+        return match query DeviceSignPubKey[device_id] {
             Some(f) => Some(f.key)
             None => None
         }
@@ -117,8 +117,8 @@ base[basic] Base {
 }
 
 base[ephemeral] BaseEphemeral {
-    get_key {
-        return match query DeviceSignPubKey[device_id: author_id] {
+    get_key(device_id: id) option[bytes] {
+        return match query DeviceSignPubKey[device_id] {
             Some(f) => Some(f.key)
             None => None
         }

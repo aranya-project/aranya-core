@@ -83,7 +83,7 @@ finish function next(x: int) {
 // ephemeral commands and actions
 
 base[ephemeral] Ephemeral {
-    get_key { return None }
+    get_key(_dev: id) option[bytes] { return None }
 }
 
 command C with Ephemeral {

@@ -18,7 +18,7 @@ effect UserAdded {
 }
 
 base[basic] Base {
-    get_key { return None }
+    get_key(_dev: id) option[bytes] { return None }
 }
 
 command AddUser with Base {

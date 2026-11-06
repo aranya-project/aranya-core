@@ -24,7 +24,7 @@ base[init] BaseInit {
     fields {
         sign_pk: bytes,
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.sign_pk)
     }
 }
@@ -33,14 +33,14 @@ base[basic] BaseSelfSigned {
     fields {
         sign_pk: bytes,
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.sign_pk)
     }
 }
 
 base[basic] Base {
-    get_key {
-        return match query DeviceSignKey[device_id: author_id] {
+    get_key(device_id: id) option[bytes] {
+        return match query DeviceSignKey[device_id] {
             Some(f) => Some(f.key)
             None => None
         }
@@ -48,8 +48,8 @@ base[basic] Base {
 }
 
 base[ephemeral] Ephemeral {
-    get_key {
-        return match query DeviceSignKey[device_id: author_id] {
+    get_key(device_id: id) option[bytes] {
+        return match query DeviceSignKey[device_id] {
             Some(f) => Some(f.key)
             None => None
         }

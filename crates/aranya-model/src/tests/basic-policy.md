@@ -21,13 +21,13 @@ base[init] BaseInit {
     fields {
         key: bytes
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.key)
     }
 }
 
 base[basic] Base {
-    get_key {
+    get_key(_dev: id) option[bytes] {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
@@ -36,7 +36,7 @@ base[basic] Base {
 }
 
 base[ephemeral] BaseEphemeral {
-    get_key {
+    get_key(_dev: id) option[bytes] {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None

@@ -83,13 +83,13 @@ policy-version: 2
 ```policy
         base[init] BaseInit {
             fields { key: bytes }
-            get_key { return Some(this.key) }
+            get_key(this, _dev: id) option[bytes] { return Some(this.key) }
         }
 
         fact Key[]=>{key: bytes}
 
         base[basic] Base {
-            get_key {
+            get_key(_dev: id) option[bytes] {
                 return match query Key[] {
                     Some(f) => Some(f.key)
                     None => None

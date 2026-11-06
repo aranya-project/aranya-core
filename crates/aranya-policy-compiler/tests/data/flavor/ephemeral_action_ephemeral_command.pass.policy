@@ -1,5 +1,5 @@
 base[ephemeral] Ephemeral {
-    get_key { return None }
+    get_key(_dev: id) option[bytes] { return None }
 }
 command Cmd with Ephemeral {
     fields {}

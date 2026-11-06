@@ -21,7 +21,7 @@ use itertools::Itertools as _;
 #[track_caller]
 fn parse(text: &str) -> aranya_policy_ast::Policy {
     let text = text.trim_start_matches('\n').to_owned()
-        + "\n\nbase[null] StubBase { get_key { return None } }";
+        + "\n\nbase[null] StubBase { get_key(_dev: id) option[bytes] { return None } }";
     parse_policy_str(&text, Version::V2).unwrap()
 }
 
@@ -1493,7 +1493,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         effect Recalled {}
 
         base[custom] Base {
-            get_key { return None }
+            get_key(_dev: id) option[bytes] { return None }
         }
 
         command Foo with Base {

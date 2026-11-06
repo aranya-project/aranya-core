@@ -96,14 +96,14 @@ mod test {
     fn test_require_command_priority() {
         let cases = [
             r#"
-            base[basic] Base { get_key { return None } }
+            base[basic] Base { get_key(_dev: id) option[bytes] { return None } }
             command Test with Base {
                 fields {}
                 policy {}
             }
             "#,
             r#"
-            base[basic] Base { get_key { return None } }
+            base[basic] Base { get_key(_dev: id) option[bytes] { return None } }
             command Test with Base {
                 attributes {}
                 fields {}
@@ -111,7 +111,7 @@ mod test {
             }
             "#,
             r#"
-            base[basic] Base { get_key { return None } }
+            base[basic] Base { get_key(_dev: id) option[bytes] { return None } }
             command Test with Base {
                 attributes {
                     init: false,
@@ -138,7 +138,7 @@ mod test {
         fn process(flavor: &str, attrs: &str) -> Result<VmPriority, AttributeError> {
             let policy = format!(
                 r#"
-                base[{flavor}] Base {{ get_key {{ return None }} }}
+                base[{flavor}] Base {{ get_key(_dev: id) option[bytes] {{ return None }} }}
                 command Test with Base {{
                     attributes {{
                         {attrs}

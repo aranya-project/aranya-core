@@ -4,14 +4,14 @@ base[init] MyInitBase {
     fields {
         key: bytes
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.key)
     }
 }
 
 base[basic] MyBasicBase {
-    get_key {
-        return match query Key[dev: author_id] {
+    get_key(dev: id) option[bytes] {
+        return match query Key[dev] {
             Some(f) => Some(f.key)
             None => None
         }
