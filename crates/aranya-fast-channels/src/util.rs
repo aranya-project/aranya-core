@@ -56,7 +56,6 @@ macro_rules! eprintln {
 }
 
 /// Configures the debugging logger.
-#[cfg_attr(docsrs, doc(cfg(feature = "unsafe_debug")))]
 #[cfg(feature = "unsafe_debug")]
 pub fn init_debug_logging() {
     struct PrintLogger;

@@ -41,11 +41,9 @@ pub mod storage {
     //! `libc` feature).
 
     #[cfg(feature = "libc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
     #[doc(inline)]
     pub use aranya_runtime::LibcSpill;
     #[cfg(feature = "libc")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "libc")))]
     #[doc(inline)]
     pub use aranya_runtime::storage::linear::libc::FileManager;
     #[doc(inline)]
@@ -93,7 +91,6 @@ pub mod crypto {
     //! and should be reviewed by cryptographers.
 
     #[cfg(feature = "custom-engine")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "custom-engine")))]
     #[doc(inline)]
     pub use aranya_crypto::engine::{
         AlgId, RawSecret, RawSecretWrap, Secret, UnwrappedKey, UnwrappedSecret, WrappedKey,
@@ -120,7 +117,6 @@ pub mod keystore {
     //! short-lived sessions; enable the `memstore` feature to use it.
 
     #[cfg(feature = "memstore")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "memstore")))]
     #[doc(inline)]
     pub use aranya_crypto::keystore::memstore::MemStore;
     #[doc(inline)]
