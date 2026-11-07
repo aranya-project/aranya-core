@@ -11,8 +11,7 @@ use aranya_policy_ast::{
 use buggy::BugExt as _;
 use pest::{
     Parser as _, Span,
-    iterators::{Pair, Pairs},
-    pratt_parser::{Assoc, Op, PrattParser},
+    pratt_parser::{Assoc, Op},
 };
 
 pub mod error;
@@ -29,12 +28,16 @@ use tracing::warn;
 #[grammar = "lang/parse/policy.pest"]
 struct PolicyParser;
 
+pub(crate) type Pair<'i> = pest::iterators::Pair<'i, Rule>;
+pub(crate) type Pairs<'i> = pest::iterators::Pairs<'i, Rule>;
+pub(crate) type PrattParser = pest::pratt_parser::PrattParser<Rule>;
+
 type FieldsAndSources = (Vec<(Ident, Expression)>, Vec<Ident>);
 
 /// Captures the iterator over a Pair's contents, and the span
 /// information for error reporting.
 struct PairContext<'i, 'p> {
-    pairs: RefCell<Pairs<'i, Rule>>,
+    pairs: RefCell<Pairs<'i>>,
     span: Span<'i>,
     to_ast_span: Box<dyn Fn(Span<'i>) -> Result<ast::Span, ParseError> + 'p>,
 }
@@ -53,23 +56,23 @@ impl<'i> PairContext<'i, '_> {
 
     /// Returns the next token from the interior Pairs in case you want
     /// to manipulate it directly.
-    fn next(&self) -> Option<Pair<'i, Rule>> {
+    fn next(&self) -> Option<Pair<'i>> {
         self.pairs.borrow_mut().next()
     }
 
-    fn peek(&self) -> Option<Pair<'i, Rule>> {
+    fn peek(&self) -> Option<Pair<'i>> {
         self.pairs.borrow_mut().peek()
     }
 
     /// Consumes the next Pair out of this context and returns it.
     /// Errors if the next pair doesn't exist.
-    fn consume(&self) -> Result<Pair<'i, Rule>, ParseError> {
+    fn consume(&self) -> Result<Pair<'i>, ParseError> {
         self.next().ok_or_else(|| self.location_error())
     }
 
     /// Consumes the next Pair out of this context and returns it if
     /// it matches the given type. Otherwise returns an error.
-    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'i, Rule>, ParseError> {
+    fn consume_of_type(&self, rule: Rule) -> Result<Pair<'i>, ParseError> {
         let token = self.consume()?;
         if token.as_rule() != rule {
             let span = (self.to_ast_span)(token.as_span())?;
@@ -104,7 +107,7 @@ impl<'i> PairContext<'i, '_> {
 
     /// Consumes the ParserContext and returns the inner Pairs.
     /// Destroys the span context.
-    fn into_inner(self) -> Pairs<'i, Rule> {
+    fn into_inner(self) -> Pairs<'i> {
         self.pairs.into_inner()
     }
 
@@ -114,7 +117,7 @@ impl<'i> PairContext<'i, '_> {
         parser.parse_ident(token)
     }
 
-    fn consume_optional(&self, rule: Rule) -> Option<Pair<'i, Rule>> {
+    fn consume_optional(&self, rule: Rule) -> Option<Pair<'i>> {
         self.peek()
             .filter(|p| p.as_rule() == rule)
             .inspect(|_| _ = self.next())
@@ -125,12 +128,12 @@ impl<'i> PairContext<'i, '_> {
 #[derive(Clone)]
 struct ChunkParser<'pratt> {
     offset: usize,
-    pratt: &'pratt PrattParser<Rule>,
+    pratt: &'pratt PrattParser,
     source_len: usize,
 }
 
 impl<'pratt> ChunkParser<'pratt> {
-    pub fn new(offset: usize, pratt: &'pratt PrattParser<Rule>, source_len: usize) -> Self {
+    pub fn new(offset: usize, pratt: &'pratt PrattParser, source_len: usize) -> Self {
         Self {
             offset,
             pratt,
@@ -175,7 +178,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse an identifier with span
-    fn parse_ident(&self, token: Pair<Rule>) -> Result<Ident, ParseError> {
+    fn parse_ident(&self, token: Pair) -> Result<Ident, ParseError> {
         assert_eq!(token.as_rule(), Rule::identifier);
 
         let span = self.to_ast_span(token.as_span())?;
@@ -203,13 +206,13 @@ impl ChunkParser<'_> {
 
     /// Parse a type token (one of the types under Rule::vtype) into a
     /// Parse a type token into a VType.
-    fn parse_type(&self, token: Pair<Rule>) -> Result<VType, ParseError> {
+    fn parse_type(&self, token: Pair) -> Result<VType, ParseError> {
         self.parse_type_inner(token, TypeStyle::Unknown, None)
     }
 
     fn parse_type_inner(
         &self,
-        token: Pair<Rule>,
+        token: Pair,
         style: TypeStyle,
         outer_span: Option<Span>,
     ) -> Result<VType, ParseError> {
@@ -346,7 +349,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::field_definition token into a FieldDef.
-    fn parse_field_definition(&self, field: Pair<Rule>) -> Result<FieldDefinition, ParseError> {
+    fn parse_field_definition(&self, field: Pair) -> Result<FieldDefinition, ParseError> {
         let pc = self.descend(field);
         let name = pc.consume_ident(self)?;
         let vtype = self.parse_type(pc.next().ok_or_else(|| {
@@ -366,7 +369,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::field_definition token into a Param.
-    fn parse_parameter(&self, field: Pair<Rule>) -> Result<Param, ParseError> {
+    fn parse_parameter(&self, field: Pair) -> Result<Param, ParseError> {
         let field = self.parse_field_definition(field)?;
         Ok(Param {
             name: field.name,
@@ -376,7 +379,7 @@ impl ChunkParser<'_> {
 
     fn parse_effect_field_definition(
         &self,
-        field: Pair<Rule>,
+        field: Pair,
     ) -> Result<EffectFieldDefinition, ParseError> {
         let pc = self.descend(field);
         let name = pc.consume_ident(self)?;
@@ -396,7 +399,7 @@ impl ChunkParser<'_> {
     /// Parse a Rule::string_literal into a String.
     ///
     /// Processes \\, \n, and \xNN escapes.
-    fn parse_string_literal(&self, string: Pair<Rule>) -> Result<Text, ParseError> {
+    fn parse_string_literal(&self, string: Pair) -> Result<Text, ParseError> {
         #![allow(
             clippy::arithmetic_side_effects,
             reason = "span calculations are all valid since they are subspans of the full string span"
@@ -517,7 +520,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a match pattern from a match_arm_expression token.
-    fn parse_match_pattern(&self, token: Pair<Rule>) -> Result<MatchPattern, ParseError> {
+    fn parse_match_pattern(&self, token: Pair) -> Result<MatchPattern, ParseError> {
         assert_eq!(token.as_rule(), Rule::match_arm_expression);
 
         let values = token
@@ -528,10 +531,7 @@ impl ChunkParser<'_> {
         Ok(MatchPattern::Values(values))
     }
 
-    fn parse_named_struct_literal(
-        &self,
-        named_struct: Pair<Rule>,
-    ) -> Result<NamedStruct, ParseError> {
+    fn parse_named_struct_literal(&self, named_struct: Pair) -> Result<NamedStruct, ParseError> {
         let pc = self.descend(named_struct.clone());
         let name = pc.consume_ident(self)?;
         let span = self.to_ast_span(named_struct.as_span())?;
@@ -546,7 +546,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_function_call(&self, call: Pair<Rule>) -> Result<FunctionCall, ParseError> {
+    fn parse_function_call(&self, call: Pair) -> Result<FunctionCall, ParseError> {
         let pc = self.descend(call.clone());
         let name = pc.consume_ident(self)?;
 
@@ -561,16 +561,13 @@ impl ChunkParser<'_> {
 
     /// Parses the inner `function_call` out of a `recall_statement` or
     /// `recall_expression` rule. The body of both rules is identical.
-    fn parse_recall_call(&self, recall: Pair<Rule>) -> Result<FunctionCall, ParseError> {
+    fn parse_recall_call(&self, recall: Pair) -> Result<FunctionCall, ParseError> {
         let pc = self.descend(recall);
         let fc_token = pc.consume_of_type(Rule::function_call)?;
         self.parse_function_call(fc_token)
     }
 
-    fn parse_foreign_function_call(
-        &self,
-        call: Pair<Rule>,
-    ) -> Result<ForeignFunctionCall, ParseError> {
+    fn parse_foreign_function_call(&self, call: Pair) -> Result<ForeignFunctionCall, ParseError> {
         let pc = self.descend(call.clone());
         let module = pc.consume_ident(self)?;
         let function_call = pc.consume_of_type(Rule::function_call)?;
@@ -1009,7 +1006,7 @@ impl ChunkParser<'_> {
     /// equivalent precedence will create a lopsided tree. For example:
     ///
     /// `A + B + C` => `Add(Add(A, B), C)`
-    pub fn parse_expression(&self, expr: Pair<Rule>) -> Result<Expression, ParseError> {
+    pub fn parse_expression(&self, expr: Pair) -> Result<Expression, ParseError> {
         assert_eq!(expr.as_rule(), Rule::expression);
         let expr_span = self.to_ast_span(expr.as_span())?;
         let pairs = expr.into_inner();
@@ -1022,7 +1019,7 @@ impl ChunkParser<'_> {
             .parse(pairs)
     }
 
-    fn parse_block_expression(&self, expr: Pair<Rule>) -> Result<Expression, ParseError> {
+    fn parse_block_expression(&self, expr: Pair) -> Result<Expression, ParseError> {
         let pc = self.descend(expr.clone());
         let statements = pc.consume()?.into_inner();
         let statement_list = self.parse_statement_list(statements)?;
@@ -1035,7 +1032,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_match_expression(&self, expr: Pair<Rule>) -> Result<Expression, ParseError> {
+    fn parse_match_expression(&self, expr: Pair) -> Result<Expression, ParseError> {
         let span = self.to_ast_span(expr.as_span())?;
         let pc = self.descend(expr);
         let scrutinee = pc.consume_expression(self)?;
@@ -1080,7 +1077,7 @@ impl ChunkParser<'_> {
 
     fn parse_counting_fn(
         &self,
-        statement: Pair<Rule>,
+        statement: Pair,
         cmp_type: ast::FactCountType,
     ) -> Result<Expression, ParseError> {
         let mut pairs = statement.clone().into_inner();
@@ -1116,7 +1113,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_if_expression(&self, expr: Pair<Rule>) -> Result<Expression, ParseError> {
+    fn parse_if_expression(&self, expr: Pair) -> Result<Expression, ParseError> {
         let mut pairs = expr.clone().into_inner();
         let span = self.to_ast_span(expr.as_span())?;
 
@@ -1159,7 +1156,7 @@ impl ChunkParser<'_> {
 
     /// Parses a list of Rule::struct_data items into lists of (String,
     /// Expression) pairs and Strings for literal fields and struct compositions, respectively.
-    fn parse_struct_data(&self, fields: Pairs<Rule>) -> Result<FieldsAndSources, ParseError> {
+    fn parse_struct_data(&self, fields: Pairs) -> Result<FieldsAndSources, ParseError> {
         let mut field_expressions = vec![];
         let mut sources = vec![];
 
@@ -1191,7 +1188,7 @@ impl ChunkParser<'_> {
 
     fn parse_fact_literal_fields(
         &self,
-        fields: Pairs<Rule>,
+        fields: Pairs,
     ) -> Result<Vec<(Ident, FactField)>, ParseError> {
         let mut out = vec![];
 
@@ -1222,7 +1219,7 @@ impl ChunkParser<'_> {
         Ok(out)
     }
 
-    fn parse_action_call(&self, item: Pair<Rule>) -> Result<FunctionCall, ParseError> {
+    fn parse_action_call(&self, item: Pair) -> Result<FunctionCall, ParseError> {
         assert_eq!(item.as_rule(), Rule::action_call);
 
         let pc = self.descend(item);
@@ -1232,7 +1229,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::publish_statement into an PublishStatement.
-    fn parse_publish_statement(&self, item: Pair<Rule>) -> Result<Expression, ParseError> {
+    fn parse_publish_statement(&self, item: Pair) -> Result<Expression, ParseError> {
         assert_eq!(item.as_rule(), Rule::publish_statement);
 
         let pc = self.descend(item);
@@ -1242,7 +1239,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::fact_literal into a FactLiteral.
-    fn parse_fact_literal(&self, fact: Pair<Rule>) -> Result<FactLiteral, ParseError> {
+    fn parse_fact_literal(&self, fact: Pair) -> Result<FactLiteral, ParseError> {
         let pc = self.descend(fact.clone());
         let name = pc.consume_ident(self)?;
 
@@ -1264,7 +1261,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::let_statement into a LetStatement.
-    fn parse_let_statement(&self, item: Pair<Rule>) -> Result<LetStatement, ParseError> {
+    fn parse_let_statement(&self, item: Pair) -> Result<LetStatement, ParseError> {
         let pc = self.descend(item);
         let name = pc.consume_ident(self)?;
         let value = pc.consume_expression(self)?;
@@ -1273,7 +1270,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::check_statement into a CheckStatement.
-    fn parse_check_statement(&self, item: Pair<Rule>) -> Result<CheckStatement, ParseError> {
+    fn parse_check_statement(&self, item: Pair) -> Result<CheckStatement, ParseError> {
         let pc = self.descend(item);
         let condition = pc.consume_expression(self)?;
         let else_expression = pc.consume_expression(self)?;
@@ -1284,7 +1281,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::match_statement into a MatchStatement.
-    fn parse_match_statement(&self, item: Pair<Rule>) -> Result<MatchStatement, ParseError> {
+    fn parse_match_statement(&self, item: Pair) -> Result<MatchStatement, ParseError> {
         let pc = self.descend(item);
         let scrutinee = pc.consume_expression(self)?;
 
@@ -1319,7 +1316,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a rule::if_statement into a IfStatement
-    fn parse_if_statement(&self, item: Pair<Rule>) -> Result<IfStatement, ParseError> {
+    fn parse_if_statement(&self, item: Pair) -> Result<IfStatement, ParseError> {
         let pc = self.descend(item);
 
         let mut branches = Vec::new();
@@ -1341,7 +1338,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::create_statement into a CreateStatement.
-    fn parse_create_statement(&self, item: Pair<Rule>) -> Result<CreateStatement, ParseError> {
+    fn parse_create_statement(&self, item: Pair) -> Result<CreateStatement, ParseError> {
         let pc = self.descend(item);
         let fact = pc.consume_fact(self)?;
 
@@ -1349,7 +1346,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::update_statement into an UpdateStatement.
-    fn parse_update_statement(&self, item: Pair<Rule>) -> Result<UpdateStatement, ParseError> {
+    fn parse_update_statement(&self, item: Pair) -> Result<UpdateStatement, ParseError> {
         assert_eq!(item.as_rule(), Rule::update_statement);
 
         let pc = self.descend(item);
@@ -1362,7 +1359,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::delete_statement into a DeleteStatement.
-    fn parse_delete_statement(&self, item: Pair<Rule>) -> Result<DeleteStatement, ParseError> {
+    fn parse_delete_statement(&self, item: Pair) -> Result<DeleteStatement, ParseError> {
         let pc = self.descend(item);
         let fact = pc.consume_fact(self)?;
 
@@ -1370,7 +1367,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::emit_statement into an EmitStatement.
-    fn parse_emit_statement(&self, item: Pair<Rule>) -> Result<Expression, ParseError> {
+    fn parse_emit_statement(&self, item: Pair) -> Result<Expression, ParseError> {
         assert_eq!(item.as_rule(), Rule::emit_statement);
 
         let pc = self.descend(item);
@@ -1380,7 +1377,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a Rule::effect_statement into an DebugAssert.
-    fn parse_debug_assert_statement(&self, item: Pair<Rule>) -> Result<Expression, ParseError> {
+    fn parse_debug_assert_statement(&self, item: Pair) -> Result<Expression, ParseError> {
         assert_eq!(item.as_rule(), Rule::debug_assert);
 
         let pc = self.descend(item);
@@ -1396,7 +1393,7 @@ impl ChunkParser<'_> {
     /// - [UpdateStatement](ast::UpdateStatement)
     /// - [DeleteStatement](ast::DeleteStatement)
     /// - [EffectStatement](ast::EffectStatement)
-    fn parse_statement_list(&self, list: Pairs<Rule>) -> Result<Vec<Statement>, ParseError> {
+    fn parse_statement_list(&self, list: Pairs) -> Result<Vec<Statement>, ParseError> {
         let mut statements = vec![];
         for statement in list {
             let span = self.to_ast_span(statement.as_span())?;
@@ -1447,7 +1444,7 @@ impl ChunkParser<'_> {
         Ok(statements)
     }
 
-    fn parse_map_statement(&self, field: Pair<Rule>) -> Result<MapStatement, ParseError> {
+    fn parse_map_statement(&self, field: Pair) -> Result<MapStatement, ParseError> {
         assert_eq!(field.as_rule(), Rule::map_statement);
         let pc = self.descend(field);
         let pair = pc.consume()?;
@@ -1462,13 +1459,13 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_use_definition(&self, field: Pair<Rule>) -> Result<Ident, ParseError> {
+    fn parse_use_definition(&self, field: Pair) -> Result<Ident, ParseError> {
         let pc = self.descend(field);
         pc.consume_ident(self)
     }
 
     /// Parse a Rule::fact_definition into a FactDefinition.
-    fn parse_fact_definition(&self, field: Pair<Rule>) -> Result<ast::FactDefinition, ParseError> {
+    fn parse_fact_definition(&self, field: Pair) -> Result<ast::FactDefinition, ParseError> {
         let span = self.to_ast_span(field.as_span())?;
         let pc = self.descend(field);
         let token = pc.consume()?;
@@ -1503,10 +1500,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a `Rule::action_definition` into an [ActionDefinition](ast::ActionDefinition).
-    fn parse_action_definition(
-        &self,
-        item: Pair<Rule>,
-    ) -> Result<ast::ActionDefinition, ParseError> {
+    fn parse_action_definition(&self, item: Pair) -> Result<ast::ActionDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::action_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1555,10 +1549,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a `Rule::effect_definition` into an [EffectDefinition](ast::EffectDefinition).
-    fn parse_effect_definition(
-        &self,
-        item: Pair<Rule>,
-    ) -> Result<ast::EffectDefinition, ParseError> {
+    fn parse_effect_definition(&self, item: Pair) -> Result<ast::EffectDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::effect_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1590,10 +1581,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a `Rule::struct_definition` into an [StructDefinition](ast::StructDefinition).
-    fn parse_struct_definition(
-        &self,
-        item: Pair<Rule>,
-    ) -> Result<ast::StructDefinition, ParseError> {
+    fn parse_struct_definition(&self, item: Pair) -> Result<ast::StructDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::struct_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1624,7 +1612,7 @@ impl ChunkParser<'_> {
         Ok(ast::StructDefinition { name, items, span })
     }
 
-    fn parse_enum_definition(&self, item: Pair<Rule>) -> Result<EnumDefinition, ParseError> {
+    fn parse_enum_definition(&self, item: Pair) -> Result<EnumDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1643,7 +1631,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_enum_reference(&self, item: Pair<Rule>) -> Result<EnumReference, ParseError> {
+    fn parse_enum_reference(&self, item: Pair) -> Result<EnumReference, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_reference);
 
         let pc = self.descend(item.clone());
@@ -1657,10 +1645,7 @@ impl ChunkParser<'_> {
     }
 
     /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
-    fn parse_command_definition(
-        &self,
-        item: Pair<Rule>,
-    ) -> Result<ast::CommandDefinition, ParseError> {
+    fn parse_command_definition(&self, item: Pair) -> Result<ast::CommandDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::command_definition);
 
         let span = self.to_ast_span(item.as_span())?;
@@ -1771,7 +1756,7 @@ impl ChunkParser<'_> {
     /// Parse a [`Rule::base_command_definition`] into an [`ast::BaseCommandDefinition``].
     fn parse_base_command_definition(
         &self,
-        item: Pair<Rule>,
+        item: Pair,
     ) -> Result<ast::BaseCommandDefinition, ParseError> {
         assert_eq!(item.as_rule(), Rule::base_command_definition);
 
@@ -1826,7 +1811,7 @@ impl ChunkParser<'_> {
 
     /// Parse only the declaration of a function. Works for both `Rule::function_decl` and
     /// `Rule::finish_function_decl`.
-    fn parse_function_decl(&self, item: Pair<Rule>) -> Result<ast::FunctionDecl, ParseError> {
+    fn parse_function_decl(&self, item: Pair) -> Result<ast::FunctionDecl, ParseError> {
         let rule = item.as_rule();
 
         assert_matches!(rule, Rule::function_decl | Rule::finish_function_decl);
@@ -1853,10 +1838,7 @@ impl ChunkParser<'_> {
         })
     }
 
-    fn parse_function_definition(
-        &self,
-        item: Pair<Rule>,
-    ) -> Result<ast::FunctionDefinition, ParseError> {
+    fn parse_function_definition(&self, item: Pair) -> Result<ast::FunctionDefinition, ParseError> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = self.descend(item);
 
@@ -1879,7 +1861,7 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::finish_function_definition` into an [FinishFunctionDefinition](ast::FinishFunctionDefinition).
     fn parse_finish_function_definition(
         &self,
-        item: Pair<Rule>,
+        item: Pair,
     ) -> Result<ast::FinishFunctionDefinition, ParseError> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = self.descend(item);
@@ -1901,7 +1883,7 @@ impl ChunkParser<'_> {
     /// Parse a `Rule::global_let_statement` into an [GlobalLetStatement](ast::GlobalLetStatement).
     fn parse_global_let_statement(
         &self,
-        item: Pair<Rule>,
+        item: Pair,
     ) -> Result<ast::GlobalLetStatement, ParseError> {
         let span = self.to_ast_span(item.as_span())?;
         let pc = self.descend(item);
@@ -1914,7 +1896,7 @@ impl ChunkParser<'_> {
     /// Helper function which consumes and returns an iterator over the
     /// children of a token. Makes the parsing process a little more
     /// self-documenting.
-    fn descend<'this, 'i>(&'this self, p: Pair<'i, Rule>) -> PairContext<'i, 'this> {
+    fn descend<'this, 'i>(&'this self, p: Pair<'i>) -> PairContext<'i, 'this> {
         let span = p.as_span();
         PairContext {
             pairs: RefCell::new(p.into_inner()),
@@ -1925,7 +1907,7 @@ impl ChunkParser<'_> {
 
     /// Helper function which consumes and returns an iterator over
     /// a single token, rather than descending.
-    fn remain<'this, 'i>(&'this self, p: Pair<'i, Rule>) -> PairContext<'i, 'this> {
+    fn remain<'this, 'i>(&'this self, p: Pair<'i>) -> PairContext<'i, 'this> {
         let span = p.as_span();
         PairContext {
             pairs: RefCell::new(Pairs::single(p)),
@@ -1986,7 +1968,7 @@ fn parse_policy_chunk(
 }
 
 fn parse_policy_chunk_inner(
-    chunk: Pairs<Rule>,
+    chunk: Pairs,
     p: &ChunkParser,
     policy: &mut ast::Policy,
 ) -> Result<(), ParseError> {
@@ -2135,7 +2117,7 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | 7        | `==`, `!=` |
 /// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
 /// | 9        | `or` (optional coalescing, right-associative) |
-fn get_pratt_parser() -> PrattParser<Rule> {
+fn get_pratt_parser() -> PrattParser {
     PrattParser::new()
         .op(Op::infix(Rule::coalesce, Assoc::Right))
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))

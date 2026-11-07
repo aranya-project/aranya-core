@@ -3,15 +3,15 @@
 use core::assert_matches;
 
 use aranya_policy_ast::VType;
-use pest::{Parser as _, error::Error as PestError, iterators::Pair};
+use pest::{Parser as _, error::Error as PestError};
 
-use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
+use super::{ChunkParser, Pair, ParseError, PolicyParser, Rule, get_pratt_parser};
 
 #[test]
 #[allow(clippy::result_large_err)]
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
-    let token: Pair<Rule> = pair.next().unwrap();
+    let token: Pair = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
 
     Ok(())
@@ -22,13 +22,13 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 fn parse_negative_number() -> Result<(), PestError<Rule>> {
     // negative integer literal
     let mut pair = PolicyParser::parse(Rule::atom, "-42")?;
-    let token: Pair<Rule> = pair.next().unwrap();
+    let token: Pair = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
     assert_eq!(token.as_str(), "-42");
 
     // minimum i64 value
     let mut pair = PolicyParser::parse(Rule::atom, "-9223372036854775808")?;
-    let token: Pair<Rule> = pair.next().unwrap();
+    let token: Pair = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
     assert_eq!(token.as_str(), "-9223372036854775808");
 
@@ -331,7 +331,7 @@ fn test_result_literal() -> Result<(), ParseError> {
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar: int")?;
 
-    let tokens: Vec<Pair<Rule>> = pairs.next().unwrap().into_inner().collect();
+    let tokens: Vec<Pair> = pairs.next().unwrap().into_inner().collect();
     assert_eq!(tokens[0].as_rule(), Rule::identifier);
     assert_eq!(tokens[0].as_str(), "bar");
     assert_eq!(tokens[1].as_rule(), Rule::int_t);
@@ -493,7 +493,7 @@ fn parse_struct_composition() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_enum_reference() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::enum_reference, "Color::Red")?;
-    let token: Pair<Rule> = pair.next().unwrap();
+    let token: Pair = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::enum_reference);
 
     let mut parts = token.into_inner();
