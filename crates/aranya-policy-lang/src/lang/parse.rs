@@ -199,10 +199,7 @@ impl ChunkParser<'_> {
             .parse()
             .assume("grammar produces valid identifiers")
             .map_err(|bug| {
-                self.to_ast_span(token.as_span()).map_or_else(
-                    |err| err,
-                    |span| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), Some(span)),
-                )
+                ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), Some(span))
             })?;
         Ok(Ident { inner: name, span })
     }
@@ -271,15 +268,10 @@ impl ChunkParser<'_> {
                 };
                 let mut pairs = token.clone().into_inner();
                 let token = pairs.next().ok_or_else(|| {
-                    self.to_ast_span(token.as_span()).map_or_else(
-                        |err| err,
-                        |span| {
-                            ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("no type following optional"),
-                                Some(span),
-                            )
-                        },
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no type following optional"),
+                        Some(span),
                     )
                 })?;
                 let inner_type = self.parse_type_inner(token, style, Some(pest_span))?;
@@ -308,29 +300,19 @@ impl ChunkParser<'_> {
 
                 let mut pairs = token.clone().into_inner();
                 let ok_token = pairs.next().ok_or_else(|| {
-                    self.to_ast_span(token.as_span()).map_or_else(
-                        |err| err,
-                        |span| {
-                            ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("no ok type following result"),
-                                Some(span),
-                            )
-                        },
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no ok type following result"),
+                        Some(span),
                     )
                 })?;
                 let ok_type = self.parse_type_inner(ok_token, TypeStyle::New, Some(pest_span))?;
 
                 let err_token = pairs.next().ok_or_else(|| {
-                    self.to_ast_span(token.as_span()).map_or_else(
-                        |err| err,
-                        |span| {
-                            ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("no err type following result"),
-                                Some(span),
-                            )
-                        },
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no err type following result"),
+                        Some(span),
                     )
                 })?;
                 let err_type = self.parse_type_inner(err_token, TypeStyle::New, Some(pest_span))?;
@@ -668,30 +650,19 @@ impl ChunkParser<'_> {
             }
             Rule::result_literal => {
                 let token = primary.clone().into_inner().next().ok_or_else(|| {
-                    self.to_ast_span(primary.as_span()).map_or_else(
-                        |err| err,
-                        |span| {
-                            ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("no token in result literal"),
-                                Some(span),
-                            )
-                        },
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no token in result literal"),
+                        Some(span),
                     )
                 })?;
                 match token.as_rule() {
                     Rule::ok => {
-                        let span = self.to_ast_span(primary.as_span())?;
                         let v = token.into_inner().next().ok_or_else(|| {
-                            self.to_ast_span(primary.as_span()).map_or_else(
-                                |err| err,
-                                |span| {
-                                    ParseError::new(
-                                        ParseErrorKind::Unknown,
-                                        String::from("no value in Ok expression"),
-                                        Some(span),
-                                    )
-                                },
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no value in Ok expression"),
+                                Some(span),
                             )
                         })?;
                         let expr = self.parse_expression(v)?;
@@ -701,17 +672,11 @@ impl ChunkParser<'_> {
                         })
                     }
                     Rule::err => {
-                        let span = self.to_ast_span(primary.as_span())?;
                         let v = token.into_inner().next().ok_or_else(|| {
-                            self.to_ast_span(primary.as_span()).map_or_else(
-                                |err| err,
-                                |span| {
-                                    ParseError::new(
-                                        ParseErrorKind::Unknown,
-                                        String::from("no value in Err expression"),
-                                        Some(span),
-                                    )
-                                },
+                            ParseError::new(
+                                ParseErrorKind::Unknown,
+                                String::from("no value in Err expression"),
+                                Some(span),
                             )
                         })?;
                         let expr = self.parse_expression(v)?;
@@ -723,7 +688,7 @@ impl ChunkParser<'_> {
                     _ => Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         format!("invalid token in result_literal: {:?}", token.as_rule()),
-                        Some(self.to_ast_span(primary.as_span())?),
+                        Some(span),
                     )),
                 }
             }
@@ -813,25 +778,18 @@ impl ChunkParser<'_> {
             Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly(span)),
             Rule::match_expression => self.parse_match_expression(primary),
             Rule::if_expr => self.parse_if_expression(primary),
-            Rule::this => {
-                let span = self.to_ast_span(primary.as_span())?;
-                Ok(Expression {
-                    inner: ExprKind::Identifier(Ident {
-                        inner: ident!("this"),
-                        span,
-                    }),
+            Rule::this => Ok(Expression {
+                inner: ExprKind::Identifier(Ident {
+                    inner: ident!("this"),
                     span,
-                })
-            }
-            Rule::todo => {
-                let span = self.to_ast_span(primary.as_span())?;
-                Ok(Expression {
-                    inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
-                    span,
-                })
-            }
+                }),
+                span,
+            }),
+            Rule::todo => Ok(Expression {
+                inner: ExprKind::InternalFunction(InternalFunction::Todo(span)),
+                span,
+            }),
             Rule::test_fail => {
-                let span = self.to_ast_span(primary.as_span())?;
                 let mut pairs = primary.into_inner();
                 let msg = pairs
                     .next()
@@ -843,7 +801,6 @@ impl ChunkParser<'_> {
                 })
             }
             Rule::identifier => {
-                let span = self.to_ast_span(primary.as_span())?;
                 let ident = self.remain(primary).consume_ident(self)?;
                 Ok(Expression {
                     inner: ExprKind::Identifier(ident),
