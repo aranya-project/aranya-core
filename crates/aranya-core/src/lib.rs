@@ -156,9 +156,9 @@ pub mod sync {
     pub use aranya_runtime::sync::{
         COMMAND_RESPONSE_MAX, FixedSlots, HeapSlots, HelloNotification, HelloSubscribe,
         HelloUnsubscribe, IgnoreReason, Inbound, Limits, LimitsBuilder, MAX_SYNC_MESSAGE_SIZE,
-        OutOfSlots, Outbound, OutboundKind, Outcome, PeerCache, PeerConfig, PollIncoming,
-        PushIncoming, SubscribeIncoming, SubscribeResponse, SyncCommand, SyncContext, SyncError,
-        SyncHeads, SyncHello, SyncIncoming, SyncInstant, SyncRequester, SyncResponder, SyncSlot,
-        SyncSlots, Syncer, SyncerError, Token, UnsubscribeIncoming,
+        OutOfSlots, Outbound, PeerCache, PeerConfig, PollIncoming, PushIncoming, SubscribeIncoming,
+        SubscribeResponse, SyncCommand, SyncContext, SyncError, SyncHeads, SyncHello, SyncIncoming,
+        SyncInstant, SyncRequester, SyncResponder, SyncSlot, SyncSlots, Syncer, SyncerError, Token,
+        UnsubscribeIncoming,
     };
 }

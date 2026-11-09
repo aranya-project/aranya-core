@@ -93,7 +93,6 @@ where
         let Inbound::Reply { len } = response_syncer.handle_incoming(
             requester.clone(),
             request,
-            now,
             &mut response_cx,
             &mut reply,
         )?

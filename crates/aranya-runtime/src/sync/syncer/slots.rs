@@ -134,9 +134,8 @@ pub trait SyncSlots<A, T> {
         A: 'a,
         T: 'a;
 
-    /// Visits every slot mutably in the table's stable order, removing those
-    /// for which `f` returns `false`.
-    fn retain(&mut self, f: impl FnMut(&mut SyncSlot<A, T>) -> bool);
+    /// Removes the slots for which `f` returns `false`.
+    fn retain(&mut self, f: impl FnMut(&SyncSlot<A, T>) -> bool);
 }
 
 /// Locates `(graph_id, peer)` in a slice of slots.
@@ -214,8 +213,8 @@ impl<A: Clone + Eq, T, const N: usize> SyncSlots<A, T> for FixedSlots<A, T, N> {
         self.slots.iter()
     }
 
-    fn retain(&mut self, f: impl FnMut(&mut SyncSlot<A, T>) -> bool) {
-        self.slots.retain_mut(f);
+    fn retain(&mut self, f: impl FnMut(&SyncSlot<A, T>) -> bool) {
+        self.slots.retain(f);
     }
 }
 
@@ -223,7 +222,8 @@ impl<A: Clone + Eq, T, const N: usize> SyncSlots<A, T> for FixedSlots<A, T, N> {
 /// storage; never [`OutOfSlots`]. Slots are kept in insertion order and
 /// looked up by linear scan.
 ///
-/// Every slot is created by a local call, so remote peers cannot grow it.
+/// Answering a poll creates a slot for the asking peer, but only for a
+/// graph we hold, so the table is bounded by peers × held graphs.
 #[derive(Debug)]
 pub struct HeapSlots<A, T> {
     slots: Vec<SyncSlot<A, T>>,
@@ -280,7 +280,7 @@ impl<A: Clone + Eq, T> SyncSlots<A, T> for HeapSlots<A, T> {
         self.slots.iter()
     }
 
-    fn retain(&mut self, f: impl FnMut(&mut SyncSlot<A, T>) -> bool) {
-        self.slots.retain_mut(f);
+    fn retain(&mut self, f: impl FnMut(&SyncSlot<A, T>) -> bool) {
+        self.slots.retain(f);
     }
 }

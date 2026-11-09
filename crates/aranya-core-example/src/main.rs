@@ -214,7 +214,6 @@ fn sync_graphs(
         let Inbound::Reply { len } = source_syncer.handle_incoming(
             "dest",
             &request[..outbound.len()],
-            Instant::now(),
             &mut SyncContext {
                 client: source,
                 sink,

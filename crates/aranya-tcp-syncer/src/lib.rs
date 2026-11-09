@@ -16,9 +16,8 @@ use std::{
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientError, ClientState, Inbound, LibcSpill, Limits, MAX_SYNC_MESSAGE_SIZE, Outcome,
-    RuntimeBuffers, SubscribeResponse, SyncContext, SyncError, SyncIncoming, SyncRequester,
-    SyncResponder,
+    ClientError, ClientState, Inbound, LibcSpill, Limits, MAX_SYNC_MESSAGE_SIZE, RuntimeBuffers,
+    SubscribeResponse, SyncContext, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
@@ -176,8 +175,7 @@ where
             ) {
                 Ok(reply) => reply,
                 Err(err) => {
-                    self.poller
-                        .complete(outbound.into_token(), Outcome::Failed, Instant::now());
+                    self.poller.fail(outbound.into_token(), Instant::now());
                     return Err(err);
                 }
             };
@@ -279,13 +277,10 @@ where
                     rng: &Rng,
                     make_spill: (),
                 };
-                match self.poller.handle_incoming(
-                    peer_address,
-                    data,
-                    Instant::now(),
-                    &mut cx,
-                    target,
-                )? {
+                match self
+                    .poller
+                    .handle_incoming(peer_address, data, &mut cx, target)?
+                {
                     Inbound::Reply { len } => len,
                     _ => 0,
                 }

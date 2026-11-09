@@ -27,30 +27,12 @@ use slots::Inflight;
 pub use slots::{FixedSlots, HeapSlots, OutOfSlots, SyncSlot, SyncSlots};
 pub use time::SyncInstant;
 
-/// What an [`Outbound`] message is.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum OutboundKind {
-    /// A poll request. Expects a reply: feed it to [`Syncer::handle_reply`].
-    PollRequest,
-}
-
-impl OutboundKind {
-    /// Whether the peer answers this message on the same connection.
-    pub fn expects_reply(self) -> bool {
-        match self {
-            Self::PollRequest => true,
-        }
-    }
-}
-
-/// Opaque handle tying a reply or delivery outcome back to the [`Outbound`]
-/// it answers. Never travels over the wire.
+/// Opaque handle tying a reply or failure back to the poll request
+/// ([`Outbound`]) it answers. Never travels over the wire.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Token<A> {
     graph_id: GraphId,
     peer: A,
-    kind: OutboundKind,
     seq: u32,
 }
 
@@ -64,15 +46,11 @@ impl<A> Token<A> {
     pub fn peer(&self) -> &A {
         &self.peer
     }
-
-    /// What the message is.
-    pub fn kind(&self) -> OutboundKind {
-        self.kind
-    }
 }
 
-/// A message the caller should send, already encoded into its buffer by
-/// [`Syncer::next_outbound`].
+/// A poll request the caller should send, already encoded into its buffer
+/// by [`Syncer::next_outbound`]. Pass the peer's reply to
+/// [`Syncer::handle_reply`], or report a failure with [`Syncer::fail`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Outbound<A> {
     token: Token<A>,
@@ -90,11 +68,6 @@ impl<A> Outbound<A> {
         self.token.graph_id
     }
 
-    /// What the message is.
-    pub fn kind(&self) -> OutboundKind {
-        self.token.kind
-    }
-
     /// Bytes written to the output buffer; send `out[..len]`.
     pub fn len(&self) -> usize {
         self.len
@@ -105,13 +78,8 @@ impl<A> Outbound<A> {
         self.len == 0
     }
 
-    /// Whether to read a reply and pass it to [`Syncer::handle_reply`].
-    pub fn expects_reply(&self) -> bool {
-        self.token.kind.expects_reply()
-    }
-
     /// The handle to pass to [`Syncer::handle_reply`] or
-    /// [`Syncer::complete`].
+    /// [`Syncer::fail`].
     pub fn token(&self) -> Token<A>
     where
         A: Clone,
@@ -123,15 +91,6 @@ impl<A> Outbound<A> {
     pub fn into_token(self) -> Token<A> {
         self.token
     }
-}
-
-/// How delivery of an [`Outbound`] went, for [`Syncer::complete`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Outcome {
-    /// The bytes were handed to the transport.
-    Sent,
-    /// The message could not be delivered, or its reply never came.
-    Failed,
 }
 
 /// Result of applying an inbound message or reply.
@@ -267,7 +226,7 @@ fn answer_with_fresh_cache<PS, SP: StorageProvider, K, R: Csprng, MS>(
 ///     // Inbound: answer what peers sent on the same connection.
 ///     while let Some((peer, frame)) = transport.try_recv() {
 ///         if let Inbound::Reply { len } =
-///             syncer.handle_incoming(peer, frame, now, &mut cx, out)?
+///             syncer.handle_incoming(peer, frame, &mut cx, out)?
 ///         {
 ///             transport.reply(peer, &out[..len])?;
 ///         }
@@ -277,7 +236,7 @@ fn answer_with_fresh_cache<PS, SP: StorageProvider, K, R: Csprng, MS>(
 ///     while let Some(ob) = syncer.next_outbound(now, &mut cx, out)? {
 ///         match transport.request(ob.peer(), &out[..ob.len()], reply) {
 ///             Ok(n) => { syncer.handle_reply(ob.token(), &reply[..n], now, &mut cx)?; }
-///             Err(_) => syncer.complete(ob.token(), Outcome::Failed, now),
+///             Err(_) => syncer.fail(ob.token(), now),
 ///         }
 ///     }
 ///
@@ -428,22 +387,11 @@ where
         self.schedule.next_deadline()
     }
 
-    /// Reports how delivering `token`'s message went.
-    ///
-    /// For a message that [`expects_reply`](Outbound::expects_reply), call
-    /// this only with [`Outcome::Failed`]; success is reported by
-    /// [`handle_reply`](Self::handle_reply). A failed poll backs off.
-    /// Unknown or stale tokens are ignored.
-    pub fn complete(&mut self, token: Token<A>, outcome: Outcome, now: T) {
-        if outcome != Outcome::Failed {
-            return;
-        }
-        match token.kind {
-            OutboundKind::PollRequest => {
-                self.schedule
-                    .fail_inflight(token.graph_id, &token.peer, token.seq, now);
-            }
-        }
+    /// Reports that `token`'s poll request could not be sent or its reply
+    /// never came; the peer backs off. Unknown or stale tokens are ignored.
+    pub fn fail(&mut self, token: Token<A>, now: T) {
+        self.schedule
+            .fail_inflight(token.graph_id, &token.peer, token.seq, now);
     }
 
     fn next_seq(&mut self) -> u32 {
@@ -501,7 +449,6 @@ where
         &mut self,
         peer: A,
         data: &[u8],
-        _now: T,
         cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
         out: &mut [u8],
     ) -> Result<Inbound, SyncerError>
@@ -543,8 +490,7 @@ where
         }
     }
 
-    /// Applies the reply to an outbound that
-    /// [`expects_reply`](Outbound::expects_reply).
+    /// Applies the peer's reply to a poll request ([`Outbound`]).
     ///
     /// A poll reply's commands are committed. When the peer had more to
     /// send, its next poll is due at once. An error is a failed poll for the
@@ -567,7 +513,6 @@ where
         let Token {
             graph_id,
             peer,
-            kind: OutboundKind::PollRequest,
             seq,
         } = token;
         let Some(mut requester) = self.schedule.take_inflight(graph_id, &peer, seq) else {
@@ -642,7 +587,6 @@ where
             token: Token {
                 graph_id,
                 peer,
-                kind: OutboundKind::PollRequest,
                 seq,
             },
             len,

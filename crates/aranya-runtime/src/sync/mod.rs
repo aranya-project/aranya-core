@@ -30,8 +30,7 @@ use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
 pub use syncer::{
     FixedSlots, HeapSlots, IgnoreReason, Inbound, Limits, LimitsBuilder, OutOfSlots, Outbound,
-    OutboundKind, Outcome, PeerConfig, SyncContext, SyncInstant, SyncSlot, SyncSlots, Syncer,
-    SyncerError, Token,
+    PeerConfig, SyncContext, SyncInstant, SyncSlot, SyncSlots, Syncer, SyncerError, Token,
 };
 use wire::{SubscribeResult, SyncHelloType, SyncType};
 

@@ -40,7 +40,7 @@ struct Node<S: SyncSlots<Peer, Duration> = HeapSlots<Peer, Duration>> {
     syncer: Machine<S>,
     out: Vec<u8>,
     /// Every outbound this node emitted: (kind, destination).
-    sent: Vec<(OutboundKind, Peer)>,
+    sent: Vec<Peer>,
     /// Every `Inbound` this node produced for a message or reply.
     got: Vec<Inbound>,
 }
@@ -73,17 +73,12 @@ impl<S: SyncSlots<Peer, Duration>> Node<S> {
         let ob = self.syncer.next_outbound(now, &mut cx, &mut self.out)?;
         if let Some(ob) = &ob {
             assert!(!ob.is_empty(), "empty outbound");
-            self.sent.push((ob.kind(), *ob.peer()));
+            self.sent.push(*ob.peer());
         }
         Ok(ob)
     }
 
-    fn handle_incoming(
-        &mut self,
-        peer: Peer,
-        data: &[u8],
-        now: Duration,
-    ) -> Result<Inbound, SyncerError> {
+    fn handle_incoming(&mut self, peer: Peer, data: &[u8]) -> Result<Inbound, SyncerError> {
         let rng = Rng;
         let mut cx = SyncContext {
             client: &mut self.client,
@@ -94,7 +89,7 @@ impl<S: SyncSlots<Peer, Duration>> Node<S> {
         };
         let inbound = self
             .syncer
-            .handle_incoming(peer, data, now, &mut cx, &mut self.out)?;
+            .handle_incoming(peer, data, &mut cx, &mut self.out)?;
         self.got.push(inbound);
         Ok(inbound)
     }
@@ -141,10 +136,7 @@ impl<S: SyncSlots<Peer, Duration>> Node<S> {
     }
 
     fn polls_sent(&self) -> usize {
-        self.sent
-            .iter()
-            .filter(|(k, _)| *k == OutboundKind::PollRequest)
-            .count()
+        self.sent.len()
     }
 }
 
@@ -186,10 +178,10 @@ impl Net {
     }
 
     /// Delivers `bytes` from `src` to `dst` and returns the reply bytes.
-    fn deliver(&mut self, src: Peer, dst: Peer, bytes: &[u8], now: Duration) -> Vec<u8> {
+    fn deliver(&mut self, src: Peer, dst: Peer, bytes: &[u8]) -> Vec<u8> {
         let j = self.idx(dst);
         match self.nodes[j]
-            .handle_incoming(src, bytes, now)
+            .handle_incoming(src, bytes)
             .expect("handle_incoming")
         {
             Inbound::Reply { len } => self.nodes[j].out[..len].to_vec(),
@@ -212,13 +204,11 @@ impl Net {
                     let src = self.nodes[i].name;
                     let dst = *ob.peer();
                     if self.down.contains(&dst) {
-                        self.nodes[i]
-                            .syncer
-                            .complete(ob.token(), Outcome::Failed, now);
+                        self.nodes[i].syncer.fail(ob.token(), now);
                         continue;
                     }
                     let bytes = self.nodes[i].out[..ob.len()].to_vec();
-                    let reply = self.deliver(src, dst, &bytes, now);
+                    let reply = self.deliver(src, dst, &bytes);
                     self.nodes[i]
                         .handle_reply(ob.token(), &reply, now)
                         .expect("handle_reply");
@@ -359,13 +349,11 @@ fn polls_to_different_peers_overlap() {
     assert_ne!(second.peer(), first.peer());
     // Replies may come back in either order.
     let bytes = b.out[..second.len()].to_vec();
-    let reply = net.deliver("b", second.peer(), &bytes, secs(0));
+    let reply = net.deliver("b", second.peer(), &bytes);
     net.node("b")
         .handle_reply(second.token(), &reply, secs(0))
         .unwrap();
-    net.node("b")
-        .syncer
-        .complete(first.token(), Outcome::Failed, secs(0));
+    net.node("b").syncer.fail(first.token(), secs(0));
     assert_eq!(net.node("b").syncer.next_deadline(), Some(secs(1)));
 }
 
@@ -383,7 +371,7 @@ fn inflight_cap_limits_concurrent_polls() {
     assert!(b.next_outbound(secs(0)).unwrap().is_none());
     // The held-back poll is not a deadline: sleep until the timeout.
     assert_eq!(b.syncer.next_deadline(), Some(secs(30)));
-    b.syncer.complete(first.token(), Outcome::Failed, secs(0));
+    b.syncer.fail(first.token(), secs(0));
     let second = b.next_outbound(secs(0)).unwrap().expect("second");
     assert_ne!(second.peer(), first.peer());
 }
@@ -494,7 +482,7 @@ fn full_slots_still_answer_polls() {
         .unwrap();
     let ob = b.next_outbound(secs(0)).unwrap().expect("poll");
     let request = b.out[..ob.len()].to_vec();
-    let Inbound::Reply { len } = a.handle_incoming("b", &request, secs(0)).unwrap() else {
+    let Inbound::Reply { len } = a.handle_incoming("b", &request).unwrap() else {
         panic!("poll not answered");
     };
     let reply = a.out[..len].to_vec();
@@ -553,12 +541,12 @@ fn unsupported_messages_are_ignored() {
     let mut msg = [0u8; 64];
     let len = SubscribeResponse::Success.encode_to(&mut msg).unwrap();
     // Not a sync message at all.
-    assert!(a.handle_incoming("b", &msg[..len], secs(0)).is_err());
+    assert!(a.handle_incoming("b", &msg[..len]).is_err());
     let len = crate::sync::HelloUnsubscribe::new(GraphId::from_bytes([1; 32]))
         .encode_to(&mut msg)
         .unwrap();
     assert_eq!(
-        a.handle_incoming("b", &msg[..len], secs(0)).unwrap(),
+        a.handle_incoming("b", &msg[..len]).unwrap(),
         Inbound::Ignored(IgnoreReason::Unsupported)
     );
 }
@@ -583,7 +571,7 @@ fn fixed_slots_drive_the_machine() {
     // Drive "b" by hand against the network.
     while let Some(ob) = b.next_outbound(secs(0)).unwrap() {
         let bytes = b.out[..ob.len()].to_vec();
-        let reply = net.deliver("b", ob.peer(), &bytes, secs(0));
+        let reply = net.deliver("b", ob.peer(), &bytes);
         b.handle_reply(ob.token(), &reply, secs(0)).unwrap();
     }
     assert_eq!(b.head(g), net.node("a").head(g));
@@ -591,7 +579,7 @@ fn fixed_slots_drive_the_machine() {
 
 #[test]
 fn same_script_yields_the_same_traffic() {
-    fn run() -> Vec<(OutboundKind, Peer)> {
+    fn run() -> Vec<Peer> {
         let mut net = Net::new(&["a", "b", "c"]);
         let g = seeded(&mut net, "a", 5);
         net.node("b")
