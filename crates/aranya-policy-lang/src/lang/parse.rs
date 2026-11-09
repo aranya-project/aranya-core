@@ -744,7 +744,7 @@ impl ChunkParser<'_> {
                 ExprKind::InternalFunction(InternalFunction::TestFail(msg, span))
             }
             Rule::identifier => {
-                let ident = self.remain(primary).consume_ident(self)?;
+                let ident = self.parse_ident(primary)?;
                 ExprKind::Identifier(ident)
             }
             Rule::block_expression => return self.parse_block_expression(primary),
@@ -1501,7 +1501,7 @@ impl ChunkParser<'_> {
         let name = pc.consume_ident(self)?;
         let mut variants = Vec::new();
         for value in pc.into_inner() {
-            let value = self.remain(value).consume_ident(self)?;
+            let value = self.parse_ident(value)?;
             variants.push(value);
         }
 
@@ -1775,17 +1775,6 @@ impl ChunkParser<'_> {
         let span = p.as_span();
         PairContext {
             pairs: p.into_inner(),
-            span,
-            chunk_parser: self,
-        }
-    }
-
-    /// Helper function which consumes and returns an iterator over
-    /// a single token, rather than descending.
-    fn remain<'this, 'i>(&'this self, p: Pair<'i>) -> PairContext<'i, 'this> {
-        let span = p.as_span();
-        PairContext {
-            pairs: Pairs::single(p),
             span,
             chunk_parser: self,
         }
