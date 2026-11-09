@@ -51,10 +51,7 @@ fn drain<S: SyncSlots<Peer, Duration>>(
     for _ in 0..64 {
         match s.next_due(now) {
             Some(due) => dues.push(due),
-            None => {
-                assert!(s.deadline_cache_is_consistent(), "stale deadline cache");
-                return dues;
-            }
+            None => return dues,
         }
     }
     panic!("drain did not terminate: {dues:?}");
@@ -425,7 +422,6 @@ proptest! {
                 Op::Fail(p, g) => { s.fail_inflight(gid(g), &PEERS[p as usize], seq, now); }
                 Op::Advance(d) => now += secs(d),
             }
-            prop_assert!(s.deadline_cache_is_consistent());
             // Termination: a drain at fixed `now` ends.
             let dues = drain(&mut s, now);
             prop_assert!(dues.len() <= 64);

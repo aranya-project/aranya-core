@@ -57,9 +57,6 @@ pub struct SyncSlot<A, T> {
     peer: A,
     pub(crate) poll: Option<PollTarget<T>>,
     pub(crate) cache: PeerCache,
-    /// Cached minimum of every armed timer; kept current by
-    /// [`refresh`](Self::refresh).
-    next_deadline: Option<T>,
 }
 
 impl<A, T> SyncSlot<A, T> {
@@ -72,7 +69,6 @@ impl<A, T> SyncSlot<A, T> {
             peer,
             poll: None,
             cache: PeerCache::new(),
-            next_deadline: None,
         }
     }
 
@@ -93,43 +89,16 @@ impl<A, T> SyncSlot<A, T> {
             .is_some_and(|poll| poll.inflight.is_some())
     }
 
-    /// The earliest armed timer, as of the last [`refresh`](Self::refresh).
-    pub(crate) fn deadline(&self) -> Option<T>
+    /// The slot's armed timer, if any: the reply timeout while a request is
+    /// in flight, otherwise the next scheduled poll.
+    pub(crate) fn timer(&self) -> Option<(T, DueKind)>
     where
         T: Copy,
     {
-        self.next_deadline
-    }
-
-    /// Recomputes the cached deadline. Called after every mutation.
-    pub(crate) fn refresh(&mut self)
-    where
-        T: Copy + Ord,
-    {
-        let mut min: Option<T> = None;
-        self.for_each_deadline(|at, _| {
-            if min.is_none_or(|m| at < m) {
-                min = Some(at);
-            }
-        });
-        self.next_deadline = min;
-    }
-
-    /// Calls `visit` with the instant and kind of every armed timer, in a
-    /// fixed order so exact ties break deterministically.
-    pub(crate) fn for_each_deadline(&self, mut visit: impl FnMut(T, DueKind))
-    where
-        T: Copy,
-    {
-        if let Some(poll) = &self.poll {
-            match &poll.inflight {
-                Some(inflight) => visit(inflight.timeout_at, DueKind::PollTimeout),
-                None => {
-                    if let Some(at) = poll.next_at {
-                        visit(at, DueKind::Poll);
-                    }
-                }
-            }
+        let poll = self.poll.as_ref()?;
+        match &poll.inflight {
+            Some(inflight) => Some((inflight.timeout_at, DueKind::PollTimeout)),
+            None => poll.next_at.map(|at| (at, DueKind::Poll)),
         }
     }
 }

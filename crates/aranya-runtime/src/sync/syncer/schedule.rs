@@ -78,30 +78,8 @@ where
 
     // ---- slot plumbing ---------------------------------------------------
 
-    /// Runs `f` on an existing slot, then refreshes its deadline.
-    fn modify<R>(
-        &mut self,
-        graph_id: GraphId,
-        peer: &A,
-        f: impl FnOnce(&mut SyncSlot<A, T>) -> R,
-    ) -> Option<R> {
-        let slot = self.slots.get_mut(graph_id, peer)?;
-        let r = f(slot);
-        slot.refresh();
-        Some(r)
-    }
-
-    /// Like [`modify`](Self::modify) but creates the slot on a miss.
-    fn upsert<R>(
-        &mut self,
-        graph_id: GraphId,
-        peer: &A,
-        f: impl FnOnce(&mut SyncSlot<A, T>) -> R,
-    ) -> Result<R, OutOfSlots> {
-        let slot = self.slots.get_or_insert(graph_id, peer)?;
-        let r = f(slot);
-        slot.refresh();
-        Ok(r)
+    fn poll_mut(&mut self, graph_id: GraphId, peer: &A) -> Option<&mut PollTarget<T>> {
+        self.slots.get_mut(graph_id, peer)?.poll.as_mut()
     }
 
     fn slot(&self, graph_id: GraphId, peer: &A) -> Option<&SyncSlot<A, T>> {
@@ -128,15 +106,15 @@ where
         } else {
             config.interval.map(|iv| now.saturating_add(iv))
         };
-        self.upsert(graph_id, &peer, |slot| {
-            let inflight = slot.poll.take().and_then(|p| p.inflight);
-            slot.poll = Some(PollTarget {
-                config,
-                next_at,
-                failures: 0,
-                inflight,
-            });
-        })
+        let slot = self.slots.get_or_insert(graph_id, &peer)?;
+        let inflight = slot.poll.take().and_then(|p| p.inflight);
+        slot.poll = Some(PollTarget {
+            config,
+            next_at,
+            failures: 0,
+            inflight,
+        });
+        Ok(())
     }
 
     /// Forgets `peer`: its poll role, any request in flight, and its cache.
@@ -153,23 +131,18 @@ where
     /// request in flight, the poll follows its reply. Returns whether the
     /// peer is registered.
     pub(crate) fn sync_now(&mut self, peer: &A, graph_id: GraphId, now: T) -> bool {
-        self.modify(graph_id, peer, |slot| match &mut slot.poll {
-            Some(poll) => {
-                poll.next_at = Some(now);
-                true
-            }
-            None => false,
-        })
-        .unwrap_or(false)
+        let Some(poll) = self.poll_mut(graph_id, peer) else {
+            return false;
+        };
+        poll.next_at = Some(now);
+        true
     }
 
     /// A poll request went out; `inflight` awaits its reply.
     pub(crate) fn poll_sent(&mut self, graph_id: GraphId, peer: &A, inflight: Inflight<T>) {
-        self.modify(graph_id, peer, |slot| {
-            if let Some(poll) = &mut slot.poll {
-                poll.inflight = Some(inflight);
-            }
-        });
+        if let Some(poll) = self.poll_mut(graph_id, peer) {
+            poll.inflight = Some(inflight);
+        }
     }
 
     /// Takes the requester of the request `seq` names, if it is still the
@@ -181,32 +154,29 @@ where
         peer: &A,
         seq: u32,
     ) -> Option<SyncRequester> {
-        self.modify(graph_id, peer, |slot| {
-            let poll = slot.poll.as_mut()?;
-            if poll.inflight.as_ref().is_none_or(|i| i.seq != seq) {
-                return None;
-            }
-            poll.inflight.take().map(|i| i.requester)
-        })
-        .flatten()
+        let poll = self.poll_mut(graph_id, peer)?;
+        if poll.inflight.as_ref().is_none_or(|i| i.seq != seq) {
+            return None;
+        }
+        poll.inflight.take().map(|i| i.requester)
     }
 
     /// Fails the request `seq` names, if it is still the one in flight.
     /// Returns whether it was.
     pub(crate) fn fail_inflight(&mut self, graph_id: GraphId, peer: &A, seq: u32, now: T) -> bool {
         let limits = self.limits;
-        self.modify(graph_id, peer, |slot| {
-            let matches = slot
-                .poll
-                .as_ref()
-                .and_then(|poll| poll.inflight.as_ref())
-                .is_some_and(|i| i.seq == seq);
-            if matches {
-                fail_poll(&mut slot.poll, &limits, now);
-            }
-            matches
-        })
-        .unwrap_or(false)
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return false;
+        };
+        let matches = slot
+            .poll
+            .as_ref()
+            .and_then(|poll| poll.inflight.as_ref())
+            .is_some_and(|i| i.seq == seq);
+        if matches {
+            fail_poll(&mut slot.poll, &limits, now);
+        }
+        matches
     }
 
     /// Records how a poll exchange ended. Success resets backoff and keeps
@@ -220,7 +190,10 @@ where
         now: T,
     ) {
         let limits = self.limits;
-        self.modify(graph_id, peer, |slot| match result {
+        let Some(slot) = self.slots.get_mut(graph_id, peer) else {
+            return;
+        };
+        match result {
             PollResult::Done | PollResult::More => {
                 if let Some(poll) = &mut slot.poll {
                     poll.inflight = None;
@@ -231,7 +204,7 @@ where
                 }
             }
             PollResult::Failed => fail_poll(&mut slot.poll, &limits, now),
-        });
+        }
     }
 
     // ---- graph-wide ------------------------------------------------------
@@ -281,18 +254,13 @@ where
     /// reached, poll timers are skipped: they wait on a reply or timeout,
     /// not on the clock.
     pub(crate) fn next_deadline(&self) -> Option<T> {
-        if !self.at_inflight_cap() {
-            return self.slots.iter().filter_map(SyncSlot::deadline).min();
-        }
-        let mut min: Option<T> = None;
-        for slot in self.slots.iter() {
-            slot.for_each_deadline(|at, kind| {
-                if kind != DueKind::Poll && min.is_none_or(|m| at < m) {
-                    min = Some(at);
-                }
-            });
-        }
-        min
+        let polls_allowed = !self.at_inflight_cap();
+        self.slots
+            .iter()
+            .filter_map(SyncSlot::timer)
+            .filter(|&(_, kind)| polls_allowed || kind != DueKind::Poll)
+            .map(|(at, _)| at)
+            .min()
     }
 
     /// Returns the earliest poll due at `now`, having rescheduled it.
@@ -307,22 +275,20 @@ where
     }
 
     /// Finds the earliest timer at or before `now` that may fire. Slot
-    /// order, then the slot's fixed timer order, break exact ties.
+    /// order breaks exact ties.
     fn select(&self, now: T) -> Option<(DueKind, GraphId, A)> {
         let polls_allowed = !self.at_inflight_cap();
         let mut best: Option<(T, DueKind, GraphId, A)> = None;
         for slot in self.slots.iter() {
-            if slot.deadline().is_none_or(|at| at > now) {
+            let Some((at, kind)) = slot.timer() else {
+                continue;
+            };
+            if at > now || (kind == DueKind::Poll && !polls_allowed) {
                 continue;
             }
-            slot.for_each_deadline(|at, kind| {
-                if at > now || (kind == DueKind::Poll && !polls_allowed) {
-                    return;
-                }
-                if best.as_ref().is_none_or(|&(b, ..)| at < b) {
-                    best = Some((at, kind, slot.graph_id(), slot.peer().clone()));
-                }
-            });
+            if best.as_ref().is_none_or(|&(b, ..)| at < b) {
+                best = Some((at, kind, slot.graph_id(), slot.peer().clone()));
+            }
         }
         best.map(|(_, kind, graph_id, peer)| (kind, graph_id, peer))
     }
@@ -332,32 +298,18 @@ where
     /// rescan cannot select it again.
     fn fire(&mut self, kind: DueKind, graph_id: GraphId, peer: A, now: T) -> Option<Due<A>> {
         let limits = self.limits;
-        let fired = self.modify(graph_id, &peer, |slot| match kind {
+        let slot = self.slots.get_mut(graph_id, &peer)?;
+        match kind {
             DueKind::Poll => {
                 let poll = slot.poll.as_mut()?;
                 poll.next_at = poll.config.interval.map(|iv| now.saturating_add(iv));
-                Some(())
+                Some(Due { graph_id, peer })
             }
             DueKind::PollTimeout => {
                 fail_poll(&mut slot.poll, &limits, now);
                 None
             }
-        });
-        fired.flatten().map(|()| Due { graph_id, peer })
-    }
-
-    /// Whether every slot's cached deadline matches a fresh computation.
-    #[cfg(test)]
-    pub(crate) fn deadline_cache_is_consistent(&self) -> bool {
-        self.slots.iter().all(|slot| {
-            let mut min: Option<T> = None;
-            slot.for_each_deadline(|at, _| {
-                if min.is_none_or(|m| at < m) {
-                    min = Some(at);
-                }
-            });
-            min == slot.deadline()
-        })
+        }
     }
 
     /// Number of slots in the table.
