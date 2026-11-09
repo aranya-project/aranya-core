@@ -260,7 +260,7 @@ fn backoff_is_capped_by_interval_and_max_backoff() {
 }
 
 #[test]
-fn one_shot_peer_is_dropped_after_retries() {
+fn one_shot_peer_stops_polling_after_retries() {
     let mut s = sched();
     s.add_peer("a", gid(1), PeerConfig::immediate(), secs(0))
         .unwrap();
@@ -271,6 +271,9 @@ fn one_shot_peer_is_dropped_after_retries() {
     }
     s.poll_finished(gid(1), &"a", PollResult::Failed, secs(0));
     assert_eq!(s.peers().count(), 0);
+    // The slot, and with it the cache, stays until the peer is removed.
+    assert_eq!(s.slot_count(), 1);
+    assert!(!s.remove_peer(&"a", gid(1)));
     assert_eq!(s.slot_count(), 0);
 }
 

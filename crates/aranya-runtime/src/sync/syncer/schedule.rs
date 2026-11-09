@@ -78,8 +78,7 @@ where
 
     // ---- slot plumbing ---------------------------------------------------
 
-    /// Runs `f` on an existing slot, then refreshes its deadline and drops
-    /// it if it ended up empty.
+    /// Runs `f` on an existing slot, then refreshes its deadline.
     fn modify<R>(
         &mut self,
         graph_id: GraphId,
@@ -89,7 +88,6 @@ where
         let slot = self.slots.get_mut(graph_id, peer)?;
         let r = f(slot);
         slot.refresh();
-        self.drop_if_empty(graph_id, peer);
         Some(r)
     }
 
@@ -103,18 +101,7 @@ where
         let slot = self.slots.get_or_insert(graph_id, peer)?;
         let r = f(slot);
         slot.refresh();
-        self.drop_if_empty(graph_id, peer);
         Ok(r)
-    }
-
-    fn drop_if_empty(&mut self, graph_id: GraphId, peer: &A) {
-        if self
-            .slots
-            .get(graph_id, peer)
-            .is_some_and(SyncSlot::is_empty)
-        {
-            self.slots.remove(graph_id, peer);
-        }
     }
 
     fn slot(&self, graph_id: GraphId, peer: &A) -> Option<&SyncSlot<A, T>> {
@@ -155,11 +142,11 @@ where
     /// Forgets `peer`: its poll role, any request in flight, and its cache.
     /// Returns whether it was registered for polling.
     pub(crate) fn remove_peer(&mut self, peer: &A, graph_id: GraphId) -> bool {
-        self.modify(graph_id, peer, |slot| {
-            slot.pinned = false;
-            slot.poll.take().is_some()
-        })
-        .unwrap_or(false)
+        let polled = self
+            .slot(graph_id, peer)
+            .is_some_and(|slot| slot.poll.is_some());
+        self.slots.remove(graph_id, peer);
+        polled
     }
 
     /// Schedules an immediate poll, keeping any recurring interval. With a
@@ -273,16 +260,13 @@ where
             .map(|slot| &mut slot.cache)
     }
 
-    /// The cache for `(graph_id, peer)`, creating and pinning its slot so
-    /// the cache outlives any poll role.
-    pub(crate) fn pinned_cache(
+    /// The cache for `(graph_id, peer)`, creating its slot on a miss.
+    pub(crate) fn cache_or_insert(
         &mut self,
         graph_id: GraphId,
         peer: &A,
     ) -> Result<&mut PeerCache, OutOfSlots> {
-        let slot = self.slots.get_or_insert(graph_id, peer)?;
-        slot.pinned = true;
-        Ok(&mut slot.cache)
+        Ok(&mut self.slots.get_or_insert(graph_id, peer)?.cache)
     }
 
     // ---- timers ----------------------------------------------------------

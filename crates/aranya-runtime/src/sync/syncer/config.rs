@@ -144,8 +144,8 @@ impl LimitsBuilder {
         self
     }
 
-    /// A peer with no recurring interval is dropped after this many
-    /// consecutive failures. Default 3.
+    /// A peer with no recurring interval stops being polled after this many
+    /// consecutive failures; its cache is kept. Default 3.
     #[must_use]
     pub fn max_one_shot_retries(mut self, n: u8) -> Self {
         self.limits.max_one_shot_retries = n;

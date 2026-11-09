@@ -148,8 +148,6 @@ where
         sink: &mut S,
         graph_id: GraphId,
     ) -> Result<usize> {
-        // Keep the cache if the poll fails and the peer is dropped.
-        self.poller.peer_cache(graph_id, &peer_address)?;
         self.poller
             .sync_now(&peer_address, graph_id, Instant::now())?;
 

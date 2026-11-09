@@ -411,7 +411,7 @@ where
         graph_id: GraphId,
         peer: &A,
     ) -> Result<&mut PeerCache, OutOfSlots> {
-        self.schedule.pinned_cache(graph_id, peer)
+        self.schedule.cache_or_insert(graph_id, peer)
     }
 
     /// Drops all state for `graph_id`: registrations, caches, and requests
@@ -528,7 +528,7 @@ where
                 }
                 let mut responder = SyncResponder::new();
                 responder.receive(poll)?;
-                let len = match self.schedule.pinned_cache(graph_id, &peer) {
+                let len = match self.schedule.cache_or_insert(graph_id, &peer) {
                     Ok(cache) => responder.poll(
                         out,
                         cx.client.provider(),

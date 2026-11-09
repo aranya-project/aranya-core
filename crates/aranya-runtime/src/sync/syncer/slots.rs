@@ -57,10 +57,6 @@ pub struct SyncSlot<A, T> {
     peer: A,
     pub(crate) poll: Option<PollTarget<T>>,
     pub(crate) cache: PeerCache,
-    /// The peer polled us or the caller asked for its cache
-    /// ([`Syncer::peer_cache`](super::Syncer::peer_cache)), so the slot stays
-    /// without a poll role.
-    pub(crate) pinned: bool,
     /// Cached minimum of every armed timer; kept current by
     /// [`refresh`](Self::refresh).
     next_deadline: Option<T>,
@@ -76,7 +72,6 @@ impl<A, T> SyncSlot<A, T> {
             peer,
             poll: None,
             cache: PeerCache::new(),
-            pinned: false,
             next_deadline: None,
         }
     }
@@ -89,14 +84,6 @@ impl<A, T> SyncSlot<A, T> {
     /// Returns the peer this slot tracks.
     pub fn peer(&self) -> &A {
         &self.peer
-    }
-
-    /// Returns whether the slot holds nothing worth keeping: no poll role
-    /// and no cache the caller asked to keep. The syncer removes a slot as
-    /// soon as it becomes empty, so implementations never accumulate dead
-    /// entries.
-    pub fn is_empty(&self) -> bool {
-        self.poll.is_none() && !self.pinned
     }
 
     /// Whether a poll request is awaiting its reply.
