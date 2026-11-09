@@ -5,7 +5,7 @@ use core::assert_matches;
 use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError};
 
-use super::{ChunkParser, Pair, ParseError, PolicyParser, Rule, get_pratt_parser};
+use super::{ChunkParser, Pair, PolicyParser, Result, Rule, get_pratt_parser};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -211,7 +211,7 @@ struct ErrorInput {
 }
 
 #[test]
-fn parse_errors() -> Result<(), ParseError> {
+fn parse_errors() -> Result<()> {
     let cases = vec![ErrorInput {
         description: String::from("Invalid function body"),
         input: r#"function foo(x: int) bool { invalid }"#.to_string(),
@@ -235,7 +235,7 @@ fn parse_errors() -> Result<(), ParseError> {
 }
 
 /// Helper for testing complex type parsing.
-fn parse_vtype(text: &str) -> Result<VType, ParseError> {
+fn parse_vtype(text: &str) -> Result<VType> {
     let pratt = get_pratt_parser();
     let p = ChunkParser::new(0, &pratt, text.len());
     let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
@@ -310,7 +310,7 @@ fn parse_option_result() {
 }
 
 #[test]
-fn test_result_literal() -> Result<(), ParseError> {
+fn test_result_literal() -> Result<()> {
     let cases = [
         "Ok(42)",
         "Ok(true)",
