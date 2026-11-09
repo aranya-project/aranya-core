@@ -40,6 +40,9 @@ pub enum PolicyError {
     Panic,
     #[error("internal error")]
     InternalError,
+    /// The action publishes signed commands but no seal context was provided.
+    #[error("cannot author signed commands without a seal context")]
+    NotAnAuthor,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -168,12 +171,16 @@ pub trait Policy {
     /// Process an action checking each published command against the policy and emitting
     /// effects to the sink. All published commands are handled transactionally where if any
     /// published command is rejected no commands are added to the storage.
+    ///
+    /// `seal_ctx` may be `None` if this client cannot author signed commands.
+    /// Actions which publish signed commands will then fail with
+    /// [`PolicyError::NotAnAuthor`].
     fn call_action(
         &self,
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        seal_ctx: &Self::SealCtx,
+        seal_ctx: Option<&Self::SealCtx>,
         flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError>;
 
@@ -208,15 +215,26 @@ pub enum CommandPlacement {
     OnGraphAtOrigin,
     /// The command is being evaluated during a braid of the graph.
     OnGraphInBraid,
-    /// The command is being evaluated off-graph in an ephemeral session.
+    /// The command is being evaluated off-graph in an ephemeral session, and
+    /// is expected to be signed.
     OffGraph,
+    /// The command is being evaluated off-graph in an ephemeral session, and
+    /// is expected to be unsigned.
+    ///
+    /// Signed and unsigned commands are never interchangeable: a command
+    /// evaluated with the wrong placement must be rejected.
+    OffGraphUnsigned,
 }
 
 /// Associated data for an action of a certain flavor.
 #[derive(Debug)]
 pub enum FlavorCtx<'a> {
-    Init { policy: &'a [u8] },
+    Init {
+        policy: &'a [u8],
+    },
     Basic,
+    /// An off-graph action evaluated in a session. This covers both the
+    /// signed (`ephemeral`) and unsigned off-graph flavors.
     Ephemeral,
 }
 

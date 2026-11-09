@@ -343,10 +343,10 @@ impl PolicyRunner {
                         &mut perspective,
                         &mut sink,
                         // TODO(jdygert): How should the policy runner manage keys?
-                        &SealCtx {
+                        Some(&SealCtx {
                             author: DeviceId::default(),
                             key: SigningKey::new(aranya_crypto::Rng),
-                        },
+                        }),
                         FlavorCtx::Basic,
                     )
                     .inspect_err(|e| {

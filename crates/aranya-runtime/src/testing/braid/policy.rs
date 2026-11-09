@@ -147,7 +147,7 @@ impl Policy for ProbePolicy {
         action: Self::Action<'_>,
         _facts: &mut impl Perspective,
         _sink: &mut impl Sink<Self::Effect>,
-        _seal_ctx: &Self::SealCtx,
+        _seal_ctx: Option<&Self::SealCtx>,
         _flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
         match action {}

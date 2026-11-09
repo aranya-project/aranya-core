@@ -52,7 +52,7 @@ fn get_command_priority(def: &CommandDef) -> Result<VmPriority, AttributeError> 
         flavor if def.attributes.iter().any(|a| a.name == "priority") => Err(
             AttributeError::should_not_have(flavor, def.name.as_str(), "priority"),
         ),
-        "ephemeral" => Ok(VmPriority::Ephemeral),
+        "ephemeral" | "unsigned" => Ok(VmPriority::Ephemeral),
         "init" => Ok(VmPriority::Init),
         "finalize" => Ok(VmPriority::Finalize),
         flavor => Err(AttributeError::unknown_flavor(flavor, def.name.as_str())),
@@ -167,6 +167,14 @@ mod test {
 
         assert_eq!(process("init", ""), Ok(VmPriority::Init));
         assert_eq!(process("finalize", ""), Ok(VmPriority::Finalize));
+        assert_eq!(process("ephemeral", ""), Ok(VmPriority::Ephemeral));
+        assert_eq!(process("unsigned", ""), Ok(VmPriority::Ephemeral));
+        assert_eq!(
+            process("unsigned", "priority: 42"),
+            Err(AttributeError::should_not_have(
+                "unsigned", "Test", "priority"
+            ))
+        );
 
         assert_eq!(
             process("basic", "priority: false"),

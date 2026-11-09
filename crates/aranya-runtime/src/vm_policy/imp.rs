@@ -2,7 +2,9 @@ use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc, vec::
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
-    PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier, ffi_contract_validate,
+    PolicyContext, RunState, Stack as _, Struct, Value,
+    ast::{Identifier, ident},
+    ffi_contract_validate,
 };
 use buggy::{BugExt as _, bug};
 use tracing::{error, info, instrument, warn};
@@ -13,7 +15,7 @@ use super::{
     io::{FfiCallable, VmPolicyIO},
     priority::{VmPriority, get_command_priorities},
     protocol::{Envelope, VmProtocol, VmProtocolData},
-    seal_open::{SealCtx, open_with_key, seal_with_key},
+    seal_open::{SealCtx, open_unsigned, open_with_key, seal_unsigned, seal_with_key},
 };
 use crate::{
     Address, CommandPlacement, FactPerspective, FlavorCtx, MergeIds, NullSink, Perspective, Prior,
@@ -65,6 +67,22 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
                             arg!("command_id", Id),
                             arg!("graph_id", Id),
                             arg!("author_id", Id),
+                        ],
+                    },
+                },
+            ),
+            // Off-graph commands which are not signed, so they can be
+            // published by devices which have no signing key in the graph
+            // (e.g. for queries).
+            (
+                ident!("unsigned"),
+                Flavor {
+                    envelope: Struct {
+                        name: ident!("UnsignedEnvelope"),
+                        fields: &[
+                            arg!("command_id", Id),
+                            // Omit `author_id` since there is no
+                            // authenticated author.
                         ],
                     },
                 },
@@ -124,6 +142,15 @@ impl<CE> VmPolicy<CE> {
             .unwrap_or_else(|| String::from("(unknown location)"))
     }
 
+    /// Returns whether the command is of the `unsigned` flavor.
+    fn is_unsigned(&self, name: &Identifier) -> Result<bool, PolicyError> {
+        let def = self.machine.command_defs.get(name).ok_or_else(|| {
+            error!("unknown command {name}");
+            PolicyError::InternalError
+        })?;
+        Ok(def.flavor == "unsigned")
+    }
+
     fn get_command_priority(&self, name: &Identifier) -> Result<VmPriority, PolicyError> {
         self.priority_map.get(name).copied().ok_or_else(|| {
             error!("unknown command {name}");
@@ -139,7 +166,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         &self,
         name: Identifier,
         fields: &[KVPair],
-        envelope: Envelope,
+        envelope: Struct,
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: CommandContext,
@@ -150,7 +177,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         let mut io = VmPolicyIO::new(facts, sink, &self.engine, &self.ffis);
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let this_data = Struct::new(name, fields);
-        match rs.call_command_policy(this_data, envelope.into()) {
+        match rs.call_command_policy(this_data, envelope) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
@@ -175,11 +202,21 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         &self,
         command_struct: &Struct,
         parent_id: CmdId,
-        seal_ctx: &SealCtx<CE>,
+        seal_ctx: Option<&SealCtx<CE>>,
     ) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
         let payload = self.machine.serialize_struct(command_struct).map_err(|e| {
             error!(error = %e, "cannot serialize command");
             PolicyError::Write
+        })?;
+
+        if self.is_unsigned(&command_struct.name)? {
+            let envelope = seal_unsigned::<CE::CS>(command_struct, &payload, parent_id);
+            return Ok((payload, envelope));
+        }
+
+        let seal_ctx = seal_ctx.ok_or_else(|| {
+            error!("cannot seal signed command without a seal context");
+            PolicyError::NotAnAuthor
         })?;
 
         let envelope = seal_with_key(
@@ -205,6 +242,13 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         envelope: &Envelope,
         facts: &mut impl FactPerspective,
     ) -> Result<(), PolicyError> {
+        if self.is_unsigned(&command_struct.name)? {
+            // There is no key to verify with, so `get_key` is not called.
+            return open_unsigned::<CE::CS>(command_struct, payload, envelope)
+                .inspect_err(|e| warn!(error = %e, "open_unsigned failed"))
+                .map_err(|_| PolicyError::Panic);
+        }
+
         let mut sink = NullSink;
         let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
 
@@ -279,22 +323,21 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             signature: Cow::Borrowed(signature),
         };
 
-        let def_is_ephemeral = def.flavor == "ephemeral";
+        let def_is_unsigned = def.flavor == "unsigned";
 
-        match (placement, def_is_ephemeral) {
-            (CommandPlacement::OnGraphAtOrigin, false) => {}
-            (CommandPlacement::OnGraphInBraid, false) => {}
-            (CommandPlacement::OffGraph, true) => {}
-            (CommandPlacement::OnGraphAtOrigin, true) => {
-                error!("cannot evaluate ephemeral command on-graph");
-                return Err(PolicyError::InternalError);
-            }
-            (CommandPlacement::OnGraphInBraid, true) => {
-                error!("cannot evaluate ephemeral command in braid");
-                return Err(PolicyError::InternalError);
-            }
-            (CommandPlacement::OffGraph, false) => {
-                error!("cannot evaluate persistent command off-graph");
+        // The placement must match the command's flavor exactly. In
+        // particular, an unsigned command is never accepted where a signed
+        // one is expected, and vice versa.
+        match (placement, def.flavor.as_str()) {
+            (CommandPlacement::OnGraphAtOrigin | CommandPlacement::OnGraphInBraid, flavor)
+                if flavor != "ephemeral" && flavor != "unsigned" => {}
+            (CommandPlacement::OffGraph, "ephemeral") => {}
+            (CommandPlacement::OffGraphUnsigned, "unsigned") => {}
+            (placement, flavor) => {
+                error!(
+                    ?placement,
+                    flavor, "cannot evaluate command with this placement"
+                );
                 return Err(PolicyError::InternalError);
             }
         }
@@ -311,7 +354,9 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             })?;
 
         match placement {
-            CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
+            CommandPlacement::OnGraphAtOrigin
+            | CommandPlacement::OffGraph
+            | CommandPlacement::OffGraphUnsigned => {
                 self.open_command(&command_struct, payload, &envelope, facts)?;
             }
             CommandPlacement::OnGraphInBraid => {
@@ -330,6 +375,16 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             author: author_id,
             version: aranya_crypto::BaseId::default(),
         });
+        let envelope = if def_is_unsigned {
+            // Only expose what `UnsignedEnvelope` declares; in particular
+            // there is no authenticated author.
+            Struct::new(
+                ident!("UnsignedEnvelope"),
+                [(ident!("command_id"), envelope.command_id.into())],
+            )
+        } else {
+            envelope.into()
+        };
         self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx)?;
 
         Ok(priority.into())
@@ -341,7 +396,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        seal_ctx: &SealCtx<CE>,
+        seal_ctx: Option<&SealCtx<CE>>,
         flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
         let VmAction { name, args } = action;
@@ -368,6 +423,11 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             (&FlavorCtx::Ephemeral, "ephemeral", Prior::Single(p)) => {
                 parent_id = p.id;
                 command_placement = CommandPlacement::OffGraph;
+                maybe_policy = None;
+            }
+            (&FlavorCtx::Ephemeral, "unsigned", Prior::Single(p)) => {
+                parent_id = p.id;
+                command_placement = CommandPlacement::OffGraphUnsigned;
                 maybe_policy = None;
             }
             (flavor_ctx, flavor_def, head_address) => {
