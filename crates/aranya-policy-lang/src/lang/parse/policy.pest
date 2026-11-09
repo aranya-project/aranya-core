@@ -353,8 +353,7 @@ block_statement_list = { (ws ~ statements)* }
 // curly brackets. Note that there are no actual struct types yet -
 // this is only used as a building block for other definitions.
 struct_def = _{ "{" ~ ws ~ field_definition_and_insertion_list? ~ "}" }
-// An effect struct definition is similar but supports the additional
-// "dynamic" keyword.
+// An effect struct definition is the same
 effect_struct_def = _{ "{" ~ ws ~ effect_field_definition_list? ~ "}" }
 // Struct composition is shorthand for including the fields of some other
 // struct(s) when defining a struct literal
@@ -415,11 +414,8 @@ field_insertion = { "+" ~ ws ~ identifier }
 field_definition_list = _{ field_definition ~ ws ~ ("," ~ ws ~ field_definition ~ ws)* ~ ("," ~ ws)? }
 // Similar to _field_definition_list, but allows field insertion
 field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ ws ~ ("," ~ ws ~ (field_definition | field_insertion) ~ ws)* ~ ("," ~ ws)? }
-// Keyword for dynamic effect fields
-dynamic = { "dynamic" }
-// An effect field definition works like a regular field but adds the
-// optional "dynamic" keyword.
-effect_field_definition = { identifier ~ ws ~ ":" ~ ws ~ vtype ~ ws ~ dynamic? }
+// An effect field definition works like a regular field
+effect_field_definition = { identifier ~ ws ~ ":" ~ ws ~ vtype }
 // Ditto the list form
 effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ ws ~ ("," ~ ws ~ (effect_field_definition | field_insertion) ~ ws)* ~ ("," ~ ws)? }
 

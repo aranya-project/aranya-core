@@ -367,15 +367,7 @@ impl ChunkParser<'_> {
         let name = pc.consume_ident(self)?;
         let vtype = pc.consume_type(self)?;
 
-        let token = pc.next();
-        // If there is another token, it has to be the "dynamic" marker
-        let dynamic = token.is_some();
-
-        Ok(EffectFieldDefinition {
-            name,
-            vtype,
-            dynamic,
-        })
+        Ok(EffectFieldDefinition { name, vtype })
     }
 
     /// Parse a Rule::string_literal into a String.

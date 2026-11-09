@@ -274,7 +274,7 @@ impl FieldDefinition {
     }
 }
 
-/// An identifier and its type and dynamic effect marker
+/// An identifier and its type.
 ///
 /// A variant used exclusively for Effects
 #[derive(Debug, Clone)]
@@ -283,8 +283,6 @@ pub struct EffectFieldDefinition {
     pub name: Ident,
     /// the field's type
     pub vtype: VType,
-    /// Whether the field is marked "dynamic" or not
-    pub dynamic: bool,
 }
 
 impl Spanned for EffectFieldDefinition {

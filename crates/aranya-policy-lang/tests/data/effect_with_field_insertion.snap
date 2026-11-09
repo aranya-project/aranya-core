@@ -18,7 +18,6 @@ Policy {
                     EffectFieldDefinition {
                         name: "y" @ 50..51,
                         vtype: Int @ 53..56,
-                        dynamic: false,
                     },
                 ),
             ],
