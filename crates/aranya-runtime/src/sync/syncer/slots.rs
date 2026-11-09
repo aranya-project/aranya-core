@@ -26,17 +26,6 @@ pub(crate) struct Inflight<T> {
     pub(crate) timeout_at: T,
 }
 
-/// A peer we poll: its schedule and any request awaiting a reply.
-#[derive(Debug)]
-pub(crate) struct PollTarget<T> {
-    pub(crate) config: PeerConfig,
-    /// When the next poll is due. Disarmed while a request is in flight.
-    pub(crate) next_at: Option<T>,
-    /// Consecutive failed polls; drives backoff. Reset on success.
-    pub(crate) failures: u8,
-    pub(crate) inflight: Option<Inflight<T>>,
-}
-
 /// Which timer fired.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DueKind {
@@ -47,16 +36,22 @@ pub(crate) enum DueKind {
 /// One peer-graph pair's sync state: an entry in the caller-supplied
 /// [`SyncSlots`].
 ///
-/// A slot holds the pair's poll role, if any, and the [`PeerCache`]
-/// recording what the peer is known to hold. The contents are private; [`SyncSlots`]
+/// A slot holds the pair's poll schedule and the [`PeerCache`] recording
+/// what the peer is known to hold. A slot with nothing scheduled and no
+/// request in flight is not polled. The contents are private; [`SyncSlots`]
 /// implementations only construct empty slots ([`new`](Self::new)) and key
 /// them by [`graph_id`](Self::graph_id) and [`peer`](Self::peer).
 #[derive(Debug)]
 pub struct SyncSlot<A, T> {
     graph_id: GraphId,
     peer: A,
-    pub(crate) poll: Option<PollTarget<T>>,
     pub(crate) cache: PeerCache,
+    pub(crate) config: PeerConfig,
+    /// When the next poll is due. Disarmed while a request is in flight.
+    pub(crate) next_at: Option<T>,
+    /// Consecutive failed polls; drives backoff. Reset on success.
+    pub(crate) failures: u8,
+    pub(crate) inflight: Option<Inflight<T>>,
 }
 
 impl<A, T> SyncSlot<A, T> {
@@ -67,8 +62,11 @@ impl<A, T> SyncSlot<A, T> {
         Self {
             graph_id,
             peer,
-            poll: None,
             cache: PeerCache::new(),
+            config: PeerConfig::default(),
+            next_at: None,
+            failures: 0,
+            inflight: None,
         }
     }
 
@@ -84,9 +82,7 @@ impl<A, T> SyncSlot<A, T> {
 
     /// Whether a poll request is awaiting its reply.
     pub(crate) fn is_inflight(&self) -> bool {
-        self.poll
-            .as_ref()
-            .is_some_and(|poll| poll.inflight.is_some())
+        self.inflight.is_some()
     }
 
     /// The slot's armed timer, if any: the reply timeout while a request is
@@ -95,10 +91,9 @@ impl<A, T> SyncSlot<A, T> {
     where
         T: Copy,
     {
-        let poll = self.poll.as_ref()?;
-        match &poll.inflight {
+        match &self.inflight {
             Some(inflight) => Some((inflight.timeout_at, DueKind::PollTimeout)),
-            None => poll.next_at.map(|at| (at, DueKind::Poll)),
+            None => self.next_at.map(|at| (at, DueKind::Poll)),
         }
     }
 }

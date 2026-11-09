@@ -382,22 +382,16 @@ where
     }
 
     /// Forgets `peer`: its polling, its cache, and any request in flight,
-    /// whose reply is then ignored as [`IgnoreReason::StaleToken`]. Returns
-    /// whether it was registered for polling.
-    pub fn remove_peer(&mut self, peer: &A, graph_id: GraphId) -> bool {
-        self.schedule.remove_peer(peer, graph_id)
+    /// whose reply is then ignored as [`IgnoreReason::StaleToken`].
+    pub fn remove_peer(&mut self, peer: &A, graph_id: GraphId) {
+        self.schedule.remove_peer(peer, graph_id);
     }
 
-    /// Schedules an immediate poll of `peer`. A registered peer keeps its
-    /// recurring interval, and with a request in flight the poll follows
-    /// its reply. An unregistered peer is registered to be polled once, as
-    /// with [`PeerConfig::immediate`].
+    /// Schedules an immediate poll of `peer`, keeping any recurring
+    /// interval. With a request in flight, the poll follows its reply. An
+    /// unknown peer is polled once, as with [`PeerConfig::immediate`].
     pub fn sync_now(&mut self, peer: &A, graph_id: GraphId, now: T) -> Result<(), OutOfSlots> {
-        if !self.schedule.sync_now(peer, graph_id, now) {
-            self.schedule
-                .add_peer(peer.clone(), graph_id, PeerConfig::immediate(), now)?;
-        }
-        Ok(())
+        self.schedule.sync_now(peer, graph_id, now)
     }
 
     /// The [`PeerCache`] recording what `peer` is known to hold of
@@ -420,8 +414,10 @@ where
         self.schedule.remove_graph(graph_id);
     }
 
-    /// Every registered poll peer with its configuration, for callers that
-    /// persist registrations themselves.
+    /// Every peer with state in the syncer and its configuration, for
+    /// callers that persist registrations themselves. Peers known only
+    /// through [`peer_cache`](Self::peer_cache) or by polling us have
+    /// [`PeerConfig::default`].
     pub fn peers(&self) -> impl Iterator<Item = (GraphId, &A, PeerConfig)> {
         self.schedule.peers()
     }

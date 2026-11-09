@@ -69,8 +69,6 @@ fn sync_now_fires_immediately_once() {
     assert_eq!(peers_of(&drain(&mut s, secs(0))), ["a"]);
     assert!(drain(&mut s, secs(0)).is_empty());
     assert_eq!(s.next_deadline(), None);
-    // The role stays registered for `sync_now`.
-    assert_eq!(s.peers().count(), 1);
 }
 
 #[test]
@@ -103,10 +101,13 @@ fn sync_now_polls_registered_peer_and_keeps_interval() {
     s.add_peer("a", gid(1), PeerConfig::periodic(secs(30)), secs(0))
         .unwrap();
     drain(&mut s, secs(0));
-    assert!(s.sync_now(&"a", gid(1), secs(5)));
+    s.sync_now(&"a", gid(1), secs(5)).unwrap();
     assert_eq!(peers_of(&drain(&mut s, secs(5))), ["a"]);
     assert_eq!(s.next_deadline(), Some(secs(35)));
-    assert!(!s.sync_now(&"zz", gid(1), secs(5)));
+    // An unknown peer is polled once.
+    s.sync_now(&"zz", gid(1), secs(5)).unwrap();
+    assert_eq!(peers_of(&drain(&mut s, secs(5))), ["zz"]);
+    assert_eq!(s.next_deadline(), Some(secs(35)));
 }
 
 #[test]
@@ -116,7 +117,7 @@ fn sync_now_during_a_request_follows_its_reply() {
         .unwrap();
     drain(&mut s, secs(0));
     s.poll_sent(gid(1), &"a", inflight(gid(1), 1, secs(30)));
-    assert!(s.sync_now(&"a", gid(1), secs(5)));
+    s.sync_now(&"a", gid(1), secs(5)).unwrap();
     // Still awaiting the reply.
     assert!(drain(&mut s, secs(5)).is_empty());
     assert!(s.take_inflight(gid(1), &"a", 1).is_some());
@@ -131,8 +132,7 @@ fn remove_peer_cancels_schedule_and_request() {
         .unwrap();
     drain(&mut s, secs(0));
     s.poll_sent(gid(1), &"a", inflight(gid(1), 1, secs(30)));
-    assert!(s.remove_peer(&"a", gid(1)));
-    assert!(!s.remove_peer(&"a", gid(1)));
+    s.remove_peer(&"a", gid(1));
     assert!(s.take_inflight(gid(1), &"a", 1).is_none());
     assert!(drain(&mut s, secs(0)).is_empty());
     assert_eq!(s.slot_count(), 0);
@@ -264,13 +264,13 @@ fn one_shot_peer_stops_polling_after_retries() {
     drain(&mut s, secs(0));
     for _ in 0..3 {
         s.poll_finished(gid(1), &"a", PollResult::Failed, secs(0));
-        assert_eq!(s.peers().count(), 1);
+        assert!(s.next_deadline().is_some());
     }
     s.poll_finished(gid(1), &"a", PollResult::Failed, secs(0));
-    assert_eq!(s.peers().count(), 0);
+    assert_eq!(s.next_deadline(), None);
     // The slot, and with it the cache, stays until the peer is removed.
     assert_eq!(s.slot_count(), 1);
-    assert!(!s.remove_peer(&"a", gid(1)));
+    s.remove_peer(&"a", gid(1));
     assert_eq!(s.slot_count(), 0);
 }
 
@@ -356,7 +356,7 @@ fn fixed_slots_enforce_capacity() {
     s.add_peer("a", gid(1), PeerConfig::periodic(secs(5)), secs(0))
         .unwrap();
     // Freeing a slot makes room.
-    assert!(s.remove_peer(&"b", gid(1)));
+    s.remove_peer(&"b", gid(1));
     s.add_peer("c", gid(1), PeerConfig::immediate(), secs(0))
         .unwrap();
 }
@@ -408,7 +408,7 @@ proptest! {
                     s.add_peer(PEERS[p as usize], gid(g), cfg, now).unwrap();
                 }
                 Op::RemovePeer(p, g) => { s.remove_peer(&PEERS[p as usize], gid(g)); }
-                Op::SyncNow(p, g) => { s.sync_now(&PEERS[p as usize], gid(g), now); }
+                Op::SyncNow(p, g) => { s.sync_now(&PEERS[p as usize], gid(g), now).unwrap(); }
                 Op::PollSent(p, g, t) => {
                     seq += 1;
                     s.poll_sent(gid(g), &PEERS[p as usize], inflight(gid(g), seq, now + secs(t)));

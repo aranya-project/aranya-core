@@ -1,4 +1,4 @@
-//! Timer and role bookkeeping over the slot table.
+//! Timer bookkeeping over the slot table.
 //!
 //! The schedule knows nothing about storage or the wire format. It owns the
 //! slots, decides which timer fires next, and reschedules or clears every
@@ -10,7 +10,7 @@ use core::marker::PhantomData;
 
 use super::{
     Limits, OutOfSlots, PeerConfig, SyncInstant, SyncSlot, SyncSlots,
-    slots::{DueKind, Inflight, PollTarget},
+    slots::{DueKind, Inflight},
 };
 use crate::{
     storage::GraphId,
@@ -35,20 +35,18 @@ pub(crate) enum PollResult {
     Failed,
 }
 
-/// Applies one failed poll to `role`: bumps the failure count and
-/// reschedules with backoff, or drops a one-shot peer that is out of
-/// retries.
-fn fail_poll<T: SyncInstant>(role: &mut Option<PollTarget<T>>, limits: &Limits, now: T) {
-    let Some(poll) = role.as_mut() else {
-        return;
-    };
-    poll.inflight = None;
-    poll.failures = poll.failures.saturating_add(1);
-    if poll.config.interval.is_none() && poll.failures > limits.max_one_shot_retries {
-        *role = None;
+/// Applies one failed poll to `slot`: bumps the failure count and
+/// reschedules with backoff, or stops polling a one-shot peer that is out
+/// of retries.
+fn fail_poll<A, T: SyncInstant>(slot: &mut SyncSlot<A, T>, limits: &Limits, now: T) {
+    slot.inflight = None;
+    slot.failures = slot.failures.saturating_add(1);
+    if slot.config.interval.is_none() && slot.failures > limits.max_one_shot_retries {
+        slot.failures = 0;
+        slot.next_at = None;
         return;
     }
-    poll.next_at = Some(now.saturating_add(limits.backoff(poll.failures, poll.config.interval)));
+    slot.next_at = Some(now.saturating_add(limits.backoff(slot.failures, slot.config.interval)));
 }
 
 #[derive(Debug)]
@@ -78,15 +76,11 @@ where
 
     // ---- slot plumbing ---------------------------------------------------
 
-    fn poll_mut(&mut self, graph_id: GraphId, peer: &A) -> Option<&mut PollTarget<T>> {
-        self.slots.get_mut(graph_id, peer)?.poll.as_mut()
-    }
-
     fn slot(&self, graph_id: GraphId, peer: &A) -> Option<&SyncSlot<A, T>> {
         self.slots.get(graph_id, peer)
     }
 
-    // ---- poll role -------------------------------------------------------
+    // ---- polling ---------------------------------------------------------
 
     /// Registers (or reconfigures) `peer` for polling. A request already in
     /// flight on the pair is kept.
@@ -107,41 +101,34 @@ where
             config.interval.map(|iv| now.saturating_add(iv))
         };
         let slot = self.slots.get_or_insert(graph_id, &peer)?;
-        let inflight = slot.poll.take().and_then(|p| p.inflight);
-        slot.poll = Some(PollTarget {
-            config,
-            next_at,
-            failures: 0,
-            inflight,
-        });
+        slot.config = config;
+        slot.next_at = next_at;
+        slot.failures = 0;
         Ok(())
     }
 
-    /// Forgets `peer`: its poll role, any request in flight, and its cache.
-    /// Returns whether it was registered for polling.
-    pub(crate) fn remove_peer(&mut self, peer: &A, graph_id: GraphId) -> bool {
-        let polled = self
-            .slot(graph_id, peer)
-            .is_some_and(|slot| slot.poll.is_some());
+    /// Forgets `peer`: its schedule, any request in flight, and its cache.
+    pub(crate) fn remove_peer(&mut self, peer: &A, graph_id: GraphId) {
         self.slots.remove(graph_id, peer);
-        polled
     }
 
-    /// Schedules an immediate poll, keeping any recurring interval. With a
-    /// request in flight, the poll follows its reply. Returns whether the
-    /// peer is registered.
-    pub(crate) fn sync_now(&mut self, peer: &A, graph_id: GraphId, now: T) -> bool {
-        let Some(poll) = self.poll_mut(graph_id, peer) else {
-            return false;
-        };
-        poll.next_at = Some(now);
-        true
+    /// Schedules an immediate poll, keeping any recurring interval and
+    /// creating the slot on a miss. With a request in flight, the poll
+    /// follows its reply.
+    pub(crate) fn sync_now(
+        &mut self,
+        peer: &A,
+        graph_id: GraphId,
+        now: T,
+    ) -> Result<(), OutOfSlots> {
+        self.slots.get_or_insert(graph_id, peer)?.next_at = Some(now);
+        Ok(())
     }
 
     /// A poll request went out; `inflight` awaits its reply.
     pub(crate) fn poll_sent(&mut self, graph_id: GraphId, peer: &A, inflight: Inflight<T>) {
-        if let Some(poll) = self.poll_mut(graph_id, peer) {
-            poll.inflight = Some(inflight);
+        if let Some(slot) = self.slots.get_mut(graph_id, peer) {
+            slot.inflight = Some(inflight);
         }
     }
 
@@ -154,11 +141,11 @@ where
         peer: &A,
         seq: u32,
     ) -> Option<SyncRequester> {
-        let poll = self.poll_mut(graph_id, peer)?;
-        if poll.inflight.as_ref().is_none_or(|i| i.seq != seq) {
+        let slot = self.slots.get_mut(graph_id, peer)?;
+        if slot.inflight.as_ref().is_none_or(|i| i.seq != seq) {
             return None;
         }
-        poll.inflight.take().map(|i| i.requester)
+        slot.inflight.take().map(|i| i.requester)
     }
 
     /// Fails the request `seq` names, if it is still the one in flight.
@@ -168,13 +155,9 @@ where
         let Some(slot) = self.slots.get_mut(graph_id, peer) else {
             return false;
         };
-        let matches = slot
-            .poll
-            .as_ref()
-            .and_then(|poll| poll.inflight.as_ref())
-            .is_some_and(|i| i.seq == seq);
+        let matches = slot.inflight.as_ref().is_some_and(|i| i.seq == seq);
         if matches {
-            fail_poll(&mut slot.poll, &limits, now);
+            fail_poll(slot, &limits, now);
         }
         matches
     }
@@ -195,15 +178,13 @@ where
         };
         match result {
             PollResult::Done | PollResult::More => {
-                if let Some(poll) = &mut slot.poll {
-                    poll.inflight = None;
-                    poll.failures = 0;
-                    if result == PollResult::More {
-                        poll.next_at = Some(now);
-                    }
+                slot.inflight = None;
+                slot.failures = 0;
+                if result == PollResult::More {
+                    slot.next_at = Some(now);
                 }
             }
-            PollResult::Failed => fail_poll(&mut slot.poll, &limits, now),
+            PollResult::Failed => fail_poll(slot, &limits, now),
         }
     }
 
@@ -214,13 +195,11 @@ where
         self.slots.retain(|slot| slot.graph_id() != graph_id);
     }
 
-    /// Every registered poll peer.
+    /// Every peer with a slot, and its configuration.
     pub(crate) fn peers(&self) -> impl Iterator<Item = (GraphId, &A, PeerConfig)> {
-        self.slots.iter().filter_map(|slot| {
-            slot.poll
-                .as_ref()
-                .map(|poll| (slot.graph_id(), slot.peer(), poll.config))
-        })
+        self.slots
+            .iter()
+            .map(|slot| (slot.graph_id(), slot.peer(), slot.config))
     }
 
     pub(crate) fn cache(&self, graph_id: GraphId, peer: &A) -> Option<&PeerCache> {
@@ -301,12 +280,11 @@ where
         let slot = self.slots.get_mut(graph_id, &peer)?;
         match kind {
             DueKind::Poll => {
-                let poll = slot.poll.as_mut()?;
-                poll.next_at = poll.config.interval.map(|iv| now.saturating_add(iv));
+                slot.next_at = slot.config.interval.map(|iv| now.saturating_add(iv));
                 Some(Due { graph_id, peer })
             }
             DueKind::PollTimeout => {
-                fail_poll(&mut slot.poll, &limits, now);
+                fail_poll(slot, &limits, now);
                 None
             }
         }

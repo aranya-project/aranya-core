@@ -399,7 +399,7 @@ fn removing_a_peer_mid_poll_frees_its_seat() {
         .add_peer("c", g, PeerConfig::immediate(), secs(0))
         .unwrap();
     let first = b.next_outbound(secs(0)).unwrap().expect("first");
-    assert!(b.syncer.remove_peer(first.peer(), g));
+    b.syncer.remove_peer(first.peer(), g);
     // The other peer is not stuck behind the removed one.
     let second = b.next_outbound(secs(0)).unwrap().expect("second");
     assert_ne!(second.peer(), first.peer());
@@ -457,10 +457,10 @@ fn answering_keeps_a_cache_for_the_peer() {
     net.settle(secs(1));
     // "a" never polls "b", but kept what answering taught it.
     let a = net.node("a");
-    assert_eq!(a.syncer.peers().count(), 0);
+    assert_eq!(a.syncer.next_deadline(), None);
     assert!(!a.syncer.peer_cache(g, &"b").unwrap().heads().is_empty());
     // Removing the peer forgets the cache.
-    assert!(!a.syncer.remove_peer(&"b", g));
+    a.syncer.remove_peer(&"b", g);
     assert_eq!(a.syncer.schedule.slot_count(), 0);
 }
 
