@@ -21,12 +21,17 @@ use crate::{
 mod requester;
 mod responder;
 mod sample;
+mod syncer;
 pub(crate) mod wire;
 
 pub(crate) use requester::SyncRequestMessage;
 pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
+pub use syncer::{
+    FixedSlots, HeapSlots, IgnoreReason, Inbound, Limits, LimitsBuilder, OutOfSlots, Outbound,
+    PeerConfig, SyncContext, SyncInstant, SyncSlot, SyncSlots, Syncer, SyncerError, Token,
+};
 use wire::{SubscribeResult, SyncHelloType, SyncType};
 
 /// The frontier a requester advertises during a sync session: committed

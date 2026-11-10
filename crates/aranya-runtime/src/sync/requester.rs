@@ -114,6 +114,7 @@ enum SyncRequesterState {
     Reset,
 }
 
+#[derive(Debug)]
 pub struct SyncRequester {
     session_id: u128,
     graph_id: GraphId,
@@ -148,6 +149,11 @@ impl SyncRequester {
             max_bytes: 0,
             next_message_index: 0,
         }
+    }
+
+    /// The graph this requester syncs.
+    pub fn graph_id(&self) -> GraphId {
+        self.graph_id
     }
 
     /// Returns true if [`Self::poll`] would produce a message.

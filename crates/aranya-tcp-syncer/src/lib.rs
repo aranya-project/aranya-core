@@ -6,22 +6,24 @@
 #![warn(missing_docs)]
 
 use std::{
-    collections::BTreeMap,
     io::{Read as _, Write as _},
     net::{Shutdown, SocketAddr, TcpListener, TcpStream},
     ops::DerefMut as _,
     sync::{Arc, Mutex, mpsc},
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 
 use anyhow::Result;
 use aranya_crypto::{Csprng as _, Rng};
 use aranya_runtime::{
-    ClientError, ClientState, LibcSpill, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
-    SubscribeResponse, SyncError, SyncIncoming, SyncRequester, SyncResponder,
+    ClientError, ClientState, Inbound, LibcSpill, Limits, MAX_SYNC_MESSAGE_SIZE, RuntimeBuffers,
+    SubscribeResponse, SyncContext, SyncError, SyncIncoming, SyncRequester, SyncResponder,
     policy::{PolicyStore, Sink},
     storage::{GraphId, StorageProvider},
 };
+
+/// Schedules this syncer's polls and holds its peer caches.
+type Poller = aranya_runtime::Syncer<SocketAddr, Instant>;
 use buggy::{BugExt as _, bug};
 use heapless::FnvIndexMap;
 use tracing::error;
@@ -90,7 +92,8 @@ where
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    remote_heads: BTreeMap<SocketAddr, PeerCache>,
+    /// Runs polls and holds the peer caches every message type shares.
+    poller: Poller,
     sender: mpsc::Sender<GraphId>,
     subscriptions: FnvIndexMap<(SocketAddr, GraphId), Subscription, MAXIMUM_SUBSCRIPTIONS>,
     client_state: Arc<Mutex<ClientState<PS, SP>>>,
@@ -120,7 +123,8 @@ where
     ) -> Result<Self> {
         let return_address = postcard::to_allocvec(&return_address)?;
         Ok(Self {
-            remote_heads: BTreeMap::new(),
+            // `sync` reports a failure to its caller rather than retrying.
+            poller: Poller::with_limits(Limits::builder().max_one_shot_retries(0).build()),
             sender,
             subscriptions: FnvIndexMap::new(),
             client_state,
@@ -131,62 +135,65 @@ where
         })
     }
 
-    /// Sync the specified graph with a peer at the given address.
+    /// Sync the specified graph with a peer at the given address, polling
+    /// until the peer has nothing more to send. Returns the number of
+    /// commands added.
     ///
     /// The sync will update your storage, not the peer's.
     pub fn sync(
         &mut self,
         client: &mut ClientState<PS, SP>,
         peer_address: SocketAddr,
-        mut syncer: SyncRequester,
         sink: &mut S,
         graph_id: GraphId,
     ) -> Result<usize> {
+        self.poller
+            .sync_now(&peer_address, graph_id, Instant::now())?;
+
+        let spill_dir = self.spill_dir.as_path();
+        let make_spill = || LibcSpill::new(spill_dir);
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-        let mut received = 0;
-        let heads = self.remote_heads.entry(peer_address).or_default();
-        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads.session_heads(), &Rng)?;
-        if len > buffer.len() {
-            bug!("length should fit in buffer");
-        }
-
-        let mut stream = TcpStream::connect(peer_address)?;
-
-        buffer.truncate(len);
-        buffer.shrink_to_fit();
-        stream.write_all(&self.return_address)?;
-        stream.write_all(&buffer)?;
-        stream.shutdown(Shutdown::Write)?;
-        let mut received_data = Vec::new();
-        stream.read_to_end(&mut received_data)?;
-        // An empty response means we're up to date and there's nothing to sync.
-        if !received_data.is_empty() {
-            let Some(reply) = syncer.receive(&received_data, heads)? else {
-                return Ok(received);
-            };
-            received = reply.commands().len();
-            let mut trx = client.transaction(graph_id);
-            let spill_dir = self.spill_dir.as_path();
-            let make_spill = || LibcSpill::new(spill_dir);
-            let added = client.add_commands(
-                &mut trx,
-                sink,
-                reply.commands(),
-                &mut self.rt_buffers,
+        let mut received = 0usize;
+        loop {
+            let mut cx = SyncContext {
+                client: &mut *client,
+                sink: &mut *sink,
+                buffers: &mut self.rt_buffers,
+                rng: &Rng,
                 make_spill,
-            );
-            if let Err(ClientError::NoSuchParent(_)) = added {
-                heads.saw_missing_parent();
+            };
+            let Some(outbound) = self
+                .poller
+                .next_outbound(Instant::now(), &mut cx, &mut buffer)?
+            else {
+                break;
+            };
+            let reply = match request(
+                *outbound.peer(),
+                &self.return_address,
+                &buffer[..outbound.len()],
+            ) {
+                Ok(reply) => reply,
+                Err(err) => {
+                    self.poller.fail(outbound.into_token(), Instant::now());
+                    return Err(err);
+                }
+            };
+            let mut cx = SyncContext {
+                client: &mut *client,
+                sink: &mut *sink,
+                buffers: &mut self.rt_buffers,
+                rng: &Rng,
+                make_spill,
+            };
+            if let Inbound::Committed { count } =
+                self.poller
+                    .handle_reply(outbound.into_token(), &reply, Instant::now(), &mut cx)?
+            {
+                received = received.checked_add(count).assume("must not overflow")?;
             }
-            added?;
-            client.commit(trx, sink, &mut self.rt_buffers, make_spill)?;
-            client.update_heads(
-                graph_id,
-                reply.addresses(),
-                heads,
-                &mut self.rt_buffers.traversal.primary,
-                &Rng,
-            )?;
+        }
+        if received > 0 {
             self.push(graph_id)?;
         }
         Ok(received)
@@ -204,7 +211,9 @@ where
         peer_addr: SocketAddr,
     ) -> Result<()> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-        let heads = self.remote_heads.entry(peer_addr).or_default();
+        let heads = self
+            .poller
+            .peer_cache(sync_requester.graph_id(), &peer_addr)?;
         let len = sync_requester.subscribe(
             &mut buffer,
             client.provider(),
@@ -258,20 +267,23 @@ where
         target: &mut [u8],
     ) -> Result<usize> {
         let len = match SyncIncoming::decode(data)? {
-            SyncIncoming::Poll(poll) => {
-                let response_cache = self.remote_heads.entry(peer_address).or_default();
+            SyncIncoming::Poll(_) => {
                 let mut client = self.client_state.lock().expect("poisoned");
-                let mut response_syncer = SyncResponder::new();
-                response_syncer.receive(poll)?;
-                assert!(response_syncer.ready());
-
-                response_syncer.poll(
-                    target,
-                    client.provider(),
-                    response_cache,
-                    &mut self.rt_buffers.traversal,
-                    &Rng,
-                )?
+                // Answering commits nothing, so needs no sink or spill.
+                let mut cx = SyncContext {
+                    client: &mut client,
+                    sink: &mut (),
+                    buffers: &mut self.rt_buffers,
+                    rng: &Rng,
+                    make_spill: (),
+                };
+                match self
+                    .poller
+                    .handle_incoming(peer_address, data, &mut cx, target)?
+                {
+                    Inbound::Reply { len } => len,
+                    _ => 0,
+                }
             }
             SyncIncoming::Subscribe(sub) => {
                 self.subscriptions.retain(|_, s| !s.expired());
@@ -285,7 +297,8 @@ where
                     },
                 ) {
                     Ok(_) => {
-                        let response_cache = self.remote_heads.entry(peer_address).or_default();
+                        let response_cache =
+                            self.poller.peer_cache(sub.graph_id(), &peer_address)?;
                         let mut client = self.client_state.lock().expect("poisoned");
                         client.update_heads(
                             sub.graph_id(),
@@ -310,7 +323,7 @@ where
                     && !reply.commands().is_empty()
                 {
                     {
-                        let response_cache = self.remote_heads.entry(peer_address).or_default();
+                        let response_cache = self.poller.peer_cache(graph_id, &peer_address)?;
                         let mut client = self.client_state.lock().expect("poisoned");
                         let mut trx = client.transaction(graph_id);
                         let mut sink_guard = self.sink.lock().expect("poisoned");
@@ -357,7 +370,7 @@ where
             if graph_id != sub_graph_id {
                 continue;
             }
-            let response_cache = self.remote_heads.entry(addr).or_default();
+            let response_cache = self.poller.peer_cache(graph_id, &addr)?;
             let mut dst = [0u8; 16];
             Rng.fill_bytes(&mut dst);
             let session_id = u128::from_le_bytes(dst);
@@ -397,6 +410,17 @@ where
         }
         Ok(())
     }
+}
+
+/// Sends `message` to `peer` and returns its reply.
+fn request(peer: SocketAddr, return_address: &[u8], message: &[u8]) -> Result<Vec<u8>> {
+    let mut stream = TcpStream::connect(peer)?;
+    stream.write_all(return_address)?;
+    stream.write_all(message)?;
+    stream.shutdown(Shutdown::Write)?;
+    let mut reply = Vec::new();
+    stream.read_to_end(&mut reply)?;
+    Ok(reply)
 }
 
 #[derive(Debug)]
