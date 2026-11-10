@@ -129,27 +129,20 @@ macro_rules! typekind {
 }
 
 mod param {
-    use aranya_policy_ast::{Identifier, WithSpanExt as _};
+    use aranya_policy_ast::{Identifier, Span, WithSpanExt as _};
 
     use super::{Ident, Param, TypeKind, ident};
 
-    pub fn author_id() -> Param {
+    pub fn envelope(span: Span, name: Identifier) -> Param {
         Param {
-            name: ident!("author_id").nowhere(),
-            vtype: TypeKind::Id.nowhere(),
-        }
-    }
-
-    pub fn envelope(name: Identifier) -> Param {
-        Param {
-            name: ident!("envelope").nowhere(),
+            name: ident!("envelope").at(span),
             vtype: TypeKind::Struct(name.nowhere()).nowhere(),
         }
     }
 
-    pub fn this(name: Ident) -> Param {
+    pub fn this(span: Span, name: Ident) -> Param {
         Param {
-            name: ident!("this").nowhere(),
+            name: ident!("this").at(span),
             vtype: TypeKind::Struct(name).nowhere(),
         }
     }
@@ -1279,9 +1272,6 @@ impl<'a> CompileState<'a> {
         for arg_e in recall.arguments {
             self.compile_typed_expression(arg_e)?;
         }
-        // Recall blocks take `this` and `envelope` as trailing parameters.
-        self.append_instruction(Instruction::Get(ident!("this")));
-        self.append_instruction(Instruction::Get(ident!("envelope")));
 
         let recall_label = Label::new(
             self.command_recall_name(&recall.command_name, &recall.recall_name)?,
@@ -1297,17 +1287,26 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
-        let params = [
-            param::this(command.name.clone()),
-            param::envelope(flavor_def.envelope.name.clone()),
+        let params = &[
+            param::this(
+                command.policy.parameters.this.unwrap_or_default(),
+                command.name.clone(),
+            ),
+            param::envelope(
+                command.policy.parameters.envelope.unwrap_or_default(),
+                flavor_def.envelope.name.clone(),
+            ),
         ];
+
+        // TODO(jdygert): Proper error.
+        assert!(command.policy.parameters.other_params.is_empty());
 
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.compile_function_like(
-            &params,
+            params,
             None,
             Span::empty(),
-            &command.policy,
+            &command.policy.body,
             Label::new(command.name.inner.clone(), LabelType::CommandPolicy),
         )?;
         // Policy blocks should exit via a finish block, so panic if it doesn't.
@@ -1341,11 +1340,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
-        let base_params = [
-            param::this(command.name.clone()),
-            param::envelope(flavor_def.envelope.name.clone()),
-        ];
-
         let mut named_blocks: HashSet<WithSpan<Identifier>> = HashSet::new();
 
         // Compile each recall block
@@ -1356,12 +1350,18 @@ impl<'a> CompileState<'a> {
             }
             named_blocks.insert(recall_block.name.clone());
 
-            let params = recall_block
-                .parameters
-                .iter()
-                .cloned()
-                .chain(base_params.iter().cloned())
-                .collect::<Vec<_>>();
+            let params = iter::chain(
+                recall_block
+                    .parameters
+                    .this
+                    .map(|span| param::this(span, command.name.clone())),
+                recall_block
+                    .parameters
+                    .envelope
+                    .map(|span| param::envelope(span, flavor_def.envelope.name.clone())),
+            )
+            .chain(recall_block.parameters.other_params.iter().cloned())
+            .collect::<Vec<_>>();
 
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
             self.compile_function_like(
@@ -1436,13 +1436,34 @@ impl<'a> CompileState<'a> {
         &mut self,
         base_command: &ast::BaseCommandDefinition,
     ) -> Result<(), CompileError> {
-        let params = &[param::this(base_command.name.clone()), param::author_id()];
+        let params = iter::chain(
+            iter::once(param::this(
+                base_command.get_key.parameters.this.unwrap_or_default(),
+                base_command.name.clone(),
+            )),
+            base_command.get_key.parameters.other_params.iter().cloned(),
+        )
+        .collect::<Vec<_>>();
+
+        // TODO(jdygert): Proper errors.
+        assert!(base_command.get_key.parameters.envelope.is_none());
+        core::assert_matches!(
+            base_command.get_key.parameters.other_params.as_slice(),
+            &[Param {
+                name: _,
+                vtype: VType {
+                    inner: TypeKind::Id,
+                    span: _
+                }
+            }]
+        );
+
         let ret = TypeKind::Optional(Box::new(TypeKind::Bytes.nowhere())).nowhere();
         let label = self.anonymous_label();
 
         let fn_def = ast::FunctionDefinition {
             name: ident!("get_key").nowhere(),
-            parameters: params.to_vec(),
+            parameters: params.clone(),
             return_type: ret.clone(),
             body: vec![],
             span: base_command.span,
@@ -1451,10 +1472,10 @@ impl<'a> CompileState<'a> {
         let get_key_address = self.wp;
         self.enter_statement_context(StatementContext::PureFunction(fn_def));
         self.compile_function_like(
-            params,
+            &params,
             Some(&ret),
             base_command.span,
-            &base_command.get_key,
+            &base_command.get_key.body,
             label,
         )?;
         self.exit_statement_context();

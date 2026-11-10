@@ -2,7 +2,7 @@ use aranya_policy_ast::{
     ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
     Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern, MatchStatement,
     NamedStruct, Param, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
-    WithSpanExt as _, thir,
+    WithSpanExt as _, ident, thir,
 };
 use buggy::{BugExt as _, bug};
 use indexmap::IndexMap;
@@ -1212,16 +1212,45 @@ impl CompileState<'_> {
         cmd: &aranya_policy_ast::CommandDefinition,
     ) -> Result<thir::RecallCall, CompileError> {
         // Find the matching recall block in the command definition
-        let recall_block = cmd
+        let param_def = &cmd
             .recalls
             .iter()
             .find(|rb| rb.name.inner == fc.name.inner)
             .ok_or_else(|| {
                 let note = format!("recall block `{}`", fc.name);
                 self.err(NotDefined(note, fc.name.span))
-            })?;
+            })?
+            .parameters;
 
-        let arguments = self.lower_call_args(fc, &recall_block.parameters, fc.span())?;
+        // TODO(jdygert): This should be stored when compiling the recall definition.
+        let parameters = core::iter::chain(
+            param_def.this.map(|span| Param {
+                name: ident!("this").at(span),
+                vtype: TypeKind::Struct(cmd.name.clone()).nowhere(),
+            }),
+            param_def.envelope.map(|span| {
+                let flavor_name = &self.base_commands.get(&cmd.base).expect("TODO").flavor;
+                let envelope_name = self
+                    .config
+                    .flavors
+                    .flavors
+                    .iter()
+                    .find(|(name, _)| name == &flavor_name.inner)
+                    .expect("TODO")
+                    .1
+                    .envelope
+                    .name
+                    .clone();
+                Param {
+                    name: ident!("envelope").at(span),
+                    vtype: TypeKind::Struct(envelope_name.nowhere()).nowhere(),
+                }
+            }),
+        )
+        .chain(param_def.other_params.iter().cloned())
+        .collect::<Vec<_>>();
+
+        let arguments = self.lower_call_args(fc, &parameters, fc.span())?;
 
         Ok(thir::RecallCall {
             command_name: cmd.name.clone(),
