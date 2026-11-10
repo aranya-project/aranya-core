@@ -65,7 +65,7 @@ Module {
 ---
     exit panic
 <get_key 'test'>:
-    def 'author_id'
+    def '_dev'
     def 'this'
     save SP
     const None

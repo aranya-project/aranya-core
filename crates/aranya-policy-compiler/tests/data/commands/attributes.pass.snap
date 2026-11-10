@@ -69,7 +69,7 @@ Module {
 ---
     exit panic
 <get_key 'A'>:
-    def 'author_id'
+    def '_dev'
     def 'this'
     save SP
     const None

@@ -3,8 +3,8 @@ Module {
     labels: {
         <get_key 'Cmd'>: 1,
         <policy 'Cmd'>: 8,
-        <recall 'Cmd_bar'>: 18,
-        <recall 'Cmd_baz'>: 21,
+        <recall 'Cmd_bar'>: 16,
+        <recall 'Cmd_baz'>: 17,
         <recall 'Cmd_foo'>: 15,
     },
     action_defs: [],
@@ -38,7 +38,7 @@ Module {
 ---
     exit panic
 <get_key 'Cmd'>:
-    def 'author_id'
+    def '_dev'
     def 'this'
     save SP
     const None
@@ -54,14 +54,8 @@ Module {
     exit normal
     exit panic
 <recall 'Cmd_foo'>:
-    def 'envelope'
-    def 'this'
     exit check
 <recall 'Cmd_bar'>:
-    def 'envelope'
-    def 'this'
     exit check
 <recall 'Cmd_baz'>:
-    def 'envelope'
-    def 'this'
     exit check

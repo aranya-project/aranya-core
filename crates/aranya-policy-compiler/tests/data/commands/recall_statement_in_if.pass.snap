@@ -3,7 +3,7 @@ Module {
     labels: {
         <get_key 'Cmd'>: 1,
         <policy 'Cmd'>: 8,
-        <recall 'Cmd_handle'>: 29,
+        <recall 'Cmd_handle'>: 27,
     },
     action_defs: [],
     command_defs: [
@@ -46,7 +46,7 @@ Module {
 ---
     exit panic
 <get_key 'Cmd'>:
-    def 'author_id'
+    def '_dev'
     def 'this'
     save SP
     const None
@@ -61,23 +61,19 @@ Module {
     const 0
     lt
     not
-    branch 24
+    branch 22
     block
     get 'this'
     struct.get 'x'
-    get 'this'
-    get 'envelope'
     recall <recall 'Cmd_handle'>
     end
-    jump 24
-<24>:
+    jump 22
+<22>:
     meta: finish enabled
     block
     end
     exit normal
     exit panic
 <recall 'Cmd_handle'>:
-    def 'envelope'
-    def 'this'
     def 'x'
     exit check

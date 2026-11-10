@@ -19,14 +19,24 @@ Policy {
             ],
             name: "Foo" @ 8..11,
             fields: [],
-            policy: [],
+            policy: PolicyBlockDefinition {
+                parameters: MethodParams {
+                    this: Some(
+                        84..88,
+                    ),
+                    envelope: None,
+                    other_params: [],
+                },
+                body: [],
+                span: 0..94,
+            },
             recalls: [],
-            span: 0..88,
+            span: 0..94,
         },
     ],
     base_commands: [],
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "command Foo with Base {\n    attributes {\n        priority: \"high\",\n    }\n    policy {}\n}\n",
+    text: "command Foo with Base {\n    attributes {\n        priority: \"high\",\n    }\n    policy(this) {}\n}\n",
 }
