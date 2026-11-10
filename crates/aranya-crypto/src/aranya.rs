@@ -252,7 +252,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let name = "AddDevice";
     /// let parent_id = &CmdId::random(Rng);
     ///
-    /// let good_cmd = Cmd {
+    /// let good_cmd = Cmd::Basic {
     ///     data,
     ///     name,
     ///     parent_id,
@@ -263,7 +263,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     .verify_cmd(good_cmd, &sig)
     ///     .expect("should not fail");
     ///
-    /// let wrong_name_cmd = Cmd {
+    /// let wrong_name_cmd = Cmd::Basic {
     ///     data,
     ///     name: "wrong name",
     ///     parent_id,
@@ -273,7 +273,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     .verify_cmd(wrong_name_cmd, &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_id_cmd = Cmd {
+    /// let wrong_id_cmd = Cmd::Basic {
     ///     data,
     ///     name,
     ///     parent_id: &CmdId::random(Rng),
@@ -283,7 +283,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     .verify_cmd(wrong_id_cmd, &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_sig_cmd = Cmd {
+    /// let wrong_sig_cmd = Cmd::Basic {
     ///     data: b"different",
     ///     name: "signature",
     ///     parent_id: &CmdId::random(Rng),
