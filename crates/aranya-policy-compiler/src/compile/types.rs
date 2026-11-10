@@ -139,8 +139,10 @@ impl IdentifierTypeStack {
             .into_iter()
             .filter(|(_, local)| !local.used.load(Ordering::Relaxed))
             .map(|(name, _)| name)
-            // Skip compiler-synthesized vars (like this, envelope, payload).
+            // Skip compiler-synthesized vars (`this` and `envelope`).
             .filter(|name| !name.span().is_empty())
+            // Skip names with a leading underscore
+            .filter(|name| !name.as_str().starts_with('_'))
             .collect();
 
         if !unused.is_empty() {
