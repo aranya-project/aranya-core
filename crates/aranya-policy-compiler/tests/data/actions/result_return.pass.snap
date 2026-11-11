@@ -11,13 +11,13 @@ Module {
     action_defs: [
         ActionDef {
             name: "infallible",
-            flavor: None,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
         ActionDef {
             name: "can_fail",
-            flavor: None,
+            flavor: "null",
             params: [
                 Field {
                     name: "x",

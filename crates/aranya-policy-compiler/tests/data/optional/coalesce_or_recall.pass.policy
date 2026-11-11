@@ -4,7 +4,7 @@ struct Envelope {
 
 fact Owner[] => {device_id: id}
 
-command AddThing {
+command AddThing with StubBase {
     fields {}
     policy {
         let owner = query Owner[] or recall reject()

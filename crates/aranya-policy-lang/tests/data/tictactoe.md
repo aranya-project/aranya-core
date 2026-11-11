@@ -19,7 +19,7 @@ finish function set_next_player(gameID: id, to_input: string) {
     update NextPlayer[gameID] to {p: to_input}
 }
 
-action StartGame(profileX: id, profileO: id) {
+action[null] StartGame(profileX: id, profileO: id) {
     let start_command = Start{
         ProfileX: profileX,
         ProfileO: profileO,
@@ -33,7 +33,7 @@ effect GameStart {
     o: id,
 }
 
-command Start {
+command Start with Base {
     fields {
         ProfileX: id,
         ProfileO: id,
@@ -54,7 +54,7 @@ command Start {
     }
 }
 
-action MakeMove(gameID: id, x: int, y: int) {
+action[null] MakeMove(gameID: id, x: int, y: int) {
     let move_command = Move {
         gameID,
         X: x,
@@ -79,7 +79,7 @@ effect GameOver {
     p: string,
 }
 
-command Move {
+command Move with Base {
     // phase 0: command field definition
     fields {
         gameID: id,
@@ -153,7 +153,7 @@ function game_over(gameID: id, x: int, y: int, p: string) bool {
            (f20 is Some && f20 == f11 && f11 == f02)
 }
 
-command Move2 {
+command Move2 with Base {
     fields {
         gameID: id,
         X: int,

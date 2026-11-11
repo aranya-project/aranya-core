@@ -57,7 +57,7 @@ pub enum Error {
     #[error("out of space for new nodes")]
     OutOfSpace,
     /// The shared memory state failed.
-    #[cfg(any(feature = "sdlib", feature = "posix"))]
+    #[cfg(feature = "posix")]
     #[error(transparent)]
     SharedMem(#[from] crate::shm::Error),
     /// The state is corrupted.
@@ -71,7 +71,7 @@ pub enum Error {
     Corrupted(&'static str),
 }
 
-#[cfg(any(feature = "sdlib", feature = "posix"))]
+#[cfg(feature = "posix")]
 impl From<crate::shm::Corrupted> for Error {
     fn from(value: crate::shm::Corrupted) -> Self {
         Self::SharedMem(crate::shm::Error::Corrupted(value))

@@ -1,5 +1,5 @@
 effect Fi { s: struct Foo }
-command Foo {
+command Foo with StubBase {
     fields {
         i: int
     }

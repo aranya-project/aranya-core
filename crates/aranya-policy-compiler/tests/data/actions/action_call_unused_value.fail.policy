@@ -1,7 +1,7 @@
-action can_fail() result[unit, string] {
+action[null] can_fail() result[unit, string] {
     return Err("nope")
 }
 
-action foo() {
+action[null] foo() {
     action can_fail() // return value not used
 }

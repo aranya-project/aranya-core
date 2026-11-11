@@ -35,7 +35,7 @@ pub enum LabelType {
 }
 
 impl Display for LabelType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Action => write!(f, "action"),
             Self::GetKey => write!(f, "get_key"),
@@ -70,7 +70,7 @@ pub struct Label {
 }
 
 impl fmt::Debug for Label {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "<{} '{}'>", self.ltype, self.name)
     }
 }
@@ -91,7 +91,7 @@ impl Label {
 }
 
 impl Display for Label {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}:{}", self.ltype, self.name)
     }
 }

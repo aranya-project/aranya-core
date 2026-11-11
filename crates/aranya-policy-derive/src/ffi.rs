@@ -480,7 +480,7 @@ struct FfiAttr {
 }
 
 impl Parse for FfiAttr {
-    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut module = Attr::none(MODULE);
         let mut struct_defs = Attr::none(DEF);
         let mut enum_defs = Attr::none(DEF);
@@ -523,7 +523,7 @@ impl Parse for FfiAttr {
 }
 
 /// Skips the next token if it's a comma.
-fn skip_comma(input: ParseStream<'_>) -> syn::Result<()> {
+fn skip_comma(input: ParseStream) -> syn::Result<()> {
     let lookahead = input.lookahead1();
     if lookahead.peek(Token![,]) {
         let _: Token![,] = input.parse()?;

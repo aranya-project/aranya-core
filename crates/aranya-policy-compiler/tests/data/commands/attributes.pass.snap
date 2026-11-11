@@ -5,13 +5,14 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'A'>: 1,
+        <get_key 'A'>: 1,
+        <policy 'A'>: 8,
     },
     action_defs: [],
     command_defs: [
         CommandDef {
             name: "A",
-            flavor: None,
+            flavor: "null",
             attributes: [
                 Attribute {
                     name: "i",
@@ -46,6 +47,10 @@ Module {
             name: "NullEnvelope",
             items: [],
         },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [
         EnumDef {
@@ -66,6 +71,14 @@ Module {
     ..
 }
 ---
+    exit panic
+<get_key 'A'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'A'>:
     def 'envelope'

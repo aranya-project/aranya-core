@@ -10,11 +10,7 @@ use crate::{Compiler, validate::validate};
 #[track_caller]
 fn compile_pass(text: &str) -> Module {
     let policy = parse_policy_str(text, Version::V2).unwrap();
-    Compiler::new(&policy)
-        .debug(true)
-        .allow_baseless(true)
-        .compile()
-        .unwrap()
+    Compiler::new(&policy).debug(true).compile().unwrap()
 }
 
 #[test]
@@ -66,6 +62,52 @@ fn test_fail_requires_debug_mode() {
         err.to_string().contains("test_fail()"),
         "unexpected error: {err}"
     );
+}
+
+// An action must publish or call another action. This is only a warning in debug mode.
+#[test]
+fn test_action_without_publish_requires_debug_mode() {
+    let text = r#"
+        action[null] f() {}
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+
+    Compiler::new(&policy)
+        .debug(true)
+        .compile()
+        .expect("compiles with debug mode enabled");
+
+    let err = Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect_err("action without publish fails without debug mode");
+    assert!(
+        err.to_string()
+            .contains("action must publish or call another action"),
+        "unexpected error: {err}"
+    );
+
+    // A publish on any path, or a call to another action, satisfies the check.
+    let text = r#"
+        base[null] Base { get_key { return None } }
+        command Foo with Base {
+            fields { a: int }
+            policy { finish {} }
+        }
+        action[null] conditional(a: int) {
+            if a > 0 {
+                publish Foo { a: a }
+            }
+        }
+        action[null] caller(a: int) {
+            action conditional(a)
+        }
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+    Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect("compiles without debug mode");
 }
 
 #[test]
@@ -128,12 +170,12 @@ fn test_validate_return() {
 
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(validate(&m).is_ok());
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(validate(&m).is_err());
     }
 }
 
@@ -141,14 +183,14 @@ fn test_validate_return() {
 fn test_validate_get_key() {
     let valid = [
         r#"
-            base Base {
+            base[null] Base {
                 fields { key: bytes }
                 get_key { return Some(this.key) }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     return Some((query Key[author_id: author_id] or return None).key)
                 }
@@ -156,7 +198,7 @@ fn test_validate_get_key() {
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     return match query Key[author_id: author_id] {
                         Some(f) => Some(f.key)
@@ -167,7 +209,7 @@ fn test_validate_get_key() {
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     match query Key[author_id: author_id] {
                         Some(f) => { return Some(f.key) }
@@ -180,13 +222,13 @@ fn test_validate_get_key() {
 
     let invalid = [
         r#"
-            base Base {
+            base[null] Base {
                 get_key { if false { return None } }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
-            base Base {
+            base[null] Base {
                 get_key {
                     match query Key[author_id: author_id] {
                         Some(f) => { return Some(f.key) }
@@ -207,13 +249,13 @@ fn test_validate_get_key() {
     for p in valid {
         let p = p.to_string() + common;
         let m = compile_pass(&p);
-        assert!(!validate(&m), "{p}");
+        assert!(validate(&m).is_ok(), "{p}");
     }
 
     for p in invalid {
         let p = p.to_string() + common;
         let m = compile_pass(&p);
-        assert!(validate(&m), "{p}");
+        assert!(validate(&m).is_err(), "{p}");
     }
 }
 
@@ -221,7 +263,8 @@ fn test_validate_get_key() {
 fn test_validate_publish() {
     let concat = |text| {
         let base = r#"
-            command Foo {
+            base[null] Base { get_key { return None } }
+            command Foo with Base {
                 fields {
                     a: int
                 }
@@ -239,14 +282,14 @@ fn test_validate_publish() {
     let valid = [
         concat(
             r#"
-            action a() {
+            action[null] a() {
                 publish Foo { a: 0 } // ok
             }
         "#,
         ),
         concat(
             r#"
-            action b() {
+            action[null] b() {
                 if true {}
 
                 publish Foo { a: 0 } // ok
@@ -255,7 +298,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action c() {
+            action[null] c() {
                 if true {}
                 else {
                     publish Foo { a: 0 }
@@ -266,7 +309,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action d() {
+            action[null] d() {
                 if true {
                     publish Foo { a: 0 }
                 }
@@ -278,7 +321,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action e() {
+            action[null] e() {
                 let n = 0
                 match n {
                     0 => { publish Foo { a: 0 } }
@@ -292,7 +335,7 @@ fn test_validate_publish() {
     let invalid = [
         concat(
             r#"
-            action f() {
+            action[null] f() {
                 if true {
                     publish Foo { a: 0 }
                 }
@@ -301,7 +344,7 @@ fn test_validate_publish() {
         ),
         concat(
             r#"
-            action g() {
+            action[null] g() {
                 if true {
                 }
                 else if false {
@@ -316,11 +359,11 @@ fn test_validate_publish() {
 
     for p in valid {
         let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+        assert!(validate(&m).is_ok(), "Expected case to be valid: {}", p);
     }
 
     for p in invalid {
         let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+        assert!(validate(&m).is_err(), "Expected case to be invalid: {}", p);
     }
 }

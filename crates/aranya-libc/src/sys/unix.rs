@@ -1,4 +1,4 @@
-#![cfg(all(target_family = "unix", not(target_os = "vxworks")))]
+#![cfg(target_family = "unix")]
 
 use core::ffi::{c_int, c_uint};
 
@@ -41,7 +41,7 @@ pub fn open(path: &Path, oflag: c_int, mode: mode_t) -> Result<RawFd, Errno> {
 }
 
 /// See `open(2)`.
-pub fn openat(fd: BorrowedFd<'_>, path: &Path, oflag: c_int, mode: mode_t) -> Result<RawFd, Errno> {
+pub fn openat(fd: BorrowedFd, path: &Path, oflag: c_int, mode: mode_t) -> Result<RawFd, Errno> {
     let fd = path.with_cstr(&|path| {
         // SAFETY: FFI call, no invariants.
         unsafe { libc::openat(fd.fd, path, oflag, c_uint::from(mode)) }
@@ -57,21 +57,21 @@ pub fn close(fd: RawFd) -> Result<(), Errno> {
 }
 
 /// See `flock(2)`.
-pub fn flock(fd: BorrowedFd<'_>, op: c_int) -> Result<(), Errno> {
+pub fn flock(fd: BorrowedFd, op: c_int) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::flock(fd.fd, op) };
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `fsync(2)`.
-pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
+pub fn fsync(fd: BorrowedFd) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::fsync(fd.fd) };
     if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `unlinkat(2)`.
-pub fn unlinkat(fd: BorrowedFd<'_>, path: &Path, flags: c_int) -> Result<(), Errno> {
+pub fn unlinkat(fd: BorrowedFd, path: &Path, flags: c_int) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = path.with_cstr(&|path| {
         // SAFETY: FFI call, no invariants.
@@ -81,7 +81,7 @@ pub fn unlinkat(fd: BorrowedFd<'_>, path: &Path, flags: c_int) -> Result<(), Err
 }
 
 /// See `dup(2)`.
-pub fn dup(old_fd: BorrowedFd<'_>) -> Result<RawFd, Errno> {
+pub fn dup(old_fd: BorrowedFd) -> Result<RawFd, Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::dup(old_fd.fd) };
     if ret < 0 { Err(errno()) } else { Ok(ret) }

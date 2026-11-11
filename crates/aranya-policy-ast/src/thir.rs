@@ -2,15 +2,12 @@
 
 use alloc::{boxed::Box, vec::Vec};
 
-use serde_derive::{Deserialize, Serialize};
+use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType};
 
-use crate::{FactCountType, Ident, IntLiteral, Span, Spanned, Text, VType, span::spanned};
-
-spanned! {
 /// A fact and its key/value field values.
 ///
 /// It is used to create, read, update, and delete facts.
-#[derive(Debug, Clone, PartialEq,Serialize,Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FactLiteral {
     /// the fact's name
     pub name: Ident,
@@ -19,23 +16,20 @@ pub struct FactLiteral {
     /// values for the fields of the fact value, which can be absent
     pub value_fields: Option<Vec<(Ident, Expression)>>,
 }
-}
 
-spanned! {
 /// A function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FunctionCall {
     /// the function's name
     pub name: Ident,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
-}
 
 /// Call to a command's recall block.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct RecallCall {
     /// the command being recalled
     pub command_name: Ident,
@@ -45,9 +39,8 @@ pub struct RecallCall {
     pub arguments: Vec<Expression>,
 }
 
-spanned! {
 /// A named struct literal
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
     pub name: Ident,
@@ -56,10 +49,9 @@ pub struct NamedStruct {
     /// sources is a list of identifiers used in struct composition
     pub sources: Vec<Ident>,
 }
-}
 
 /// A reference to an enumeration, e.g. `Color::Red`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct EnumReference {
     /// enum name
     pub enumeration: Ident,
@@ -68,7 +60,7 @@ pub struct EnumReference {
 }
 
 /// Expression atoms with special rules or effects.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum InternalFunction {
     /// A `query` expression
     Query(FactLiteral),
@@ -85,23 +77,10 @@ pub enum InternalFunction {
     TestFail(Option<Text>, Span),
 }
 
-impl Spanned for InternalFunction {
-    fn span(&self) -> Span {
-        match self {
-            Self::Query(fact) => fact.span(),
-            Self::Exists(fact) => fact.span(),
-            Self::FactCount(ty, _, fact) => ty.span().merge(fact.span()),
-            Self::If(cond, then, else_) => cond.span.merge(then.span()).merge(else_.span()),
-            Self::Todo(span) => *span,
-            Self::TestFail(_, span) => *span,
-        }
-    }
-}
-
 /// A foreign function call with a list of arguments.
 ///
 /// Can only be used in expressions, not on its own.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ForeignFunctionCall {
     /// the function's module name
     pub module: Ident,
@@ -116,7 +95,7 @@ pub struct ForeignFunctionCall {
 }
 
 /// All of the things which can be in an expression.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Expression {
     /// The expression kind
     pub kind: ExprKind,
@@ -133,7 +112,7 @@ impl Spanned for Expression {
 }
 
 /// The kind of [`Expression`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     /// A unit literal
     Unit,
@@ -203,30 +182,26 @@ pub enum ExprKind {
     Try(Box<Expression>),
 }
 
-spanned! {
 /// Define a variable with an expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     /// The variable's name
     pub name: Ident,
     /// The variable's value
     pub value: Expression,
 }
-}
 
-spanned! {
 /// Check that a boolean expression is true, and fail otherwise
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CheckStatement {
     /// The boolean expression being checked
     pub condition: Expression,
     /// Expression to evaluate if the check fails.
     pub else_expression: Expression,
 }
-}
 
 /// Match arm pattern
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum MatchPattern {
     /// No values, default case
     Default(Span),
@@ -235,18 +210,8 @@ pub enum MatchPattern {
     Values(Vec<Expression>),
 }
 
-impl Spanned for MatchPattern {
-    fn span(&self) -> Span {
-        match self {
-            Self::Default(span) => *span,
-            Self::Values(values) => values.span(),
-        }
-    }
-}
-
-spanned! {
 /// One arm of a match statement
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchArm {
     /// The values to check against. Matches any value if the option is None.
     // TODO(chip): Restrict this to only literal values so we can do
@@ -255,34 +220,29 @@ pub struct MatchArm {
     /// The statements to execute if the value matches
     pub body: Vec<Statement>,
 }
-}
 
-spanned! {
 /// Match a value and execute one possibility out of many
 ///
 /// Match arms are tested in order.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchStatement {
     /// The value to match against
     pub scrutinee: Expression,
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
 }
-}
 
-spanned! {
 /// Match statement expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchExpression {
     /// Value to match against
     pub scrutinee: Expression,
     /// Match arms
     pub arms: Vec<MatchExpressionArm>,
 }
-}
 
 /// Match arm expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
@@ -292,26 +252,17 @@ pub struct MatchExpressionArm {
     pub span: Span,
 }
 
-impl Spanned for MatchExpressionArm {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
-spanned! {
 /// Test a series of conditions and execute the statements for the first true condition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct IfStatement {
     /// Each `if` and `else if` branch.
     pub branches: Vec<(Expression, Vec<Statement>)>,
     /// The `else` branch, if present.
     pub fallback: Option<Vec<Statement>>,
 }
-}
 
-spanned! {
 /// Iterate over the results of a query, and execute some statements for each one.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MapStatement {
     /// Query
     pub fact: FactLiteral,
@@ -320,51 +271,42 @@ pub struct MapStatement {
     /// Statements to execute for each fact
     pub body: Vec<Statement>,
 }
-}
 
-spanned! {
 /// Create a fact
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CreateStatement {
     /// The fact to create
     pub fact: FactLiteral,
 }
-}
 
-spanned! {
 /// Update a fact
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
     /// The value fields are updated to these values
     pub to: Vec<(Ident, Expression)>,
 }
-}
 
-spanned! {
 /// Delete a fact
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DeleteStatement {
     /// The fact to delete
     pub fact: FactLiteral,
 }
-}
 
-spanned! {
 /// Return from a function
 ///
 /// Only valid within functions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ReturnStatement {
     /// The value to return
     pub value: Expression,
 }
-}
 
 /// Statements in the policy language.
 /// Not all statements are valid in all contexts.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Statement {
     /// The statement kind
     pub kind: StmtKind,
@@ -379,7 +321,7 @@ impl Spanned for Statement {
 }
 
 /// The kind of [`Statement`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum StmtKind {
     /// A [LetStatement]
     Let(LetStatement),

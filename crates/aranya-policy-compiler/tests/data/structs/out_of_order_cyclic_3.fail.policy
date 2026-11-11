@@ -1,5 +1,5 @@
 effect Bar { s: struct Co }
-command Co {
+command Co with StubBase {
     fields {
         fi: struct Bar, // cycle
         i: int

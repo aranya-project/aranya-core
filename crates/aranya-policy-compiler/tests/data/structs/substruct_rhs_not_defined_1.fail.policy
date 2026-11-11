@@ -2,7 +2,7 @@ struct Baz {
     x: string,
     y: int,
 }
-action foo(x: struct Baz) {
+action[null] foo(x: struct Baz) {
     let new_struct = x substruct Bar
     publish new_struct
 }

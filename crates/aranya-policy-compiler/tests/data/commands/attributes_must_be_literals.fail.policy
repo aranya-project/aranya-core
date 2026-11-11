@@ -1,4 +1,4 @@
-command A {
+command A with StubBase {
     attributes { i: false || true }
     policy {
         finish {}

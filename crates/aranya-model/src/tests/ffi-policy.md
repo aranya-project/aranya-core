@@ -29,7 +29,7 @@ base[init] BaseInit {
     }
 }
 
-base BaseSelfSigned {
+base[basic] BaseSelfSigned {
     fields {
         sign_pk: bytes,
     }
@@ -38,7 +38,7 @@ base BaseSelfSigned {
     }
 }
 
-base Base {
+base[basic] Base {
     get_key {
         return match query DeviceSignKey[device_id: author_id] {
             Some(f) => Some(f.key)
@@ -139,7 +139,7 @@ command Init with BaseInit {
     }
 }
 
-action add_device_keys(ident_pk: bytes, sign_pk: bytes) {
+action[basic] add_device_keys(ident_pk: bytes, sign_pk: bytes) {
     publish AddDeviceKeys { ident_pk, sign_pk }
 }
 
@@ -176,7 +176,7 @@ command AddDeviceKeys with BaseSelfSigned {
     recall reject() {}
 }
 
-action create_action(v: int) {
+action[basic] create_action(v: int) {
     publish Create{
         key_a: 1,
         value: v,
@@ -202,7 +202,7 @@ command Create with Base {
     }
 }
 
-action increment(v: int) {
+action[basic] increment(v: int) {
     publish Increment{
         key_a: 1,
         value: v,
@@ -231,7 +231,7 @@ command Increment with Base {
     }
 }
 
-action decrement(v: int) {
+action[basic] decrement(v: int) {
     publish Decrement{
         key_a: 1,
         value: v,
@@ -319,7 +319,7 @@ command VerifyGreeting with Ephemeral {
     }
 }
 
-action verify_no_hello() {
+action[basic] verify_no_hello() {
     publish VerifyNoHello {}
 }
 

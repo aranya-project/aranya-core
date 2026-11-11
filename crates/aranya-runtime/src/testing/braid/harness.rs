@@ -18,6 +18,7 @@
 use alloc::{collections::BTreeMap, format, string::String, vec, vec::Vec};
 
 use aranya_crypto::Rng;
+use itertools::Itertools as _;
 
 use super::{
     naive::{NaiveCommand, NaivePriority, naive_braid, spec_violation},
@@ -80,8 +81,7 @@ fn derive_id(index: usize, parents: ProgParents, ids: &[CmdId]) -> CmdId {
 
 /// Render an oracle order as the same string the probe policy builds.
 pub fn render_order(order: &[usize], ids: &[CmdId]) -> String {
-    let parts: Vec<String> = order.iter().map(|&i| short_b58(ids[i])).collect();
-    parts.join(":")
+    order.iter().map(|&i| short_b58(ids[i])).join(":")
 }
 
 /// The command's prior, with merge parents id-sorted like production's
@@ -363,7 +363,7 @@ pub fn check_program(program: &Program) -> Result<(), String> {
             .graph
             .naive_input
             .iter()
-            .zip(&result.graph.ids)
+            .zip_eq(&result.graph.ids)
             .enumerate()
         {
             report.push_str(&format!(

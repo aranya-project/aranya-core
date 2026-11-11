@@ -1,7 +1,5 @@
 //! Serializable [`Machine`][super::machine::Machine] state.
 
-extern crate alloc;
-
 mod contract;
 mod io;
 pub mod v1;
@@ -55,7 +53,7 @@ impl Version {
 }
 
 impl Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -200,7 +198,7 @@ pub struct ActionDef {
     /// The name of the action.
     pub name: Identifier,
     /// The flavor of the action.
-    pub flavor: Option<Identifier>,
+    pub flavor: Identifier,
     /// The parameters of the action.
     pub params: Vec<Field>,
     /// action return type: result or unit
@@ -221,7 +219,7 @@ impl From<interface::ActionDefinition> for ActionDef {
     fn from(value: interface::ActionDefinition) -> Self {
         Self {
             name: value.name.inner,
-            flavor: value.flavor.map(|f| f.inner),
+            flavor: value.flavor.inner,
             params: value.params.into_iter().map(ast::Param::into).collect(),
             result_type: value.return_type.inner.into(),
         }
@@ -244,7 +242,7 @@ pub struct CommandDef {
     /// The name of the command.
     pub name: Identifier,
     /// The flavor of the command.
-    pub flavor: Option<Identifier>,
+    pub flavor: Identifier,
     /// The attributes of the command.
     pub attributes: Vec<Attribute>,
     /// The fields of the command.
@@ -257,7 +255,7 @@ impl From<interface::CommandDefinition> for CommandDef {
     fn from(value: interface::CommandDefinition) -> Self {
         Self {
             name: value.name.inner,
-            flavor: value.flavor.map(|f| f.inner),
+            flavor: value.flavor.inner,
             attributes: value.attributes.into_iter().map(Attribute::from).collect(),
             fields: value.fields.into_iter().map(Field::from).collect(),
         }

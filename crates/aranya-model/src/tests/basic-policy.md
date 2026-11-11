@@ -26,7 +26,7 @@ base[init] BaseInit {
     }
 }
 
-base Base {
+base[basic] Base {
     get_key {
         return match query Key[] {
             Some(f) => Some(f.key)
@@ -97,7 +97,7 @@ command Init with BaseInit {
 
 // The `create` action takes a value and passes it to the `Create` command. For
 // simplicity sake, the fact key is hard coded in all our examples.
-action create_action(v: int) {
+action[basic] create_action(v: int) {
     publish Create{
         key_a: 1,
         value: v,
@@ -147,7 +147,7 @@ command CreateEphemeral with BaseEphemeral {
 
 // The `increment` action takes a value and passes it to the `Increment` command.
 // For simplicity sake, the fact key is hard coded in all our examples.
-action increment(v: int) {
+action[basic] increment(v: int) {
     publish Increment{
         key_a: 1,
         value: v,
@@ -205,7 +205,7 @@ command IncrementEphemeral with BaseEphemeral {
 
 // The `decrement` action takes a value and passes it to the `Decrement` command.
 // For simplicity sake, the fact key is hard coded in all our examples.
-action decrement(v: int) {
+action[basic] decrement(v: int) {
     publish Decrement{
         key_a: 1,
         value: v,
@@ -257,7 +257,7 @@ command GetStuff with BaseEphemeral {
     }
 }
 
-action get_stuff_on_graph() {
+action[basic] get_stuff_on_graph() {
     publish GetStuffOnGraph {
         key_a: 1,
     }
@@ -340,7 +340,7 @@ command VerifyGreeting with BaseEphemeral {
     }
 }
 
-action verify_hello_on_graph() {
+action[basic] verify_hello_on_graph() {
     publish VerifyGreetingOnGraph {
         key: "greeting",
         value: "hello",
@@ -369,7 +369,7 @@ command VerifyGreetingOnGraph with Base {
 
 // `store_session_data` will call StoreSessionData with a command name
 // and byte value.
-action store_session_data(key: string, value: bytes) {
+action[basic] store_session_data(key: string, value: bytes) {
     publish StoreSessionData {
         key,
         cmd: value,
@@ -420,7 +420,7 @@ command Link with Base {
 }
 
 // Publishes multiple `Link` commands
-action publish_multiple_commands() {
+action[basic] publish_multiple_commands() {
     publish Link{}
     publish Link{}
     publish Link{}

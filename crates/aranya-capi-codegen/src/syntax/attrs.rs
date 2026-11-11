@@ -71,7 +71,7 @@ pub(crate) struct Parser<'a> {
 /// );
 /// ```
 #[instrument(skip_all)]
-pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser<'_>) -> Vec<Attribute> {
+pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser) -> Vec<Attribute> {
     let n = attrs.len();
 
     let mut passthru = Vec::new();
@@ -99,7 +99,7 @@ pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser<'_>) ->
 
         // `#[derive(...)]`
         if path.is_ident("derive") {
-            match attr.parse_args_with(|attr: ParseStream<'_>| Derives::parse(ctx, attr)) {
+            match attr.parse_args_with(|attr: ParseStream| Derives::parse(ctx, attr)) {
                 Ok(attrs) => {
                     if let Some(derives) = &mut parser.derives {
                         derives.append(attrs);
@@ -176,7 +176,7 @@ pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser<'_>) ->
 ///
 /// Returns `false` if the attribute should be passed through.
 #[instrument(skip_all)]
-fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool {
+fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser) -> bool {
     assert_eq!(attr.path().segments.len(), 2);
     assert!(
         attr.path().segments[0].ident == ctx.capi
@@ -187,7 +187,7 @@ fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool
     let span = attr.span();
     let ident = &attr.path().segments[1].ident;
     if ident == "builds" {
-        match attr.parse_args_with(|attr: ParseStream<'_>| Builds::parse(attr)) {
+        match attr.parse_args_with(|attr: ParseStream| Builds::parse(attr)) {
             Ok(builds) => {
                 if let Some(v) = &mut parser.capi_builds {
                     **v = Some(builds);
@@ -200,7 +200,7 @@ fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool
             }
         }
     } else if ident == "derive" {
-        match attr.parse_args_with(|attr: ParseStream<'_>| Derives::parse(ctx, attr)) {
+        match attr.parse_args_with(|attr: ParseStream| Derives::parse(ctx, attr)) {
             Ok(attrs) => {
                 if let Some(derives) = &mut parser.derives {
                     derives.append(attrs);
@@ -223,7 +223,7 @@ fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool
             return true;
         }
     } else if ident == "opaque" {
-        match attr.parse_args_with(|attr: ParseStream<'_>| Opaque::parse(Some(ctx), attr)) {
+        match attr.parse_args_with(|attr: ParseStream| Opaque::parse(Some(ctx), attr)) {
             Ok(attr) => {
                 if let Some(v) = &mut parser.capi_opaque {
                     **v = Some(attr);
@@ -315,13 +315,13 @@ impl PartialEq<Repr> for &Ident {
 }
 
 impl fmt::Display for Repr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "#[repr({})]", self.to_str())
     }
 }
 
 impl Parse for Repr {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         // Taken from [`cxx`].
         // https://github.com/dtolnay/cxx/blob/afd4aa3f3d4e5d5e9a3a41d09df3408f5f86a469/syntax/attrs.rs#L230
         let begin = input.cursor();
@@ -405,7 +405,7 @@ macro_rules! simple_outer_attr {
             }
 
             #[allow(dead_code)] // not always used
-            fn parse(_ctx: &Ctx, input: ParseStream<'_>) -> Result<Self> {
+            fn parse(_ctx: &Ctx, input: ParseStream) -> Result<Self> {
                 Ok(Self(input.span()))
             }
         }
@@ -418,13 +418,13 @@ macro_rules! simple_outer_attr {
         }
 
         impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "{}", $value)
             }
         }
 
         impl fmt::Debug for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "{}", $value)
             }
         }

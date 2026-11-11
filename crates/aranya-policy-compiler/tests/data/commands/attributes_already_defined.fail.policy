@@ -1,4 +1,4 @@
-command F {
+command F with StubBase {
     attributes {
         a: 5,
         a: "five"

@@ -1,5 +1,5 @@
 fact Foo[i: int]=>{n: int}
-action foo() {
+action[null] foo() {
     map Foo[i:1] as f {
         process(f)
     }

@@ -1,5 +1,5 @@
 enum Result { OK, Error }
-action test() {
+action[null] test() {
     let ok = Result::OK
     check ok == Result::OK else test_fail()
     check ok != Result::Error else test_fail()

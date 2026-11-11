@@ -1,18 +1,22 @@
-#![cfg(not(any(test, doctest)))]
 #![no_std]
 #![no_main]
 
+// extern crate aranya_afc_util;
 extern crate aranya_core;
 extern crate aranya_crypto;
 extern crate aranya_device_ffi;
+// extern crate aranya_fast_channels;
+extern crate aranya_id;
 extern crate aranya_idam_ffi;
+// extern crate aranya_libc;
 extern crate aranya_perspective_ffi;
 extern crate aranya_policy_ast;
+extern crate aranya_policy_ifgen;
 extern crate aranya_policy_module;
+extern crate aranya_policy_text;
 extern crate aranya_policy_vm;
 extern crate aranya_runtime;
 
-#[cfg(target_os = "none")] // hack to please rust-analyzer
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}

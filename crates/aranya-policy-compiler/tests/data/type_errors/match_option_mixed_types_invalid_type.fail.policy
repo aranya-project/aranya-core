@@ -1,4 +1,4 @@
-action foo() {
+action[null] foo() {
     match None {
         Some(42) => {}
         Some("foo") => {}

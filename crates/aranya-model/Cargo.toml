@@ -31,8 +31,8 @@ aranya-idam-ffi = { path = "../aranya-idam-ffi" }
 aranya-perspective-ffi = { path = "../aranya-perspective-ffi" }
 
 postcard = { workspace = true, features = ["alloc"] }
-serde = { workspace = true, features = ["derive"] }
-tempfile = { version = "3.8.1" }
+serde = { workspace = true }
+tempfile = { workspace = true }
 test-log = { workspace = true }
 
 [package.metadata.docs.rs]

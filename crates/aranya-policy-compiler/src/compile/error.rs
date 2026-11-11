@@ -1,6 +1,6 @@
 use std::fmt;
 
-use aranya_policy_ast::{self as ast, Ident, Span};
+use aranya_policy_ast::{self as ast, Ident, Identifier, Span};
 use buggy::Bug;
 
 use crate::compile::StatementContext;
@@ -18,7 +18,7 @@ pub enum InvalidCallColorKind {
 }
 
 impl fmt::Display for InvalidCallColorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Pure => write!(f, "pure function not allowed in finish context"),
             Self::Finish => write!(f, "finish function not allowed in expression"),
@@ -82,7 +82,7 @@ impl AlreadyDefined {
     /// Creates an `AlreadyDefined` error with `prev` and `primary` ordered by their spans.
     pub(crate) fn new(mut prev: Ident, mut primary: Ident) -> Self {
         use std::cmp::Ordering;
-        match prev.span.cmp(&primary.span) {
+        match prev.span.start().cmp(&primary.span.start()) {
             // already in order
             Ordering::Less | Ordering::Equal => {}
             Ordering::Greater => {
@@ -98,6 +98,28 @@ impl AlreadyDefined {
 pub(crate) struct DuplicateMatchPatterns {
     pub patt1: Span,
     pub patt2: Span,
+}
+
+pub(crate) struct InvalidStructLiteral {
+    pub missing: Option<MissingFields>,
+    pub unknown: Vec<UnknownField>,
+    pub duplicate: Vec<DuplicateField>,
+    pub mismatch: Vec<InvalidType>,
+}
+
+pub(crate) struct MissingFields {
+    pub literal: Ident,
+    pub fields: Vec<Ident>,
+}
+
+pub(crate) struct UnknownField {
+    pub literal: Identifier,
+    pub field: Ident,
+}
+
+pub(crate) struct DuplicateField {
+    pub first: Ident,
+    pub rest: Vec<Ident>,
 }
 
 /// Fact literal doesn't match definition.
@@ -123,6 +145,9 @@ impl InvalidFactLiteral {
 
 /// A callable with a return type has no return statement.
 pub(crate) struct NoReturn(pub Span);
+
+/// An action neither publishes nor calls another action.
+pub(crate) struct NoPublishOrActionCall(pub Span);
 
 /// Source structs in struct composition have overlapping fields.
 pub(crate) struct DuplicateSourceFields {
@@ -217,6 +242,13 @@ pub(crate) struct InvalidCast {
 /// Cyclic type definitions detected.
 pub(crate) struct CyclicTypeDefinitions(pub String, pub Vec<Vec<Ident>>);
 
+/// A group of mutually recursive callables.
+pub(crate) struct RecursiveCall {
+    /// The calls in the recursion, as the caller's name and the callee name at the call
+    /// site, in source order.
+    pub calls: Vec<(Identifier, Ident)>,
+}
+
 /// Type mismatch in struct composition — a source struct field has a different type
 /// than the corresponding field in the target struct.
 pub(crate) struct StructCompositionTypeMismatch {
@@ -239,11 +271,6 @@ pub(crate) struct UnknownError(pub String, pub Option<Span>);
 pub(crate) struct UnusedVariable {
     /// The unused bindings, in declaration order.
     pub names: Vec<Ident>,
-}
-
-/// Command does not use a base command.
-pub(crate) struct MissingBaseCommand {
-    pub command: Ident,
 }
 
 // ---------------------------------------------------------------------------
@@ -272,14 +299,14 @@ impl CompileError {
 }
 
 impl fmt::Debug for CompileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Delegate to Display — the diagnostic message is more useful than struct internals.
         fmt::Display::fmt(self, f)
     }
 }
 
 impl fmt::Display for CompileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.source {
             Some(input) => write!(f, "{}", self.err_type.render(input)),
             None => write!(f, "{}", self.err_type.description()),

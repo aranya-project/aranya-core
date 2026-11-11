@@ -11,7 +11,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "a",
-            flavor: None,
+            flavor: "null",
             params: [],
             result_type: Unit,
         },

@@ -38,7 +38,7 @@ impl<S: KeyStore> Handler<S> {
     pub fn uni_channel_created<E, SK, OK>(
         &mut self,
         eng: &E,
-        effect: &UniChannelCreated<'_>,
+        effect: &UniChannelCreated,
     ) -> Result<UniKey<SK, OK>, Error>
     where
         E: Engine,
@@ -81,7 +81,7 @@ impl<S: KeyStore> Handler<S> {
     pub fn uni_channel_received<E, SK, OK>(
         &mut self,
         eng: &E,
-        effect: &UniChannelReceived<'_>,
+        effect: &UniChannelReceived,
     ) -> Result<UniKey<SK, OK>, Error>
     where
         E: Engine,
@@ -177,7 +177,7 @@ pub enum UniKey<S, O> {
 }
 
 impl<S, O> UniKey<S, O> {
-    fn new<CS, F, K, V>(ch: &UniChannel<'_, CS>, value: V, f: F) -> Result<Self, Error>
+    fn new<CS, F, K, V>(ch: &UniChannel<CS>, value: V, f: F) -> Result<Self, Error>
     where
         CS: CipherSuite,
         F: FnOnce(K) -> Self,

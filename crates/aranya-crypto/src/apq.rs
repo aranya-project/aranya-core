@@ -106,7 +106,7 @@ impl From<Topic> for [u8; 16] {
 }
 
 impl fmt::Display for Topic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0.to_hex())
     }
 }
@@ -254,7 +254,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         plaintext: &[u8],
         version: Version,
         topic: &Topic,
-        ident: &Sender<'_, CS>,
+        ident: &Sender<CS>,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -296,7 +296,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         ciphertext: &[u8],
         version: Version,
         topic: &Topic,
-        ident: &Sender<'_, CS>,
+        ident: &Sender<CS>,
     ) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
@@ -660,6 +660,8 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
 mod tests {
     #![allow(clippy::arithmetic_side_effects)]
 
+    use core::assert_matches;
+
     use spideroak_crypto::{ed25519::Ed25519, kem::Kem, rust, signer::Signer};
 
     use super::*;
@@ -781,7 +783,7 @@ mod tests {
         let err = key
             .seal_message(Rng, &mut small, MESSAGE, version, &topic, &ident)
             .expect_err("`seal_message` should fail when `dst` is too small");
-        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+        assert_matches!(err, Error::Seal(_));
     }
 
     /// Exercises both the happy path and the "`ciphertext` too
@@ -812,6 +814,6 @@ mod tests {
         let err = key
             .open_message(&mut plaintext, b"short", version, &topic, &ident)
             .expect_err("`open_message` should fail when `ciphertext` is too short");
-        assert!(matches!(err, Error::Open(_)), "got {err:?}");
+        assert_matches!(err, Error::Open(_));
     }
 }

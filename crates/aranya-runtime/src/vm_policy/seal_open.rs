@@ -6,7 +6,7 @@ use aranya_crypto::{
 };
 use aranya_policy_vm::Struct;
 
-use crate::{command::CmdId, vm_policy::Envelope};
+use crate::{command::CmdId, vm_policy::protocol::Envelope};
 
 #[derive(Debug, thiserror::Error)]
 pub enum OpenError {
@@ -21,6 +21,18 @@ pub enum OpenError {
 pub struct SealCtx<CE: Engine> {
     pub author: DeviceId,
     pub key: SigningKey<CE::CS>,
+}
+
+impl<CE: Engine> Clone for SealCtx<CE>
+where
+    SigningKey<CE::CS>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            author: self.author,
+            key: self.key.clone(),
+        }
+    }
 }
 
 pub(super) fn seal_with_key<CS: CipherSuite>(
@@ -48,7 +60,7 @@ pub(super) fn open_with_key<CS: CipherSuite>(
     key: VerifyingKey<CS>,
     command_struct: &Struct,
     payload: &[u8],
-    envelope: &Envelope<'_>,
+    envelope: &Envelope,
 ) -> Result<(), OpenError> {
     let signature =
         Signature::<CS>::from_bytes(&envelope.signature).map_err(OpenError::BadSignature)?;

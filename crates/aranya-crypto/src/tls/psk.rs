@@ -406,13 +406,15 @@ impl CtEq for PskId {
 }
 
 impl fmt::Display for PskId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Hex::new(self.as_bytes()).fmt(f)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use core::assert_matches;
+
     use super::*;
     use crate::{Rng, default::DefaultCipherSuite};
 
@@ -438,6 +440,6 @@ mod tests {
         let err = sk1
             .seal_psk_seed(Rng, &seed, &pk1, &group)
             .expect_err("`seal_psk_seed` should reject sealing to ourselves");
-        assert!(matches!(err, Error::InvalidArgument(_)), "got {err:?}");
+        assert_matches!(err, Error::InvalidArgument(_));
     }
 }

@@ -718,16 +718,16 @@ fn get_policy<'a, PS: PolicyStore>(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{assert_matches, collections::HashMap};
 
     use aranya_crypto::id::{Id, IdTag};
     use test_log::test;
 
     use super::*;
     use crate::{
-        Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, NullSink, Perspective, Policy,
-        Prioritized as _, Priority, TraversalBuffer, mem_spill,
-        policy::{ActionPlacement, CommandPlacement},
+        Bytes, ClientState, FlavorCtx, Keys, MaxCut, MemSpill, MergeIds, NullSink, Perspective,
+        Policy, Prioritized as _, Priority, TraversalBuffer, mem_spill,
+        policy::{CommandPlacement, PolicyStoreError},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -758,18 +758,15 @@ mod test {
         type Policy = SeqPolicy;
         type Effect = Never;
 
-        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             Ok(&SeqPolicy)
         }
 
-        fn seal_ctx(
-            &self,
-            _id: PolicyId,
-        ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
             unreachable!()
         }
     }
@@ -832,8 +829,8 @@ mod test {
             action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _placement: ActionPlacement,
             _seal_ctx: &Self::SealCtx,
+            _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
             match action {}
         }
@@ -1289,7 +1286,7 @@ mod test {
             "i" < finalize "fff2";
         };
         let err = gb.commit().expect_err("merge should fail");
-        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}");
+        assert_matches!(err, ClientError::ParallelFinalize);
     }
 
     /// Priorities are derived at ingest — structurally for merge and init
@@ -1987,10 +1984,7 @@ mod test {
                 &mem_spill,
             )
             .expect_err("trx1 commit must fail after trx2 committed");
-        assert!(
-            matches!(err, ClientError::ConcurrentTransaction),
-            "expected ConcurrentTransaction, got {err:?}"
-        );
+        assert_matches!(err, ClientError::ConcurrentTransaction);
     }
 
     #[test]
@@ -2123,7 +2117,7 @@ mod test {
             locations
         }
 
-        fn dotwrite(storage: &impl Storage<FactIndex: FactIndexExtra>, out: &mut DotWriter<'_>) {
+        fn dotwrite(storage: &impl Storage<FactIndex: FactIndexExtra>, out: &mut DotWriter) {
             let mut graph = out.digraph();
             graph
                 .graph_attributes()

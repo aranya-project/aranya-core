@@ -5,10 +5,9 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::panic)]
 
-extern crate alloc;
-
 use alloc::{sync::Arc, vec, vec::Vec};
 use core::{
+    assert_matches,
     cell::UnsafeCell,
     mem::{self, MaybeUninit},
     ops::Deref,
@@ -509,7 +508,7 @@ where
                 },
             ) {
                 Ok(_) => panic!("author should not be the opener"),
-                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorMustBeSealer)),
+                Err(err) => assert_matches!(err, EffectHandlerError::AuthorMustBeSealer),
             }
 }
 
@@ -578,6 +577,6 @@ where
                 },
             ) {
                 Ok(_) => panic!("author should not be the opener"),
-                Err(err) => assert!(matches!(err, EffectHandlerError::AuthorMustBeSealer)),
+                Err(err) => assert_matches!(err, EffectHandlerError::AuthorMustBeSealer),
             }
 }

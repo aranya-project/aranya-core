@@ -1,5 +1,5 @@
 function f() int { return 3 }
-command A {
+command A with StubBase {
     attributes { i: f() }
     policy {
         finish {}

@@ -3,8 +3,6 @@ pub(crate) use self::cache::CacheCell;
 
 #[cfg(any(feature = "memstore", feature = "test_util"))]
 pub(crate) mod cbor {
-    extern crate alloc;
-
     use alloc::vec::Vec;
 
     pub use ciborium::*;

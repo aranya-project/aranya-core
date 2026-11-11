@@ -154,11 +154,6 @@ criteria = "safe-to-deploy"
 version = "0.8.1"
 criteria = "safe-to-deploy"
 
-[[exemptions.chacha20]]
-version = "0.10.1"
-criteria = "safe-to-deploy"
-notes = "RustCrypto"
-
 [[exemptions.ciborium]]
 version = "0.2.2"
 criteria = "safe-to-deploy"
@@ -180,10 +175,6 @@ criteria = "safe-to-deploy"
 version = "0.5.4"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
-
-[[exemptions.colored]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
 
 [[exemptions.console]]
 version = "0.15.10"
@@ -218,17 +209,13 @@ criteria = "safe-to-run"
 version = "0.5.0"
 criteria = "safe-to-run"
 
-[[exemptions.crossbeam-channel]]
-version = "0.5.14"
-criteria = "safe-to-deploy"
-
 [[exemptions.crossbeam-deque]]
 version = "0.8.6"
 criteria = "safe-to-run"
 
 [[exemptions.crossbeam-utils]]
 version = "0.8.21"
-criteria = "safe-to-deploy"
+criteria = "safe-to-run"
 
 [[exemptions.crypto-bigint]]
 version = "0.7.5"
@@ -358,6 +345,7 @@ criteria = "safe-to-run"
 [[exemptions.itertools]]
 version = "0.11.0"
 criteria = "safe-to-deploy"
+notes = "Audited as safe-to-run by chromium"
 
 [[exemptions.js-sys]]
 version = "0.3.76"
@@ -368,16 +356,8 @@ version = "0.2.1"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.libc]]
-version = "0.2.168"
-criteria = "safe-to-deploy"
-
 [[exemptions.libm]]
 version = "0.2.11"
-criteria = "safe-to-deploy"
-
-[[exemptions.linux-raw-sys]]
-version = "0.4.14"
 criteria = "safe-to-deploy"
 
 [[exemptions.lock_api]]
@@ -477,10 +457,6 @@ criteria = "safe-to-deploy"
 version = "0.2.20"
 criteria = "safe-to-deploy"
 
-[[exemptions.prettyplease]]
-version = "0.2.25"
-criteria = "safe-to-deploy"
-
 [[exemptions.primefield]]
 version = "0.14.0"
 criteria = "safe-to-deploy"
@@ -544,10 +520,6 @@ criteria = "safe-to-deploy"
 version = "0.8.11"
 criteria = "safe-to-deploy"
 
-[[exemptions.rustix]]
-version = "0.38.42"
-criteria = "safe-to-deploy"
-
 [[exemptions.rusty-fork]]
 version = "0.3.0"
 criteria = "safe-to-deploy"
@@ -571,10 +543,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.serde_json]]
 version = "1.0.133"
-criteria = "safe-to-deploy"
-
-[[exemptions.serde_repr]]
-version = "0.1.19"
 criteria = "safe-to-deploy"
 
 [[exemptions.serdect]]
@@ -625,32 +593,12 @@ version = "0.8.0"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.syn]]
-version = "2.0.90"
-criteria = "safe-to-deploy"
-
-[[exemptions.table_formatter]]
-version = "0.6.1"
-criteria = "safe-to-deploy"
-
 [[exemptions.tempfile]]
 version = "3.14.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.termcolor]]
 version = "1.4.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror]]
-version = "2.0.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror-impl]]
-version = "2.0.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.tracing-appender]]
-version = "0.2.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.tracing-test]]
@@ -716,14 +664,6 @@ criteria = "safe-to-run"
 
 [[exemptions.winapi-util]]
 version = "0.1.9"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-sys]]
-version = "0.52.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-sys]]
-version = "0.59.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.windows-targets]]

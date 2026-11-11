@@ -130,7 +130,7 @@ impl<'a> InvalidArg<'a> {
 impl error::Error for InvalidArg<'_> {}
 
 impl fmt::Display for InvalidArg<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "invalid argument `{}`: {}", self.arg, self.err)
     }
 }

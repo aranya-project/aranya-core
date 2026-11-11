@@ -1,5 +1,7 @@
 #![allow(clippy::panic)]
 
+use core::assert_matches;
+
 use aranya_policy_ast::VType;
 use pest::{Parser as _, error::Error as PestError, iterators::Pair};
 
@@ -9,7 +11,7 @@ use super::{ChunkParser, ParseError, PolicyParser, Rule, get_pratt_parser};
 #[allow(clippy::result_large_err)]
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
+    let token: Pair<Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
 
     Ok(())
@@ -20,13 +22,13 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 fn parse_negative_number() -> Result<(), PestError<Rule>> {
     // negative integer literal
     let mut pair = PolicyParser::parse(Rule::atom, "-42")?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
+    let token: Pair<Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
     assert_eq!(token.as_str(), "-42");
 
     // minimum i64 value
     let mut pair = PolicyParser::parse(Rule::atom, "-9223372036854775808")?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
+    let token: Pair<Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
     assert_eq!(token.as_str(), "-9223372036854775808");
 
@@ -156,9 +158,9 @@ fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
         panic!("expected outer Coalesce");
     };
     // Outer left side is `a` (single identifier)
-    assert!(matches!(outer_lhs.inner, ExprKind::Identifier(_)));
+    assert_matches!(outer_lhs.inner, ExprKind::Identifier(_));
     // Outer right side is `Coalesce(b, c)`
-    assert!(matches!(outer_rhs.inner, ExprKind::Coalesce(_, _)));
+    assert_matches!(outer_rhs.inner, ExprKind::Coalesce(_, _));
 
     Ok(())
 }
@@ -215,10 +217,11 @@ fn parse_errors() -> Result<(), ParseError> {
         input: r#"function foo(x: int) bool { invalid }"#.to_string(),
         error_message: String::from(
             " --> 1:29\n  |\n1 | function foo(x: int) bool { invalid }\n  \
-                |                             ^---\n  |\n  = expected function_call, \
-                action_call, publish_statement, let_statement, check_statement, match_statement, \
-                if_statement, finish_statement, map_statement, create_statement, update_statement, \
-                delete_statement, emit_statement, return_statement, recall_statement, or debug_assert",
+                |                             ^---\n  |\n  = expected publish_statement, \
+                let_statement, check_statement, match_statement, if_statement, finish_statement, \
+                map_statement, create_statement, update_statement, delete_statement, \
+                emit_statement, return_statement, recall_statement, debug_assert, function_call, \
+                or action_call",
         ),
         rule: Rule::top_level_statement,
     }];
@@ -328,7 +331,7 @@ fn test_result_literal() -> Result<(), ParseError> {
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar: int")?;
 
-    let tokens: Vec<Pair<'_, Rule>> = pairs.next().unwrap().into_inner().collect();
+    let tokens: Vec<Pair<Rule>> = pairs.next().unwrap().into_inner().collect();
     assert_eq!(tokens[0].as_rule(), Rule::identifier);
     assert_eq!(tokens[0].as_str(), "bar");
     assert_eq!(tokens[1].as_rule(), Rule::int_t);
@@ -355,7 +358,7 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
-        action init(owner: id) {
+        action[null] init(owner: id) {
             publish Init{
                 Owner: owner
             }
@@ -389,7 +392,7 @@ fn parse_effect() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
-        command Foo {
+        command Foo with Base {
             fields {
                 owner: id,
             }
@@ -490,7 +493,7 @@ fn parse_struct_composition() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_enum_reference() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::enum_reference, "Color::Red")?;
-    let token: Pair<'_, Rule> = pair.next().unwrap();
+    let token: Pair<Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::enum_reference);
 
     let mut parts = token.into_inner();

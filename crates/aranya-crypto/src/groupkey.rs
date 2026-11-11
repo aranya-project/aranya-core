@@ -10,7 +10,7 @@ use spideroak_crypto::{
     hash::{Digest, Hash},
     import::Import,
     typenum::U64,
-    zeroize::{Zeroize as _, ZeroizeOnDrop},
+    zeroize::{Zeroize as _, ZeroizeOnDrop, Zeroizing},
 };
 
 use crate::{
@@ -156,7 +156,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
         rng: R,
         dst: &mut [u8],
         plaintext: &[u8],
-        ctx: Context<'_, CS>,
+        ctx: Context<CS>,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -178,12 +178,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// be at least as long as the original plaintext (i.e.,
     /// `ciphertext.len()` - [`overhead`][Self::overhead] bytes
     /// long).
-    pub fn open(
-        &self,
-        dst: &mut [u8],
-        ciphertext: &[u8],
-        ctx: Context<'_, CS>,
-    ) -> Result<(), Error> {
+    pub fn open(&self, dst: &mut [u8], ciphertext: &[u8], ctx: Context<CS>) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
             // invalid.
@@ -242,8 +237,10 @@ impl<CS: CipherSuite> GroupKey<CS> {
 unwrapped! {
     name: GroupKey;
     type: Seed;
-    into: |key: Self| { key.seed };
-    from: |seed: [u8;64] | { Self::from_seed(seed) };
+    into: |key: Self| { key.seed.into() };
+    from: |seed: Zeroizing<[u8; 64]>| {
+        Self::from_seed(*seed)
+    };
 }
 
 impl<CS: CipherSuite> Identified for GroupKey<CS> {
@@ -314,6 +311,8 @@ pub struct EncryptedGroupKey<CS: CipherSuite> {
 mod tests {
     #![allow(clippy::arithmetic_side_effects)]
 
+    use core::assert_matches;
+
     use super::*;
     use crate::{Rng, SigningKey, default::DefaultCipherSuite};
 
@@ -351,7 +350,7 @@ mod tests {
         let err = key
             .seal(Rng, &mut small, MESSAGE, ctx(&author))
             .expect_err("`seal` should fail when `dst` is too small");
-        assert!(matches!(err, Error::Seal(_)), "got {err:?}");
+        assert_matches!(err, Error::Seal(_));
     }
 
     /// Exercises both the happy path and the "`ciphertext` too
@@ -376,6 +375,6 @@ mod tests {
         let err = key
             .open(&mut plaintext, b"short", ctx(&author))
             .expect_err("`open` should fail when `ciphertext` is too short");
-        assert!(matches!(err, Error::Open(_)), "got {err:?}");
+        assert_matches!(err, Error::Open(_));
     }
 }

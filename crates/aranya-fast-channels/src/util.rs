@@ -61,11 +61,11 @@ macro_rules! eprintln {
 pub fn init_debug_logging() {
     struct PrintLogger;
     impl log::Log for PrintLogger {
-        fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
+        fn enabled(&self, _metadata: &log::Metadata) -> bool {
             true
         }
 
-        fn log(&self, record: &log::Record<'_>) {
+        fn log(&self, record: &log::Record) {
             let file = record
                 .file()
                 .unwrap_or_else(|| record.file_static().unwrap_or("???"));

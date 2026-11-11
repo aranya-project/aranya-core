@@ -1,4 +1,4 @@
 let x = 10
-action foo() {
+action[null] foo() {
     let x = saturating_add(x, 15)
 }

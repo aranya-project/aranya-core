@@ -77,6 +77,14 @@ impl SyncRequestMessage {
             Self::EndSession { session_id, .. } => *session_id,
         }
     }
+
+    /// The graph named by a session-opening request.
+    pub(crate) fn graph_id(&self) -> Option<GraphId> {
+        match self {
+            Self::SyncRequest { graph_id, .. } => Some(*graph_id),
+            Self::RequestMissing { .. } | Self::SyncResume { .. } | Self::EndSession { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,7 +165,7 @@ impl SyncRequester {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
@@ -358,7 +366,7 @@ impl SyncRequester {
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         buffer: &mut TraversalBuffer,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
@@ -454,7 +462,7 @@ impl SyncRequester {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         remain_open: u64,
         max_bytes: u64,
         buffer: &mut TraversalBuffer,
@@ -484,7 +492,7 @@ impl SyncRequester {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         buffer: &mut TraversalBuffer,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(

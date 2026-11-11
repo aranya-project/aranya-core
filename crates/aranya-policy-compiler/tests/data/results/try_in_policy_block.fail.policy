@@ -2,7 +2,7 @@ function may_fail(x: int) result[int, string] {
     return Err("nope")
 }
 
-command Work {
+command Work with StubBase {
     fields {
         n: int,
     }

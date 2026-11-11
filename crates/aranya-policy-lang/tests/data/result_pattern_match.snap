@@ -50,7 +50,7 @@ Policy {
                                         body: Identifier(
                                             "val" @ 84..87,
                                         ) @ 84..87,
-                                        span: 73..96,
+                                        span: 73..87,
                                     },
                                     MatchExpressionArm {
                                         pattern: Values(
@@ -65,20 +65,20 @@ Policy {
                                         body: Int(
                                             -1 @ 108..110,
                                         ) @ 108..110,
-                                        span: 96..115,
+                                        span: 96..110,
                                     },
                                 ],
                             },
                         ) @ 55..116,
                     },
-                ) @ 47..121,
+                ) @ 47..116,
                 Return(
                     ReturnStatement {
                         value: Identifier(
                             "x" @ 128..129,
                         ) @ 128..129,
                     },
-                ) @ 121..130,
+                ) @ 121..129,
             ],
             span: 0..131,
         },

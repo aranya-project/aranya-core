@@ -1,4 +1,4 @@
-command Foo {
+command Foo with StubBase {
     fields {
         +Bar, // Bar is not defined
         b: string

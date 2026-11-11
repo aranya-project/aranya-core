@@ -1,4 +1,4 @@
-action f(n: int) {
+action[null] f(n: int) {
     let b = match n {
         0 => false
         _ => true

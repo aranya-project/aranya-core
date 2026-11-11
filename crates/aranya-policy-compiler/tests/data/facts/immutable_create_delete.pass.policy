@@ -1,5 +1,5 @@
 immutable fact Foo[i: int] => {a: string}
-command test {
+command test with StubBase {
     fields {}
     policy {
         finish {

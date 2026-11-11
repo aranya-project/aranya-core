@@ -118,7 +118,7 @@ impl<V: Named + PartialEq> PartialEq for NamedMap<V> {
 impl<V: Named + Eq> Eq for NamedMap<V> {}
 
 impl<V: fmt::Debug> fmt::Debug for NamedMap<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.set, f)
     }
 }
@@ -155,7 +155,7 @@ impl<V: Named> core::borrow::Borrow<str> for ByName<V> {
 }
 
 impl<V: fmt::Debug> fmt::Debug for ByName<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
     }
 }

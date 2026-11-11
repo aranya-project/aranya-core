@@ -5,14 +5,15 @@ expression: module
 Module {
     version: "1",
     labels: {
-        <policy 'AddThing'>: 1,
-        <recall 'AddThing_reject'>: 29,
+        <get_key 'AddThing'>: 1,
+        <policy 'AddThing'>: 8,
+        <recall 'AddThing_reject'>: 36,
     },
     action_defs: [],
     command_defs: [
         CommandDef {
             name: "AddThing",
-            flavor: None,
+            flavor: "null",
             attributes: [],
             fields: [],
         },
@@ -57,12 +58,24 @@ Module {
                 },
             ],
         },
+        StructDef {
+            name: "StubBase",
+            items: [],
+        },
     ],
     enum_defs: [],
     globals: {},
     ..
 }
 ---
+    exit panic
+<get_key 'AddThing'>:
+    def 'author_id'
+    def 'this'
+    save SP
+    const None
+    restore SP
+    return
     exit panic
 <policy 'AddThing'>:
     def 'envelope'
@@ -71,26 +84,26 @@ Module {
     query
     dup
     is some
-    branch 13
+    branch 20
     pop
     get 'this'
     get 'envelope'
     recall <recall 'AddThing_reject'>
-    jump 14
-<13>:
+    jump 21
+<20>:
     unwrap some
-<14>:
+<21>:
     def 'owner'
     get 'owner'
     struct.get 'device_id'
     get 'owner'
     struct.get 'device_id'
     eq
-    branch 24
+    branch 31
     get 'this'
     get 'envelope'
     recall <recall 'AddThing_reject'>
-<24>:
+<31>:
     meta: finish enabled
     block
     end

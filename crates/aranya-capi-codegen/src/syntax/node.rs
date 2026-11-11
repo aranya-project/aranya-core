@@ -101,7 +101,7 @@ impl Node {
 }
 
 impl fmt::Display for Node {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Alias(v) => write!(f, "Alias({})", v.ident),
             Self::Enum(v) => write!(f, "Enum({})", v.ident),
@@ -158,7 +158,7 @@ macro_rules! fmt_impl {
     ($($name:ident => $($ident:tt).+),+ $(,)?) => {
         $(
             impl fmt::Display for $name {
-                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                     let ident = &self.$($ident).+;
                     write!(f, "{}({ident})", stringify!($name))
                 }
@@ -1012,7 +1012,7 @@ impl FfiFnSig {
         }
 
         Ok(Self {
-            unsafety: sig.unsafety,
+            unsafety: to_unsafe(sig.safety)?,
             abi,
             fn_token: sig.fn_token,
             ident: sig.ident,
@@ -1138,7 +1138,7 @@ impl RustFnSig {
         trace!("parsing `RustFnSig`");
 
         Ok(Self {
-            unsafety: sig.unsafety,
+            unsafety: to_unsafe(sig.safety)?,
             abi: sig.abi,
             fn_token: sig.fn_token,
             ident: sig.ident,
@@ -1151,6 +1151,17 @@ impl RustFnSig {
                 .collect::<Result<_>>()?,
             output: ReturnType::parse(ctx, sig.output)?,
         })
+    }
+}
+
+fn to_unsafe(safety: syn::Safety) -> Result<Option<Token![unsafe]>> {
+    match safety {
+        syn::Safety::Safe(_) => Err(Error::new_spanned(
+            safety,
+            "freestanding functions should not have explicit safe keyword",
+        )),
+        syn::Safety::Unsafe(token) => Ok(Some(token)),
+        syn::Safety::Default => Ok(None),
     }
 }
 

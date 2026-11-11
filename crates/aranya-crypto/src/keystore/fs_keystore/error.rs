@@ -23,7 +23,7 @@ impl Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -164,7 +164,7 @@ impl Repr {
 }
 
 impl fmt::Display for Repr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::AlreadyExists => write!(f, "entry already exists"),
             Self::UnexpectedEof(err) => err.fmt(f),
@@ -194,13 +194,13 @@ pub struct RootDeleted(pub(crate) ());
 struct Trouble<E>(E);
 
 impl<E: fmt::Display> fmt::Display for Trouble<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
 impl<E: fmt::Debug> fmt::Debug for Trouble<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -212,68 +212,70 @@ mod tests {
     use super::*;
 
     mod conversion {
+        use core::assert_matches;
+
         use keystore::Error as _;
 
         use super::*;
 
         #[test]
         fn already_exists() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::AlreadyExists, Errno::INVAL),
                 Error(Repr::AlreadyExists)
-            ));
+            );
         }
 
         #[test]
         fn errno() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::Other, Errno::INVAL),
                 Error(Repr::Errno(Trouble(Errno::INVAL)))
-            ));
+            );
         }
 
         #[test]
         fn encode() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::Other, cbor::ser::Error::Io(Errno::INVAL)),
                 Error(Repr::Encode(cbor::ser::Error::Io(Errno::INVAL)))
-            ));
+            );
 
-            assert!(matches!(
+            assert_matches!(
                 Error::new(
                     ErrorKind::Other,
                     cbor::ser::Error::<Errno>::Value(String::from("asdf"))
                 ),
                 Error(Repr::Encode(cbor::ser::Error::Value(_)))
-            ));
+            );
         }
 
         #[test]
         fn decode() {
-            assert!(matches!(
+            assert_matches!(
                 Error::new(ErrorKind::Other, cbor::de::Error::Io(Errno::INVAL)),
                 Error(Repr::Decode(cbor::de::Error::Io(Errno::INVAL)))
-            ));
+            );
 
-            assert!(matches!(
+            assert_matches!(
                 Error::new(
                     ErrorKind::Other,
                     cbor::de::Error::<Errno>::Semantic(Some(42), String::from("asdf"))
                 ),
                 Error(Repr::Decode(cbor::de::Error::Semantic(Some(42), _)))
-            ));
+            );
         }
 
         #[test]
         fn trait_object() {
             // Limitation of current approach
-            assert!(matches!(
+            assert_matches!(
                 Error::new::<&(dyn core::error::Error + Send + Sync + 'static)>(
                     ErrorKind::Other,
                     &Errno::INVAL
                 ),
                 Error(Repr::Other)
-            ));
+            );
         }
     }
 }

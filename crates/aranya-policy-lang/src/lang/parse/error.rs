@@ -3,14 +3,13 @@ use core::fmt::{self, Debug, Display};
 use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
 use pest::error::Error as PestError;
-use serde::{Deserialize, Serialize};
 
 use crate::lang::parse::Rule;
 
 pub(crate) mod rendering;
 
 /// Invalid usage of an infix operator (i.e. `+` or `-`)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidOperator {
     pub(crate) lhs: Span,
     pub(crate) op: Span,
@@ -18,20 +17,20 @@ pub struct InvalidOperator {
 }
 
 impl Display for InvalidOperator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Invalid operator")
     }
 }
 
 /// Usage of an older policy version
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidVersion {
     pub found: String,
     pub required: Version,
 }
 
 impl Display for InvalidVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let found = &self.found;
         let required = &self.required;
         write!(
@@ -44,14 +43,14 @@ impl Display for InvalidVersion {
 /// Invalid usage of option/optional syntax
 ///
 /// `optional option[T]`, `optional optional T`, etc.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidNestedOption {
     pub(crate) outer: Span,
     pub(crate) inner: Span,
 }
 
 impl Display for InvalidNestedOption {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Invalid nested option")
     }
 }
@@ -60,7 +59,7 @@ impl Display for InvalidNestedOption {
 ///
 /// If the case contains a String, it is a message describing the item
 /// affected or a general error message.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseErrorKind {
     /// An invalid operator was used.
     InvalidOperator(InvalidOperator),
@@ -115,7 +114,7 @@ impl From<InvalidNestedOption> for ParseErrorKind {
 }
 
 impl Display for ParseErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::InvalidOperator(inner) => write!(f, "{inner}"),
             Self::InvalidNestedOption(inner) => write!(f, "{inner}"),
@@ -213,7 +212,7 @@ impl core::error::Error for ParseError {}
 
 // Forward to display impl so e.g. `unwrap` looks good.
 impl Debug for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
     }
 }

@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::fmt;
 
@@ -84,7 +82,7 @@ pub enum TypeContract {
 }
 
 impl TypeContract {
-    fn validate(&self, other: &ffi::Type<'_>) -> Result<(), ContractValidationError> {
+    fn validate(&self, other: &ffi::Type) -> Result<(), ContractValidationError> {
         let other_tc = other.into();
         if self != &other_tc {
             return Err(ContractValidationError::new(format_args!(
@@ -96,7 +94,7 @@ impl TypeContract {
 }
 
 impl From<&ffi::Type<'_>> for TypeContract {
-    fn from(value: &ffi::Type<'_>) -> Self {
+    fn from(value: &ffi::Type) -> Self {
         match value {
             ffi::Type::String => Self::String,
             ffi::Type::Bytes => Self::Bytes,
@@ -136,7 +134,7 @@ pub struct ArgContract {
 }
 
 impl ArgContract {
-    fn validate(&self, other: &ffi::Arg<'_>) -> Result<(), ContractValidationError> {
+    fn validate(&self, other: &ffi::Arg) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError::new(format_args!(
                 "VM expected `{}`",
@@ -149,7 +147,7 @@ impl ArgContract {
 }
 
 impl From<&ffi::Arg<'_>> for ArgContract {
-    fn from(value: &ffi::Arg<'_>) -> Self {
+    fn from(value: &ffi::Arg) -> Self {
         Self {
             name: value.name.clone(),
             vtype: (&value.vtype).into(),
@@ -181,7 +179,7 @@ pub struct FunctionContract {
 }
 
 impl FunctionContract {
-    fn validate(&self, other: &ffi::Func<'_>) -> Result<(), ContractValidationError> {
+    fn validate(&self, other: &ffi::Func) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError::new(format_args!(
                 "function `{}`, VM expected `{}`",
@@ -208,7 +206,7 @@ impl FunctionContract {
 }
 
 impl From<&ffi::Func<'_>> for FunctionContract {
-    fn from(value: &ffi::Func<'_>) -> Self {
+    fn from(value: &ffi::Func) -> Self {
         Self {
             name: value.name.clone(),
             args: value.args.iter().map(ArgContract::from).collect(),
@@ -239,7 +237,7 @@ pub struct StructContract {
 }
 
 impl StructContract {
-    fn validate(&self, other: &ffi::Struct<'_>) -> Result<(), ContractValidationError> {
+    fn validate(&self, other: &ffi::Struct) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError::new(format_args!(
                 "`struct {}`, VM expected `struct {}`",
@@ -263,7 +261,7 @@ impl StructContract {
 }
 
 impl From<&ffi::Struct<'_>> for StructContract {
-    fn from(value: &ffi::Struct<'_>) -> Self {
+    fn from(value: &ffi::Struct) -> Self {
         Self {
             name: value.name.clone(),
             fields: value.fields.iter().map(ArgContract::from).collect(),
@@ -293,7 +291,7 @@ pub struct EnumContract {
 }
 
 impl EnumContract {
-    fn validate(&self, other: &ffi::Enum<'_>) -> Result<(), ContractValidationError> {
+    fn validate(&self, other: &ffi::Enum) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError::new(format_args!(
                 "`enum {}`, VM expected `enum {}`",
@@ -321,7 +319,7 @@ impl EnumContract {
 }
 
 impl From<&ffi::Enum<'_>> for EnumContract {
-    fn from(e: &ffi::Enum<'_>) -> Self {
+    fn from(e: &ffi::Enum) -> Self {
         Self {
             name: e.name.clone(),
             variants: e.variants.to_vec(),
@@ -356,7 +354,7 @@ pub struct FfiContract {
 
 impl FfiContract {
     /// Validates a contract against a [`ModuleSchema`](ffi::ModuleSchema).
-    pub fn validate(&self, other: &ffi::ModuleSchema<'_>) -> Result<(), ContractValidationError> {
+    pub fn validate(&self, other: &ffi::ModuleSchema) -> Result<(), ContractValidationError> {
         if self.name != other.name {
             return Err(ContractValidationError::new(format_args!(
                 "FFI module `{}`, VM expected `{}`",
@@ -407,7 +405,7 @@ impl FfiContract {
 }
 
 impl From<&ffi::ModuleSchema<'_>> for FfiContract {
-    fn from(ms: &ffi::ModuleSchema<'_>) -> Self {
+    fn from(ms: &ffi::ModuleSchema) -> Self {
         Self {
             name: ms.name.clone(),
             functions: ms.functions.iter().map(FunctionContract::from).collect(),

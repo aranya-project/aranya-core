@@ -107,7 +107,7 @@ impl AsRef<Self> for Path {
 }
 
 impl fmt::Display for Path {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let data = self.as_cstr().to_bytes();
         match str::from_utf8(data) {
             Ok(s) => write!(f, "{s}"),
@@ -146,8 +146,7 @@ where
     P: AsRef<Path>,
 {
     cfg_select! {
-        feature = "sdlib" => super::sdlib::unlink(path),
-        _ => super::posix::shm_unlink(path),
+        feature = "posix" => super::posix::shm_unlink(path),
     }
 }
 
@@ -206,6 +205,14 @@ mod alloc_impls {
     impl Clone for Box<Path> {
         fn clone(&self) -> Self {
             self.as_ref().into()
+        }
+    }
+
+    impl core::str::FromStr for Box<Path> {
+        type Err = InvalidPathError;
+
+        fn from_str(path: &str) -> Result<Self, Self::Err> {
+            Self::try_from(path)
         }
     }
 
@@ -283,7 +290,7 @@ mod alloc_impls {
             struct Visitor;
             impl de::Visitor<'_> for Visitor {
                 type Value = Box<Path>;
-                fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                     write!(f, "a valid shared memory path")
                 }
                 fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {

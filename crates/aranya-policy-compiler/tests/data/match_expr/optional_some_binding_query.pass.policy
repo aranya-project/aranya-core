@@ -1,6 +1,6 @@
 fact Foo[i: int]=>{x: int}
 
-action test() {
+action[null] test() {
     let n = match query Foo[i: 1] {
         Some(f) => f.x
         None => 0

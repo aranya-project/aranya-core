@@ -1,4 +1,4 @@
-action foo() {
+action[null] foo() {
     let x = {
         let a = 3
         let b = 4

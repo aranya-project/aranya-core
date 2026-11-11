@@ -1,3 +1,5 @@
+use itertools::zip_eq;
+
 mod analyzers;
 mod error;
 
@@ -240,9 +242,7 @@ impl TraceAnalyzer<'_> {
         pc: usize,
         i: &Instruction,
     ) -> Vec<Result<AnalyzerStatus, TraceError>> {
-        self.analyzers
-            .iter_mut()
-            .zip(self.tracer_enable.iter())
+        zip_eq(&mut self.analyzers, &self.tracer_enable)
             .map(|(analyzer, enabled)| {
                 if !enabled {
                     return Ok(AnalyzerStatus::Ok);
@@ -257,7 +257,7 @@ impl TraceAnalyzer<'_> {
         failures: &mut [Vec<TraceFailure>],
         successful_branch_paths: &[Vec<usize>],
     ) {
-        for (analyzer, failures) in self.analyzers.iter_mut().zip(failures.iter_mut()) {
+        for (analyzer, failures) in zip_eq(&mut self.analyzers, failures) {
             analyzer.post_analyze(failures, successful_branch_paths);
         }
     }

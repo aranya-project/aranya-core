@@ -2,15 +2,10 @@ use std::{borrow::Cow, iter::once};
 
 use annotate_snippets::{AnnotationKind, Group, Level, Renderer, Snippet};
 use aranya_policy_ast::{Span, Spanned as _};
+use indexmap::IndexSet;
+use itertools::Itertools as _;
 
-use super::{
-    AlreadyDefined, BadArgument, BugError, CyclicTypeDefinitions, DebugModeRequired,
-    DuplicateMatchPatterns, DuplicateSourceFields, InvalidCallColor, InvalidCast,
-    InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
-    InvalidType, MissingBaseCommand, MissingDefaultPattern, NoOpStructComp, NoReturn, NotDefined,
-    RedundantMatchArm, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
-    UnreachableMatchArm, UnusedValue, UnusedVariable,
-};
+use crate::compile::error;
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
 ///
@@ -73,7 +68,7 @@ fn just(span: Span) -> core::iter::Once<(Span, Cow<'static, str>)> {
     once((span, "".into()))
 }
 
-impl SimpleError for InvalidStatement {
+impl SimpleError for error::InvalidStatement {
     fn description(&self) -> Cow<'_, str> {
         format!("statement not allowed in {} context", self.0).into()
     }
@@ -88,7 +83,7 @@ impl SimpleError for InvalidStatement {
     }
 }
 
-impl SimpleError for InvalidExpression {
+impl SimpleError for error::InvalidExpression {
     fn description(&self) -> Cow<'_, str> {
         format!("invalid expression: {:?}", self.1).into()
     }
@@ -100,7 +95,7 @@ impl SimpleError for InvalidExpression {
     }
 }
 
-impl SimpleError for InvalidType {
+impl SimpleError for error::InvalidType {
     fn description(&self) -> Cow<'_, str> {
         format!("invalid type: {}", self.found_type).into()
     }
@@ -120,7 +115,7 @@ impl SimpleError for InvalidType {
     }
 }
 
-impl SimpleError for InvalidCallColor {
+impl SimpleError for error::InvalidCallColor {
     fn description(&self) -> Cow<'_, str> {
         self.0.to_string().into()
     }
@@ -130,7 +125,7 @@ impl SimpleError for InvalidCallColor {
     }
 }
 
-impl SimpleError for BadArgument {
+impl SimpleError for error::BadArgument {
     fn description(&self) -> Cow<'_, str> {
         "bad argument".into()
     }
@@ -139,7 +134,7 @@ impl SimpleError for BadArgument {
     }
 }
 
-impl SimpleError for UnusedValue {
+impl SimpleError for error::UnusedValue {
     fn description(&self) -> Cow<'_, str> {
         "unused value".into()
     }
@@ -148,7 +143,7 @@ impl SimpleError for UnusedValue {
     }
 }
 
-impl SimpleError for NotDefined {
+impl SimpleError for error::NotDefined {
     fn description(&self) -> Cow<'_, str> {
         "a thing being referenced is not in scope".into()
     }
@@ -157,7 +152,88 @@ impl SimpleError for NotDefined {
     }
 }
 
-impl SimpleError for AlreadyDefined {
+impl Error for error::InvalidStructLiteral {
+    fn description(&self) -> Cow<'_, str> {
+        "invalid struct literal".into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        if let Some(e) = &self.missing {
+            e.add_group(input, report);
+        }
+        for e in &self.unknown {
+            e.add_group(input, report);
+        }
+        for e in &self.duplicate {
+            e.add_group(input, report);
+        }
+        for e in &self.mismatch {
+            e.add_group(input, report);
+        }
+    }
+}
+
+impl error::MissingFields {
+    fn fields(&self) -> impl core::fmt::Display {
+        core::fmt::from_fn(|f| match self.fields.as_slice() {
+            [] => unreachable!(),
+            [x] => write!(f, "`{x}`"),
+            [x, y] => write!(f, "`{x}` and `{y}`"),
+            [many @ .., last] => {
+                for x in many {
+                    write!(f, "`{x}`, ")?;
+                }
+                write!(f, "and `{last}`")
+            }
+        })
+    }
+}
+
+impl SimpleError for error::MissingFields {
+    fn description(&self) -> Cow<'_, str> {
+        let pluralized = if self.fields.len() == 1 {
+            "field"
+        } else {
+            "fields"
+        };
+        let fields = self.fields();
+        let name = self.literal.as_str();
+        format!("missing {pluralized} {fields} in struct literal for `{name}`").into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.literal.span,
+            format!("missing {}", self.fields()).into(),
+        ))
+    }
+}
+
+impl SimpleError for error::UnknownField {
+    fn description(&self) -> Cow<'_, str> {
+        format!(
+            "struct `{}` has no field named `{}`",
+            self.literal, self.field
+        )
+        .into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((self.field.span, "unknown field".into()))
+    }
+}
+
+impl SimpleError for error::DuplicateField {
+    fn description(&self) -> Cow<'_, str> {
+        format!("field `{}` specified more than once", self.first).into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.first.span,
+            format!("first use of `{}`", self.first).into(),
+        ))
+        .chain(self.rest.iter().map(|x| (x.span, "used again".into())))
+    }
+}
+
+impl SimpleError for error::AlreadyDefined {
     fn description(&self) -> Cow<'_, str> {
         format!("the name `{}` is defined multiple times", self.prev).into()
     }
@@ -169,7 +245,7 @@ impl SimpleError for AlreadyDefined {
     }
 }
 
-impl SimpleError for DuplicateMatchPatterns {
+impl SimpleError for error::DuplicateMatchPatterns {
     fn description(&self) -> Cow<'_, str> {
         "duplicate match patterns found".into()
     }
@@ -181,7 +257,7 @@ impl SimpleError for DuplicateMatchPatterns {
     }
 }
 
-impl SimpleError for InvalidFactLiteral {
+impl SimpleError for error::InvalidFactLiteral {
     fn description(&self) -> Cow<'_, str> {
         format!("fact literal does not match definition: {}", self.note).into()
     }
@@ -191,7 +267,7 @@ impl SimpleError for InvalidFactLiteral {
     }
 }
 
-impl SimpleError for NoReturn {
+impl SimpleError for error::NoReturn {
     fn description(&self) -> Cow<'_, str> {
         "missing return statement".into()
     }
@@ -200,7 +276,19 @@ impl SimpleError for NoReturn {
     }
 }
 
-impl SimpleError for DuplicateSourceFields {
+impl SimpleError for error::NoPublishOrActionCall {
+    fn description(&self) -> Cow<'_, str> {
+        "action must publish or call another action".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.0,
+            "no publish or action call found in this action".into(),
+        ))
+    }
+}
+
+impl SimpleError for error::DuplicateSourceFields {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "struct `{}` and struct `{}` have at least 1 field with the same name",
@@ -219,7 +307,7 @@ impl SimpleError for DuplicateSourceFields {
     }
 }
 
-impl SimpleError for SourceStructNotSubsetOfBase {
+impl SimpleError for error::SourceStructNotSubsetOfBase {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "struct `{}` must be a subset of struct `{}`",
@@ -235,7 +323,7 @@ impl SimpleError for SourceStructNotSubsetOfBase {
     }
 }
 
-impl SimpleError for NoOpStructComp {
+impl SimpleError for error::NoOpStructComp {
     fn description(&self) -> Cow<'_, str> {
         "A struct literal has all its fields explicitly specified while also having 1 or more struct compositions".into()
     }
@@ -244,7 +332,7 @@ impl SimpleError for NoOpStructComp {
     }
 }
 
-impl SimpleError for InvalidSubstruct {
+impl SimpleError for error::InvalidSubstruct {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "invalid substruct operation: struct `{}` must be a subset of struct `{}`",
@@ -263,7 +351,7 @@ impl SimpleError for InvalidSubstruct {
     }
 }
 
-impl SimpleError for MissingDefaultPattern {
+impl SimpleError for error::MissingDefaultPattern {
     fn description(&self) -> Cow<'_, str> {
         "Missing default pattern in `match` statement/expression".into()
     }
@@ -272,7 +360,7 @@ impl SimpleError for MissingDefaultPattern {
     }
 }
 
-impl SimpleError for UnreachableMatchArm {
+impl SimpleError for error::UnreachableMatchArm {
     fn description(&self) -> Cow<'_, str> {
         "unreachable match arm".into()
     }
@@ -281,7 +369,7 @@ impl SimpleError for UnreachableMatchArm {
     }
 }
 
-impl SimpleError for RedundantMatchArm {
+impl SimpleError for error::RedundantMatchArm {
     fn description(&self) -> Cow<'_, str> {
         "redundant literal pattern in same arm — binding already matches all values".into()
     }
@@ -290,7 +378,7 @@ impl SimpleError for RedundantMatchArm {
     }
 }
 
-impl SimpleError for InvalidReturn {
+impl SimpleError for error::InvalidReturn {
     fn description(&self) -> Cow<'_, str> {
         self.message.as_str().into()
     }
@@ -299,7 +387,7 @@ impl SimpleError for InvalidReturn {
     }
 }
 
-impl SimpleError for DebugModeRequired {
+impl SimpleError for error::DebugModeRequired {
     fn description(&self) -> Cow<'_, str> {
         format!("`{}` found with debug mode disabled", self.name).into()
     }
@@ -308,7 +396,7 @@ impl SimpleError for DebugModeRequired {
     }
 }
 
-impl SimpleError for InvalidCast {
+impl SimpleError for error::InvalidCast {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "invalid cast: `{}` cannot be converted to `{}`",
@@ -327,14 +415,13 @@ impl SimpleError for InvalidCast {
     }
 }
 
-impl Error for CyclicTypeDefinitions {
+impl Error for error::CyclicTypeDefinitions {
     fn description(&self) -> Cow<'_, str> {
         self.0.as_str().into()
     }
     fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
         for cycle in &self.1 {
-            let cycle_names: Vec<_> = cycle.iter().map(ToString::to_string).collect();
-            let label = format!("cycle found: [{}]", cycle_names.join(", "));
+            let label = format!("cycle found: [{}]", cycle.iter().format(", "));
             let title = Level::ERROR.primary_title(label);
 
             let annotations: Vec<_> = cycle
@@ -347,7 +434,35 @@ impl Error for CyclicTypeDefinitions {
     }
 }
 
-impl SimpleError for StructCompositionTypeMismatch {
+impl Error for error::RecursiveCall {
+    fn description(&self) -> Cow<'_, str> {
+        // List callers, in order
+        let callers: IndexSet<_> = self.calls.iter().map(|(caller, _)| caller).collect();
+        let summary = std::fmt::from_fn(|f| {
+            for (i, caller) in callers.iter().enumerate() {
+                let sep = if i > 0 { ", " } else { "" };
+                write!(f, "{sep}`{caller}`")?;
+            }
+            f.write_str(if callers.len() > 1 {
+                " call each other"
+            } else {
+                " calls itself"
+            })
+        });
+        format!("recursive call: {summary}").into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let title = Level::ERROR.primary_title(self.description());
+        let annotations = self.calls.iter().map(|(caller, callee)| {
+            AnnotationKind::Primary
+                .span(callee.span.into())
+                .label(format!("`{caller}` calls `{}`", callee.inner))
+        });
+        report.push(title.element(Snippet::source(input).annotations(annotations)));
+    }
+}
+
+impl SimpleError for error::StructCompositionTypeMismatch {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "struct composition type mismatch: field `{}` expects `{}` but found `{}`",
@@ -375,7 +490,7 @@ impl SimpleError for StructCompositionTypeMismatch {
     }
 }
 
-impl Error for BugError {
+impl Error for error::BugError {
     fn description(&self) -> Cow<'_, str> {
         self.0.to_string().into()
     }
@@ -386,7 +501,7 @@ impl Error for BugError {
     }
 }
 
-impl Error for UnknownError {
+impl Error for error::UnknownError {
     fn description(&self) -> Cow<'_, str> {
         format!("unknown error: {}", self.0).into()
     }
@@ -409,19 +524,13 @@ impl Error for UnknownError {
     }
 }
 
-impl Error for UnusedVariable {
+impl Error for error::UnusedVariable {
     fn description(&self) -> Cow<'_, str> {
         format!(
             "unused variable(s): {}",
-            std::fmt::from_fn(|f| {
-                if let Some((x, xs)) = self.names.split_first() {
-                    write!(f, "`{x}`")?;
-                    for x in xs {
-                        write!(f, ", `{x}`")?;
-                    }
-                }
-                Ok(())
-            })
+            self.names
+                .iter()
+                .format_with(", ", |name, f| f(&format_args!("`{name}`")))
         )
         .into()
     }
@@ -436,14 +545,5 @@ impl Error for UnusedVariable {
                 })),
             ),
         );
-    }
-}
-
-impl SimpleError for MissingBaseCommand {
-    fn description(&self) -> Cow<'_, str> {
-        format!("command {} has no base command", self.command).into()
-    }
-    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
-        once((self.command.span, "command defined here".into()))
     }
 }

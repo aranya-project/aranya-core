@@ -1,4 +1,4 @@
-command Foo {
+command Foo with StubBase {
     fields {
         x: int,
         y: bool,
@@ -12,6 +12,6 @@ struct Bar {
     x: int,
     y: bool,
 }
-action baz(source: struct Bar) {
+action[null] baz(source: struct Bar) {
     publish source substruct Foo
 }

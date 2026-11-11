@@ -45,14 +45,13 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
-extern crate alloc;
-
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec,
     vec::Vec,
 };
 use core::{
+    assert_matches,
     cell::RefCell,
     fmt::{self, Display},
     iter,
@@ -1432,9 +1431,10 @@ where
                     &mut rt_buffers,
                     mem_spill,
                 );
-                assert!(
-                    matches!(result, Err(ClientError::PolicyError(PolicyError::Rejected))),
-                    "poison command must be rejected, got {result:?}"
+                assert_matches!(
+                    result,
+                    Err(ClientError::PolicyError(PolicyError::Rejected)),
+                    "poison command must be rejected",
                 );
 
                 // The transaction remains usable after a rejected command;
@@ -2053,7 +2053,7 @@ fn sync<SP: StorageProvider>(
 struct Parent(Prior<Address>);
 
 impl Display for Parent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
             Prior::Merge(a, b) => {
                 write!(f, "Merge({}, {})", short_b58(a.id), short_b58(b.id))

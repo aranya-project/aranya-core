@@ -5,7 +5,7 @@ struct Foo {
 struct Bar {
     y: string
 }
-action foo(x: struct Foo) {
+action[null] foo(x: struct Foo) {
     let b = Bar { y: "y" }
     match x {
         Foo { x: 10, ...b } => {}

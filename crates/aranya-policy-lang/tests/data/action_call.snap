@@ -8,27 +8,27 @@ Policy {
     facts: [],
     actions: [
         ActionDefinition {
-            flavor: None,
-            name: "ping" @ 7..11,
+            flavor: "null" @ 7..11,
+            name: "ping" @ 13..17,
             parameters: [],
             return_type: Unit @ 0..0,
             body: [],
-            span: 0..16,
+            span: 0..22,
         },
         ActionDefinition {
-            flavor: None,
-            name: "pong" @ 24..28,
+            flavor: "null" @ 30..34,
+            name: "pong" @ 36..40,
             parameters: [],
             return_type: Unit @ 0..0,
             body: [
                 ActionCall(
                     FunctionCall {
-                        name: "ping" @ 44..48,
+                        name: "ping" @ 56..60,
                         arguments: [],
                     },
-                ) @ 37..50,
+                ) @ 49..62,
             ],
-            span: 17..52,
+            span: 23..64,
         },
     ],
     effects: [],
@@ -39,5 +39,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action ping() {}\naction pong() {\n    action ping()\n}\n",
+    text: "action[null] ping() {}\naction[null] pong() {\n    action ping()\n}\n",
 }

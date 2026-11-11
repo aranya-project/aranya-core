@@ -1,13 +1,12 @@
+[workspace]
+
 [package]
 name = "canary-std"
 publish = false
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
-rust-version.workspace = true
+edition = "2024"
 
 [dependencies]
-# aranya-afc-util = { path = "../../crates/aranya-afc-util", features = ["alloc"] }
+# aranya-afc-util = { path = "../../crates/aranya-afc-util" }
 aranya-core = { path = "../../crates/aranya-core", default-features = false, features = [
 	"custom-engine",
 	"memstore",
@@ -20,11 +19,16 @@ aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false,
 	"proptest",
 	"rand_compat",
 ] }
-aranya-device-ffi = { path = "../../crates/aranya-device-ffi", features = ["alloc"] }
-aranya-idam-ffi = { path = "../../crates/aranya-idam-ffi", features = ["alloc"] }
-aranya-perspective-ffi = { path = "../../crates/aranya-perspective-ffi", features = ["alloc"] }
+aranya-device-ffi = { path = "../../crates/aranya-device-ffi" }
+# aranya-fast-channels = { path = "../../crates/aranya-fast-channels" }
+aranya-id = { path = "../../crates/aranya-id" }
+aranya-idam-ffi = { path = "../../crates/aranya-idam-ffi" }
+# aranya-libc = { path = "../../crates/aranya-libc" }
+aranya-perspective-ffi = { path = "../../crates/aranya-perspective-ffi" }
 aranya-policy-ast = { path = "../../crates/aranya-policy-ast" }
+aranya-policy-ifgen = { path = "../../crates/aranya-policy-ifgen" }
 aranya-policy-module = { path = "../../crates/aranya-policy-module" }
+aranya-policy-text = { path = "../../crates/aranya-policy-text" }
 aranya-policy-vm = { path = "../../crates/aranya-policy-vm", features = ["derive"] }
 # These features must also be no-std.
 aranya-runtime = { path = "../../crates/aranya-runtime", features = ["testing"] }

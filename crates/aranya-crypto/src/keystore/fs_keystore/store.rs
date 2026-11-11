@@ -62,7 +62,7 @@ impl Store {
 
     /// Initializes the root directory canary. See
     /// [`check_canary`][Self::check_canary].
-    fn init_canary(fd: BorrowedFd<'_>) -> Result<(), Error> {
+    fn init_canary(fd: BorrowedFd) -> Result<(), Error> {
         if !cfg!(debug_assertions) {
             return Ok(());
         }
@@ -354,9 +354,9 @@ impl Read for &Shared {
 }
 
 /// Reads exactly `buf.len()` bytes from `fd` into `buf.
-fn read_exact(fd: BorrowedFd<'_>, mut buf: &mut [u8]) -> Result<(), Error> {
+fn read_exact(fd: BorrowedFd, mut buf: &mut [u8]) -> Result<(), Error> {
     while !buf.is_empty() {
-        match io::read(fd, buf) {
+        match io::read(fd, &mut *buf) {
             Ok(0) => break,
             Ok(n) => buf = &mut buf[n..],
             Err(Errno::INTR) => {}
@@ -371,7 +371,7 @@ fn read_exact(fd: BorrowedFd<'_>, mut buf: &mut [u8]) -> Result<(), Error> {
 }
 
 /// Writes the entirety of `buf` to `fd`.
-fn write_all(fd: BorrowedFd<'_>, mut buf: &[u8]) -> Result<(), Error> {
+fn write_all(fd: BorrowedFd, mut buf: &[u8]) -> Result<(), Error> {
     while !buf.is_empty() {
         match io::write(fd, buf) {
             Ok(0) => break,

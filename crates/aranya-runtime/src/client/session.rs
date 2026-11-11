@@ -17,9 +17,9 @@ use yoke::{Yoke, Yokeable};
 
 use crate::{
     Address, Bytes, Checkpoint, ClientError, ClientState, CmdId, Command, Fact, FactPerspective,
-    GraphId, Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior, Priority,
-    Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError, StorageProvider,
-    policy::{ActionPlacement, CommandPlacement},
+    FlavorCtx, GraphId, Keys, MaxCut, NullSink, Perspective, Policy, PolicyId, PolicyStore, Prior,
+    Priority, Query, QueryMut, Revertable, Segment as _, Sink, Storage, StorageError,
+    StorageProvider, policy::CommandPlacement,
 };
 
 /// Ephemeral session used to handle/generate off-graph commands.
@@ -86,7 +86,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         MS: for<'b> Sink<&'b [u8]>,
     {
         let policy = client.policy_store.get_policy(self.policy_id)?;
-        let seal_ctx = client.policy_store.seal_ctx(self.policy_id)?;
+        let seal_ctx = client
+            .policy_store
+            .seal_ctx(self.policy_id)
+            .ok_or(ClientError::NotAnAuthor)?;
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
@@ -101,8 +104,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
             action,
             &mut perspective,
             effect_sink,
-            ActionPlacement::OffGraph,
             seal_ctx,
+            FlavorCtx::Ephemeral,
         ) {
             Ok(()) => {
                 // Success, commit effects
@@ -490,9 +493,9 @@ mod test {
 
     use super::*;
     use crate::{
-        Address, Bytes, ClientState, FactPerspective, GraphId, Keys, MergeIds, Perspective, Policy,
-        PolicyStore, Priority, RuntimeBuffers, mem_spill,
-        policy::{ActionPlacement, CommandPlacement, NullSink, PolicyError, Sink},
+        Address, Bytes, ClientState, FactPerspective, FlavorCtx, GraphId, Keys, MergeIds,
+        Perspective, Policy, PolicyStore, Priority, RuntimeBuffers, mem_spill,
+        policy::{CommandPlacement, NullSink, PolicyError, PolicyStoreError, Sink},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -517,18 +520,15 @@ mod test {
         type Policy = SeqPolicy;
         type Effect = Never;
 
-        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             Ok(&SeqPolicy)
         }
 
-        fn seal_ctx(
-            &self,
-            _id: PolicyId,
-        ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
+        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
             unreachable!()
         }
     }
@@ -588,8 +588,8 @@ mod test {
             action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _placement: ActionPlacement,
             _seal_ctx: &Self::SealCtx,
+            _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
             match action {}
         }
