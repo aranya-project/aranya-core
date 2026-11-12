@@ -2,8 +2,8 @@ Module {
     version: "1",
     labels: {
         <get_key 'AddThing'>: 1,
-        <policy 'AddThing'>: 8,
-        <recall 'AddThing_reject'>: 32,
+        <policy 'AddThing'>: 9,
+        <recall 'AddThing_reject'>: 8,
     },
     action_defs: [],
     command_defs: [
@@ -73,6 +73,8 @@ Module {
     restore SP
     return
     exit panic
+<recall 'AddThing_reject'>:
+    exit check
 <policy 'AddThing'>:
     def 'envelope'
     def 'this'
@@ -80,26 +82,24 @@ Module {
     query
     dup
     is some
-    branch 18
+    branch 19
     pop
     recall <recall 'AddThing_reject'>
-    jump 19
-<18>:
-    unwrap some
+    jump 20
 <19>:
+    unwrap some
+<20>:
     def 'owner'
     get 'owner'
     struct.get 'device_id'
     get 'owner'
     struct.get 'device_id'
     eq
-    branch 27
+    branch 28
     recall <recall 'AddThing_reject'>
-<27>:
+<28>:
     meta: finish enabled
     block
     end
     exit normal
     exit panic
-<recall 'AddThing_reject'>:
-    exit check

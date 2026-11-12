@@ -2,10 +2,10 @@ Module {
     version: "1",
     labels: {
         <get_key 'Cmd'>: 1,
-        <policy 'Cmd'>: 8,
-        <recall 'Cmd_bar'>: 16,
-        <recall 'Cmd_baz'>: 17,
-        <recall 'Cmd_foo'>: 15,
+        <policy 'Cmd'>: 11,
+        <recall 'Cmd_bar'>: 9,
+        <recall 'Cmd_baz'>: 10,
+        <recall 'Cmd_foo'>: 8,
     },
     action_defs: [],
     command_defs: [
@@ -45,6 +45,12 @@ Module {
     restore SP
     return
     exit panic
+<recall 'Cmd_foo'>:
+    exit check
+<recall 'Cmd_bar'>:
+    exit check
+<recall 'Cmd_baz'>:
+    exit check
 <policy 'Cmd'>:
     def 'envelope'
     def 'this'
@@ -53,9 +59,3 @@ Module {
     end
     exit normal
     exit panic
-<recall 'Cmd_foo'>:
-    exit check
-<recall 'Cmd_bar'>:
-    exit check
-<recall 'Cmd_baz'>:
-    exit check

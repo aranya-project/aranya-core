@@ -2,8 +2,8 @@ Module {
     version: "1",
     labels: {
         <get_key 'Cmd'>: 1,
-        <policy 'Cmd'>: 8,
-        <recall 'Cmd_handle'>: 12,
+        <policy 'Cmd'>: 9,
+        <recall 'Cmd_handle'>: 8,
     },
     action_defs: [],
     command_defs: [
@@ -43,10 +43,10 @@ Module {
     restore SP
     return
     exit panic
+<recall 'Cmd_handle'>:
+    exit check
 <policy 'Cmd'>:
     def 'envelope'
     def 'this'
     recall <recall 'Cmd_handle'>
     exit panic
-<recall 'Cmd_handle'>:
-    exit check

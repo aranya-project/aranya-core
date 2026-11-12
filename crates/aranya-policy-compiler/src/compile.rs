@@ -1561,8 +1561,8 @@ impl<'a> CompileState<'a> {
                 ))
             })?;
 
-        self.compile_command_policy(command, flavor_def)?;
         self.compile_command_recall(command, flavor_def)?;
+        self.compile_command_policy(command, flavor_def)?;
 
         // attributes
         let mut attributes = NamedMap::new();
