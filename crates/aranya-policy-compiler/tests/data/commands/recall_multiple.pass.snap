@@ -39,7 +39,7 @@ Module {
     exit panic
 <get_key 'Cmd'>:
     def '_dev'
-    def 'this'
+    pop
     save SP
     const None
     restore SP
@@ -52,7 +52,7 @@ Module {
 <recall 'Cmd_baz'>:
     exit check
 <policy 'Cmd'>:
-    def 'envelope'
+    pop
     def 'this'
     meta: finish enabled
     block

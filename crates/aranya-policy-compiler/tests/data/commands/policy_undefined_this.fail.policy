@@ -1,0 +1,5 @@
+command Cmd with StubBase {
+    policy(envelope) {
+        let _var = this
+    }
+}

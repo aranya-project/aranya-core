@@ -70,14 +70,14 @@ Module {
     exit panic
 <get_key 'A'>:
     def '_dev'
-    def 'this'
+    pop
     save SP
     const None
     restore SP
     return
     exit panic
 <policy 'A'>:
-    def 'envelope'
+    pop
     def 'this'
     meta: finish enabled
     block

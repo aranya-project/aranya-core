@@ -156,7 +156,7 @@ Module {
 <get_key 'MyBasic1'>:
 <get_key 'MyBasic2'>:
     def 'dev'
-    def 'this'
+    pop
     save SP
     fact.new 'Key'
     get 'dev'
@@ -189,15 +189,15 @@ Module {
     return
     exit panic
 <policy 'MyInit'>:
-    def 'envelope'
+    pop
     def 'this'
     exit panic
 <policy 'MyBasic1'>:
-    def 'envelope'
+    pop
     def 'this'
     exit panic
 <policy 'MyBasic2'>:
-    def 'envelope'
+    pop
     def 'this'
     exit panic
 <action 'my_init'>:

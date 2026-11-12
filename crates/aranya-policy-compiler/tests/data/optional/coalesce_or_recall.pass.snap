@@ -67,7 +67,7 @@ Module {
     exit panic
 <get_key 'AddThing'>:
     def '_dev'
-    def 'this'
+    pop
     save SP
     const None
     restore SP
@@ -76,7 +76,7 @@ Module {
 <recall 'AddThing_reject'>:
     exit check
 <policy 'AddThing'>:
-    def 'envelope'
+    pop
     def 'this'
     fact.new 'Owner'
     query

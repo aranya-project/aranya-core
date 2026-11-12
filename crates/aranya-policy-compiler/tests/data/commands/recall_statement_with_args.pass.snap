@@ -47,7 +47,7 @@ Module {
     exit panic
 <get_key 'Cmd'>:
     def '_dev'
-    def 'this'
+    pop
     save SP
     const None
     restore SP
@@ -57,7 +57,7 @@ Module {
     def 'x'
     exit check
 <policy 'Cmd'>:
-    def 'envelope'
+    pop
     def 'this'
     get 'this'
     struct.get 'x'

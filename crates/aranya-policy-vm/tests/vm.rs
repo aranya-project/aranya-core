@@ -1501,7 +1501,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
                 test: bytes
             }
 
-            policy(this) {
+            policy(this, envelope) {
                 check false else recall default(this, envelope)
             }
 

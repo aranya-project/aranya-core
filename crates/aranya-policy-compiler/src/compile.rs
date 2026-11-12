@@ -1412,7 +1412,13 @@ impl<'a> CompileState<'a> {
         self.identifier_types.enter_function();
         for param in params.iter().rev() {
             self.ensure_type_is_defined(&param.vtype)?;
-            self.append_var(param.name.clone(), param.vtype.clone())?;
+            dbg!(param);
+            if param.name.span.is_empty() {
+                // Don't add synthesized `this` and `envelope` to locals.
+                self.append_instruction(Instruction::Pop);
+            } else {
+                self.append_var(param.name.clone(), param.vtype.clone())?;
+            }
         }
         if let Some(return_type) = ret {
             self.ensure_type_is_defined(return_type)?;

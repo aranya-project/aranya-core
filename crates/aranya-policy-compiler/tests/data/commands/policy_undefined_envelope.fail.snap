@@ -1,0 +1,4 @@
+error: a thing being referenced is not in scope
+  |
+3 |         let _var = envelope
+  |                    ^^^^^^^^ 'envelope' not in scope
