@@ -1078,7 +1078,7 @@ impl<'a> CompileState<'a> {
             | TypeKind::Unit
             | TypeKind::String => {}
             TypeKind::Struct(name) => {
-                if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.inner) {
+                if !self.m.interface.struct_defs.contains_key(&name.inner) {
                     let note = format!("struct `{name}` not defined");
                     return Err(self.err(NotDefined(note, name.span)));
                 }
