@@ -1,0 +1,5 @@
+base[null] Base {
+    get_key(envelope) option[bytes] {
+        return todo()
+    }
+}

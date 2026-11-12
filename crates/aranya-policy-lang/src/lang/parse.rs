@@ -1503,7 +1503,7 @@ impl ChunkParser<'_> {
     fn parse_method_params(&self, item: Pair) -> Result<ast::MethodParams, ParseError> {
         assert_eq!(item.as_rule(), Rule::method_params);
 
-        let mut pc = self.descend(item);
+        let mut pc = self.descend(item.clone());
 
         let this = pc
             .consume_optional(Rule::this)
@@ -1515,10 +1515,37 @@ impl ChunkParser<'_> {
             .map(|token| self.to_ast_span(token.as_span()))
             .transpose()?;
 
-        let other_params = pc
+        let other_params: Vec<Param> = pc
             .into_inner()
             .map(|token| self.parse_parameter(token))
             .collect::<Result<_, _>>()?;
+
+        // Get span for the other parameters. This is a bit tricky since there are a few different
+        // cases. We might be able to modify the grammar to help with this but that's also tricky
+        // since the rule is complex to handle optionality separated by commas.
+        let others_span = if !other_params.is_empty() {
+            // Span across all the parameters if present.
+            ast::Spanned::span(&other_params)
+        } else if let Some(span) = envelope.or(this) {
+            // Otherwise, try an empty span right after the later of `this` or `envelope`.
+            ast::Span::new(span.end(), span.end())
+        } else {
+            // Otherwise, we just have `"(" ~ ws ~ ")"`, so point to everything inside the parens.
+            let span = self.to_ast_span(item.as_span())?;
+            ast::Span::new(
+                span.start()
+                    .checked_add(1)
+                    .assume("can offset for open paren")?,
+                span.end()
+                    .checked_sub(1)
+                    .assume("can offset for close paren")?,
+            )
+        };
+
+        let other_params = ast::WithSpan {
+            span: others_span,
+            inner: other_params,
+        };
 
         Ok(ast::MethodParams {
             this,

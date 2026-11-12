@@ -1287,6 +1287,12 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
+        if !command.policy.parameters.other_params.is_empty() {
+            return Err(self.err(error::InvalidPolicySignature(
+                command.policy.parameters.other_params.span,
+            )));
+        }
+
         let params = &[
             param::this(
                 command.policy.parameters.this.unwrap_or_default(),
@@ -1297,9 +1303,6 @@ impl<'a> CompileState<'a> {
                 flavor_def.envelope.name.clone(),
             ),
         ];
-
-        // TODO(jdygert): Proper error.
-        assert!(command.policy.parameters.other_params.is_empty());
 
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.compile_function_like(
@@ -1436,6 +1439,48 @@ impl<'a> CompileState<'a> {
         &mut self,
         base_command: &ast::BaseCommandDefinition,
     ) -> Result<(), CompileError> {
+        // Check for expected get_key signature.
+        {
+            let get_key = &base_command.get_key;
+            let params = &get_key.parameters;
+
+            let envelope = params.envelope;
+
+            let other_params = (!matches!(
+                params.other_params.as_slice(),
+                &[Param {
+                    vtype: VType {
+                        inner: TypeKind::Id,
+                        ..
+                    },
+                    ..
+                }]
+            ))
+            .then_some(params.other_params.span);
+
+            // TODO(jdygert): Allow `result[bytes, _]`?
+            let return_type = (!matches!(
+                &get_key.return_type.inner,
+                TypeKind::Optional(in_opt) if matches!(in_opt.inner, TypeKind::Bytes)
+            ))
+            .then(|| {
+                InvalidType::new(
+                    "option[bytes]".into(),
+                    None,
+                    get_key.return_type.to_string(),
+                    get_key.return_type.span,
+                )
+            });
+
+            if envelope.is_some() || other_params.is_some() {
+                return Err(self.err(error::InvalidGetKeySignature {
+                    envelope,
+                    other_params,
+                    return_type,
+                }));
+            }
+        }
+
         let params = iter::chain(
             iter::once(param::this(
                 base_command.get_key.parameters.this.unwrap_or_default(),
@@ -1444,19 +1489,6 @@ impl<'a> CompileState<'a> {
             base_command.get_key.parameters.other_params.iter().cloned(),
         )
         .collect::<Vec<_>>();
-
-        // TODO(jdygert): Proper errors.
-        assert!(base_command.get_key.parameters.envelope.is_none());
-        core::assert_matches!(
-            base_command.get_key.parameters.other_params.as_slice(),
-            &[Param {
-                name: _,
-                vtype: VType {
-                    inner: TypeKind::Id,
-                    span: _
-                }
-            }]
-        );
 
         let ret = TypeKind::Optional(Box::new(TypeKind::Bytes.nowhere())).nowhere();
         let label = self.anonymous_label();

@@ -120,7 +120,7 @@ Policy {
                     envelope: Some(
                         370..378,
                     ),
-                    other_params: [],
+                    other_params: [] @ 378..378,
                 },
                 body: [
                     Let(
@@ -490,7 +490,7 @@ Policy {
                         envelope: Some(
                             1283..1291,
                         ),
-                        other_params: [],
+                        other_params: [] @ 1291..1291,
                     },
                     body: [
                         Let(
@@ -679,7 +679,7 @@ Policy {
                         2052..2056,
                     ),
                     envelope: None,
-                    other_params: [],
+                    other_params: [] @ 2056..2056,
                 },
                 body: [],
                 span: 1980..2062,
@@ -702,7 +702,7 @@ Policy {
                             name: "_dev" @ 1937..1941,
                             vtype: Id @ 1943..1945,
                         },
-                    ],
+                    ] @ 1937..1945,
                 },
                 return_type: Optional(
                     Bytes @ 1954..1959,

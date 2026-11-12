@@ -303,7 +303,7 @@ Policy {
                     envelope: Some(
                         948..956,
                     ),
-                    other_params: [],
+                    other_params: [] @ 956..956,
                 },
                 body: [
                     Check(
@@ -472,7 +472,7 @@ Policy {
                         1844..1848,
                     ),
                     envelope: None,
-                    other_params: [],
+                    other_params: [] @ 1848..1848,
                 },
                 body: [
                     Let(
@@ -856,7 +856,7 @@ Policy {
                         5326..5330,
                     ),
                     envelope: None,
-                    other_params: [],
+                    other_params: [] @ 5330..5330,
                 },
                 body: [
                     Let(

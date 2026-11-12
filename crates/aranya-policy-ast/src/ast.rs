@@ -1292,7 +1292,7 @@ pub struct MethodParams {
     /// The span of the `envelope` parameter, if present.
     pub envelope: Option<Span>,
     /// The parameter names and types, not including `this` or `envelope`.
-    pub other_params: Vec<Param>,
+    pub other_params: WithSpan<Vec<Param>>,
 }
 
 /// A function definition
