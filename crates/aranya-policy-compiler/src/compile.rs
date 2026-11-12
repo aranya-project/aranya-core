@@ -206,6 +206,8 @@ struct CompileState<'a> {
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
     function_signatures: BTreeMap<Ident, FunctionSignature>,
+    /// A map over recall block signatures for easy call verification.
+    recall_signatures: BTreeMap<(Ident, Ident), Vec<Param>>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
     /// The last span seen, for imprecise source locating.
@@ -1376,6 +1378,9 @@ impl<'a> CompileState<'a> {
             )?;
             self.append_instruction(Instruction::Exit(ExitReason::Check));
             self.exit_statement_context();
+
+            self.recall_signatures
+                .insert((command.name.clone(), recall_block.name.clone()), params);
         }
         Ok(())
     }
@@ -2500,6 +2505,7 @@ impl<'a> Compiler<'a> {
             c: 0,
             base_commands: NamedMap::new(),
             function_signatures: BTreeMap::new(),
+            recall_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
