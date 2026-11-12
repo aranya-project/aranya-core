@@ -51,6 +51,24 @@ pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
     CmdId::new::<CS>(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
 }
 
+/// Computes the ID of an unsigned policy command.
+///
+/// Unlike a signed command (see [`SigningKey::sign_cmd`][crate::SigningKey::sign_cmd]),
+/// the ID is not bound to an author or signature, so it
+/// provides no authentication.
+pub fn unsigned_cmd_id<CS: CipherSuite>(cmd: Cmd<'_>) -> CmdId {
+    // id = H(
+    //     "UnsignedPolicyCommandId-v1",
+    //     name,
+    //     parent_id,
+    //     msg,
+    // )
+    CmdId::new::<CS>(
+        b"UnsignedPolicyCommandId-v1",
+        [cmd.name.as_bytes(), cmd.parent_id.as_bytes(), cmd.data],
+    )
+}
+
 /// A policy command.
 #[derive(Copy, Clone, Debug)]
 pub struct Cmd<'a> {

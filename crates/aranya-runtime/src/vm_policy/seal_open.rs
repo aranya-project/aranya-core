@@ -2,7 +2,8 @@ use alloc::borrow::Cow;
 use core::borrow::Borrow as _;
 
 use aranya_crypto::{
-    CipherSuite, DeviceId, Engine, Signature, SigningKey, VerifyingKey, policy::Cmd,
+    CipherSuite, DeviceId, Engine, Signature, SigningKey, VerifyingKey,
+    policy::{Cmd, unsigned_cmd_id},
 };
 use aranya_policy_vm::Struct;
 
@@ -14,6 +15,8 @@ pub enum OpenError {
     BadSignature(#[source] aranya_crypto::ImportError),
     #[error("command ID did not match")]
     IdMismatch,
+    #[error("unsigned command has a signature or author")]
+    UnexpectedSignature,
     #[error(transparent)]
     Crypto(#[from] aranya_crypto::Error),
 }
@@ -73,6 +76,55 @@ pub(super) fn open_with_key<CS: CipherSuite>(
         },
         &signature,
     )?;
+    if id != envelope.command_id {
+        return Err(OpenError::IdMismatch);
+    }
+
+    Ok(())
+}
+
+/// Seals a command of the `unsigned` flavor.
+///
+/// The envelope has an empty signature and a default author, since there is
+/// no key to sign with and so no authenticated author.
+pub(super) fn seal_unsigned<CS: CipherSuite>(
+    command_struct: &Struct,
+    payload: &[u8],
+    parent_id: CmdId,
+) -> Envelope<'static> {
+    let command_id = unsigned_cmd_id::<CS>(Cmd {
+        data: payload,
+        name: command_struct.name.as_str(),
+        parent_id: &parent_id,
+    });
+
+    Envelope {
+        parent_id,
+        author_id: DeviceId::default(),
+        command_id,
+        signature: Cow::Borrowed(&[]),
+    }
+}
+
+/// Opens a command of the `unsigned` flavor.
+///
+/// This only checks that the envelope is well-formed and that the command ID
+/// matches the contents; it does not authenticate anything.
+pub(super) fn open_unsigned<CS: CipherSuite>(
+    command_struct: &Struct,
+    payload: &[u8],
+    envelope: &Envelope,
+) -> Result<(), OpenError> {
+    // An unsigned command must not claim an author or carry a signature.
+    if !envelope.signature.is_empty() || envelope.author_id != DeviceId::default() {
+        return Err(OpenError::UnexpectedSignature);
+    }
+
+    let id = unsigned_cmd_id::<CS>(Cmd {
+        data: payload,
+        name: command_struct.name.as_str(),
+        parent_id: &envelope.parent_id,
+    });
     if id != envelope.command_id {
         return Err(OpenError::IdMismatch);
     }

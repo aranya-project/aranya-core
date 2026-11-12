@@ -191,6 +191,32 @@ action[ephemeral] incrementFour(n: int) result[unit, string] {
     return Ok(Unit)
 }
 
+// Unsigned commands are off-graph and are not signed, so `get_key` is
+// never called for them.
+base[unsigned] BaseUnsigned {
+    get_key {
+        return None
+    }
+}
+
+command ReadStuff with BaseUnsigned {
+    fields {
+        key: int,
+    }
+    policy {
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
+        finish {
+            emit StuffHappened{x: this.key, y: stuff.y}
+        }
+    }
+}
+
+action[unsigned] read_stuff(k: int) {
+    publish ReadStuff {
+        key: k,
+    }
+}
+
 action[ephemeral] lookup(k: int, v: int, expected: bool) result[unit, string] {
     let f = query Stuff[x: k]=>{y: v}
     match expected {
@@ -647,6 +673,143 @@ pub fn test_aranya_session(
         .expect("key does not exist");
     let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");
     assert_eq!(expected_value, value);
+
+    Ok(())
+}
+
+/// Test that unsigned actions and commands work off-graph on a client which
+/// has no signing key.
+///
+/// `author_store` must be able to author commands, and `readonly_store` must
+/// be created with [`VmPolicyStore::new_readonly`]. Both must be instantiated
+/// with [`TEST_POLICY_1`].
+pub fn test_unsigned_session(
+    author_store: TestPolicyStore,
+    mut readonly_store: TestPolicyStore,
+    policy: &[u8],
+) -> Result<(), VmPolicyError> {
+    let key = author_store.verifying_key();
+    let mut rt_buffers = RuntimeBuffers::<_>::new();
+    let mut sink = VecSink::new();
+    let mut msg_sink = MsgSink::new();
+
+    // The author creates the graph and some state.
+    let mut cs1 = ClientState::new(author_store, MemStorageProvider::default());
+    let graph_id = cs1
+        .new_graph(policy, vm_action!(init(1, key)), &mut NullSink)
+        .expect("could not create graph");
+    cs1.action(
+        graph_id,
+        &mut NullSink,
+        vm_action!(create_action(7)),
+        &mut rt_buffers,
+        mem_spill,
+    )
+    .expect("could not call action");
+
+    // Unsigned actions cannot be called on-graph.
+    cs1.action(
+        graph_id,
+        &mut NullSink,
+        vm_action!(read_stuff(1)),
+        &mut rt_buffers,
+        mem_spill,
+    )
+    .expect_err("unsigned action should fail on-graph");
+
+    // The author can call unsigned actions in a session.
+    let mut session = cs1.session(graph_id).expect("failed to create session");
+    session
+        .action(&cs1, &mut sink, &mut NullSink, vm_action!(read_stuff(1)))
+        .expect("unsigned action should succeed with seal context");
+    assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 7 }));
+    sink.clear();
+
+    // The author also creates a signed session command.
+    let signed_msg = {
+        let mut signed_sink = MsgSink::new();
+        session
+            .action(
+                &cs1,
+                &mut NullSink,
+                &mut signed_sink,
+                vm_action!(increment_ephemeral()),
+            )
+            .expect("signed action should succeed");
+        signed_sink.0.remove(0)
+    };
+
+    // Hand the graph over to a client which has no seal context.
+    readonly_store
+        .add_policy(policy)
+        .expect("should be able to add policy");
+    let provider = core::mem::take(cs1.provider());
+    let mut cs2 = ClientState::new(readonly_store, provider);
+    let mut session = cs2.session(graph_id).expect("failed to create session");
+
+    // Unsigned actions work without a seal context.
+    session
+        .action(&cs2, &mut sink, &mut msg_sink, vm_action!(read_stuff(1)))
+        .expect("unsigned action should succeed without seal context");
+    assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 7 }));
+    assert_ne!(sink.last().command, CmdId::default());
+    sink.clear();
+    assert_eq!(msg_sink.0.len(), 1);
+
+    // Unsigned commands are still subject to policy.
+    let err = session
+        .action(&cs2, &mut sink, &mut msg_sink, vm_action!(read_stuff(2)))
+        .expect_err("policy should reject");
+    assert_matches!(err, ClientError::PolicyError(_));
+    assert_eq!(msg_sink.0.len(), 1);
+
+    // Signed ephemeral actions which publish still need a seal context.
+    let err = session
+        .action(
+            &cs2,
+            &mut sink,
+            &mut msg_sink,
+            vm_action!(increment_ephemeral()),
+        )
+        .expect_err("signed action should fail without seal context");
+    assert_matches!(err, ClientError::NotAnAuthor);
+    assert_eq!(msg_sink.0.len(), 1);
+
+    // Unsigned commands can be received in another session, but only when
+    // an unsigned command is expected.
+    let msg = &msg_sink.0[0];
+    let mut session = cs2.session(graph_id).expect("failed to create session");
+    session
+        .receive(&cs2, &mut sink, msg)
+        .expect_err("unsigned command should be rejected when signed is expected");
+    assert!(sink.0.is_empty());
+    session
+        .receive_unsigned(&cs2, &mut sink, msg)
+        .expect("failed session receive");
+    assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 7 }));
+    sink.clear();
+
+    // Signed commands are rejected when an unsigned command is expected.
+    session
+        .receive_unsigned(&cs2, &mut sink, &signed_msg)
+        .expect_err("signed command should be rejected when unsigned is expected");
+    assert!(sink.0.is_empty());
+    session
+        .receive(&cs2, &mut sink, &signed_msg)
+        .expect("failed session receive");
+    sink.clear();
+
+    // The command ID is bound to the contents, so any modification is rejected.
+    for i in 0..msg.len() {
+        let mut bad = msg.to_vec();
+        bad[i] ^= 1;
+        session
+            .receive_unsigned(&cs2, &mut sink, &bad)
+            .expect_err("modified unsigned command should be rejected");
+        session
+            .receive(&cs2, &mut sink, &bad)
+            .expect_err("modified unsigned command should be rejected");
+    }
 
     Ok(())
 }

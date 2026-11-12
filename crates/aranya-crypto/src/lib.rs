@@ -76,7 +76,7 @@ pub use id::{BaseId, Identified, custom_id};
 pub use keystore::{KeyStore, KeyStoreExt};
 // These were already exported in the root of the crate, so keep
 // them even though `policy` is a public module now.
-pub use policy::{Cmd, CmdId, PolicyId, merge_cmd_id};
+pub use policy::{Cmd, CmdId, PolicyId, merge_cmd_id, unsigned_cmd_id};
 /// Constant time cryptographic operations.
 #[doc(inline)]
 pub use spideroak_crypto::ctutils;

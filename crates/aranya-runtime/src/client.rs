@@ -116,7 +116,7 @@ where
                 action,
                 &mut perspective,
                 sink,
-                seal_ctx,
+                Some(seal_ctx),
                 FlavorCtx::Init {
                     policy: policy_data,
                 },
@@ -307,7 +307,13 @@ where
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(action, &mut perspective, sink, seal_ctx, FlavorCtx::Basic) {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            sink,
+            Some(seal_ctx),
+            FlavorCtx::Basic,
+        ) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
                 let new_head = LocatedAddress {

@@ -830,7 +830,7 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _seal_ctx: &(),
+            _seal_ctx: Option<&()>,
             _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
             unimplemented!()

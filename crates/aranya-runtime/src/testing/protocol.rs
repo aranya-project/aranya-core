@@ -439,7 +439,7 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-        _seal_ctx: &(),
+        _seal_ctx: Option<&()>,
         _flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
         let parent = match facts.head_address()? {

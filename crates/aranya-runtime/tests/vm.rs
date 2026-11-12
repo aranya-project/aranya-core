@@ -68,6 +68,13 @@ fn test_aranya_session() {
 }
 
 #[test]
+fn test_unsigned_session() {
+    let (eng, _) = DefaultEngine::from_entropy(Rng);
+    let readonly_store = VmPolicyStore::new_readonly(Arc::new(eng), FfiSet::new());
+    vm::test_unsigned_session(new_policy_store(), readonly_store, &compile_policy()).unwrap();
+}
+
+#[test]
 fn test_effect_metadata() {
     let [store1, store2] = new_policy_stores();
     vm::test_effect_metadata(store1, store2, &compile_policy()).unwrap();
