@@ -27,9 +27,10 @@ pub struct TraceFailure {
 ///
 /// ```ignore
 /// let module = ...; // a `Module`
+/// let globals = module.globals.keys().cloned().collect();
 /// let tracer = TraceAnalyzerBuilder::new(module)
 ///     .add_analyzer(FinishAnalyzer::new())
-///     .add_analyzer(ValueAnalyzer::new(["this", "envelope"]))
+///     .add_analyzer(ValueAnalyzer::new(globals))
 ///     .build()
 /// let failures = tracer.trace(Label::new("Init", LabelType::CommandPolicy))?;
 /// ```
