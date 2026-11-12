@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: unused variable(s): `c`
   |
 5 |     let c = saturating_add(a, b)
