@@ -1,7 +1,6 @@
 //! Utilities for deriving `FfiModule` implementations.
 
 #![cfg(feature = "derive")]
-#![cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 
 /// When applied to an `impl` block, [`macro@ffi`] generates an
 /// implementation of  [`FfiModule`][crate::ffi::FfiModule].
@@ -146,5 +145,4 @@
 ///     fn ignored() {}
 /// }
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use aranya_policy_derive::ffi;
