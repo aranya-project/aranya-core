@@ -1,11 +1,12 @@
-// This file contains the extracted keywords from policy.pest from keyword_extraction.pl
+// This file contains the extracted keywords from policy.pest by extract_keywords.sh
 
-pub const KEYWORDS: [&str; 57] = [
+pub const KEYWORDS: &[&str] = &[
     "action",
     "as",
+    "attributes",
     "at_least",
     "at_most",
-    "attributes",
+    "base",
     "bool",
     "bytes",
     "check",
@@ -26,6 +27,7 @@ pub const KEYWORDS: [&str; 57] = [
     "fields",
     "finish",
     "function",
+    "get_key",
     "id",
     "if",
     "immutable",
@@ -54,8 +56,9 @@ pub const KEYWORDS: [&str; 57] = [
     "to",
     "todo",
     "true",
-    "unit",
     "Unit",
+    "unit",
     "update",
     "use",
+    "with",
 ];
