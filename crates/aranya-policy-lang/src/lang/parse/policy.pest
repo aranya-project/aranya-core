@@ -449,8 +449,13 @@ result_t = { "result" ~ ws ~ "[" ~ ws ~ vtype ~ ws ~ "," ~ ws ~ vtype ~ ws ~ "]"
 // ## Identifier
 // An identifier starts with an ASCII alpha character followed by
 // zero or more alphanumeric characters. This is used for variable
-// names, field names, function names, etc.
-identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+// names, field names, function names, etc. An identifier may start
+// with and contain underscores, but may not be just a lone underscore,
+// since that would conflict with the wildcard pattern used for matches.
+identifier = @{
+    | ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")*
+    | "_" ~ (ASCII_ALPHANUMERIC | "_")+
+}
 
 
 // ## Trivia

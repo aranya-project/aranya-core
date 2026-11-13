@@ -30,9 +30,9 @@ impl Arbitrary for Identifier {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(size_range: Self::Parameters) -> Self::Strategy {
-        // [a-zA-Z][a-zA-Z0-9_]*
+        // [a-zA-Z_][a-zA-Z0-9_]*
         (
-            Union::new([b'a'..=b'z', b'A'..=b'Z']),
+            Union::new([b'a'..=b'z', b'A'..=b'Z', b'_'..=b'_']),
             vec(
                 Union::new([b'a'..=b'z', b'A'..=b'Z', b'0'..=b'9', b'_'..=b'_']),
                 size_range,
