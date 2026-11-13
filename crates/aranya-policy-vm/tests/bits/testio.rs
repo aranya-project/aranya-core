@@ -25,7 +25,7 @@ pub struct TestIO {
 }
 
 impl fmt::Debug for TestIO {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let module_names = ["print"];
         f.debug_struct("TestIO")
             .field("facts", &self.facts)

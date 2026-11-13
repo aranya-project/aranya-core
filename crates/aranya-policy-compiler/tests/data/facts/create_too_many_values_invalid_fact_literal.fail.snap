@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: fact literal does not match definition: The number of Fact values don't match the definition
   |
 1 | fact Device[device_id: int]=>{name: string}

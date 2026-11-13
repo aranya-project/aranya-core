@@ -7,6 +7,7 @@ use alloc::{
 };
 use core::{
     fmt::{self, Display},
+    iter::{self, zip},
     str::FromStr as _,
 };
 
@@ -19,6 +20,7 @@ use aranya_policy_module::{
 };
 use buggy::{Bug, BugExt as _};
 use heapless::Vec as HVec;
+use itertools::Itertools as _;
 
 #[cfg(feature = "bench")]
 use crate::bench::{Stopwatch, bench_aggregate};
@@ -104,7 +106,7 @@ pub enum MachineStatus {
 }
 
 impl Display for MachineStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Executing => write!(f, "Executing"),
             Self::Exited(reason) => write!(f, "Exited: {}", reason),
@@ -312,7 +314,7 @@ impl Machine {
 }
 
 impl Display for Machine {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "Program memory:")?;
         for (addr, instr) in self.progmem.iter().enumerate() {
             writeln!(f, "  {addr:4}  {instr}")?;
@@ -360,6 +362,8 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     scope: ScopeManager<'a>,
     /// The stack
     pub stack: MachineStack,
+    /// The stack of facts
+    pub(crate) facts: FactStack,
     /// The call state stack - stores return addresses and stack depths
     call_state: Vec<usize>,
     /// The program counter
@@ -384,6 +388,7 @@ where
             machine,
             scope: ScopeManager::new(&machine.globals),
             stack: MachineStack(HVec::new()),
+            facts: FactStack::new(),
             call_state: Vec::new(),
             pc: 0,
             io,
@@ -589,9 +594,6 @@ where
             Instruction::Const(v) => {
                 self.ipush(v)?;
             }
-            Instruction::Identifier(v) => {
-                self.ipush(v)?;
-            }
             Instruction::Def(key) => {
                 let value = self.ipop_value()?;
                 self.scope.set(key, value)?;
@@ -750,16 +752,16 @@ where
             }
             Instruction::FactNew(name) => {
                 let fact = Fact::new(name);
-                self.ipush(fact)?;
+                self.facts.push(fact);
             }
             Instruction::FactKeySet(varname) => {
                 let v: HashableValue = self.ipop()?;
-                let f: &mut Fact = self.ipeek()?;
+                let f: &mut Fact = self.facts.peek_mut()?;
                 f.set_key(varname, v);
             }
             Instruction::FactValueSet(varname) => {
                 let value = self.ipop_value()?;
-                let f: &mut Fact = self.ipeek()?;
+                let f: &mut Fact = self.facts.peek_mut()?;
                 f.set_value(varname, value);
             }
             Instruction::StructNew(name) => {
@@ -790,54 +792,23 @@ where
                     .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(varname)))?;
                 self.ipush(v)?;
             }
-            Instruction::MStructSet(n) => {
-                let n: usize = n.into();
-                let mut field_name_value_pairs = Vec::with_capacity(n);
-
-                for _ in 0..n {
-                    let field_val = self.ipop_value()?;
-                    let field_name = self.ipop::<Identifier>()?;
-
-                    field_name_value_pairs.push((field_name, field_val));
-                }
-
-                let mut target: Struct = self.ipop()?;
-                let struct_def_fields =
-                    self.machine.struct_defs.get(&target.name).ok_or_else(|| {
-                        self.err(MachineErrorType::InvalidSchema(target.name.clone()))
+            Instruction::Substruct(new_name) => {
+                let def =
+                    self.machine.struct_defs.get(&new_name).ok_or_else(|| {
+                        self.err(MachineErrorType::InvalidSchema(new_name.clone()))
                     })?;
-
-                for (field_name, field_val) in field_name_value_pairs {
-                    let Some(field_defn) = struct_def_fields
-                        .items
-                        .iter()
-                        .find(|f| f.name == field_name)
-                    else {
-                        return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
-                    };
-
-                    if !field_val.fits_type(&field_defn.vtype) {
-                        return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
-                    }
-
-                    target.fields.insert(field_name, field_val);
-                }
-                self.ipush(target)?;
-            }
-            Instruction::MStructGet(n) => {
-                let field_names = (0..n.into())
-                    .map(|_| self.ipop::<Identifier>())
-                    .collect::<Result<Vec<_>, _>>()?;
-                let mut s: Struct = self.ipop()?;
-
-                for field_name in field_names {
-                    let v = s.fields.remove(&field_name).ok_or_else(|| {
-                        self.err(MachineErrorType::InvalidStructMember(field_name.clone()))
+                let mut old: Struct = self.ipop()?;
+                let mut new = Struct {
+                    name: new_name,
+                    fields: BTreeMap::new(),
+                };
+                for field in &def.items {
+                    let (name, value) = old.fields.remove_entry(&field.name).ok_or_else(|| {
+                        self.err(MachineErrorType::InvalidStructMember(field.name.clone()))
                     })?;
-
-                    self.ipush(field_name)?;
-                    self.ipush(v)?;
+                    new.fields.insert(name, value);
                 }
+                self.ipush(new)?;
             }
             Instruction::Publish => {
                 let command_struct: Struct = self.ipop()?;
@@ -848,18 +819,20 @@ where
                 return Ok(MachineStatus::Exited(ExitReason::Yield));
             }
             Instruction::Create => {
-                let f: Fact = self.ipop()?;
+                let f: Fact = self.facts.pop()?;
                 self.io.fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
-                let f: Fact = self.ipop()?;
+                let f: Fact = self.facts.pop()?;
                 self.io.fact_delete(f.name, f.keys)?;
             }
             Instruction::Update => {
-                let fact_to: Fact = self.ipop()?;
-                let mut fact_from: Fact = self.ipop()?;
+                let mut fact_to: Fact = self.facts.pop()?;
+                let mut fact_from: Fact = self.facts.pop()?;
                 let mut replaced_fact = {
-                    let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
+                    let mut iter = self
+                        .io
+                        .fact_query(fact_from.name.clone(), fact_from.keys.iter().cloned())?;
                     iter.next().ok_or_else(|| {
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
@@ -879,6 +852,7 @@ where
                 }
 
                 self.io.fact_delete(fact_from.name, replaced_fact.0)?;
+                fact_to.keys = fact_from.keys;
                 self.io
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
@@ -898,60 +872,45 @@ where
                 self.io.effect(s.name, fields, command, recall);
             }
             Instruction::Query => {
-                let qf: Fact = self.ipop()?;
+                let qf: Fact = self.facts.pop()?;
 
                 // Before we spend time fetching facts from storage, make sure the given fact literal is valid.
                 self.validate_fact_literal(&qf)?;
 
-                let result = {
-                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
-                    // Find the first match, or the first error
-                    iter.find_map(|r| match r {
-                        Ok(f) => {
-                            if fact_match(&qf, &f.0, &f.1) {
-                                Some(Ok(f))
-                            } else {
-                                None
-                            }
-                        }
-                        Err(e) => Some(Err(e)),
-                    })
-                };
-                let maybe_fact = result.transpose()?.map(|f| {
-                    let mut fields: Vec<KVPair> = vec![];
-                    fields.append(&mut f.0.into_iter().map(Into::into).collect());
-                    fields.append(&mut f.1.into_iter().map(Into::into).collect());
-                    Struct::new(qf.name, fields)
-                });
+                let mut matches = self
+                    .io
+                    .fact_query(qf.name.clone(), qf.keys.clone())?
+                    .filter_ok(|f| fact_match(&qf, &f.0, &f.1));
+                // Get the first match, or bail on the first error
+                let first_match = matches.next().transpose()?;
+                // Transform fact into struct.
+                let maybe_fact = first_match.map(|f| fact_to_struct(qf.name, f));
                 self.ipush(maybe_fact)?;
             }
             Instruction::FactCount(limit) => {
-                let fact: Fact = self.ipop()?;
+                let fact: Fact = self.facts.pop()?;
                 self.validate_fact_literal(&fact)?;
 
-                let mut count = 0;
-                {
-                    let mut iter = self.io.fact_query(fact.name.clone(), fact.keys.clone())?;
+                let matches = self
+                    .io
+                    .fact_query(fact.name.clone(), fact.keys.clone())?
+                    .filter_ok(|f| fact_match(&fact, &f.0, &f.1));
 
-                    while count < limit {
-                        let Some(r) = iter.next() else { break };
-                        match r {
-                            Ok(f) => {
-                                if fact_match(&fact, &f.0, &f.1) {
-                                    count = count
-                                        .checked_add(1)
-                                        .assume("should be able to increment fact counter")?;
-                                }
-                            }
-                            Err(e) => return Err(self.err(MachineErrorType::IO(e))),
+                let count = matches
+                    .process_results(|mut iter| {
+                        let mut count = 0;
+                        while count < limit && iter.next().is_some() {
+                            // `count < limit` so this can't wrap.
+                            count = count.wrapping_add(1);
                         }
-                    }
-                }
+                        count
+                    })
+                    .map_err(|e| self.err(MachineErrorType::IO(e)))?;
 
                 self.ipush(Value::Int(count))?;
             }
             Instruction::QueryStart => {
-                let fact: Fact = self.ipop()?;
+                let fact: Fact = self.facts.pop()?;
                 self.validate_fact_literal(&fact)?;
                 let iter = self.io.fact_query(fact.name, fact.keys)?;
                 self.query_iter_stack.push(iter);
@@ -966,13 +925,9 @@ where
                     )
                 })?;
                 // Update `as` variable value and push an end-of-results bool.
-                match iter.next() {
-                    Some(result) => {
-                        let (k, v) = result?;
-                        let mut fields: Vec<KVPair> = vec![];
-                        fields.append(&mut k.into_iter().map(Into::into).collect());
-                        fields.append(&mut v.into_iter().map(Into::into).collect());
-                        let s = Struct::new(ident.clone(), fields);
+                match iter.next().transpose()? {
+                    Some(f) => {
+                        let s = fact_to_struct(ident.clone(), f);
                         self.scope.set(ident, Value::Struct(s))?;
                         self.ipush(Value::Bool(false))?;
                     }
@@ -1235,7 +1190,7 @@ where
                 ),
             )));
         }
-        for (arg, param) in args.iter().zip(action_def.params.iter()) {
+        for (arg, param) in zip(&args, &action_def.params) {
             if !arg.fits_type(&param.vtype) {
                 return Err(MachineError::new(MachineErrorType::invalid_type(
                     param.vtype.to_string(),
@@ -1366,11 +1321,27 @@ impl Default for MachineStack {
     }
 }
 
+pub(crate) struct FactStack(Vec<Fact>);
+impl FactStack {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+    pub(crate) fn push(&mut self, fact: Fact) {
+        self.0.push(fact);
+    }
+    fn pop(&mut self) -> Result<Fact, MachineErrorType> {
+        self.0.pop().ok_or(MachineErrorType::StackUnderflow)
+    }
+    fn peek_mut(&mut self) -> Result<&mut Fact, MachineErrorType> {
+        self.0.last_mut().ok_or(MachineErrorType::StackUnderflow)
+    }
+}
+
 impl<M> Display for RunState<'_, M>
 where
     M: MachineIO<MachineStack>,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "# Name table:")?;
         for (k, v) in &self.machine.labels {
             writeln!(f, "  {}: {:?}", k, v)?;
@@ -1404,4 +1375,12 @@ where
         }
         Ok(())
     }
+}
+
+fn fact_to_struct(name: Identifier, (keys, values): (Vec<FactKey>, Vec<FactValue>)) -> Struct {
+    let fields = iter::chain(
+        keys.into_iter().map_into::<KVPair>(),
+        values.into_iter().map_into::<KVPair>(),
+    );
+    Struct::new(name, fields)
 }

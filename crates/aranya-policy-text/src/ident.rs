@@ -1,7 +1,7 @@
 use alloc::string::String;
 use core::{borrow::Borrow, fmt, num::NonZeroUsize, str::FromStr};
 
-use serde::de;
+use serde_core::de;
 
 use crate::{
     Text,
@@ -75,13 +75,13 @@ impl Identifier {
 }
 
 impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
 impl fmt::Debug for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -139,10 +139,10 @@ impl Borrow<str> for Identifier {
     }
 }
 
-impl serde::Serialize for Identifier {
+impl serde_core::Serialize for Identifier {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: serde_core::Serializer,
     {
         self.0.serialize(serializer)
     }

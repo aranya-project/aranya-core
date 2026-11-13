@@ -64,6 +64,52 @@ fn test_fail_requires_debug_mode() {
     );
 }
 
+// An action must publish or call another action. This is only a warning in debug mode.
+#[test]
+fn test_action_without_publish_requires_debug_mode() {
+    let text = r#"
+        action[null] f() {}
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+
+    Compiler::new(&policy)
+        .debug(true)
+        .compile()
+        .expect("compiles with debug mode enabled");
+
+    let err = Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect_err("action without publish fails without debug mode");
+    assert!(
+        err.to_string()
+            .contains("action must publish or call another action"),
+        "unexpected error: {err}"
+    );
+
+    // A publish on any path, or a call to another action, satisfies the check.
+    let text = r#"
+        base[null] Base { get_key { return None } }
+        command Foo with Base {
+            fields { a: int }
+            policy { finish {} }
+        }
+        action[null] conditional(a: int) {
+            if a > 0 {
+                publish Foo { a: a }
+            }
+        }
+        action[null] caller(a: int) {
+            action conditional(a)
+        }
+    "#;
+    let policy = parse_policy_str(text, Version::V2).expect("parse ok");
+    Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .expect("compiles without debug mode");
+}
+
 #[test]
 fn test_validate_return() {
     let valid = [
@@ -124,12 +170,12 @@ fn test_validate_return() {
 
     for p in valid {
         let m = compile_pass(p);
-        assert!(!validate(&m));
+        assert!(validate(&m).is_ok());
     }
 
     for p in invalid {
         let m = compile_pass(p);
-        assert!(validate(&m));
+        assert!(validate(&m).is_err());
     }
 }
 
@@ -203,13 +249,13 @@ fn test_validate_get_key() {
     for p in valid {
         let p = p.to_string() + common;
         let m = compile_pass(&p);
-        assert!(!validate(&m), "{p}");
+        assert!(validate(&m).is_ok(), "{p}");
     }
 
     for p in invalid {
         let p = p.to_string() + common;
         let m = compile_pass(&p);
-        assert!(validate(&m), "{p}");
+        assert!(validate(&m).is_err(), "{p}");
     }
 }
 
@@ -313,11 +359,11 @@ fn test_validate_publish() {
 
     for p in valid {
         let m = compile_pass(&p);
-        assert!(!validate(&m), "Expected case to be valid: {}", p);
+        assert!(validate(&m).is_ok(), "Expected case to be valid: {}", p);
     }
 
     for p in invalid {
         let m = compile_pass(&p);
-        assert!(validate(&m), "Expected case to be invalid: {}", p);
+        assert!(validate(&m).is_err(), "Expected case to be invalid: {}", p);
     }
 }

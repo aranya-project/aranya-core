@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::{borrow::ToOwned as _, boxed::Box, vec::Vec};
 use core::ops::Deref;
 

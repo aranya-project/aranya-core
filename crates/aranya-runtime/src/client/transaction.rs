@@ -729,9 +729,9 @@ mod test {
 
     use super::*;
     use crate::{
-        Bytes, ClientState, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
+        Bytes, ClientState, FlavorCtx, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
         Prioritized as _, Priority, TraversalBuffer, mem_spill,
-        policy::{ActionPlacement, CommandPlacement},
+        policy::{CommandPlacement, PolicyStoreError},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
     };
@@ -760,19 +760,16 @@ mod test {
         type Policy = SeqPolicy;
         type Effect = ();
 
-        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             Ok(&SeqPolicy)
         }
 
-        fn seal_ctx(
-            &self,
-            _id: PolicyId,
-        ) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
-            Ok(&())
+        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+            Some(&())
         }
     }
 
@@ -837,8 +834,8 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _placement: ActionPlacement,
             _seal_ctx: &(),
+            _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
             unimplemented!()
         }
@@ -2145,7 +2142,7 @@ mod test {
             locations
         }
 
-        fn dotwrite(storage: &impl Storage<FactIndex: FactIndexExtra>, out: &mut DotWriter<'_>) {
+        fn dotwrite(storage: &impl Storage<FactIndex: FactIndexExtra>, out: &mut DotWriter) {
             let mut graph = out.digraph();
             graph
                 .graph_attributes()

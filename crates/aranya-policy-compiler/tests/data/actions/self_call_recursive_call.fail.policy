@@ -1,0 +1,5 @@
+action[null] loop_me(n: int) {
+    if n > 0 {
+        action loop_me(saturating_sub(n, 1))
+    }
+}

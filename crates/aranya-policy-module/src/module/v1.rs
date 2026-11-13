@@ -1,5 +1,4 @@
 //! Data for the version 1 policy module format
-extern crate alloc;
 
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 

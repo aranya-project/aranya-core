@@ -1,11 +1,7 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: module
----
 Module {
     version: "1",
     labels: {
-        <action 'pets'>: 8,
+        <action 'pets'>: 1,
     },
     action_defs: [
         ActionDef {
@@ -36,10 +32,6 @@ Module {
     ],
     struct_defs: [
         StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
             name: "Pet",
             items: [
                 Field {
@@ -52,10 +44,6 @@ Module {
                 },
             ],
         },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
     ],
     enum_defs: [],
     globals: {},
@@ -63,25 +51,18 @@ Module {
 }
 ---
     exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
-    restore SP
-    return
-    exit panic
 <action 'pets'>:
     fact.new 'Pet'
     query.start
-<10>:
+<3>:
     block
     query.next 'p'
-    branch 18
+    branch 11
     get 'p'
     struct.get 'age'
     def 'age'
     end
-    jump 10
-<18>:
+    jump 3
+<11>:
     end
     return

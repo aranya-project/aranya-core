@@ -1,8 +1,6 @@
 //! An [`AutoMap`] is a map where the item can automatically provide its
 //! own key through the [`AutoKey`] trait.
 
-extern crate alloc;
-
 use alloc::collections::{BTreeMap, btree_map};
 
 /// Convenience macro for implementing [`AutoKey`] on a type

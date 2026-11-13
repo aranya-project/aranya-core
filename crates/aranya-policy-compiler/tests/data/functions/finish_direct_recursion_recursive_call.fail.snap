@@ -1,0 +1,4 @@
+error: recursive call: `f` calls itself
+  |
+2 |     f(n)
+  |     ^ `f` calls `f`

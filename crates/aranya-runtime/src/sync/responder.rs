@@ -3,6 +3,7 @@ use alloc::vec;
 use aranya_crypto::Csprng;
 use buggy::{BugExt as _, bug};
 use heapless::Vec;
+use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -279,10 +280,9 @@ const _: () = assert!(SEGMENT_BUFFER_MAX >= COMMAND_RESPONSE_MAX);
 fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
     if v.push(loc).is_err() {
         // Full — find the entry with the highest max_cut.
-        let (max_idx, _) = v
+        let max_idx = v
             .iter()
-            .enumerate()
-            .max_by_key(|(_, l)| l.max_cut)
+            .position_max_by_key(|l| l.max_cut)
             .expect("non-empty");
         if loc.max_cut < v[max_idx].max_cut {
             v[max_idx] = loc;

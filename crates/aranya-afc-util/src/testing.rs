@@ -5,8 +5,6 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::panic)]
 
-extern crate alloc;
-
 use alloc::{sync::Arc, vec, vec::Vec};
 use core::{
     assert_matches,

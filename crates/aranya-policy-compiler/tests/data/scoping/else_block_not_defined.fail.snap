@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: a thing being referenced is not in scope
   |
 4 |     return y

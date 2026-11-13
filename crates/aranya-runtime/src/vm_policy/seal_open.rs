@@ -23,6 +23,18 @@ pub struct SealCtx<CE: Engine> {
     pub key: SigningKey<CE::CS>,
 }
 
+impl<CE: Engine> Clone for SealCtx<CE>
+where
+    SigningKey<CE::CS>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            author: self.author,
+            key: self.key.clone(),
+        }
+    }
+}
+
 pub(super) fn seal_with_key<CS: CipherSuite>(
     key: &SigningKey<CS>,
     command_struct: &Struct,
@@ -48,7 +60,7 @@ pub(super) fn open_with_key<CS: CipherSuite>(
     key: VerifyingKey<CS>,
     command_struct: &Struct,
     payload: &[u8],
-    envelope: &Envelope<'_>,
+    envelope: &Envelope,
 ) -> Result<(), OpenError> {
     let signature =
         Signature::<CS>::from_bytes(&envelope.signature).map_err(OpenError::BadSignature)?;

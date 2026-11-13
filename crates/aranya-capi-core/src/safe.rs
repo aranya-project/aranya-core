@@ -344,7 +344,7 @@ impl<T: Typed> DerefMut for Safe<T> {
 }
 
 impl<T: Typed + fmt::Debug> fmt::Debug for Safe<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Safe<T>")
             .field("id", &self.id)
             .field("flags", &self.flags)
@@ -393,7 +393,7 @@ impl TypeId {
 }
 
 impl fmt::Display for TypeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -412,7 +412,7 @@ impl Flags {
 }
 
 impl fmt::Display for Flags {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Binary::fmt(&self.0, f)
     }
 }
@@ -541,13 +541,13 @@ impl<T> OwnedPtr<T> {
 }
 
 impl<T> fmt::Debug for OwnedPtr<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Pointer::fmt(&self.ptr, f)
     }
 }
 
 impl<T> fmt::Pointer for OwnedPtr<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Pointer::fmt(&self.ptr, f)
     }
 }
@@ -786,7 +786,7 @@ impl<T: Copy> Writer<T> {
     /// - The writer's pointer must be live.
     pub unsafe fn copy_to<F, R>(self, f: F) -> Result<R, OutOfSpace>
     where
-        F: FnOnce(&mut Buffer<'_, T>) -> R,
+        F: FnOnce(&mut Buffer<T>) -> R,
     {
         // SAFETY: The constructor checks these safety
         // requirements.
@@ -1012,13 +1012,13 @@ impl<T: ?Sized> Hash for Valid<T> {
 }
 
 impl<T: ?Sized> fmt::Debug for Valid<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
 impl<T: ?Sized> fmt::Pointer for Valid<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
@@ -1048,7 +1048,7 @@ impl InvalidPtr {
 struct Hex(usize);
 
 impl fmt::Display for Hex {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:#0x}", self.0)
     }
 }

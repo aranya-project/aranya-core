@@ -42,7 +42,7 @@ impl<'a> IntoIterator for &'a mut Doc {
 }
 
 impl fmt::Display for Doc {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for lit in &self.fragments {
             writeln!(f, "{}", lit.value())?;
         }

@@ -8,9 +8,6 @@
 #![forbid(unsafe_code)]
 
 #[cfg(feature = "alloc")]
-extern crate alloc;
-
-#[cfg(feature = "alloc")]
 use alloc::{boxed::Box, rc::Rc, sync::Arc};
 use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 

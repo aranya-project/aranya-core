@@ -4,10 +4,9 @@ use aranya_crypto::Csprng;
 use buggy::Bug;
 
 use crate::{
-    Address, CmdId, Command, GraphId, LocatedAddress, PeerCache, Perspective as _, Policy,
-    PolicyError, PolicyStore, Segment as _, Sink, Storage as _, StorageError, StorageProvider,
-    TraversalBuffer,
-    policy::ActionPlacement,
+    Address, CmdId, Command, FlavorCtx, GraphId, LocatedAddress, PeerCache, Perspective as _,
+    Policy, PolicyError, PolicyStore, PolicyStoreError, Segment as _, Sink, Storage as _,
+    StorageError, StorageProvider, TraversalBuffer,
     storage::{HeadSet, Spill},
 };
 
@@ -28,6 +27,8 @@ pub use self::{session::Session, transaction::Transaction};
 pub enum ClientError {
     #[error("no such parent: {0}")]
     NoSuchParent(CmdId),
+    #[error("policy store error: {0}")]
+    PolicyStoreError(#[from] PolicyStoreError),
     #[error("policy error: {0}")]
     PolicyError(#[from] PolicyError),
     #[error("storage error: {0}")]
@@ -47,6 +48,8 @@ pub enum ClientError {
     ParallelFinalize,
     #[error("concurrent transaction usage")]
     ConcurrentTransaction,
+    #[error("this client cannot author commands")]
+    NotAnAuthor,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -62,7 +65,7 @@ pub struct ClientState<PS, SP> {
 
 // Manual Debug impl to exclude `buffers` (large, not useful in debug output).
 impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ClientState")
             .field("policy_store", &self.policy_store)
             .field("provider", &self.provider)
@@ -102,7 +105,10 @@ where
     ) -> Result<GraphId, ClientError> {
         let policy_id = self.policy_store.add_policy(policy_data)?;
         let policy = self.policy_store.get_policy(policy_id)?;
-        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
+        let seal_ctx = self
+            .policy_store
+            .seal_ctx(policy_id)
+            .ok_or(ClientError::NotAnAuthor)?;
 
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
@@ -111,8 +117,10 @@ where
                 action,
                 &mut perspective,
                 sink,
-                ActionPlacement::OnGraph,
                 seal_ctx,
+                FlavorCtx::Init {
+                    policy: policy_data,
+                },
             )
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
@@ -294,19 +302,16 @@ where
 
         let policy_id = perspective.policy();
         let policy = self.policy_store.get_policy(policy_id)?;
-        let seal_ctx = self.policy_store.seal_ctx(policy_id)?;
+        let seal_ctx = self
+            .policy_store
+            .seal_ctx(policy_id)
+            .ok_or(ClientError::NotAnAuthor)?;
 
         // No need to checkpoint the perspective since it is only for this action.
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(
-            action,
-            &mut perspective,
-            sink,
-            ActionPlacement::OnGraph,
-            seal_ctx,
-        ) {
+        match policy.call_action(action, &mut perspective, sink, seal_ctx, FlavorCtx::Basic) {
             Ok(()) => {
                 let segment = storage.write(perspective)?;
                 let new_head = LocatedAddress {

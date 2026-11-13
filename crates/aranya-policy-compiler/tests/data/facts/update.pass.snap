@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: module
----
 Module {
     version: "1",
     labels: {
@@ -84,7 +80,7 @@ Module {
     fact.new 'Foo'
     const 1
     fact.kset 'i'
-    dup
+    fact.new 'Foo'
     const "updated"
     fact.vset 'a'
     update

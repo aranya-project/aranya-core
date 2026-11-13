@@ -45,8 +45,6 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
-extern crate alloc;
-
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec,
@@ -2076,7 +2074,7 @@ fn sync<SP: StorageProvider>(
 struct Parent(Prior<Address>);
 
 impl Display for Parent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
             Prior::Merge(a, b) => {
                 write!(f, "Merge({}, {})", short_b58(a.id), short_b58(b.id))

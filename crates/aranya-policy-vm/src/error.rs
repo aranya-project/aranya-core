@@ -198,7 +198,7 @@ impl MachineError {
 }
 
 impl fmt::Display for MachineError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.source {
             Some(source) => write!(
                 f,

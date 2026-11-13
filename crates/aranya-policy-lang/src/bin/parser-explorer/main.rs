@@ -101,7 +101,7 @@ pub fn main() -> ExitCode {
                 // End of file
                 break ExitCode::SUCCESS;
             }
-            output(parse_thing(&line, &args));
+            let _: ExitCode = output(parse_thing(&line, &args));
         }
     } else {
         let mut buf = vec![];

@@ -1,0 +1,15 @@
+function a(n: int) int {
+    return b(n)
+}
+
+function b(n: int) int {
+    return c(n)
+}
+
+function c(n: int) int {
+    return a(n)
+}
+
+function d(n: int) int {
+    return d(n)
+}

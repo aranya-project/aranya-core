@@ -176,10 +176,6 @@ version = "0.5.4"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.console]]
-version = "0.15.10"
-criteria = "safe-to-run"
-
 [[exemptions.const-oid]]
 version = "0.9.6"
 criteria = "safe-to-deploy"
@@ -282,10 +278,6 @@ version = "0.14.1"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.encode_unicode]]
-version = "1.0.0"
-criteria = "safe-to-run"
-
 [[exemptions.fixedbitset]]
 version = "0.5.7"
 criteria = "safe-to-deploy"
@@ -298,10 +290,6 @@ criteria = "safe-to-deploy"
 version = "0.6.0"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
-
-[[exemptions.goldenfile]]
-version = "1.7.3"
-criteria = "safe-to-run"
 
 [[exemptions.granit-parser]]
 version = "2.0.0"
@@ -338,9 +326,10 @@ version = "0.4.14"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.insta]]
-version = "1.43.1"
-criteria = "safe-to-run"
+[[exemptions.itertools]]
+version = "0.11.0"
+criteria = "safe-to-deploy"
+notes = "Audited as safe-to-run by chromium"
 
 [[exemptions.js-sys]]
 version = "0.3.76"
@@ -452,10 +441,6 @@ criteria = "safe-to-deploy"
 version = "0.2.20"
 criteria = "safe-to-deploy"
 
-[[exemptions.prettyplease]]
-version = "0.2.25"
-criteria = "safe-to-deploy"
-
 [[exemptions.primefield]]
 version = "0.14.0"
 criteria = "safe-to-deploy"
@@ -497,10 +482,6 @@ criteria = "safe-to-deploy"
 [[exemptions.redox_syscall]]
 version = "0.5.8"
 criteria = "safe-to-run"
-
-[[exemptions.regex-automata]]
-version = "0.4.9"
-criteria = "safe-to-deploy"
 
 [[exemptions.rend]]
 version = "0.5.2"
@@ -544,10 +525,6 @@ criteria = "safe-to-deploy"
 version = "1.0.133"
 criteria = "safe-to-deploy"
 
-[[exemptions.serde_repr]]
-version = "0.1.19"
-criteria = "safe-to-deploy"
-
 [[exemptions.serdect]]
 version = "0.4.3"
 criteria = "safe-to-deploy"
@@ -575,14 +552,6 @@ version = "3.0.0"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.similar]]
-version = "2.6.0"
-criteria = "safe-to-run"
-
-[[exemptions.similar-asserts]]
-version = "1.6.0"
-criteria = "safe-to-run"
-
 [[exemptions.siphasher]]
 version = "1.0.1"
 criteria = "safe-to-deploy"
@@ -596,24 +565,12 @@ version = "0.8.0"
 criteria = "safe-to-deploy"
 notes = "RustCrypto"
 
-[[exemptions.syn]]
-version = "2.0.90"
-criteria = "safe-to-deploy"
-
 [[exemptions.tempfile]]
 version = "3.14.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.termcolor]]
 version = "1.4.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror]]
-version = "2.0.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror-impl]]
-version = "2.0.7"
 criteria = "safe-to-deploy"
 
 [[exemptions.tracing-test]]
@@ -681,10 +638,6 @@ criteria = "safe-to-run"
 version = "0.1.9"
 criteria = "safe-to-deploy"
 
-[[exemptions.windows-sys]]
-version = "0.59.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.windows-targets]]
 version = "0.52.6"
 criteria = "safe-to-deploy"
@@ -729,10 +682,6 @@ notes = "RustCrypto"
 [[exemptions.wycheproof]]
 version = "0.6.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.yansi]]
-version = "1.0.1"
-criteria = "safe-to-run"
 
 [[exemptions.zerocopy]]
 version = "0.7.35"

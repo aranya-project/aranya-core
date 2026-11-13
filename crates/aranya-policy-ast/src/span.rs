@@ -4,16 +4,12 @@ use core::{
     ops::{Bound, Range, RangeBounds},
 };
 
-use serde_derive::{Deserialize, Serialize};
-
 /// Wraps a type to add a [`Span`].
 ///
 /// The span is treated as metadata: it is **not** considered for equality,
 /// hashing, or ordering — only the inner value is. This lets `WithSpan<T>`
 /// be used as a map key that behaves like `T`.
-#[derive(
-    Clone, Copy, Serialize, Deserialize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize,
-)]
+#[derive(Clone, Copy)]
 #[must_use]
 pub struct WithSpan<T> {
     /// The inner value.
@@ -77,7 +73,7 @@ impl<T> core::ops::Deref for WithSpan<T> {
 }
 
 impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.inner.fmt(f)?;
         write!(f, " @ {:?}", self.span)?;
         Ok(())
@@ -85,7 +81,7 @@ impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
 }
 
 impl<T: fmt::Display> fmt::Display for WithSpan<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.inner.fmt(f)
     }
 }
@@ -117,20 +113,7 @@ pub trait WithSpanExt: Sized {
 impl<T> WithSpanExt for T {}
 
 /// A range in the source text.
-#[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    Serialize,
-    Deserialize,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
     // [start, end)
     start: usize,
@@ -237,7 +220,7 @@ impl From<Span> for Range<usize> {
 }
 
 impl fmt::Debug for Span {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Range::from(*self).fmt(f)
     }
 }

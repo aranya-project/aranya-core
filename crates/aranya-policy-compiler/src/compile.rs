@@ -1,3 +1,4 @@
+mod call_graph;
 mod error;
 mod lower;
 mod target;
@@ -8,7 +9,6 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
     fmt, iter,
-    num::NonZeroUsize,
     ops::Range,
     vec,
 };
@@ -29,19 +29,22 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
+use itertools::zip_eq;
 use tracing::warn;
 
-pub use self::{error::CompileError, target::PolicyInterface};
 use self::{
+    call_graph::CallGraph,
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
-        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
-        SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublishOrActionCall,
+        NoReturn, NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
+        UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
     types::{IdentifierTypeStack, UserType},
 };
+pub use self::{error::CompileError, target::PolicyInterface};
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -154,7 +157,7 @@ mod param {
 
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
 /// statement is currently valid.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum StatementContext {
     /// An action
     Action(ast::ActionDefinition),
@@ -181,7 +184,7 @@ impl Spanned for StatementContext {
 }
 
 impl fmt::Display for StatementContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Action(_) => write!(f, "action"),
             Self::CommandPolicy(_) => write!(f, "command policy block"),
@@ -193,7 +196,7 @@ impl fmt::Display for StatementContext {
 }
 
 /// Called to compile a builtin function call.
-type BuiltinHandler = fn(&mut CompileState<'_>) -> Result<(), CompileError>;
+type BuiltinHandler = fn(&mut CompileState) -> Result<(), CompileError>;
 
 /// The "compile state" of the machine.
 struct CompileState<'a> {
@@ -221,6 +224,10 @@ struct CompileState<'a> {
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
+    /// Tracks calls between callers and callees, used to reject recursion.
+    call_graph: CallGraph,
+    /// The function or action being compiled, if any. Used for tracking recursion.
+    current_caller: Option<Label>,
     /// Configuration
     config: Config<'a>,
 }
@@ -247,6 +254,15 @@ impl<'a> CompileState<'a> {
         self.statement_context
             .pop()
             .expect("attempted to exit statement context when none was active");
+    }
+
+    /// Record a call to `callee` from the function or action being compiled.
+    /// `site` is the span of the callee name at the call site.
+    fn track_call(&mut self, callee: &Label, site: Span) {
+        // current_caller is None in command blocks
+        if let Some(caller) = &self.current_caller {
+            self.call_graph.add_call(caller, callee, site);
+        }
     }
 
     /// Get the current statement context.
@@ -712,28 +728,8 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.inner));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.inner) else {
-                    let note = format!("struct `{}` not defined", sub);
-                    return Err(self.err(NotDefined(note, sub.span())));
-                };
-                let field_names: Vec<Identifier> = sub_field_defns
-                    .iter()
-                    .map(|field| field.name.inner.clone())
-                    .collect();
-                let field_count = field_names.len();
-
-                self.append_instruction(Instruction::StructNew(sub.inner));
-
                 self.compile_typed_expression(*lhs)?;
-
-                for field_name in field_names {
-                    self.append_instruction(Instruction::Identifier(field_name));
-                }
-
-                if let Some(field_count) = NonZeroUsize::new(field_count) {
-                    self.append_instruction(Instruction::MStructGet(field_count));
-                    self.append_instruction(Instruction::MStructSet(field_count));
-                }
+                self.append_instruction(Instruction::Substruct(sub.inner));
             }
             thir::ExprKind::Cast(lhs, rhs_ident) => {
                 // NOTE this is implemented only for structs
@@ -1026,9 +1022,10 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Create);
             }
             thir::StmtKind::Update(s) => {
+                let name = s.fact.name.inner.clone();
                 self.compile_fact_literal(s.fact)?;
-                self.append_instruction(Instruction::Dup);
 
+                self.append_instruction(Instruction::FactNew(name));
                 for (k, e) in s.to {
                     self.compile_typed_expression(e)?;
                     self.append_instruction(Instruction::FactValueSet(k.inner));
@@ -1112,12 +1109,13 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FunctionDefinition,
     ) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::PureFunction(function_node.clone()));
+        let label = Label::new(function_node.name.inner.clone(), LabelType::Function);
         self.compile_function_like(
             &function_node.parameters,
             Some(&function_node.return_type),
             function_node.span,
             &function_node.body,
-            Label::new(function_node.name.inner.clone(), LabelType::Function),
+            label,
         )?;
         self.exit_statement_context();
         Ok(())
@@ -1129,12 +1127,13 @@ impl<'a> CompileState<'a> {
         function_node: &'a ast::FinishFunctionDefinition,
     ) -> Result<(), CompileError> {
         self.enter_statement_context(StatementContext::Finish(function_node.span));
+        let label = Label::new(function_node.name.inner.clone(), LabelType::Function);
         self.compile_function_like(
             &function_node.parameters,
             None,
             function_node.span,
             &function_node.body,
-            Label::new(function_node.name.inner.clone(), LabelType::Function),
+            label,
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
@@ -1147,6 +1146,7 @@ impl<'a> CompileState<'a> {
             self.compile_typed_expression(arg)?;
         }
         let label = Label::new(fc.name.inner, LabelType::Action);
+        self.track_call(&label, fc.name.span);
         self.append_instruction(Instruction::Call(Target::Unresolved(label)));
         Ok(())
     }
@@ -1160,6 +1160,7 @@ impl<'a> CompileState<'a> {
             handler(self)?;
         } else {
             let label = Label::new(fc.name.inner, LabelType::Function);
+            self.track_call(&label, fc.name.span);
             self.append_instruction(Instruction::Call(Target::Unresolved(label)));
         }
 
@@ -1204,6 +1205,7 @@ impl<'a> CompileState<'a> {
             }
             _ => unreachable!("invalid action return type should have been caught during parsing"),
         };
+        let from = self.wp;
         self.compile_function_like(
             &action_node.parameters,
             ret.as_ref(),
@@ -1214,6 +1216,29 @@ impl<'a> CompileState<'a> {
         // An infallible action has no return statement, so add one.
         if ret.is_none() {
             self.append_instruction(Instruction::Return);
+        }
+
+        // Actions should publish or call another action, so check for either somewhere in the compiled instructions.
+        // This is only a warning in debug mode, so test policies can use actions as entry points.
+        let publishes_or_calls = self.instruction_range_contains(from..self.wp, |i| {
+            matches!(
+                i,
+                Instruction::Publish
+                    | Instruction::Call(Target::Unresolved(Label {
+                        ltype: LabelType::Action,
+                        ..
+                    }))
+            )
+        });
+        if !publishes_or_calls {
+            if self.config.is_debug {
+                warn!(
+                    "action `{}` neither publishes nor calls another action",
+                    action_node.name
+                );
+            } else {
+                return Err(self.err(NoPublishOrActionCall(action_node.span)));
+            }
         }
 
         self.exit_statement_context();
@@ -1270,7 +1295,7 @@ impl<'a> CompileState<'a> {
     fn compile_command_policy(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: &Flavor<'_>,
+        flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
         let params = [
             param::this(command.name.clone()),
@@ -1314,7 +1339,7 @@ impl<'a> CompileState<'a> {
     fn compile_command_recall(
         &mut self,
         command: &ast::CommandDefinition,
-        flavor_def: &Flavor<'_>,
+        flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
         let base_params = [
             param::this(command.name.clone()),
@@ -1360,6 +1385,14 @@ impl<'a> CompileState<'a> {
         body: &[Statement],
         label: Label,
     ) -> Result<(), CompileError> {
+        // Only functions and actions are callable, so only they can recurse.
+        if matches!(label.ltype, LabelType::Function | LabelType::Action) {
+            if self.current_caller.is_some() {
+                bug!("current_caller should be None");
+            }
+            self.current_caller = Some(label.clone());
+        }
+
         self.define_label(label, self.wp)?;
         self.map_range(span)?;
 
@@ -1393,6 +1426,9 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .exit_function()
             .map_err(|e| self.err(e))?;
+
+        self.current_caller = None;
+
         Ok(())
     }
 
@@ -1648,9 +1684,7 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 thir::MatchPattern::Default(_) => {
-                    self.append_instruction(Instruction::Jump(Target::Unresolved(
-                        arm_label.clone(),
-                    )));
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(arm_label)));
                 }
             }
         }
@@ -1658,9 +1692,7 @@ impl<'a> CompileState<'a> {
         // 2. Define arm labels, and compile instructions
         match bodies {
             LanguageContext::Statement(s) => {
-                for ((arm_start, pattern), statements) in
-                    iter::zip(iter::zip(arm_labels, &patterns), s)
-                {
+                for ((arm_start, pattern), statements) in zip_eq(zip_eq(arm_labels, &patterns), s) {
                     self.define_label(arm_start, self.wp)?;
 
                     // Enter a new scope for this match arm
@@ -1711,9 +1743,7 @@ impl<'a> CompileState<'a> {
                 }
             }
             LanguageContext::Expression(e) => {
-                for ((arm_start, pattern), expression) in
-                    iter::zip(iter::zip(arm_labels, &patterns), e)
-                {
+                for ((arm_start, pattern), expression) in zip_eq(zip_eq(arm_labels, &patterns), e) {
                     self.define_label(arm_start, self.wp)?;
 
                     // Enter a new scope for this match arm
@@ -1986,7 +2016,7 @@ impl<'a> CompileState<'a> {
 
     fn define_envelope(
         &mut self,
-        envelope: &aranya_policy_module::flavor::Struct<'_>,
+        envelope: &aranya_policy_module::flavor::Struct,
     ) -> Result<(), CompileError> {
         // TODO(jdygert): Allow defining twice with same fields?
         let name = envelope.name.clone().nowhere();
@@ -2055,6 +2085,10 @@ impl<'a> CompileState<'a> {
         for action in &self.policy.actions {
             self.compile_action(action)?;
         }
+
+        self.call_graph
+            .check_recursion()
+            .map_err(|err| self.err(err))?;
 
         self.resolve_targets()?;
 
@@ -2434,6 +2468,8 @@ impl<'a> Compiler<'a> {
             last_span: Span::empty(),
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(self.config.is_debug),
+            call_graph: CallGraph::new(),
+            current_caller: None,
             config: self.config,
             ffi_modules: self.config.ffi_modules,
         }

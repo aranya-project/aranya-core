@@ -172,7 +172,7 @@ impl SyncRequester {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: SessionHeads<'_>,
+        heads: SessionHeads,
         rng: &impl Csprng,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
@@ -393,7 +393,7 @@ impl SyncRequester {
     fn get_commands(
         &mut self,
         provider: &mut impl StorageProvider,
-        heads: &SessionHeads<'_>,
+        heads: &SessionHeads,
         rng: &impl Csprng,
     ) -> Result<(Vec<Address, COMMAND_SAMPLE_MAX>, usize), SyncError> {
         let storage = match provider.get_storage(self.graph_id) {
@@ -466,7 +466,7 @@ impl SyncRequester {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        heads: SessionHeads<'_>,
+        heads: SessionHeads,
         rng: &impl Csprng,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(

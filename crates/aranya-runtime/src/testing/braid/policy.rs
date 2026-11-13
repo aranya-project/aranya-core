@@ -15,9 +15,9 @@ use alloc::boxed::Box;
 use buggy::{BugExt as _, bug};
 
 use crate::{
-    Address, CmdId, Command, Prior, Priority,
+    Address, CmdId, Command, FlavorCtx, Prior, Priority,
     policy::{
-        ActionPlacement, CommandPlacement, MergeIds, Policy, PolicyError, PolicyId, PolicyStore,
+        CommandPlacement, MergeIds, Policy, PolicyError, PolicyId, PolicyStore, PolicyStoreError,
         Sink,
     },
     storage::{FactPerspective, Keys, Perspective},
@@ -84,16 +84,16 @@ impl PolicyStore for ProbePolicyStore {
     type Policy = ProbePolicy;
     type Effect = ();
 
-    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyError> {
+    fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
         Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
         Ok(&ProbePolicy)
     }
 
-    fn seal_ctx(&self, _id: PolicyId) -> Result<&<Self::Policy as Policy>::SealCtx, PolicyError> {
-        Err(PolicyError::Panic)
+    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
+        unreachable!()
     }
 }
 
@@ -147,8 +147,8 @@ impl Policy for ProbePolicy {
         action: Self::Action<'_>,
         _facts: &mut impl Perspective,
         _sink: &mut impl Sink<Self::Effect>,
-        _placement: ActionPlacement,
         _seal_ctx: &Self::SealCtx,
+        _flavor_ctx: FlavorCtx<'_>,
     ) -> Result<(), PolicyError> {
         match action {}
     }

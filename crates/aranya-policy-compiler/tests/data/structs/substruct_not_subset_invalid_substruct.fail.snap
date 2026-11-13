@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: invalid substruct operation: struct `Foo` must be a subset of struct `Bar`
    |
 16 |     publish source substruct Foo

@@ -1,11 +1,7 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: module
----
 Module {
     version: "1",
     labels: {
-        <action 'a'>: 15,
+        <action 'a'>: 8,
         <fn 'f'>: 1,
     },
     action_defs: [
@@ -18,16 +14,7 @@ Module {
     ],
     command_defs: [],
     fact_defs: [],
-    struct_defs: [
-        StructDef {
-            name: "NullEnvelope",
-            items: [],
-        },
-        StructDef {
-            name: "StubBase",
-            items: [],
-        },
-    ],
+    struct_defs: [],
     enum_defs: [],
     globals: {},
     ..
@@ -39,13 +26,6 @@ Module {
     const 1
     wrap some
     wrap some
-    restore SP
-    return
-    exit panic
-    def 'author_id'
-    def 'this'
-    save SP
-    const None
     restore SP
     return
     exit panic

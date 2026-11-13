@@ -24,7 +24,7 @@ use aranya_policy_compiler::{Compiler, validate::validate};
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Identifier, Machine, Value};
 use aranya_runtime::{
-    ActionPlacement, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _, Sink as _,
+    FlavorCtx, HeadSet, LocatedAddress, Policy as _, PolicyId, Segment as _, Sink as _,
     Storage as _, StorageProvider as _, VmAction, vm_policy::SealCtx,
 };
 pub use io::testing_ffi;
@@ -245,9 +245,7 @@ impl PolicyRunner {
         tracing::debug!("Policy compiled successfully");
         if self.validator {
             tracing::debug!("Running validator");
-            if validate(&module) {
-                return Err(anyhow::anyhow!("Could not validate module"));
-            }
+            validate(&module).context("could not validate module")?;
             tracing::debug!("Policy validated");
         }
         tracing::debug!("Creating VM");
@@ -344,12 +342,12 @@ impl PolicyRunner {
                         action,
                         &mut perspective,
                         &mut sink,
-                        ActionPlacement::OnGraph,
                         // TODO(jdygert): How should the policy runner manage keys?
                         &SealCtx {
                             author: DeviceId::default(),
                             key: SigningKey::new(aranya_crypto::Rng),
                         },
+                        FlavorCtx::Basic,
                     )
                     .inspect_err(|e| {
                         tracing::error!("VM Policy Error: {e}");

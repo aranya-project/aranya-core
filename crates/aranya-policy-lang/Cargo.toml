@@ -8,38 +8,50 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+
 [lints]
 workspace = true
 
+
 [lib]
 bench = false
+
 
 [[bin]]
 name = "parser-explorer"
 bench = false
 
+
+[[test]]
+name = "snap"
+harness = false
+bench = false
+
+
 [features]
 default = []
 
+
 [dependencies]
-buggy = { version = "0.1.0", features = ["std"] }
+buggy = { workspace = true, features = ["std"] }
 # `std` is required because bin/parser-explorer uses `clap` which
 # requires it for arg parsing.
 aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast", features = ["std"] }
 
 annotate-snippets = { workspace = true }
 anyhow = { workspace = true }
-clap = { version = "4.4", features = ["derive"] }
-markdown = { version = "1" }
-pest = { version = "2" }
-pest_derive = { version = "2" }
-serde = { workspace = true, default-features = false, features = ["derive"] }
-serde-saphyr = { version = "2", default-features = false, features = ["deserialize"] }
+clap = { workspace = true, features = ["derive"] }
+markdown = { workspace = true }
+pest = { workspace = true }
+pest_derive = { workspace = true }
+serde = { workspace = true }
+serde-saphyr = { workspace = true, features = ["deserialize"] }
 tracing = { workspace = true }
 
+
 [dev-dependencies]
-insta = { workspace = true }
-rstest = { workspace = true }
+snapbox = { workspace = true }
+tryfn = { workspace = true }
 
 
 [package.metadata.docs.rs]

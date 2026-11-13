@@ -183,7 +183,7 @@ macro_rules! ciphertext {
                 {
                     type Value = $name<G>;
 
-                    fn expecting(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    fn expecting(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                         ::core::write!(f, "ciphertext")
                     }
 
@@ -446,13 +446,13 @@ macro_rules! sk_misc_inner {
         }
 
         impl<CS: $crate::CipherSuite> ::core::fmt::Display for $name<CS> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 ::core::write!(f, "{}", self.id().map_err(|_| ::core::fmt::Error)?)
             }
         }
 
         impl<CS: $crate::CipherSuite> ::core::fmt::Debug for $name<CS> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 ::core::write!(
                     f,
                     ::core::concat!(::core::stringify!($name), " {}"),
@@ -516,13 +516,13 @@ macro_rules! pk_misc {
         }
 
         impl<CS: $crate::CipherSuite> ::core::fmt::Display for $name<CS> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 ::core::write!(f, "{}", self.id().map_err(|_| ::core::fmt::Error)?)
             }
         }
 
         impl<CS: $crate::CipherSuite> ::core::fmt::Debug for $name<CS> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 ::core::write!(
                     f,
                     ::core::concat!(stringify!($name), " {}"),
@@ -639,7 +639,7 @@ impl<'de, K: PublicKey> Deserialize<'de> for SerdeOwnedKey<K> {
         impl<'de, K: PublicKey> de::Visitor<'de> for PkVisitor<K> {
             type Value = K;
 
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "a public key")
             }
 

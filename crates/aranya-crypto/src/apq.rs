@@ -106,7 +106,7 @@ impl From<Topic> for [u8; 16] {
 }
 
 impl fmt::Display for Topic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0.to_hex())
     }
 }
@@ -254,7 +254,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         plaintext: &[u8],
         version: Version,
         topic: &Topic,
-        ident: &Sender<'_, CS>,
+        ident: &Sender<CS>,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -296,7 +296,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         ciphertext: &[u8],
         version: Version,
         topic: &Topic,
-        ident: &Sender<'_, CS>,
+        ident: &Sender<CS>,
     ) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
