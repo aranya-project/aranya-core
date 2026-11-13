@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: field `x` specified more than once
   |
 6 |         x: 1,

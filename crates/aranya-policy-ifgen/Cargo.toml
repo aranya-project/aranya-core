@@ -34,7 +34,7 @@ aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
 
-goldenfile = { workspace = true }
+snapbox = { workspace = true }
 syn = { workspace = true }
 
 

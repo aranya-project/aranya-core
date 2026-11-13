@@ -1556,15 +1556,26 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
 #[test]
 fn test_debug_assert() -> anyhow::Result<()> {
     let text = r#"
+    command Pub with StubBase {
+        fields {}
+        policy {
+            finish {}
+        }
+    }
+
     function get_false() bool {
         return false
     }
 
     action[null] test_debug_assert_failure() {
+        // Add dummy `publish` to keep the compiler happy in release mode.
+        if false { publish Pub {} }
+
         debug_assert(false)
     }
 
     action[null] test_debug_assert_failure_expression() {
+        if false { publish Pub {} }
         debug_assert(get_false())
     }
 
@@ -1573,6 +1584,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
     }
 
     action[null] test_debug_assert_pass() {
+        if false { publish Pub {} }
         debug_assert(true)
         debug_assert(get_true())
     }

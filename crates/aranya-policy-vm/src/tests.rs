@@ -210,7 +210,6 @@ impl Stack for TestStack {
 #[test]
 fn test_stack() -> anyhow::Result<()> {
     const FOO: Identifier = ident!("FOO");
-    const BAR: Identifier = ident!("BAR");
 
     let mut s = TestStack::new();
 
@@ -219,7 +218,6 @@ fn test_stack() -> anyhow::Result<()> {
     s.push(true)?;
     s.push(text!("hello"))?;
     s.push(Struct::new(FOO, &[]))?;
-    s.push(Fact::new(BAR))?;
     s.push_value(Value::NONE)?;
     assert_eq!(
         s.stack,
@@ -228,7 +226,6 @@ fn test_stack() -> anyhow::Result<()> {
             Value::Bool(true),
             Value::String(text!("hello")),
             Value::Struct(Struct::new(FOO, &[])),
-            Value::Fact(Fact::new(BAR)),
             Value::NONE,
         ]
     );
@@ -238,11 +235,6 @@ fn test_stack() -> anyhow::Result<()> {
     assert_eq!(v, &Value::NONE);
     let v = s.pop_value()?;
     assert_eq!(v, Value::NONE);
-
-    let v: &Fact = s.peek()?;
-    assert_eq!(v, &Fact::new(BAR));
-    let v: Fact = s.pop()?;
-    assert_eq!(v, Fact::new(BAR));
 
     let v: &Struct = s.peek()?;
     assert_eq!(v, &Struct::new(FOO, &[]));
@@ -415,6 +407,7 @@ fn general_test_harness<F, G>(
     rs_closure(&mut rs).unwrap();
 }
 
+#[track_caller]
 fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType) {
     let m = Machine::new(instructions.to_owned());
 
@@ -495,26 +488,6 @@ fn test_errors() {
         MachineErrorType::invalid_type("Struct", "Int", "Value -> Struct"),
     );
 
-    // InvalidType: Set a fact key on a thing that isn't a fact
-    error_test_harness(
-        &[
-            Instruction::Const(ConstValue::Int(3)),
-            Instruction::Const(ConstValue::Int(3)),
-            Instruction::FactKeySet(x.clone()),
-        ],
-        MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
-    );
-
-    // InvalidType: Set a fact value on a thing that isn't a fact
-    error_test_harness(
-        &[
-            Instruction::Const(ConstValue::Int(3)),
-            Instruction::Const(ConstValue::Int(3)),
-            Instruction::FactValueSet(x.clone()),
-        ],
-        MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
-    );
-
     // InvalidType: Branch on a non-bool value
     error_test_harness(
         &[
@@ -535,14 +508,19 @@ fn test_errors() {
 
     // InvalidFact: Update a fact that does not exist
     general_test_harness(
-        &[Instruction::Dup, Instruction::Update],
+        &[Instruction::Update],
         |_| Ok(()),
         |rs| {
-            rs.stack.push(Fact {
+            rs.facts.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })?;
+            });
+            rs.facts.push(Fact {
+                name: x.clone(),
+                keys: vec![],
+                values: vec![],
+            });
             let err = rs.run().unwrap_err().err_type;
             assert_eq!(err, MachineErrorType::InvalidFact(x.clone()));
             Ok(())
@@ -621,11 +599,11 @@ fn test_errors() {
         &[Instruction::Delete],
         |_| Ok(()),
         |rs| {
-            rs.stack.push(Fact {
+            rs.facts.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })?;
+            });
             let err = rs.run().unwrap_err().err_type;
             assert_eq!(err, MachineErrorType::IO(MachineIOError::FactNotFound));
             Ok(())
@@ -638,14 +616,19 @@ fn test_errors() {
     // in schema, but TestIO does not care about fact schema and the
     // machine does not check it.
     general_test_harness(
-        &[Instruction::Dup, Instruction::Create, Instruction::Create],
+        &[Instruction::Create, Instruction::Create],
         |_| Ok(()),
         |rs| {
-            rs.stack.push(Fact {
+            rs.facts.push(Fact {
                 name: x.clone(),
                 keys: vec![],
                 values: vec![],
-            })?;
+            });
+            rs.facts.push(Fact {
+                name: x.clone(),
+                keys: vec![],
+                values: vec![],
+            });
             let err = rs.run().unwrap_err().err_type;
             assert_eq!(err, MachineErrorType::IO(MachineIOError::FactExists));
             Ok(())

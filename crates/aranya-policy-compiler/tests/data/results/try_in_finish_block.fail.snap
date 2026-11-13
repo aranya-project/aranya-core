@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: invalid expression
    |
 13 |             create F[k: 1]=>{v: may_fail(2)?}

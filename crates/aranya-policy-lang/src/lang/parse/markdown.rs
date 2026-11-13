@@ -7,7 +7,7 @@ use markdown::{
 };
 use serde::Deserialize;
 
-use super::{ParseError, ParseErrorKind, Version, error, parse_policy_chunk};
+use super::{ParseError, ParseErrorKind, Result, Version, error, parse_policy_chunk};
 
 #[derive(Deserialize)]
 struct FrontMatter {
@@ -15,7 +15,7 @@ struct FrontMatter {
     policy_version: String,
 }
 
-fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
+fn parse_front_matter(yaml: &Yaml) -> Result<Version> {
     let fm: FrontMatter = serde_saphyr::from_str(&yaml.value)
         .map_err(|e| ParseError::new(ParseErrorKind::FrontMatter, e.to_string(), None))?;
     let v = match fm.policy_version.as_str() {
@@ -46,7 +46,7 @@ pub struct ChunkOffset {
     pub byte: usize,
 }
 
-fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
+fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Version)> {
     if let Node::Root(r) = node {
         let mut child_iter = r.children.iter();
         // The front matter should always be the first node below the
@@ -99,7 +99,7 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
 
 /// Parses a Markdown policy document into an AST. This AST will likely be further processed
 /// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
-pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
+pub fn parse_policy_document(data: &str) -> Result<ast::Policy> {
     let (chunks, version) = extract_policy(data)?;
     if chunks.is_empty() {
         return Err(ParseError::new(
@@ -117,7 +117,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
 
 /// Extract the policy chunks from a Markdown policy document. Returns the chunks plus the
 /// policy version.
-fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
+fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version)> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
     let tree = to_mdast(data, &parseoptions)

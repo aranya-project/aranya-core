@@ -15,7 +15,6 @@ pub const KEYWORDS: &[&str] = &[
     "create",
     "debug_assert",
     "delete",
-    "dynamic",
     "effect",
     "else",
     "emit",

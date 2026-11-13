@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: cannot return from an infallible action; declare a `result[unit, E]` return type
   |
 4 |         _ => return 2

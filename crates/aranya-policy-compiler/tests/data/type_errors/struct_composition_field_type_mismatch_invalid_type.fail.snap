@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: struct composition type mismatch: field `x` expects `int` but found `string`
   |
 1 | struct Foo { x: int, y: bool }

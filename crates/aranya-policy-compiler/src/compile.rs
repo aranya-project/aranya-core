@@ -9,7 +9,6 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
     fmt, iter,
-    num::NonZeroUsize,
     ops::Range,
     vec,
 };
@@ -37,8 +36,9 @@ use self::{
     call_graph::CallGraph,
     error::{
         AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
-        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoReturn, NotDefined,
-        SourceStructNotSubsetOfBase, StructCompositionTypeMismatch, UnknownError,
+        InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublishOrActionCall,
+        NoReturn, NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
+        UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -337,7 +337,7 @@ impl<'a> CompileState<'a> {
     pub fn define_struct(
         &mut self,
         name: Ident,
-        items: impl IntoIterator<Item = StructItem<FieldDefinition>>,
+        items: impl IntoIterator<Item = StructItem>,
     ) -> Result<(), CompileError> {
         // Add explicitly-defined fields and those from struct insertions
         let mut field_definitions = Vec::new();
@@ -728,28 +728,8 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::StructGet(s.inner));
             }
             thir::ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.inner) else {
-                    let note = format!("struct `{}` not defined", sub);
-                    return Err(self.err(NotDefined(note, sub.span())));
-                };
-                let field_names: Vec<Identifier> = sub_field_defns
-                    .iter()
-                    .map(|field| field.name.inner.clone())
-                    .collect();
-                let field_count = field_names.len();
-
-                self.append_instruction(Instruction::StructNew(sub.inner));
-
                 self.compile_typed_expression(*lhs)?;
-
-                for field_name in field_names {
-                    self.append_instruction(Instruction::Identifier(field_name));
-                }
-
-                if let Some(field_count) = NonZeroUsize::new(field_count) {
-                    self.append_instruction(Instruction::MStructGet(field_count));
-                    self.append_instruction(Instruction::MStructSet(field_count));
-                }
+                self.append_instruction(Instruction::Substruct(sub.inner));
             }
             thir::ExprKind::Cast(lhs, rhs_ident) => {
                 // NOTE this is implemented only for structs
@@ -1042,9 +1022,10 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Create);
             }
             thir::StmtKind::Update(s) => {
+                let name = s.fact.name.inner.clone();
                 self.compile_fact_literal(s.fact)?;
-                self.append_instruction(Instruction::Dup);
 
+                self.append_instruction(Instruction::FactNew(name));
                 for (k, e) in s.to {
                     self.compile_typed_expression(e)?;
                     self.append_instruction(Instruction::FactValueSet(k.inner));
@@ -1224,6 +1205,7 @@ impl<'a> CompileState<'a> {
             }
             _ => unreachable!("invalid action return type should have been caught during parsing"),
         };
+        let from = self.wp;
         self.compile_function_like(
             &action_node.parameters,
             ret.as_ref(),
@@ -1234,6 +1216,29 @@ impl<'a> CompileState<'a> {
         // An infallible action has no return statement, so add one.
         if ret.is_none() {
             self.append_instruction(Instruction::Return);
+        }
+
+        // Actions should publish or call another action, so check for either somewhere in the compiled instructions.
+        // This is only a warning in debug mode, so test policies can use actions as entry points.
+        let publishes_or_calls = self.instruction_range_contains(from..self.wp, |i| {
+            matches!(
+                i,
+                Instruction::Publish
+                    | Instruction::Call(Target::Unresolved(Label {
+                        ltype: LabelType::Action,
+                        ..
+                    }))
+            )
+        });
+        if !publishes_or_calls {
+            if self.config.is_debug {
+                warn!(
+                    "action `{}` neither publishes nor calls another action",
+                    action_node.name
+                );
+            } else {
+                return Err(self.err(NoPublishOrActionCall(action_node.span)));
+            }
         }
 
         self.exit_statement_context();
@@ -1820,7 +1825,7 @@ impl<'a> CompileState<'a> {
 
         let mut topo = TopoSort::new();
 
-        fn extract_struct_ident(item: &StructItem<FieldDefinition>) -> Option<&Identifier> {
+        fn extract_struct_ident(item: &StructItem) -> Option<&Identifier> {
             match item {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.inner),
@@ -1939,25 +1944,12 @@ impl<'a> CompileState<'a> {
                     self.define_struct(struct_def.name.clone(), struct_def.items.iter().cloned())?;
                 }
                 UserType::Effect(effect) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = effect
-                        .items
-                        .iter()
-                        .map(|i| match i {
-                            StructItem::Field(f) => StructItem::Field(FieldDefinition {
-                                name: f.name.clone(),
-                                vtype: f.vtype.clone(),
-                            }),
-                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                        })
-                        .collect();
-                    self.define_struct(effect.name.clone(), fields.iter().cloned())?;
+                    self.define_struct(effect.name.clone(), effect.items.iter().cloned())?;
                     self.m.interface.effects.insert(effect.name.clone());
                 }
                 UserType::Fact(fact) => {
-                    let fields: Vec<StructItem<FieldDefinition>> =
-                        fact.fields().cloned().map(StructItem::Field).collect();
-
-                    self.define_struct(fact.name.clone(), fields.iter().cloned())?;
+                    let fields = fact.fields().cloned().map(StructItem::Field);
+                    self.define_struct(fact.name.clone(), fields)?;
                     self.define_fact(fact)?;
                 }
                 UserType::BaseCommand(base_command) => {
@@ -1974,17 +1966,13 @@ impl<'a> CompileState<'a> {
                     )?;
                 }
                 UserType::FFIStruct(s) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = s
-                        .fields
-                        .iter()
-                        .map(|a| {
-                            StructItem::Field(FieldDefinition {
-                                name: a.name.clone().nowhere(),
-                                vtype: VType::from(&a.vtype),
-                            })
+                    let fields = s.fields.iter().map(|a| {
+                        StructItem::Field(FieldDefinition {
+                            name: a.name.clone().nowhere(),
+                            vtype: VType::from(&a.vtype),
                         })
-                        .collect();
-                    self.define_struct(s.name.clone().nowhere(), fields.iter().cloned())?;
+                    });
+                    self.define_struct(s.name.clone().nowhere(), fields)?;
                 }
             }
         }
