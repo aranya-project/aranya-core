@@ -68,7 +68,7 @@
     "Sync": {
       "client": 0,
       "from": 1,
-      "must_send": 100
+      "must_send": 3
     }
   },
   {
@@ -96,7 +96,7 @@
     "Sync": {
       "client": 0,
       "from": 1,
-      "must_send": 100
+      "must_send": 4
     }
   },
   {
@@ -145,7 +145,7 @@
     "Sync": {
       "client": 2,
       "from": 1,
-      "must_send": 2,
+      "must_send": 3,
       "max_syncs": 2
     }
   },

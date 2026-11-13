@@ -20,7 +20,7 @@ use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
     StorageProvider, SyncError, SyncRequester, TraversalBuffers, mem_spill,
     policy::{Policy, PolicyError, PolicyStore, Sink},
-    storage::GraphId,
+    storage::{GraphId, StorageError},
     testing::dsl::dispatch,
     vm_policy::{VmEffect, VmPolicyError},
 };
@@ -466,7 +466,7 @@ where
             .entry((graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
             .or_default();
 
-        let request_cache = self
+        let mut request_cache = self
             .client_graph_peer_cache
             .get(&(graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
             .ok_or(ModelError::ClientNotFound)?
@@ -496,16 +496,16 @@ where
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*graph_id);
+        let mut received_addrs = Vec::new();
 
         while request_syncer.ready() {
             if request_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let session = request_trx.session_heads(&request_cache);
                 let (len, _) = request_syncer.poll(
                     &mut buffer,
                     request_state.provider(),
-                    &session,
-                    &mut self.buffers.primary,
+                    request_trx.session_heads(&request_cache),
+                    Rng,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -520,19 +520,40 @@ where
                     break;
                 }
 
-                if let Some(cmds) = request_syncer.receive(&target[..len])? {
+                if let Some(reply) = request_syncer.receive(&target[..len], &mut request_cache)? {
+                    // Sample commands already committed here go in the cache
+                    // now, so the next request can use them. Without a graph
+                    // yet, there are none.
+                    match request_state.update_heads(
+                        *graph_id,
+                        reply.sample(),
+                        &mut request_cache,
+                        &mut self.buffers.primary,
+                        &Rng,
+                    ) {
+                        Ok(()) | Err(ClientError::StorageError(StorageError::NoSuchStorage)) => {}
+                        Err(e) => return Err(e.into()),
+                    }
                     request_state.add_commands(
                         &mut request_trx,
                         &mut sink,
-                        &cmds,
+                        reply.commands(),
                         &mut self.rt_buffers,
                         mem_spill,
                     )?;
+                    received_addrs.extend(reply.addresses());
                 }
             }
         }
 
         request_state.commit(request_trx, &mut sink, &mut self.rt_buffers, mem_spill)?;
+        request_state.update_heads(
+            *graph_id,
+            received_addrs,
+            &mut request_cache,
+            &mut self.buffers.primary,
+            Rng,
+        )?;
 
         Ok(())
     }
