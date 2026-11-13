@@ -29,8 +29,10 @@ aranya-policy-vm = { version = "0.24.0", path = "../aranya-policy-vm" }
 heapless = { workspace = true, features = ["serde"] }
 itertools = { workspace = true, features = ["use_alloc"] }
 postcard = { workspace = true, features = ["alloc"] }
+priority-queue = { workspace = true }
 rend = { workspace = true, features = ["zerocopy-0_8"] }
 rkyv = { workspace = true }
+rustc-hash = { workspace = true }
 serde = { workspace = true, features = ["alloc"] }
 spideroak-base58 = { workspace = true }
 stable_deref_trait = { workspace = true, features = ["alloc"] }
