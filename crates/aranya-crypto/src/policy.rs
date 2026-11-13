@@ -2,6 +2,7 @@
 
 use core::borrow::Borrow as _;
 
+use aranya_id::BaseId;
 use spideroak_crypto::hash::{Digest, Hash};
 
 use crate::{
@@ -23,6 +24,11 @@ custom_id! {
 custom_id! {
     /// The ID of a policy command.
     pub struct CmdId;
+}
+
+custom_id! {
+    /// The ID of a graph, taken from initialization.
+    pub struct GraphId;
 }
 
 /// Computes the command's unique ID.
@@ -53,15 +59,47 @@ pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
 
 /// A policy command.
 #[derive(Copy, Clone, Debug)]
-pub struct Cmd<'a> {
-    /// The command encoded in its canonical format.
-    pub data: &'a [u8],
-    /// The name of the command.
-    ///
-    /// E.g., `AddDevice`.
-    pub name: &'a str,
-    /// The parent command in the graph.
-    pub parent_id: &'a CmdId,
+pub enum Cmd<'a> {
+    /// An init command.
+    Init {
+        /// The name of the command.
+        name: &'a str,
+        /// The command encoded in its canonical format.
+        data: &'a [u8],
+        /// The policy bytes of the command.
+        policy: &'a [u8],
+    },
+    /// A basic command.
+    Basic {
+        /// The name of the command.
+        name: &'a str,
+        /// The parent command in the graph.
+        parent_id: &'a CmdId,
+        /// The command encoded in its canonical format.
+        data: &'a [u8],
+    },
+    /// A finalize command.
+    Finalize {
+        /// The name of the command.
+        name: &'a str,
+        /// The parent command in the graph.
+        parent_id: &'a CmdId,
+        /// The fact DB merkle root.
+        fact_root: &'a BaseId,
+        /// The command encoded in its canonical format.
+        data: &'a [u8],
+        /// The policy bytes of the command.
+        policy: &'a [u8],
+    },
+    /// An ephemeral command.
+    Ephemeral {
+        /// The name of the command.
+        name: &'a str,
+        /// The graph.
+        graph_id: &'a GraphId,
+        /// The command encoded in its canonical format.
+        data: &'a [u8],
+    },
 }
 
 impl Cmd<'_> {
@@ -71,29 +109,83 @@ impl Cmd<'_> {
         &self,
         author: SigningKeyId,
     ) -> Digest<<CS::Hash as Hash>::DigestSize> {
-        // digest = H(
-        //     "SignPolicyCommand-v1",
-        //     suites,
-        //     pk,
-        //     name,
-        //     parent_id,
-        //     msg,
-        // )
-        //
-        // Bind the signature to the current cipher suite,
-        CS::tuple_hash(
-            b"SignPolicyCommand-v1",
-            [
-                // and to the author's public key,
-                author.as_bytes(),
-                // and to the type of command being signed,
-                self.name.as_bytes(),
-                // and to the parent command,
-                self.parent_id.as_bytes(),
-                // and finally the command data itself.
-                self.data,
-            ],
-        )
+        match self {
+            Self::Init { name, data, policy } => CS::tuple_hash(
+                b"SignPolicyCommand-v2-Init",
+                [
+                    // the author's public key
+                    author.as_bytes(),
+                    // the type of command being signed
+                    name.as_bytes(),
+                    // the command data itself
+                    data,
+                    // the policy bytes
+                    policy,
+                ],
+            ),
+            Self::Basic {
+                name,
+                parent_id,
+                data,
+            } => {
+                CS::tuple_hash(
+                    b"SignPolicyCommand-v2-Basic",
+                    [
+                        // the author's public key
+                        author.as_bytes(),
+                        // the type of command being signed
+                        name.as_bytes(),
+                        // the parent command
+                        parent_id.as_bytes(),
+                        // the command data itself
+                        data,
+                    ],
+                )
+            }
+            Self::Finalize {
+                name,
+                parent_id,
+                fact_root,
+                data,
+                policy,
+            } => {
+                // NB: Omit the author because this command is certified.
+                CS::tuple_hash(
+                    b"SignPolicyCommand-v2-Upgrade",
+                    [
+                        // the type of command being signed
+                        name.as_bytes(),
+                        // the parent command
+                        parent_id.as_bytes(),
+                        // the fact DB merkle root
+                        fact_root.as_bytes(),
+                        // the command data itself
+                        data,
+                        // the policy bytes
+                        policy,
+                    ],
+                )
+            }
+            Self::Ephemeral {
+                name,
+                graph_id,
+                data,
+            } => {
+                CS::tuple_hash(
+                    b"SignPolicyCommand-v2-Ephemeral",
+                    [
+                        // the author's public key
+                        author.as_bytes(),
+                        // the type of command being signed
+                        name.as_bytes(),
+                        // the graph
+                        graph_id.as_bytes(),
+                        // the command data itself
+                        data,
+                    ],
+                )
+            }
+        }
     }
 }
 
