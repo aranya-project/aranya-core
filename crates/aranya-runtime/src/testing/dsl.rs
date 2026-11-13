@@ -212,7 +212,7 @@ pub fn dispatch(
             let mut response_syncer = SyncResponder::new();
             response_syncer.receive(poll)?;
             assert!(response_syncer.ready());
-            response_syncer.poll(target, provider, response_cache, buffers, &Rng)?
+            response_syncer.poll(target, provider, response_cache, buffers, Rng)?
         }
         SyncIncoming::Subscribe(_) => unimplemented!(),
         SyncIncoming::Unsubscribe(_) => unimplemented!(),
@@ -364,7 +364,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                         received_addrs,
                         &mut request_cache,
                         &mut rt_buffers.traversal.primary,
-                        &Rng,
+                        Rng,
                     )?;
                 }
 
@@ -386,7 +386,7 @@ fn process_hello_notifications<SP: StorageProvider>(
                         [notification.head()],
                         &mut request_cache,
                         &mut rt_buffers.traversal.primary,
-                        &Rng,
+                        Rng,
                     )?;
                 }
 
@@ -1226,7 +1226,7 @@ where
                         received_addrs,
                         &mut request_cache,
                         &mut rt_buffers.traversal.primary,
-                        &Rng,
+                        Rng,
                     )?;
                 }
 
@@ -1980,7 +1980,7 @@ fn converge_pull_pass<SP: StorageProvider>(
             addrs,
             &mut request_cache,
             &mut rt_buffers.traversal.primary,
-            &Rng,
+            Rng,
         )?;
     }
 
@@ -2018,7 +2018,7 @@ fn sync<SP: StorageProvider>(
         &mut buffer,
         request_state.provider(),
         request_trx.session_heads(request_cache),
-        &Rng,
+        Rng,
     )?;
 
     let mut received = 0;
@@ -2041,7 +2041,7 @@ fn sync<SP: StorageProvider>(
         // there are none.
         match request_state.update_heads(
             graph_id,
-            reply.sample().iter().copied(),
+            reply.sample(),
             request_cache,
             &mut rt_buffers.traversal.primary,
             &Rng,

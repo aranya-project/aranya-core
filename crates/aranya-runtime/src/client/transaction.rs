@@ -136,8 +136,9 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             return Ok(false);
         }
 
-        // The committed head set is the live tips, in head set order.
-        let mut heads: Vec<LocatedAddress> = self
+        // The committed head set is the live tips, sorted by id as `HeadSet`
+        // stores them.
+        let heads: Vec<LocatedAddress> = self
             .heads
             .iter()
             .map(|(id, loc)| LocatedAddress {
@@ -146,7 +147,6 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 max_cut: loc.max_cut,
             })
             .collect();
-        heads.sort();
 
         // Rebuild the fact cache for this head set. A multi-head braid also
         // yields the heads' LCA, which the head set keeps.
@@ -1799,7 +1799,7 @@ mod test {
                 &mut target,
                 &mut client.provider,
                 trx.session_heads(&cache),
-                &aranya_crypto::Rng,
+                aranya_crypto::Rng,
             )
             .expect("poll must succeed");
         assert!(sent > 0, "sample must not be empty");
@@ -1882,7 +1882,7 @@ mod test {
                 storage,
                 addr_b,
                 &mut buffers.traversal.primary,
-                &aranya_crypto::Rng,
+                aranya_crypto::Rng,
             )
             .expect("add_command must not error");
         assert!(
@@ -1897,7 +1897,7 @@ mod test {
                 storage,
                 addr_a,
                 &mut buffers.traversal.primary,
-                &aranya_crypto::Rng,
+                aranya_crypto::Rng,
             )
             .expect("add_command must not error");
         assert_eq!(cache.heads().len(), 1);
@@ -1918,7 +1918,7 @@ mod test {
                 storage,
                 addr_b,
                 &mut buffers.traversal.primary,
-                &aranya_crypto::Rng,
+                aranya_crypto::Rng,
             )
             .expect("add_command must not error");
         assert_eq!(cache.heads().len(), 1);

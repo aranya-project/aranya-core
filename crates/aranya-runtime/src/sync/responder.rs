@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use aranya_crypto::Csprng;
+use aranya_crypto::{Csprng, Rng};
 use buggy::{BugExt as _, bug};
 use heapless::Vec;
 use itertools::Itertools as _;
@@ -95,7 +95,7 @@ impl PeerCache {
         storage: &S,
         addr: Address,
         buffer: &mut TraversalBuffer,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -113,7 +113,7 @@ impl PeerCache {
         addr: Address,
         loc: Location,
         buffer: &mut TraversalBuffer,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<(), StorageError>
     where
         S: Storage,
@@ -124,32 +124,26 @@ impl PeerCache {
             max_cut: addr.max_cut,
         };
 
-        // Decide for every head before changing any, so a storage error
-        // leaves the cache untouched.
+        // A storage error can leave some covered heads dropped, which is
+        // safe: the cache only ever under-reports what the peer holds.
         let mut add_command = true;
-        let mut keep: Vec<bool, PEER_HEAD_MAX> = Vec::new();
-        for old in &self.heads {
-            let keep_old = if old.id == new.id
-                || storage.is_ancestor(new.location(), old.location(), buffer)?
-            {
+        let mut i = 0;
+        while let Some(old) = self.heads.get(i) {
+            if old.id == new.id || storage.is_ancestor(new.location(), old.location(), buffer)? {
                 // The new command is already covered by this head.
                 add_command = false;
-                true
-            } else {
-                // Drop this head if the new command covers it.
-                !storage.is_ancestor(old.location(), new.location(), buffer)?
-            };
-            keep.push(keep_old).ok().assume("one decision per head")?;
-        }
-        let mut keep = keep.into_iter();
-        self.heads.retain(|_| keep.next().unwrap_or(true));
-
-        if add_command {
-            if self.heads.is_full() {
-                let evict = sample::random_index(rng, self.heads.len())?;
-                self.heads.swap_remove(evict);
+            } else if storage.is_ancestor(old.location(), new.location(), buffer)? {
+                // The new command covers this head.
+                self.heads.remove(i);
+                continue;
             }
-            self.heads.push(new).ok().assume("cache has room")?;
+            i = i.checked_add(1).assume("index + 1 mustn't overflow")?;
+        }
+
+        if add_command && let Err(new) = self.heads.push(new) {
+            // Full: evict a random head.
+            let evict = sample::random_index(rng, self.heads.len())?;
+            *self.heads.get_mut(evict).assume("index in range")? = new;
         }
 
         Ok(())
@@ -330,7 +324,7 @@ impl SyncResponder {
         provider: &mut impl StorageProvider,
         response_cache: &mut PeerCache,
         buffers: &mut TraversalBuffers,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<usize, SyncError> {
         // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
@@ -367,7 +361,7 @@ impl SyncResponder {
                     };
                     have.push(loc);
                     if i >= self.session_heads {
-                        response_cache.insert(storage, command, loc, &mut buffers.primary, rng)?;
+                        response_cache.insert(storage, command, loc, &mut buffers.primary, &rng)?;
                     }
                 }
                 have.extend(response_cache.heads().iter().map(|h| h.location()));
@@ -509,7 +503,7 @@ impl SyncResponder {
             let start = if head.max_cut <= skip_target {
                 head.location()
             } else {
-                skip_jump(storage, head.location(), skip_target, AtMerge::Stop)?
+                skip_jump(storage, head.location(), skip_target, AtMerge::<Rng>::Stop)?
             };
             heads.push(start)?;
         }
@@ -633,7 +627,7 @@ impl SyncResponder {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         response_cache: &PeerCache,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<usize, SyncError> {
         if self.next_send >= self.to_send.len() {
             self.state = SyncResponderState::Idle;
@@ -651,6 +645,9 @@ impl SyncResponder {
         // When the first reply is full, the requester may lack more than
         // fits in it, so sample our graph so it can tell us what it holds
         // that its own sample missed.
+        // A truncated `to_send` can fit exactly in one reply (the two limits
+        // are equal by default), leaving nothing in `to_send` while the
+        // requester still lacks what was cut, so a full reply counts too.
         let reply_full = commands.is_full() || next_send < self.to_send.len();
         let mut sample = Vec::new();
         if core::mem::take(&mut self.send_sample) && reply_full {
@@ -917,12 +914,7 @@ mod tests {
 
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _sent) = requester
-            .poll(
-                &mut buffer,
-                dest.provider(),
-                req_cache.session_heads(),
-                &Rng,
-            )
+            .poll(&mut buffer, dest.provider(), req_cache.session_heads(), Rng)
             .expect("requester poll");
 
         match SyncIncoming::decode(&buffer[..len]).expect("decode") {
@@ -942,7 +934,7 @@ mod tests {
                     source.provider(),
                     &mut resp_cache,
                     &mut rt_buffers.traversal,
-                    &Rng,
+                    Rng,
                 )
                 .expect("responder poll");
             if len == 0 {
@@ -1113,7 +1105,7 @@ mod tests {
 
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, req.provider(), req_cache.session_heads(), &Rng)
+            .poll(&mut buffer, req.provider(), req_cache.session_heads(), Rng)
             .expect("requester poll");
         match SyncIncoming::decode(&buffer[..len]).expect("decode") {
             SyncIncoming::Poll(poll) => responder.receive(poll).expect("responder receive"),
@@ -1125,7 +1117,7 @@ mod tests {
                 resp.provider(),
                 resp_cache,
                 &mut rt_buffers.traversal,
-                &Rng,
+                Rng,
             )
             .expect("responder poll");
         let Some(reply) = requester
@@ -1163,7 +1155,7 @@ mod tests {
         Exchange {
             sent: reply.commands().iter().map(Command::id).collect(),
             new,
-            sample: reply.sample().to_vec(),
+            sample: reply.sample().collect(),
         }
     }
 
@@ -1176,7 +1168,7 @@ mod tests {
         let mut requester = SyncRequester::new(graph_id, Rng);
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, client.provider(), cache.session_heads(), &Rng)
+            .poll(&mut buffer, client.provider(), cache.session_heads(), Rng)
             .expect("requester poll");
         let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
             panic!("expected a poll message");
@@ -1311,7 +1303,7 @@ mod tests {
             let head = branch.head_address(graph_id).expect("branch head");
             let storage = hub.provider().get_storage(graph_id).expect("storage");
             cache
-                .add_command(storage, head, &mut buffer, &Rng)
+                .add_command(storage, head, &mut buffer, Rng)
                 .expect("add_command");
             assert!(
                 cache.heads().iter().any(|h| h.address() == head),
@@ -1326,7 +1318,7 @@ mod tests {
         let mut requester = SyncRequester::new(graph_id, Rng);
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let (len, _) = requester
-            .poll(&mut buffer, client.provider(), heads, &Rng)
+            .poll(&mut buffer, client.provider(), heads, Rng)
             .expect("requester poll");
         let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
             panic!("expected a poll message");
@@ -1364,7 +1356,7 @@ mod tests {
             [head],
             &mut a_cache,
             &mut TraversalBuffer::new(),
-            &Rng,
+            Rng,
         )
         .expect("update_heads");
         assert!(
@@ -1402,7 +1394,7 @@ mod tests {
                 &mut buffer,
                 req.provider(),
                 trx.session_heads(req_cache),
-                &Rng,
+                Rng,
             )
             .expect("requester poll");
         let SyncIncoming::Poll(poll) = SyncIncoming::decode(&buffer[..len]).expect("decode") else {
@@ -1415,7 +1407,7 @@ mod tests {
                 resp.provider(),
                 resp_cache,
                 &mut rt_buffers.traversal,
-                &Rng,
+                Rng,
             )
             .expect("responder poll");
         let Some(reply) = requester
@@ -1535,7 +1527,7 @@ mod tests {
         let storage = client.provider().get_storage(graph_id).expect("storage");
         for &addr in addrs {
             cache
-                .add_command(storage, addr, &mut buffer, &Rng)
+                .add_command(storage, addr, &mut buffer, Rng)
                 .expect("add_command");
         }
         cache

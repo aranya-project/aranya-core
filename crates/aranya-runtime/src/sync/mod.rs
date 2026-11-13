@@ -161,8 +161,8 @@ impl<'a> SyncReply<'a> {
 
     /// A sample of the responder's graph. Empty unless the responder had
     /// more to send than fit in this reply.
-    pub fn sample(&self) -> &[Address] {
-        &self.sample
+    pub fn sample(&self) -> impl DoubleEndedIterator<Item = Address> + '_ {
+        self.sample.iter().copied()
     }
 
     /// The addresses of the sample and the commands, to record in the peer

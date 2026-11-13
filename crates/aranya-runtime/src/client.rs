@@ -202,7 +202,7 @@ where
         addrs: I,
         request_heads: &mut PeerCache,
         buffer: &mut TraversalBuffer,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<(), ClientError>
     where
         I: IntoIterator<Item = Address>,
@@ -214,7 +214,7 @@ where
         // Reverse the iterator to process highest max_cut first, which allows us to skip ancestors
         // since if a command is an ancestor of one we've already added, we don't need to add it.
         for address in addrs.into_iter().rev() {
-            request_heads.add_command(storage, address, buffer, rng)?;
+            request_heads.add_command(storage, address, buffer, &rng)?;
         }
 
         Ok(())

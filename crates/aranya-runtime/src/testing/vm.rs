@@ -675,7 +675,7 @@ fn test_sync<PS, P, S>(
                 &mut buffer,
                 cs2.provider(),
                 req_transaction.session_heads(&request_cache),
-                &Rng,
+                Rng,
             )
             .expect("sync req->res");
 

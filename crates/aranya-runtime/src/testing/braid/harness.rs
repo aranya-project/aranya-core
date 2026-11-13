@@ -196,7 +196,7 @@ fn sync_pull(
                 &mut request,
                 to_c.provider(),
                 req_cache.session_heads(),
-                &Rng,
+                Rng,
             )
             .expect("requester poll succeeds");
 

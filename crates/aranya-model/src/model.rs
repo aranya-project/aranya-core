@@ -505,7 +505,7 @@ where
                     &mut buffer,
                     request_state.provider(),
                     request_trx.session_heads(&request_cache),
-                    &Rng,
+                    Rng,
                 )?;
 
                 let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
@@ -526,7 +526,7 @@ where
                     // yet, there are none.
                     match request_state.update_heads(
                         *graph_id,
-                        reply.sample().iter().copied(),
+                        reply.sample(),
                         &mut request_cache,
                         &mut self.buffers.primary,
                         &Rng,
@@ -552,7 +552,7 @@ where
             received_addrs,
             &mut request_cache,
             &mut self.buffers.primary,
-            &Rng,
+            Rng,
         )?;
 
         Ok(())

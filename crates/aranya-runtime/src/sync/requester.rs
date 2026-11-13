@@ -173,7 +173,7 @@ impl SyncRequester {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         heads: SessionHeads,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
         let result = match self.state {
@@ -394,7 +394,7 @@ impl SyncRequester {
         &mut self,
         provider: &mut impl StorageProvider,
         heads: &SessionHeads,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<(Vec<Address, COMMAND_SAMPLE_MAX>, usize), SyncError> {
         let storage = match provider.get_storage(self.graph_id) {
             Err(StorageError::NoSuchStorage) => return Ok((Vec::new(), 0)),
@@ -437,7 +437,7 @@ impl SyncRequester {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         cache: &PeerCache,
-        rng: &impl Csprng,
+        rng: impl Csprng,
         remain_open: u64,
         max_bytes: u64,
     ) -> Result<usize, SyncError> {
@@ -467,7 +467,7 @@ impl SyncRequester {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
         heads: SessionHeads,
-        rng: &impl Csprng,
+        rng: impl Csprng,
     ) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,

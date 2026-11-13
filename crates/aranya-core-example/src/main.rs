@@ -197,7 +197,7 @@ fn dispatch(
             let mut responder = SyncResponder::new();
             let mut buffers = TraversalBuffers::default();
             responder.receive(poll)?;
-            responder.poll(target, provider, response_cache, &mut buffers, &Rng)?
+            responder.poll(target, provider, response_cache, &mut buffers, Rng)?
         }
         _ => anyhow::bail!("unsupported sync type"),
     };
@@ -225,7 +225,7 @@ fn sync_graphs(
             &mut buf,
             dest.provider(),
             trx.session_heads(&request_cache),
-            &Rng,
+            Rng,
         )
         .context("sync poll failed")?;
 

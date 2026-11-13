@@ -5,7 +5,7 @@
 use alloc::vec;
 use core::num::NonZeroUsize;
 
-use aranya_crypto::Csprng;
+use aranya_crypto::{Csprng, Rng};
 use buggy::{Bug, BugExt as _};
 use heapless::Vec;
 
@@ -20,7 +20,7 @@ use crate::{
 const HEADS_MAX: usize = COMMAND_SAMPLE_MAX / 2;
 
 /// Returns a uniformly random value in `0..n`.
-fn random_below(rng: &impl Csprng, n: u64) -> Result<u64, Bug> {
+fn random_below(rng: impl Csprng, n: u64) -> Result<u64, Bug> {
     let mut bytes = [0u8; 8];
     rng.fill_bytes(&mut bytes);
     u64::from_le_bytes(bytes)
@@ -29,20 +29,20 @@ fn random_below(rng: &impl Csprng, n: u64) -> Result<u64, Bug> {
 }
 
 /// Returns a uniformly random index into a collection of length `len`.
-pub(super) fn random_index(rng: &impl Csprng, len: usize) -> Result<usize, Bug> {
+pub(super) fn random_index(rng: impl Csprng, len: usize) -> Result<usize, Bug> {
     let i = random_below(rng, len as u64)?;
     usize::try_from(i).assume("index fits in usize")
 }
 
 /// What [`skip_jump`] does at a merge with no usable skip-list entry.
-pub(super) enum AtMerge<'a> {
+pub(super) enum AtMerge<R> {
     /// Stop at the merge.
     Stop,
     /// Continue from the merge's LCA, so the walk only visits commands
     /// every head passes through.
     Lca,
     /// Continue from a random parent with max cut at least the target.
-    RandomParent(&'a dyn Csprng),
+    RandomParent(R),
 }
 
 /// Walk back from `start` toward max cut `target`, which must not be above
@@ -55,11 +55,11 @@ pub(super) enum AtMerge<'a> {
 /// Returns the command at `target` when the walk reaches the segment that
 /// contains it, or the first location at or below `target` that a merge's
 /// LCA leads to. With [`AtMerge::Stop`], returns the merge's location.
-pub(super) fn skip_jump<S: Storage>(
+pub(super) fn skip_jump<S: Storage, R: Csprng>(
     storage: &S,
     start: Location,
     target: MaxCut,
-    at_merge: AtMerge<'_>,
+    at_merge: AtMerge<R>,
 ) -> Result<Location, SyncError> {
     if start.max_cut < target {
         buggy::bug!("skip_jump target is above start");
@@ -90,7 +90,7 @@ pub(super) fn skip_jump<S: Storage>(
         current = match seg.prior() {
             Prior::None => buggy::bug!("root segment starts above target"),
             Prior::Single(p) => p,
-            Prior::Merge(a, b) => match at_merge {
+            Prior::Merge(a, b) => match &at_merge {
                 AtMerge::Stop => return Ok(current),
                 AtMerge::Lca => seg
                     .skip_list()
@@ -105,7 +105,7 @@ pub(super) fn skip_jump<S: Storage>(
                         }
                     }
                     *parents
-                        .get(random_index(&rng, parents.len())?)
+                        .get(random_index(rng, parents.len())?)
                         .assume("index in range")?
                 }
             },
@@ -128,7 +128,7 @@ fn floor<S: Storage>(storage: &S, cache_heads: &[LocatedAddress]) -> Result<MaxC
     if lca.max_cut <= lowest {
         return Ok(lca.max_cut);
     }
-    let floor = skip_jump(storage, lca, lowest, AtMerge::Lca)?;
+    let floor = skip_jump(storage, lca, lowest, AtMerge::<Rng>::Lca)?;
     Ok(floor.max_cut)
 }
 
@@ -147,11 +147,11 @@ pub(super) fn build<S: Storage, const N: usize>(
     storage: &S,
     head_groups: [&[Address]; N],
     cache_heads: &[LocatedAddress],
-    rng: &impl Csprng,
+    rng: impl Csprng,
     exclude: impl Fn(Address) -> bool,
 ) -> Result<(Sample, [usize; N]), SyncError> {
     let mut sample = Sample::new();
-    let counts = add_heads(&mut sample, head_groups, rng)?;
+    let counts = add_heads(&mut sample, head_groups, &rng)?;
     let floor = floor(storage, cache_heads)?;
     add_random_commands(&mut sample, storage, floor, rng, exclude)?;
     Ok((sample, counts))
@@ -163,7 +163,7 @@ pub(super) fn build<S: Storage, const N: usize>(
 fn add_heads<const N: usize>(
     sample: &mut Sample,
     head_groups: [&[Address]; N],
-    rng: &impl Csprng,
+    rng: impl Csprng,
 ) -> Result<[usize; N], Bug> {
     let mut counts = [0; N];
     for (group, count) in head_groups.into_iter().zip(&mut counts) {
@@ -175,7 +175,7 @@ fn add_heads<const N: usize>(
             .copied()
             .filter(|a| !sample.contains(a))
             .collect();
-        keep_random_subset(&mut new, room, rng)?;
+        keep_random_subset(&mut new, room, &rng)?;
         *count = new.len();
         for head in new {
             sample.push(head).ok().assume("heads fit in sample")?;
@@ -188,7 +188,7 @@ fn add_heads<const N: usize>(
 fn keep_random_subset(
     items: &mut vec::Vec<Address>,
     n: usize,
-    rng: &impl Csprng,
+    rng: impl Csprng,
 ) -> Result<(), Bug> {
     if items.len() <= n {
         return Ok(());
@@ -197,7 +197,7 @@ fn keep_random_subset(
     for i in 0..n {
         let rest = items.len().checked_sub(i).assume("i < len")?;
         let j = i
-            .checked_add(random_index(rng, rest)?)
+            .checked_add(random_index(&rng, rest)?)
             .assume("index mustn't overflow")?;
         items.swap(i, j);
     }
@@ -212,7 +212,7 @@ fn add_random_commands<S: Storage>(
     sample: &mut Sample,
     storage: &S,
     floor: MaxCut,
-    rng: &impl Csprng,
+    rng: impl Csprng,
     exclude: impl Fn(Address) -> bool,
 ) -> Result<(), SyncError> {
     let heads = storage.get_heads()?;
@@ -225,12 +225,12 @@ fn add_random_commands<S: Storage>(
     let free = NonZeroUsize::new(free).assume("heads leave slots for random commands")?;
 
     let gap = gap(top, floor, free)?;
-    let offset = random_offset(gap, rng)?;
+    let offset = random_offset(gap, &rng)?;
     for target in positions(top, floor, gap, offset) {
         if sample.is_full() {
             break;
         }
-        let address = random_command_at(storage, heads, target, rng)?;
+        let address = random_command_at(storage, heads, target, &rng)?;
         if !exclude(address) && !sample.contains(&address) {
             sample.push(address).ok().assume("sample is not full")?;
         }
@@ -254,7 +254,7 @@ fn gap(top: MaxCut, floor: MaxCut, free: NonZeroUsize) -> Result<u64, Bug> {
 /// How far below the tallest head the first random command is, uniform in
 /// `gap/2..=gap`. At least half a gap keeps it from nearly duplicating the
 /// head, and a random offset means repeated rounds pick different commands.
-fn random_offset(gap: u64, rng: &impl Csprng) -> Result<u64, Bug> {
+fn random_offset(gap: u64, rng: impl Csprng) -> Result<u64, Bug> {
     let half = gap.div_ceil(2);
     let width = gap
         .checked_sub(half)
@@ -278,9 +278,9 @@ fn random_command_at<S: Storage>(
     storage: &S,
     heads: &HeadSet,
     target: MaxCut,
-    rng: &impl Csprng,
+    rng: impl Csprng,
 ) -> Result<Address, SyncError> {
-    let head = random_head_reaching(heads, target, rng)?;
+    let head = random_head_reaching(heads, target, &rng)?;
     let location = skip_jump(storage, head, target, AtMerge::RandomParent(rng))?;
     Ok(storage.get_command_address(location)?)
 }
@@ -289,7 +289,7 @@ fn random_command_at<S: Storage>(
 fn random_head_reaching(
     heads: &HeadSet,
     target: MaxCut,
-    rng: &impl Csprng,
+    rng: impl Csprng,
 ) -> Result<Location, Bug> {
     let reaching = || heads.iter().filter(move |h| h.max_cut >= target);
     let pick = random_index(rng, reaching().count())?;
