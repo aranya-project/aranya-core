@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs::File, io::Write as _};
+use std::collections::HashSet;
 
 use aranya_policy_lang::{
     ast::{EnumDefinition, FunctionDecl, Param, StructDefinition, StructItem, TypeKind, VType},
@@ -450,18 +450,28 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         };
     };
 
-    // Undocumented.
-    if cfg!(policy_derive_debug) {
-        let mut data = block.to_string();
-        if let Ok(file) = syn::parse_file(&data) {
-            data = prettyplease::unparse(&file);
-        }
-        File::create("/tmp/expand.rs")
-            .expect("unable to create `/tmp/expand.rs`")
-            .write_all(data.as_bytes())
-            .expect("unable to write all data to `/tmp/expand.rs`");
-    }
+    debug(&block);
+
     Ok(block)
+}
+
+/// Dump tokens to stderr when enabled.
+///
+/// Use e.g. `RUSTFLAGS='--cfg policy_derive_debug' cargo check`.
+#[allow(unexpected_cfgs, reason = "private cfg")]
+fn debug(block: &TokenStream) {
+    cfg_select! {
+        policy_derive_debug => {
+            let mut data = block.to_string();
+            if let Ok(file) = syn::parse_file(&data) {
+                data = prettyplease::unparse(&file);
+            }
+            eprintln!("{data}");
+        }
+        _ => {
+            _ = block;
+        }
+    }
 }
 
 mod kw {
