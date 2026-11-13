@@ -725,8 +725,8 @@ mod test {
 
     use super::*;
     use crate::{
-        Bytes, ClientState, FlavorCtx, Keys, MaxCut, MemSpill, MergeIds, Perspective, Policy,
-        Prioritized as _, Priority, TraversalBuffer, mem_spill,
+        Bytes, ClientState, FlavorCtx, Keys, MaxCut, MemSpill, MergeIds, NullSink, Perspective,
+        Policy, Prioritized as _, Priority, TraversalBuffer, mem_spill,
         policy::{CommandPlacement, PolicyStoreError},
         storage::linear::testing::MemStorageProvider,
         testing::{hash_for_testing_only, short_b58},
@@ -752,9 +752,11 @@ mod test {
         data: Box<str>,
     }
 
+    enum Never {}
+
     impl PolicyStore for SeqPolicyStore {
         type Policy = SeqPolicy;
-        type Effect = ();
+        type Effect = Never;
 
         fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             Ok(PolicyId::default())
@@ -765,14 +767,14 @@ mod test {
         }
 
         fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-            Some(&())
+            unreachable!()
         }
     }
 
     impl Policy for SeqPolicy {
-        type Action<'a> = &'a str;
-        type SealCtx = ();
-        type Effect = ();
+        type Action<'a> = Never;
+        type SealCtx = Never;
+        type Effect = Never;
         type Command<'a> = SeqCommand;
 
         fn serial(&self) -> u32 {
@@ -792,27 +794,24 @@ mod test {
             );
 
             let data = command.bytes();
-            // (q)uiet commmands add no facts so we can test that.
+
+            // (q)uiet commmands do nothing to allow us to test commands which
+            // do not modify facts.
             if !data.starts_with(b"q") {
                 // For init and basic commands, append the id to the seq fact.
-                if let Some(seq) = facts
+                let value = match facts
                     .query("seq", &Keys::default())
-                    .assume("can query")?
+                    .expect("can query")
                     .as_deref()
                 {
-                    facts
-                        .insert(
-                            "seq".into(),
-                            Keys::default(),
-                            [seq, b":", data].concat().into(),
-                        )
-                        .unwrap();
-                } else {
-                    facts
-                        .insert("seq".into(), Keys::default(), data.into())
-                        .unwrap();
-                }
+                    Some(seq) => [seq, b":", data].concat().into(),
+                    None => data.into(),
+                };
+                facts
+                    .insert("seq".into(), Keys::default(), value)
+                    .expect("can insert");
             }
+
             Ok(match command.parent() {
                 Prior::None => Priority::Init,
                 Prior::Single(_) if data.starts_with(FINALIZE_PREFIX) => Priority::Finalize,
@@ -827,13 +826,13 @@ mod test {
 
         fn call_action(
             &self,
-            _action: Self::Action<'_>,
+            action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _seal_ctx: &(),
+            _seal_ctx: &Self::SealCtx,
             _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
-            unimplemented!()
+            match action {}
         }
 
         fn merge<'a>(
@@ -892,14 +891,6 @@ mod test {
         fn bytes(&self) -> &[u8] {
             self.data.as_bytes()
         }
-    }
-
-    struct NullSink;
-    impl<Eff> Sink<Eff> for NullSink {
-        fn begin(&mut self) {}
-        fn consume(&mut self, _: Eff) {}
-        fn rollback(&mut self) {}
-        fn commit(&mut self) {}
     }
 
     /// [`GraphBuilder`] and the associated macro [`graph`] provide an easy way
