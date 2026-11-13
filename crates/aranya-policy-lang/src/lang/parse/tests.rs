@@ -377,7 +377,7 @@ fn parse_action() -> Result<(), PestError<Rule>> {
 fn parse_effect() -> Result<(), PestError<Rule>> {
     let src = r#"
         effect Foo {
-            owner: id dynamic,
+            owner: id,
         }
     "#
     .trim();

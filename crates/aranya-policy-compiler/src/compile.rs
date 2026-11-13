@@ -337,7 +337,7 @@ impl<'a> CompileState<'a> {
     pub fn define_struct(
         &mut self,
         name: Ident,
-        items: impl IntoIterator<Item = StructItem<FieldDefinition>>,
+        items: impl IntoIterator<Item = StructItem>,
     ) -> Result<(), CompileError> {
         // Add explicitly-defined fields and those from struct insertions
         let mut field_definitions = Vec::new();
@@ -1825,7 +1825,7 @@ impl<'a> CompileState<'a> {
 
         let mut topo = TopoSort::new();
 
-        fn extract_struct_ident(item: &StructItem<FieldDefinition>) -> Option<&Identifier> {
+        fn extract_struct_ident(item: &StructItem) -> Option<&Identifier> {
             match item {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.inner),
@@ -1944,25 +1944,12 @@ impl<'a> CompileState<'a> {
                     self.define_struct(struct_def.name.clone(), struct_def.items.iter().cloned())?;
                 }
                 UserType::Effect(effect) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = effect
-                        .items
-                        .iter()
-                        .map(|i| match i {
-                            StructItem::Field(f) => StructItem::Field(FieldDefinition {
-                                name: f.name.clone(),
-                                vtype: f.vtype.clone(),
-                            }),
-                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                        })
-                        .collect();
-                    self.define_struct(effect.name.clone(), fields.iter().cloned())?;
+                    self.define_struct(effect.name.clone(), effect.items.iter().cloned())?;
                     self.m.interface.effects.insert(effect.name.clone());
                 }
                 UserType::Fact(fact) => {
-                    let fields: Vec<StructItem<FieldDefinition>> =
-                        fact.fields().cloned().map(StructItem::Field).collect();
-
-                    self.define_struct(fact.name.clone(), fields.iter().cloned())?;
+                    let fields = fact.fields().cloned().map(StructItem::Field);
+                    self.define_struct(fact.name.clone(), fields)?;
                     self.define_fact(fact)?;
                 }
                 UserType::BaseCommand(base_command) => {
@@ -1979,17 +1966,13 @@ impl<'a> CompileState<'a> {
                     )?;
                 }
                 UserType::FFIStruct(s) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = s
-                        .fields
-                        .iter()
-                        .map(|a| {
-                            StructItem::Field(FieldDefinition {
-                                name: a.name.clone().nowhere(),
-                                vtype: VType::from(&a.vtype),
-                            })
+                    let fields = s.fields.iter().map(|a| {
+                        StructItem::Field(FieldDefinition {
+                            name: a.name.clone().nowhere(),
+                            vtype: VType::from(&a.vtype),
                         })
-                        .collect();
-                    self.define_struct(s.name.clone().nowhere(), fields.iter().cloned())?;
+                    });
+                    self.define_struct(s.name.clone().nowhere(), fields)?;
                 }
             }
         }
