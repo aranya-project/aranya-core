@@ -255,6 +255,8 @@ pub struct SyncResponder {
     /// Whether the next reply may carry a sample. Only the first reply to a
     /// request does.
     send_sample: bool,
+    /// Whether `to_send` left out commands the requester needs.
+    truncated: bool,
 }
 
 impl Default for SyncResponder {
@@ -263,25 +265,22 @@ impl Default for SyncResponder {
     }
 }
 
-// A truncated `to_send` holds at least `SEGMENT_BUFFER_MAX` commands, so
-// its first reply is full. `get_next` relies on this to attach a sample
-// whenever more remains than fits in one reply.
-const _: () = assert!(SEGMENT_BUFFER_MAX >= COMMAND_RESPONSE_MAX);
-
 /// Insert `loc` into a bounded vec that keeps the lowest `max_cut`
 /// entries. If full, replaces the highest `max_cut` entry when the
-/// new one is lower.
-fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) {
-    if v.push(loc).is_err() {
-        // Full — find the entry with the highest max_cut.
-        let max_idx = v
-            .iter()
-            .position_max_by_key(|l| l.max_cut)
-            .expect("non-empty");
-        if loc.max_cut < v[max_idx].max_cut {
-            v[max_idx] = loc;
-        }
+/// new one is lower. Returns whether an entry was dropped.
+fn push_bounded(v: &mut Vec<Location, SEGMENT_BUFFER_MAX>, loc: Location) -> bool {
+    if v.push(loc).is_ok() {
+        return false;
     }
+    // Full — find the entry with the highest max_cut.
+    let max_idx = v
+        .iter()
+        .position_max_by_key(|l| l.max_cut)
+        .expect("non-empty");
+    if loc.max_cut < v[max_idx].max_cut {
+        v[max_idx] = loc;
+    }
+    true
 }
 
 impl SyncResponder {
@@ -299,6 +298,7 @@ impl SyncResponder {
             reset: false,
             to_send: Vec::new(),
             send_sample: false,
+            truncated: false,
         }
     }
 
@@ -365,7 +365,8 @@ impl SyncResponder {
                     }
                 }
                 have.extend(response_cache.heads().iter().map(|h| h.location()));
-                self.to_send = Self::find_needed_segments(have, storage, buffers)?;
+                (self.to_send, self.truncated) =
+                    Self::find_needed_segments(have, storage, buffers)?;
                 self.send_sample = true;
 
                 self.get_next(target, provider, response_cache, rng)?
@@ -476,7 +477,10 @@ impl SyncResponder {
         mut have_locations: vec::Vec<Location>,
         storage: &impl Storage,
         buffers: &mut TraversalBuffers,
-    ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
+    ) -> Result<(Vec<Location, SEGMENT_BUFFER_MAX>, bool), SyncError> {
+        // Whether any needed command was left out.
+        let mut truncated = false;
+
         // Sort descending by max_cut so we can discard from the front as we
         // descend through the graph.
         have_locations.sort_by_key(|loc| core::cmp::Reverse(loc.max_cut));
@@ -505,6 +509,9 @@ impl SyncResponder {
             } else {
                 skip_jump(storage, head.location(), skip_target, AtMerge::<Rng>::Stop)?
             };
+            // Landing in the head's own segment still sends all of it, but
+            // landing lower skips the segments in between.
+            truncated |= start.segment != head.segment;
             heads.push(start)?;
         }
 
@@ -522,7 +529,9 @@ impl SyncResponder {
             // is above the just-popped entry's longest_max_cut. No future
             // have_location can reach them since we process in descending order.
             if prev_max_cut != Some(head.max_cut) {
-                pending.drain_above(head.max_cut, |loc| push_bounded(&mut collected, loc))?;
+                pending.drain_above(head.max_cut, |loc| {
+                    truncated |= push_bounded(&mut collected, loc);
+                })?;
                 prev_max_cut = Some(head.max_cut);
             }
 
@@ -614,12 +623,12 @@ impl SyncResponder {
 
         // Flush remaining uncovered pending segments. Covered entries
         // are discarded — the peer already has them.
-        pending.drain_all(|loc| push_bounded(&mut collected, loc));
+        pending.drain_all(|loc| truncated |= push_bounded(&mut collected, loc));
 
         // Sort to ensure causal order (parents before children).
         collected.sort();
 
-        Ok(collected)
+        Ok((collected, truncated))
     }
 
     fn get_next(
@@ -642,15 +651,13 @@ impl SyncResponder {
 
         let (commands, command_data, next_send) = self.get_commands(provider)?;
 
-        // When the first reply is full, the requester may lack more than
-        // fits in it, so sample our graph so it can tell us what it holds
-        // that its own sample missed.
-        // A truncated `to_send` can fit exactly in one reply (the two limits
-        // are equal by default), leaving nothing in `to_send` while the
-        // requester still lacks what was cut, so a full reply counts too.
-        let reply_full = commands.is_full() || next_send < self.to_send.len();
+        // If the requester will still lack commands after this reply, because
+        // `to_send` left some out or this reply didn't fit all of it, sample
+        // our graph so it can tell us what it holds that its own sample
+        // missed.
+        let incomplete = self.truncated || next_send < self.to_send.len();
         let mut sample = Vec::new();
-        if core::mem::take(&mut self.send_sample) && reply_full {
+        if core::mem::take(&mut self.send_sample) && incomplete {
             let graph_id = self.graph_id.assume("graph_id is set")?;
             let storage = provider.get_storage(graph_id)?;
             let heads: vec::Vec<Address> = storage
@@ -725,7 +732,7 @@ impl SyncResponder {
                 have.push(location);
             }
         }
-        self.to_send = Self::find_needed_segments(have, storage, buffers)?;
+        (self.to_send, _) = Self::find_needed_segments(have, storage, buffers)?;
         let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {
@@ -1281,6 +1288,59 @@ mod tests {
         );
         assert_eq!(ex.sent.len(), 50);
         assert!(ex.sample.is_empty(), "a region that fits needs no sample");
+    }
+
+    /// A `to_send` cut short by the initial jump still gets a sample, even
+    /// when what remains fits the reply exactly.
+    #[test]
+    fn responder_sample_when_jump_skips_segments() {
+        // `b` holds three segments: 50 shared commands, then
+        // `SEGMENT_BUFFER_MAX`, then 50. `a` holds only the first. The jump
+        // lands at the top of the middle segment, skipping the last.
+        let (mut src, graph_id) = client_with_commands(50);
+        let mut a = new_client();
+        let mut b = new_client();
+        run_full_session(&mut src, &mut a, graph_id);
+        run_full_session(&mut src, &mut b, graph_id);
+        let mid = 50 + SEGMENT_BUFFER_MAX as u64;
+        extend_chain(&mut src, graph_id, 50..mid);
+        run_full_session(&mut src, &mut b, graph_id);
+        extend_chain(&mut src, graph_id, mid..mid + 50);
+        run_full_session(&mut src, &mut b, graph_id);
+        assert_eq!(
+            b.head_address(graph_id).expect("b head"),
+            src.head_address(graph_id).expect("src head"),
+        );
+
+        let ex = exchange(
+            &mut a,
+            &mut b,
+            graph_id,
+            &mut PeerCache::new(),
+            &mut PeerCache::new(),
+        );
+        assert_eq!(ex.sent.len(), COMMAND_RESPONSE_MAX);
+        assert!(
+            !ex.sample.is_empty(),
+            "the last segment was skipped, so a sample is needed"
+        );
+    }
+
+    /// A region that fills the reply exactly, with nothing left out, needs
+    /// no sample.
+    #[test]
+    fn responder_no_sample_when_reply_fits_exactly() {
+        let (mut b, graph_id) = client_with_commands(COMMAND_RESPONSE_MAX as u64);
+        let mut a = new_client();
+        let ex = exchange(
+            &mut a,
+            &mut b,
+            graph_id,
+            &mut PeerCache::new(),
+            &mut PeerCache::new(),
+        );
+        assert_eq!(ex.sent.len(), COMMAND_RESPONSE_MAX);
+        assert!(ex.sample.is_empty(), "nothing is left, so no sample");
     }
 
     /// The peer cache keeps at most `PEER_HEAD_MAX` concurrent heads, and a
