@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-lang/tests/tests.rs
-expression: err
----
 error: Invalid nested option
   |
 3 |             y: optional optional bool

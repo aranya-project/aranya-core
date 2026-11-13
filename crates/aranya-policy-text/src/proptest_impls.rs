@@ -10,7 +10,6 @@ use proptest::{
 
 use crate::{Identifier, Text};
 
-#[cfg_attr(docsrs, doc(cfg(feature = "proptest")))]
 impl Arbitrary for Text {
     type Parameters = SizeRange;
     type Strategy = BoxedStrategy<Self>;
@@ -26,7 +25,6 @@ impl Arbitrary for Text {
     }
 }
 
-#[cfg_attr(docsrs, doc(cfg(feature = "proptest")))]
 impl Arbitrary for Identifier {
     type Parameters = SizeRange;
     type Strategy = BoxedStrategy<Self>;

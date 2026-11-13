@@ -1,7 +1,6 @@
 //! I/O provider for linear storage using `libc`.
 
 #![cfg(feature = "libc")]
-#![cfg_attr(docsrs, doc(cfg(feature = "libc")))]
 #![deny(
     clippy::alloc_instead_of_core,
     clippy::expect_used,

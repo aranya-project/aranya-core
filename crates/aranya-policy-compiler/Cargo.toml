@@ -8,18 +8,29 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+
 [lints]
 workspace = true
 
+
 [lib]
 bench = false
+
 
 [[bin]]
 name = "policy-compiler"
 bench = false
 
+
+[[test]]
+name = "tests"
+harness = false
+bench = false
+
+
 [features]
 default = []
+
 
 [dependencies]
 aranya-policy-ast = { version = "0.16.0", path = "../aranya-policy-ast" }
@@ -35,10 +46,10 @@ itertools = { workspace = true }
 petgraph = { workspace = true }
 tracing = { workspace = true }
 
+
 [dev-dependencies]
 anyhow = { workspace = true }
-insta = { workspace = true }
-rstest = { workspace = true }
+tryfn = { workspace = true }
 
 
 [package.metadata.docs.rs]
