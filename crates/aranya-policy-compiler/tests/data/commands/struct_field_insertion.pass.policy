@@ -5,7 +5,7 @@ command Foo with StubBase {
         +Baz,
         c: bool
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

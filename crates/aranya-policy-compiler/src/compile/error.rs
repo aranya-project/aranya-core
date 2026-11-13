@@ -63,6 +63,16 @@ impl InvalidType {
 /// Invalid call color - Tried to make a function call to the wrong type of function.
 pub(crate) struct InvalidCallColor(pub InvalidCallColorKind, pub Span, pub Option<Span>);
 
+/// `policy` block signature is invalid.
+pub(crate) struct InvalidPolicySignature(pub Span);
+
+/// `get_key` block signature is invalid.
+pub(crate) struct InvalidGetKeySignature {
+    pub envelope: Option<Span>,
+    pub other_params: Option<Span>,
+    pub return_type: Option<InvalidType>,
+}
+
 /// An argument to a function or an item in an expression did not make sense.
 pub(crate) struct BadArgument(pub String, pub Span);
 

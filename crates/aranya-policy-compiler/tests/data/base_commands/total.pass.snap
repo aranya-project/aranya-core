@@ -144,7 +144,7 @@ Module {
 ---
     exit panic
 <get_key 'MyInit'>:
-    def 'author_id'
+    def '_dev'
     def 'this'
     save SP
     get 'this'
@@ -155,11 +155,11 @@ Module {
     exit panic
 <get_key 'MyBasic1'>:
 <get_key 'MyBasic2'>:
-    def 'author_id'
-    def 'this'
+    def 'dev'
+    pop
     save SP
     fact.new 'Key'
-    get 'author_id'
+    get 'dev'
     fact.kset 'dev'
     query
     dup
@@ -189,15 +189,15 @@ Module {
     return
     exit panic
 <policy 'MyInit'>:
-    def 'envelope'
+    pop
     def 'this'
     exit panic
 <policy 'MyBasic1'>:
-    def 'envelope'
+    pop
     def 'this'
     exit panic
 <policy 'MyBasic2'>:
-    def 'envelope'
+    pop
     def 'this'
     exit panic
 <action 'my_init'>:

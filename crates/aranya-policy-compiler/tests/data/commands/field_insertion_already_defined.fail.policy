@@ -5,7 +5,7 @@ command Foo with StubBase {
         +Bar,
         a: bool // Duplicate field `a`
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

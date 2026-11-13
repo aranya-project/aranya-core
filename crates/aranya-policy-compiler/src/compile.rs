@@ -129,27 +129,20 @@ macro_rules! typekind {
 }
 
 mod param {
-    use aranya_policy_ast::{Identifier, WithSpanExt as _};
+    use aranya_policy_ast::{Identifier, Span, WithSpanExt as _};
 
     use super::{Ident, Param, TypeKind, ident};
 
-    pub fn author_id() -> Param {
+    pub fn envelope(span: Span, name: Identifier) -> Param {
         Param {
-            name: ident!("author_id").nowhere(),
-            vtype: TypeKind::Id.nowhere(),
-        }
-    }
-
-    pub fn envelope(name: Identifier) -> Param {
-        Param {
-            name: ident!("envelope").nowhere(),
+            name: ident!("envelope").at(span),
             vtype: TypeKind::Struct(name.nowhere()).nowhere(),
         }
     }
 
-    pub fn this(name: Ident) -> Param {
+    pub fn this(span: Span, name: Ident) -> Param {
         Param {
-            name: ident!("this").nowhere(),
+            name: ident!("this").at(span),
             vtype: TypeKind::Struct(name).nowhere(),
         }
     }
@@ -213,6 +206,8 @@ struct CompileState<'a> {
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
     function_signatures: BTreeMap<Ident, FunctionSignature>,
+    /// A map over recall block signatures for easy call verification.
+    recall_signatures: BTreeMap<(Ident, Ident), Vec<Param>>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
     /// The last span seen, for imprecise source locating.
@@ -1083,7 +1078,7 @@ impl<'a> CompileState<'a> {
             | TypeKind::Unit
             | TypeKind::String => {}
             TypeKind::Struct(name) => {
-                if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.inner) {
+                if !self.m.interface.struct_defs.contains_key(&name.inner) {
                     let note = format!("struct `{name}` not defined");
                     return Err(self.err(NotDefined(note, name.span)));
                 }
@@ -1279,9 +1274,6 @@ impl<'a> CompileState<'a> {
         for arg_e in recall.arguments {
             self.compile_typed_expression(arg_e)?;
         }
-        // Recall blocks take `this` and `envelope` as trailing parameters.
-        self.append_instruction(Instruction::Get(ident!("this")));
-        self.append_instruction(Instruction::Get(ident!("envelope")));
 
         let recall_label = Label::new(
             self.command_recall_name(&recall.command_name, &recall.recall_name)?,
@@ -1297,17 +1289,29 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
-        let params = [
-            param::this(command.name.clone()),
-            param::envelope(flavor_def.envelope.name.clone()),
+        if !command.policy.parameters.other_params.is_empty() {
+            return Err(self.err(error::InvalidPolicySignature(
+                command.policy.parameters.other_params.span,
+            )));
+        }
+
+        let params = &[
+            param::this(
+                command.policy.parameters.this.unwrap_or_default(),
+                command.name.clone(),
+            ),
+            param::envelope(
+                command.policy.parameters.envelope.unwrap_or_default(),
+                flavor_def.envelope.name.clone(),
+            ),
         ];
 
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.compile_function_like(
-            &params,
+            params,
             None,
             Span::empty(),
-            &command.policy,
+            &command.policy.body,
             Label::new(command.name.inner.clone(), LabelType::CommandPolicy),
         )?;
         // Policy blocks should exit via a finish block, so panic if it doesn't.
@@ -1341,11 +1345,6 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
-        let base_params = [
-            param::this(command.name.clone()),
-            param::envelope(flavor_def.envelope.name.clone()),
-        ];
-
         let mut named_blocks: HashSet<WithSpan<Identifier>> = HashSet::new();
 
         // Compile each recall block
@@ -1356,12 +1355,18 @@ impl<'a> CompileState<'a> {
             }
             named_blocks.insert(recall_block.name.clone());
 
-            let params = recall_block
-                .parameters
-                .iter()
-                .cloned()
-                .chain(base_params.iter().cloned())
-                .collect::<Vec<_>>();
+            let params = iter::chain(
+                recall_block
+                    .parameters
+                    .this
+                    .map(|span| param::this(span, command.name.clone())),
+                recall_block
+                    .parameters
+                    .envelope
+                    .map(|span| param::envelope(span, flavor_def.envelope.name.clone())),
+            )
+            .chain(recall_block.parameters.other_params.iter().cloned())
+            .collect::<Vec<_>>();
 
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
             self.compile_function_like(
@@ -1373,6 +1378,9 @@ impl<'a> CompileState<'a> {
             )?;
             self.append_instruction(Instruction::Exit(ExitReason::Check));
             self.exit_statement_context();
+
+            self.recall_signatures
+                .insert((command.name.clone(), recall_block.name.clone()), params);
         }
         Ok(())
     }
@@ -1404,7 +1412,12 @@ impl<'a> CompileState<'a> {
         self.identifier_types.enter_function();
         for param in params.iter().rev() {
             self.ensure_type_is_defined(&param.vtype)?;
-            self.append_var(param.name.clone(), param.vtype.clone())?;
+            if param.name.span.is_empty() {
+                // Don't add synthesized `this` and `envelope` to locals.
+                self.append_instruction(Instruction::Pop);
+            } else {
+                self.append_var(param.name.clone(), param.vtype.clone())?;
+            }
         }
         if let Some(return_type) = ret {
             self.ensure_type_is_defined(return_type)?;
@@ -1436,13 +1449,63 @@ impl<'a> CompileState<'a> {
         &mut self,
         base_command: &ast::BaseCommandDefinition,
     ) -> Result<(), CompileError> {
-        let params = &[param::this(base_command.name.clone()), param::author_id()];
+        // Check for expected get_key signature.
+        {
+            let get_key = &base_command.get_key;
+            let params = &get_key.parameters;
+
+            let envelope = params.envelope;
+
+            let other_params = (!matches!(
+                params.other_params.as_slice(),
+                &[Param {
+                    vtype: VType {
+                        inner: TypeKind::Id,
+                        ..
+                    },
+                    ..
+                }]
+            ))
+            .then_some(params.other_params.span);
+
+            // TODO(jdygert): Allow `result[bytes, _]`?
+            let return_type = (!matches!(
+                &get_key.return_type.inner,
+                TypeKind::Optional(in_opt) if matches!(in_opt.inner, TypeKind::Bytes)
+            ))
+            .then(|| {
+                InvalidType::new(
+                    "option[bytes]".into(),
+                    None,
+                    get_key.return_type.to_string(),
+                    get_key.return_type.span,
+                )
+            });
+
+            if envelope.is_some() || other_params.is_some() || return_type.is_some() {
+                return Err(self.err(error::InvalidGetKeySignature {
+                    envelope,
+                    other_params,
+                    return_type,
+                }));
+            }
+        }
+
+        let params = iter::chain(
+            iter::once(param::this(
+                base_command.get_key.parameters.this.unwrap_or_default(),
+                base_command.name.clone(),
+            )),
+            base_command.get_key.parameters.other_params.iter().cloned(),
+        )
+        .collect::<Vec<_>>();
+
         let ret = TypeKind::Optional(Box::new(TypeKind::Bytes.nowhere())).nowhere();
         let label = self.anonymous_label();
 
         let fn_def = ast::FunctionDefinition {
             name: ident!("get_key").nowhere(),
-            parameters: params.to_vec(),
+            parameters: params.clone(),
             return_type: ret.clone(),
             body: vec![],
             span: base_command.span,
@@ -1451,10 +1514,10 @@ impl<'a> CompileState<'a> {
         let get_key_address = self.wp;
         self.enter_statement_context(StatementContext::PureFunction(fn_def));
         self.compile_function_like(
-            params,
+            &params,
             Some(&ret),
             base_command.span,
-            &base_command.get_key,
+            &base_command.get_key.body,
             label,
         )?;
         self.exit_statement_context();
@@ -1508,8 +1571,8 @@ impl<'a> CompileState<'a> {
                 ))
             })?;
 
-        self.compile_command_policy(command, flavor_def)?;
         self.compile_command_recall(command, flavor_def)?;
+        self.compile_command_policy(command, flavor_def)?;
 
         // attributes
         let mut attributes = NamedMap::new();
@@ -2447,6 +2510,7 @@ impl<'a> Compiler<'a> {
             c: 0,
             base_commands: NamedMap::new(),
             function_signatures: BTreeMap::new(),
+            recall_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],

@@ -2,7 +2,7 @@ command Result with StubBase {
     fields {
         x: int
     }
-    policy { }
+    policy(this) { }
 }
 
 action[null] foo(x: int) {

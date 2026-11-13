@@ -1183,13 +1183,30 @@ impl Spanned for StructItem {
     }
 }
 
+/// A policy block definition
+#[derive(Debug, Clone)]
+pub struct PolicyBlockDefinition {
+    /// The parameters to the recall block
+    pub parameters: MethodParams,
+    /// The recall rule statements for this block
+    pub body: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for PolicyBlockDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A recall block definition
 #[derive(Debug, Clone)]
 pub struct RecallBlockDefinition {
     /// The name of the recall block
     pub name: Ident,
     /// The parameters to the recall block
-    pub parameters: Vec<Param>,
+    pub parameters: MethodParams,
     /// The recall rule statements for this block
     pub body: Vec<Statement>,
     /// The source location of this definition
@@ -1214,7 +1231,7 @@ pub struct CommandDefinition {
     /// The fields of the command and their types
     pub fields: Vec<StructItem>,
     /// The policy rule statements for this command
-    pub policy: Vec<Statement>,
+    pub policy: PolicyBlockDefinition,
     /// The named recall blocks for this command
     pub recalls: Vec<RecallBlockDefinition>,
     /// The source location of this definition
@@ -1222,6 +1239,25 @@ pub struct CommandDefinition {
 }
 
 impl Spanned for CommandDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// A `get_key` block definition
+#[derive(Debug, Clone)]
+pub struct GetKeyBlockDefinition {
+    /// The parameters
+    pub parameters: MethodParams,
+    /// The return type
+    pub return_type: VType,
+    /// The body statements
+    pub body: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for GetKeyBlockDefinition {
     fn span(&self) -> Span {
         self.span
     }
@@ -1237,7 +1273,7 @@ pub struct BaseCommandDefinition {
     /// The fields of the base command and their types
     pub fields: Vec<StructItem>,
     /// The get key block
-    pub get_key: Vec<Statement>,
+    pub get_key: GetKeyBlockDefinition,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1246,6 +1282,17 @@ impl Spanned for BaseCommandDefinition {
     fn span(&self) -> Span {
         self.span
     }
+}
+
+/// Parameters to a method-like callable.
+#[derive(Debug, Clone)]
+pub struct MethodParams {
+    /// The span of the `this` parameter, if present.
+    pub this: Option<Span>,
+    /// The span of the `envelope` parameter, if present.
+    pub envelope: Option<Span>,
+    /// The parameter names and types, not including `this` or `envelope`.
+    pub other_params: WithSpan<Vec<Param>>,
 }
 
 /// A function definition

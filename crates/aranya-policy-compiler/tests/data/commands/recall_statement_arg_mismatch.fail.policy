@@ -1,6 +1,6 @@
 command Cmd with StubBase {
     fields {}
-    policy {
+    policy(this) {
         recall handle("not an int")
     }
     recall handle(x: int) {

@@ -1,6 +1,6 @@
 command Cmd with StubBase {
     fields {}
-    policy {
+    policy(this) {
         recall handle()
     }
     recall handle() {

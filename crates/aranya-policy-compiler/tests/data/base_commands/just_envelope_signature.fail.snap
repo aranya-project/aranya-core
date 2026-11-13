@@ -1,0 +1,8 @@
+error: invalid signature for `get_key` block
+  |
+2 |     get_key(envelope) option[bytes] {
+  |             ^^^^^^^^ `get_key` does not take `envelope`
+  |
+ ::: 
+2 |     get_key(envelope) option[bytes] {
+  |                     ^ expected one named param of type `id`

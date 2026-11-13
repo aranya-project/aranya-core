@@ -1,7 +1,7 @@
 fact Blah[] => {}
 command Foo with StubBase {
     fields {}
-    policy {
+    policy(this) {
         check true else test_fail("should pass")
         finish {
             delete Blah[]

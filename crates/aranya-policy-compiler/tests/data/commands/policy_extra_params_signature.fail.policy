@@ -1,0 +1,4 @@
+command Cmd with StubBase {
+    policy(this, envelope, something: bool, another: id) {
+    }
+}

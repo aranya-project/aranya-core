@@ -125,6 +125,49 @@ impl SimpleError for error::InvalidCallColor {
     }
 }
 
+impl SimpleError for error::InvalidPolicySignature {
+    fn description(&self) -> Cow<'_, str> {
+        "invalid signature for `policy` block".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.0,
+            "`policy` blocks do not take additional arguments".into(),
+        ))
+    }
+}
+
+impl Error for error::InvalidGetKeySignature {
+    fn description(&self) -> Cow<'_, str> {
+        "invalid signature for `get_key` block".into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let mut group = Group::with_title(Level::ERROR.primary_title(self.description()));
+        if let Some(envelope) = self.envelope {
+            group = group.element(
+                Snippet::source(input).annotation(
+                    AnnotationKind::Primary
+                        .span(envelope.into())
+                        .label("`get_key` does not take `envelope`"),
+                ),
+            );
+        }
+        if let Some(rest) = self.other_params {
+            group = group.element(
+                Snippet::source(input).annotation(
+                    AnnotationKind::Primary
+                        .span(rest.into())
+                        .label("expected one named param of type `id`"),
+                ),
+            );
+        }
+        report.push(group);
+        if let Some(return_type) = &self.return_type {
+            return_type.add_group(input, report);
+        }
+    }
+}
+
 impl SimpleError for error::BadArgument {
     fn description(&self) -> Cow<'_, str> {
         "bad argument".into()

@@ -10,7 +10,7 @@ command Bar with StubBase {
     attributes {
         foo_attr: Foo { ...foo2 },
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

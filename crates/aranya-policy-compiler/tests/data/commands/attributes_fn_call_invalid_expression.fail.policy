@@ -1,7 +1,7 @@
 function f() int { return 3 }
 command A with StubBase {
     attributes { i: f() }
-    policy {
+    policy(this) {
         finish {}
     }
 }
