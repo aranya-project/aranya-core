@@ -1412,7 +1412,6 @@ impl<'a> CompileState<'a> {
         self.identifier_types.enter_function();
         for param in params.iter().rev() {
             self.ensure_type_is_defined(&param.vtype)?;
-            dbg!(param);
             if param.name.span.is_empty() {
                 // Don't add synthesized `this` and `envelope` to locals.
                 self.append_instruction(Instruction::Pop);
@@ -1483,7 +1482,7 @@ impl<'a> CompileState<'a> {
                 )
             });
 
-            if envelope.is_some() || other_params.is_some() {
+            if envelope.is_some() || other_params.is_some() || return_type.is_some() {
                 return Err(self.err(error::InvalidGetKeySignature {
                     envelope,
                     other_params,
