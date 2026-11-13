@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: Missing default pattern in `match` statement/expression
   |
 2 |       let x = match maybe_bool {

@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: an action's success type must be `unit`
   |
 2 | action[null] bad() result[string, string] {

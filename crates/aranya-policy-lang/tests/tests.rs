@@ -1,11 +1,7 @@
 #![allow(clippy::panic)]
 
-use std::path::{Path, PathBuf};
-
-use aranya_policy_ast::Policy;
-use aranya_policy_lang::lang::{
-    self, ParseError, Version, error, parse_policy_document, parse_policy_str,
-};
+use aranya_policy_lang::lang::{self, Version, error, parse_policy_document, parse_policy_str};
+use snapbox::{ToDebug as _, assert_data_eq};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -57,14 +53,14 @@ policy-version: 2
 fn parse_ffi_decl() {
     let text = "function foo(x: int, y: struct bar) bool";
     let decl = lang::parse_ffi_decl(text).expect("parse");
-    insta::assert_debug_snapshot!(decl);
+    assert_data_eq!(decl.to_debug(), snapbox::file![_]);
 }
 
 #[test]
 fn parse_ffi_decl_error() {
     let text = "function foo(x: optional optional int, y: struct bar) bool";
     let err = lang::parse_ffi_decl(text).unwrap_err();
-    insta::assert_snapshot!(err);
+    assert_data_eq!(err.to_string(), snapbox::file![_]);
 }
 
 #[test]
@@ -81,7 +77,7 @@ fn parse_ffi_structs_enums() {
     "#
     .trim();
     let types = lang::parse_ffi_structs_enums(text).expect("parse");
-    insta::assert_debug_snapshot!(types);
+    assert_data_eq!(types.to_debug(), snapbox::file![_]);
 }
 
 #[test]
@@ -98,41 +94,14 @@ fn parse_ffi_structs_enums_error() {
     "#
     .trim();
     let err = lang::parse_ffi_structs_enums(text).unwrap_err();
-    insta::assert_snapshot!(err);
+    assert_data_eq!(err.to_string(), snapbox::file![_]);
 }
 
 #[test]
 fn parse_expression_error() {
     let text = "3 + 7".trim();
     let err = lang::parse_expression(text).unwrap_err();
-    insta::assert_snapshot!(err);
-}
-
-#[rstest::rstest]
-fn test_policy(#[files("tests/data/**/*.policy")] src: PathBuf) {
-    autotest(&src, |text| parse_policy_str(text, Version::V2));
-}
-
-#[rstest::rstest]
-fn test_markdown(#[files("tests/data/**/*.md")] src: PathBuf) {
-    autotest(&src, parse_policy_document);
-}
-
-fn autotest(src: &Path, parse: impl Fn(&str) -> Result<Policy, ParseError>) {
-    let base = src.parent().expect("can't get parent");
-    let name = src
-        .file_stem()
-        .expect("can't get filename stem")
-        .to_str()
-        .expect("filename not utf8");
-    let text = std::fs::read_to_string(src).expect("could not read source file");
-    let res = parse(&text);
-    insta::with_settings!({ prepend_module_to_snapshot => false, snapshot_path => base }, {
-        match res {
-            Ok(ast) => insta::assert_debug_snapshot!(name, ast),
-            Err(err) => insta::assert_snapshot!(name, err),
-        }
-    });
+    assert_data_eq!(err.to_string(), snapbox::file![_]);
 }
 
 /// A statement or expression ends at its last token. pest skips the

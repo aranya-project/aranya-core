@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-lang/tests/tests.rs
-expression: ast
----
 Policy {
     version: V2,
     ffi_imports: [],

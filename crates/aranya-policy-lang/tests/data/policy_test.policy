@@ -11,7 +11,7 @@ action[null] add2(x: int, y: int) {
 }
 
 effect Added {
-    x: int dynamic,
+    x: int,
     y: int,
 }
 

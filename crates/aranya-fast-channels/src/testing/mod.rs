@@ -11,7 +11,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 #![cfg(any(test, feature = "testing"))]
-#![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #![cfg_attr(not(feature = "trng"), forbid(unsafe_code))]
 
 pub mod util;

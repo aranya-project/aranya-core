@@ -5,7 +5,7 @@ use aranya_policy_ast::{Span, Spanned as _};
 use indexmap::IndexSet;
 use itertools::Itertools as _;
 
-use super as error;
+use crate::compile::error;
 
 /// Trait for compiler errors that can render themselves as annotated source snippets.
 ///
@@ -273,6 +273,18 @@ impl SimpleError for error::NoReturn {
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         once((self.0, "no return found in this body".into()))
+    }
+}
+
+impl SimpleError for error::NoPublishOrActionCall {
+    fn description(&self) -> Cow<'_, str> {
+        "action must publish or call another action".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.0,
+            "no publish or action call found in this action".into(),
+        ))
     }
 }
 

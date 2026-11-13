@@ -1,7 +1,3 @@
----
-source: crates/aranya-policy-compiler/tests/tests.rs
-expression: error
----
 error: recursive call: `a`, `b`, `c` call each other
    |
  2 |     return b(n)
