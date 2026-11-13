@@ -166,6 +166,7 @@ impl CompileState<'_> {
             name: fact.name.clone(),
             key_fields,
             value_fields,
+            span: fact.span(),
         })
     }
 

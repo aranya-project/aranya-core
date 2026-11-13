@@ -113,7 +113,7 @@ pub trait WithSpanExt: Sized {
 impl<T> WithSpanExt for T {}
 
 /// A range in the source text.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Span {
     // [start, end)
     start: usize,
