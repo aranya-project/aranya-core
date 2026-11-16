@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+export LC_ALL=C
+
 here="$(dirname "${BASH_SOURCE[0]}")"
 cd "$here"
 
@@ -14,11 +16,11 @@ cat <<EOF > "$output"
 
 pub const KEYWORDS: &[&str] = &[
 $(
-    grep -v '//' "$input" | # Filter out comments
-    grep -oE '"\w{2,}"' |   # Extract quoted words
-    sort --ignore-case |    # Sort keywords
-    uniq |                  # Deduplicate
-    sed 's/.*/    &,/'      # Indent and add comma
+    sed 's|//.*||' "$input" | # Filter out comments
+    grep -oE '"\w{2,}"' |     # Extract quoted words
+    sort --ignore-case |      # Sort keywords
+    uniq |                    # Deduplicate
+    sed 's/.*/    &,/'        # Indent and add comma
 )
 ];
 EOF
