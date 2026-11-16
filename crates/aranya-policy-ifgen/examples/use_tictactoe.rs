@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout, reason = "example")]
+
 #[path = "../tests/data/tictactoe.rs"]
 pub mod tictactoe;
 

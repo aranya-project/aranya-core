@@ -9,6 +9,7 @@
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::panic)]
+#![allow(clippy::print_stderr)]
 #![allow(clippy::unwrap_used)]
 #![cfg(any(test, feature = "testing"))]
 #![cfg_attr(not(feature = "trng"), forbid(unsafe_code))]

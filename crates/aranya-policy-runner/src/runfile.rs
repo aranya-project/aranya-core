@@ -216,9 +216,9 @@ impl RunFile {
         }
 
         if do_things.is_empty() {
-            eprintln!(
-                "WARNING: 'do' block is absent or empty in {}",
-                file_path.as_ref().display()
+            tracing::warn!(
+                file_path = %file_path.as_ref().display(),
+                "'do' block is absent or empty",
             );
         }
 

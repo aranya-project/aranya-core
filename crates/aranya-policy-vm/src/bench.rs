@@ -38,6 +38,8 @@
 //! bench_measurements().print_stats();
 //! ```
 
+#![allow(clippy::print_stdout, reason = "benchmark")]
+
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
 use core::{fmt::Display, ops::Div as _};
 use std::{
