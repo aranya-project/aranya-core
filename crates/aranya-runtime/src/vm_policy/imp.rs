@@ -50,7 +50,7 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
                 ident!("basic"),
                 Flavor {
                     envelope: Struct {
-                        name: ident!("DefaultEnvelope"),
+                        name: ident!("BasicEnvelope"),
                         fields: &[
                             arg!("command_id", Id),
                             arg!("parent_id", Id),
@@ -80,8 +80,7 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
                         fields: &[
                             arg!("command_id", Id),
                             arg!("parent_id", Id),
-                            // TODO(jdygert): Make finalize certified.
-                            // Omit `author_id` so nothing relies on it.
+                            arg!("fact_root", Id),
                         ],
                     },
                 },
