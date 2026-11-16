@@ -1186,9 +1186,9 @@ impl Spanned for StructItem {
 /// A policy block definition
 #[derive(Debug, Clone)]
 pub struct PolicyBlockDefinition {
-    /// The parameters to the recall block
+    /// The parameters to the policy block
     pub parameters: MethodParams,
-    /// The recall rule statements for this block
+    /// The policy rule statements for this block
     pub body: Vec<Statement>,
     /// The source location of this definition
     pub span: Span,
