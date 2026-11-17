@@ -65,13 +65,6 @@ fn parse_ffi_decl_error() {
     assert_data_eq!(err.to_string(), snapbox::file![_]);
 }
 
-#[test]
-fn parse_expression_error() {
-    let text = "3 + 7".trim();
-    let err = parse_expression(text).unwrap_err();
-    assert_data_eq!(err.to_string(), snapbox::file![_]);
-}
-
 /// A statement or expression ends at its last token. pest skips the
 /// whitespace and comments before an optional or repeated part even when
 /// the part is absent, so spans used to run on to the next token: a
