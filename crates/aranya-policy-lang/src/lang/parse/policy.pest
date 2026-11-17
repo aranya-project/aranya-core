@@ -137,7 +137,7 @@ return_statement = { "return" ~ ws ~ expression }
 // named recall block. Valid only in `policy` blocks.
 recall_statement = { "recall" ~ ws ~ function_call }
 // debug_assert() optionally runs the contained expression if the debug flag is enabled
-debug_assert = { "debug_assert(" ~ ws ~ expression ~ ws ~ ")" }
+debug_assert = { "debug_assert" ~ ws ~ "(" ~ ws ~ expression ~ ws ~ ")" }
 
 
 // ## Command blocks
@@ -315,10 +315,10 @@ exactly = { "exactly" ~ ws ~ int_literal ~ ws ~ fact_literal }
 // first expression.
 if_expr = { "if" ~ ws ~ expression ~ ws ~ block_expression ~ ws ~ "else" ~ ws ~ block_expression }
 // Indicates a not yet implemented panic
-todo = { "todo()" }
+todo = { "todo" ~ ws ~ "(" ~ ws ~ ")" }
 // Panics with a message. Like `todo()`, but for expressing test
 // expectations of the policy vm/compiler, e.g. `check c else test_fail("...")`.
-test_fail = { "test_fail(" ~ ws ~ (string_literal ~ ws)? ~ ")" }
+test_fail = { "test_fail" ~ ws ~ "(" ~ ws ~ (string_literal ~ ws)? ~ ")" }
 
 // The return expression returns from a function
 return_expression = { "return" ~ ws ~ expression }

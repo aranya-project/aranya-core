@@ -272,6 +272,10 @@ install_crate = { crate_name = "cargo-docs-rs", version = "1.0.4", binary = "car
 
 
 # Misc
+[tasks.update-keywords]
+description = "Update list of keywords in policy lang"
+command = "crates/aranya-policy-lang/src/lang/parse/extract_keywords.sh"
+
 [tasks.install-cargo-vet]
 private = true
 toolchain = "stable"
