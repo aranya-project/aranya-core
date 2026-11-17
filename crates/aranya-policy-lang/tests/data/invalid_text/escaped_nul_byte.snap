@@ -1,4 +1,4 @@
-error: Invalid string
+error: Syntax error
   |
 1 | let x = "a\x00b"
-  |           ^^^^ hex character escape is out of range [0x01, 0x7F]
+  |         ^^^^^^^^ found 'string "\"a\\x00b\""' expected expression

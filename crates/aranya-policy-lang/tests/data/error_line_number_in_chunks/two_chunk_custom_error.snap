@@ -1,4 +1,4 @@
-error: Invalid string
+error: Syntax error
    |
 11 |     let y = "a\0b"
-   |               ^^ unknown character escape: `0`
+   |             ^^^^^^ found 'string "\"a\\0b\""' expected expression

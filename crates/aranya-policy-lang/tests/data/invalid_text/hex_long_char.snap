@@ -1,4 +1,4 @@
-error: Invalid string
+error: Syntax error
   |
 1 | let x = "a\x█"
-  |             ^ invalid character in hex character escape
+  |         ^^^^^^ found 'string "\"a\\x█\""' expected expression
