@@ -1,4 +1,4 @@
-error: Reserved identifier
+error: Syntax error
   |
 1 | function int(x: int) int {
-  |          ^^^ found reserved identifier: `int`
+  |          ^^^ found 'int' expected identifier

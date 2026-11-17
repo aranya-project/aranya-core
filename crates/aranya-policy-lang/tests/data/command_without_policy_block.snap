@@ -1,4 +1,4 @@
 error: Syntax error
   |
 3 | }
-  | ^ expected policy_block
+  | ^ found '}' expected policy block
