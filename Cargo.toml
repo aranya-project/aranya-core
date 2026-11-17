@@ -98,6 +98,7 @@ annotate-snippets = { version = "0.12" }
 anyhow = { version = "1.0" }
 bimap = { version = "0.6.3" }
 byteorder = { version = "1", default-features = false }
+chumsky = { version = "0.14", default-features = false }
 ciborium = { version = "0.2", default-features = false }
 ciborium-io = { version = "0.2.2", default-features = false }
 clap = { version = "4.5" }
@@ -114,11 +115,10 @@ indexmap = { version = "2.9", default-features = false }
 itertools = { version = "0.13", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
+logos = { version = "0.16", default-features = false }
 markdown = { version = "1" }
 memchr = { version = "2.7.2", default-features = false }
 paste = { version = "1", default-features = false }
-pest = { version = "2" }
-pest_derive = { version = "2" }
 petgraph = { version = "0.8" }
 postcard = { version = "1", default-features = false }
 postcard-core = { version = "0.1.0" }

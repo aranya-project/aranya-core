@@ -1354,6 +1354,33 @@ impl Spanned for GlobalLetStatement {
     }
 }
 
+/// A top level item.
+#[derive(Debug, Clone)]
+pub enum TopLevelItem {
+    /// An FFI import.
+    FfiImport(Ident),
+    /// A fact definition.
+    Fact(FactDefinition),
+    /// An action definition.
+    Action(ActionDefinition),
+    /// An effect definition.
+    Effect(EffectDefinition),
+    /// A struct definition.
+    Struct(StructDefinition),
+    /// An enum definition.
+    Enum(EnumDefinition),
+    /// A command definition.
+    Command(CommandDefinition),
+    /// A base command definition.
+    BaseCommand(BaseCommandDefinition),
+    /// A function definition.
+    Function(FunctionDefinition),
+    /// A finish function definition.
+    FinishFunction(FinishFunctionDefinition),
+    /// A global let statement.
+    GlobalLet(GlobalLetStatement),
+}
+
 /// The policy AST root
 ///
 /// This contains all of the definitions that comprise a policy.
@@ -1394,6 +1421,23 @@ impl Policy {
             version,
             text: text.to_owned(),
             ..Default::default()
+        }
+    }
+
+    /// Add a top level item to the policy.
+    pub fn add(&mut self, item: TopLevelItem) {
+        match item {
+            TopLevelItem::FfiImport(name) => self.ffi_imports.push(name),
+            TopLevelItem::Fact(item) => self.facts.push(item),
+            TopLevelItem::Action(item) => self.actions.push(item),
+            TopLevelItem::Effect(item) => self.effects.push(item),
+            TopLevelItem::Struct(item) => self.structs.push(item),
+            TopLevelItem::Enum(item) => self.enums.push(item),
+            TopLevelItem::Command(item) => self.commands.push(item),
+            TopLevelItem::BaseCommand(item) => self.base_commands.push(item),
+            TopLevelItem::Function(item) => self.functions.push(item),
+            TopLevelItem::FinishFunction(item) => self.finish_functions.push(item),
+            TopLevelItem::GlobalLet(item) => self.global_lets.push(item),
         }
     }
 }
