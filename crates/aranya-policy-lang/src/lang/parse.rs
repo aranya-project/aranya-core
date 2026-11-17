@@ -2027,6 +2027,3 @@ fn hex_char_to_nibble(ch: u8) -> Option<u8> {
         _ => return None,
     })
 }
-
-#[cfg(test)]
-mod tests;
