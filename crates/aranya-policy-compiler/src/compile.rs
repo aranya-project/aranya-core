@@ -1289,12 +1289,14 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
+        // `policy` blocks must have no typed params.
         if !command.policy.parameters.other_params.is_empty() {
             return Err(self.err(error::InvalidPolicySignature(
                 command.policy.parameters.other_params.span,
             )));
         }
 
+        // Always take `this` and `envelope`, but they are ignored if absent from definition.
         let params = &[
             param::this(
                 command.policy.parameters.this.unwrap_or_default(),
@@ -1356,15 +1358,18 @@ impl<'a> CompileState<'a> {
             named_blocks.insert(recall_block.name.clone());
 
             let params = iter::chain(
+                // Take `this` only if actually declared.
                 recall_block
                     .parameters
                     .this
                     .map(|span| param::this(span, command.name.clone())),
+                // Take `envelope` only if actually declared.
                 recall_block
                     .parameters
                     .envelope
                     .map(|span| param::envelope(span, flavor_def.envelope.name.clone())),
             )
+            // Take the other declared parameters.
             .chain(recall_block.parameters.other_params.iter().cloned())
             .collect::<Vec<_>>();
 
@@ -1413,7 +1418,9 @@ impl<'a> CompileState<'a> {
         for param in params.iter().rev() {
             self.ensure_type_is_defined(&param.vtype)?;
             if param.name.span.is_empty() {
-                // Don't add synthesized `this` and `envelope` to locals.
+                // Don't add synthesized `this` and `envelope` to locals. This lets us keep the
+                // signature of `get_key` and `policy` the same to the VM while allowing to omit
+                // them from the definitions.
                 self.append_instruction(Instruction::Pop);
             } else {
                 self.append_var(param.name.clone(), param.vtype.clone())?;
@@ -1454,8 +1461,10 @@ impl<'a> CompileState<'a> {
             let get_key = &base_command.get_key;
             let params = &get_key.parameters;
 
+            // `get_key` should not have an envelope param.
             let envelope = params.envelope;
 
+            // `get_key` should only have an ID as the typed params.
             let other_params = (!matches!(
                 params.other_params.as_slice(),
                 &[Param {
@@ -1469,6 +1478,7 @@ impl<'a> CompileState<'a> {
             .then_some(params.other_params.span);
 
             // TODO(jdygert): Allow `result[bytes, _]`?
+            // `get_key` should return `option[bytes]`.
             let return_type = (!matches!(
                 &get_key.return_type.inner,
                 TypeKind::Optional(in_opt) if matches!(in_opt.inner, TypeKind::Bytes)
@@ -1482,6 +1492,7 @@ impl<'a> CompileState<'a> {
                 )
             });
 
+            // If any error is present, combine them all into one error.
             if envelope.is_some() || other_params.is_some() || return_type.is_some() {
                 return Err(self.err(error::InvalidGetKeySignature {
                     envelope,
@@ -1492,10 +1503,12 @@ impl<'a> CompileState<'a> {
         }
 
         let params = iter::chain(
+            // Always take `this`, but it is ignored if absent.
             iter::once(param::this(
                 base_command.get_key.parameters.this.unwrap_or_default(),
                 base_command.name.clone(),
             )),
+            // The other parameters (just an ID).
             base_command.get_key.parameters.other_params.iter().cloned(),
         )
         .collect::<Vec<_>>();
