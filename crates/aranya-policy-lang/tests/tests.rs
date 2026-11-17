@@ -1,7 +1,7 @@
 #![allow(clippy::panic)]
 
 use aranya_policy_lang::lang::{
-    self, Version, error, parse_expression, parse_policy_document, parse_policy_str, parse_vtype,
+    self, Version, parse_expression, parse_policy_document, parse_policy_str, parse_vtype,
 };
 use snapbox::{ToDebug as _, assert_data_eq, str};
 
@@ -10,45 +10,49 @@ use snapbox::{ToDebug as _, assert_data_eq, str};
 #[allow(deprecated)]
 fn accept_only_latest_lang_version() {
     // parse string literal
-    let src = "function f() int { return 0 }";
-    assert_eq!(
-        *parse_policy_str(src, Version::V1)
+    assert_data_eq!(
+        parse_policy_str("", Version::V1)
             .expect_err("should not accept V1")
-            .kind,
-        error::InvalidVersion {
-            found: "1".to_string(),
-            required: Version::V2
-        }
-        .into()
+            .to_string(),
+        str![[r#"
+error: Invalid policy version 1, supported version is 2
+  |
+  = note: please update `policy-version` to 2
+"#]]
     );
-    parse_policy_str(src, Version::V2).expect("should accept V2");
+
+    parse_policy_str("", Version::V2).expect("should accept V2");
 
     // parse markdown (v1)
-    let policy_v1_md = r#"---
+    let policy_v1_md = "\
+---
 policy-version: 1
 ---
 
 ```policy
 ```
-"#;
-    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| {
-        *r.kind
-            == error::InvalidVersion {
-                found: "1".to_string(),
-                required: Version::V2,
-            }
-            .into()
-    }));
+";
+    assert_data_eq!(
+        parse_policy_document(policy_v1_md)
+            .expect_err("should not accept V1")
+            .to_string(),
+        str![[r#"
+error: Invalid policy version 1, supported version is 2
+  |
+  = note: please update `policy-version` to 2
+"#]]
+    );
 
     // parse markdown (v2)
-    let policy_v2_md = r#"---
+    let policy_v2_md = "\
+---
 policy-version: 2
 ---
 
 ```policy
 ```
-"#;
-    assert!(parse_policy_document(policy_v2_md).is_ok());
+";
+    parse_policy_document(policy_v2_md).expect("should accept V2");
 }
 
 #[test]
