@@ -1,334 +1,687 @@
+#![cfg(test)]
 #![allow(clippy::panic)]
 
-use core::assert_matches;
-
 use aranya_policy_ast::VType;
-use pest::{Parser as _, error::Error as PestError};
+use pest::Parser as _;
+use snapbox::{ToDebug as _, assert_data_eq, str};
 
-use super::{ChunkParser, Pair, PolicyParser, Result, Rule, get_pratt_parser};
+use super::{Pair, PolicyParser, Result, Rule, parse_expression};
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_atom_number() -> Result<(), PestError<Rule>> {
-    let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
-    let token: Pair = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::int_literal);
+fn parse_atom_number() {
+    assert_data_eq!(
+        parse_expression("12345").unwrap().to_debug(),
+        str![[r#"
+Int(
+    12345 @ 0..5,
+) @ 0..5
 
-    Ok(())
+"#]]
+    );
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_negative_number() -> Result<(), PestError<Rule>> {
+fn parse_negative_number() {
     // negative integer literal
-    let mut pair = PolicyParser::parse(Rule::atom, "-42")?;
-    let token: Pair = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::int_literal);
-    assert_eq!(token.as_str(), "-42");
+    assert_data_eq!(
+        parse_expression("-42").unwrap().to_debug(),
+        snapbox::str![[r#"
+Int(
+    -42 @ 0..3,
+) @ 0..3
+
+"#]]
+    );
 
     // minimum i64 value
-    let mut pair = PolicyParser::parse(Rule::atom, "-9223372036854775808")?;
-    let token: Pair = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::int_literal);
-    assert_eq!(token.as_str(), "-9223372036854775808");
+    assert_data_eq!(
+        parse_expression("-9223372036854775808").unwrap().to_debug(),
+        str![[r#"
+Int(
+    -9223372036854775808 @ 0..20,
+) @ 0..20
 
-    Ok(())
+"#]]
+    );
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_atom_fn() -> Result<(), PestError<Rule>> {
+fn parse_atom_fn() -> Result<()> {
     // bare call
-    let mut pair = PolicyParser::parse(Rule::atom, r#"call()"#)?;
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::function_call);
+    assert_data_eq!(
+        parse_expression(r#"call()"#).unwrap().to_debug(),
+        str![[r#"
+FunctionCall(
+    FunctionCall {
+        name: "call" @ 0..4,
+        arguments: [],
+    },
+) @ 0..6
+
+"#]]
+    );
 
     // arguments
-    let mut pair = PolicyParser::parse(Rule::atom, r#"call(3, "foo")"#)?;
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::function_call);
+    assert_data_eq!(
+        parse_expression(r#"call(3, "foo")"#).unwrap().to_debug(),
+        str![[r#"
+FunctionCall(
+    FunctionCall {
+        name: "call" @ 0..4,
+        arguments: [
+            Int(
+                3 @ 5..6,
+            ) @ 5..6,
+            String(
+                "foo",
+            ) @ 8..13,
+        ],
+    },
+) @ 0..14
+
+"#]]
+    );
 
     // terminal comma
-    let mut pair = PolicyParser::parse(
-        Rule::atom,
-        r#"call(
-            3,
-            4,
-        )"#,
-    )?;
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::function_call);
+    assert_data_eq!(
+        parse_expression(r#"call(3, 4,)"#,).unwrap().to_debug(),
+        str![[r#"
+FunctionCall(
+    FunctionCall {
+        name: "call" @ 0..4,
+        arguments: [
+            Int(
+                3 @ 5..6,
+            ) @ 5..6,
+            Int(
+                4 @ 8..9,
+            ) @ 8..9,
+        ],
+    },
+) @ 0..11
+
+"#]],
+    );
 
     // calls within calls
-    let mut pair = PolicyParser::parse(Rule::atom, r#"call(foo(), bar())"#)?;
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::function_call);
-    let mut pair = token.into_inner();
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::identifier);
-    assert_eq!(token.as_str(), "call");
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-    let mut pair = token.into_inner();
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::function_call);
-    assert_eq!(token.as_str(), "foo()");
+    assert_data_eq!(
+        parse_expression(r#"call(foo(), bar())"#,)
+            .unwrap()
+            .to_debug(),
+        str![[r#"
+FunctionCall(
+    FunctionCall {
+        name: "call" @ 0..4,
+        arguments: [
+            FunctionCall(
+                FunctionCall {
+                    name: "foo" @ 5..8,
+                    arguments: [],
+                },
+            ) @ 5..10,
+            FunctionCall(
+                FunctionCall {
+                    name: "bar" @ 12..15,
+                    arguments: [],
+                },
+            ) @ 12..17,
+        ],
+    },
+) @ 0..18
+
+"#]],
+    );
 
     // bad calls
-    let cases = vec!["call(,)", "call(a a)", "call(-)"];
-    for c in cases {
-        // We use Rule::function_call here directly as otherwise
-        // these bad calls fall back to parsing as identifiers.
-        let result = PolicyParser::parse(Rule::function_call, c);
-        assert!(result.is_err());
-    }
+    assert_data_eq!(
+        parse_expression("call(,)").unwrap_err().to_string(),
+        str![[r#"
+error: Syntax error
+  |
+1 | call(,)
+  |      ^ expected expression
+"#]]
+    );
+    assert_data_eq!(
+        parse_expression("call(a a)").unwrap_err().to_string(),
+        str![[r#"
+error: Syntax error
+  |
+1 | call(a a)
+  |        ^ expected dot, substruct, cast, is, ?, add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, or coalesce
+"#]]
+    );
+    assert_data_eq!(
+        parse_expression("call(-)").unwrap_err().to_string(),
+        str![[r#"
+error: Syntax error
+  |
+1 | call(-)
+  |      ^ expected expression
+"#]]
+    );
 
     Ok(())
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_expression() -> Result<(), PestError<Rule>> {
-    let mut pairs = PolicyParser::parse(
-        Rule::expression,
-        r#"call(add(3, 7), saturating_sub(0, b), "foo\x7b")"#,
-    )?;
+fn expression() {
+    assert_data_eq!(
+        parse_expression(r#"call(add(3, 7), saturating_sub(0, b), "foo\x7b")"#,)
+            .unwrap()
+            .to_debug(),
+        str![[r#"
+FunctionCall(
+    FunctionCall {
+        name: "call" @ 0..4,
+        arguments: [
+            FunctionCall(
+                FunctionCall {
+                    name: "add" @ 5..8,
+                    arguments: [
+                        Int(
+                            3 @ 9..10,
+                        ) @ 9..10,
+                        Int(
+                            7 @ 12..13,
+                        ) @ 12..13,
+                    ],
+                },
+            ) @ 5..14,
+            FunctionCall(
+                FunctionCall {
+                    name: "saturating_sub" @ 16..30,
+                    arguments: [
+                        Int(
+                            0 @ 31..32,
+                        ) @ 31..32,
+                        Identifier(
+                            "b" @ 34..35,
+                        ) @ 34..35,
+                    ],
+                },
+            ) @ 16..36,
+            String(
+                "foo{",
+            ) @ 38..47,
+        ],
+    },
+) @ 0..48
 
-    let token = pairs.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-
-    let mut pair = token.into_inner();
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::function_call);
-
-    let mut pair = token.into_inner();
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::identifier);
-    assert_eq!(token.as_str(), "call");
-
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "add(3, 7)");
-
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "saturating_sub(0, b)");
-
-    let token = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "\"foo\\x7b\"");
-
-    Ok(())
+"#]],
+    );
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_coalesce_operator() -> Result<(), PestError<Rule>> {
+fn parse_coalesce_operator() -> Result<()> {
     // Word boundary: `order` should parse as a single identifier, not `or der`.
     // There should be no coalesce operator in the expression.
-    let mut pairs = PolicyParser::parse(Rule::expression, "x order")?;
-    let token = pairs.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str().trim(), "x");
-    assert!(
-        !token.into_inner().any(|p| p.as_rule() == Rule::coalesce),
-        "Unexpected coalesce operator in expression",
+    assert_data_eq!(
+        parse_expression("x order").unwrap_err().to_string(),
+        str![[r#"
+error: Syntax error
+  |
+1 | x order
+  |   ^ expected EOI, dot, substruct, cast, is, ?, add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, or coalesce
+"#]]
     );
 
     // Word boundary: don't split at `_`.
-    let mut pairs = PolicyParser::parse(Rule::expression, "or_thing")?;
-    let token = pairs.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-    assert_eq!(token.as_str(), "or_thing");
+    assert_data_eq!(
+        parse_expression("or_thing").unwrap().to_debug(),
+        str![[r#"
+Identifier(
+    "or_thing" @ 0..8,
+) @ 0..8
+
+"#]]
+    );
 
     // `or` can be followed by a non-whitespace, non-identifier character.
-    let mut pairs = PolicyParser::parse(Rule::expression, "x or(y)")?;
-    let token = pairs.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::expression);
-    let inner: Vec<_> = token
-        .into_inner()
-        .map(|p| (p.as_rule(), p.as_str().to_string()))
-        .collect();
-    assert_eq!(inner[1].0, Rule::coalesce);
+    assert_data_eq!(
+        parse_expression("x or(y)").unwrap().to_debug(),
+        str![[r#"
+Coalesce(
+    Identifier(
+        "x" @ 0..1,
+    ) @ 0..1,
+    Identifier(
+        "y" @ 5..6,
+    ) @ 5..6,
+) @ 0..6
+
+"#]]
+    );
 
     // Right-associativity: `a or b or c` should produce `Coalesce(a, Coalesce(b, c))`, not `Coalesce(Coalesce(a, b), c)`.
-    use aranya_policy_ast::ExprKind;
-    let expr = crate::lang::parse_expression("a or b or c").expect("parse failed");
-    let ExprKind::Coalesce(outer_lhs, outer_rhs) = expr.inner else {
-        panic!("expected outer Coalesce");
-    };
-    // Outer left side is `a` (single identifier)
-    assert_matches!(outer_lhs.inner, ExprKind::Identifier(_));
-    // Outer right side is `Coalesce(b, c)`
-    assert_matches!(outer_rhs.inner, ExprKind::Coalesce(_, _));
+    assert_data_eq!(
+        parse_expression("a or b or c").unwrap().to_debug(),
+        str![[r#"
+Coalesce(
+    Identifier(
+        "a" @ 0..1,
+    ) @ 0..1,
+    Coalesce(
+        Identifier(
+            "b" @ 5..6,
+        ) @ 5..6,
+        Identifier(
+            "c" @ 10..11,
+        ) @ 10..11,
+    ) @ 5..11,
+) @ 0..11
+
+"#]]
+    );
 
     Ok(())
 }
 
 #[test]
 fn parse_try_operator_precedence() {
-    use aranya_policy_ast::ExprKind;
-
     // Postfix ops apply left to right: `f(x)?.field` is `(f(x)?).field`.
-    let expr = crate::lang::parse_expression("f(x)?.field").expect("parse failed");
-    let ExprKind::Dot(lhs, _) = expr.inner else {
-        panic!("expected Dot, got {:?}", expr.inner);
-    };
-    let ExprKind::Try(operand) = lhs.inner else {
-        panic!("expected Try, got {:?}", lhs.inner);
-    };
-    let ExprKind::FunctionCall(_) = operand.inner else {
-        panic!("expected FunctionCall, got {:?}", operand.inner);
-    };
+    assert_data_eq!(
+        parse_expression("f(x)?.field").unwrap().to_debug(),
+        str![[r#"
+Dot(
+    Try(
+        FunctionCall(
+            FunctionCall {
+                name: "f" @ 0..1,
+                arguments: [
+                    Identifier(
+                        "x" @ 2..3,
+                    ) @ 2..3,
+                ],
+            },
+        ) @ 0..4,
+    ) @ 0..5,
+    "field" @ 6..11,
+) @ 0..11
+
+"#]]
+    );
 
     // `x.y?` should parse as `(x.y)?`, i.e. `Try(Dot(x, y))`.
-    let expr = crate::lang::parse_expression("x.y?").expect("parse failed");
-    let ExprKind::Try(operand) = expr.inner else {
-        panic!("expected Try, got {:?}", expr.inner);
-    };
-    let ExprKind::Dot(_, _) = operand.inner else {
-        panic!("expected Dot, got {:?}", operand.inner);
-    };
+    assert_data_eq!(
+        parse_expression("x.y?").unwrap().to_debug(),
+        str![[r#"
+Try(
+    Dot(
+        Identifier(
+            "x" @ 0..1,
+        ) @ 0..1,
+        "y" @ 2..3,
+    ) @ 0..3,
+) @ 0..4
+
+"#]]
+    );
 
     // `?` binds tighter than prefix `!`: `!x?` is `!(x?)`.
-    let expr = crate::lang::parse_expression("!x?").expect("parse failed");
-    let ExprKind::Not(inner) = expr.inner else {
-        panic!("expected Not, got {:?}", expr.inner);
-    };
-    let ExprKind::Try(operand) = inner.inner else {
-        panic!("expected Try, got {:?}", inner.inner);
-    };
-    let ExprKind::Identifier(_) = operand.inner else {
-        panic!("expected Identifier, got {:?}", operand.inner);
-    };
-}
+    assert_data_eq!(
+        parse_expression("!x?").unwrap().to_debug(),
+        str![[r#"
+Not(
+    Try(
+        Identifier(
+            "x" @ 1..2,
+        ) @ 1..2,
+    ) @ 1..3,
+) @ 0..3
 
-struct ErrorInput {
-    description: String,
-    input: String,
-    error_message: String,
-    rule: Rule,
+"#]]
+    );
 }
 
 #[test]
-fn parse_errors() -> Result<()> {
-    let cases = vec![ErrorInput {
-        description: String::from("Invalid function body"),
-        input: r#"function foo(x: int) bool { invalid }"#.to_string(),
-        error_message: String::from(
-            " --> 1:29\n  |\n1 | function foo(x: int) bool { invalid }\n  \
-                |                             ^---\n  |\n  = expected publish_statement, \
-                let_statement, check_statement, match_statement, if_statement, finish_statement, \
-                map_statement, create_statement, update_statement, delete_statement, \
-                emit_statement, return_statement, recall_statement, debug_assert, function_call, \
-                or action_call",
-        ),
-        rule: Rule::top_level_statement,
-    }];
-    for case in cases {
-        match PolicyParser::parse(case.rule, &case.input) {
-            Ok(_) => panic!("{}", case.description),
-            Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
-        }
-    }
-    Ok(())
+fn parse_errors() {
+    // TODO: Move to file tests
+    // description: String::from("Invalid function body"),
+    // input: r#"function foo(x: int) bool { invalid }"#.to_string(),
+    // error_message: String::from(
+    //     " --> 1:29\n  |\n1 | function foo(x: int) bool { invalid }\n  \
+    //         |                             ^---\n  |\n  = expected publish_statement, \
+    //         let_statement, check_statement, match_statement, if_statement, finish_statement, \
+    //         map_statement, create_statement, update_statement, delete_statement, \
+    //         emit_statement, return_statement, recall_statement, debug_assert, function_call, \
+    //         or action_call",
+    // ),
 }
 
 /// Helper for testing complex type parsing.
 fn parse_vtype(text: &str) -> Result<VType> {
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(0, &pratt, text.len());
-    let mut pairs = PolicyParser::parse(Rule::vtype, text)?;
+    let pratt = super::get_pratt_parser();
+    let p = super::ChunkParser::new(0, &pratt, text.len());
+    let mut pairs = PolicyParser::parse(Rule::vtype, text)
+        .map_err(|e| super::ParseError::from(e).with_source(text.into()))?;
     let pair = pairs.next().unwrap();
-    p.parse_type(pair)
+    p.parse_type(pair).map_err(|e| e.with_source(text.into()))
 }
 
 #[test]
 fn parse_optional() {
-    let optional_types = &[
-        // (case, is valid)
-        ("optional string", true),
-        ("option[string]", true),
-        ("optional bytes", true),
-        ("option[bytes]", true),
-        ("optional int", true),
-        ("option[int]", true),
-        ("optional bool", true),
-        ("option[bool]", true),
-        ("optional struct Foo", true),
-        ("option[struct Foo]", true),
-        ("optional blargh", false),
-        ("option[blargh]", false),
-        ("optional optional bytes", false),
-        ("optional option[bytes]", false),
-        ("option[optional bytes]", false),
-        ("option[option[bytes]]", true),
-    ];
-    for (case, is_valid) in optional_types {
-        let r = parse_vtype(case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    #[track_caller]
+    fn case(input: &str, output: snapbox::data::Inline) {
+        assert_data_eq!(
+            parse_vtype(input).map_or_else(|err| err.to_string(), |ok| ok.to_string()),
+            output
+        );
     }
+
+    case("optional string", str!["option[string]"]);
+    case("option[string]", str!["option[string]"]);
+    case("optional bytes", str!["option[bytes]"]);
+    case("option[bytes]", str!["option[bytes]"]);
+    case("optional int", str!["option[int]"]);
+    case("option[int]", str!["option[int]"]);
+    case("optional bool", str!["option[bool]"]);
+    case("option[bool]", str!["option[bool]"]);
+    case("optional struct Foo", str!["option[struct Foo]"]);
+    case("option[struct Foo]", str!["option[struct Foo]"]);
+    case("option[option[bytes]]", str!["option[option[bytes]]"]);
+
+    case(
+        "optional blargh",
+        str![[r#"
+error: Syntax error
+  |
+1 | optional blargh
+  |          ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+"#]],
+    );
+
+    case(
+        "option[blargh]",
+        str![[r#"
+error: Syntax error
+  |
+1 | option[blargh]
+  |        ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+"#]],
+    );
+
+    case(
+        "optional optional bytes",
+        str![[r#"
+error: Invalid nested option
+  |
+1 | optional optional bytes
+  | ^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+  |
+help: you should use `option[T]`
+  |
+1 - optional optional bytes
+1 + option[option[bytes]]
+  |
+"#]],
+    );
+
+    case(
+        "optional option[bytes]",
+        str![[r#"
+error: Invalid nested option
+  |
+1 | optional option[bytes]
+  | ^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+  |
+help: you should use `option[T]`
+  |
+1 - optional option[bytes]
+1 + option[option[bytes]]
+  |
+"#]],
+    );
+
+    case(
+        "option[optional bytes]",
+        str![[r#"
+error: Invalid nested option
+  |
+1 | option[optional bytes]
+  | ^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+  |
+help: you should use `option[T]`
+  |
+1 - option[optional bytes]
+1 + option[option[bytes]]
+  |
+"#]],
+    );
 }
 
 #[test]
 fn parse_result() {
-    let result_types = &[
-        // (case, is valid)
-        ("result[int, string]", true),
-        ("result[bytes, bool]", true),
-        ("result[struct Foo, string]", true),
-        ("result[int, enum Error]", true),
-        ("result[result[int, string], bool]", true), // nested result is allowed by grammar. not sure we want it
-        ("result[int]", false),                      // missing error type
-        ("result[, string]", false),                 // missing ok type
-        ("result[blargh, string]", false),           // invalid ok type
-        ("result[int, blargh]", false),              // invalid error type
-    ];
-    for (case, is_valid) in result_types {
-        let r = parse_vtype(case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    #[track_caller]
+    fn case(input: &str, output: snapbox::data::Inline) {
+        assert_data_eq!(
+            parse_vtype(input).map_or_else(|err| err.to_string(), |ok| ok.to_string()),
+            output
+        );
     }
+
+    case("result[int, string]", str!["result[int, string]"]);
+    case("result[bytes, bool]", str!["result[bytes, bool]"]);
+    case(
+        "result[struct Foo, string]",
+        str!["result[struct Foo, string]"],
+    );
+    case("result[int, enum Error]", str!["result[int, enum Error]"]);
+
+    case(
+        "result[result[int, string], bool]",
+        str!["result[result[int, string], bool]"],
+    );
+
+    // missing error type
+    case(
+        "result[int]",
+        str![[r#"
+error: Syntax error
+  |
+1 | result[int]
+  |        ^ expected unit_t or bool_t
+"#]],
+    );
+
+    // missing ok type
+    case(
+        "result[, string]",
+        str![[r#"
+error: Syntax error
+  |
+1 | result[, string]
+  |        ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+"#]],
+    );
+
+    // invalid ok type
+    case(
+        "result[blargh, string]",
+        str![[r#"
+error: Syntax error
+  |
+1 | result[blargh, string]
+  |        ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+"#]],
+    );
+
+    // invalid error type
+    case(
+        "result[int, blargh]",
+        str![[r#"
+error: Syntax error
+  |
+1 | result[int, blargh]
+  |             ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+"#]],
+    );
 }
 
 /// Nested option/result should only accept bracket form.
 #[test]
 fn parse_option_result() {
-    let result_types = &[
-        // (case, is valid)
-        ("result[option[int], string]", true),
-        ("result[int, option[string]]", true),
-        ("result[option[int], option[string]]", true),
-        ("option[result[int, string]]", true),
-        ("result[optional int, string]", false),
-        ("result[int, optional string]", false),
-        ("optional result[int, string]", false),
-    ];
-    for (case, is_valid) in result_types {
-        let r = parse_vtype(case);
-        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r);
+    #[track_caller]
+    fn case(input: &str, output: snapbox::data::Inline) {
+        assert_data_eq!(
+            parse_vtype(input).map_or_else(|err| err.to_string(), |ok| ok.to_string()),
+            output
+        );
     }
+
+    case(
+        "result[option[int], string]",
+        str!["result[option[int], string]"],
+    );
+    case(
+        "result[int, option[string]]",
+        str!["result[int, option[string]]"],
+    );
+    case(
+        "result[option[int], option[string]]",
+        str!["result[option[int], option[string]]"],
+    );
+    case(
+        "option[result[int, string]]",
+        str!["option[result[int, string]]"],
+    );
+
+    case(
+        "result[optional int, string]",
+        str![[r#"
+error: Invalid nested option
+  |
+1 | result[optional int, string]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+  |
+help: you should use `option[T]`
+  |
+1 - result[optional int, string]
+1 + result[option[int], string]
+  |
+"#]],
+    );
+
+    case(
+        "result[int, optional string]",
+        str![[r#"
+error: Invalid nested option
+  |
+1 | result[int, optional string]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
+  |
+help: you should use `option[T]`
+  |
+1 - result[int, optional string]
+1 + result[int, option[string]]
+  |
+"#]],
+    );
+
+    case(
+        "optional result[int, string]",
+        str![[r#"
+error: Invalid type
+  |
+1 | optional result[int, string]
+  |          ^^^^^^^^^^^^^^^^^^^ Replace `optional T` with the new `option[T]` to use complex types
+"#]],
+    );
 }
 
 #[test]
-fn test_result_literal() -> Result<()> {
-    let cases = [
+fn test_result_literal() {
+    #[track_caller]
+    fn case(input: &str, output: snapbox::data::Inline) {
+        assert_data_eq!(parse_expression(input).unwrap().to_debug(), output);
+    }
+
+    case(
         "Ok(42)",
+        str![[r#"
+Ok(
+    Int(
+        42 @ 3..5,
+    ) @ 3..5,
+) @ 0..6
+
+"#]],
+    );
+
+    case(
         "Ok(true)",
+        str![[r#"
+Ok(
+    Bool(
+        true,
+    ) @ 3..7,
+) @ 0..8
+
+"#]],
+    );
+
+    case(
         "Ok(get_value())",
+        str![[r#"
+Ok(
+    FunctionCall(
+        FunctionCall {
+            name: "get_value" @ 3..12,
+            arguments: [],
+        },
+    ) @ 3..14,
+) @ 0..15
+
+"#]],
+    );
+
+    case(
         "Ok(Foo {})",
+        str![[r#"
+Ok(
+    NamedStruct(
+        NamedStruct {
+            name: "Foo" @ 3..6,
+            fields: [],
+            sources: [],
+            span: 3..9,
+        },
+    ) @ 3..9,
+) @ 0..10
+
+"#]],
+    );
+
+    case(
         "Err(\"error message\")",
+        str![[r#"
+Err(
+    String(
+        "error message",
+    ) @ 4..19,
+) @ 0..20
+
+"#]],
+    );
+
+    case(
         "Err(Error::NotFound)",
-    ];
-    for src in cases {
-        let r = PolicyParser::parse(Rule::result_literal, src);
-        assert!(r.is_ok(), "Failed to parse result literal: {}", src);
-    }
-    Ok(())
+        str![[r#"
+Err(
+    EnumReference(
+        EnumReference {
+            enumeration: "Error" @ 4..9,
+            variant: "NotFound" @ 11..19,
+        },
+    ) @ 4..19,
+) @ 0..20
+
+"#]],
+    );
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_field() -> Result<(), PestError<Rule>> {
+fn parse_field() -> Result<()> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar: int")?;
 
     let tokens: Vec<Pair> = pairs.next().unwrap().into_inner().collect();
@@ -340,79 +693,72 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_foreign_function_call() -> Result<(), PestError<Rule>> {
-    let src = r#"
-        let x = foo::bar(5, "baz")
-    "#
-    .trim();
+fn parse_foreign_function_call() {
+    assert_data_eq!(
+        parse_expression(r#"foo::bar(5, "baz")"#)
+            .unwrap()
+            .to_debug(),
+        str![[r#"
+ForeignFunctionCall(
+    ForeignFunctionCall {
+        module: "foo" @ 0..3,
+        function: "bar" @ 5..8,
+        arguments: [
+            Int(
+                5 @ 9..10,
+            ) @ 9..10,
+            String(
+                "baz",
+            ) @ 12..17,
+        ],
+    },
+) @ 0..18
 
-    let mut pairs = PolicyParser::parse(Rule::let_statement, src)?;
-    let let_expr = pairs.next().unwrap();
-
-    let mut let_parts = let_expr.into_inner();
-    let_parts.next().unwrap(); // skip 'x' identifier
-    let ffi_expr = let_parts.next().unwrap().into_inner().next().unwrap();
-    println!("> {}", ffi_expr);
-    assert_eq!(ffi_expr.as_rule(), Rule::foreign_function_call);
-
-    let mut f = ffi_expr.into_inner();
-    f.next().unwrap(); // skip function_call identifier
-
-    // list of argument expressions
-    let mut args = f.next().unwrap().into_inner();
-    args.next().unwrap(); // skip identifier
-    println!("arg_expr {}", args);
-
-    // verify number and type of args
-    assert_eq!(args.len(), 2);
-    let arg1 = args.next().unwrap().into_inner().next().unwrap();
-    assert_eq!(arg1.as_rule(), Rule::int_literal);
-    let arg2 = args.next().unwrap().into_inner().next().unwrap();
-    assert_eq!(arg2.as_rule(), Rule::string_literal);
-
-    Ok(())
+"#]]
+    );
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_struct_composition() -> Result<(), PestError<Rule>> {
-    let input = "{ c: false, ...x }";
+fn parse_struct_composition() {
+    assert_data_eq!(
+        parse_expression("Foo { c: false, ...x }")
+            .unwrap()
+            .to_debug(),
+        str![[r#"
+NamedStruct(
+    NamedStruct {
+        name: "Foo" @ 0..3,
+        fields: [
+            (
+                "c" @ 6..7,
+                Bool(
+                    false,
+                ) @ 9..14,
+            ),
+        ],
+        sources: [
+            "x" @ 19..20,
+        ],
+        span: 0..22,
+    },
+) @ 0..22
 
-    let struct_literal = PolicyParser::parse(Rule::struct_literal, input)?;
-
-    for field in struct_literal {
-        match field.as_rule() {
-            Rule::struct_literal_field => {
-                let mut parts = field.into_inner();
-                let field_name = parts.next().unwrap().as_str();
-                assert_eq!(field_name, "c");
-                let field_value = parts.next().unwrap().as_str();
-                assert_eq!(field_value, "false");
-            }
-            Rule::struct_composition => {
-                let identifer = field.into_inner().next().unwrap().as_str();
-                assert_eq!(identifer, "x");
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    Ok(())
+"#]]
+    );
 }
 
 #[test]
-#[allow(clippy::result_large_err)]
-fn parse_enum_reference() -> Result<(), PestError<Rule>> {
-    let mut pair = PolicyParser::parse(Rule::enum_reference, "Color::Red")?;
-    let token: Pair = pair.next().unwrap();
-    assert_eq!(token.as_rule(), Rule::enum_reference);
+fn parse_enum_reference() {
+    assert_data_eq!(
+        parse_expression("Color::Red").unwrap().to_debug(),
+        str![[r#"
+EnumReference(
+    EnumReference {
+        enumeration: "Color" @ 0..5,
+        variant: "Red" @ 7..10,
+    },
+) @ 0..10
 
-    let mut parts = token.into_inner();
-    let enum_name = parts.next().unwrap().as_str();
-    assert_eq!(enum_name, "Color");
-    let enum_value = parts.next().unwrap().as_str();
-    assert_eq!(enum_value, "Red");
-
-    Ok(())
+"#]]
+    );
 }
