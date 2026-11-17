@@ -132,7 +132,7 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
 ///
 /// This is expected to hold all FFIs used within a policy store.
 pub struct FfiSet<CE> {
-    inner: BTreeMap<Identifier, Arc<dyn FfiCallable<CE> + Send + 'static>>,
+    inner: BTreeMap<Identifier, Arc<dyn FfiCallable<CE> + Send + Sync>>,
 }
 
 impl<CE> FfiSet<CE> {
@@ -146,7 +146,7 @@ impl<CE> FfiSet<CE> {
     /// Add an FFI to the set.
     pub fn add(
         &mut self,
-        ffi: impl FfiCallable<CE> + Send + 'static,
+        ffi: impl FfiCallable<CE> + Send + Sync + 'static,
     ) -> Result<(), DuplicateFfiName> {
         match self.inner.entry(ffi.schema().name) {
             Entry::Occupied(e) => Err(DuplicateFfiName(e.get().schema().name)),
@@ -160,7 +160,7 @@ impl<CE> FfiSet<CE> {
     /// Add an FFI to the set, returning `Self` for chaining.
     pub fn with(
         mut self,
-        ffi: impl FfiCallable<CE> + Send + 'static,
+        ffi: impl FfiCallable<CE> + Send + Sync + 'static,
     ) -> Result<Self, DuplicateFfiName> {
         self.add(ffi)?;
         Ok(self)
@@ -172,7 +172,7 @@ impl<CE> FfiSet<CE> {
     fn select(
         &self,
         names: impl IntoIterator<Item = Identifier>,
-    ) -> Result<Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>, MissingFfiName> {
+    ) -> Result<Vec<Arc<dyn FfiCallable<CE> + Send + Sync>>, MissingFfiName> {
         names
             .into_iter()
             .map(|name| {

@@ -91,7 +91,7 @@ pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
 pub struct VmPolicy<CE> {
     machine: Machine,
     engine: CE,
-    ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
+    ffis: Vec<Arc<dyn FfiCallable<CE> + Send + Sync>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
 }
 
@@ -100,7 +100,7 @@ impl<CE> VmPolicy<CE> {
     pub fn new(
         machine: Machine,
         engine: CE,
-        ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
+        ffis: Vec<Arc<dyn FfiCallable<CE> + Send + Sync>>,
     ) -> Result<Self, VmPolicyError> {
         if let Some(module_ffis) = &machine.ffis {
             ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;

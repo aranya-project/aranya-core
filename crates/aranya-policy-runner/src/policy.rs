@@ -35,7 +35,7 @@ pub fn create_vmpolicy<CE: aranya_crypto::Engine>(
     // NOTE(chip): It is important that these are the same FFIs in the same
     // order as `FFI_MODULES` above. Failure to uphold this invariant
     // will cause VM execution to break in weird ways.
-    let ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>> = vec![
+    let ffis: Vec<Arc<dyn FfiCallable<CE> + Send + Sync>> = vec![
         Arc::from(AfcFfi::new(keystore.try_clone()?)),
         Arc::from(DeviceFfi::new(device_id)),
         Arc::from(IdamFfi::new(keystore)),
