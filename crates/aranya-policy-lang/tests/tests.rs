@@ -457,15 +457,55 @@ fn parse_optional() {
         );
     }
 
-    case("optional string", str!["option[string]"]);
+    case(
+        "optional string",
+        str![[r#"
+error: Syntax error
+  |
+1 | optional string
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
+"#]],
+    );
     case("option[string]", str!["option[string]"]);
-    case("optional bytes", str!["option[bytes]"]);
+    case(
+        "optional bytes",
+        str![[r#"
+error: Syntax error
+  |
+1 | optional bytes
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
+"#]],
+    );
     case("option[bytes]", str!["option[bytes]"]);
-    case("optional int", str!["option[int]"]);
+    case(
+        "optional int",
+        str![[r#"
+error: Syntax error
+  |
+1 | optional int
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
+"#]],
+    );
     case("option[int]", str!["option[int]"]);
-    case("optional bool", str!["option[bool]"]);
+    case(
+        "optional bool",
+        str![[r#"
+error: Syntax error
+  |
+1 | optional bool
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
+"#]],
+    );
     case("option[bool]", str!["option[bool]"]);
-    case("optional struct Foo", str!["option[struct Foo]"]);
+    case(
+        "optional struct Foo",
+        str![[r#"
+error: Syntax error
+  |
+1 | optional struct Foo
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
+"#]],
+    );
     case("option[struct Foo]", str!["option[struct Foo]"]);
     case("option[option[bytes]]", str!["option[option[bytes]]"]);
 
@@ -475,7 +515,7 @@ fn parse_optional() {
 error: Syntax error
   |
 1 | optional blargh
-  |          ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
 "#]],
     );
 
@@ -485,55 +525,37 @@ error: Syntax error
 error: Syntax error
   |
 1 | option[blargh]
-  |        ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+  |        ^^^^^^ found 'identifier "blargh"' expected vtype
 "#]],
     );
 
     case(
         "optional optional bytes",
         str![[r#"
-error: Invalid nested option
+error: Syntax error
   |
 1 | optional optional bytes
-  | ^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
-  |
-help: you should use `option[T]`
-  |
-1 - optional optional bytes
-1 + option[option[bytes]]
-  |
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
 "#]],
     );
 
     case(
         "optional option[bytes]",
         str![[r#"
-error: Invalid nested option
+error: Syntax error
   |
 1 | optional option[bytes]
-  | ^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
-  |
-help: you should use `option[T]`
-  |
-1 - optional option[bytes]
-1 + option[option[bytes]]
-  |
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
 "#]],
     );
 
     case(
         "option[optional bytes]",
         str![[r#"
-error: Invalid nested option
+error: Syntax error
   |
 1 | option[optional bytes]
-  | ^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
-  |
-help: you should use `option[T]`
-  |
-1 - option[optional bytes]
-1 + option[option[bytes]]
-  |
+  |        ^^^^^^^^ found 'identifier "optional"' expected vtype
 "#]],
     );
 }
@@ -637,42 +659,30 @@ fn parse_option_result() {
     case(
         "result[optional int, string]",
         str![[r#"
-error: Invalid nested option
+error: Syntax error
   |
 1 | result[optional int, string]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
-  |
-help: you should use `option[T]`
-  |
-1 - result[optional int, string]
-1 + result[option[int], string]
-  |
+  |        ^^^^^^^^ found 'identifier "optional"' expected vtype
 "#]],
     );
 
     case(
         "result[int, optional string]",
         str![[r#"
-error: Invalid nested option
+error: Syntax error
   |
 1 | result[int, optional string]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
-  |
-help: you should use `option[T]`
-  |
-1 - result[int, optional string]
-1 + result[int, option[string]]
-  |
+  |             ^^^^^^^^ found 'identifier "optional"' expected vtype
 "#]],
     );
 
     case(
         "optional result[int, string]",
         str![[r#"
-error: Invalid type
+error: Syntax error
   |
 1 | optional result[int, string]
-  |          ^^^^^^^^^^^^^^^^^^^ Replace `optional T` with the new `option[T]` to use complex types
+  | ^^^^^^^^ found 'identifier "optional"' expected vtype
 "#]],
     );
 }

@@ -1,4 +1,4 @@
-error: Invalid string
+error: Syntax error
   |
 1 | let x = "a\x1"
-  |           ^^^ hex character escape is too short
+  |         ^^^^^^ found 'string "\"a\\x1\""' expected expression

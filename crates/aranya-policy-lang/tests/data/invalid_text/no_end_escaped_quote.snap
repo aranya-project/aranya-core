@@ -1,4 +1,6 @@
 error: Syntax error
   |
-1 | let x = "asdf\"
-  |         ^ expected expression
+1 |   let x = "asdf\"
+  |  _________^
+2 | | let y = 42
+  | |___________^ found '<error>' expected expression
