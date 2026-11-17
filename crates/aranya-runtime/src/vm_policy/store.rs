@@ -23,7 +23,7 @@ pub struct MissingFfiName(Identifier);
 pub struct VmPolicyStore<CE: Engine> {
     engine: CE,
     ffis: FfiSet<CE>,
-    policies: BTreeMap<PolicyId, VmPolicy<CE>>,
+    policies: BTreeMap<PolicyId, Arc<VmPolicy<CE>>>,
 }
 
 impl<CE: Engine> VmPolicyStore<CE> {
@@ -73,7 +73,7 @@ impl<CE: Engine + Clone> VmPolicyStore<CE> {
 }
 
 impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
-    type Policy = VmPolicy<CE>;
+    type Policy = Arc<VmPolicy<CE>>;
     type Effect = VmEffect;
 
     fn add_policy(&mut self, policy_bytes: &[u8]) -> Result<PolicyId, PolicyStoreError> {
@@ -84,15 +84,16 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
 
         if !self.policies.contains_key(&id) {
             let policy = self.load_policy(policy_bytes)?;
-            self.policies.insert(id, policy);
+            self.policies.insert(id, Arc::new(policy));
         }
 
         Ok(id)
     }
 
-    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
+    fn get_policy(&mut self, id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
         self.policies
             .get(&id)
+            .cloned()
             .ok_or(PolicyStoreError::UnknownPolicy)
     }
 }

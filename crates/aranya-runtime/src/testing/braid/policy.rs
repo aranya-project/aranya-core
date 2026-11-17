@@ -88,8 +88,8 @@ impl PolicyStore for ProbePolicyStore {
         Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
-        Ok(&ProbePolicy)
+    fn get_policy(&mut self, _id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
+        Ok(ProbePolicy)
     }
 }
 

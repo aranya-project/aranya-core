@@ -237,7 +237,7 @@ where
     pub fn hello_head(&mut self, graph_id: GraphId) -> Result<Address, ClientError> {
         let storage = &*self.provider.get_storage(graph_id)?;
         let heads = storage.get_heads()?;
-        transaction::synthetic_head(storage, &self.policy_store, heads)
+        transaction::synthetic_head(storage, &mut self.policy_store, heads)
     }
 
     /// Returns whether a hello notification advertising `head` warrants

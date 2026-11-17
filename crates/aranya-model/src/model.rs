@@ -619,7 +619,7 @@ impl<PS: PolicyStore, SP: StorageProvider> Session<'_, PS, SP> {
         action: <<PS as PolicyStore>::Policy as Policy>::Action<'_>,
     ) -> Result<()> {
         self.session.action(
-            &*self.client.borrow(),
+            &mut *self.client.borrow_mut(),
             &mut self.effects,
             &mut self.msgs,
             action,
@@ -630,7 +630,7 @@ impl<PS: PolicyStore, SP: StorageProvider> Session<'_, PS, SP> {
     /// Process a received ephemeral command.
     pub fn receive(&mut self, command: &[u8]) -> Result<()> {
         self.session
-            .receive(&*self.client.borrow(), &mut self.effects, command)?;
+            .receive(&mut *self.client.borrow_mut(), &mut self.effects, command)?;
         Ok(())
     }
 

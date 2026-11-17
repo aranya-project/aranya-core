@@ -68,7 +68,7 @@ pub trait PolicyStore {
     /// # Arguments
     ///
     /// * `policy` - Byte slice representing a [`PolicyId`].
-    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError>;
+    fn get_policy(&mut self, id: PolicyId) -> Result<Self::Policy, PolicyStoreError>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
@@ -218,9 +218,12 @@ pub enum FlavorCtx<'a> {
 }
 
 mod impls {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, sync::Arc};
 
-    use super::{PolicyId, PolicyStore, PolicyStoreError, Sink};
+    use super::{
+        CommandPlacement, Policy, PolicyError, PolicyId, PolicyStore, PolicyStoreError, Sink,
+    };
+    use crate::{Command, FactPerspective, Priority};
 
     impl<PS: PolicyStore> PolicyStore for &mut PS {
         type Policy = PS::Policy;
@@ -230,7 +233,7 @@ mod impls {
             PS::add_policy(self, policy)
         }
 
-        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
+        fn get_policy(&mut self, id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
             PS::get_policy(self, id)
         }
     }
@@ -243,8 +246,48 @@ mod impls {
             PS::add_policy(self, policy)
         }
 
-        fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
+        fn get_policy(&mut self, id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
             PS::get_policy(self, id)
+        }
+    }
+
+    impl<P: Policy> Policy for Arc<P> {
+        type Action<'a> = P::Action<'a>;
+        type SealCtx = P::SealCtx;
+        type Effect = P::Effect;
+        type Command<'a> = P::Command<'a>;
+
+        fn serial(&self) -> u32 {
+            P::serial(self)
+        }
+
+        fn call_rule(
+            &self,
+            command: &impl Command,
+            facts: &mut impl FactPerspective,
+            sink: &mut impl Sink<Self::Effect>,
+            placement: CommandPlacement,
+        ) -> Result<Priority, PolicyError> {
+            P::call_rule(self, command, facts, sink, placement)
+        }
+
+        fn call_action(
+            &self,
+            action: Self::Action<'_>,
+            facts: &mut impl crate::Perspective,
+            sink: &mut impl Sink<Self::Effect>,
+            seal_ctx: &Self::SealCtx,
+            flavor_ctx: super::FlavorCtx<'_>,
+        ) -> Result<(), PolicyError> {
+            P::call_action(self, action, facts, sink, seal_ctx, flavor_ctx)
+        }
+
+        fn merge<'a>(
+            &self,
+            target: &'a mut [u8],
+            ids: super::MergeIds,
+        ) -> Result<Self::Command<'a>, PolicyError> {
+            P::merge(self, target, ids)
         }
     }
 

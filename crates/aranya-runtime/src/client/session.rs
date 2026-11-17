@@ -76,7 +76,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     /// commands, so another client can [`Session::receive`] them.
     pub fn action<ES, MS>(
         &mut self,
-        client: &ClientState<PS, SP>,
+        client: &mut ClientState<PS, SP>,
         effect_sink: &mut ES,
         message_sink: &mut MS,
         action: <PS::Policy as Policy>::Action<'_>,
@@ -125,7 +125,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     /// same session.
     pub fn receive(
         &mut self,
-        client: &ClientState<PS, SP>,
+        client: &mut ClientState<PS, SP>,
         sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
@@ -521,8 +521,8 @@ mod test {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
-            Ok(&SeqPolicy)
+        fn get_policy(&mut self, _id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
+            Ok(SeqPolicy)
         }
     }
 
