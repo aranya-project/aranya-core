@@ -1905,6 +1905,17 @@ fn parse_policy_chunk_inner(chunk: Pairs, p: &ChunkParser, policy: &mut ast::Pol
     Ok(())
 }
 
+pub fn parse_vtype(s: &str) -> Result<VType> {
+    fn inner(s: &str) -> Result<VType> {
+        let pratt = get_pratt_parser();
+        let p = ChunkParser::new(0, &pratt, s.len());
+        let mut pairs = PolicyParser::parse(Rule::vtype, s)?;
+        let pair = pairs.next().assume("has tokens")?;
+        p.parse_type(pair)
+    }
+    inner(s).map_err(|e| e.with_source(s.into()))
+}
+
 pub fn parse_expression(s: &str) -> Result<Expression> {
     fn inner(s: &str) -> Result<Expression> {
         let mut pairs = PolicyParser::parse(Rule::complete_expression, s)?;
