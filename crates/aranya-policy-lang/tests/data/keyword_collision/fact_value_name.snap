@@ -1,4 +1,4 @@
-error: Reserved identifier
+error: Syntax error
   |
 1 | fact x[]=>{int: int}
-  |            ^^^ found reserved identifier: `int`
+  |            ^^^ found 'int' expected identifier, or '}'

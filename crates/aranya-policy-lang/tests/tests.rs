@@ -256,7 +256,7 @@ FunctionCall(
 error: Syntax error
   |
 1 | call(,)
-  |      ^ expected expression
+  |      ^ found ',' expected expression, or ')'
 "#]]
     );
     assert_data_eq!(
@@ -265,7 +265,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | call(a a)
-  |        ^ expected dot, substruct, cast, is, ?, add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, or coalesce
+  |        ^ found 'identifier "a"' expected '{', '(', '::', '?', '.', 'substruct', 'as', 'is', '>', '<', '>=', '<=', '==', '!=', '&&', '||', 'or', ',', or ')'
 "#]]
     );
     assert_data_eq!(
@@ -274,7 +274,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | call(-)
-  |      ^ expected expression
+  |      ^ found '-' expected expression, or ')'
 "#]]
     );
 }
@@ -337,7 +337,7 @@ fn parse_coalesce_operator() {
 error: Syntax error
   |
 1 | x order
-  |   ^ expected EOI, dot, substruct, cast, is, ?, add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, or coalesce
+  |   ^^^^^ found 'identifier "order"' expected '{', '(', '::', '?', '.', 'substruct', 'as', 'is', '>', '<', '>=', '<=', '==', '!=', '&&', '||', 'or', or end of input
 "#]]
     );
 
@@ -363,7 +363,7 @@ Coalesce(
     Identifier(
         "y" @ 5..6,
     ) @ 5..6,
-) @ 0..6
+) @ 0..7
 
 "#]]
     );
@@ -568,7 +568,7 @@ fn parse_result() {
 error: Syntax error
   |
 1 | result[int]
-  |        ^ expected unit_t or bool_t
+  |           ^ found ']' expected ','
 "#]],
     );
 
@@ -579,7 +579,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | result[, string]
-  |        ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+  |        ^ found ',' expected vtype
 "#]],
     );
 
@@ -590,7 +590,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | result[blargh, string]
-  |        ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+  |        ^^^^^^ found 'identifier "blargh"' expected vtype
 "#]],
     );
 
@@ -601,7 +601,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | result[int, blargh]
-  |             ^ expected unit_t, bool_t, int_t, string_t, bytes_t, id_t, struct_t, enum_t, optional_t, or result_t
+  |             ^^^^^^ found 'identifier "blargh"' expected vtype
 "#]],
     );
 }
@@ -693,7 +693,7 @@ fn parse_vtype_rejects_trailing_input() {
 error: Syntax error
   |
 1 | int garbage
-  |     ^ expected EOI
+  |     ^^^^^^^ found 'identifier "garbage"' expected end of input
 "#]],
     );
 
@@ -703,7 +703,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | option[int]]
-  |            ^ expected EOI
+  |            ^ found ']' expected end of input
 "#]],
     );
 
@@ -713,7 +713,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | int, string
-  |    ^ expected EOI
+  |    ^ found ',' expected end of input
 "#]],
     );
 
@@ -723,7 +723,7 @@ error: Syntax error
 error: Syntax error
   |
 1 | bytes struct Foo
-  |       ^ expected EOI
+  |       ^^^^^^ found 'struct' expected end of input
 "#]],
     );
 }
