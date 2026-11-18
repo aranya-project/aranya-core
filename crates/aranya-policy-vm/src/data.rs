@@ -141,20 +141,20 @@ pub trait TryAsMut<T: ?Sized> {
 impl Value {
     /// Returns a printable representation of the value's type.
     pub fn type_name(&self) -> impl Display {
-        match self {
-            Self::Unit => String::from("unit"),
-            Self::Int(_) => String::from("int"),
-            Self::Bool(_) => String::from("bool"),
-            Self::String(_) => String::from("string"),
-            Self::Bytes(_) => String::from("bytes"),
-            Self::Struct(s) => format!("struct {}", s.name),
-            Self::Id(_) => String::from("id"),
-            Self::Enum(name, _) => format!("enum {}", name),
-            Self::Option(Some(inner)) => format!("option[{}]", inner.type_name()),
-            Self::Option(None) => String::from("option[_]"),
-            Self::Result(Ok(inner)) => format!("result[_, {}]", inner.type_name()),
-            Self::Result(Err(inner)) => format!("result[{}, _]", inner.type_name()),
-        }
+        fmt::from_fn(|f| match self {
+            Self::Unit => f.write_str("unit"),
+            Self::Int(_) => f.write_str("int"),
+            Self::Bool(_) => f.write_str("bool"),
+            Self::String(_) => f.write_str("string"),
+            Self::Bytes(_) => f.write_str("bytes"),
+            Self::Struct(s) => write!(f, "struct {}", s.name),
+            Self::Id(_) => f.write_str("id"),
+            Self::Enum(name, _) => write!(f, "enum {}", name),
+            Self::Option(Some(inner)) => write!(f, "option[{}]", inner.type_name()),
+            Self::Option(None) => f.write_str("option[_]"),
+            Self::Result(Ok(inner)) => write!(f, "result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => write!(f, "result[{}, _]", inner.type_name()),
+        })
     }
 
     /// Checks to see if a [`Value`] matches some [`TypeKind`]
