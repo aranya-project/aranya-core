@@ -1,6 +1,4 @@
-use alloc::borrow::Cow;
-
-use aranya_crypto::DeviceId;
+use aranya_crypto::{BaseId, DeviceId};
 use aranya_policy_vm::{
     Struct,
     ast::{Identifier, ident},
@@ -8,7 +6,7 @@ use aranya_policy_vm::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Address, Prior,
+    Address, GraphId, Prior,
     command::{CmdId, Command},
 };
 
@@ -53,23 +51,142 @@ impl Command for VmProtocol<'_> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Envelope<'a> {
-    pub parent_id: CmdId,
-    pub author_id: DeviceId,
-    pub command_id: CmdId,
-    pub signature: Cow<'a, [u8]>,
+pub enum Envelope {
+    Init(InitEnvelope),
+    Basic(BasicEnvelope),
+    Finalize(FinalizeEnvelope),
+    Ephemeral(EphemeralEnvelope),
 }
 
-impl From<Envelope<'_>> for Struct {
+impl Envelope {
+    pub(super) fn command_id(&self) -> CmdId {
+        match self {
+            Self::Init(e) => e.command_id,
+            Self::Basic(e) => e.command_id,
+            Self::Finalize(e) => e.command_id,
+            Self::Ephemeral(e) => e.command_id,
+        }
+    }
+
+    // temporary helper method?
+    pub(super) fn author_id(&self) -> DeviceId {
+        match self {
+            Self::Init(e) => e.author_id,
+            Self::Basic(e) => e.author_id,
+            // TODO(jdygert): Handle certified command properly
+            Self::Finalize(_) => DeviceId::default(),
+            Self::Ephemeral(e) => e.author_id,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct InitEnvelope {
+    pub command_id: CmdId,
+    pub author_id: DeviceId,
+}
+
+#[derive(Clone, Debug)]
+pub struct BasicEnvelope {
+    pub command_id: CmdId,
+    pub parent_id: CmdId,
+    pub author_id: DeviceId,
+}
+
+#[derive(Clone, Debug)]
+pub struct FinalizeEnvelope {
+    pub command_id: CmdId,
+    pub parent_id: CmdId,
+    pub fact_root: BaseId,
+}
+
+#[derive(Clone, Debug)]
+pub struct EphemeralEnvelope {
+    pub command_id: CmdId,
+    pub graph_id: GraphId,
+    pub author_id: DeviceId,
+}
+
+impl From<Envelope> for Struct {
     fn from(e: Envelope) -> Self {
+        match e {
+            Envelope::Init(e) => e.into(),
+            Envelope::Basic(e) => e.into(),
+            Envelope::Finalize(e) => e.into(),
+            Envelope::Ephemeral(e) => e.into(),
+        }
+    }
+}
+
+impl From<InitEnvelope> for Struct {
+    fn from(
+        InitEnvelope {
+            command_id,
+            author_id,
+        }: InitEnvelope,
+    ) -> Self {
         Self::new(
-            ident!("Envelope"),
+            ident!("InitEnvelope"),
             [
-                (ident!("parent_id"), e.parent_id.into()),
-                (ident!("author_id"), e.author_id.into()),
-                (ident!("command_id"), e.command_id.into()),
-                (ident!("signature"), e.signature.into_owned().into()),
+                (ident!("command_id"), command_id.into()),
+                (ident!("author_id"), author_id.into()),
+            ],
+        )
+    }
+}
+
+impl From<BasicEnvelope> for Struct {
+    fn from(
+        BasicEnvelope {
+            command_id,
+            parent_id,
+            author_id,
+        }: BasicEnvelope,
+    ) -> Self {
+        Self::new(
+            ident!("BasicEnvelope"),
+            [
+                (ident!("command_id"), command_id.into()),
+                (ident!("parent_id"), parent_id.into()),
+                (ident!("author_id"), author_id.into()),
+            ],
+        )
+    }
+}
+
+impl From<FinalizeEnvelope> for Struct {
+    fn from(
+        FinalizeEnvelope {
+            command_id,
+            parent_id,
+            fact_root,
+        }: FinalizeEnvelope,
+    ) -> Self {
+        Self::new(
+            ident!("FinalizeEnvelope"),
+            [
+                (ident!("command_id"), command_id.into()),
+                (ident!("parent_id"), parent_id.into()),
+                (ident!("fact_root"), fact_root.into()),
+            ],
+        )
+    }
+}
+
+impl From<EphemeralEnvelope> for Struct {
+    fn from(
+        EphemeralEnvelope {
+            command_id,
+            graph_id,
+            author_id,
+        }: EphemeralEnvelope,
+    ) -> Self {
+        Self::new(
+            ident!("EphemeralEnvelope"),
+            [
+                (ident!("command_id"), command_id.into()),
+                (ident!("graph_id"), graph_id.into()),
+                (ident!("author_id"), author_id.into()),
             ],
         )
     }
