@@ -234,17 +234,15 @@ mod ffi {
         signature: Vec<u8>,
     }
 
-    #[ffi(
-        module = "envelope",
-        def = r#"
-// This exists only for FFI contract testing purposes
-enum TestEnum {
-    True,
-    False,
-    FileNotFound,
-}
-"#
-    )]
+    // This exists only for FFI contract testing purposes
+    #[derive(Valuable)]
+    enum TestEnum {
+        True,
+        False,
+        FileNotFound,
+    }
+
+    #[ffi(module = "envelope")]
     impl TestFfiEnvelope {
         #[ffi_export(def = "function do_seal(payload: bytes) struct Envelope")]
         fn seal<CE>(

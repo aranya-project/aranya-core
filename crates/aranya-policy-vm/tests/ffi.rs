@@ -170,12 +170,13 @@ struct S2 {
     b: S1,
 }
 
-#[ffi(
-    module = "test",
-    def = r#"
-enum TestEnum { A, B }
-"#
-)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Valuable)]
+enum TestEnum {
+    A,
+    B,
+}
+
+#[ffi(module = "test")]
 impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function add2(x: int, y: int) int")]
     fn add<E: Engine>(_ctx: &CommandContext, _eng: &E, x: i64, y: i64) -> Result<i64, Overflow> {
@@ -444,8 +445,6 @@ fn test_ffi_derive() {
 
     // test enum
     {
-        use __test_ffi::TestEnum;
-
         state.push(TestEnum::A);
         state
             .call("test_enum")
