@@ -14,18 +14,23 @@ pub(crate) fn parse(item: TokenStream) -> syn::Result<TokenStream> {
 fn impl_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStream> {
     let name = &input.ident;
     let name_str = name.to_string();
-    let (names, fields) = data
+
+    let field_names = data
         .fields
         .iter()
         .map(|f| {
-            let name = f
-                .ident
+            f.ident
                 .as_ref()
-                .ok_or_else(|| syn::Error::new(f.span(), "Expected named field"))?;
-            let field = format_ident!("__field_{name}");
-            Ok((name, field))
+                .ok_or_else(|| syn::Error::new(f.span(), "Expected named field"))
         })
-        .collect::<syn::Result<(Vec<_>, Vec<_>)>>()?;
+        .collect::<syn::Result<Vec<_>>>()?;
+
+    let field_locals = field_names
+        .iter()
+        .map(|name| format_ident!("__field_{name}"))
+        .collect::<Vec<_>>();
+
+    let field_types = data.fields.iter().map(|f| &f.ty);
 
     let vm: syn::Path = syn::parse_quote!(::aranya_policy_vm);
 
@@ -37,8 +42,8 @@ fn impl_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStrea
                     #vm::ident!(stringify!(#name)),
                     &[
                         #(#vm::KVPair::new(
-                            #vm::ident!(stringify!(#names)),
-                            __value.#names.into(),
+                            #vm::ident!(stringify!(#field_names)),
+                            __value.#field_names.into(),
                         )),*,
                     ],
                 );
@@ -68,9 +73,9 @@ fn impl_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStrea
                         ));
                 }
                 #(
-                    let #fields = __struct.fields.remove(::core::stringify!(#names))
+                    let #field_locals = __struct.fields.remove(::core::stringify!(#field_names))
                         .ok_or(#vm::ValueConversionError::InvalidStructMember(
-                                #vm::ident!(stringify!(#names)),
+                                #vm::ident!(stringify!(#field_names)),
                         ))?;
                 )*
                 if !__struct.fields.is_empty() {
@@ -78,7 +83,7 @@ fn impl_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStrea
                 }
                 ::core::result::Result::Ok(#name {
                     #(
-                        #names: #vm::TryFromValue::try_from_value(#fields)?
+                        #field_names: #vm::TryFromValue::try_from_value(#field_locals)?
                     ),*
                 })
             }
@@ -87,6 +92,20 @@ fn impl_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStrea
         #[automatically_derived]
         impl #vm::ffi::Typed for #name {
             const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Struct(#vm::ident!(#name_str));
+        }
+
+        #[automatically_derived]
+        impl #name {
+            const SCHEMA: #vm::ffi::Struct<'static> =
+                #vm::ffi::Struct {
+                    name: #vm::ident!(#name_str),
+                    fields: &[#(
+                        #vm::ffi::Arg {
+                            name: #vm::ident!(stringify!(#field_names)),
+                            vtype: <#field_types as #vm::ffi::Typed>::TYPE,
+                        },
+                    )*],
+                };
         }
     })
 }
@@ -155,6 +174,17 @@ fn impl_enum(input: &DeriveInput, data: &DataEnum) -> syn::Result<TokenStream> {
         #[automatically_derived]
         impl #vm::ffi::Typed for #name {
             const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#vm::ident!(#name_str));
+        }
+
+        #[automatically_derived]
+        impl #name {
+            const SCHEMA: #vm::ffi::Enum<'static> =
+                #vm::ffi::Enum {
+                    name: #vm::ident!(#name_str),
+                    variants: &[#(
+                        #vm::ident!(stringify!(#variants)),
+                    )*],
+                };
         }
     })
 }

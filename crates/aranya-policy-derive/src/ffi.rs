@@ -1,3 +1,4 @@
+use core::iter;
 use std::collections::HashSet;
 
 use aranya_policy_lang::{
@@ -29,12 +30,28 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     // Checks for duplicate FFI names.
     let mut ext_names = HashSet::new();
 
+    let mut exported_structs = HashSet::new();
+    let mut exported_enums = HashSet::new();
+
     let mut funcs = Vec::<Func>::new();
     for item in &mut item.items {
         let ImplItem::Fn(f) = item else {
             continue;
         };
         if let Some(f) = Func::from_ast(f)? {
+            for vtype in f
+                .args
+                .iter()
+                .map(|p| &p.def.vtype.inner)
+                .chain(iter::once(&f.result.inner))
+            {
+                match vtype {
+                    TypeKind::Struct(name) => _ = exported_structs.insert(name.inner.clone()),
+                    TypeKind::Enum(name) => _ = exported_enums.insert(name.inner.clone()),
+                    _ => {}
+                }
+            }
+
             let name = f.ext_name.to_string();
             if !ext_names.insert(name) {
                 return Err(Error::new_spanned(
@@ -166,8 +183,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             }
         });
 
-        let struct_defs = Vec::<TokenStream>::new();
-        let enum_defs = Vec::<TokenStream>::new();
+        let structs = exported_structs.iter().map(|name| format_ident!("{name}"));
+        let enums = exported_enums.iter().map(|name| format_ident!("{name}"));
 
         quote! {
             #[automatically_derived]
@@ -180,10 +197,10 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                         #(#funcs),*
                     ],
                     structs: &[
-                        #(#struct_defs),*
+                        #(#structs::SCHEMA),*
                     ],
                     enums: &[
-                        #(#enum_defs),*
+                        #(#enums::SCHEMA),*
                     ],
                 };
 

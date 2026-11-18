@@ -110,7 +110,7 @@ fn test_ffi_mismatch() {
 fn test_ffi_function_missing() {
     contract_tester(
         |c| c[0].functions.clear(),
-        "FFI module `envelope` has 0 functions but VM expects 2",
+        "FFI module `envelope` has 0 functions but VM expects 3",
     );
 }
 
@@ -264,6 +264,11 @@ mod ffi {
             _payload: Vec<u8>,
             _envelope_input: Envelope,
         ) -> Result<(), Infallible> {
+            unimplemented!()
+        }
+
+        #[ffi_export(def = "function make_enum() enum TestEnum")]
+        fn make_enum<CE>(&self, _ctx: &CommandContext, _eng: &CE) -> Result<TestEnum, Infallible> {
             unimplemented!()
         }
     }
