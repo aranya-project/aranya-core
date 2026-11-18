@@ -5,6 +5,9 @@ use buggy::Bug;
 
 use crate::compile::StatementContext;
 
+mod reference;
+pub(crate) use reference::{Callable, Reference};
+
 pub(crate) mod rendering;
 use rendering::Error;
 
@@ -80,27 +83,30 @@ pub(crate) struct BadArgument(pub String, pub Span);
 pub(crate) struct UnusedValue(pub Span);
 
 /// A thing referenced is not defined.
-pub(crate) struct NotDefined(pub String, pub Span);
+pub(crate) struct NotDefined(pub Reference);
 
 /// A thing by that name has already been defined.
 pub(crate) struct AlreadyDefined {
-    pub prev: Ident,
-    pub primary: Ident,
+    pub prev: Reference,
+    pub primary: Reference,
 }
 
 impl AlreadyDefined {
     /// Creates an `AlreadyDefined` error with `prev` and `primary` ordered by their spans.
-    pub(crate) fn new(mut prev: Ident, mut primary: Ident) -> Self {
-        use std::cmp::Ordering;
-        match prev.span.start().cmp(&primary.span.start()) {
-            // already in order
-            Ordering::Less | Ordering::Equal => {}
-            Ordering::Greater => {
-                std::mem::swap(&mut prev, &mut primary);
+    pub(crate) fn new(prev: impl Into<Reference>, primary: impl Into<Reference>) -> Self {
+        fn inner(mut prev: Reference, mut primary: Reference) -> AlreadyDefined {
+            use std::cmp::Ordering;
+            match prev.span().start().cmp(&primary.span().start()) {
+                // already in order
+                Ordering::Less | Ordering::Equal => {}
+                Ordering::Greater => {
+                    std::mem::swap(&mut prev, &mut primary);
+                }
             }
+            AlreadyDefined { prev, primary }
         }
 
-        Self { prev, primary }
+        inner(prev.into(), primary.into())
     }
 }
 

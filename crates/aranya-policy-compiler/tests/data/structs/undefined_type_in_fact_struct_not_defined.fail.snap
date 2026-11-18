@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: struct `Unknown` is not defined
   |
 1 | fact Foo[]=>{ s: struct Unknown }
-  |                         ^^^^^^^ struct `Unknown` not defined
+  |                         ^^^^^^^ used here

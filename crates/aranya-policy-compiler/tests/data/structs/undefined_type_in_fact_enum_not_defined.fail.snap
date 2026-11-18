@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: enum `Unknown` is not defined
   |
 1 | fact Foo[]=>{ e: enum Unknown }
-  |                       ^^^^^^^ enum `Unknown` not defined
+  |                       ^^^^^^^ used here

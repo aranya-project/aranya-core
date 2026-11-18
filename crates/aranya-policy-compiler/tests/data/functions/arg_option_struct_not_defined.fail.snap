@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: struct `UndefinedStruct` is not defined
   |
 1 | function baz(x: option[struct UndefinedStruct]) bool {
-  |                               ^^^^^^^^^^^^^^^ struct `UndefinedStruct` not defined
+  |                               ^^^^^^^^^^^^^^^ used here

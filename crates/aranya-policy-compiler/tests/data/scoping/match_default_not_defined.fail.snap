@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: variable `y` is not defined
   |
 6 |     return y
-  |            ^ 'y' not in scope
+  |            ^ used here
