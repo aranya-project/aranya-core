@@ -396,7 +396,7 @@ fn parse_command() -> Result<(), PestError<Rule>> {
             fields {
                 owner: id,
             }
-            policy {
+            policy(this) {
                 finish {
                     create Foo[]=>{}
                 }

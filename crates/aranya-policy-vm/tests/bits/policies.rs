@@ -10,7 +10,7 @@ command Foo with StubBase {
         a: int,
         b: int,
     }
-    policy {
+    policy(this) {
         let sum = saturating_add(this.a, this.b)
         finish {
             emit Bar{x: sum}
@@ -44,7 +44,7 @@ command Set with StubBase {
     fields {
         a: int,
     }
-    policy {
+    policy(this) {
         let x = this.a
         finish {
             create Foo[]=>{x}
@@ -55,7 +55,7 @@ command Set with StubBase {
 
 command Clear with StubBase {
     fields {}
-    policy {
+    policy(this) {
         finish {
             delete Foo[]
         }
@@ -64,7 +64,7 @@ command Clear with StubBase {
 
 command Increment with StubBase {
     fields {}
-    policy {
+    policy(this) {
         let r = query Foo[]=>{x: ?} or test_fail()
         let new_x = add(r.x, 1) or test_fail()
         finish {
@@ -82,7 +82,7 @@ command Set with StubBase {
     fields {
         a: int,
     }
-    policy {
+    policy(this) {
         let x = this.a
         finish {
             create Foo[]=>{x}
@@ -92,7 +92,7 @@ command Set with StubBase {
 
 command Increment with StubBase {
     fields {}
-    policy {
+    policy(this) {
         let r = query Foo[]=>{x: ?} or test_fail()
         let new_x = add(r.x, 1) or test_fail()
         finish {
@@ -107,7 +107,7 @@ pub const POLICY_MATCH: &str = r#"
         fields {
             x: int
         }
-        policy {}
+        policy(this) {}
     }
 
     action[null] foo(x: int) {
@@ -130,11 +130,11 @@ pub const POLICY_IS: &str = r#"
         fields {
             x: int
         }
-        policy {}
+        policy(this) {}
     }
     command Empty with StubBase {
         fields { }
-        policy {}
+        policy(this) {}
     }
     action[null] check_none(x: option[int]) {
         match x {

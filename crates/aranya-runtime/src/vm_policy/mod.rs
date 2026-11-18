@@ -54,7 +54,7 @@
 //!     fields {
 //!         nonce int,
 //!     }
-//!     policy {
+//!     policy(this) {
 //!         finish {}
 //!     }
 //! }

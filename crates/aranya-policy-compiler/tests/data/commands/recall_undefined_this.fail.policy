@@ -1,0 +1,8 @@
+command Cmd with StubBase {
+    policy(envelope) {
+        recall r(envelope)
+    }
+    recall r(envelope) {
+        let _var = this
+    }
+}

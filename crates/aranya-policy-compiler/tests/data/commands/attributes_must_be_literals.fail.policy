@@ -1,6 +1,6 @@
 command A with StubBase {
     attributes { i: false || true }
-    policy {
+    policy(this) {
         finish {}
     }
 }

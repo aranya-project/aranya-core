@@ -155,10 +155,10 @@ attributes_block = { "attributes" ~ ws ~ struct_literal }
 fields_block = { "fields" ~ ws ~ struct_def }
 // The policy statement defines a block of statements comprising the
 // actual policy governing the command.
-policy_block = { "policy" ~ ws ~ statement_block }
+policy_block = { "policy" ~ ws ~ method_params ~ ws ~ statement_block }
 // The recall statement defines a block of statements that will be
 // executed when a command of this type is recalled.
-recall_block = { "recall" ~ ws ~ identifier ~ ws ~ function_arguments ~ ws ~ statement_block }
+recall_block = { "recall" ~ ws ~ identifier ~ ws ~ method_params ~ ws ~ statement_block }
 
 // ## Base command blocks
 // Sequence of base command blocks
@@ -167,7 +167,15 @@ base_command_blocks = _{
     ~ ws ~ get_key_block
 }
 // The get_key block to extract a signing key from a command.
-get_key_block = { "get_key" ~ ws ~ statement_block }
+get_key_block = { "get_key" ~ ws ~ method_params ~ ws ~ vtype ~ ws ~ statement_block }
+
+// `(this, envelope, x: int, b: bool)` but all params are optional.
+method_params = { "(" ~ ws ~
+    ( this ~ ws ~ ("," ~ ws ~ envelope ~ ws)? ~ ("," ~ ws ~ field_definition ~ ws)*
+    | envelope ~ ws ~ ("," ~ ws ~ field_definition ~ ws)*
+    | field_definition ~ ws ~ ("," ~ ws ~ field_definition ~ ws)*
+    )?
+~ ")" }
 
 // # Expressions
 // This grammar implements a standard prefix/infix/postfix expression
@@ -251,6 +259,7 @@ atom = _{
     | action_call
     | enum_reference
     | this
+    | envelope
     | identifier
     | block_expression
     | "(" ~ ws ~ expression ~ ws ~ ")"
@@ -336,8 +345,10 @@ action_call = { "action" ~ ws ~ function_call }
 
 // Split "Result::Ok" into enum name and value name in order to resolve value to integer
 enum_reference = { identifier ~ ws ~ "::" ~ ws ~ identifier }
-// A keyword for the implicit `this` parameter in some blocks.
+// A keyword for the `this` parameter in some blocks.
 this = { "this" }
+// A keyword for the `envelope` parameter in some blocks.
+envelope = { "envelope" }
 
 // A block expression is a series of statements followed by an expression
 // the statement list is separated for easier parsing

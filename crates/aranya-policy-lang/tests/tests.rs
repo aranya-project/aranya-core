@@ -114,7 +114,7 @@ fn spans_end_at_the_last_token() {
 fact F[v: int]=>{}
 command C with Base {
     fields { v: int }
-    policy {
+    policy(this) {
         let found = exists F[v: this.v]   // trailing comment
         let text = "a // not a comment"
         check found else recall failed()  /* block comment */
@@ -134,6 +134,7 @@ command C with Base {
     let text = |span: aranya_policy_ast::Span| &src[span.start()..span.end()];
     let statements: Vec<&str> = policy.commands[0]
         .policy
+        .body
         .iter()
         .map(|s| text(s.span))
         .collect();
@@ -146,11 +147,12 @@ command C with Base {
             "if found {\n            let unused = 1\n        }",
         ]
     );
-    let aranya_policy_ast::StmtKind::Let(found) = &policy.commands[0].policy[0].inner else {
+    let aranya_policy_ast::StmtKind::Let(found) = &policy.commands[0].policy.body[0].inner else {
         panic!("expected a `let`");
     };
     assert_eq!(text(found.value.span), "exists F[v: this.v]");
-    let aranya_policy_ast::StmtKind::Finish(finish) = &policy.commands[0].policy[4].inner else {
+    let aranya_policy_ast::StmtKind::Finish(finish) = &policy.commands[0].policy.body[4].inner
+    else {
         panic!("expected a `finish`");
     };
     let deletes: Vec<&str> = finish.iter().map(|s| text(s.span)).collect();

@@ -12,7 +12,7 @@ command Foo with StubBase {
     }
 
 
-    policy {
+    policy(this) {
         finish {
             f()
         }

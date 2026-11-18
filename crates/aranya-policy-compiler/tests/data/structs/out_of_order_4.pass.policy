@@ -3,7 +3,7 @@ command Foo with StubBase {
     fields {
         i: int
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

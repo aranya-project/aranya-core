@@ -19,6 +19,7 @@ pub const KEYWORDS: &[&str] = &[
     "else",
     "emit",
     "enum",
+    "envelope",
     "Err",
     "exactly",
     "exists",

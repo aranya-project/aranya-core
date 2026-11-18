@@ -1,6 +1,6 @@
 command Cmd with StubBase {
     fields {}
-    policy {
+    policy(this) {
         check true else 0
         finish {}
     }

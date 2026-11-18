@@ -1211,17 +1211,16 @@ impl CompileState<'_> {
         fc: &FunctionCall,
         cmd: &aranya_policy_ast::CommandDefinition,
     ) -> Result<thir::RecallCall, CompileError> {
-        // Find the matching recall block in the command definition
-        let recall_block = cmd
-            .recalls
-            .iter()
-            .find(|rb| rb.name.inner == fc.name.inner)
+        let parameters = self
+            .recall_signatures
+            .get(&(cmd.name.clone(), fc.name.clone()))
             .ok_or_else(|| {
                 let note = format!("recall block `{}`", fc.name);
                 self.err(NotDefined(note, fc.name.span))
-            })?;
+            })?
+            .clone();
 
-        let arguments = self.lower_call_args(fc, &recall_block.parameters, fc.span())?;
+        let arguments = self.lower_call_args(fc, &parameters, fc.span())?;
 
         Ok(thir::RecallCall {
             command_name: cmd.name.clone(),

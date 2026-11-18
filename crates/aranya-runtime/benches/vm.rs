@@ -83,13 +83,13 @@ policy-version: 2
 ```policy
         base[init] BaseInit {
             fields { key: bytes }
-            get_key { return Some(this.key) }
+            get_key(this, _dev: id) option[bytes] { return Some(this.key) }
         }
 
         fact Key[]=>{key: bytes}
 
         base[basic] Base {
-            get_key {
+            get_key(_dev: id) option[bytes] {
                 return match query Key[] {
                     Some(f) => Some(f.key)
                     None => None
@@ -100,7 +100,7 @@ policy-version: 2
         fact F[i: int]=>{ value: string }
 
         command Init with BaseInit {
-            policy {
+            policy(this) {
                 finish {
                     create Key[]=>{key: this.key}
                 }
@@ -123,7 +123,7 @@ policy-version: 2
                 i: int,
                 value: string
             }
-            policy {
+            policy(this) {
                 finish {
                     create F[i: this.i]=>{value: this.value}
                 }
@@ -141,7 +141,7 @@ policy-version: 2
                 priority: 5,
             }
             fields { i: int }
-            policy {
+            policy(this) {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }
                 }

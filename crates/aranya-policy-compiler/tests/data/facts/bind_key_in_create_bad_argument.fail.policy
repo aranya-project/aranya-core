@@ -2,7 +2,7 @@ fact F[i: int] => {s: string}
 
 command CreateBindKey with StubBase {
     fields {}
-    policy {
+    policy(this) {
         finish {
             create F[i:?] => {s: "abc"}
         }

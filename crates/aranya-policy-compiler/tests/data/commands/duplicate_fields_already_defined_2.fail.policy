@@ -4,7 +4,7 @@ command Foo with StubBase {
         +Bar,
         a: string
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

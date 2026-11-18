@@ -237,7 +237,9 @@ fn test(path: &Path) -> Result<String> {
 
     let mut text = std::fs::read_to_string(path).context("could not read source file")?;
     if text.contains("StubBase") {
-        text.push_str("\n\nbase[null] StubBase { get_key { return None } }");
+        text.push_str(
+            "\n\nbase[null] StubBase { get_key(_dev: id) option[bytes] { return None } }",
+        );
     }
     let ast = parse_policy_str(&text, Version::V2).context("could not parse policy text")?;
 

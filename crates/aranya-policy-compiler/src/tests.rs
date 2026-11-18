@@ -89,10 +89,10 @@ fn test_action_without_publish_requires_debug_mode() {
 
     // A publish on any path, or a call to another action, satisfies the check.
     let text = r#"
-        base[null] Base { get_key { return None } }
+        base[null] Base { get_key(_dev: id) option[bytes] { return None } }
         command Foo with Base {
             fields { a: int }
-            policy { finish {} }
+            policy() { finish {} }
         }
         action[null] conditional(a: int) {
             if a > 0 {
@@ -185,22 +185,22 @@ fn test_validate_get_key() {
         r#"
             base[null] Base {
                 fields { key: bytes }
-                get_key { return Some(this.key) }
+                get_key(this, _dev: id) option[bytes] { return Some(this.key) }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
             base[null] Base {
-                get_key {
-                    return Some((query Key[author_id: author_id] or return None).key)
+                get_key(author_id: id) option[bytes] {
+                    return Some((query Key[author_id] or return None).key)
                 }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
             base[null] Base {
-                get_key {
-                    return match query Key[author_id: author_id] {
+                get_key(author_id: id) option[bytes] {
+                    return match query Key[author_id] {
                         Some(f) => Some(f.key)
                         None => None
                     }
@@ -210,8 +210,8 @@ fn test_validate_get_key() {
         r#"
             fact Key[author_id: id]=>{key: bytes}
             base[null] Base {
-                get_key {
-                    match query Key[author_id: author_id] {
+                get_key(author_id: id) option[bytes] {
+                    match query Key[author_id] {
                         Some(f) => { return Some(f.key) }
                         None => { return None }
                     }
@@ -223,14 +223,14 @@ fn test_validate_get_key() {
     let invalid = [
         r#"
             base[null] Base {
-                get_key { if false { return None } }
+                get_key(_dev: id) option[bytes] { if false { return None } }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
             base[null] Base {
-                get_key {
-                    match query Key[author_id: author_id] {
+                get_key(author_id: id) option[bytes] {
+                    match query Key[author_id] {
                         Some(f) => { return Some(f.key) }
                         None => {}
                     }
@@ -242,7 +242,7 @@ fn test_validate_get_key() {
     // Need to use base command so label is produced.
     let common = r#"
         command C with Base {
-            policy {}
+            policy(this) {}
         }
     "#;
 
@@ -263,12 +263,12 @@ fn test_validate_get_key() {
 fn test_validate_publish() {
     let concat = |text| {
         let base = r#"
-            base[null] Base { get_key { return None } }
+            base[null] Base { get_key(_dev: id) option[bytes] { return None } }
             command Foo with Base {
                 fields {
                     a: int
                 }
-                policy {
+                policy(this) {
                     finish {}
                 }
                 recall default() {

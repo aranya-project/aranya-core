@@ -1,0 +1,13 @@
+error: invalid signature for `get_key` block
+  |
+2 |     get_key(this, envelope, something: bool, another: id) option[string] {
+  |                   ^^^^^^^^ `get_key` does not take `envelope`
+  |
+ ::: 
+2 |     get_key(this, envelope, something: bool, another: id) option[string] {
+  |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected one named param of type `id`
+  |
+error: invalid type: option[string]
+  |
+2 |     get_key(this, envelope, something: bool, another: id) option[string] {
+  |                                                           ^^^^^^^^^^^^^^ expected `option[bytes]` but found `option[string]`

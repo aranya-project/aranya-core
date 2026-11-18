@@ -4,7 +4,7 @@ command Co with StubBase {
         fi: struct Bar, // cycle
         i: int
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

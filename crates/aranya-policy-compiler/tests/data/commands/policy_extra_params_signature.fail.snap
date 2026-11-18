@@ -1,0 +1,4 @@
+error: invalid signature for `policy` block
+  |
+2 |     policy(this, envelope, something: bool, another: id) {
+  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `policy` blocks do not take additional arguments

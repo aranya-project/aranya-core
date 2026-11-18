@@ -14,14 +14,14 @@ enum Player {
 }
 
 base[basic] Base {
-    get_key { return None }
+    get_key(_dev: id) option[bytes] { return None }
 }
 
 command Start with Base {
     fields {
         players: struct Players
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }
@@ -32,7 +32,7 @@ command Move with Base {
         X: int,
         Y: int,
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

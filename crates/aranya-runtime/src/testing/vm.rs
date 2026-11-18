@@ -27,7 +27,7 @@ base[init] BaseInit {
     fields {
         key: bytes
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.key)
     }
 }
@@ -35,7 +35,7 @@ base[init] BaseInit {
 fact Key[]=>{key: bytes}
 
 base[basic] Base {
-    get_key {
+    get_key(_dev: id) option[bytes] {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
@@ -44,7 +44,7 @@ base[basic] Base {
 }
 
 base[ephemeral] BaseEphemeral {
-    get_key {
+    get_key(_dev: id) option[bytes] {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
@@ -68,7 +68,7 @@ command Init with BaseInit {
     fields {
         nonce: int,
     }
-    policy {
+    policy(this) {
         finish {
             create Key[]=>{key: this.key}
         }
@@ -90,7 +90,7 @@ command Create with Base {
         key: int,
         value: int,
     }
-    policy {
+    policy(this) {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
             emit StuffHappened{x: this.key, y: this.value}
@@ -113,9 +113,9 @@ command Increment with Base {
         key: int,
         amount: int,
     }
-    policy {
+    policy(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
-        check stuff.y > 0 else recall default()
+        check stuff.y > 0 else recall default(this)
         let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -123,7 +123,7 @@ command Increment with Base {
         }
     }
 
-    recall default() {
+    recall default(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
@@ -153,9 +153,9 @@ command IncrementEphemeral with BaseEphemeral {
         key: int,
         amount: int,
     }
-    policy {
+    policy(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
-        check stuff.y > 0 else recall default()
+        check stuff.y > 0 else recall default(this)
         let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -163,7 +163,7 @@ command IncrementEphemeral with BaseEphemeral {
         }
     }
 
-    recall default() {
+    recall default(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
@@ -207,7 +207,7 @@ command Invalidate with Base {
     fields {
         key: int
     }
-    policy {
+    policy(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         let newval = -1  // hack around negative number parse bug; see #869
         finish {

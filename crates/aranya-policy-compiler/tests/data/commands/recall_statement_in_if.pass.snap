@@ -2,8 +2,8 @@ Module {
     version: "1",
     labels: {
         <get_key 'Cmd'>: 1,
-        <policy 'Cmd'>: 8,
-        <recall 'Cmd_handle'>: 29,
+        <policy 'Cmd'>: 10,
+        <recall 'Cmd_handle'>: 8,
     },
     action_defs: [],
     command_defs: [
@@ -46,15 +46,18 @@ Module {
 ---
     exit panic
 <get_key 'Cmd'>:
-    def 'author_id'
-    def 'this'
+    def '_dev'
+    pop
     save SP
     const None
     restore SP
     return
     exit panic
+<recall 'Cmd_handle'>:
+    def 'x'
+    exit check
 <policy 'Cmd'>:
-    def 'envelope'
+    pop
     def 'this'
     get 'this'
     struct.get 'x'
@@ -65,8 +68,6 @@ Module {
     block
     get 'this'
     struct.get 'x'
-    get 'this'
-    get 'envelope'
     recall <recall 'Cmd_handle'>
     end
     jump 24
@@ -76,8 +77,3 @@ Module {
     end
     exit normal
     exit panic
-<recall 'Cmd_handle'>:
-    def 'envelope'
-    def 'this'
-    def 'x'
-    exit check

@@ -1,6 +1,6 @@
 fact Foo[]=>{x: int}
 command Test with StubBase {
-    policy {
+    policy(this) {
         finish {
             create Foo[]=>{x: saturating_add(1, 2)}
         }
