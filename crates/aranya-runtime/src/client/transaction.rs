@@ -5,6 +5,7 @@ use alloc::{
 use core::{marker::PhantomData, mem};
 
 use buggy::{BugExt as _, bug};
+use tracing::{error, instrument, warn};
 
 use super::braiding;
 use crate::{
@@ -176,6 +177,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     /// Attempt to store the `command` in the graph with `graph_id`. Effects will be
     /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
+    #[instrument(skip_all, fields(graph = %self.graph_id, commands = commands.len()))]
     pub(super) fn add_commands<F, MS>(
         &mut self,
         commands: &[impl Command],
@@ -196,7 +198,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
         let storage = match provider.get_storage(self.graph_id) {
             Ok(s) => s,
             Err(StorageError::NoSuchStorage) => {
-                let command = commands.next().ok_or(ClientError::InitError)?;
+                let Some(command) = commands.next() else {
+                    warn!("no commands received for empty graph");
+                    return Ok(count);
+                };
                 count = count.checked_add(1).assume("must not overflow")?;
                 self.init(command, policy_store, provider, sink)?
             }
@@ -235,6 +240,10 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                     } else {
                         // A synced command claiming to be an init for a
                         // different graph is invalid peer input.
+                        error!(
+                            command.id = %command.id(),
+                            "init command ID does not match graph ID"
+                        );
                         return Err(ClientError::InitError);
                     }
                 }
@@ -417,16 +426,25 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
         // Graph ID is the id of the init command by definition.
         if self.graph_id.as_base() != command.id().as_base() {
+            error!(
+                command.id = %command.id(),
+                "init command ID does not match graph ID"
+            );
             return Err(ClientError::InitError);
         }
 
         // The init command must not have a parent.
         if !matches!(command.parent(), Prior::None) {
+            error!(
+                parent = ?command.parent(),
+                "init command has parent(s)"
+            );
             return Err(ClientError::InitError);
         }
 
         // The graph must have policy to start with.
         let Some(policy_data) = command.policy() else {
+            error!("init command has no policy");
             return Err(ClientError::InitError);
         };
 
