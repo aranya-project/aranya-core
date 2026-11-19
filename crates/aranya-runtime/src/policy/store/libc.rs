@@ -56,6 +56,7 @@ impl super::ByteStore for FileStore {
                 Mode::RUSR | Mode::WUSR | Mode::RGRP | Mode::WGRP,
             )?;
             write_all(tmpfd.as_fd(), bytes)?;
+            fs::fsync(tmpfd)?;
         }
         fs::renameat_with(
             &self.dir,
