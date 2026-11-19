@@ -745,14 +745,14 @@ impl SyncResponder {
 fn add_command_data(
     buf: &mut Vec<u8, COMMAND_DATA_BUF_SIZE>,
     cmd: &impl Command,
-) -> Result<CommandMeta, ()> {
+) -> Result<CommandMeta, heapless::CapacityError> {
     let before = buf.len();
 
     if let Some(policy) = cmd.policy() {
         buf.extend_from_slice(policy)?;
     }
 
-    buf.extend_from_slice(cmd.bytes()).inspect_err(|()| {
+    buf.extend_from_slice(cmd.bytes()).inspect_err(|_| {
         buf.truncate(before);
     })?;
 
