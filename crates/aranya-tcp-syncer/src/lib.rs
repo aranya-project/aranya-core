@@ -23,7 +23,7 @@ use aranya_runtime::{
     storage::{GraphId, StorageProvider},
 };
 use buggy::{BugExt as _, bug};
-use heapless::FnvIndexMap;
+use heapless::index_map::FnvIndexMap;
 use tracing::error;
 
 /// FNVIndexMap requires that the size be a power of 2.
@@ -293,7 +293,8 @@ where
                 }
             }
             SyncIncoming::Unsubscribe(unsub) => {
-                self.subscriptions.remove(&(peer_address, unsub.graph_id()));
+                self.subscriptions
+                    .swap_remove(&(peer_address, unsub.graph_id()));
                 0
             }
             SyncIncoming::Push(push) => {

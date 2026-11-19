@@ -308,8 +308,9 @@ version = "0.15.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.heapless]]
-version = "0.8.0"
+version = "0.9.4"
 criteria = "safe-to-deploy"
+notes = "No suspicious `std::fs` etc. Unsafe not audited."
 
 [[exemptions.hkdf]]
 version = "0.13.0"
