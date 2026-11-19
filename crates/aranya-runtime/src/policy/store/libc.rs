@@ -63,7 +63,7 @@ impl super::ByteStore for FileStore {
             tmp_path.as_cstr(),
             &self.dir,
             path.as_cstr(),
-            RenameFlags::NOREPLACE,
+            RenameFlags::empty(),
         )
         .inspect_err(|_| {
             fs::unlinkat(&self.dir, tmp_path.as_cstr(), AtFlags::empty()).ok();
@@ -224,6 +224,8 @@ mod tests {
             "first value still there"
         );
 
-        store.put(id_1, b"").expect_err("re-insertion should fail");
+        store
+            .put(id_1, bytes_1)
+            .expect("re-insertion should just do nothing");
     }
 }
