@@ -22,7 +22,7 @@ fn new_policy_store() -> TestPolicyStore {
     store
 }
 
-/// Create multiple `TestPolicyStore`s with the same seal context.
+/// Create multiple `TestPolicyStore`s with the same engine.
 fn new_policy_stores<const N: usize>() -> [TestPolicyStore; N] {
     core::array::from_fn(|_| {
         let (eng, _) = DefaultEngine::from_entropy(Rng);

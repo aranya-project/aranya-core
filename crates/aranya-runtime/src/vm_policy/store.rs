@@ -27,7 +27,7 @@ pub struct VmPolicyStore<CE: Engine> {
 }
 
 impl<CE: Engine> VmPolicyStore<CE> {
-    /// Create a new VM policy store which seals commands with the given context.
+    /// Create a new VM policy store.
     pub fn new(engine: CE, ffis: FfiSet<CE>) -> Self {
         Self {
             engine,
