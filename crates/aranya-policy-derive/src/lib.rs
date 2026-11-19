@@ -9,6 +9,7 @@
 
 mod attr;
 mod ffi;
+mod valuable;
 
 use proc_macro::TokenStream;
 use syn::Error;
@@ -18,6 +19,15 @@ use syn::Error;
 #[allow(missing_docs)]
 pub fn ffi(attr: TokenStream, item: TokenStream) -> TokenStream {
     ffi::parse(attr.into(), item.into())
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
+// See the `policy-vm` crate for documentation.
+#[proc_macro_derive(Valuable)]
+#[allow(missing_docs)]
+pub fn valuable(item: TokenStream) -> TokenStream {
+    valuable::parse(item.into())
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }

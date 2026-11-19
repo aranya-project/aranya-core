@@ -3,14 +3,17 @@ use core::convert::Infallible;
 
 use aranya_crypto::{
     BaseId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
-    EncryptionPublicKey, GroupKey, IdentityVerifyingKey, KeyStore, KeyStoreExt as _, PolicyId,
-    SigningKey, SigningKeyId, VerifyingKey,
+    EncryptionPublicKey, GroupKey, GroupKeyId, IdentityVerifyingKey, KeyStore, KeyStoreExt as _,
+    PolicyId, SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
     id::IdExt as _,
     policy::{self, CmdId, GroupId, RoleId},
     zeroize::Zeroizing,
 };
-use aranya_policy_vm::{CommandContext, Text, ffi::ffi};
+use aranya_policy_vm::{
+    CommandContext, Text,
+    ffi::{Valuable, ffi},
+};
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};
 
@@ -29,27 +32,25 @@ impl<K> Ffi<K> {
     }
 }
 
-#[ffi(
-    module = "idam",
-    def = r#"
-// A GroupKey as stored in the fact database.
-struct StoredGroupKey {
-    // Uniquely identifies the GroupKey.
-    key_id: id,
-    // The wrapped GroupKey.
-    wrapped: bytes,
+/// A GroupKey as stored in the fact database.
+#[derive(Debug, PartialEq, Eq, Valuable)]
+pub struct StoredGroupKey {
+    /// Uniquely identifies the GroupKey.
+    pub key_id: GroupKeyId,
+    /// The wrapped GroupKey.
+    pub wrapped: Vec<u8>,
 }
 
-// An encrypted GroupKey.
-struct SealedGroupKey {
-    // The encapsulated secret key needed to decrypt
-    // `ciphertext`.
-    encap: bytes,
-    // The encrypted GroupKey.
-    ciphertext: bytes,
+/// An encrypted GroupKey.
+#[derive(Debug, PartialEq, Eq, Valuable)]
+pub struct SealedGroupKey {
+    /// The encapsulated secret key needed to decrypt `ciphertext`.
+    pub encap: Vec<u8>,
+    /// The encrypted GroupKey.
+    pub ciphertext: Vec<u8>,
 }
-"#
-)]
+
+#[ffi(module = "idam")]
 #[allow(clippy::too_many_arguments)]
 impl<K: KeyStore> Ffi<K> {
     /// Returns the ID of an encoded [`EncryptionPublicKey`].
@@ -113,7 +114,7 @@ function generate_group_key() struct StoredGroupKey
         eng: &E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
-        let key_id = group_key.id()?.as_base();
+        let key_id = group_key.id()?;
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -181,7 +182,7 @@ function open_group_key(
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
 
-        let key_id = group_key.id()?.as_base();
+        let key_id = group_key.id()?;
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?

@@ -110,7 +110,7 @@ fn test_ffi_mismatch() {
 fn test_ffi_function_missing() {
     contract_tester(
         |c| c[0].functions.clear(),
-        "FFI module `envelope` has 0 functions but VM expects 2",
+        "FFI module `envelope` has 0 functions but VM expects 3",
     );
 }
 
@@ -213,33 +213,36 @@ fn test_ffi_enum_wrong_variant_name() {
 mod ffi {
     use core::convert::Infallible;
 
-    use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
+    use aranya_crypto::{CmdId, DeviceId};
+    use aranya_policy_vm::{
+        CommandContext, MachineError,
+        ffi::{Valuable, ffi},
+    };
 
     pub struct TestFfiEnvelope;
 
-    #[ffi(
-        module = "envelope",
-        def = r#"
-struct Envelope {
-    // The parent command ID.
-    parent_id: id,
-    // The author's device ID.
-    author_id: id,
-    // Uniquely identifies the command.
-    command_id: id,
-    // The signature over the command and its contextual
-    // bindings.
-    signature: bytes,
-}
+    #[derive(Valuable)]
+    struct Envelope {
+        // The parent command ID.
+        parent_id: CmdId,
+        // The author's device ID.
+        author_id: DeviceId,
+        // Uniquely identifies the command.
+        command_id: CmdId,
+        // The signature over the command and its contextual
+        // bindings.
+        signature: Vec<u8>,
+    }
 
-// This exists only for FFI contract testing purposes
-enum TestEnum {
-    True,
-    False,
-    FileNotFound,
-}
-"#
-    )]
+    // This exists only for FFI contract testing purposes
+    #[derive(Valuable)]
+    enum TestEnum {
+        True,
+        False,
+        FileNotFound,
+    }
+
+    #[ffi(module = "envelope")]
     impl TestFfiEnvelope {
         #[ffi_export(def = "function do_seal(payload: bytes) struct Envelope")]
         fn seal<CE>(
@@ -261,6 +264,11 @@ enum TestEnum {
             _payload: Vec<u8>,
             _envelope_input: Envelope,
         ) -> Result<(), Infallible> {
+            unimplemented!()
+        }
+
+        #[ffi_export(def = "function make_enum() enum TestEnum")]
+        fn make_enum<CE>(&self, _ctx: &CommandContext, _eng: &CE) -> Result<TestEnum, Infallible> {
             unimplemented!()
         }
     }

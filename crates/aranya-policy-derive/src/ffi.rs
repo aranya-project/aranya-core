@@ -1,7 +1,8 @@
+use core::iter;
 use std::collections::HashSet;
 
 use aranya_policy_lang::{
-    ast::{EnumDefinition, FunctionDecl, Param, StructDefinition, StructItem, TypeKind, VType},
+    ast::{FunctionDecl, Param, TypeKind, VType},
     lang,
 };
 use proc_macro2::{Span, TokenStream};
@@ -20,11 +21,7 @@ use crate::attr::{Attr, Symbol, get_lit_str};
 // `#[ffi_export(name = "foo")]`?
 
 pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let FfiAttr {
-        module,
-        structs,
-        enums,
-    } = syn::parse2(attr)?;
+    let FfiAttr { module } = syn::parse2(attr)?;
     let mut item: ItemImpl = syn::parse2(item)?;
     // The type that the `#[ffi]` attribute is applied to.
     let self_ty = &item.self_ty;
@@ -33,12 +30,28 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     // Checks for duplicate FFI names.
     let mut ext_names = HashSet::new();
 
+    let mut exported_structs = HashSet::new();
+    let mut exported_enums = HashSet::new();
+
     let mut funcs = Vec::<Func>::new();
     for item in &mut item.items {
         let ImplItem::Fn(f) = item else {
             continue;
         };
         if let Some(f) = Func::from_ast(f)? {
+            for vtype in f
+                .args
+                .iter()
+                .map(|p| &p.def.vtype.inner)
+                .chain(iter::once(&f.result.inner))
+            {
+                match vtype {
+                    TypeKind::Struct(name) => _ = exported_structs.insert(name.inner.clone()),
+                    TypeKind::Enum(name) => _ = exported_enums.insert(name.inner.clone()),
+                    _ => {}
+                }
+            }
+
             let name = f.ext_name.to_string();
             if !ext_names.insert(name) {
                 return Err(Error::new_spanned(
@@ -54,190 +67,6 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let alloc: Path = parse_quote!(_alloc);
     let crypto: Path = parse_quote!(_crypto);
     let vm: Path = parse_quote!(_policy_vm);
-
-    let structdefs = structs.iter().map(|d| {
-        let name = &d.name.as_str();
-        let fields = d.items.iter().map(|arg| match arg {
-            StructItem::Field(arg) => {
-                let name = &arg.name.as_str();
-                let vtype = VTypeTokens::new(&arg.vtype, &vm);
-                quote!(#vm::arg!(#name, #vtype))
-            }
-            StructItem::StructRef(_) => {
-                todo!("struct field insertion");
-            }
-        });
-        quote! {
-            #vm::ffi::Struct {
-                name: #vm::ident!(#name),
-                fields: &[#(#fields),*],
-            }
-        }
-    });
-
-    // `struct Foo { ... }` definitions as parsed from
-    // `#[ffi(def = "...")]`.
-    let structs = structs.iter().map(|d| {
-        let name = format_ident!("{}", d.name.as_str());
-        let name_str = d.name.to_string();
-        let (names, fields): (Vec<_>, Vec<_>) = d
-            .items
-            .iter()
-            .map(|d| match d {
-                StructItem::Field(d) => (
-                    format_ident!("{}", d.name.as_str()),
-                    format_ident!("__field_{}", d.name.as_str()),
-                ),
-                StructItem::StructRef(s) => {
-                    todo!("`+{s}`: Struct field insertion is not implemented for FFI structs.")
-                }
-            })
-            .unzip();
-        let types = d.items.iter().map(|d| {
-            let vtype = match d {
-                StructItem::Field(f) => TypeTokens::new(&f.vtype, &alloc, &crypto, &vm),
-                StructItem::StructRef(_) => todo!(),
-            };
-            quote!(#vtype)
-        });
-        quote! {
-            #[must_use]
-            #[derive(Clone, Debug, Eq, PartialEq)]
-            pub struct #name {
-                #(pub #names: #types),*
-            }
-            #[automatically_derived]
-            impl ::core::convert::From<#name> for #vm::Value {
-                fn from(__value: #name) -> Self {
-                    let __struct = #vm::Struct::new(
-                        #vm::ident!(stringify!(#name)),
-                        &[
-                            #(#vm::KVPair::new(
-                                #vm::ident!(stringify!(#names)),
-                                __value.#names.into(),
-                            )),*,
-                        ],
-                    );
-                    __struct.into()
-                }
-            }
-            #[automatically_derived]
-            impl ::core::convert::TryFrom<#vm::Value> for #name {
-                type Error = #vm::ValueConversionError;
-
-                fn try_from(mut __value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
-                    let #vm::Value::Struct(__struct) = &mut __value else {
-                        return ::core::result::Result::Err(
-                            #vm::ValueConversionError::invalid_type(
-                                ::core::concat!("Struct ", #name_str),
-                                __value.type_name(),
-                                "TryFrom"
-                            ));
-                    };
-                    if __struct.name != ::core::stringify!(#name) {
-                        return ::core::result::Result::Err(
-                            #vm::ValueConversionError::invalid_type(
-                                ::core::concat!("Struct ", #name_str),
-                                __value.type_name(),
-                                "name doesn't match"
-                            ));
-                    }
-                    #(
-                        let #fields = __struct.fields.remove(::core::stringify!(#names))
-                            .ok_or(#vm::ValueConversionError::InvalidStructMember(
-                                    #vm::ident!(stringify!(#names)),
-                            ))?;
-                    )*
-                    if !__struct.fields.is_empty() {
-                        return ::core::result::Result::Err(#vm::ValueConversionError::BadState);
-                    }
-                    ::core::result::Result::Ok(#name {
-                        #(
-                            #names: #vm::TryFromValue::try_from_value(#fields)?
-                        ),*
-                    })
-                }
-            }
-            #[automatically_derived]
-            impl #vm::ffi::Typed for #name {
-                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Struct(#vm::ident!(#name_str));
-            }
-        }
-    });
-
-    let enum_defs = enums.iter().map(|d| {
-        let name = d.name.as_str();
-        let variants = d.variants.iter().map(|v| v.as_str());
-        quote! {
-            #vm::ffi::Enum {
-                name: #vm::ident!(#name),
-                variants: &[#(#vm::ident!(#variants)),*],
-            }
-        }
-    });
-
-    let enums = enums.iter().map(|d| {
-        let name = format_ident!("{}", d.name.as_str());
-        let name_str = d.name.to_string();
-        let variants = d
-            .variants
-            .iter()
-            .map(|v| format_ident!("{}", v.as_str()))
-            .collect::<Vec<_>>();
-        let var_const_names: Vec<_> = variants
-            .iter()
-            .map(|id| format_ident!("__{name}__{id}"))
-            .collect();
-
-        quote! {
-            #[must_use]
-            #[derive(Clone, Debug, Eq, PartialEq)]
-            pub enum #name {
-                #(#variants),*
-            }
-            #[automatically_derived]
-            impl ::core::convert::From<#name> for #vm::Value {
-                fn from(__value: #name) -> Self {
-                    #vm::Value::Enum(
-                        #vm::ident!(#name_str),
-                        __value as i64,
-                    )
-                }
-            }
-            #[automatically_derived]
-            impl ::core::convert::TryFrom<#vm::Value> for #name {
-                type Error = #vm::ValueConversionError;
-                fn try_from(value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
-                    let #vm::Value::Enum(name, val) = &value else {
-                        return ::core::result::Result::Err(#vm::ValueConversionError::invalid_type(
-                            ::core::concat!("Enum ", #name_str), value.type_name(), "try_from"
-                        ));
-                    };
-
-                    if name != #name_str {
-                        return ::core::result::Result::Err(#vm::ValueConversionError::invalid_type(
-                            ::core::concat!("Enum ", #name_str),
-                            value.type_name(),
-                            "enum names don't match",
-                        ));
-                    }
-
-                    #( const #var_const_names: i64 = #name::#variants as i64; )*
-
-                    match *val {
-                        #(
-                            #var_const_names => ::core::result::Result::Ok(Self::#variants),
-                        )*
-                        _ => ::core::result::Result::Err(#vm::ValueConversionError::OutOfRange),
-                    }
-                }
-            }
-            #[automatically_derived]
-            impl #vm::ffi::Typed for #name {
-                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#vm::ident!(#name_str));
-            }
-        }
-    });
 
     // The implementation of `FfiModule`.
     let mod_impl = {
@@ -354,6 +183,9 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             }
         });
 
+        let structs = exported_structs.iter().map(|name| format_ident!("{name}"));
+        let enums = exported_enums.iter().map(|name| format_ident!("{name}"));
+
         quote! {
             #[automatically_derived]
             impl #impl_generics #vm::ffi::FfiModule for #self_ty #where_clause {
@@ -365,10 +197,10 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                         #(#funcs),*
                     ],
                     structs: &[
-                        #(#structdefs),*
+                        #(#structs::SCHEMA),*
                     ],
                     enums: &[
-                        #(#enum_defs),*
+                        #(#enums::SCHEMA),*
                     ],
                 };
 
@@ -424,9 +256,6 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             extern crate alloc as #alloc;
             extern crate aranya_crypto as #crypto;
             extern crate aranya_policy_vm as #vm;
-
-            #(#structs)*
-            #(#enums)*
         }
         pub use #module::*;
 
@@ -485,15 +314,11 @@ const DEF: Symbol = Symbol("def");
 /// The `#[ffi]` attribute.
 struct FfiAttr {
     module: String,
-    structs: Vec<StructDefinition>,
-    enums: Vec<EnumDefinition>,
 }
 
 impl Parse for FfiAttr {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut module = Attr::none(MODULE);
-        let mut struct_defs = Attr::none(DEF);
-        let mut enum_defs = Attr::none(DEF);
 
         while !input.is_empty() {
             let lookahead = input.lookahead1();
@@ -504,18 +329,6 @@ impl Parse for FfiAttr {
                 let name: LitStr = input.parse()?;
                 skip_comma(input)?;
                 module.set(&name, name.value())?;
-            // `def = "..."`
-            } else if lookahead.peek(kw::def) {
-                input.parse::<kw::def>()?;
-                let _: Token![=] = input.parse()?;
-                let decl: LitStr = input.parse()?;
-                skip_comma(input)?;
-                let lang::FfiTypes { structs, enums } =
-                    lang::parse_ffi_structs_enums(&decl.value()).map_err(|err| {
-                        Error::new(decl.span(), format!("invalid policy definition: {err}"))
-                    })?;
-                struct_defs.set(&decl, structs)?;
-                enum_defs.set(&decl, enums)?;
             } else {
                 return Err(lookahead.error());
             }
@@ -524,11 +337,7 @@ impl Parse for FfiAttr {
         let module = module
             .get()
             .ok_or(Error::new(input.span(), "missing `{MODULE}` argument"))?;
-        Ok(Self {
-            module,
-            structs: struct_defs.get().unwrap_or_default(),
-            enums: enum_defs.get().unwrap_or_default(),
-        })
+        Ok(Self { module })
     }
 }
 
@@ -762,61 +571,6 @@ impl ToTokens for VTypeTokens<'_> {
                 let ok = VTypeTokens::new(&result_type.ok, vm);
                 let err = VTypeTokens::new(&result_type.err, vm);
                 quote!(Result(&#vm::ffi::Type::#ok, &#vm::ffi::Type::#err))
-            }
-        };
-        tokens.extend(item);
-    }
-}
-
-/// An implementation of [`ToTokens`] that maps [`VType`] to its
-/// corresponding Rust types.
-struct TypeTokens<'a> {
-    vtype: &'a VType,
-    alloc: &'a Path,
-    crypto: &'a Path,
-    vm: &'a Path,
-}
-
-impl<'a> TypeTokens<'a> {
-    fn new(vtype: &'a VType, alloc: &'a Path, crypto: &'a Path, vm: &'a Path) -> Self {
-        Self {
-            vtype,
-            alloc,
-            crypto,
-            vm,
-        }
-    }
-}
-
-impl ToTokens for TypeTokens<'_> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let alloc = self.alloc;
-        let crypto = self.crypto;
-        let vm = self.vm;
-        let item = match &self.vtype.inner {
-            TypeKind::Unit => quote!(()),
-            TypeKind::String => quote!(#vm::Text),
-            TypeKind::Bytes => quote!(#alloc::vec::Vec<u8>),
-            TypeKind::Int => quote!(i64),
-            TypeKind::Bool => quote!(bool),
-            TypeKind::Id => quote!(#crypto::BaseId),
-            TypeKind::Struct(name) => {
-                let ident = format_ident!("{name}");
-                quote!(#ident)
-            }
-            TypeKind::Enum(name) => {
-                let ident = format_ident!("{name}");
-                quote!(#ident)
-            }
-            TypeKind::Optional(vtype) => {
-                let vtype = TypeTokens::new(vtype, alloc, crypto, vm);
-                quote!(::core::option::Option<#vtype>)
-            }
-            TypeKind::Never => unreachable!("cannot use never type in definitions"),
-            TypeKind::Result(result_type) => {
-                let ok = TypeTokens::new(&result_type.ok, alloc, crypto, vm);
-                let err = TypeTokens::new(&result_type.err, alloc, crypto, vm);
-                quote!(::core::result::Result<#ok, #err>)
             }
         };
         tokens.extend(item);

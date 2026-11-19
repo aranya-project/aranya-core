@@ -64,40 +64,6 @@ fn parse_ffi_decl_error() {
 }
 
 #[test]
-fn parse_ffi_structs_enums() {
-    let text = r#"
-        struct A {
-            x: int,
-            y: bool
-        }
-
-        struct B {}
-
-        enum Color { Red, White, Blue }
-    "#
-    .trim();
-    let types = lang::parse_ffi_structs_enums(text).expect("parse");
-    assert_data_eq!(types.to_debug(), snapbox::file![_]);
-}
-
-#[test]
-fn parse_ffi_structs_enums_error() {
-    let text = r#"
-        struct A {
-            x: int,
-            y: optional optional bool
-        }
-
-        struct B {}
-
-        enum Color { Red, White, Blue }
-    "#
-    .trim();
-    let err = lang::parse_ffi_structs_enums(text).unwrap_err();
-    assert_data_eq!(err.to_string(), snapbox::file![_]);
-}
-
-#[test]
 fn parse_expression_error() {
     let text = "3 + 7".trim();
     let err = lang::parse_expression(text).unwrap_err();
