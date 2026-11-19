@@ -49,6 +49,14 @@ tracing = { workspace = true }
 
 
 [dev-dependencies]
+# The FFI modules the daemon policy test artifact compiles against.
+aranya-afc-util = { path = "../aranya-afc-util" }
+aranya-crypto = { path = "../aranya-crypto", features = ["memstore"] }
+aranya-device-ffi = { path = "../aranya-device-ffi" }
+aranya-idam-ffi = { path = "../aranya-idam-ffi" }
+aranya-perspective-ffi = { path = "../aranya-perspective-ffi" }
+aranya-policy-vm = { path = "../aranya-policy-vm" }
+
 anyhow = { workspace = true }
 tryfn = { workspace = true }
 
