@@ -91,10 +91,6 @@ impl PolicyStore for ProbePolicyStore {
     fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
         Ok(&ProbePolicy)
     }
-
-    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-        unreachable!()
-    }
 }
 
 impl Policy for ProbePolicy {

@@ -8,8 +8,8 @@ use aranya_crypto::{Engine, PolicyId};
 use aranya_policy_vm::{Identifier, Machine, Module, ModuleData};
 use tracing::error;
 
-use super::{FfiCallable, SealCtx, VmEffect, VmPolicy};
-use crate::{Policy, PolicyStore, PolicyStoreError};
+use super::{FfiCallable, VmEffect, VmPolicy};
+use crate::{PolicyStore, PolicyStoreError};
 
 #[derive(Debug, thiserror::Error)]
 #[error("duplicate ffi name: {0}")]
@@ -22,45 +22,18 @@ pub struct MissingFfiName(Identifier);
 /// [`PolicyStore`] implementation which holds [`VmPolicy`].
 pub struct VmPolicyStore<CE: Engine> {
     engine: CE,
-    seal_ctx: Option<SealCtx<CE>>,
     ffis: FfiSet<CE>,
     policies: BTreeMap<PolicyId, VmPolicy<CE>>,
 }
 
 impl<CE: Engine> VmPolicyStore<CE> {
-    /// Create a new VM policy store which seals commands with the given context.
-    pub fn new(engine: CE, ffis: FfiSet<CE>, seal_ctx: SealCtx<CE>) -> Self {
+    /// Create a new VM policy store.
+    pub fn new(engine: CE, ffis: FfiSet<CE>) -> Self {
         Self {
             engine,
-            seal_ctx: Some(seal_ctx),
             ffis,
             policies: BTreeMap::new(),
         }
-    }
-
-    /// Create a new VM policy store which is not able to seal commands.
-    pub fn new_readonly(engine: CE, ffis: FfiSet<CE>) -> Self {
-        Self {
-            engine,
-            seal_ctx: None,
-            ffis,
-            policies: BTreeMap::new(),
-        }
-    }
-
-    /// Get the serialized verifying key based on the seal context.
-    #[cfg(any(test, feature = "testing"))]
-    pub fn verifying_key(&self) -> Vec<u8> {
-        postcard::to_allocvec(
-            &self
-                .seal_ctx
-                .as_ref()
-                .expect("has seal ctx")
-                .key
-                .public()
-                .expect("can compute verifying key"),
-        )
-        .expect("can serialize verifying key")
     }
 }
 
@@ -121,10 +94,6 @@ impl<CE: Engine + Clone> PolicyStore for VmPolicyStore<CE> {
         self.policies
             .get(&id)
             .ok_or(PolicyStoreError::UnknownPolicy)
-    }
-
-    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-        self.seal_ctx.as_ref()
     }
 }
 

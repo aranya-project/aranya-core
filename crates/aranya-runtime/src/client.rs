@@ -57,13 +57,14 @@ pub enum ClientError {
 ///
 /// - `PS` should be an implementation of [`PolicyStore`].
 /// - `SP` should be an implementation of [`StorageProvider`].
-pub struct ClientState<PS, SP> {
+pub struct ClientState<PS: PolicyStore, SP> {
     policy_store: PS,
     provider: SP,
+    seal_ctx: Option<<PS::Policy as Policy>::SealCtx>,
 }
 
 // Manual Debug impl to exclude `buffers` (large, not useful in debug output).
-impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
+impl<PS: PolicyStore + fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ClientState")
             .field("policy_store", &self.policy_store)
@@ -72,12 +73,17 @@ impl<PS: fmt::Debug, SP: fmt::Debug> fmt::Debug for ClientState<PS, SP> {
     }
 }
 
-impl<PS, SP> ClientState<PS, SP> {
+impl<PS: PolicyStore, SP> ClientState<PS, SP> {
     /// Creates a `ClientState`.
-    pub const fn new(policy_store: PS, provider: SP) -> Self {
+    pub const fn new(
+        policy_store: PS,
+        provider: SP,
+        seal_ctx: Option<<PS::Policy as Policy>::SealCtx>,
+    ) -> Self {
         Self {
             policy_store,
             provider,
+            seal_ctx,
         }
     }
 
@@ -102,12 +108,9 @@ where
         action: <PS::Policy as Policy>::Action<'_>,
         sink: &mut impl Sink<PS::Effect>,
     ) -> Result<GraphId, ClientError> {
+        let seal_ctx = self.seal_ctx.as_ref().ok_or(ClientError::NotAnAuthor)?;
         let policy_id = self.policy_store.add_policy(policy_data)?;
         let policy = self.policy_store.get_policy(policy_id)?;
-        let seal_ctx = self
-            .policy_store
-            .seal_ctx(policy_id)
-            .ok_or(ClientError::NotAnAuthor)?;
 
         let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
@@ -281,6 +284,8 @@ where
         F: Spill,
         MS: Fn() -> Result<F, StorageError>,
     {
+        let seal_ctx = self.seal_ctx.as_ref().ok_or(ClientError::NotAnAuthor)?;
+
         let storage = self.provider.get_storage(graph_id)?;
 
         // A new command needs a single parent: collapse the head set, which may
@@ -298,10 +303,6 @@ where
 
         let policy_id = perspective.policy();
         let policy = self.policy_store.get_policy(policy_id)?;
-        let seal_ctx = self
-            .policy_store
-            .seal_ctx(policy_id)
-            .ok_or(ClientError::NotAnAuthor)?;
 
         // No need to checkpoint the perspective since it is only for this action.
         // Must checkpoint once we add action transactions.
@@ -330,6 +331,7 @@ where
 
 impl<PS, SP> ClientState<PS, SP>
 where
+    PS: PolicyStore,
     SP: StorageProvider,
 {
     /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.

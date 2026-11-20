@@ -3,7 +3,7 @@
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 use core::assert_matches;
 
-use aranya_crypto::{Rng, default::DefaultEngine};
+use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Value, ast::ident};
 use tracing::trace;
 
@@ -14,7 +14,7 @@ use crate::{
     policy::{PolicyStore, Sink},
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::{VmPolicyStore, ser_keys},
+    vm_policy::{SealCtx, VmPolicyStore, ser_keys},
 };
 
 /// The policy used by these tests.
@@ -326,6 +326,17 @@ impl Sink<VmEffect> for VecSink {
 
 pub type TestPolicyStore = VmPolicyStore<Arc<DefaultEngine>>;
 
+pub fn random_seal_ctx() -> (SealCtx<Arc<DefaultEngine>>, Vec<u8>) {
+    let seal_ctx = SealCtx {
+        author: DeviceId::random(Rng),
+        key: SigningKey::new(Rng),
+    };
+    let verifying_key =
+        postcard::to_allocvec(&seal_ctx.key.public().expect("can compute verifying key"))
+            .expect("can serialize verifying key");
+    (seal_ctx, verifying_key)
+}
+
 /// This test currently serves as the only real example of using
 /// the Policy VM to execute Policy. Hopefully the comments will
 /// make this useful for adaptation into a proper implementation.
@@ -340,13 +351,13 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore, policy: &[u8]) -> Result<(),
     // expected that the VM will consume compiled policy code to eliminate the need for the
     // parser/compiler to work in constrained environments.
 
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
 
     // We're using MemStorageProvider as our storage interface.
     let provider = MemStorageProvider::default();
     // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
     // TestSink implements the Sink interface to consume Effects. TestSink is borrowed from
     // the tests in protocol.rs. Here we
@@ -425,9 +436,9 @@ pub fn test_action_result(
     policy_store: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
 
     let graph = cs
         .new_graph(policy, vm_action!(init(0, key)), &mut NullSink)
@@ -467,9 +478,9 @@ pub fn test_query_fact_value(
     policy_store: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
 
     let graph = cs
@@ -517,9 +528,9 @@ pub fn test_aranya_session(
     policy_store: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
@@ -708,13 +719,13 @@ pub fn test_effect_metadata(
     policy_store_2: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store_1.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
 
     let mut rt_buffers = RuntimeBuffers::<_>::new();
 
     // create client 1 and initialize it with a nonce of 1
     let provider = MemStorageProvider::default();
-    let mut cs1 = ClientState::new(policy_store_1, provider);
+    let mut cs1 = ClientState::new(policy_store_1, provider, Some(seal_ctx.clone()));
     let mut sink = VecSink::new();
     let graph_id = cs1
         .new_graph(policy, vm_action!(init(1, key)), &mut sink)
@@ -736,7 +747,7 @@ pub fn test_effect_metadata(
 
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::default();
-    let mut cs2 = ClientState::new(policy_store_2, provider);
+    let mut cs2 = ClientState::new(policy_store_2, provider, Some(seal_ctx));
     test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut rt_buffers);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();

@@ -88,11 +88,15 @@ impl ClientFactory for BasicClientFactory {
         // Configure testing FFIs
         let ffis = FfiSet::new();
 
-        let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis, self.seal_ctx.clone());
+        let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(policy_store, provider)),
+            state: RefCell::new(ClientState::new(
+                policy_store,
+                provider,
+                Some(self.seal_ctx.clone()),
+            )),
             public_keys: EmptyKeys,
         }
     }
@@ -166,18 +170,18 @@ impl ClientFactory for FfiClientFactory {
             .with(IdamFfi::new(store))
             .unwrap();
 
-        let policy_store = ModelPolicyStore::new(
-            Arc::new(eng),
-            ffis,
-            SealCtx {
-                author: bundle.device_id,
-                key,
-            },
-        );
+        let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(policy_store, provider)),
+            state: RefCell::new(ClientState::new(
+                policy_store,
+                provider,
+                Some(SealCtx {
+                    author: bundle.device_id,
+                    key,
+                }),
+            )),
             public_keys,
         }
     }
@@ -1467,18 +1471,18 @@ fn should_create_clients_with_args() {
                 .with(IdamFfi::new(store))
                 .unwrap();
 
-            let policy_store = ModelPolicyStore::new(
-                Arc::new(eng),
-                ffis,
-                SealCtx {
-                    author: bundle.device_id,
-                    key,
-                },
-            );
+            let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
             let provider = MemStorageProvider::default();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(policy_store, provider)),
+                state: RefCell::new(ClientState::new(
+                    policy_store,
+                    provider,
+                    Some(SealCtx {
+                        author: bundle.device_id,
+                        key,
+                    }),
+                )),
                 public_keys: EmptyKeys,
             }
         })
@@ -1541,11 +1545,11 @@ fn should_create_clients_with_args() {
                 .with(IdamFfi::new(store))
                 .unwrap();
 
-            let policy_store = ModelPolicyStore::new_readonly(Arc::new(eng), ffis);
+            let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
             let provider = MemStorageProvider::default();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(policy_store, provider)),
+                state: RefCell::new(ClientState::new(policy_store, provider, None)),
                 public_keys: EmptyKeys,
             }
         })

@@ -69,9 +69,6 @@ pub trait PolicyStore {
     ///
     /// * `policy` - Byte slice representing a [`PolicyId`].
     fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError>;
-
-    // TODO: Pass into actions instead?
-    fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
@@ -236,10 +233,6 @@ mod impls {
         fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             PS::get_policy(self, id)
         }
-
-        fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as super::Policy>::SealCtx> {
-            PS::seal_ctx(self, id)
-        }
     }
 
     impl<PS: PolicyStore> PolicyStore for Box<PS> {
@@ -252,10 +245,6 @@ mod impls {
 
         fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
             PS::get_policy(self, id)
-        }
-
-        fn seal_ctx(&self, id: PolicyId) -> Option<&<Self::Policy as super::Policy>::SealCtx> {
-            PS::seal_ctx(self, id)
         }
     }
 

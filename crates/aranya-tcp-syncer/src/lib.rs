@@ -37,7 +37,6 @@ pub fn run_syncer<PS, SP, S>(
 ) where
     PS: PolicyStore,
     SP: StorageProvider,
-    SP::Segment: Send,
     S: Sink<<PS as PolicyStore>::Effect>,
     Syncer<PS, SP, S>: Send,
 {

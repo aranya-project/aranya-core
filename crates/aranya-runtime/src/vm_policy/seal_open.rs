@@ -26,10 +26,7 @@ pub struct SealCtx<CE: Engine> {
     pub key: SigningKey<CE::CS>,
 }
 
-impl<CE: Engine> Clone for SealCtx<CE>
-where
-    SigningKey<CE::CS>: Clone,
-{
+impl<CE: Engine> Clone for SealCtx<CE> {
     fn clone(&self) -> Self {
         Self {
             author: self.author,
