@@ -6,7 +6,7 @@ use aranya_crypto::{
 use aranya_policy_vm::Struct;
 use buggy::bug;
 
-use super::protocol::{BasicEnvelope, Envelope, EphemeralEnvelope, FinalizeEnvelope, InitEnvelope};
+use super::flavors::{BasicEnvelope, Envelope, EphemeralEnvelope, FinalizeEnvelope, InitEnvelope};
 use crate::GraphId;
 
 #[derive(Debug, thiserror::Error)]

@@ -11,10 +11,11 @@ use tracing::{error, info, instrument, warn};
 
 use super::{
     error::VmPolicyError,
+    flavors::{BasicEnvelope, Envelope, EphemeralEnvelope, FinalizeEnvelope, InitEnvelope},
     interface::{VmAction, VmEffect},
     io::{FfiCallable, VmPolicyIO},
     priority::{VmPriority, get_command_priorities},
-    protocol::{Envelope, VmProtocol, VmProtocolData},
+    protocol::{VmProtocol, VmProtocolData},
     seal_open::{SealCtx, open_with_key},
 };
 use crate::{
@@ -22,71 +23,6 @@ use crate::{
     Perspective, Prior, Priority,
     command::{CmdId, Command},
     policy::{Policy, PolicyError, Sink},
-    vm_policy::protocol::{BasicEnvelope, EphemeralEnvelope, FinalizeEnvelope, InitEnvelope},
-};
-
-pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
-    use aranya_policy_module::{
-        arg,
-        flavor::{Flavor, Flavors, Struct},
-    };
-    use aranya_policy_vm::ident;
-    Flavors {
-        flavors: &[
-            (
-                ident!("init"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("InitEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            // no parent_id
-                            arg!("author_id", Id),
-                        ],
-                    },
-                },
-            ),
-            (
-                ident!("basic"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("BasicEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            arg!("parent_id", Id),
-                            arg!("author_id", Id),
-                        ],
-                    },
-                },
-            ),
-            (
-                ident!("ephemeral"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("EphemeralEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            arg!("graph_id", Id),
-                            arg!("author_id", Id),
-                        ],
-                    },
-                },
-            ),
-            (
-                ident!("finalize"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("FinalizeEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            arg!("parent_id", Id),
-                            arg!("fact_root", Id),
-                        ],
-                    },
-                },
-            ),
-        ],
-    }
 };
 
 /// A [Policy] implementation that uses the Policy VM.

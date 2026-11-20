@@ -38,7 +38,14 @@ fn impl_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStrea
         #[automatically_derived]
         impl ::core::convert::From<#name> for #vm::Value {
             fn from(__value: #name) -> Self {
-                let __struct = #vm::Struct::new(
+                #vm::Value::from(#vm::Struct::from(__value))
+            }
+        }
+
+        #[automatically_derived]
+        impl ::core::convert::From<#name> for #vm::Struct {
+            fn from(__value: #name) -> Self {
+                #vm::Struct::new(
                     #vm::ident!(stringify!(#name)),
                     &[
                         #(#vm::KVPair::new(
@@ -46,10 +53,10 @@ fn impl_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStrea
                             __value.#field_names.into(),
                         )),*,
                     ],
-                );
-                __struct.into()
+                )
             }
         }
+
 
         #[automatically_derived]
         impl ::core::convert::TryFrom<#vm::Value> for #name {

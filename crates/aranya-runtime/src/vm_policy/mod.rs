@@ -121,6 +121,7 @@
 //! [`parse_policy_document`]: ../../policy_lang/lang/fn.parse_policy_document.html
 
 mod error;
+mod flavors;
 mod imp;
 mod interface;
 mod io;
@@ -133,7 +134,8 @@ mod store;
 pub(crate) use self::io::ser_keys;
 pub use self::{
     error::{AttributeError, VmPolicyError},
-    imp::{FLAVORS, VmPolicy},
+    flavors::FLAVORS,
+    imp::VmPolicy,
     interface::{VmAction, VmEffect, VmEffectData},
     io::{FfiCallable, VmFactCursor},
     seal_open::SealCtx,
