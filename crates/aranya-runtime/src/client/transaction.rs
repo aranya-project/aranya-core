@@ -10,9 +10,9 @@ use tracing::{error, instrument, warn};
 use super::braiding;
 use crate::{
     Address, BraidBuffer, ClientError, CmdId, Command, CommandExt as _, GraphId, Location,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId,
-    PolicyStore, Prior, Priority, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage,
-    StorageError, StorageProvider, TraversalBuffer,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy, PolicyError, PolicyId, PolicyStore,
+    Prior, Priority, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError,
+    StorageProvider, TraversalBuffer,
     policy::{CommandPlacement, NullSink},
     storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
     sync::{PeerCache, SessionHeads},
@@ -162,7 +162,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 storage,
                 &head_locs,
                 sink,
-                policy,
+                &policy,
                 &mut buffers.traversal.primary,
                 &mut buffers.braid,
                 make_spill,
@@ -351,7 +351,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             storage,
             &[left_loc, right_loc],
             sink,
-            policy,
+            &policy,
             &mut buffers.traversal.primary,
             &mut buffers.braid,
             make_spill,
@@ -628,7 +628,7 @@ where
             storage,
             &[left.location(), right.location()],
             &mut null,
-            policy,
+            &policy,
             &mut buffers.traversal.primary,
             &mut buffers.braid,
             make_spill,
@@ -664,7 +664,7 @@ where
 /// command on top) has this exact command committed in its graph.
 pub(crate) fn synthetic_head<S, PS>(
     storage: &S,
-    policy_store: &PS,
+    policy_store: &mut PS,
     heads: &HeadSet,
 ) -> Result<Address, ClientError>
 where
@@ -680,9 +680,9 @@ where
     // segment to read a policy id from, and a merge's policy is the
     // max-serial policy of its inputs — the same choice `choose_policy`
     // makes from segments in `collapse_heads`.
-    struct Entry<'a, P> {
+    struct Entry<P> {
         addr: Address,
-        policy: &'a P,
+        policy: P,
     }
 
     let entries = heads
@@ -697,7 +697,7 @@ where
         .collect::<Result<Vec<_>, ClientError>>()?;
 
     let folded = fold_merge_pairs(entries, |left, right| {
-        let policy = core::cmp::max_by_key(left.policy, right.policy, |p| p.serial());
+        let policy = core::cmp::max_by_key(left.policy, right.policy, Policy::serial);
         let merge_ids = MergeIds::new(left.addr, right.addr).assume("merging different ids")?;
         let mut buf = [0u8; MAX_COMMAND_LENGTH];
         let command = policy.merge(&mut buf, merge_ids)?;
@@ -710,12 +710,12 @@ where
 }
 
 /// Select the policy from two locations with the greatest serial value.
-fn choose_policy<'a, PS: PolicyStore>(
+fn choose_policy<PS: PolicyStore>(
     storage: &impl Storage,
-    policy_store: &'a PS,
+    policy_store: &mut PS,
     left: Location,
     right: Location,
-) -> Result<(&'a PS::Policy, PolicyId), ClientError> {
+) -> Result<(PS::Policy, PolicyId), ClientError> {
     Ok(core::cmp::max_by_key(
         get_policy(storage, policy_store, left)?,
         get_policy(storage, policy_store, right)?,
@@ -723,11 +723,11 @@ fn choose_policy<'a, PS: PolicyStore>(
     ))
 }
 
-fn get_policy<'a, PS: PolicyStore>(
+fn get_policy<PS: PolicyStore>(
     storage: &impl Storage,
-    policy_store: &'a PS,
+    policy_store: &mut PS,
     location: Location,
-) -> Result<(&'a PS::Policy, PolicyId), ClientError> {
+) -> Result<(PS::Policy, PolicyId), ClientError> {
     let segment = storage.get_segment(location)?;
     let policy_id = segment.policy();
     let policy = policy_store.get_policy(policy_id)?;
@@ -780,8 +780,8 @@ mod test {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
-            Ok(&SeqPolicy)
+        fn get_policy(&mut self, _id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
+            Ok(SeqPolicy)
         }
     }
 

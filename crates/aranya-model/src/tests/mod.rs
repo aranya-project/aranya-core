@@ -19,6 +19,7 @@ use aranya_policy_vm::{
 };
 use aranya_runtime::{
     ClientState, PolicyStore, StorageProvider, VmEffect,
+    policy::store::testing::NullStore,
     storage::linear::{self, testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::{FLAVORS, FfiSet, SealCtx},
@@ -88,7 +89,7 @@ impl ClientFactory for BasicClientFactory {
         // Configure testing FFIs
         let ffis = FfiSet::new();
 
-        let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
+        let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
         let provider = Lsp::default();
 
         ModelClient {
@@ -170,7 +171,7 @@ impl ClientFactory for FfiClientFactory {
             .with(IdamFfi::new(store))
             .unwrap();
 
-        let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
+        let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
         let provider = Lsp::default();
 
         ModelClient {
@@ -1471,7 +1472,7 @@ fn should_create_clients_with_args() {
                 .with(IdamFfi::new(store))
                 .unwrap();
 
-            let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
+            let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
             let provider = MemStorageProvider::default();
 
             ModelClient {
@@ -1545,7 +1546,7 @@ fn should_create_clients_with_args() {
                 .with(IdamFfi::new(store))
                 .unwrap();
 
-            let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis);
+            let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
             let provider = MemStorageProvider::default();
 
             ModelClient {

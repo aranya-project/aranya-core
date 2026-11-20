@@ -11,6 +11,7 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{FfiContract, Machine, TypeContract, ffi::FfiModule as _, ident};
 use aranya_runtime::{
+    policy::store::testing::NullStore,
     testing::vm::{self, TestPolicyStore},
     vm_policy::{FLAVORS, FfiSet, VmPolicy, VmPolicyError, VmPolicyStore},
 };
@@ -26,7 +27,7 @@ fn new_policy_store() -> TestPolicyStore {
 fn new_policy_stores<const N: usize>() -> [TestPolicyStore; N] {
     core::array::from_fn(|_| {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        VmPolicyStore::new(Arc::new(eng), FfiSet::new())
+        VmPolicyStore::new(NullStore, Arc::new(eng), FfiSet::new())
     })
 }
 
@@ -271,3 +272,32 @@ mod ffi {
     }
 }
 use ffi::TestFfiEnvelope;
+
+#[cfg(feature = "libc")]
+#[test]
+fn test_add_policy_after_restart() {
+    use aranya_runtime::policy::{PolicyStore as _, store::libc::FileStore};
+
+    let dir = tempfile::tempdir().unwrap();
+    let policy = compile_policy();
+    let (eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
+    let eng = Arc::new(eng);
+
+    // Before restart: adding the same policy twice is fine.
+    let mut store = VmPolicyStore::new(
+        FileStore::new(dir.path()).unwrap(),
+        Arc::clone(&eng),
+        FfiSet::new(),
+    );
+    let id = store.add_policy(&policy).expect("first add");
+    assert_eq!(store.add_policy(&policy).expect("second add"), id);
+    drop(store);
+
+    // After restart: same directory, fresh in-memory state.
+    let mut store = VmPolicyStore::new(
+        FileStore::new(dir.path()).unwrap(),
+        Arc::clone(&eng),
+        FfiSet::new(),
+    );
+    assert_eq!(store.add_policy(&policy).expect("add after restart"), id);
+}

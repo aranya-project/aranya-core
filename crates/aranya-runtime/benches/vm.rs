@@ -6,6 +6,7 @@ use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{Text, bench_measurements};
 use aranya_runtime::{
     ClientState, RuntimeBuffers, mem_spill,
+    policy::store::testing::NullStore,
     storage::linear::testing::MemStorageProvider,
     testing::vm::{TEST_POLICY_1, TestPolicyStore, TestSink, random_seal_ctx},
     vm_action, vm_effect,
@@ -15,7 +16,7 @@ use aranya_runtime::{
 /// Create a `TestPolicyStore`.
 fn new_policy_store() -> TestPolicyStore {
     let (eng, _) = DefaultEngine::from_entropy(Rng);
-    TestPolicyStore::new(Arc::new(eng), FfiSet::new())
+    TestPolicyStore::new(NullStore, Arc::new(eng), FfiSet::new())
 }
 
 /// Compile and serialize the policy.

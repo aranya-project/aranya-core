@@ -324,7 +324,8 @@ impl Sink<VmEffect> for VecSink {
     }
 }
 
-pub type TestPolicyStore = VmPolicyStore<Arc<DefaultEngine>>;
+pub type TestPolicyStore =
+    VmPolicyStore<crate::policy::store::testing::NullStore, Arc<DefaultEngine>>;
 
 pub fn random_seal_ctx() -> (SealCtx<Arc<DefaultEngine>>, Vec<u8>) {
     let seal_ctx = SealCtx {
@@ -450,7 +451,7 @@ pub fn test_action_result(
     // `return Ok(unit)` => the action succeeds.
     session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(try_result(false)),
@@ -459,7 +460,7 @@ pub fn test_action_result(
 
     let err = session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(try_result(true)),
@@ -500,7 +501,7 @@ pub fn test_query_fact_value(
 
     session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(lookup(1, 1, true)),
@@ -509,7 +510,7 @@ pub fn test_query_fact_value(
 
     session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(lookup(1, 2, false)),
@@ -580,7 +581,7 @@ pub fn test_aranya_session(
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
             session
                 .action(
-                    &cs,
+                    &mut cs,
                     &mut sink,
                     &mut msg_sink,
                     vm_action!(increment_ephemeral()),
@@ -589,13 +590,23 @@ pub fn test_aranya_session(
 
             // reject incrementFour(33)
             session
-                .action(&cs, &mut sink, &mut msg_sink, vm_action!(incrementFour(33)))
+                .action(
+                    &mut cs,
+                    &mut sink,
+                    &mut msg_sink,
+                    vm_action!(incrementFour(33)),
+                )
                 .expect_err("action should fail");
 
             // succeed incrementFour(4)
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 9 }));
             session
-                .action(&cs, &mut sink, &mut msg_sink, vm_action!(incrementFour(4)))
+                .action(
+                    &mut cs,
+                    &mut sink,
+                    &mut msg_sink,
+                    vm_action!(incrementFour(4)),
+                )
                 .expect("failed session action");
 
             msg_sink.0
@@ -611,7 +622,7 @@ pub fn test_aranya_session(
             let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
-                    .receive(&cs, &mut sink, msg)
+                    .receive(&mut cs, &mut sink, msg)
                     .expect("failed session receive");
             }
         }
@@ -637,7 +648,7 @@ pub fn test_aranya_session(
             let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
-                    .receive(&cs, &mut sink, msg)
+                    .receive(&mut cs, &mut sink, msg)
                     .expect("failed session receive");
             }
         }
