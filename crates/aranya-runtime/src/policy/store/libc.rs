@@ -68,6 +68,7 @@ impl super::ByteStore for FileStore {
         .inspect_err(|_| {
             fs::unlinkat(&self.dir, tmp_path.as_cstr(), AtFlags::empty()).ok();
         })?;
+        fs::fsync(&self.dir)?;
         Ok(())
     }
 }
