@@ -200,13 +200,11 @@ extern crate alloc;
 
 mod buf;
 mod client;
-pub mod crypto;
 pub mod errno;
 mod error;
 mod header;
 pub mod memory;
 mod mutex;
-pub mod rust;
 pub mod shm;
 mod state;
 pub mod testing;
