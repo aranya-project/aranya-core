@@ -1,6 +1,6 @@
 error: the name `a` is defined multiple times
   |
 1 | fact F[i: int] => {a: int, a: bool}
-  |                    -       ^ re-defined here
+  |                    -       ^ field `a` of struct `F` re-defined here
   |                    |
-  |                    previous defintion here
+  |                    previous defintion of field `a` of struct `F`

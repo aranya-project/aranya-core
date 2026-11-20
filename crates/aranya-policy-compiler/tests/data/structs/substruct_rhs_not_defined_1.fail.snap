@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: struct `Bar` is not defined
   |
 6 |     let new_struct = x substruct Bar
-  |                                  ^^^ struct `Bar` not defined
+  |                                  ^^^ used here

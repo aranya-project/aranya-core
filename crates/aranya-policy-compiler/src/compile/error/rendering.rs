@@ -188,10 +188,10 @@ impl SimpleError for error::UnusedValue {
 
 impl SimpleError for error::NotDefined {
     fn description(&self) -> Cow<'_, str> {
-        "a thing being referenced is not in scope".into()
+        format!("{} is not defined", self.0).into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
-        once((self.1, self.0.as_str().into()))
+        once((self.0.span(), "used here".into()))
     }
 }
 
@@ -278,12 +278,17 @@ impl SimpleError for error::DuplicateField {
 
 impl SimpleError for error::AlreadyDefined {
     fn description(&self) -> Cow<'_, str> {
-        format!("the name `{}` is defined multiple times", self.prev).into()
+        format!(
+            "the name `{}` is defined multiple times",
+            self.primary.name()
+        )
+        .into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        let Self { primary, prev } = self;
         [
-            (self.primary.span, "re-defined here".into()),
-            (self.prev.span, "previous defintion here".into()),
+            (primary.span(), format!("{primary} re-defined here").into()),
+            (prev.span(), format!("previous defintion of {prev}").into()),
         ]
     }
 }

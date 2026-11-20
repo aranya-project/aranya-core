@@ -35,10 +35,10 @@ use tracing::warn;
 use self::{
     call_graph::CallGraph,
     error::{
-        AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
+        AlreadyDefined, BadArgument, BugError, Callable, DebugModeRequired, DuplicateSourceFields,
         InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublishOrActionCall,
-        NoReturn, NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
-        UnknownError,
+        NoReturn, NotDefined, Reference, SourceStructNotSubsetOfBase,
+        StructCompositionTypeMismatch, UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -288,8 +288,8 @@ impl<'a> CompileState<'a> {
     fn define_fact(&mut self, fact: &FactDefinition) -> Result<(), CompileError> {
         if let Some((existing_fact, _)) = self.m.fact_defs.get_key_value(&fact.name.inner) {
             return Err(self.err(AlreadyDefined::new(
-                fact.name.clone(),
-                existing_fact.clone(),
+                Reference::Fact(fact.name.clone()),
+                Reference::Fact(existing_fact.clone()),
             )));
         }
 
@@ -308,8 +308,8 @@ impl<'a> CompileState<'a> {
             }
             if let Some(existing_ident) = identifiers.replace(&key.name) {
                 return Err(self.err(AlreadyDefined::new(
-                    key.name.clone(),
-                    existing_ident.clone(),
+                    Reference::FactKey(fact.name.clone(), key.name.clone()),
+                    Reference::FactKey(fact.name.clone(), existing_ident.clone()),
                 )));
             }
         }
@@ -318,8 +318,8 @@ impl<'a> CompileState<'a> {
         for value in &fact.values {
             if let Some(existing_ident) = identifiers.replace(&value.name) {
                 return Err(self.err(AlreadyDefined::new(
-                    value.name.clone(),
-                    existing_ident.clone(),
+                    Reference::FactValue(fact.name.clone(), value.name.clone()),
+                    Reference::FactValue(fact.name.clone(), existing_ident.clone()),
                 )));
             }
         }
@@ -344,31 +344,23 @@ impl<'a> CompileState<'a> {
                         .find(|f: &&FieldDefinition| f.name.inner == field.name.inner)
                     {
                         return Err(self.err(AlreadyDefined::new(
-                            field.name.clone(),
-                            existing_field.name.clone(),
+                            Reference::StructField(name.clone(), field.name.clone()),
+                            Reference::StructField(name, existing_field.name.clone()),
                         )));
                     }
 
                     field_definitions.push(field);
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    let other = self
-                        .m
-                        .interface
-                        .struct_defs
-                        .get(&field_type_ident.inner)
-                        .ok_or_else(|| {
-                            let note = format!("struct {} is not defined", field_type_ident);
-                            self.err(NotDefined(note, field_type_ident.span()))
-                        })?;
+                    let other = self.get_struct_def(&field_type_ident)?;
                     for field in other {
                         if let Some(existing_def) = field_definitions
                             .iter()
                             .find(|f: &&FieldDefinition| f.name.inner == field.name.inner)
                         {
                             return Err(self.err(AlreadyDefined::new(
-                                field.name.clone(),
-                                existing_def.name.clone(),
+                                Reference::StructField(name.clone(), field.name.clone()),
+                                Reference::StructField(name, existing_def.name.clone()),
                             )));
                         }
                         // TODO(Steve): We'll likely need a better way to handle complex StructRef nesting.
@@ -396,7 +388,10 @@ impl<'a> CompileState<'a> {
         // ensure enum name is unique
         if let Some((existing_def, _)) = self.m.interface.enum_defs.get_key_value(&enum_name.inner)
         {
-            let err = AlreadyDefined::new(enum_name.clone(), existing_def.clone());
+            let err = AlreadyDefined::new(
+                Reference::Enum(enum_name.clone()),
+                Reference::Enum(existing_def.clone()),
+            );
             return Err(self.err(err));
         }
 
@@ -407,8 +402,8 @@ impl<'a> CompileState<'a> {
                 indexmap::map::Entry::Occupied(e) => {
                     let existing_variant = e.key();
                     return Err(self.err(AlreadyDefined::new(
-                        existing_variant.clone(),
-                        value_name.clone(),
+                        Reference::EnumVariant(enum_name.clone(), existing_variant.clone()),
+                        Reference::EnumVariant(enum_name.clone(), value_name.clone()),
                     )));
                 }
                 indexmap::map::Entry::Vacant(e) => {
@@ -449,7 +444,10 @@ impl<'a> CompileState<'a> {
                 //     name.push_str(" (builtin)");
                 // }
                 let existing_function = e.key();
-                let err = AlreadyDefined::new(existing_function.clone(), def.name.clone());
+                let err = AlreadyDefined::new(
+                    Callable::Function(existing_function.clone()),
+                    Callable::Function(def.name.clone()),
+                );
                 Err(self.err(err))
             }
         }
@@ -478,7 +476,10 @@ impl<'a> CompileState<'a> {
                 //     name.push_str(" (builtin)");
                 // }
                 let existing_function = e.key();
-                let err = AlreadyDefined::new(existing_function.clone(), def.name.clone());
+                let err = AlreadyDefined::new(
+                    Callable::FinishFunction(existing_function.clone()),
+                    Callable::FinishFunction(def.name.clone()),
+                );
                 Err(self.err(err))
             }
         }
@@ -888,13 +889,12 @@ impl<'a> CompileState<'a> {
             .interface
             .enum_defs
             .get(&e.enumeration.inner)
-            .ok_or_else(|| {
-                let note = format!("enum `{}` not defined", e.enumeration);
-                self.err(NotDefined(note, e.enumeration.span))
-            })?;
+            .ok_or_else(|| self.err(NotDefined(Reference::Enum(e.enumeration.clone()))))?;
         let value = enum_def.get(&e.variant.inner).ok_or_else(|| {
-            let note = format!("variant `{}::{}` not defined", e.enumeration, e.variant);
-            self.err(NotDefined(note, e.variant.span))
+            self.err(NotDefined(Reference::EnumVariant(
+                e.enumeration.clone(),
+                e.variant.clone(),
+            )))
         })?;
         Ok(*value)
     }
@@ -1079,14 +1079,12 @@ impl<'a> CompileState<'a> {
             | TypeKind::String => {}
             TypeKind::Struct(name) => {
                 if !self.m.interface.struct_defs.contains_key(&name.inner) {
-                    let note = format!("struct `{name}` not defined");
-                    return Err(self.err(NotDefined(note, name.span)));
+                    return Err(self.err(NotDefined(Reference::Struct(name.clone()))));
                 }
             }
             TypeKind::Enum(name) => {
                 if !self.m.interface.enum_defs.contains_key(&name.inner) {
-                    let note = format!("enum `{name}` not defined");
-                    return Err(self.err(NotDefined(note, name.span)));
+                    return Err(self.err(NotDefined(Reference::Enum(name.clone()))));
                 }
             }
             TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
@@ -1111,6 +1109,7 @@ impl<'a> CompileState<'a> {
             function_node.span,
             &function_node.body,
             label,
+            Callable::Function(function_node.name.clone()),
         )?;
         self.exit_statement_context();
         Ok(())
@@ -1129,6 +1128,7 @@ impl<'a> CompileState<'a> {
             function_node.span,
             &function_node.body,
             label,
+            Callable::FinishFunction(function_node.name.clone()),
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
@@ -1167,7 +1167,10 @@ impl<'a> CompileState<'a> {
         let mut params = NamedMap::new();
         for param in &action_node.parameters {
             params.insert(param.clone()).map_err(|e| {
-                let err = AlreadyDefined::new(e.existing, param.name.clone());
+                let err = AlreadyDefined::new(
+                    Callable::Action(action_node.name.clone()).param(e.existing),
+                    Callable::Action(action_node.name.clone()).param(param.name.clone()),
+                );
                 self.err(err)
             })?;
         }
@@ -1176,7 +1179,12 @@ impl<'a> CompileState<'a> {
             .interface
             .action_defs
             .insert(action_node.clone().into())
-            .map_err(|e| self.err(AlreadyDefined::new(action_node.name.clone(), e.existing)))?;
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    Callable::Action(action_node.name.clone()),
+                    Callable::Action(e.existing),
+                ))
+            })?;
 
         Ok(())
     }
@@ -1207,6 +1215,7 @@ impl<'a> CompileState<'a> {
             action_node.span,
             &action_node.body,
             label,
+            Callable::Action(action_node.name.clone()),
         )?;
         // An infallible action has no return statement, so add one.
         if ret.is_none() {
@@ -1257,7 +1266,10 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(e) => {
                 let existing = e.key();
-                let err = AlreadyDefined::new(existing.clone(), identifier.clone());
+                let err = AlreadyDefined::new(
+                    Reference::Global(existing.clone()),
+                    Reference::Global(identifier.clone()),
+                );
                 return Err(self.err(err));
             }
         }
@@ -1315,6 +1327,7 @@ impl<'a> CompileState<'a> {
             Span::empty(),
             &command.policy.body,
             Label::new(command.name.inner.clone(), LabelType::CommandPolicy),
+            Callable::Policy(command.policy.span),
         )?;
         // Policy blocks should exit via a finish block, so panic if it doesn't.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1353,7 +1366,10 @@ impl<'a> CompileState<'a> {
         for recall_block in &command.recalls {
             let full_name = self.command_recall_name(&command.name, &recall_block.name)?;
             if let Some(prev) = named_blocks.get(&recall_block.name) {
-                return Err(self.err(AlreadyDefined::new(prev.clone(), recall_block.name.clone())));
+                return Err(self.err(AlreadyDefined::new(
+                    Callable::Recall(prev.clone()),
+                    Callable::Recall(recall_block.name.clone()),
+                )));
             }
             named_blocks.insert(recall_block.name.clone());
 
@@ -1380,6 +1396,7 @@ impl<'a> CompileState<'a> {
                 recall_block.span,
                 &recall_block.body,
                 Label::new(full_name, LabelType::CommandRecall),
+                Callable::Recall(recall_block.name.clone()),
             )?;
             self.append_instruction(Instruction::Exit(ExitReason::Check));
             self.exit_statement_context();
@@ -1397,6 +1414,7 @@ impl<'a> CompileState<'a> {
         span: Span,
         body: &[Statement],
         label: Label,
+        callable: Callable,
     ) -> Result<(), CompileError> {
         // Only functions and actions are callable, so only they can recurse.
         if matches!(label.ltype, LabelType::Function | LabelType::Action) {
@@ -1410,7 +1428,10 @@ impl<'a> CompileState<'a> {
         self.map_range(span)?;
 
         if let Some((ident1, ident2)) = find_duplicate(params, |p| &p.name) {
-            let err = AlreadyDefined::new(ident1.clone(), ident2.clone());
+            let err = AlreadyDefined::new(
+                callable.clone().param(ident1.clone()),
+                callable.param(ident2.clone()),
+            );
             return Err(self.err(err));
         }
 
@@ -1532,6 +1553,7 @@ impl<'a> CompileState<'a> {
             base_command.span,
             &base_command.get_key.body,
             label,
+            Callable::GetKey(base_command.get_key.span),
         )?;
         self.exit_statement_context();
 
@@ -1541,7 +1563,12 @@ impl<'a> CompileState<'a> {
                 get_key_address,
                 flavor: base_command.flavor.clone(),
             })
-            .map_err(|e| self.err(AlreadyDefined::new(base_command.name.clone(), e.existing)))?;
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    Reference::Base(base_command.name.clone()),
+                    Reference::Base(e.existing),
+                ))
+            })?;
 
         Ok(())
     }
@@ -1557,12 +1584,7 @@ impl<'a> CompileState<'a> {
         let base = self
             .base_commands
             .get(&command.base)
-            .ok_or_else(|| {
-                NotDefined(
-                    format!("unknown base class {}", command.base),
-                    command.base.span,
-                )
-            })
+            .ok_or_else(|| NotDefined(Reference::Base(command.base.clone())))
             .map_err(|e| self.err(e))?;
         let cmd_flavor = base.flavor.clone();
         self.define_label(
@@ -1577,12 +1599,7 @@ impl<'a> CompileState<'a> {
             .iter()
             .find(|&(name, _)| *name == cmd_flavor.inner)
             .map(|(_, flavor)| flavor)
-            .ok_or_else(|| {
-                self.err(NotDefined(
-                    format!("unknown flavor {cmd_flavor}"),
-                    cmd_flavor.span,
-                ))
-            })?;
+            .ok_or_else(|| self.err(NotDefined(Reference::Flavor(cmd_flavor.clone()))))?;
 
         self.compile_command_recall(command, flavor_def)?;
         self.compile_command_policy(command, flavor_def)?;
@@ -1596,7 +1613,12 @@ impl<'a> CompileState<'a> {
                     name: name.clone(),
                     value,
                 })
-                .map_err(|e| self.err(AlreadyDefined::new(name.clone(), e.existing)))?;
+                .map_err(|e| {
+                    self.err(AlreadyDefined::new(
+                        Reference::CommandAttribute(command.name.clone(), name.clone()),
+                        Reference::CommandAttribute(command.name.clone(), e.existing),
+                    ))
+                })?;
         }
 
         // fields
@@ -1621,7 +1643,12 @@ impl<'a> CompileState<'a> {
                     })
                     .collect(),
             })
-            .map_err(|e| self.err(AlreadyDefined::new(command.name.clone(), e.existing)))?;
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    Reference::Command(command.name.clone()),
+                    Reference::Command(e.existing),
+                ))
+            })?;
 
         Ok(())
     }
@@ -1881,16 +1908,17 @@ impl<'a> CompileState<'a> {
     fn sorted_type_definitions(
         &self,
     ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
-        let mut type_defs: HashMap<Ident, _> = HashMap::new();
-        let mut insert_type_def = |ident: Ident, def| {
+        let mut type_defs: HashMap<Ident, UserType<'a>> = HashMap::new();
+        let mut insert_type_def = |ident: Ident, def: UserType<'a>| {
             use std::collections::hash_map::Entry as E;
             // Check for duplicate type names.
             // struct Foo { .. }
             // effect Foo { .. }
-            match type_defs.entry(ident.clone()) {
+            match type_defs.entry(ident) {
                 E::Occupied(e) => {
-                    let existing_type = e.key();
-                    return Err(self.err(AlreadyDefined::new(ident, existing_type.clone())));
+                    let new = def.reference();
+                    let old = e.get().reference();
+                    return Err(self.err(AlreadyDefined::new(old, new)));
                 }
                 E::Vacant(e) => {
                     e.insert(def);
@@ -2162,11 +2190,7 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
             ExprKind::String(v) => Ok(ConstValue::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.interface.struct_defs.get(&struct_ast.name.inner)
-                else {
-                    let note = format!("struct `{}` not defined", struct_ast.name);
-                    return Err(self.err(NotDefined(note, struct_ast.name.span)));
-                };
+                let struct_def = self.get_struct_def(&struct_ast.name)?;
 
                 let struct_ast = self.evaluate_sources(struct_ast, struct_def)?;
 
@@ -2251,10 +2275,10 @@ impl<'a> CompileState<'a> {
 
         for src_var_name in &base_struct.sources {
             // Look up source's type. It should be a struct.
-            let src_type = self.identifier_types.get(src_var_name).map_err(|_err| {
-                let note = format!("'{}' not in scope", src_var_name);
-                self.err(NotDefined(note, src_var_name.span))
-            })?;
+            let src_type = self
+                .identifier_types
+                .get(src_var_name)
+                .map_err(|_err| self.err(NotDefined(Reference::Variable(src_var_name.clone()))))?;
 
             let src_struct_type_name = src_type.as_struct().ok_or_else(|| {
                 let e = InvalidType::new(
@@ -2399,7 +2423,10 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(e) => {
                 let existing_function = e.key().clone();
-                return Err(self.err(AlreadyDefined::new(existing_function, name)));
+                return Err(self.err(AlreadyDefined::new(
+                    Callable::Function(existing_function),
+                    Callable::Function(name),
+                )));
             }
         }
 

@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: variant `Tea` of enum `Drink` is not defined
   |
 3 |     let n = Drink::Tea
-  |                    ^^^ variant `Drink::Tea` not defined
+  |                    ^^^ used here

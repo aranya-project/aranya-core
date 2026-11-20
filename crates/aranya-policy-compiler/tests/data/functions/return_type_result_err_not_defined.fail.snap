@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: struct `Nonexistent` is not defined
   |
 1 | function f() result[int, struct Nonexistent] {
-  |                                 ^^^^^^^^^^^ struct `Nonexistent` not defined
+  |                                 ^^^^^^^^^^^ used here
