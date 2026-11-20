@@ -2,5 +2,5 @@ error: the name `x` is defined multiple times
   |
 2 |     let x = 3
   |         - previous defintion here
-3 |     let x = todo()
+3 |     let x = return Unit
   |         ^ re-defined here

@@ -505,7 +505,7 @@ impl CompileState<'_> {
                 }
 
                 InternalFunction::Todo(span) => {
-                    self.require_debug_mode("todo()", *span)?;
+                    self.require_flag(self.config.allow_todo, "todo()", *span)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Todo(*span)),
                         vtype: VType {
@@ -516,7 +516,7 @@ impl CompileState<'_> {
                     }
                 }
                 InternalFunction::TestFail(msg, span) => {
-                    self.require_debug_mode("test_fail()", *span)?;
+                    self.require_flag(self.config.allow_test_fail, "test_fail()", *span)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::TestFail(
                             msg.clone(),

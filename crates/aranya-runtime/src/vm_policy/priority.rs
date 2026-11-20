@@ -99,7 +99,7 @@ mod test {
             base[basic] Base { get_key(_dev: id) option[bytes] { return None } }
             command Test with Base {
                 fields {}
-                policy(this) {}
+                policy() {}
             }
             "#,
             r#"
@@ -107,7 +107,7 @@ mod test {
             command Test with Base {
                 attributes {}
                 fields {}
-                policy(this) {}
+                policy() {}
             }
             "#,
             r#"
@@ -118,7 +118,7 @@ mod test {
                     finalize: false,
                 }
                 fields {}
-                policy(this) {}
+                policy() {}
             }
             "#,
         ];
@@ -144,7 +144,7 @@ mod test {
                         {attrs}
                     }}
                     fields {{ }}
-                    policy(this) {{ }}
+                    policy() {{ }}
                 }}
                 "#
             );

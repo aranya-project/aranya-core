@@ -23,10 +23,7 @@ pub fn generate(
 fn generate_(input: &Path, output: &Path, ifgen: Option<&str>) -> Result<()> {
     let policy_source = fs::read_to_string(input).with_context(|| format!("reading {input:?}"))?;
     let policy_ast = parse_policy_document(&policy_source)?;
-    let target = Compiler::new(&policy_ast)
-        .debug(true)
-        .stub_ffi(true)
-        .compile_interface()?;
+    let target = Compiler::new(&policy_ast).compile_interface()?;
     let ifgen_path = ifgen
         .map(syn::parse_str::<syn::Path>)
         .transpose()

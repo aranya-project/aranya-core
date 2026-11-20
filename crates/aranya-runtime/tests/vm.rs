@@ -34,7 +34,12 @@ fn new_policy_stores<const N: usize>() -> [TestPolicyStore; N] {
 /// Compile and serialize the policy.
 fn compile_policy() -> Vec<u8> {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap();
-    let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
+    let module = Compiler::new(&ast)
+        .flavors(&FLAVORS)
+        .allow_test_fail(true)
+        .require_publish(false)
+        .compile()
+        .unwrap();
     module.write_to_vec().expect("can serialize test module")
 }
 
@@ -78,6 +83,8 @@ fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect
     let module = Compiler::new(&ast)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .flavors(&FLAVORS)
+        .allow_test_fail(true)
+        .require_publish(false)
         .compile()
         .unwrap_or_else(|e| panic!("{e}"));
     let mut machine = Machine::from_module(module).expect("module conversion failed");

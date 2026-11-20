@@ -583,8 +583,8 @@ impl<'a> CompileState<'a> {
 
     /// Ensure debug mode is on, or return a [`DebugModeRequired`] error. In debug
     /// mode, warns that a debug-only construct (e.g. `todo()`/`test_fail`) is present.
-    fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
-        if self.config.is_debug {
+    fn require_flag(&self, flag: bool, name: &'static str, span: Span) -> Result<(), CompileError> {
+        if flag {
             warn!("`{name}` found in policy");
             Ok(())
         } else {
@@ -668,11 +668,11 @@ impl<'a> CompileState<'a> {
                     self.define_label(end_name, self.wp)?;
                 }
                 thir::InternalFunction::Todo(span) => {
-                    self.require_debug_mode("todo()", span)?;
+                    self.require_flag(self.config.allow_todo, "todo()", span)?;
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
                 thir::InternalFunction::TestFail(_msg, span) => {
-                    self.require_debug_mode("test_fail()", span)?;
+                    self.require_flag(self.config.allow_test_fail, "test_fail()", span)?;
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
             },
@@ -1042,7 +1042,7 @@ impl<'a> CompileState<'a> {
                 self.compile_action_call(fc)?;
             }
             thir::StmtKind::DebugAssert(s) => {
-                if self.config.is_debug {
+                if self.config.debug_assertions {
                     // Compile the expression within `debug_assert(e)`
                     self.compile_typed_expression(s)?;
                     // Now, branch to the next instruction if the top of the stack is true
@@ -1226,13 +1226,13 @@ impl<'a> CompileState<'a> {
             )
         });
         if !publishes_or_calls {
-            if self.config.is_debug {
+            if self.config.require_publish {
+                return Err(self.err(NoPublishOrActionCall(action_node.span)));
+            } else {
                 warn!(
                     "action `{}` neither publishes nor calls another action",
                     action_node.name
                 );
-            } else {
-                return Err(self.err(NoPublishOrActionCall(action_node.span)));
             }
         }
 
@@ -2428,10 +2428,13 @@ enum Scope {
 struct Config<'a> {
     flavors: &'a Flavors<'a>,
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// Determines if one compiles with debug functionality,
-    is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
+    allow_test_fail: bool,
+    allow_todo: bool,
+    allow_unused: bool,
+    require_publish: bool,
+    debug_assertions: bool,
 }
 
 static DEFAULT_FLAVORS: Flavors<'static> = Flavors {
@@ -2451,8 +2454,12 @@ impl Config<'_> {
         Self {
             flavors: &DEFAULT_FLAVORS,
             ffi_modules: &[],
-            is_debug: cfg!(debug_assertions),
             stub_ffi: false,
+            allow_test_fail: false,
+            allow_todo: false,
+            allow_unused: false,
+            require_publish: true,
+            debug_assertions: false,
         }
     }
 }
@@ -2486,16 +2493,39 @@ impl<'a> Compiler<'a> {
         self
     }
 
-    /// Enables or disables debug mode
     #[must_use]
-    pub fn debug(mut self, is_debug: bool) -> Self {
-        self.config.is_debug = is_debug;
+    pub fn stub_ffi(mut self, flag: bool) -> Self {
+        self.config.stub_ffi = flag;
         self
     }
 
     #[must_use]
-    pub fn stub_ffi(mut self, flag: bool) -> Self {
-        self.config.stub_ffi = flag;
+    pub fn allow_test_fail(mut self, flag: bool) -> Self {
+        self.config.allow_test_fail = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn allow_todo(mut self, flag: bool) -> Self {
+        self.config.allow_todo = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn allow_unused(mut self, flag: bool) -> Self {
+        self.config.allow_unused = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn require_publish(mut self, flag: bool) -> Self {
+        self.config.require_publish = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn debug_assertions(mut self, flag: bool) -> Self {
+        self.config.debug_assertions = flag;
         self
     }
 
@@ -2507,7 +2537,8 @@ impl<'a> Compiler<'a> {
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
-    pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
+    pub fn compile_interface(mut self) -> Result<PolicyInterface, CompileError> {
+        self.config.stub_ffi = true;
         let mut cs = self.set_up_compile_state();
         cs.define_interfaces()?;
         Ok(cs.m.interface)
@@ -2527,7 +2558,7 @@ impl<'a> Compiler<'a> {
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(self.config.is_debug),
+            identifier_types: IdentifierTypeStack::new(self.config.allow_unused),
             call_graph: CallGraph::new(),
             current_caller: None,
             config: self.config,

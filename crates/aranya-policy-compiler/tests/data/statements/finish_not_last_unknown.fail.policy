@@ -2,7 +2,7 @@ fact Blah[] => {}
 command Foo with StubBase {
     fields {}
     policy(this) {
-        check true else test_fail("should pass")
+        let x = 42
         finish {
             delete Blah[]
         } // finish must be the last statement in policy

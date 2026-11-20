@@ -55,7 +55,10 @@ impl BasicClientFactory {
 
     fn compile(policy_doc: &str) -> Result<Vec<u8>, ModelError> {
         let policy_ast = parse_policy_document(policy_doc)?;
-        let module = Compiler::new(&policy_ast).flavors(&FLAVORS).compile()?;
+        let module = Compiler::new(&policy_ast)
+            .flavors(&FLAVORS)
+            .allow_test_fail(true)
+            .compile()?;
         Ok(module.write_to_vec()?)
     }
 
@@ -113,6 +116,7 @@ impl FfiClientFactory {
         let module = Compiler::new(&policy_ast)
             .ffi_modules(ffi_schema)
             .flavors(&FLAVORS)
+            .allow_test_fail(true)
             .compile()?;
 
         Ok(module.write_to_vec()?)

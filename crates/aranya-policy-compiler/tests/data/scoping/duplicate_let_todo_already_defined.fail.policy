@@ -1,5 +1,0 @@
-function f() bool {
-    let x = 3
-    let x = todo()
-    return false
-}
