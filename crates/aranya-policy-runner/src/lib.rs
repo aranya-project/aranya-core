@@ -235,9 +235,7 @@ impl PolicyRunner {
         policy_doc.push_str("\n```\n");
 
         tracing::debug!("Compiling Policy");
-        let ast = parse_policy_document(&policy_doc)
-            .inspect_err(|e| println!("{e}"))
-            .context("unable to parse policy document")?;
+        let ast = parse_policy_document(&policy_doc).context("unable to parse policy document")?;
         let module = Compiler::new(&ast)
             .ffi_modules(&FFI_MODULES)
             .compile()

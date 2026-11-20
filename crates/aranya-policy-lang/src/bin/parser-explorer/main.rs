@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "binary")]
+
 use std::{
     fs::OpenOptions,
     io::{BufRead as _, BufReader, Read, stdin},

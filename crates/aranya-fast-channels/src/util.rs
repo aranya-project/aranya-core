@@ -64,6 +64,7 @@ pub fn init_debug_logging() {
             true
         }
 
+        #[allow(clippy::print_stderr, reason = "logging impl")]
         fn log(&self, record: &log::Record) {
             let file = record
                 .file()

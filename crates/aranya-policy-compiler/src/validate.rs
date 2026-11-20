@@ -1,3 +1,9 @@
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "TODO: Return meaningful error instead"
+)]
+
 use core::fmt;
 
 use aranya_policy_ast::Identifier;

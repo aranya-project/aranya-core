@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "binary")]
+
 use std::{
     collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
