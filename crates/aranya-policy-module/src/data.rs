@@ -1,4 +1,4 @@
-use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, format, string::String};
+use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap};
 use core::fmt::{self, Display};
 
 use aranya_policy_ast::{self as ast, Identifier, Text, WithSpanExt as _};
@@ -196,20 +196,20 @@ impl ConstValue {
         }
     }
 
-    /// Returns a string representing the value's type.
-    pub fn type_name(&self) -> String {
-        match self {
-            Self::Unit => String::from("Unit"),
-            Self::Int(_) => String::from("Int"),
-            Self::Bool(_) => String::from("Bool"),
-            Self::String(_) => String::from("String"),
-            Self::Struct(s) => format!("Struct {}", s.name),
-            Self::Enum(name, _) => format!("Enum {}", name),
-            Self::Option(Some(inner)) => format!("Option[{}]", inner.type_name()),
-            Self::Option(None) => String::from("Option[_]"),
-            Self::Result(Ok(inner)) => format!("Result[_, {}]", inner.type_name()),
-            Self::Result(Err(inner)) => format!("Result[{}, _]", inner.type_name()),
-        }
+    /// Returns a printable representation of the value's type.
+    pub fn type_name(&self) -> impl Display {
+        fmt::from_fn(|f| match self {
+            Self::Unit => f.write_str("unit"),
+            Self::Int(_) => f.write_str("int"),
+            Self::Bool(_) => f.write_str("bool"),
+            Self::String(_) => f.write_str("string"),
+            Self::Struct(s) => write!(f, "struct {}", s.name),
+            Self::Enum(name, _) => write!(f, "enum {}", name),
+            Self::Option(Some(inner)) => write!(f, "option[{}]", inner.type_name()),
+            Self::Option(None) => f.write_str("option[_]"),
+            Self::Result(Ok(inner)) => write!(f, "result[_, {}]", inner.type_name()),
+            Self::Result(Err(inner)) => write!(f, "result[{}, _]", inner.type_name()),
+        })
     }
 
     /// Create a VType from this and externally-provided span data

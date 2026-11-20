@@ -235,7 +235,7 @@ fn test_action_wrong_args() -> anyhow::Result<()> {
             .err_type;
         assert_eq!(
             err,
-            MachineErrorType::invalid_type("int", "String", "invalid function argument")
+            MachineErrorType::invalid_type("int", "string", "invalid function argument")
         );
     }
 
@@ -375,7 +375,7 @@ fn test_command_invalid_this() {
             .err_type;
         assert_eq!(
             err,
-            MachineErrorType::invalid_type("int", "Bool", "invalid function argument")
+            MachineErrorType::invalid_type("int", "bool", "invalid function argument")
         );
     }
 }
@@ -2031,7 +2031,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         (
             Err(MachineErrorType::invalid_type(
                 "string",
-                "Option[_]",
+                "option[_]",
                 "invalid function argument",
             )),
             [

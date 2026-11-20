@@ -203,7 +203,7 @@ impl PolicyRunner {
                 // Prepare the action argument signatures
                 let action_args: String = preamble_vars
                     .iter()
-                    .map(|(i, v)| format!("{i} {}, ", v.type_name().to_lowercase()))
+                    .map(|(i, v)| format!("{i} {}, ", v.type_name()))
                     .collect();
                 let thunk_start = thunk_counter;
                 for policy_runnable in &run_file.do_things {
