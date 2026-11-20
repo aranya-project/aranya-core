@@ -1,4 +1,4 @@
-error: Invalid number
+error: Syntax error
   |
 2 | let big_num = 9223372036854775808
-  |               ^^^^^^^^^^^^^^^^^^^ number too large to fit in `int`
+  |               ^^^^^^^^^^^^^^^^^^^ found '<error>' expected expression

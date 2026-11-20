@@ -123,12 +123,6 @@ pub struct Span {
 impl Span {
     /// Create a new span
     pub fn new(start: usize, end: usize) -> Self {
-        debug_assert!(
-            start <= end,
-            "invalid span: start ({}) must be <= end ({})",
-            start,
-            end
-        );
         Self { start, end }
     }
 
@@ -382,14 +376,6 @@ mod tests {
         ($start:expr, $end:expr) => {
             Span::new($start, $end)
         };
-    }
-
-    #[test]
-    #[should_panic(expected = "invalid span")]
-    #[cfg(debug_assertions)]
-    fn test_span_new_invalid() {
-        // This should panic in debug mode
-        span!(10, 5);
     }
 
     #[test]

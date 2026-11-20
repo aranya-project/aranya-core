@@ -1,4 +1,4 @@
-error: Invalid string
+error: Syntax error
   |
 1 | let x = "a\b"
-  |           ^^ unknown character escape: `b`
+  |         ^^^^^ found 'string "\"a\\b\""' expected expression

@@ -1,4 +1,4 @@
-error: Reserved identifier
+error: Syntax error
   |
 1 | enum this { A }
-  |      ^^^^ found reserved identifier: `this`
+  |      ^^^^ found 'this' expected identifier

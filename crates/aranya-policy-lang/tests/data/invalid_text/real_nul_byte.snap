@@ -1,4 +1,4 @@
-error: Invalid string
+error: Syntax error
   |
 1 | let x = "a␀b"
-  |           ^ string contains null byte
+  |         ^^^^^ found 'string "\"a\0b\""' expected expression

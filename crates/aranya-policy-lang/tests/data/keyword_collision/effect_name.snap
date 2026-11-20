@@ -1,4 +1,4 @@
-error: Reserved identifier
+error: Syntax error
   |
 1 | effect int {}
-  |        ^^^ found reserved identifier: `int`
+  |        ^^^ found 'int' expected identifier

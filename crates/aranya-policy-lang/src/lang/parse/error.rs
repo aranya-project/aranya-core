@@ -2,11 +2,10 @@ use core::fmt::{self, Debug, Display};
 
 use aranya_policy_ast::{Span, Version};
 use buggy::Bug;
-use pest::error::Error as PestError;
-
-use crate::lang::parse::Rule;
 
 pub(crate) mod rendering;
+
+pub type Result<T, E = ParseError> = core::result::Result<T, E>;
 
 /// Invalid usage of an infix operator (i.e. `+` or `-`)
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -169,35 +168,20 @@ impl ParseError {
         }
     }
 
-    #[must_use]
-    pub(crate) fn with_offset(self, offset: usize) -> Self {
-        Self {
-            span: self.span.map(|s| s.add(offset).expect("span overflow")),
-            ..self
+    pub(super) fn from_chumsky_errors<'i>(
+        mut errors: Vec<chumsky::error::Rich<'i, super::Token<'i>, super::Span>>,
+    ) -> Self {
+        let error = errors.pop().expect("has an error");
+        if !errors.is_empty() {
+            // NB: This shouldn't happen without using recovery or `Parser::validate`.
+            todo!("handle multiple chumsky errors");
         }
-    }
-}
 
-impl From<PestError<Rule>> for ParseError {
-    fn from(e: PestError<Rule>) -> Self {
-        use pest::error::InputLocation;
-        let span = match e.location {
-            InputLocation::Pos(start) => Span::new(start, start.saturating_add(1)),
-            InputLocation::Span((start, end)) => Span::new(start, end),
-        };
-        // By default the lower-cased rule names are shown in Pest errors. Rules are renamed here to provide better error messages.
-        // See crates/aranya-policy-lang/tests/data/invalid_is.snap
-        let message = e
-            .renamed_rules(|rule| match *rule {
-                Rule::none => "None".to_owned(),
-                Rule::some => "Some".to_owned(),
-                Rule::try_op => "?".to_owned(),
-                _ => format!("{:?}", rule),
-            })
-            .variant
-            .message()
-            .into_owned();
-        Self::new(ParseErrorKind::Syntax, message, Some(span))
+        Self::new(
+            ParseErrorKind::Syntax,
+            error.to_string(),
+            Some(error.span().0),
+        )
     }
 }
 

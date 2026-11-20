@@ -1,4 +1,4 @@
 error: Syntax error
   |
 6 |     return f.1
-  |              ^ expected identifier
+  |              ^ found 'number 1' expected identifier

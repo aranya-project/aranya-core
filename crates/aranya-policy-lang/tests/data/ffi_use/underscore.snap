@@ -1,4 +1,4 @@
 error: Syntax error
   |
 1 | use _
-  |     ^ expected identifier
+  |     ^ found '_' expected identifier

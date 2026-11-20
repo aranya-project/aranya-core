@@ -1,2021 +1,1043 @@
-use std::{assert_matches, fmt};
-
-use aranya_policy_ast::{
-    self as ast, CheckStatement, CreateStatement, DeleteStatement, EnumDefinition, EnumReference,
-    ExprKind, Expression, FactField, FactLiteral, FieldDefinition, ForeignFunctionCall,
-    FunctionCall, Ident, IfStatement, IntLiteral, InternalFunction, LetStatement, MapStatement,
-    MatchArm, MatchExpression, MatchExpressionArm, MatchPattern, MatchStatement, NamedStruct,
-    Param, ResultTypeKind, ReturnStatement, Statement, StmtKind, Text, TypeKind, UpdateStatement,
-    VType, Version, ident,
-};
-use buggy::BugExt as _;
-use pest::{
-    Parser as _, Span,
-    pratt_parser::{Assoc, Op},
-};
-use tracing::warn;
-
 pub mod error;
-mod keywords;
 mod markdown;
+mod token;
+mod util;
 
-pub use self::markdown::{ChunkOffset, parse_policy_document};
+use aranya_policy_ast::{self as ast, WithSpanExt as _, ident};
+use chumsky::{Parser as _, input::Input as _, prelude::*};
+use logos::Logos as _;
+
+pub use self::markdown::parse_policy_document;
 use self::{
-    error::{ParseError, ParseErrorKind},
-    keywords::KEYWORDS,
+    error::{ParseError, Result},
+    token::{Token, token},
+    util::{Input, Parser, Span, ast_span, just},
 };
 
-pub type Result<T, E = ParseError> = core::result::Result<T, E>;
+/// Produce a token stream from policy source.
+fn lex<'i>(input: &'i str) -> impl Input<'i> {
+    let len = input.len();
 
-#[derive(pest_derive::Parser)]
-#[grammar = "lang/parse/policy.pest"]
-struct PolicyParser;
+    let token_iter = Token::lexer(input).spanned().map(|(tok, span)| match tok {
+        Ok(tok) => (tok, span.into()),
+        Err(()) => (Token::Error, span.into()),
+    });
 
-pub(crate) type Pair<'i> = pest::iterators::Pair<'i, Rule>;
-pub(crate) type Pairs<'i> = pest::iterators::Pairs<'i, Rule>;
-pub(crate) type PrattParser = pest::pratt_parser::PrattParser<Rule>;
-
-type FieldsAndSources = (Vec<(Ident, Expression)>, Vec<Ident>);
-
-/// Captures the iterator over a Pair's contents, and the span
-/// information for error reporting.
-struct PairContext<'i, 'p> {
-    pairs: Pairs<'i>,
-    span: Span<'i>,
-    chunk_parser: &'p ChunkParser<'p>,
+    chumsky::input::Stream::from_iter(token_iter).map((len..len).into(), |x| x)
 }
 
-impl<'i, 'p> PairContext<'i, 'p> {
-    fn location_error(&self) -> ParseError {
-        match self.chunk_parser.to_ast_span(self.span) {
-            Ok(span) => ParseError::new(
-                ParseErrorKind::Unknown,
-                format!("{:?}", self.span),
-                Some(span),
-            ),
-            Err(err) => err,
-        }
-    }
-
-    /// Returns the next token from the interior Pairs in case you want
-    /// to manipulate it directly.
-    fn next(&mut self) -> Option<Pair<'i>> {
-        self.pairs.next()
-    }
-
-    fn peek(&mut self) -> Option<Pair<'i>> {
-        self.pairs.peek()
-    }
-
-    /// Consumes the next Pair out of this context and returns it.
-    /// Errors if the next pair doesn't exist.
-    fn consume(&mut self) -> Result<Pair<'i>> {
-        self.next().ok_or_else(|| self.location_error())
-    }
-
-    /// Consumes the next Pair out of this context and returns it if
-    /// it matches the given type. Otherwise returns an error.
-    fn consume_of_type(&mut self, rule: Rule) -> Result<Pair<'i>> {
-        let token = self.consume()?;
-        if token.as_rule() != rule {
-            let span = self.chunk_parser.to_ast_span(token.as_span())?;
-            return Err(ParseError::new(
-                ParseErrorKind::Unknown,
-                format!("Got wrong rule: {:?} expected {:?}", token.as_rule(), rule),
-                Some(span),
-            ));
-        }
-        Ok(token)
-    }
-
-    /// Consumes the next Pair and returns it as a VType. Same error
-    /// conditions as [consume]
-    fn consume_type(&mut self, p: &ChunkParser) -> Result<VType> {
-        let token = self.consume()?;
-        let typ = p.parse_type(token)?;
-        Ok(typ)
-    }
-
-    fn consume_fact(&mut self, p: &ChunkParser) -> Result<FactLiteral> {
-        let token = self.consume_of_type(Rule::fact_literal)?;
-        p.parse_fact_literal(token)
-    }
-
-    /// Consumes the next Pair out of this context and returns it as an
-    /// [ast::Expression].
-    fn consume_expression(&mut self, p: &ChunkParser) -> Result<Expression> {
-        let token = self.consume_of_type(Rule::expression)?;
-        p.parse_expression(token)
-    }
-
-    /// Consumes the ParserContext and returns the inner Pairs.
-    /// Destroys the span context.
-    fn into_inner(self) -> Pairs<'i> {
-        self.pairs
-    }
-
-    /// Consumes the next Pair and returns it as an [`Ident`].
-    fn consume_ident(&mut self, parser: &ChunkParser) -> Result<Ident> {
-        let token = self.consume_of_type(Rule::identifier)?;
-        parser.parse_ident(token)
-    }
-
-    fn consume_optional(&mut self, rule: Rule) -> Option<Pair<'i>> {
-        self.peek()
-            .filter(|p| p.as_rule() == rule)
-            .inspect(|_| _ = self.next())
-    }
-}
-
-/// Context information for partial parsing of a chunk of source
-#[derive(Clone)]
-struct ChunkParser<'pratt> {
-    offset: usize,
-    pratt: &'pratt PrattParser,
-    source_len: usize,
-}
-
-impl<'pratt> ChunkParser<'pratt> {
-    pub fn new(offset: usize, pratt: &'pratt PrattParser, source_len: usize) -> Self {
-        Self {
-            offset,
-            pratt,
-            source_len,
-        }
-    }
-}
-
-impl ChunkParser<'_> {
-    /// Convert a Pest span to an AST span with offset
-    fn to_ast_span(&self, pest_span: Span) -> Result<ast::Span> {
-        // TODO(Steve): Figure out the spans for the errors returned here?
-
-        let start = pest_span.start().checked_add(self.offset).ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("span start overflow"),
-                None,
-            )
-        })?;
-        let end = pest_span.end().checked_add(self.offset).ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("span end overflow"),
-                None,
-            )
-        })?;
-
-        // Validate that the span doesn't exceed source bounds
-        if end > self.source_len {
-            return Err(ParseError::new(
-                ParseErrorKind::Unknown,
-                format!(
-                    "Span [{}, {}) exceeds source length {}",
-                    start, end, self.source_len
-                ),
-                None,
-            ));
-        }
-
-        Ok(ast::Span::new(start, end))
-    }
-
-    /// Parse an identifier with span
-    fn parse_ident(&self, token: Pair) -> Result<Ident> {
-        assert_eq!(token.as_rule(), Rule::identifier);
-
-        let span = self.to_ast_span(token.as_span())?;
-        let identifier = token.as_str();
-
-        if KEYWORDS.contains(&identifier) {
-            return Err(ParseError::new(
-                ParseErrorKind::ReservedIdentifier,
-                format!("found reserved identifier: `{identifier}`"),
-                Some(self.to_ast_span(token.as_span())?),
-            ));
-        }
-
-        let name = identifier
-            .parse()
-            .assume("grammar produces valid identifiers")
-            .map_err(|bug| {
-                ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), Some(span))
-            })?;
-        Ok(Ident { inner: name, span })
-    }
-
-    /// Parse a type token (one of the types under Rule::vtype) into a
-    /// Parse a type token into a VType.
-    fn parse_type(&self, token: Pair) -> Result<VType> {
-        self.parse_type_inner(token, TypeStyle::Unknown, None)
-    }
-
-    fn parse_type_inner(
-        &self,
-        token: Pair,
-        style: TypeStyle,
-        outer_span: Option<Span>,
-    ) -> Result<VType> {
-        let pest_span = token.as_span();
-        let span = self.to_ast_span(pest_span)?;
-        let kind = match token.as_rule() {
-            Rule::unit_t => TypeKind::Unit,
-            Rule::string_t => TypeKind::String,
-            Rule::bytes_t => TypeKind::Bytes,
-            Rule::int_t => TypeKind::Int,
-            Rule::bool_t => TypeKind::Bool,
-            Rule::id_t => TypeKind::Id,
-            Rule::struct_t => {
-                let mut pc = self.descend(token);
-                let name = pc.consume_ident(self)?;
-                TypeKind::Struct(name)
-            }
-            Rule::enum_t => {
-                let mut pc = self.descend(token);
-                let name = pc.consume_ident(self)?;
-                TypeKind::Enum(name)
-            }
-            Rule::optional_t => {
-                let is_old = token.as_str().starts_with("optional");
-                if is_old {
-                    use std::sync::atomic::AtomicBool;
-                    static WARNED: AtomicBool = AtomicBool::new(false);
-                    if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                        warn!(
-                            "`optional T` is being replaced with `option[T]` soon. Consider replacing all uses now to avoid later breakage."
-                        );
-                    }
-                }
-
-                // Disallow mixing old and new optional syntax.
-                if style == TypeStyle::Old || (is_old && style == TypeStyle::New) {
-                    let outer_span = outer_span.assume("outer span was passed in")?;
-                    let outer_ast_span = self.to_ast_span(outer_span)?;
-                    return Err(ParseError::new(
-                        error::InvalidNestedOption {
-                            outer: outer_ast_span,
-                            inner: span,
-                        },
-                        String::from("Unable to use `optional T` for nested optional types."),
-                        Some(self.to_ast_span(outer_span)?),
-                    ));
-                }
-
-                let style = if is_old {
-                    TypeStyle::Old
-                } else {
-                    TypeStyle::New
-                };
-                let mut pairs = token.into_inner();
-                let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no type following optional"),
-                        Some(span),
-                    )
-                })?;
-                let inner_type = self.parse_type_inner(token, style, Some(pest_span))?;
-
-                // Disallow nested optionals for old syntax
-                if is_old && matches!(inner_type.inner, TypeKind::Optional(_)) {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidType,
-                        String::from("Cannot nest optional types with `optional T` syntax"),
-                        Some(self.to_ast_span(pest_span)?),
-                    ));
-                }
-
-                TypeKind::Optional(Box::new(inner_type))
-            }
-            Rule::result_t => {
-                if style == TypeStyle::Old {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidType,
-                        String::from(
-                            "Replace `optional T` with the new `option[T]` to use complex types",
-                        ),
-                        Some(self.to_ast_span(pest_span)?),
-                    ));
-                }
-
-                let mut pairs = token.into_inner();
-                let ok_token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no ok type following result"),
-                        Some(span),
-                    )
-                })?;
-                let ok_type = self.parse_type_inner(ok_token, TypeStyle::New, Some(pest_span))?;
-
-                let err_token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no err type following result"),
-                        Some(span),
-                    )
-                })?;
-                let err_type = self.parse_type_inner(err_token, TypeStyle::New, Some(pest_span))?;
-
-                TypeKind::Result(Box::new(ResultTypeKind {
-                    ok: ok_type,
-                    err: err_type,
-                }))
-            }
-            _ => {
-                return Err(ParseError::new(
-                    ParseErrorKind::InvalidType,
-                    format!("{:?} {}", token.as_rule(), token.as_str().to_owned()),
-                    Some(self.to_ast_span(token.as_span())?),
-                ));
-            }
-        };
-        Ok(VType { inner: kind, span })
-    }
-
-    /// Parse a Rule::field_definition token into a FieldDef.
-    fn parse_field_definition(&self, field: Pair) -> Result<FieldDefinition> {
-        let mut pc = self.descend(field);
-        let name = pc.consume_ident(self)?;
-        let vtype = self.parse_type(pc.next().ok_or_else(|| {
-            self.to_ast_span(pc.span).map_or_else(
-                |err| err,
-                |span| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("missing type in field definition"),
-                        Some(span),
-                    )
-                },
-            )
-        })?)?;
-
-        Ok(FieldDefinition { name, vtype })
-    }
-
-    /// Parse a Rule::field_definition token into a Param.
-    fn parse_parameter(&self, field: Pair) -> Result<Param> {
-        let field = self.parse_field_definition(field)?;
-        Ok(Param {
-            name: field.name,
-            vtype: field.vtype,
-        })
-    }
-
-    /// Parse a Rule::string_literal into a String.
-    ///
-    /// Processes \\, \n, and \xNN escapes.
-    fn parse_string_literal(&self, string: Pair) -> Result<Text> {
-        #![allow(
-            clippy::arithmetic_side_effects,
-            reason = "span calculations are all valid since they are subspans of the full string span"
-        )]
-
-        let contents = {
-            let full_str = string.as_str();
-            &full_str[1..full_str.len() - 1]
-        };
-
-        let content_span_start = {
-            let full_span = self.to_ast_span(string.as_span())?;
-            full_span.start() + 1
-        };
-
-        let mut it = contents.bytes().enumerate();
-        let mut out: Vec<u8> = Vec::new();
-        while let Some((idx0, byte0)) = it.next() {
-            let byte0_span_start = content_span_start + idx0;
-            match byte0 {
-                b'\\' => {
-                    let (idx1, byte1) = it.next().assume("byte must follow escape")?;
-                    match byte1 {
-                        b'x' => {
-                            let mut value = 0_u8;
-
-                            for nibble_idx in 0..2 {
-                                let Some((hex_idx, hex_byte)) = it.next() else {
-                                    let span = ast::Span::new(
-                                        byte0_span_start,
-                                        byte0_span_start + 2 + nibble_idx,
-                                    );
-                                    return Err(ParseError::new(
-                                        ParseErrorKind::InvalidString,
-                                        String::from("hex character escape is too short"),
-                                        Some(span),
-                                    ));
-                                };
-                                let Some(nibble) = hex_char_to_nibble(hex_byte) else {
-                                    let nonhex_char_length = contents[hex_idx..]
-                                        .chars()
-                                        .next()
-                                        .assume("char is present")?
-                                        .len_utf8();
-                                    let start = content_span_start + hex_idx;
-                                    let span = ast::Span::new(start, start + nonhex_char_length);
-                                    return Err(ParseError::new(
-                                        ParseErrorKind::InvalidString,
-                                        String::from("invalid character in hex character escape"),
-                                        Some(span),
-                                    ));
-                                };
-                                value = value << 4 | nibble;
-                            }
-
-                            if !(0x01..=0x7F).contains(&value) {
-                                let span = ast::Span::new(byte0_span_start, byte0_span_start + 4);
-                                return Err(ParseError::new(
-                                    ParseErrorKind::InvalidString,
-                                    String::from(
-                                        "hex character escape is out of range [0x01, 0x7F]",
-                                    ),
-                                    Some(span),
-                                ));
-                            }
-                            out.push(value);
-                        }
-                        b'n' => {
-                            out.push(b'\n');
-                        }
-                        b'\\' => {
-                            out.push(b'\\');
-                        }
-                        b'"' => {
-                            out.push(b'"');
-                        }
-                        b'\n' => {
-                            let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
-                            return Err(ParseError::new(
-                                ParseErrorKind::InvalidString,
-                                String::from("cannot end line with escape"),
-                                Some(span),
-                            ));
-                        }
-                        _ => {
-                            let bad_escape_char =
-                                contents[idx1..].chars().next().assume("char is present")?;
-                            let end = byte0_span_start + 1 + bad_escape_char.len_utf8();
-                            let span = ast::Span::new(byte0_span_start, end);
-                            return Err(ParseError::new(
-                                ParseErrorKind::InvalidString,
-                                format!(
-                                    "unknown character escape: `{}`",
-                                    bad_escape_char.escape_default()
-                                ),
-                                Some(span),
-                            ));
-                        }
-                    }
-                }
-                b'\0' => {
-                    let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidString,
-                        String::from("string contains null byte"),
-                        Some(span),
-                    ));
-                }
-                b'"' => break,
-                _ => out.push(byte0),
-            }
-        }
-
-        Ok(str::from_utf8(&out)
-            .assume("valid utf8")?
-            .parse()
-            .assume("valid text")?)
-    }
-
-    /// Parse a match pattern from a match_arm_expression token.
-    fn parse_match_pattern(&self, token: Pair) -> Result<MatchPattern> {
-        assert_eq!(token.as_rule(), Rule::match_arm_expression);
-
-        let values = token
-            .into_inner()
-            .map(|token| self.parse_expression(token))
-            .collect::<Result<Vec<Expression>>>()?;
-
-        Ok(MatchPattern::Values(values))
-    }
-
-    fn parse_named_struct_literal(&self, named_struct: Pair) -> Result<NamedStruct> {
-        let span = self.to_ast_span(named_struct.as_span())?;
-        let mut pc = self.descend(named_struct);
-        let name = pc.consume_ident(self)?;
-
-        // key/expression pairs follow the identifier
-        let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
-        Ok(NamedStruct {
-            name,
-            fields,
-            sources,
-            span,
-        })
-    }
-
-    fn parse_function_call(&self, call: Pair) -> Result<FunctionCall> {
-        let mut pc = self.descend(call);
-        let name = pc.consume_ident(self)?;
-
-        // all following tokens are function arguments
-        let mut arguments = vec![];
-        for arg in pc.into_inner() {
-            let expr = self.parse_expression(arg)?;
-            arguments.push(expr);
-        }
-        Ok(FunctionCall { name, arguments })
-    }
-
-    /// Parses the inner `function_call` out of a `recall_statement` or
-    /// `recall_expression` rule. The body of both rules is identical.
-    fn parse_recall_call(&self, recall: Pair) -> Result<FunctionCall> {
-        let mut pc = self.descend(recall);
-        let fc_token = pc.consume_of_type(Rule::function_call)?;
-        self.parse_function_call(fc_token)
-    }
-
-    fn parse_foreign_function_call(&self, call: Pair) -> Result<ForeignFunctionCall> {
-        let mut pc = self.descend(call);
-        let module = pc.consume_ident(self)?;
-        let function_call = pc.consume_of_type(Rule::function_call)?;
-
-        let function = self.parse_function_call(function_call)?;
-
-        Ok(ForeignFunctionCall {
-            module,
-            function: function.name,
-            arguments: function.arguments,
-        })
-    }
-
-    pub fn parse_atom(&self, primary: Pair) -> Result<Expression> {
-        let span = self.to_ast_span(primary.as_span())?;
-        let kind = match primary.as_rule() {
-            Rule::unit_literal => ExprKind::Unit,
-            Rule::int_literal => {
-                let n = primary.as_str().parse::<i64>().map_err(|e| {
-                    let message = e.to_string().replace("target type", "`int`");
-                    ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
-                })?;
-                ExprKind::Int(IntLiteral::new(n, span))
-            }
-            Rule::string_literal => {
-                let s = self.parse_string_literal(primary)?;
-                ExprKind::String(s)
-            }
-            Rule::bool_literal => {
-                let mut pairs = primary.into_inner();
-                let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("bad bool expression"),
-                        Some(span),
-                    )
-                })?;
-                match token.as_rule() {
-                    Rule::btrue => ExprKind::Bool(true),
-                    Rule::bfalse => ExprKind::Bool(false),
-                    t => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            format!("impossible token: {:?}", t),
-                            Some(span),
-                        ));
-                    }
-                }
-            }
-            Rule::optional_literal => {
-                let mut pairs = primary.into_inner();
-                let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no token in optional literal"),
-                        Some(span),
-                    )
-                })?;
-                let opt_expr = match token.as_rule() {
-                    Rule::none => None,
-                    Rule::some => {
-                        let token = pairs.next().ok_or_else(|| {
-                            ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("bad Some expression"),
-                                Some(span),
-                            )
-                        })?;
-                        let e = self.parse_expression(token)?;
-                        Some(Box::new(e))
-                    }
-                    t => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            format!("invalid token in optional: {:?}", t),
-                            Some(span),
-                        ));
-                    }
-                };
-                ExprKind::Optional(opt_expr)
-            }
-            Rule::result_literal => {
-                let token = primary.into_inner().next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no token in result literal"),
-                        Some(span),
-                    )
-                })?;
-                match token.as_rule() {
-                    Rule::ok => {
-                        let v = token.into_inner().next().ok_or_else(|| {
-                            ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("no value in Ok expression"),
-                                Some(span),
-                            )
-                        })?;
-                        let expr = self.parse_expression(v)?;
-                        ExprKind::Ok(Box::new(expr))
-                    }
-                    Rule::err => {
-                        let v = token.into_inner().next().ok_or_else(|| {
-                            ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("no value in Err expression"),
-                                Some(span),
-                            )
-                        })?;
-                        let expr = self.parse_expression(v)?;
-                        ExprKind::Err(Box::new(expr))
-                    }
-                    _ => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            format!("invalid token in result_literal: {:?}", token.as_rule()),
-                            Some(span),
-                        ));
-                    }
-                }
-            }
-            Rule::named_struct_literal => {
-                let ns = self.parse_named_struct_literal(primary)?;
-                ExprKind::NamedStruct(ns)
-            }
-            Rule::function_call => {
-                let fc = self.parse_function_call(primary)?;
-                ExprKind::FunctionCall(fc)
-            }
-            Rule::foreign_function_call => {
-                let ffc = self.parse_foreign_function_call(primary)?;
-                ExprKind::ForeignFunctionCall(ffc)
-            }
-            Rule::action_call => {
-                let fc = self.parse_action_call(primary)?;
-                ExprKind::ActionCall(fc)
-            }
-            Rule::return_expression => {
-                let mut pc = self.descend(primary);
-                let expression = pc.consume_expression(self)?;
-                ExprKind::Return(Box::new(expression))
-            }
-            Rule::recall_expression => {
-                let fc = self.parse_recall_call(primary)?;
-                ExprKind::Recall(fc)
-            }
-            Rule::enum_reference => {
-                let er = self.parse_enum_reference(primary)?;
-                ExprKind::EnumReference(er)
-            }
-            Rule::query => {
-                let mut pairs = primary.into_inner();
-                let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("query requires fact literal"),
-                        Some(span),
-                    )
-                })?;
-                let fact_literal = self.parse_fact_literal(token)?;
-                ExprKind::InternalFunction(InternalFunction::Query(fact_literal))
-            }
-            Rule::exists => {
-                let mut pairs = primary.into_inner();
-                let token = pairs.next().ok_or_else(|| {
-                    ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("exists requires fact literal"),
-                        Some(span),
-                    )
-                })?;
-                let fact_literal = self.parse_fact_literal(token)?;
-                ExprKind::InternalFunction(InternalFunction::Exists(fact_literal))
-            }
-            Rule::count_up_to => self.parse_counting_fn(primary, ast::FactCountType::UpTo(span))?,
-            Rule::at_least => self.parse_counting_fn(primary, ast::FactCountType::AtLeast(span))?,
-            Rule::at_most => self.parse_counting_fn(primary, ast::FactCountType::AtMost(span))?,
-            Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly(span))?,
-            Rule::match_expression => self.parse_match_expression(primary)?,
-            Rule::if_expr => self.parse_if_expression(primary)?,
-            Rule::this => ExprKind::Identifier(Ident {
-                inner: ident!("this"),
-                span,
-            }),
-            Rule::envelope => ExprKind::Identifier(Ident {
-                inner: ident!("envelope"),
-                span,
-            }),
-            Rule::todo => ExprKind::InternalFunction(InternalFunction::Todo(span)),
-            Rule::test_fail => {
-                let mut pairs = primary.into_inner();
-                let msg = pairs
-                    .next()
-                    .map(|t| self.parse_string_literal(t))
-                    .transpose()?;
-                ExprKind::InternalFunction(InternalFunction::TestFail(msg, span))
-            }
-            Rule::identifier => {
-                let ident = self.parse_ident(primary)?;
-                ExprKind::Identifier(ident)
-            }
-            Rule::block_expression => return self.parse_block_expression(primary),
-            Rule::expression => return self.parse_expression(primary),
-            _ => {
-                return Err(ParseError::new(
-                    ParseErrorKind::Expression,
-                    format!("bad atom: {:?}", primary.as_rule()),
-                    Some(span),
-                ));
-            }
-        };
-        Ok(Expression { inner: kind, span })
-    }
-
-    pub fn parse_prefix(&self, op: Pair, rhs: Expression) -> Result<Expression> {
-        let op_span = self.to_ast_span(op.as_span())?;
-        let combined_span = op_span.merge(rhs.span);
-
-        let kind = match op.as_rule() {
-            Rule::not => ExprKind::Not(Box::new(rhs)),
-            _ => {
-                return Err(ParseError::new(
-                    ParseErrorKind::Expression,
-                    format!("bad prefix: {:?}", op.as_rule()),
-                    Some(op_span),
-                ));
-            }
-        };
-        Ok(Expression {
-            inner: kind,
-            span: combined_span,
-        })
-    }
-
-    pub fn parse_postfix(&self, lhs: Expression, op: Pair) -> Result<Expression> {
-        let op_span = self.to_ast_span(op.as_span())?;
-        let combined_span = lhs.span.merge(op_span);
-
-        let kind = match op.as_rule() {
-            Rule::is => {
-                let mut pairs = op.into_inner();
-                let some = match pairs.next().map(|token| token.as_rule()) {
-                    Some(Rule::some) => true,
-                    Some(Rule::none) => false,
-                    _ => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Bug,
-                            "'some' or 'none' must follow 'is'".to_owned(),
-                            None,
-                        ));
-                    }
-                };
-                ExprKind::Is(Box::new(lhs), some)
-            }
-            Rule::dot => {
-                let mut pc = self.descend(op);
-                let s = pc.consume_ident(self)?;
-                ExprKind::Dot(Box::new(lhs), s)
-            }
-            Rule::substruct => {
-                let mut pc = self.descend(op);
-                let s = pc.consume_ident(self)?;
-                ExprKind::Substruct(Box::new(lhs), s)
-            }
-            Rule::cast => {
-                let mut pc = self.descend(op);
-                let s = pc.consume_ident(self)?;
-                ExprKind::Cast(Box::new(lhs), s)
-            }
-            Rule::try_op => ExprKind::Try(Box::new(lhs)),
-            _ => {
-                return Err(ParseError::new(
-                    ParseErrorKind::Expression,
-                    format!("bad postfix: {:?}", op.as_rule()),
-                    Some(op_span),
-                ));
-            }
-        };
-        Ok(Expression {
-            inner: kind,
-            span: combined_span,
-        })
-    }
-
-    pub fn parse_infix(
-        &self,
-        expr_span: ast::Span,
-        lhs: Expression,
-        op: Pair,
-        rhs: Expression,
-    ) -> Result<Expression> {
-        let combined_span = lhs.span.merge(rhs.span);
-
-        let op_span = self.to_ast_span(op.as_span())?;
-        let kind = match op.as_rule() {
-            Rule::add => {
-                return Err(ParseError::new(
-                    error::InvalidOperator {
-                        lhs: lhs.span,
-                        rhs: rhs.span,
-                        op: op_span,
-                    },
-                    String::from("found `+`"),
-                    Some(expr_span),
-                ));
-            }
-            Rule::subtract => {
-                return Err(ParseError::new(
-                    error::InvalidOperator {
-                        lhs: lhs.span,
-                        rhs: rhs.span,
-                        op: op_span,
-                    },
-                    String::from("found `-`"),
-                    Some(expr_span),
-                ));
-            }
-            Rule::and => ExprKind::And(Box::new(lhs), Box::new(rhs)),
-            Rule::or => ExprKind::Or(Box::new(lhs), Box::new(rhs)),
-            Rule::coalesce => ExprKind::Coalesce(Box::new(lhs), Box::new(rhs)),
-            Rule::equal => ExprKind::Equal(Box::new(lhs), Box::new(rhs)),
-            Rule::not_equal => ExprKind::NotEqual(Box::new(lhs), Box::new(rhs)),
-            Rule::greater_than => ExprKind::GreaterThan(Box::new(lhs), Box::new(rhs)),
-            Rule::less_than => ExprKind::LessThan(Box::new(lhs), Box::new(rhs)),
-            Rule::greater_than_or_equal => {
-                ExprKind::GreaterThanOrEqual(Box::new(lhs), Box::new(rhs))
-            }
-            Rule::less_than_or_equal => ExprKind::LessThanOrEqual(Box::new(lhs), Box::new(rhs)),
-            _ => {
-                return Err(ParseError::new(
-                    ParseErrorKind::Expression,
-                    format!("bad infix: {:?}", op.as_rule()),
-                    Some(op_span),
-                ));
-            }
-        };
-        Ok(Expression {
-            inner: kind,
-            span: combined_span,
-        })
-    }
-
-    /// Parses a Rule::expression into an Expression
-    ///
-    /// This uses the PrattParser to parse the syntax tree. As a part of
-    /// that process, it will further parse some atoms like function calls
-    /// and queries.
-    ///
-    /// The resulting expression tree is degree 2 - all operations are
-    /// either unary or binary. That means a string of operators with
-    /// equivalent precedence will create a lopsided tree. For example:
-    ///
-    /// `A + B + C` => `Add(Add(A, B), C)`
-    pub fn parse_expression(&self, expr: Pair) -> Result<Expression> {
-        assert_eq!(expr.as_rule(), Rule::expression);
-        let expr_span = self.to_ast_span(expr.as_span())?;
-        let pairs = expr.into_inner();
-
-        self.pratt
-            .map_primary(|primary| self.parse_atom(primary))
-            .map_prefix(|op, rhs| self.parse_prefix(op, rhs?))
-            .map_infix(|lhs, op, rhs| self.parse_infix(expr_span, lhs?, op, rhs?))
-            .map_postfix(|lhs, op| self.parse_postfix(lhs?, op))
-            .parse(pairs)
-    }
-
-    fn parse_block_expression(&self, expr: Pair) -> Result<Expression> {
-        let span = self.to_ast_span(expr.as_span())?;
-        let mut pc = self.descend(expr);
-        let statements = pc.consume()?.into_inner();
-        let statement_list = self.parse_statement_list(statements)?;
-        let inner_expr = pc.consume_expression(self)?;
-        let stmt_vec = statement_list;
-        Ok(Expression {
-            inner: ExprKind::Block(stmt_vec, Box::new(inner_expr)),
-            span,
-        })
-    }
-
-    fn parse_match_expression(&self, expr: Pair) -> Result<ExprKind> {
-        let mut pc = self.descend(expr);
-        let scrutinee = pc.consume_expression(self)?;
-
-        // All remaining tokens are match arms
-        let mut arms = vec![];
-        for arm in pc.into_inner() {
-            assert_eq!(arm.as_rule(), Rule::match_expression_arm);
-            let arm_span = self.to_ast_span(arm.as_span())?;
-            let mut pc = self.descend(arm);
-            let token = pc.consume()?;
-
-            let pest_span = token.as_span();
-            let span = self.to_ast_span(pest_span)?;
-            let pattern = match token.as_rule() {
-                Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => self.parse_match_pattern(token)?,
-                _ => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in match arm"),
-                        Some(self.to_ast_span(token.as_span())?),
-                    ));
-                }
-            };
-
-            // Remaining tokens are policy statements
-            let body = self.parse_expression(pc.consume()?)?;
-
-            arms.push(MatchExpressionArm {
-                pattern,
-                body,
-                span: arm_span,
-            });
-        }
-
-        Ok(ExprKind::Match(Box::new(MatchExpression {
-            scrutinee,
-            arms,
-        })))
-    }
-
-    fn parse_counting_fn(&self, statement: Pair, cmp_type: ast::FactCountType) -> Result<ExprKind> {
-        let span = self.to_ast_span(statement.as_span())?;
-        let mut pairs = statement.into_inner();
-
-        let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Expression,
-                format!("{} requires count limit (int)", cmp_type),
-                Some(span),
-            )
-        })?;
-        let token_span = self.to_ast_span(token.as_span())?;
-        let limit = token
-            .as_str()
-            .parse::<i64>()
-            .map(|int| IntLiteral::new(int, token_span))
-            .map_err(|e| {
-                let message = e.to_string().replace("target type", "`int`");
-                ParseError::new(ParseErrorKind::InvalidNumber, message, Some(span))
-            })?;
-        let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Expression,
-                format!("{} requires fact literal", cmp_type),
-                Some(span),
-            )
-        })?;
-        let fact = self.parse_fact_literal(token)?;
-        Ok(ExprKind::InternalFunction(InternalFunction::FactCount(
-            cmp_type, limit, fact,
-        )))
-    }
-
-    fn parse_if_expression(&self, expr: Pair) -> Result<ExprKind> {
-        let span = self.to_ast_span(expr.as_span())?;
-        let mut pairs = expr.into_inner();
-
-        let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::InvalidFunctionCall,
-                String::from("if requires expression"),
-                Some(span),
-            )
-        })?;
-        let condition = self.parse_expression(token)?;
-
-        let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::InvalidFunctionCall,
-                String::from("if requires then case"),
-                Some(span),
-            )
-        })?;
-        let then_expr = self.parse_block_expression(token)?;
-
-        let token = pairs.next().ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::InvalidFunctionCall,
-                String::from("if requires else case"),
-                Some(span),
-            )
-        })?;
-        let else_expr = self.parse_block_expression(token)?;
-
-        Ok(ExprKind::InternalFunction(InternalFunction::If(
-            Box::new(condition),
-            Box::new(then_expr),
-            Box::new(else_expr),
-        )))
-    }
-
-    /// Parses a list of Rule::struct_data items into lists of (String,
-    /// Expression) pairs and Strings for literal fields and struct compositions, respectively.
-    fn parse_struct_data(&self, fields: Pairs) -> Result<FieldsAndSources> {
-        let mut field_expressions = vec![];
-        let mut sources = vec![];
-
-        for field in fields {
-            let rule_kind = field.as_rule();
-            let mut pc = self.descend(field);
-            match rule_kind {
-                Rule::struct_literal_field => {
-                    let identifier = pc.consume_ident(self)?;
-                    let expression = match pc.consume_optional(Rule::expression) {
-                        Some(token) => self.parse_expression(token)?,
-                        None => Expression {
-                            inner: ExprKind::Identifier(identifier.clone()),
-                            span: identifier.span,
-                        },
-                    };
-                    field_expressions.push((identifier, expression));
-                }
-                Rule::struct_composition => {
-                    let identifier = pc.consume_ident(self)?;
-                    sources.push(identifier);
-                }
-                _ => return Err(pc.location_error()),
-            }
-        }
-
-        Ok((field_expressions, sources))
-    }
-
-    fn parse_fact_literal_fields(&self, fields: Pairs) -> Result<Vec<(Ident, FactField)>> {
-        let mut out = vec![];
-
-        for field in fields {
-            let mut pc = self.descend(field);
-            let identifier = pc.consume_ident(self)?;
-
-            let field = match pc.next().map(|token| (token.as_rule(), token)) {
-                None => FactField::Expression(Expression {
-                    inner: ExprKind::Identifier(identifier.clone()),
-                    span: identifier.span,
-                }),
-                Some((Rule::expression, token)) => {
-                    FactField::Expression(self.parse_expression(token)?)
-                }
-                Some((Rule::bind, token)) => FactField::Bind(self.to_ast_span(token.as_span())?),
-                Some((_, token)) => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in fact field"),
-                        Some(self.to_ast_span(token.as_span())?),
-                    ));
-                }
-            };
-            out.push((identifier, field));
-        }
-
-        Ok(out)
-    }
-
-    fn parse_action_call(&self, item: Pair) -> Result<FunctionCall> {
-        assert_eq!(item.as_rule(), Rule::action_call);
-
-        let mut pc = self.descend(item);
-        let fn_call = pc.consume()?;
-        let action_call = self.parse_function_call(fn_call)?;
-        Ok(action_call)
-    }
-
-    /// Parse a Rule::publish_statement into an PublishStatement.
-    fn parse_publish_statement(&self, item: Pair) -> Result<Expression> {
-        assert_eq!(item.as_rule(), Rule::publish_statement);
-
-        let mut pc = self.descend(item);
-        let expression = pc.consume_expression(self)?;
-
-        Ok(expression)
-    }
-
-    /// Parse a Rule::fact_literal into a FactLiteral.
-    fn parse_fact_literal(&self, fact: Pair) -> Result<FactLiteral> {
-        let mut pc = self.descend(fact);
-        let name = pc.consume_ident(self)?;
-
-        let token = pc.consume_of_type(Rule::fact_literal_key)?;
-        let key_fields = self.parse_fact_literal_fields(token.into_inner())?;
-
-        let value_fields = if pc.peek().is_some() {
-            let token = pc.consume_of_type(Rule::fact_literal_value)?;
-            Some(self.parse_fact_literal_fields(token.into_inner())?)
-        } else {
-            None
-        };
-
-        Ok(FactLiteral {
-            name,
-            key_fields,
-            value_fields,
-        })
-    }
-
-    /// Parse a Rule::let_statement into a LetStatement.
-    fn parse_let_statement(&self, item: Pair) -> Result<LetStatement> {
-        let mut pc = self.descend(item);
-        let name = pc.consume_ident(self)?;
-        let value = pc.consume_expression(self)?;
-
-        Ok(LetStatement { name, value })
-    }
-
-    /// Parse a Rule::check_statement into a CheckStatement.
-    fn parse_check_statement(&self, item: Pair) -> Result<CheckStatement> {
-        let mut pc = self.descend(item);
-        let condition = pc.consume_expression(self)?;
-        let else_expression = pc.consume_expression(self)?;
-        Ok(CheckStatement {
-            condition,
-            else_expression,
-        })
-    }
-
-    /// Parse a Rule::match_statement into a MatchStatement.
-    fn parse_match_statement(&self, item: Pair) -> Result<MatchStatement> {
-        let mut pc = self.descend(item);
-        let scrutinee = pc.consume_expression(self)?;
-
-        // All remaining tokens are match arms
-        let mut arms = vec![];
-        for arm in pc.into_inner() {
-            assert_eq!(arm.as_rule(), Rule::match_arm);
-            let mut pc = self.descend(arm);
-            let token = pc.consume()?;
-
-            let pest_span = token.as_span();
-            let span = self.to_ast_span(pest_span)?;
-            let pattern = match token.as_rule() {
-                Rule::match_default => MatchPattern::Default(span),
-                Rule::match_arm_expression => self.parse_match_pattern(token)?,
-                _ => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("invalid token in match arm"),
-                        Some(self.to_ast_span(token.as_span())?),
-                    ));
-                }
-            };
-
-            // Remaining tokens are policy statements
-            let body = self.parse_statement_list(pc.into_inner())?;
-
-            arms.push(MatchArm { pattern, body });
-        }
-
-        Ok(MatchStatement { scrutinee, arms })
-    }
-
-    /// Parse a rule::if_statement into a IfStatement
-    fn parse_if_statement(&self, item: Pair) -> Result<IfStatement> {
-        let pc = self.descend(item);
-
-        let mut branches = Vec::new();
-        let mut fallback = None;
-
-        let mut iter = pc.into_inner();
-        while let Some(first) = iter.next() {
-            if let Some(second) = iter.next() {
-                let cond = self.parse_expression(first)?;
-                let block = self.parse_statement_list(second.into_inner())?;
-                branches.push((cond, block));
-            } else {
-                let statements = self.parse_statement_list(first.into_inner())?;
-                fallback = Some(statements);
-            }
-        }
-
-        Ok(IfStatement { branches, fallback })
-    }
-
-    /// Parse a Rule::create_statement into a CreateStatement.
-    fn parse_create_statement(&self, item: Pair) -> Result<CreateStatement> {
-        let mut pc = self.descend(item);
-        let fact = pc.consume_fact(self)?;
-
-        Ok(CreateStatement { fact })
-    }
-
-    /// Parse a Rule::update_statement into an UpdateStatement.
-    fn parse_update_statement(&self, item: Pair) -> Result<UpdateStatement> {
-        assert_eq!(item.as_rule(), Rule::update_statement);
-
-        let mut pc = self.descend(item);
-        let fact = pc.consume_fact(self)?;
-
-        let token = pc.consume_of_type(Rule::fact_literal_value)?;
-        let to = self.parse_fact_literal_fields(token.into_inner())?;
-
-        Ok(UpdateStatement { fact, to })
-    }
-
-    /// Parse a Rule::delete_statement into a DeleteStatement.
-    fn parse_delete_statement(&self, item: Pair) -> Result<DeleteStatement> {
-        let mut pc = self.descend(item);
-        let fact = pc.consume_fact(self)?;
-
-        Ok(DeleteStatement { fact })
-    }
-
-    /// Parse a Rule::emit_statement into an EmitStatement.
-    fn parse_emit_statement(&self, item: Pair) -> Result<Expression> {
-        assert_eq!(item.as_rule(), Rule::emit_statement);
-
-        let mut pc = self.descend(item);
-        let expression = pc.consume_expression(self)?;
-
-        Ok(expression)
-    }
-
-    /// Parse a Rule::effect_statement into an DebugAssert.
-    fn parse_debug_assert_statement(&self, item: Pair) -> Result<Expression> {
-        assert_eq!(item.as_rule(), Rule::debug_assert);
-
-        let mut pc = self.descend(item);
-        let expression = pc.consume_expression(self)?;
-
-        Ok(expression)
-    }
-
-    /// Parse a list of statements inside a finish block.
-    ///
-    /// Valid in this context:
-    /// - [CreateStatement](ast::CreateStatement)
-    /// - [UpdateStatement](ast::UpdateStatement)
-    /// - [DeleteStatement](ast::DeleteStatement)
-    /// - [EffectStatement](ast::EffectStatement)
-    fn parse_statement_list(&self, list: Pairs) -> Result<Vec<Statement>> {
-        let mut statements = vec![];
-        for statement in list {
-            let span = self.to_ast_span(statement.as_span())?;
-            let kind = match statement.as_rule() {
-                Rule::let_statement => StmtKind::Let(self.parse_let_statement(statement)?),
-                Rule::action_call => {
-                    let fc = self.parse_action_call(statement)?;
-                    StmtKind::ActionCall(fc)
-                }
-                Rule::publish_statement => {
-                    StmtKind::Publish(self.parse_publish_statement(statement)?)
-                }
-                Rule::check_statement => StmtKind::Check(self.parse_check_statement(statement)?),
-                Rule::match_statement => StmtKind::Match(self.parse_match_statement(statement)?),
-                Rule::if_statement => StmtKind::If(self.parse_if_statement(statement)?),
-                Rule::finish_statement => {
-                    let pairs = statement.into_inner();
-                    let finish_stmts = self.parse_statement_list(pairs)?;
-                    StmtKind::Finish(finish_stmts)
-                }
-                Rule::map_statement => StmtKind::Map(self.parse_map_statement(statement)?),
-                Rule::create_statement => StmtKind::Create(self.parse_create_statement(statement)?),
-                Rule::update_statement => StmtKind::Update(self.parse_update_statement(statement)?),
-                Rule::delete_statement => StmtKind::Delete(self.parse_delete_statement(statement)?),
-                Rule::emit_statement => StmtKind::Emit(self.parse_emit_statement(statement)?),
-                Rule::function_call => StmtKind::FunctionCall(self.parse_function_call(statement)?),
-                Rule::debug_assert => {
-                    StmtKind::DebugAssert(self.parse_debug_assert_statement(statement)?)
-                }
-                Rule::return_statement => {
-                    let mut pc = self.descend(statement);
-                    let inner_expr_token = pc.consume()?;
-                    let value = self.parse_expression(inner_expr_token)?;
-                    StmtKind::Return(ReturnStatement { value })
-                }
-                Rule::recall_statement => StmtKind::Recall(self.parse_recall_call(statement)?),
-                s => {
-                    return Err(ParseError::new(
-                        ParseErrorKind::InvalidStatement,
-                        format!("found invalid rule `{:?}`", s),
-                        Some(span),
-                    ));
-                }
-            };
-            statements.push(Statement { inner: kind, span });
-        }
-
-        Ok(statements)
-    }
-
-    fn parse_map_statement(&self, field: Pair) -> Result<MapStatement> {
-        assert_eq!(field.as_rule(), Rule::map_statement);
-        let mut pc = self.descend(field);
-        let pair = pc.consume()?;
-        let fact = self.parse_fact_literal(pair)?;
-        let identifier = pc.consume_ident(self)?;
-        let body = self.parse_statement_list(pc.into_inner())?;
-
-        Ok(MapStatement {
-            fact,
-            identifier,
-            body,
-        })
-    }
-
-    fn parse_use_definition(&self, field: Pair) -> Result<Ident> {
-        let mut pc = self.descend(field);
-        pc.consume_ident(self)
-    }
-
-    /// Parse a Rule::fact_definition into a FactDefinition.
-    fn parse_fact_definition(&self, field: Pair) -> Result<ast::FactDefinition> {
-        let span = self.to_ast_span(field.as_span())?;
-        let mut pc = self.descend(field);
-        let token = pc.consume()?;
-
-        let (immutable, token) = if token.as_rule() == Rule::immutable_modifier {
-            (true, pc.consume_of_type(Rule::fact_signature)?)
-        } else {
-            (false, token)
-        };
-
-        let mut pc = self.descend(token);
-        let name = pc.consume_ident(self)?;
-        let token = pc.consume_of_type(Rule::fact_signature_key)?;
-        let mut keys = vec![];
-        for field in token.into_inner() {
-            keys.push(self.parse_field_definition(field)?);
-        }
-
-        let token = pc.consume_of_type(Rule::fact_signature_value)?;
-        let mut values = vec![];
-        for field in token.into_inner() {
-            values.push(self.parse_field_definition(field)?);
-        }
-
-        Ok(ast::FactDefinition {
-            immutable,
-            name,
-            keys,
-            values,
-            span,
-        })
-    }
-
-    /// Parse a `Rule::action_definition` into an [ActionDefinition](ast::ActionDefinition).
-    fn parse_action_definition(&self, item: Pair) -> Result<ast::ActionDefinition> {
-        assert_eq!(item.as_rule(), Rule::action_definition);
-
-        let span = self.to_ast_span(item.as_span())?;
-        let mut pc = self.descend(item);
-
-        let flavor = pc.consume_ident(self)?;
-
-        let name = pc.consume_ident(self)?;
-
-        let token = pc.consume_of_type(Rule::function_arguments)?;
-        let mut parameters = vec![];
-        for field in token.into_inner() {
-            parameters.push(self.parse_parameter(field)?);
-        }
-
-        // Parse return type
-        let return_type = match pc.consume_optional(Rule::result_t) {
-            Some(pair) => {
-                let span = self.to_ast_span(pair.as_span())?;
-                let mut rt = self.descend(pair);
-                let ok = rt.consume_type(self)?;
-                let err = rt.consume_type(self)?;
-                VType {
-                    inner: TypeKind::Result(Box::new(ResultTypeKind { ok, err })),
-                    span,
-                }
-            }
-            None => VType {
-                inner: TypeKind::Unit,
-                span: ast::Span::empty(),
-            },
-        };
-
-        // All remaining tokens are statements
-        let list = pc.into_inner();
-        let body = self.parse_statement_list(list)?;
-
-        Ok(ast::ActionDefinition {
-            flavor,
-            name,
-            parameters,
-            return_type,
-            body,
-            span,
-        })
-    }
-
-    fn parse_struct_item(&self, field: Pair) -> Result<ast::StructItem> {
-        match field.as_rule() {
-            Rule::field_definition => {
-                Ok(ast::StructItem::Field(self.parse_field_definition(field)?))
-            }
-            Rule::field_insertion => {
-                let ident = self.descend(field).consume_ident(self)?;
-                Ok(ast::StructItem::StructRef(ident))
-            }
-            _ => Err(ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("invalid struct item token"),
-                Some(self.to_ast_span(field.as_span())?),
-            )),
-        }
-    }
-
-    /// Parse a `Rule::effect_definition` into an [EffectDefinition](ast::EffectDefinition).
-    fn parse_effect_definition(&self, item: Pair) -> Result<ast::EffectDefinition> {
-        assert_eq!(item.as_rule(), Rule::effect_definition);
-
-        let span = self.to_ast_span(item.as_span())?;
-        let mut pc = self.descend(item);
-        let name = pc.consume_ident(self)?;
-
-        // All remaining tokens are fields
-        let mut items = vec![];
-        for field in pc.into_inner() {
-            items.push(self.parse_struct_item(field)?);
-        }
-
-        Ok(ast::EffectDefinition { name, items, span })
-    }
-
-    /// Parse a `Rule::struct_definition` into an [StructDefinition](ast::StructDefinition).
-    fn parse_struct_definition(&self, item: Pair) -> Result<ast::StructDefinition> {
-        assert_eq!(item.as_rule(), Rule::struct_definition);
-
-        let span = self.to_ast_span(item.as_span())?;
-        let mut pc = self.descend(item);
-        let name = pc.consume_ident(self)?;
-
-        // All remaining tokens are fields
-        let mut items = vec![];
-        for field in pc.into_inner() {
-            items.push(self.parse_struct_item(field)?);
-        }
-
-        Ok(ast::StructDefinition { name, items, span })
-    }
-
-    fn parse_enum_definition(&self, item: Pair) -> Result<EnumDefinition> {
-        assert_eq!(item.as_rule(), Rule::enum_definition);
-
-        let span = self.to_ast_span(item.as_span())?;
-        let mut pc = self.descend(item);
-        let name = pc.consume_ident(self)?;
-        let mut variants = Vec::new();
-        for value in pc.into_inner() {
-            let value = self.parse_ident(value)?;
-            variants.push(value);
-        }
-
-        Ok(EnumDefinition {
-            name,
-            variants,
-            span,
-        })
-    }
-
-    fn parse_enum_reference(&self, item: Pair) -> Result<EnumReference> {
-        assert_eq!(item.as_rule(), Rule::enum_reference);
-
-        let mut pc = self.descend(item);
-        let enumeration = pc.consume_ident(self)?;
-        let variant = pc.consume_ident(self)?;
-
-        Ok(EnumReference {
-            enumeration,
-            variant,
-        })
-    }
-
-    fn parse_method_params(&self, item: Pair) -> Result<ast::MethodParams, ParseError> {
-        assert_eq!(item.as_rule(), Rule::method_params);
-
-        let mut pc = self.descend(item.clone());
-
-        let this = pc
-            .consume_optional(Rule::this)
-            .map(|token| self.to_ast_span(token.as_span()))
-            .transpose()?;
-
-        let envelope = pc
-            .consume_optional(Rule::envelope)
-            .map(|token| self.to_ast_span(token.as_span()))
-            .transpose()?;
-
-        let other_params: Vec<Param> = pc
-            .into_inner()
-            .map(|token| self.parse_parameter(token))
-            .collect::<Result<_, _>>()?;
-
-        // Get span for the other parameters. This is a bit tricky since there are a few different
-        // cases. We might be able to modify the grammar to help with this but that's also tricky
-        // since the rule is complex to handle optionality separated by commas.
-        let others_span = if !other_params.is_empty() {
-            // Span across all the parameters if present.
-            ast::Spanned::span(&other_params)
-        } else if let Some(span) = envelope.or(this) {
-            // Otherwise, try an empty span right after the later of `this` or `envelope`.
-            ast::Span::new(span.end(), span.end())
-        } else {
-            // Otherwise, we just have `"(" ~ ws ~ ")"`, so point to everything inside the parens.
-            let span = self.to_ast_span(item.as_span())?;
-            ast::Span::new(
-                span.start()
-                    .checked_add(1)
-                    .assume("can offset for open paren")?,
-                span.end()
-                    .checked_sub(1)
-                    .assume("can offset for close paren")?,
-            )
-        };
-
-        let other_params = ast::WithSpan {
-            span: others_span,
-            inner: other_params,
-        };
-
-        Ok(ast::MethodParams {
-            this,
-            envelope,
-            other_params,
-        })
-    }
-
-    /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
-    fn parse_command_definition(&self, item: Pair) -> Result<ast::CommandDefinition> {
-        assert_eq!(item.as_rule(), Rule::command_definition);
-
-        let span = self.to_ast_span(item.as_span())?;
-
-        let mut pc = self.descend(item);
-
-        let name = pc.consume_ident(self)?;
-
-        let base = pc.consume_ident(self)?;
-
-        // Consume blocks in order: attributes?, fields?, policy, recall?
-
-        // 1. Optional attributes block
-        let attributes = if let Some(token) = pc.consume_optional(Rule::attributes_block) {
-            let pairs = token.into_inner();
-            let mut attrs = vec![];
-            for field in pairs {
-                let mut field_pc = self.descend(field);
-                let ident = field_pc.consume_ident(self)?;
-                let expr = field_pc.consume_expression(self)?;
-                attrs.push((ident, expr));
-            }
-            attrs
-        } else {
-            vec![]
-        };
-
-        // 2. Optional fields block
-        let fields = if let Some(token) = pc.consume_optional(Rule::fields_block) {
-            let pairs = token.into_inner();
-            let mut field_list = vec![];
-            for field in pairs {
-                match field.as_rule() {
-                    Rule::field_definition => {
-                        field_list
-                            .push(ast::StructItem::Field(self.parse_field_definition(field)?));
-                    }
-                    Rule::field_insertion => {
-                        let ident = self.descend(field).consume_ident(self)?;
-                        field_list.push(ast::StructItem::StructRef(ident));
-                    }
-                    _ => {
-                        return Err(ParseError::new(
-                            ParseErrorKind::Unknown,
-                            String::from("invalid token in command definition"),
-                            Some(self.to_ast_span(field.as_span())?),
-                        ));
-                    }
-                }
-            }
-            field_list
-        } else {
-            vec![]
-        };
-
-        // 5. Required policy block
-        let policy = {
-            let mut pc = self.descend(pc.consume_of_type(Rule::policy_block)?);
-            let parameters = self.parse_method_params(pc.consume_of_type(Rule::method_params)?)?;
-            let body = self.parse_statement_list(pc.into_inner())?;
-            ast::PolicyBlockDefinition {
-                parameters,
-                body,
-                span,
-            }
-        };
-
-        // 6. Optional recall blocks (zero or more)
-        let recalls = pc
-            .into_inner()
-            .map(|token| {
-                if token.as_rule() != Rule::recall_block {
-                    return Err(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        format!("expected recall block, found `{:?}`", token.as_rule()),
-                        Some(self.to_ast_span(token.as_span())?),
-                    ));
-                }
-
-                let recall_span = self.to_ast_span(token.as_span())?;
-                let mut recall_pc = self.descend(token);
-
-                // Parse name
-                let recall_name = self.parse_ident(recall_pc.consume_of_type(Rule::identifier)?)?;
-
-                // Parse parameters
-                let recall_parameters =
-                    self.parse_method_params(recall_pc.consume_of_type(Rule::method_params)?)?;
-
-                // Parse recall block statements
-                let body = self.parse_statement_list(recall_pc.into_inner())?;
-
-                Ok(ast::RecallBlockDefinition {
-                    name: recall_name,
-                    parameters: recall_parameters,
-                    body,
-                    span: recall_span,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(ast::CommandDefinition {
-            base,
-            attributes,
-            name,
-            fields,
-            policy,
-            recalls,
-            span,
-        })
-    }
-
-    /// Parse a [`Rule::base_command_definition`] into an [`ast::BaseCommandDefinition``].
-    fn parse_base_command_definition(&self, item: Pair) -> Result<ast::BaseCommandDefinition> {
-        assert_eq!(item.as_rule(), Rule::base_command_definition);
-
-        let span = self.to_ast_span(item.as_span())?;
-
-        let mut pc = self.descend(item);
-
-        let flavor = pc.consume_ident(self)?;
-
-        let name = pc.consume_ident(self)?;
-
-        let fields = pc
-            .consume_optional(Rule::fields_block)
-            .map(|token| {
-                let pairs = token.into_inner();
-                let mut field_list = vec![];
-                for field in pairs {
-                    match field.as_rule() {
-                        Rule::field_definition => {
-                            field_list
-                                .push(ast::StructItem::Field(self.parse_field_definition(field)?));
-                        }
-                        Rule::field_insertion => {
-                            let ident = self.descend(field).consume_ident(self)?;
-                            field_list.push(ast::StructItem::StructRef(ident));
-                        }
-                        _ => {
-                            return Err(ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("invalid token in command definition"),
-                                Some(self.to_ast_span(field.as_span())?),
-                            ));
-                        }
-                    }
-                }
-                Ok(field_list)
-            })
-            .transpose()?
-            .unwrap_or_default();
-
-        let get_key = {
-            let mut pc = self.descend(pc.consume_of_type(Rule::get_key_block)?);
-            let parameters = self.parse_method_params(pc.consume_of_type(Rule::method_params)?)?;
-            let return_type = pc.consume_type(self)?;
-            let body = self.parse_statement_list(pc.into_inner())?;
-            aranya_policy_ast::GetKeyBlockDefinition {
-                parameters,
-                return_type,
-                body,
-                span,
-            }
-        };
-
-        Ok(ast::BaseCommandDefinition {
-            flavor,
-            name,
-            fields,
-            get_key,
-            span,
-        })
-    }
-
-    /// Parse only the declaration of a function. Works for both `Rule::function_decl` and
-    /// `Rule::finish_function_decl`.
-    fn parse_function_decl(&self, item: Pair) -> Result<ast::FunctionDecl> {
-        let rule = item.as_rule();
-
-        assert_matches!(rule, Rule::function_decl | Rule::finish_function_decl);
-
-        let mut pc = self.descend(item);
-        let name = pc.consume_ident(self)?;
-
-        let token = pc.consume_of_type(Rule::function_arguments)?;
-        let mut parameters = vec![];
-        for field in token.into_inner() {
-            parameters.push(self.parse_parameter(field)?);
-        }
-
-        let return_type = if rule == Rule::function_decl {
-            Some(pc.consume_type(self)?)
-        } else {
-            None
-        };
-
-        Ok(ast::FunctionDecl {
-            name,
-            parameters,
-            return_type,
-        })
-    }
-
-    fn parse_function_definition(&self, item: Pair) -> Result<ast::FunctionDefinition> {
-        let span = self.to_ast_span(item.as_span())?;
-        let mut pc = self.descend(item);
-
-        let decl = pc.consume()?;
-        let decl = self.parse_function_decl(decl)?;
-        let return_type = decl.return_type.expect("impossible function definition");
-
-        // All remaining tokens are function statements
-        let body = self.parse_statement_list(pc.into_inner())?;
-
-        Ok(ast::FunctionDefinition {
-            name: decl.name,
-            parameters: decl.parameters,
-            return_type,
-            body,
-            span,
-        })
-    }
-
-    /// Parse a `Rule::finish_function_definition` into an [FinishFunctionDefinition](ast::FinishFunctionDefinition).
-    fn parse_finish_function_definition(
-        &self,
-        item: Pair,
-    ) -> Result<ast::FinishFunctionDefinition> {
-        let span = self.to_ast_span(item.as_span())?;
-        let mut pc = self.descend(item);
-
-        let decl = pc.consume()?;
-        let decl = self.parse_function_decl(decl)?;
-
-        // All remaining tokens are function statements
-        let body = self.parse_statement_list(pc.into_inner())?;
-
-        Ok(ast::FinishFunctionDefinition {
-            name: decl.name,
-            parameters: decl.parameters,
-            body,
-            span,
-        })
-    }
-
-    /// Parse a `Rule::global_let_statement` into an [GlobalLetStatement](ast::GlobalLetStatement).
-    fn parse_global_let_statement(&self, item: Pair) -> Result<ast::GlobalLetStatement> {
-        let span = self.to_ast_span(item.as_span())?;
-        let mut pc = self.descend(item);
-        let name = pc.consume_ident(self)?;
-        let value = pc.consume_expression(self)?;
-
-        Ok(ast::GlobalLetStatement { name, value, span })
-    }
-
-    /// Helper function which consumes and returns an iterator over the
-    /// children of a token. Makes the parsing process a little more
-    /// self-documenting.
-    fn descend<'this, 'i>(&'this self, p: Pair<'i>) -> PairContext<'i, 'this> {
-        let span = p.as_span();
-        PairContext {
-            pairs: p.into_inner(),
-            span,
-            chunk_parser: self,
-        }
-    }
-}
-
-impl fmt::Debug for ChunkParser<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ChunkParser")
-            .field("offset", &self.offset)
-            .field("source_len", &self.source_len)
-            .finish_non_exhaustive()
-    }
-}
-
-/// Parse a policy document string into an [Policy](ast::Policy) object.
-///
-/// The version parameter asserts that the code conforms to that
-/// version, as the bare code does not have any way to specify its
-/// own version. This does not account for any offset for enclosing
-/// text.
-pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy> {
-    let mut policy = ast::Policy::new(version, data);
-
-    parse_policy_chunk(data, &mut policy, ChunkOffset::default())?;
-
-    Ok(policy)
-}
-
-/// Parse more data into an existing [ast::Policy] object.
-fn parse_policy_chunk(data: &str, policy: &mut ast::Policy, start: ChunkOffset) -> Result<()> {
-    if policy.version != Version::V2 {
+/// Parse a single chunk of policy, e.g. from a code block in a markdown document.
+fn parse_policy_chunk(input: &str, policy: &mut ast::Policy, offset: usize) -> Result<()> {
+    if policy.version != ast::Version::V2 {
         let err = ParseError::new(
             error::InvalidVersion {
                 found: policy.version.to_string(),
-                required: Version::V2,
+                required: ast::Version::V2,
             },
-            Version::help_message(),
+            ast::Version::help_message(),
             None,
         );
         return Err(err);
     }
-    let chunk = PolicyParser::parse(Rule::file, data).map_err(|e| {
-        ParseError::from(e)
-            .with_offset(start.byte)
-            .with_source(policy.text.clone())
-    })?;
-    let pratt = get_pratt_parser();
-    let p = ChunkParser::new(start.byte, &pratt, policy.text.len());
-    parse_policy_chunk_inner(chunk, &p, policy).map_err(|e| e.with_source(policy.text.clone()))
-}
-
-fn parse_policy_chunk_inner(chunk: Pairs, p: &ChunkParser, policy: &mut ast::Policy) -> Result<()> {
-    for item in chunk {
-        match item.as_rule() {
-            Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?),
-            Rule::fact_definition => policy.facts.push(p.parse_fact_definition(item)?),
-            Rule::action_definition => policy.actions.push(p.parse_action_definition(item)?),
-            Rule::effect_definition => policy.effects.push(p.parse_effect_definition(item)?),
-            Rule::struct_definition => policy.structs.push(p.parse_struct_definition(item)?),
-            Rule::enum_definition => policy.enums.push(p.parse_enum_definition(item)?),
-            Rule::command_definition => policy.commands.push(p.parse_command_definition(item)?),
-            Rule::base_command_definition => policy
-                .base_commands
-                .push(p.parse_base_command_definition(item)?),
-            Rule::function_definition => policy.functions.push(p.parse_function_definition(item)?),
-            Rule::finish_function_definition => policy
-                .finish_functions
-                .push(p.parse_finish_function_definition(item)?),
-            Rule::global_let_statement => {
-                policy.global_lets.push(p.parse_global_let_statement(item)?);
-            }
-            Rule::EOI => (),
-            _ => {
-                return Err(ParseError::new(
-                    ParseErrorKind::Unknown,
-                    format!("Impossible rule: {:?}", item.as_rule()),
-                    Some(p.to_ast_span(item.as_span())?),
-                ));
-            }
-        }
+    let items = item_parser()
+        .repeated()
+        .collect::<Vec<_>>()
+        .parse(lex(input).map_span(|span| span.add(offset).expect("span fits")))
+        .into_result()
+        .map_err(ParseError::from_chumsky_errors)?;
+    for item in items {
+        policy.add(item);
     }
-
     Ok(())
 }
 
-pub fn parse_vtype(s: &str) -> Result<VType> {
-    fn inner(s: &str) -> Result<VType> {
-        let pratt = get_pratt_parser();
-        let p = ChunkParser::new(0, &pratt, s.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, s)?;
-        let pair = pairs.next().assume("has tokens")?;
-        p.parse_type(pair)
-    }
-    inner(s).map_err(|e| e.with_source(s.into()))
+/// Parse plain policy source code.
+pub fn parse_policy_str(input: &str, version: ast::Version) -> Result<ast::Policy> {
+    let mut policy = ast::Policy::new(version, input);
+    parse_policy_chunk(input, &mut policy, 0).map_err(|e| e.with_source(input.into()))?;
+    Ok(policy)
 }
 
-pub fn parse_expression(s: &str) -> Result<Expression> {
-    fn inner(s: &str) -> Result<Expression> {
-        let mut pairs = PolicyParser::parse(Rule::complete_expression, s)?;
-
-        let token = pairs
-            .next()
-            .assume("has tokens")
-            .map_err(|bug| ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None))?;
-
-        let pratt = get_pratt_parser();
-        let p = ChunkParser::new(0, &pratt, s.len());
-        p.parse_expression(token)
-    }
-
-    inner(s).map_err(|e| e.with_source(s.to_string()))
+/// Parse just a vtype.
+pub fn parse_vtype(input: &str) -> Result<ast::VType> {
+    vtype_parser()
+        .parse(lex(input))
+        .into_result()
+        .map_err(ParseError::from_chumsky_errors)
+        .map_err(|e| e.with_source(input.into()))
 }
 
-/// Parse a function or finish function declaration for the FFI
-pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl> {
-    fn inner(data: &str) -> Result<ast::FunctionDecl> {
-        let pratt = get_pratt_parser();
-        let parser = ChunkParser::new(0, &pratt, data.len());
+/// Parse just a single expression.
+pub fn parse_expression(input: &str) -> Result<ast::Expression> {
+    let (expression, _) = expr_and_stmt_block_parsers();
+    expression
+        .parse(lex(input))
+        .into_result()
+        .map_err(ParseError::from_chumsky_errors)
+        .map_err(|e| e.with_source(input.into()))
+}
 
-        let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
-        let decl = def.next().ok_or_else(|| {
-            ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("Not a function declaration"),
-                None,
-            )
-        })?;
+/// Parse function declarations for FFI.
+pub fn parse_ffi_decl(input: &str) -> Result<ast::FunctionDecl> {
+    function_decl_parser()
+        .parse(lex(input))
+        .into_result()
+        .map_err(ParseError::from_chumsky_errors)
+        .map_err(|e| e.with_source(input.into()))
+}
 
-        let rule = decl.as_rule();
+/// A parser of identifiers.
+///
+/// NB: The lexer won't produce an identifier that is a keyword.
+fn ident_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, ast::Ident> + Copy {
+    select! { Token::Identifier(ident) => ident.parse().expect("valid identifier") }
+        .spanned()
+        .labelled("identifier")
+}
 
-        assert_matches!(rule, Rule::function_decl | Rule::finish_function_decl);
-
-        let mut pc = parser.descend(decl);
-        let name = pc.consume_ident(&parser)?;
-
-        let token = pc.consume_of_type(Rule::function_arguments)?;
-        let mut parameters = vec![];
-        for field in token.into_inner() {
-            parameters.push(parser.parse_parameter(field)?);
-        }
-
-        let return_type = if rule == Rule::function_decl {
-            Some(pc.consume_type(&parser)?)
-        } else {
-            None
+/// A parser of vtypes.
+fn vtype_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, ast::VType> + Clone {
+    let ident = ident_parser();
+    recursive(|vtype| {
+        let primitive = select! {
+            token!(unit) => ast::TypeKind::Unit,
+            token!(string) => ast::TypeKind::String,
+            token!(bytes) => ast::TypeKind::Bytes,
+            token!(int) => ast::TypeKind::Int,
+            token!(bool) => ast::TypeKind::Bool,
+            token!(id) => ast::TypeKind::Id,
         };
+        let option = just!(option)
+            .ignore_then(vtype.clone().bracket_delimited())
+            .map(|inner| ast::TypeKind::Optional(Box::new(inner)));
+        let result = just!(result)
+            .ignore_then(
+                (vtype
+                    .comma_separated()
+                    .allow_trailing()
+                    .collect_exactly::<[ast::VType; 2]>())
+                .bracket_delimited(),
+            )
+            .map(|[ok, err]| ast::TypeKind::Result(Box::new(ast::ResultTypeKind { ok, err })));
+        choice((
+            primitive,
+            just!(struct).ignore_then(ident).map(ast::TypeKind::Struct),
+            just!(enum).ignore_then(ident).map(ast::TypeKind::Enum),
+            option,
+            result,
+        ))
+        .spanned()
+        .labelled("vtype")
+    })
+}
 
-        let fn_decl = ast::FunctionDecl {
+/// A parser of function parameters, including enclosing parentheses.
+fn function_params_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, Vec<ast::Param>> + Clone {
+    ident_parser()
+        .then_ignore(just!(:))
+        .then(vtype_parser())
+        .map(|(name, vtype)| ast::Param { name, vtype })
+        .comma_separated()
+        .allow_trailing()
+        .collect()
+        .paren_delimited()
+}
+
+/// A parser of FFI function declarations.
+fn function_decl_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, ast::FunctionDecl> {
+    just!(finish)
+        .or_not()
+        .ignore_then(just!(function))
+        .ignore_then(group((
+            ident_parser(),
+            function_params_parser(),
+            vtype_parser().or_not(),
+        )))
+        .map(|(name, parameters, return_type)| ast::FunctionDecl {
             name,
             parameters,
             return_type,
-        };
+        })
+}
 
-        Ok(fn_decl)
+/// A parser of a field value block, including enclosing braces.
+fn fields_block_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, Vec<ast::StructItem>> + Clone {
+    let ident = ident_parser();
+    let vtype = vtype_parser();
+
+    let field_def = ident
+        .then_ignore(just!(:))
+        .then(vtype)
+        .map(|(name, vtype)| ast::FieldDefinition { name, vtype });
+
+    let field_insertion = just!(+).ignore_then(ident);
+
+    choice((
+        field_def.map(ast::StructItem::Field),
+        field_insertion.map(ast::StructItem::StructRef),
+    ))
+    .comma_separated()
+    .allow_trailing()
+    .collect()
+    .brace_delimited()
+}
+
+/// A parser of a struct definition.
+fn struct_def_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, ast::StructDefinition> {
+    let ident = ident_parser();
+    just!(struct)
+        .ignore_then(ident.then(fields_block_parser()))
+        .map_with(|(name, items), e| ast::StructDefinition {
+            name,
+            items,
+            span: ast_span(e.span()),
+        })
+}
+
+/// A parser of an enum definition.
+fn enum_def_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, ast::EnumDefinition> {
+    let ident = ident_parser();
+    just!(enum)
+        .ignore_then(group((
+            ident,
+            ident
+                .comma_separated()
+                .allow_trailing()
+                .collect()
+                .brace_delimited(),
+        )))
+        .map_with(|(name, variants), e| ast::EnumDefinition {
+            name,
+            variants,
+            span: ast_span(e.span()),
+        })
+}
+
+/// Parsers of expressions and statement blocks.
+///
+/// NB: These are defined together because they are co-recursive.
+fn expr_and_stmt_block_parsers<'i, I: Input<'i>>() -> (
+    impl Parser<'i, I, ast::Expression> + Clone,
+    impl Parser<'i, I, Vec<ast::Statement>> + Clone,
+) {
+    let ident = ident_parser();
+
+    let mut expression_raw = Recursive::declare();
+    let mut statement = Recursive::declare();
+
+    // We usually want expressions to include structs, so give it the default name.
+    let expression = map_ctx(Config::allow_struct, expression_raw.clone());
+    // Used to disallow struct literals in match scrutinee and if condition.
+    let expression_without_struct = map_ctx(Config::disallow_struct, expression_raw.clone());
+
+    // ==== EXPRESSIONS ====
+
+    let match_pattern = choice((
+        just!(_)
+            .to_span()
+            .map(|span| ast::MatchPattern::Default(ast_span(span))),
+        expression
+            .clone()
+            .separated_by(just!(|))
+            .at_least(1)
+            .collect()
+            .map(ast::MatchPattern::Values),
+    ));
+
+    let field = ident
+        .then(just!(:).ignore_then(expression.clone()).or_not())
+        .map(|(name, maybe_expr)| {
+            let expr =
+                maybe_expr.unwrap_or_else(|| ast::ExprKind::Identifier(name.clone()).at(name.span));
+            (name, expr)
+        });
+    let source = just!(...).ignore_then(ident);
+
+    // TODO: simplify.
+    // This is `{ field,* source,* }`, but requiring a comma between is complex.
+    let struct_data = choice((
+        group((
+            field.comma_separated().at_least(1).collect(),
+            just!(,)
+                .ignore_then(
+                    source
+                        .comma_separated()
+                        .at_least(1)
+                        .allow_trailing()
+                        .collect(),
+                )
+                .or(just!(,).or_not().to(Vec::new())),
+        )),
+        source
+            .comma_separated()
+            .allow_trailing()
+            .collect()
+            .map(|sources| (Vec::new(), sources)),
+    ))
+    .brace_delimited();
+
+    let function_call = ident
+        .then(
+            expression
+                .clone()
+                .comma_separated()
+                .allow_trailing()
+                .collect()
+                .paren_delimited(),
+        )
+        .map(|(name, arguments)| ast::FunctionCall { name, arguments });
+
+    let fact_fields = ident
+        .then(
+            just!(:)
+                .ignore_then(choice((
+                    just!(?)
+                        .to_span()
+                        .map(|span| ast::FactField::Bind(ast_span(span))),
+                    expression.clone().map(ast::FactField::Expression),
+                )))
+                .or_not(),
+        )
+        .map(|(name, maybe_field)| {
+            let field = maybe_field.unwrap_or_else(|| {
+                ast::FactField::Expression(ast::ExprKind::Identifier(name.clone()).at(name.span))
+            });
+            (name, field)
+        })
+        .comma_separated()
+        .allow_trailing()
+        .collect();
+
+    let fact_keys = fact_fields.clone().bracket_delimited();
+    let fact_values = fact_fields.brace_delimited();
+    let fact_literal = group((
+        ident,
+        fact_keys,
+        just!(=>).ignore_then(fact_values.clone()).or_not(),
+    ))
+    .map(|(name, key_fields, value_fields)| ast::FactLiteral {
+        name,
+        key_fields,
+        value_fields,
+    });
+
+    let atom = {
+        let int_literal =
+            select! { Token::Number(n) = e => n.at(e.span()) }.labelled("int literal");
+
+        let string_literal = select! { Token::String(s) => s }
+            .try_map(|s, span| {
+                parse_string_literal(s.at(span))
+                    .map_err(|(msg, span)| Rich::custom(Span(span), msg))
+            })
+            .labelled("string literal");
+
+        let block_expression = statement
+            .clone()
+            .repeated()
+            .collect()
+            .then_ignore(just!(:))
+            .then(expression.clone())
+            .brace_delimited()
+            .map(|(stmts, expr)| ast::ExprKind::Block(stmts, Box::new(expr)));
+
+        let match_expression_arm = match_pattern
+            .clone()
+            .then_ignore(just!(=>))
+            .then(expression.clone())
+            .map_with(|(pattern, body), e| ast::MatchExpressionArm {
+                pattern,
+                body,
+                span: ast_span(e.span()),
+            });
+
+        choice((
+            // simple
+            select! {
+                token!(Unit) => ast::ExprKind::Unit,
+                token!(true) => ast::ExprKind::Bool(true),
+                token!(false) => ast::ExprKind::Bool(false),
+                token!(this) = e => ast::ExprKind::Identifier(ident!("this").at(e.span())),
+                token!(envelope) = e => ast::ExprKind::Identifier(ident!("envelope").at(e.span())),
+            },
+            // int
+            int_literal.map(ast::ExprKind::Int),
+            // string
+            string_literal.map(ast::ExprKind::String),
+            // option
+            just!(None).to(ast::ExprKind::Optional(None)),
+            just!(Some)
+                .ignore_then(expression.clone().paren_delimited())
+                .map(|expr| ast::ExprKind::Optional(Some(Box::new(expr)))),
+            // result
+            just!(Ok)
+                .ignore_then(expression.clone().paren_delimited())
+                .map(|expr| ast::ExprKind::Ok(Box::new(expr))),
+            just!(Err)
+                .ignore_then(expression.clone().paren_delimited())
+                .map(|expr| ast::ExprKind::Err(Box::new(expr))),
+            // struct literal
+            ident
+                .then(struct_data)
+                .map_with(|(name, (fields, sources)), e| {
+                    ast::ExprKind::NamedStruct(ast::NamedStruct {
+                        name,
+                        fields,
+                        sources,
+                        span: ast_span(e.span()),
+                    })
+                })
+                .contextual()
+                .configure(|_, ctx| ctx.allow_struct),
+            // function call
+            function_call.clone().map(ast::ExprKind::FunctionCall),
+            // foreign function call
+            ident
+                .then_ignore(just!(::))
+                .then(function_call.clone())
+                .map(|(module, call)| ast::ForeignFunctionCall {
+                    module,
+                    function: call.name,
+                    arguments: call.arguments,
+                })
+                .map(ast::ExprKind::ForeignFunctionCall),
+            // action call
+            just!(action)
+                .ignore_then(function_call.clone())
+                .map(ast::ExprKind::ActionCall),
+            // recall call
+            just!(recall)
+                .ignore_then(function_call)
+                .map(ast::ExprKind::Recall),
+            // return
+            just!(return)
+                .ignore_then(expression.clone())
+                .map(Box::new)
+                .map(ast::ExprKind::Return),
+            // enum reference
+            ident
+                .then_ignore(just!(::))
+                .then(ident)
+                .map(|(enumeration, variant)| ast::EnumReference {
+                    enumeration,
+                    variant,
+                })
+                .map(ast::ExprKind::EnumReference),
+            // query
+            just!(query)
+                .ignore_then(fact_literal.clone())
+                .map(ast::InternalFunction::Query)
+                .map(ast::ExprKind::InternalFunction),
+            // exists
+            just!(exists)
+                .ignore_then(fact_literal.clone())
+                .map(ast::InternalFunction::Exists)
+                .map(ast::ExprKind::InternalFunction),
+            // fact count
+            group((
+                select! {
+                    token!(count_up_to) = e => ast::FactCountType::UpTo(ast_span(e.span())),
+                    token!(at_least) = e => ast::FactCountType::AtLeast(ast_span(e.span())),
+                    token!(at_most) = e => ast::FactCountType::AtMost(ast_span(e.span())),
+                    token!(exactly) = e => ast::FactCountType::Exactly(ast_span(e.span())),
+                },
+                int_literal,
+                fact_literal.clone(),
+            ))
+            .map(|(ty, count, fact)| ast::InternalFunction::FactCount(ty, count, fact))
+            .map(ast::ExprKind::InternalFunction),
+            // match
+            just!(match)
+                .ignore_then(expression_without_struct.clone())
+                .then(match_expression_arm.repeated().collect().brace_delimited())
+                .map(|(scrutinee, arms)| {
+                    ast::ExprKind::Match(Box::new(ast::MatchExpression { scrutinee, arms }))
+                }),
+            // if
+            just!(if)
+                .ignore_then(group((
+                    expression_without_struct.clone(),
+                    block_expression.clone().spanned(),
+                    just!(else).ignore_then(block_expression.clone().spanned()),
+                )))
+                .map(|(c, t, f)| ast::InternalFunction::If(Box::new(c), Box::new(t), Box::new(f)))
+                .map(ast::ExprKind::InternalFunction),
+            // todo
+            just!(todo)
+                .then_ignore(empty().paren_delimited())
+                .to_span()
+                .map(|span| ast::InternalFunction::Todo(ast_span(span)))
+                .map(ast::ExprKind::InternalFunction),
+            // test_fail
+            just!(test_fail)
+                .ignore_then(string_literal.or_not().paren_delimited())
+                .map_with(|msg, e| ast::InternalFunction::TestFail(msg, ast_span(e.span())))
+                .map(ast::ExprKind::InternalFunction),
+            // identifier
+            ident.map(ast::ExprKind::Identifier),
+            // block expression
+            block_expression,
+        ))
+        .spanned()
+        // grouping, separated to keep inner span
+        .or(expression.clone().paren_delimited())
+        .labelled("atom")
+    };
+
+    expression_raw.define({
+        use chumsky::pratt::{infix, left, none, postfix, prefix, right};
+        // NB: chumsky treats its precedence values as "binding power" where a greater value binds
+        // more tightly than a lower one. This is reversed from the docs and previous parser.
+        atom.pratt((
+            (
+                // 9 - `?`
+                postfix(9, just!(?), |l, _, e| {
+                    ast::ExprKind::Try(Box::new(l)).at(e.span())
+                })
+            ),
+            (
+                // 8 - `.`
+                postfix(8, just!(.).ignore_then(ident), |l, op, e| {
+                    ast::ExprKind::Dot(Box::new(l), op).at(e.span())
+                })
+            ),
+            (
+                // 7 - `substruct`, `as`
+                postfix(7, just!(substruct).ignore_then(ident), |l, op, e| {
+                    ast::ExprKind::Substruct(Box::new(l), op).at(e.span())
+                }),
+                postfix(7, just!(as).ignore_then(ident), |l, op, e| {
+                    ast::ExprKind::Cast(Box::new(l), op).at(e.span())
+                }),
+            ),
+            (
+                // 6 - `!`
+                prefix(6, just!(!), |_, r, e| {
+                    ast::ExprKind::Not(Box::new(r)).at(e.span())
+                }),
+            ),
+            // (
+            //     // 5 - `+`, `-`
+            //     infix(left(5), just!(+), |l, _, r, e| todo!()),
+            //     infix(left(5), just!(-), |l, _, r, e| todo!()),
+            // ),
+            (
+                // 4 - `>`, `<`, `>=`, `<=`, `is`
+                infix(none(4), just!(>), |l, _, r, e| {
+                    ast::ExprKind::GreaterThan(Box::new(l), Box::new(r)).at(e.span())
+                }),
+                infix(none(4), just!(<), |l, _, r, e| {
+                    ast::ExprKind::LessThan(Box::new(l), Box::new(r)).at(e.span())
+                }),
+                infix(none(4), just!(>=), |l, _, r, e| {
+                    ast::ExprKind::GreaterThanOrEqual(Box::new(l), Box::new(r)).at(e.span())
+                }),
+                infix(none(4), just!(<=), |l, _, r, e| {
+                    ast::ExprKind::LessThanOrEqual(Box::new(l), Box::new(r)).at(e.span())
+                }),
+                postfix(
+                    4,
+                    just!(is).ignore_then(
+                        select! { token!(Some) => true, token!(None) => false }
+                            .labelled("None or Some"),
+                    ),
+                    |l, is_some, e| ast::ExprKind::Is(Box::new(l), is_some).at(e.span()),
+                ),
+            ),
+            (
+                // 3 - `==`, `!=`
+                infix(none(3), just!(==), |l, _, r, e| {
+                    ast::ExprKind::Equal(Box::new(l), Box::new(r)).at(e.span())
+                }),
+                infix(none(3), just!(!=), |l, _, r, e| {
+                    ast::ExprKind::NotEqual(Box::new(l), Box::new(r)).at(e.span())
+                }),
+            ),
+            (
+                // 2 - `&&`, `||`
+                infix(left(2), just!(&&), |l, _, r, e| {
+                    ast::ExprKind::And(Box::new(l), Box::new(r)).at(e.span())
+                }),
+                infix(left(2), just!(||), |l, _, r, e| {
+                    ast::ExprKind::Or(Box::new(l), Box::new(r)).at(e.span())
+                }),
+            ),
+            (
+                // 1 - `or` (optional coalescing)
+                infix(right(1), just!(or), |l, _, r, e| {
+                    ast::ExprKind::Coalesce(Box::new(l), Box::new(r)).at(e.span())
+                }),
+            ),
+        ))
+        .labelled("expression")
+    });
+
+    // ==== STATEMENTS ====
+
+    let body = statement.clone().repeated().collect().brace_delimited();
+
+    statement.define({
+        let publish_statement = just!(publish).ignore_then(expression.clone());
+
+        let let_statement = just!(let)
+            .ignore_then(ident)
+            .then_ignore(just!(=))
+            .then(expression.clone())
+            .map(|(name, value)| ast::LetStatement { name, value });
+
+        let check_statement = just!(check)
+            .ignore_then(expression.clone())
+            .then_ignore(just!(else))
+            .then(expression.clone())
+            .map(|(condition, else_expression)| ast::CheckStatement {
+                condition,
+                else_expression,
+            });
+
+        let match_arm = match_pattern
+            .clone()
+            .then_ignore(just!(=>))
+            .then(body.clone())
+            .map(|(pattern, body)| ast::MatchArm { pattern, body });
+        let match_statement = just!(match)
+            .ignore_then(expression_without_struct.clone())
+            .then(match_arm.repeated().collect().brace_delimited())
+            .map(|(scrutinee, arms)| ast::MatchStatement { scrutinee, arms });
+
+        let if_statement = just!(if)
+            .ignore_then(expression_without_struct.clone())
+            .then(body.clone())
+            .separated_by(just!(else))
+            .at_least(1)
+            .collect()
+            .then(just!(else).ignore_then(body.clone()).or_not())
+            .map(|(branches, fallback)| ast::IfStatement { branches, fallback });
+
+        let finish_statement = just!(finish).ignore_then(body.clone());
+
+        let map_statement = group((
+            just!(map).ignore_then(fact_literal.clone()),
+            just!(as).ignore_then(ident),
+            body.clone(),
+        ))
+        .map(|(fact, identifier, body)| ast::MapStatement {
+            fact,
+            identifier,
+            body,
+        });
+
+        let create_statement = just!(create)
+            .ignore_then(fact_literal.clone())
+            .map(|fact| ast::CreateStatement { fact });
+
+        let update_statement = just!(update)
+            .ignore_then(fact_literal.clone())
+            .then_ignore(just!(to))
+            .then(fact_values.clone())
+            .map(|(fact, to)| ast::UpdateStatement { fact, to });
+
+        let delete_statement = just!(delete)
+            .ignore_then(fact_literal.clone())
+            .map(|fact| ast::DeleteStatement { fact });
+
+        let emit_statement = just!(emit).ignore_then(expression.clone());
+
+        let return_statement = just!(return)
+            .ignore_then(expression.clone())
+            .map(|value| ast::ReturnStatement { value });
+
+        let debug_assert = just!(debug_assert).ignore_then(expression.clone().paren_delimited());
+
+        let function_call = ident
+            .then(
+                expression
+                    .clone()
+                    .comma_separated()
+                    .allow_trailing()
+                    .collect()
+                    .paren_delimited(),
+            )
+            .map(|(name, arguments)| ast::FunctionCall { name, arguments });
+
+        let recall_statement = just!(recall).ignore_then(function_call.clone());
+
+        let action_call = just!(action).ignore_then(function_call.clone());
+
+        choice((
+            publish_statement.map(ast::StmtKind::Publish),
+            let_statement.map(ast::StmtKind::Let),
+            check_statement.map(ast::StmtKind::Check),
+            match_statement.map(ast::StmtKind::Match),
+            if_statement.map(ast::StmtKind::If),
+            finish_statement.map(ast::StmtKind::Finish),
+            map_statement.map(ast::StmtKind::Map),
+            create_statement.map(ast::StmtKind::Create),
+            update_statement.map(ast::StmtKind::Update),
+            delete_statement.map(ast::StmtKind::Delete),
+            emit_statement.map(ast::StmtKind::Emit),
+            return_statement.map(ast::StmtKind::Return),
+            recall_statement.map(ast::StmtKind::Recall),
+            debug_assert.map(ast::StmtKind::DebugAssert),
+            function_call.map(ast::StmtKind::FunctionCall),
+            action_call.map(ast::StmtKind::ActionCall),
+        ))
+        .spanned()
+        .labelled("statement")
+    });
+
+    (expression, body)
+}
+
+/// A top-level-item parser.
+fn item_parser<'i, I: Input<'i>>() -> impl Parser<'i, I, ast::TopLevelItem> {
+    let ident = ident_parser();
+    let vtype = vtype_parser();
+
+    let (expression, body) = expr_and_stmt_block_parsers();
+
+    // ==== TOP LEVEL ITEMS ====
+
+    let flavor = ident.bracket_delimited();
+
+    let function_params = function_params_parser();
+
+    let ffi_import = just!(use).ignore_then(ident);
+
+    // TODO: dedup with `fields_def` in `fields_block_parser`?
+    let fact_fields = ident
+        .then_ignore(just!(:))
+        .then(vtype.clone())
+        .map(|(name, vtype)| ast::FieldDefinition { name, vtype })
+        .comma_separated()
+        .allow_trailing()
+        .collect();
+
+    let fact_def = group((
+        just!(immutable)
+            .ignored()
+            .or_not()
+            .map(|token| token.is_some()),
+        just!(fact).ignore_then(ident),
+        fact_fields.clone().bracket_delimited(),
+        just!(=>).ignore_then(fact_fields.brace_delimited()),
+    ))
+    .map_with(|(immutable, name, keys, values), e| ast::FactDefinition {
+        immutable,
+        name,
+        keys,
+        values,
+        span: ast_span(e.span()),
+    });
+
+    let action_def = just!(action)
+        .ignore_then(group((
+            flavor,
+            ident,
+            function_params.clone(),
+            vtype.clone().or_not(),
+            body.clone(),
+        )))
+        .map_with(
+            |(flavor, name, parameters, return_type, body), e| ast::ActionDefinition {
+                flavor,
+                name,
+                parameters,
+                return_type: return_type.unwrap_or(ast::TypeKind::Unit.nowhere()),
+                body,
+                span: ast_span(e.span()),
+            },
+        );
+
+    let fields_block = fields_block_parser();
+
+    let effect_def = just!(effect)
+        .ignore_then(ident.then(fields_block.clone()))
+        .map_with(|(name, items), e| ast::EffectDefinition {
+            name,
+            items,
+            span: ast_span(e.span()),
+        });
+
+    let struct_def = struct_def_parser();
+
+    let enum_def = enum_def_parser();
+
+    let method_params = {
+        let this = just!(this).to_span().map(ast_span);
+        let envelope = just!(envelope).to_span().map(ast_span);
+        let typed = ident
+            .then_ignore(just!(:))
+            .then(vtype.clone())
+            .map(|(name, vtype)| ast::Param { name, vtype });
+        let others = typed.comma_separated().collect().spanned();
+        // TODO: Simplify
+        choice((
+            group((
+                this.map(Some),
+                just!(,).ignore_then(envelope).or_not(),
+                just!(,)
+                    .ignore_then(others.clone())
+                    .or(empty().to_span().map(|span| Vec::new().at(span))),
+            )),
+            group((
+                empty().to(None),
+                envelope.map(Some),
+                just!(,)
+                    .ignore_then(others.clone())
+                    .or(empty().to_span().map(|span| Vec::new().at(span))),
+            )),
+            group((empty().to(None), empty().to(None), others)),
+        ))
+        .paren_delimited()
+        .map(|(this, envelope, other_params)| ast::MethodParams {
+            this,
+            envelope,
+            other_params,
+        })
+    };
+
+    let command_def = just!(command)
+        .ignore_then(group((
+            ident,
+            just!(with).ignore_then(ident),
+            group((
+                // attributes
+                just!(attributes)
+                    .ignore_then(
+                        ident
+                            .then_ignore(just!(:))
+                            .then(expression.clone())
+                            .comma_separated()
+                            .allow_trailing()
+                            .collect()
+                            .brace_delimited(),
+                    )
+                    .or_not()
+                    .map(Option::unwrap_or_default)
+                    .labelled("attributes block"),
+                // fields
+                just!(fields)
+                    .ignore_then(fields_block.clone())
+                    .or_not()
+                    .map(Option::unwrap_or_default)
+                    .labelled("fields block"),
+                // policy
+                just!(policy)
+                    .ignore_then(method_params.clone())
+                    .then(body.clone())
+                    .map_with(|(parameters, body), e| ast::PolicyBlockDefinition {
+                        parameters,
+                        body,
+                        span: ast_span(e.span()),
+                    })
+                    .labelled("policy block"),
+                // recalls
+                just!(recall)
+                    .ignore_then(group((ident, method_params.clone(), body.clone())))
+                    .map_with(|(name, parameters, body), e| ast::RecallBlockDefinition {
+                        name,
+                        parameters,
+                        body,
+                        span: ast_span(e.span()),
+                    })
+                    .repeated()
+                    .collect()
+                    .labelled("recall blocks"),
+            ))
+            .brace_delimited(),
+        )))
+        .map_with(|(name, base, (attributes, fields, policy, recalls)), e| {
+            ast::CommandDefinition {
+                base,
+                name,
+                attributes,
+                fields,
+                policy,
+                recalls,
+                span: ast_span(e.span()),
+            }
+        });
+
+    let base_command_def = just!(base)
+        .ignore_then(group((
+            flavor,
+            ident,
+            group((
+                just!(fields)
+                    .ignore_then(fields_block.clone())
+                    .or_not()
+                    .map(Option::unwrap_or_default)
+                    .labelled("fields block"),
+                just!(get_key)
+                    .ignore_then(group((method_params.clone(), vtype.clone(), body.clone())))
+                    .map_with(
+                        |(parameters, return_type, body), e| ast::GetKeyBlockDefinition {
+                            parameters,
+                            return_type,
+                            body,
+                            span: ast_span(e.span()),
+                        },
+                    )
+                    .labelled("get_key block"),
+            ))
+            .brace_delimited(),
+        )))
+        .map_with(
+            |(flavor, name, (fields, get_key)), e| ast::BaseCommandDefinition {
+                flavor,
+                name,
+                fields,
+                get_key,
+                span: ast_span(e.span()),
+            },
+        );
+
+    let function_def = just!(function)
+        .ignore_then(group((ident, function_params.clone(), vtype, body.clone())))
+        .map_with(
+            |(name, parameters, return_type, body), e| ast::FunctionDefinition {
+                name,
+                parameters,
+                return_type,
+                body,
+                span: ast_span(e.span()),
+            },
+        );
+
+    let finish_function_def = just!(finish function)
+        .ignore_then(group((ident, function_params, body)))
+        .map_with(
+            |(name, parameters, body), e| ast::FinishFunctionDefinition {
+                name,
+                parameters,
+                body,
+                span: ast_span(e.span()),
+            },
+        );
+
+    let global_let = just!(let)
+        .ignore_then(ident)
+        .then_ignore(just!(=))
+        .then(expression)
+        .map_with(|(name, value), e| ast::GlobalLetStatement {
+            name,
+            value,
+            span: ast_span(e.span()),
+        });
+
+    choice((
+        ffi_import.map(ast::TopLevelItem::FfiImport),
+        fact_def.map(ast::TopLevelItem::Fact),
+        action_def.map(ast::TopLevelItem::Action),
+        effect_def.map(ast::TopLevelItem::Effect),
+        struct_def.map(ast::TopLevelItem::Struct),
+        enum_def.map(ast::TopLevelItem::Enum),
+        command_def.map(ast::TopLevelItem::Command),
+        base_command_def.map(ast::TopLevelItem::BaseCommand),
+        function_def.map(ast::TopLevelItem::Function),
+        finish_function_def.map(ast::TopLevelItem::FinishFunction),
+        global_let.map(ast::TopLevelItem::GlobalLet),
+    ))
+    .labelled("top level item")
+}
+
+fn parse_string_literal(full_str: ast::WithSpan<&str>) -> Result<ast::Text, (String, ast::Span)> {
+    #![allow(
+        clippy::arithmetic_side_effects,
+        reason = "span calculations are all valid since they are subspans of the full string span"
+    )]
+
+    let contents = &full_str[1..full_str.len() - 1];
+    let content_span_start = full_str.span.start() + 1;
+
+    let mut it = contents.bytes().enumerate();
+    let mut out: Vec<u8> = Vec::new();
+    while let Some((idx0, byte0)) = it.next() {
+        let byte0_span_start = content_span_start + idx0;
+        match byte0 {
+            b'\\' => {
+                let (idx1, byte1) = it.next().expect("byte must follow escape");
+                match byte1 {
+                    b'x' => {
+                        let mut value = 0_u8;
+
+                        for nibble_idx in 0..2 {
+                            let Some((hex_idx, hex_byte)) = it.next() else {
+                                let span = ast::Span::new(
+                                    byte0_span_start,
+                                    byte0_span_start + 2 + nibble_idx,
+                                );
+                                return Err((
+                                    String::from("hex character escape is too short"),
+                                    span,
+                                ));
+                            };
+                            let Some(nibble) = hex_char_to_nibble(hex_byte) else {
+                                let nonhex_char_length = contents[hex_idx..]
+                                    .chars()
+                                    .next()
+                                    .expect("char is present")
+                                    .len_utf8();
+                                let start = content_span_start + hex_idx;
+                                let span = ast::Span::new(start, start + nonhex_char_length);
+                                return Err((
+                                    String::from("invalid character in hex character escape"),
+                                    span,
+                                ));
+                            };
+                            value = value << 4 | nibble;
+                        }
+
+                        if !(0x01..=0x7F).contains(&value) {
+                            let span = ast::Span::new(byte0_span_start, byte0_span_start + 4);
+                            return Err((
+                                String::from("hex character escape is out of range [0x01, 0x7F]"),
+                                span,
+                            ));
+                        }
+                        out.push(value);
+                    }
+                    b'n' => {
+                        out.push(b'\n');
+                    }
+                    b'\\' => {
+                        out.push(b'\\');
+                    }
+                    b'"' => {
+                        out.push(b'"');
+                    }
+                    b'\n' => {
+                        let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
+                        return Err((String::from("cannot end line with escape"), span));
+                    }
+                    _ => {
+                        let bad_escape_char =
+                            contents[idx1..].chars().next().expect("char is present");
+                        let end = byte0_span_start + 1 + bad_escape_char.len_utf8();
+                        let span = ast::Span::new(byte0_span_start, end);
+                        return Err((
+                            format!(
+                                "unknown character escape: `{}`",
+                                bad_escape_char.escape_default()
+                            ),
+                            span,
+                        ));
+                    }
+                }
+            }
+            b'\0' => {
+                let span = ast::Span::new(byte0_span_start, byte0_span_start + 1);
+                return Err((String::from("string contains null byte"), span));
+            }
+            b'"' => break,
+            _ => out.push(byte0),
+        }
     }
 
-    inner(data).map_err(|e| e.with_source(data.to_string()))
-}
-
-/// Creates the default pratt parser ruleset.
-///
-/// # Operator precedence
-///
-/// | Priority | Op |
-/// |----------|----|
-/// | 1        | `?` |
-/// | 2        | `.` |
-/// | 3        | `substruct`, `as` (infix) |
-/// | 4        | `!` |
-/// | 5        | `+`, `-` |
-/// | 6        | `>`, `<`, `>=`, `<=`, `is` |
-/// | 7        | `==`, `!=` |
-/// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
-/// | 9        | `or` (optional coalescing, right-associative) |
-fn get_pratt_parser() -> PrattParser {
-    PrattParser::new()
-        .op(Op::infix(Rule::coalesce, Assoc::Right))
-        .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
-        .op(Op::infix(Rule::equal, Assoc::Left) | Op::infix(Rule::not_equal, Assoc::Left))
-        .op(Op::infix(Rule::greater_than, Assoc::Left)
-            | Op::infix(Rule::less_than, Assoc::Left)
-            | Op::infix(Rule::greater_than_or_equal, Assoc::Left)
-            | Op::infix(Rule::less_than_or_equal, Assoc::Left)
-            | Op::postfix(Rule::is))
-        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
-        .op(Op::prefix(Rule::not))
-        .op(Op::postfix(Rule::substruct) | Op::postfix(Rule::cast))
-        .op(Op::postfix(Rule::dot))
-        .op(Op::postfix(Rule::try_op))
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-enum TypeStyle {
-    Unknown,
-    Old,
-    New,
+    Ok(str::from_utf8(&out)
+        .expect("valid utf8")
+        .parse()
+        .expect("valid text"))
 }
 
 fn hex_char_to_nibble(ch: u8) -> Option<u8> {
@@ -2026,4 +1048,37 @@ fn hex_char_to_nibble(ch: u8) -> Option<u8> {
         b'A'..=b'F' => ch - b'A' + 10,
         _ => return None,
     })
+}
+
+/// Configuration used for contextual parsing.
+#[derive(Copy, Clone, Debug)]
+#[non_exhaustive]
+struct Config {
+    /// Controls whether a named struct literal can be parsed.
+    ///
+    /// This is used to disambiguate `match name { ... }` and `if name { ... }`.
+    /// If you must construct a struct directly in those, add parentheses.
+    allow_struct: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self { allow_struct: true }
+    }
+}
+
+impl Config {
+    fn allow_struct(&self) -> Self {
+        Self {
+            allow_struct: true,
+            ..*self
+        }
+    }
+
+    fn disallow_struct(&self) -> Self {
+        Self {
+            allow_struct: false,
+            ..*self
+        }
+    }
 }

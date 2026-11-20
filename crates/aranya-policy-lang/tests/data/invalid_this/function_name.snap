@@ -1,4 +1,4 @@
-error: Reserved identifier
+error: Syntax error
   |
 1 | function this() int {}
-  |          ^^^^ found reserved identifier: `this`
+  |          ^^^^ found 'this' expected identifier
