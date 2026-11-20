@@ -29,6 +29,7 @@ impl FileStore {
 impl super::ByteStore for FileStore {
     type Error = Errno;
 
+    /// Read `{self.dir}/{id}` if it exists.
     fn get(&self, id: PolicyId) -> Result<Option<Vec<u8>>, Errno> {
         let path = IdPath::new(id);
         let fd = match fs::openat(
@@ -45,10 +46,13 @@ impl super::ByteStore for FileStore {
         Ok(Some(bytes))
     }
 
+    /// Write `bytes` to `{self.dir}/{id}` "atomically".
     fn put(&mut self, id: PolicyId, bytes: &[u8]) -> Result<(), Errno> {
         let path = IdPath::new(id);
+
         let tmp_path = path.tmp();
         {
+            // Write `bytes` to `tmp_path`.
             let tmpfd = fs::openat(
                 &self.dir,
                 tmp_path.as_cstr(),
@@ -56,8 +60,12 @@ impl super::ByteStore for FileStore {
                 Mode::RUSR | Mode::WUSR | Mode::RGRP | Mode::WGRP,
             )?;
             write_all(tmpfd.as_fd(), bytes)?;
+
+            // Sync to ensure we don't rename a partial file.
             fs::fsync(tmpfd)?;
         }
+
+        // Rename from temp file to real target.
         fs::renameat_with(
             &self.dir,
             tmp_path.as_cstr(),
@@ -66,13 +74,19 @@ impl super::ByteStore for FileStore {
             RenameFlags::empty(),
         )
         .inspect_err(|_| {
+            // If the rename failed, remove the temp file.
+            // Not strictly necesssary but nice to clean up.
             fs::unlinkat(&self.dir, tmp_path.as_cstr(), AtFlags::empty()).ok();
         })?;
+
+        // Sync directory to ensure persistence of rename before returning.
         fs::fsync(&self.dir)?;
+
         Ok(())
     }
 }
 
+/// Read the entire file into a vec.
 fn read_all(fd: BorrowedFd) -> Result<Vec<u8>, Errno> {
     let len = fs::fstat(fd)?.st_size;
     let len = usize::try_from(len).map_err(|_| Errno::FBIG)?;
@@ -91,6 +105,7 @@ fn read_all(fd: BorrowedFd) -> Result<Vec<u8>, Errno> {
     Ok(buf)
 }
 
+/// Write all of the bytes to the file.
 fn write_all(fd: BorrowedFd, mut bytes: &[u8]) -> Result<(), Errno> {
     while !bytes.is_empty() {
         match io::write(fd, bytes) {
@@ -105,7 +120,7 @@ fn write_all(fd: BorrowedFd, mut bytes: &[u8]) -> Result<(), Errno> {
 
 use path::IdPath;
 mod path {
-    //! Null-terminated path handling.
+    //! Convert IDs to paths as `CStr`s usable with `rustix`.
 
     use core::ffi::CStr;
 
