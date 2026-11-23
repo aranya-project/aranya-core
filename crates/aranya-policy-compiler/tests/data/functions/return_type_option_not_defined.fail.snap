@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: struct `Foo` is not defined
   |
 1 | function f() option[struct Foo] {
-  |                            ^^^ struct `Foo` not defined
+  |                            ^^^ used here

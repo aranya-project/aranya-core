@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: enum `UndefinedEnum` is not defined
   |
 1 | function bar(x: enum UndefinedEnum) bool {
-  |                      ^^^^^^^^^^^^^ enum `UndefinedEnum` not defined
+  |                      ^^^^^^^^^^^^^ used here

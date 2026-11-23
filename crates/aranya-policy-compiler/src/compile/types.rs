@@ -6,7 +6,7 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, FactLiteral, Ident, Identifier, NamedStruct, ResultTypeKind, Span, Spanned as _,
-    TypeKind, VType,
+    TypeKind, VType, WithSpanExt as _,
 };
 use aranya_policy_module::ffi;
 use indexmap::IndexMap;
@@ -16,7 +16,10 @@ use crate::{
     CompileError,
     compile::{
         CompileState,
-        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable, rendering::Error as _},
+        error::{
+            AlreadyDefined, InvalidType, NotDefined, Reference, UnusedVariable,
+            rendering::Error as _,
+        },
     },
 };
 
@@ -27,6 +30,19 @@ pub(crate) enum UserType<'a> {
     BaseCommand(&'a ast::BaseCommandDefinition),
     Command(&'a ast::CommandDefinition),
     FFIStruct(&'a ffi::Struct<'a>),
+}
+
+impl UserType<'_> {
+    pub(super) fn reference(&self) -> Reference {
+        match self {
+            UserType::Struct(def) => Reference::Struct(def.name.clone()),
+            UserType::Fact(def) => Reference::Fact(def.name.clone()),
+            UserType::Effect(def) => Reference::Struct(def.name.clone()), // TODO: Add effect?
+            UserType::BaseCommand(def) => Reference::Base(def.name.clone()),
+            UserType::Command(def) => Reference::Command(def.name.clone()),
+            UserType::FFIStruct(def) => Reference::Struct(def.name.clone().nowhere()),
+        }
+    }
 }
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
@@ -61,7 +77,10 @@ impl IdentifierTypeStack {
         match self.globals.entry(name.clone()) {
             hash_map::Entry::Occupied(o) => {
                 let existing_global = o.key().clone();
-                Err(AlreadyDefined::new(existing_global, name))
+                Err(AlreadyDefined::new(
+                    Reference::Global(existing_global),
+                    Reference::Global(name),
+                ))
             }
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
@@ -74,11 +93,17 @@ impl IdentifierTypeStack {
     #[allow(clippy::result_large_err)]
     pub fn add(&mut self, ident: Ident, vtype: VType) -> Result<(), AlreadyDefined> {
         if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
-            return Err(AlreadyDefined::new(existing_global.clone(), ident));
+            return Err(AlreadyDefined::new(
+                Reference::Global(existing_global.clone()),
+                Reference::Variable(ident),
+            ));
         }
         for prev in self.locals.iter().rev() {
             if let Some((existing_var, _)) = prev.get_key_value(&ident) {
-                return Err(AlreadyDefined::new(ident, existing_var.clone()));
+                return Err(AlreadyDefined::new(
+                    Reference::Variable(ident),
+                    Reference::Variable(existing_var.clone()),
+                ));
             }
         }
         let block = self.locals.last_mut().expect("no block scope");
@@ -196,8 +221,7 @@ impl CompileState<'_> {
                 span: s.name.span,
             })
         } else {
-            let note = format!("struct `{}` not defined", s.name);
-            Err(self.err(NotDefined(note, s.name.span)))
+            Err(self.err(NotDefined(Reference::Struct(s.name.clone()))))
         }
     }
 
@@ -210,8 +234,7 @@ impl CompileState<'_> {
                 span: f.name.span,
             })
         } else {
-            let note = format!("fact `{}` not defined", f.name);
-            Err(self.err(NotDefined(note, f.name.span)))
+            Err(self.err(NotDefined(Reference::Fact(f.name.clone()))))
         }
     }
 }
