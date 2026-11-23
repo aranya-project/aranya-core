@@ -152,8 +152,8 @@ impl Value {
             Self::Enum(name, _) => write!(f, "enum {}", name),
             Self::Option(Some(inner)) => write!(f, "option[{}]", inner.type_name()),
             Self::Option(None) => f.write_str("option[_]"),
-            Self::Result(Ok(inner)) => write!(f, "result[_, {}]", inner.type_name()),
-            Self::Result(Err(inner)) => write!(f, "result[{}, _]", inner.type_name()),
+            Self::Result(Ok(inner)) => write!(f, "result[{}, _]", inner.type_name()),
+            Self::Result(Err(inner)) => write!(f, "result[_, {}]", inner.type_name()),
         })
     }
 
