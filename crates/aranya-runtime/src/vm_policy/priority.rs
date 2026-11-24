@@ -72,8 +72,8 @@ fn load_priority(def: &CommandDef) -> Result<u32, AttributeError> {
         return Err(AttributeError::type_mismatch(
             cmd_name,
             attr_name,
-            "Int",
-            &attr.value.type_name(),
+            "int",
+            attr.value.type_name(),
         ));
     };
     u32::try_from(int).map_err(|_| {
@@ -171,7 +171,7 @@ mod test {
         assert_eq!(
             process("basic", "priority: false"),
             Err(AttributeError::type_mismatch(
-                "Test", "priority", "Int", "Bool"
+                "Test", "priority", "int", "bool"
             ))
         );
         assert_eq!(

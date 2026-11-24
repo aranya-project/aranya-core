@@ -748,7 +748,7 @@ impl CompileState<'_> {
 
                 let name = t.vtype.as_struct().ok_or_else(|| {
                     self.err(InvalidType::new(
-                        "struct".to_owned(),
+                        "struct _".to_owned(),
                         None,
                         t.vtype.to_string(),
                         t.span,
