@@ -29,7 +29,7 @@ complete_vtype = _{ SOI ~ ws ~ vtype ~ ws ~ EOI }
 // # Top-level Statements
 
 top_level_statement = _{
-    | use_definition
+    | use_definition ~ (ws ~ ";")?
     | fact_definition
     | action_definition
     | effect_definition
@@ -39,7 +39,7 @@ top_level_statement = _{
     | base_command_definition
     | function_definition
     | finish_function_definition
-    | global_let_statement
+    | global_let_statement ~ (ws ~ ";")?
 }
 
 // use device
@@ -78,9 +78,9 @@ flavor = _{ "[" ~ ws ~ identifier ~ ws ~ "]" }
 
 // # Statements
 statements = _{
-    | publish_statement
-    | let_statement
-    | check_statement
+    | publish_statement ~ (ws ~ ";")?
+    | let_statement ~ (ws ~ ";")?
+    | check_statement ~ (ws ~ ";")?
     | match_statement
     | if_statement
     | finish_statement
@@ -88,13 +88,13 @@ statements = _{
     | create_statement
     | update_statement
     | delete_statement
-    | emit_statement
-    | return_statement
-    | recall_statement
+    | emit_statement ~ (ws ~ ";")?
+    | return_statement ~ (ws ~ ";")?
+    | recall_statement ~ (ws ~ ";")?
     // Note that debug_assert must take precendence over function_call due to the overlapping syntax
-    | debug_assert
-    | function_call
-    | action_call
+    | debug_assert ~ (ws ~ ";")?
+    | function_call ~ (ws ~ ";")?
+    | action_call ~ (ws ~ ";")?
 }
 statement_block = _{ "{" ~ ws ~ (statements ~ ws)* ~ "}" }
 
