@@ -1,5 +1,5 @@
 // Globals cannot depend on other global variables
-let x = 42
+let x = 42;
 
 struct Far {
     a: int,
@@ -7,4 +7,4 @@ struct Far {
 
 let e = Far {
     a: x
-}
+};

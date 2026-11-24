@@ -5,13 +5,13 @@ function baz(b: struct Bar) struct Foo {
         :Some(b)
     } else {
         :None
-    }
+    };
 
 
     let new_foo = Foo {
         y: true,
         ...maybe_bar
-    }
+    };
 
-    return new_foo
+    return new_foo;
 }

@@ -23,5 +23,5 @@ struct Output {
 }
 
 function convert(input: struct Input) struct Output {
-    return input substruct Output
+    return input substruct Output;
 }

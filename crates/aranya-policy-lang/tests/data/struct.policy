@@ -3,5 +3,5 @@ struct Foo {
 }
 
 function convert(foo: struct Foo) struct Bar {
-    return Bar { y: foo.x, ...baz, ...thud }
+    return Bar { y: foo.x, ...baz, ...thud };
 }

@@ -1,7 +1,7 @@
 function f() int {
     let x = {
-        let y = 42 // unused
+        let y = 42; // unused
         : 0
-    }
-    return x
+    };
+    return x;
 }

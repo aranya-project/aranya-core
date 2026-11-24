@@ -1,1 +1,1 @@
-let global = Some(None)
+let global = Some(None);

@@ -2,6 +2,6 @@ function foo(r: result[int, string]) int {
     let x = match r {
         Ok(val) => val
         Err(err) => -1
-    }
-    return x
+    };
+    return x;
 }

@@ -5,5 +5,5 @@ function foo(b: struct Bar) int {
         Bar { r: Ok(42) } => 1
         Bar { r: Ok(16) } => 2
         _ => 0
-    }
+    };
 }

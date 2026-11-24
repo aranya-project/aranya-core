@@ -1,4 +1,4 @@
 // An action's success type must be `unit`.
 action[null] bad() result[string, string] {
-    return Err("e")
+    return Err("e");
 }

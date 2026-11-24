@@ -3,6 +3,6 @@ struct Baz {
     y: int,
 }
 action[null] foo() {
-    let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz
-    publish new_struct
+    let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz;
+    publish new_struct;
 }

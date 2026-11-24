@@ -4,7 +4,7 @@ command Cmd with StubBase {
         finish {}
     }
     recall handle() {
-        recall other()
+        recall other();
     }
     recall other() {
     }

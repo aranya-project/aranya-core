@@ -14,7 +14,7 @@ enum Player {
 }
 
 base[basic] Base {
-    get_key(_dev: id) option[bytes] { return None }
+    get_key(_dev: id) option[bytes] { return None; }
 }
 
 command Start with Base {
@@ -39,7 +39,7 @@ command Move with Base {
 
 
 action[basic] StartGame(players: struct Players) {
-    publish Start { players }
+    publish Start { players };
 }
 
 effect GameStart {
@@ -52,8 +52,8 @@ action[basic] MakeMove(gameID: id, x: int, y: int) {
         gameID,
         X: x,
         Y: y,
-    }
-    publish move_command
+    };
+    publish move_command;
 }
 
 effect GameUpdate {

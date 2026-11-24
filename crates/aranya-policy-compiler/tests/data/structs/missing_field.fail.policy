@@ -8,5 +8,5 @@ function make_s() struct S {
     return S {
         x: 0,
         z: 1,
-    }
+    };
 }

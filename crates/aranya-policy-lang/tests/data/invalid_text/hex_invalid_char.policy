@@ -1,1 +1,1 @@
-let x = "a\x0wb"
+let x = "a\x0wb";

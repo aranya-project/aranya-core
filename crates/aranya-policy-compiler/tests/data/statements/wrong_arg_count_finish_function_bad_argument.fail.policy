@@ -3,7 +3,7 @@ effect Result {
 }
 
 finish function f(x: int) {
-    emit Result { x }
+    emit Result { x };
 }
 
 command Foo with StubBase {
@@ -14,7 +14,7 @@ command Foo with StubBase {
 
     policy(this) {
         finish {
-            f()
+            f();
         }
     }
 }

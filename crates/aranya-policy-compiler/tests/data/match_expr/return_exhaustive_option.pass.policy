@@ -3,5 +3,5 @@ function f() int {
         None => 0
         Some(true) => 1
         Some(false) => 2
-    }
+    };
 }

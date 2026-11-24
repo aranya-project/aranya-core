@@ -1,6 +1,6 @@
 function bar(x: int) bool {
-    return false
+    return false;
 }
 function foo() bool {
-    return bar(Some(3))
+    return bar(Some(3));
 }

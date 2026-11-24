@@ -3,6 +3,6 @@ function f(n: int) unit {
         0 => return Unit
         1 => 1
         _ => false
-    }
-    return Unit
+    };
+    return Unit;
 }

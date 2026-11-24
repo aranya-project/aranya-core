@@ -1,15 +1,15 @@
 function a(n: int) int {
-    return b(n)
+    return b(n);
 }
 
 function b(n: int) int {
-    return c(n)
+    return c(n);
 }
 
 function c(n: int) int {
-    return a(n)
+    return a(n);
 }
 
 function d(n: int) int {
-    return d(n)
+    return d(n);
 }

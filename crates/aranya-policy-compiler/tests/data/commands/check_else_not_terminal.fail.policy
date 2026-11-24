@@ -1,7 +1,7 @@
 command Cmd with StubBase {
     fields {}
     policy(this) {
-        check true else 0
+        check true else 0;
         finish {}
     }
 }

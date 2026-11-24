@@ -1,4 +1,4 @@
 struct Foo {}
 action[null] foo() {
-    publish Foo {}
+    publish Foo {};
 }

@@ -3,5 +3,5 @@ struct Foo {
 }
 
 function get_inner(f: struct Foo) int {
-    return f.1
+    return f.1;
 }

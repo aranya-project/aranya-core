@@ -8,13 +8,13 @@ command Result with StubBase {
 action[null] foo(x: int) {
     match x {
         5 => {
-            publish Result { x }
+            publish Result { x };
         }
         _ => {
-            publish Result { x: 0 }
+            publish Result { x: 0 };
         }
         6 => {
-            publish Result { x }
+            publish Result { x };
         }
     }
 }

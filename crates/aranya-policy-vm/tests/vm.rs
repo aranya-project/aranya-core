@@ -21,7 +21,7 @@ use itertools::Itertools as _;
 #[track_caller]
 fn parse(text: &str) -> aranya_policy_ast::Policy {
     let text = text.trim_start_matches('\n').to_owned()
-        + "\n\nbase[null] StubBase { get_key(_dev: id) option[bytes] { return None } }";
+        + "\n\nbase[null] StubBase { get_key(_dev: id) option[bytes] { return None; } }";
     parse_policy_str(&text, Version::V2).unwrap()
 }
 
@@ -86,7 +86,7 @@ fn test_bytes() -> anyhow::Result<()> {
         }
 
         action[null] foo(id_input: id, x: bytes) {
-            publish Foo{id_field: id_input, x}
+            publish Foo{id_field: id_input, x};
         }
     "#;
 
@@ -137,7 +137,7 @@ fn test_structs() -> anyhow::Result<()> {
             publish Foo{
                 id_field: id_input,
                 bar: Bar { x },
-            }
+            };
         }
     "#;
 
@@ -270,11 +270,11 @@ fn test_action_call_expression() -> anyhow::Result<()> {
     let machine = compile(
         r#"
         action[null] inner() result[unit, string] {
-            return Err("inner fail")
+            return Err("inner fail");
         }
 
         action[null] outer() result[unit, string] {
-            return action inner()
+            return action inner();
         }
     "#,
     );
@@ -503,19 +503,19 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
 
     action[null] testExists() {
-        check exists Foo[] => {x: 3} else test_fail()
-        check exists Foo[] else test_fail()
-        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail()
+        check exists Foo[] => {x: 3} else test_fail();
+        check exists Foo[] else test_fail();
+        check exists Bar[i: 1] => {s: "abc", b: Bool::True} else test_fail();
 
-        check exists Foo[] => {x: ?} else test_fail()
-        check exists Bar[i: ?] => {s: ?, b: Bool::True} else test_fail()
+        check exists Foo[] => {x: ?} else test_fail();
+        check exists Bar[i: ?] => {s: ?, b: Bool::True} else test_fail();
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else test_fail()
-        check !exists Bar[i:1] => {s:"", b:Bool::True} else test_fail()
-        check !exists Bar[i: ?]=>{s: "ab", b: ?} else test_fail()
+        check !exists Bar[i:0] => {s:"ab", b:Bool::True} else test_fail();
+        check !exists Bar[i:1] => {s:"", b:Bool::True} else test_fail();
+        check !exists Bar[i: ?]=>{s: "ab", b: ?} else test_fail();
     }
     "#;
 
@@ -558,41 +558,41 @@ fn test_counting() -> anyhow::Result<()> {
 
         command TestUpTo with StubBase {
             policy() {
-                let count_one = count_up_to 1 Foo[i:?]
-                check count_one == 1 else test_fail()
-                let count_two = count_up_to 2 Foo[i:?]
-                check count_two == 2 else test_fail()
-                let count_all = count_up_to 10 Foo[i:?]
-                check count_all == 3 else test_fail()
-                let count_max = count_up_to 9223372036854775807 Foo[i:?]
-                check count_max == 3 else test_fail()
+                let count_one = count_up_to 1 Foo[i:?];
+                check count_one == 1 else test_fail();
+                let count_two = count_up_to 2 Foo[i:?];
+                check count_two == 2 else test_fail();
+                let count_all = count_up_to 10 Foo[i:?];
+                check count_all == 3 else test_fail();
+                let count_max = count_up_to 9223372036854775807 Foo[i:?];
+                check count_max == 3 else test_fail();
                 finish {}
             }
         }
 
         command TestAtLeast with StubBase {
             policy() {
-                check at_least 1 Foo[i:?] else test_fail()
-                check at_least 3 Foo[i:?] else test_fail()
-                check at_least 4 Foo[i:?] == false else test_fail()
+                check at_least 1 Foo[i:?] else test_fail();
+                check at_least 3 Foo[i:?] else test_fail();
+                check at_least 4 Foo[i:?] == false else test_fail();
                 finish {}
             }
         }
 
         command TestAtMost with StubBase {
             policy() {
-                check at_most 1 Foo[i:?] == false else test_fail()
-                check at_most 3 Foo[i:?] else test_fail()
-                check at_most 4 Foo[i:?] else test_fail()
+                check at_most 1 Foo[i:?] == false else test_fail();
+                check at_most 3 Foo[i:?] else test_fail();
+                check at_most 4 Foo[i:?] else test_fail();
                 finish {}
             }
         }
 
         command TestExactly with StubBase {
             policy() {
-                check exactly 1 Foo[i:?] == false else test_fail()
-                check exactly 3 Foo[i:?] else test_fail()
-                check exactly 4 Foo[i:?] == false else test_fail()
+                check exactly 1 Foo[i:?] == false else test_fail();
+                check exactly 3 Foo[i:?] else test_fail();
+                check exactly 4 Foo[i:?] == false else test_fail();
                 finish {}
             }
         }
@@ -664,9 +664,9 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
         // This tests the implicitly defined struct as a return type
         function get_foo(a: int) struct Foo {
-            let foo = query Foo[a]=>{b: ?} or test_fail()
+            let foo = query Foo[a]=>{b: ?} or test_fail();
 
-            return foo
+            return foo;
         }
 
         // Set creates the fact
@@ -692,9 +692,9 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
 
             policy(this) {
-                let x = get_foo(this.a)
+                let x = get_foo(this.a);
                 finish {
-                    emit Result { x }
+                    emit Result { x };
                 }
             }
         }
@@ -769,25 +769,25 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action[null] test_query() {
-            let f = query Foo[i: 1, j: ?] or test_fail()
-            check f.x == 1 else test_fail()
-            let f2 = query Foo[i: ?, j: ?] or test_fail()
-            check f2.x == 1 else test_fail()
-            let f3 = query Foo[i:2, j:?] or test_fail()
-            check f3.x == 3 else test_fail()
+            let f = query Foo[i: 1, j: ?] or test_fail();
+            check f.x == 1 else test_fail();
+            let f2 = query Foo[i: ?, j: ?] or test_fail();
+            check f2.x == 1 else test_fail();
+            let f3 = query Foo[i:2, j:?] or test_fail();
+            check f3.x == 3 else test_fail();
 
             // bind value
-            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or test_fail()
-            check f4.x == 3 else test_fail()
+            let f4 = query Foo[i: 2, j: 1]=>{x: 3, s: ?} or test_fail();
+            check f4.x == 3 else test_fail();
             // bind key and value
-            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or test_fail()
-            check f5.x == 3 else test_fail()
+            let f5 = query Foo[i: ?, j: ?]=>{x: 3, s: ?} or test_fail();
+            check f5.x == 3 else test_fail();
         }
 
         action[null] test_exists() {
-            check exists Foo[i:1, j:?] else test_fail()
-            check exists Foo[i:-1, j:?] == false else test_fail()
-            check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail()
+            check exists Foo[i:1, j:?] else test_fail();
+            check exists Foo[i:-1, j:?] == false else test_fail();
+            check !exists Foo[i:1, j:?] => {x:-1, s:?} else test_fail();
         }
     "#;
 
@@ -843,8 +843,8 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action[null] test_query() {
-            let f = query Bar[i:Foo::A] => {x: ?} or test_fail()
-            check f.x == Foo::A else test_fail()
+            let f = query Bar[i:Foo::A] => {x: ?} or test_fail();
+            check f.x == Foo::A else test_fail();
         }
     "#;
 
@@ -881,7 +881,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
 fn test_not_operator() -> anyhow::Result<()> {
     let text = r#"
         action[null] test() {
-            check !false else test_fail()
+            check !false else test_fail();
         }
     "#;
 
@@ -900,7 +900,7 @@ fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo(x: bool) {
             if x == true {
-                check false else test_fail()
+                check false else test_fail();
             }
         }
     "#;
@@ -934,17 +934,17 @@ fn test_if_branches() -> anyhow::Result<()> {
 
         action[null] foo(x: int) {
             if x == 0 {
-                check true else test_fail()
-                publish Result { s: "0" }
-                check true else test_fail()
+                check true else test_fail();
+                publish Result { s: "0" };
+                check true else test_fail();
             } else if x == 1 {
-                publish Result { s: "1" }
+                publish Result { s: "1" };
             } else if x == 2 {
-                check true else test_fail()
-                publish Result { s: "2" }
+                check true else test_fail();
+                publish Result { s: "2" };
             } else {
-                publish Result { s: "3" }
-                check true else test_fail()
+                publish Result { s: "3" };
+                check true else test_fail();
             }
         }
     "#;
@@ -1031,10 +1031,10 @@ fn test_match_alternation() -> anyhow::Result<()> {
         action[null] foo(x: int) {
             match x {
                 0 | 1 => {
-                    check false else test_fail()
+                    check false else test_fail();
                 }
                 5 | 6 | 7 => {
-                    publish Result { x }
+                    publish Result { x };
                 }
                 _ => {}
             }
@@ -1066,10 +1066,10 @@ fn test_match_default() -> anyhow::Result<()> {
         action[null] foo(x: int) {
             match x {
                 5 => {
-                    publish Result { x }
+                    publish Result { x };
                 }
                 _ => {
-                    publish Result { x: 0 }
+                    publish Result { x: 0 };
                 }
             }
         }
@@ -1092,13 +1092,13 @@ fn test_match_default() -> anyhow::Result<()> {
 fn test_match_return() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo(val: int) {
-            check val == bar() else test_fail()
+            check val == bar() else test_fail();
         }
 
         function bar() int {
             match 0 {
-                0 => { return 42 }
-                _ => { return 0 }
+                0 => { return 42; }
+                _ => { return 0; }
             }
         }
     "#;
@@ -1124,8 +1124,8 @@ fn test_match_expression() -> anyhow::Result<()> {
             let y = match x {
                 0 => { :1 }
                 _ => { :0 }
-            }
-            publish F { x: y }
+            };
+            publish F { x: y };
         }
     "#;
     let machine = compile(text);
@@ -1154,8 +1154,8 @@ fn test_match_optional_binding() -> anyhow::Result<()> {
             let y = match o {
                 Some(n) => n
                 None => 0
-            }
-            publish F { x: y }
+            };
+            publish F { x: y };
         }
     "#;
     let machine = compile(text);
@@ -1219,10 +1219,10 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action[null] foo(x: bool, y: bool) {
         if x {
-            check x else test_fail()
+            check x else test_fail();
         }
         if !y {
-            check !y else test_fail()
+            check !y else test_fail();
         }
     }
     "#;
@@ -1248,11 +1248,11 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         function f(x: int) int {
-            return add(x, 1) or test_fail()
+            return add(x, 1) or test_fail();
         }
 
         action[null] foo(x: int) {
-            publish Result { x: f(x) }
+            publish Result { x: f(x) };
         }
     "#;
 
@@ -1280,7 +1280,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
 
         finish function f(x: int) {
-            emit Result { x }
+            emit Result { x };
         }
 
         command Foo with StubBase {
@@ -1291,7 +1291,7 @@ fn test_finish_function() -> anyhow::Result<()> {
 
             policy(this) {
                 finish {
-                    f(this.x)
+                    f(this.x);
                 }
             }
         }
@@ -1326,7 +1326,7 @@ fn test_check_errors() -> anyhow::Result<()> {
         r#"command Foo with StubBase {
                 fields {}
                 policy() {
-                    check false else recall default()
+                    check false else recall default();
                 }
                 recall default() {
                 }
@@ -1334,7 +1334,7 @@ fn test_check_errors() -> anyhow::Result<()> {
         r#"command Foo with StubBase {
                 fields {}
                 policy() {
-                    check false else recall bar()
+                    check false else recall bar();
                 }
                 recall bar() {
                 }
@@ -1373,23 +1373,23 @@ fn test_coalesce_or() -> anyhow::Result<()> {
         }
 
         action[null] test_some_or() {
-            let f = query Foo[i: 1] or Foo { i: 0, x: 0 }
-            check f.x == 42 else test_fail()
+            let f = query Foo[i: 1] or Foo { i: 0, x: 0 };
+            check f.x == 42 else test_fail();
         }
 
         action[null] test_none_or() {
-            let f = query Foo[i: 999] or Foo { i: 0, x: 99 }
-            check f.x == 99 else test_fail()
+            let f = query Foo[i: 999] or Foo { i: 0, x: 99 };
+            check f.x == 99 else test_fail();
         }
 
         action[null] test_chain() {
-            let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 }
-            check f.x == 77 else test_fail()
+            let f = query Foo[i: 999] or query Foo[i: 888] or Foo { i: 0, x: 77 };
+            check f.x == 77 else test_fail();
         }
 
         action[null] test_chain_first_some() {
-            let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 }
-            check f.x == 42 else test_fail()
+            let f = query Foo[i: 1] or query Foo[i: 999] or Foo { i: 0, x: 0 };
+            check f.x == 42 else test_fail();
         }
     "#;
 
@@ -1464,7 +1464,7 @@ fn test_nested_optionals() -> anyhow::Result<()> {
         .iter()
         .enumerate()
         .map(|(i, c)| {
-            format!("action[null] c{i}() {{ check {c} else test_fail(\"check failed\") }}")
+            format!("action[null] c{i}() {{ check {c} else test_fail(\"check failed\"); }}")
         })
         .join("\n");
     let machine = compile(&actions);
@@ -1490,7 +1490,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         effect Recalled {}
 
         base[custom] Base {
-            get_key(_dev: id) option[bytes] { return None }
+            get_key(_dev: id) option[bytes] { return None; }
         }
 
         command Foo with Base {
@@ -1499,14 +1499,14 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             }
 
             policy(this, envelope) {
-                check envelope.payload == this.test else test_fail("invalid envelope")
-                recall default(this, envelope)
+                check envelope.payload == this.test else test_fail("invalid envelope");
+                recall default(this, envelope);
             }
 
             recall default(this, envelope) {
-                check envelope.payload == this.test else test_fail("invalid envelope")
+                check envelope.payload == this.test else test_fail("invalid envelope");
                 finish {
-                    emit Recalled {}
+                    emit Recalled {};
                 }
             }
         }
@@ -1566,29 +1566,29 @@ fn test_debug_assert() -> anyhow::Result<()> {
     }
 
     function get_false() bool {
-        return false
+        return false;
     }
 
     action[null] test_debug_assert_failure() {
         // Add dummy `publish` to keep the compiler happy in release mode.
-        if false { publish Pub {} }
+        if false { publish Pub {}; }
 
-        debug_assert(false)
+        debug_assert(false);
     }
 
     action[null] test_debug_assert_failure_expression() {
-        if false { publish Pub {} }
-        debug_assert(get_false())
+        if false { publish Pub {}; }
+        debug_assert(get_false());
     }
 
     function get_true() bool {
-        return true
+        return true;
     }
 
     action[null] test_debug_assert_pass() {
-        if false { publish Pub {} }
-        debug_assert(true)
-        debug_assert(get_true())
+        if false { publish Pub {}; }
+        debug_assert(true);
+        debug_assert(get_true());
     }
     "#;
 
@@ -1641,9 +1641,9 @@ fn test_debug_assert() -> anyhow::Result<()> {
 #[test]
 fn test_global_let_statements() -> anyhow::Result<()> {
     let text = r#"
-        let x = 42
-        let y = "hello world"
-        let z = true
+        let x = 42;
+        let y = "hello world";
+        let z = true;
 
         struct Far {
             a: int,
@@ -1661,7 +1661,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
             },
             b: "y",
             c: false,
-        }
+        };
 
         command Result with StubBase {
             fields {
@@ -1674,10 +1674,10 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
 
         action[null] foo() {
-            let a = add(x, 1) or test_fail()
-            let b = y
-            let c = !z
-            publish Result { a, b, c, d }
+            let a = add(x, 1) or test_fail();
+            let b = y;
+            let c = !z;
+            publish Result { a, b, c, d };
         }
     "#;
 
@@ -1752,10 +1752,10 @@ fn test_enum_reference() -> anyhow::Result<()> {
         action[null] test(type: enum Drink) {
             match type {
                 Drink::Water => {
-                    publish Sip { a: "bleh" }
+                    publish Sip { a: "bleh" };
                 }
                 Drink::Coffee => {
-                    publish Sip { a: "mmm" }
+                    publish Sip { a: "mmm" };
                 }
             }
         }
@@ -1857,10 +1857,10 @@ fields {
     a: int,
 }
 policy(this) {
-    let x = this.a
+    let x = this.a;
     finish {
         create Foo[]=>{x}
-        emit Update{value: x}
+        emit Update{value: x};
     }
 }
 }
@@ -1877,11 +1877,11 @@ policy() {
 command Increment with StubBase {
 fields {}
 policy() {
-    let r = query Foo[]=>{x: ?} or test_fail()
-    let new_x = add(r.x, 1) or test_fail()
+    let r = query Foo[]=>{x: ?} or test_fail();
+    let new_x = add(r.x, 1) or test_fail();
     finish {
         update Foo[]=>{x: r.x} to {x: new_x}
-        emit Update{value: new_x}
+        emit Update{value: new_x};
     }
 }
 }
@@ -1930,14 +1930,14 @@ fn test_map() -> anyhow::Result<()> {
                 finish {
                     emit Result {
                         value: this.value
-                    }
+                    };
                 }
             }
         }
 
         action[null] test() {
             map F[i:?] as f {
-                publish Process { value: f.n }
+                publish Process { value: f.n };
             }
         }
     "#;
@@ -2005,7 +2005,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         }
 
         action[null] type_validation(maybe_int_input: option[int], name_input: string) {
-            publish TypeValidation{maybe_int: maybe_int_input, name: name_input}
+            publish TypeValidation{maybe_int: maybe_int_input, name: name_input};
         }
     "#;
 
@@ -2088,16 +2088,16 @@ fn test_block_expression() -> anyhow::Result<()> {
         }
 
         action[null] test() {
-            let a = 3
-            let b = 4
+            let a = 3;
+            let b = 4;
             let x = {
-                let c = 5
+                let c = 5;
                 : saturating_add(saturating_add(a, b), c)
-            }
+            };
 
             publish TestCommand {
                 x
-            }
+            };
         }
     "#;
 
@@ -2132,7 +2132,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
             z: string,
         }
         action[null] baz(source: struct Bar) {
-            publish source substruct Foo
+            publish source substruct Foo;
         }
     "#;
     let machine = compile(policy_str);
@@ -2178,7 +2178,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
             z: string,
         }
         action[null] baz(source: struct Bar, x: int) {
-            publish Foo { x, ...source }
+            publish Foo { x, ...source };
         }
     "#;
     let machine = compile(policy_str);
@@ -2223,7 +2223,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
 fn test_boolean_operators() {
     fn check(expr: &str) {
         let machine = compile(&format!(
-            "action[null] f() {{ check {expr} else test_fail() }}"
+            "action[null] f() {{ check {expr} else test_fail(); }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2252,8 +2252,8 @@ fn test_boolean_short_circuit() {
     fn run(expr: &str) -> i64 {
         let machine = compile(&format!(
             r#"
-            action[null] f() result[unit, int] {{ return Err(g()) }}
-            function g() int {{ return if {expr} {{ : 1 }} else {{ : 0 }} }}
+            action[null] f() result[unit, int] {{ return Err(g()); }}
+            function g() int {{ return if {expr} {{ : 1 }} else {{ : 0 }}; }}
             "#
         ));
         let mut io = TestIO::new();
@@ -2280,7 +2280,7 @@ fn test_boolean_short_circuit() {
 fn test_test_fail() {
     fn run(cond: &str) -> ExitReason {
         let machine = compile(&format!(
-            "action[null] f() {{ check {cond} else test_fail() }}"
+            "action[null] f() {{ check {cond} else test_fail(); }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2300,7 +2300,7 @@ fn test_test_fail() {
 fn test_comparison_operators() {
     fn check(expr: &str) {
         let machine = compile(&format!(
-            "action[null] f() {{ check {expr} else test_fail() }}"
+            "action[null] f() {{ check {expr} else test_fail(); }}"
         ));
         let mut io = TestIO::new();
         let ctx = dummy_ctx_action(ident!("f"));
@@ -2334,15 +2334,15 @@ fn test_struct_conversion() -> anyhow::Result<()> {
         }
 
         function new_foo(x: int, y: string) struct Foo {
-            return Foo { y, x }
+            return Foo { y, x };
         }
 
         action[null] test() {
-            let foo = Foo { y: "abc", x: 42 }
-            publish foo as Bar // var reference
-            publish Foo { y: "b", x: 1 } as Bar // struct literal
-            publish new_foo(5, "def") as Bar // function return value
-            publish Bar { x: 100, y: "xyz" } as Bar
+            let foo = Foo { y: "abc", x: 42 };
+            publish foo as Bar; // var reference
+            publish Foo { y: "b", x: 1 } as Bar; // struct literal
+            publish new_foo(5, "def") as Bar; // function return value
+            publish Bar { x: 100, y: "xyz" } as Bar;
         }
         "#;
 
@@ -2392,11 +2392,11 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 fn test_source_lookup() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo() {
-            check true else test_fail()
+            check true else test_fail();
             // before
-            check false else test_fail()
+            check false else test_fail();
             // after
-            check true else test_fail()
+            check true else test_fail();
         }
     "#;
 
@@ -2423,7 +2423,7 @@ fn test_source_lookup() -> anyhow::Result<()> {
 fn test_return_expression() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo() {
-            check 42 == bar() else test_fail()
+            check 42 == bar() else test_fail();
         }
 
         function bar() int {
@@ -2431,12 +2431,12 @@ fn test_return_expression() -> anyhow::Result<()> {
                 12,
                 return 42,
                 13,
-            )
-            return test_fail("unreachable")
+            );
+            return test_fail("unreachable");
         }
 
         function baz(_x: int, _y: int, _z: int) int {
-            return test_fail("unreachable")
+            return test_fail("unreachable");
         }
     "#;
 
@@ -2456,20 +2456,20 @@ fn test_return_expression() -> anyhow::Result<()> {
 fn test_return_statement_in_expr() -> anyhow::Result<()> {
     let text = r#"
         action[null] foo() {
-            check 42 == bar() else test_fail()
+            check 42 == bar() else test_fail();
         }
 
         function bar() int {
             let _x = baz(
                 12,
-                { return 42 : test_fail("unreachable") },
+                { return 42; : test_fail("unreachable") },
                 13,
-            )
-            return test_fail("unreachable")
+            );
+            return test_fail("unreachable");
         }
 
         function baz(_x: int, _y: int, _z: int) int {
-            return test_fail("unreachable")
+            return test_fail("unreachable");
         }
     "#;
 
@@ -2504,23 +2504,23 @@ fn test_result() -> anyhow::Result<()> {
                 let e = match try(this.succeed) {
                     Ok(v) => Result { r: Ok(v) }
                     Err(e) => Result { r: Err(e) }
-                }
+                };
                 finish {
-                    emit e
+                    emit e;
                 }
             }
         }
 
         function try(succeed: bool) result[int, enum Error] {
-            return Ok(try_return(succeed)?)
+            return Ok(try_return(succeed)?);
         }
 
         function try_return(succeed: bool) result[int, enum Error] {
             let r = match succeed {
                 true => Ok(42)
                 false => return Err(Error::Fail) // early return from match
-            }
-            return r
+            };
+            return r;
         }
     "#;
 
@@ -2582,15 +2582,15 @@ fn test_match_patterns() -> anyhow::Result<()> {
                 n: int
             }
             policy(this) {
-                let r = Ok(this.n)
+                let r = Ok(this.n);
                 let out = match r {
                     Ok(5) => Result { n: 5 }
                     Ok(6) => Result { n: 6 }
                     Err(never) => never
                     _ => Result { n: 0 }
-                }
+                };
                 finish {
-                    emit out
+                    emit out;
                 }
             }
         }
@@ -2656,7 +2656,7 @@ fn test_unit() -> anyhow::Result<()> {
                 : Ok(Unit)
             } else {
                 : Err(Error::Fail)
-            }
+            };
         }
 
         command DoMatch with StubBase {
@@ -2669,14 +2669,14 @@ fn test_unit() -> anyhow::Result<()> {
                         finish {
                             emit Yes {
                                 n: this.n,
-                            }
+                            };
                         }
                     }
                     Err(e) => {
                         finish {
                             emit No {
                                 err: e,
-                            }
+                            };
                         }
                     }
                 }
@@ -2738,11 +2738,11 @@ fn test_recall_with_args() -> anyhow::Result<()> {
                 y: string
             }
             policy() {
-                check false else recall test(1, "oops")
+                check false else recall test(1, "oops");
             }
             recall test(a: int, b: string) {
                 finish {
-                    emit MyError { x: a, y: b }
+                    emit MyError { x: a, y: b };
                 }
             }
         }

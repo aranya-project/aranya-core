@@ -13,5 +13,5 @@ function make_s() struct S {
         me_neither: 3,
         multitudes: 12,
         not_a_bool: false,
-    }
+    };
 }

@@ -1,5 +1,5 @@
 base[ephemeral] Ephemeral {
-    get_key(_dev: id) option[bytes] { return None }
+    get_key(_dev: id) option[bytes] { return None; }
 }
 command Cmd with Ephemeral {
     fields {}
@@ -8,5 +8,5 @@ command Cmd with Ephemeral {
     }
 }
 action[ephemeral] test() {
-    publish Cmd {}
+    publish Cmd {};
 }

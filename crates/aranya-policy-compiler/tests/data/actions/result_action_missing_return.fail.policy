@@ -1,4 +1,4 @@
 // A result-typed action must return on every path.
 action[null] oops(x: int) result[unit, string] {
-    let y = x
+    let y = x;
 }

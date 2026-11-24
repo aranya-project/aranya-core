@@ -2,5 +2,5 @@ action[null] infallible() {}
 
 action[null] foo() {
     // there's no value on the stack to assign
-    let x = action infallible()
+    let x = action infallible();
 }

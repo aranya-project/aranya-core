@@ -3,5 +3,5 @@ action[null] f(maybe_bool: option[bool]) {
         None => 0
         Some(true) => 1
         Some(false) => 2
-    }
+    };
 }

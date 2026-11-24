@@ -5,7 +5,7 @@ base[init] MyInitBase {
         key: bytes
     }
     get_key(this, _dev: id) option[bytes] {
-        return Some(this.key)
+        return Some(this.key);
     }
 }
 
@@ -14,7 +14,7 @@ base[basic] MyBasicBase {
         return match query Key[dev] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -31,13 +31,13 @@ command MyBasic2 with MyBasicBase {
 }
 
 action[init] my_init(key: bytes) {
-    publish MyInit { key: key }
+    publish MyInit { key: key };
 }
 
 action[basic] my_basic_1() {
-    publish MyBasic1 { }
+    publish MyBasic1 { };
 }
 
 action[basic] my_basic_2() {
-    publish MyBasic2 { }
+    publish MyBasic2 { };
 }

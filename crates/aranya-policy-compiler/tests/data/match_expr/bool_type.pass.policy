@@ -2,6 +2,6 @@ action[null] f(n: int) {
     let b = match n {
         0 => false
         _ => true
-    }
-    check b else test_fail()
+    };
+    check b else test_fail();
 }

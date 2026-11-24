@@ -241,15 +241,15 @@ impl RunFile {
         keystore: &mut KS,
     ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
-            r#"use testing
-            base[null] Base {{ get_key(_dev: id) option[bytes] {{ return None }} }}
+            r#"use testing;
+            base[null] Base {{ get_key(_dev: id) option[bytes] {{ return None; }} }}
             command CaptureVariables with Base {{
                 fields {{ }}
                 policy() {{ }}
             }}
             action[null] preamble() {{
                 {}
-                publish CaptureVariables {{}}
+                publish CaptureVariables {{}};
             }}"#,
             self.preamble
         );
@@ -312,7 +312,7 @@ mod tests {
     fn parse_correct() {
         let text = r#"
 preamble:
-    let x = 0
+    let x = 0;
 do:
     doit(x)
         "#
@@ -336,7 +336,7 @@ do:
     fn parse_without_do() {
         let text = r#"
 preamble:
-    let x = 0
+    let x = 0;
         "#
         .trim();
 
@@ -377,7 +377,7 @@ preamble:
         let (mut ce, mut ks) = test_prereqs();
         let rf = RunFile {
             file_path: "<generated>".into(),
-            preamble: "let x = 3".into(),
+            preamble: "let x = 3;".into(),
             do_things: vec![PolicyRunnable::Action("todo()".into())],
         };
         let v = rf
@@ -405,7 +405,7 @@ preamble:
     fn preamble_policy_lang_compile_error() {
         let text = r#"
 preamble:
-    let x = foo("horse")
+    let x = foo("horse");
         "#
         .trim();
 
@@ -420,7 +420,7 @@ preamble:
     fn preamble_policy_lang_vm_error() {
         let text = r#"
 preamble:
-    let x = testing::cause_machine_error()
+    let x = testing::cause_machine_error();
         "#
         .trim();
 
@@ -435,7 +435,7 @@ preamble:
     fn preamble_policy_lang_vm_panic() {
         let text = r#"
 preamble:
-    let x = todo()
+    let x = todo();
         "#
         .trim();
 

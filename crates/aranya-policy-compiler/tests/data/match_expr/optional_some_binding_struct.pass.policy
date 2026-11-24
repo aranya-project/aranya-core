@@ -4,5 +4,5 @@ function f(o: option[struct Foo]) struct Foo {
     return match o {
         Some(f) => f
         None => Foo { x: 0 }
-    }
+    };
 }

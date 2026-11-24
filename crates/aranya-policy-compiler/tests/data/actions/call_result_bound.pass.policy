@@ -1,8 +1,8 @@
 action[null] can_fail() result[unit, string] {
-    return Err("nope")
+    return Err("nope");
 }
 
 action[null] foo() result[unit, string] {
-    let r = action can_fail()
-    return r
+    let r = action can_fail();
+    return r;
 }

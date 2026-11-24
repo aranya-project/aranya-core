@@ -3,8 +3,8 @@ struct Foo {
     y: int
 }
 
-let foo = Foo { x: 10, y: 20 }
-let foo2 = Foo { x: 1000, ...foo }
+let foo = Foo { x: 10, y: 20 };
+let foo2 = Foo { x: 1000, ...foo };
 
 command Bar with StubBase {
     attributes {

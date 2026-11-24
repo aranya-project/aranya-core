@@ -1,6 +1,6 @@
 command Cmd with StubBase {
     fields {}
     policy(this) {
-        recall nonexistent()
+        recall nonexistent();
     }
 }

@@ -4,7 +4,7 @@ action[null] infallible() {}
 // A result-typed action must return Ok(unit)/Err(e) on every path.
 action[null] can_fail(x: int) result[unit, string] {
     if x > 0 {
-        return Ok(Unit)
+        return Ok(Unit);
     }
-    return Err("negative input")
+    return Err("negative input");
 }

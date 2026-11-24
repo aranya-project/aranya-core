@@ -1,4 +1,4 @@
 // An infallible action (no: result type) cannot return.
 action[null] oops() {
-    return Ok(0)
+    return Ok(0);
 }

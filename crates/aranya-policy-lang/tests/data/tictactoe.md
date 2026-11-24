@@ -11,7 +11,7 @@ fact GameOver[gameID: id]=>{}
 // Regular functions can only contain data processing statements, must
 // have a return type, and must return a value
 function bounds(v: int) bool {
-    return v >= 0 && v <= 2
+    return v >= 0 && v <= 2;
 }
 // finish functions can only be used in finish blocks and can only contain
 // statements valid in finish blocks
@@ -23,8 +23,8 @@ action[null] StartGame(profileX: id, profileO: id) {
     let start_command = Start{
         ProfileX: profileX,
         ProfileO: profileO,
-    }
-    publish start_command
+    };
+    publish start_command;
 }
 
 effect GameStart {
@@ -39,8 +39,8 @@ command Start with Base {
         ProfileO: id,
     }
     policy(this, envelope) {
-        check ProfileX != ProfileO else test_fail("Profiles must be different")
-        let gameID = envelope.command_id
+        check ProfileX != ProfileO else test_fail("Profiles must be different");
+        let gameID = envelope.command_id;
         finish {
             create PlayerProfile[gameID]=>{x: ProfileX, o: ProfileO}
             create NextPlayer[gameID]=>{p: "X"}
@@ -49,7 +49,7 @@ command Start with Base {
                 gameID,
                 x: ProfileX,
                 o: ProfileO,
-            }
+            };
         }
     }
 }
@@ -59,8 +59,8 @@ action[null] MakeMove(gameID: id, x: int, y: int) {
         gameID,
         X: x,
         Y: y,
-    }
-    publish move_command
+    };
+    publish move_command;
 }
 
 effect GameUpdate {
@@ -89,28 +89,28 @@ command Move with Base {
         // These aren't "variables" in the procedural sense, they are
         // set-once constant definitions that can be used in later
         // expressions.
-        let player = envelope.author_id
+        let player = envelope.author_id;
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
         // values marked with ?, or None. The `or` operator unwraps the result
         // of the query, if it is `Some`, or invokes the test_fail() expression,
         // which terminates the policy with an error.
-        let res = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail()
-        let playerX = res.x
-        let playerO = res.o
-        let p = query NextPlayer[gameID]=>{p: ?} or test_fail()
+        let res = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail();
+        let playerX = res.x;
+        let playerO = res.o;
+        let p = query NextPlayer[gameID]=>{p: ?} or test_fail();
         // the if expression works like a ternary expression, where both
         // branches must be specified.
-        let nextp = if p == "X" { :"O" } else { :"X" }
+        let nextp = if p == "X" { :"O" } else { :"X" };
 
         // Checks are separated here, but they can be interleaved with let
         // statements.
         // Defined variables, command fields, and common event fields can
         // be checked for validity with boolean expressions.
-        check (p == "X" && player == playerX) || (p == "O" && player == playerO) else test_fail("bad state: wrong player")
+        check (p == "X" && player == playerX) || (p == "O" && player == playerO) else test_fail("bad state: wrong player");
         // functions can be used in any expression
-        check bounds(X) else test_fail("X out of bounds")
-        check bounds(Y) else test_fail("Y out of bounds")
+        check bounds(X) else test_fail("X out of bounds");
+        check bounds(Y) else test_fail("Y out of bounds");
 
         // phase 2: fact updates and effects
         // Facts can be created, updated, and destroyed.
@@ -118,7 +118,7 @@ command Move with Base {
         // The finish block ends rule evaluation.
         finish {
             create Field[gameID, x: X, y: Y]=>{p}
-            set_next_player(gameID, nextp)
+            set_next_player(gameID, nextp);
 
             emit GameUpdate{
                 gameID,
@@ -126,21 +126,21 @@ command Move with Base {
                 p,
                 X,
                 Y,
-            }
+            };
         }
     }
 }
 
 function game_over(gameID: id, x: int, y: int, p: string) bool {
-    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID, x: 0, y: 0]=>{p: ?} }
-    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID, x: 1, y: 0]=>{p: ?} }
-    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID, x: 2, y: 0]=>{p: ?} }
-    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID, x: 0, y: 1]=>{p: ?} }
-    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID, x: 1, y: 1]=>{p: ?} }
-    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID, x: 2, y: 1]=>{p: ?} }
-    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID, x: 0, y: 2]=>{p: ?} }
-    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID, x: 1, y: 2]=>{p: ?} }
-    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID, x: 2, y: 2]=>{p: ?} }
+    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID, x: 0, y: 0]=>{p: ?} };
+    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID, x: 1, y: 0]=>{p: ?} };
+    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID, x: 2, y: 0]=>{p: ?} };
+    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID, x: 0, y: 1]=>{p: ?} };
+    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID, x: 1, y: 1]=>{p: ?} };
+    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID, x: 2, y: 1]=>{p: ?} };
+    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID, x: 0, y: 2]=>{p: ?} };
+    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID, x: 1, y: 2]=>{p: ?} };
+    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID, x: 2, y: 2]=>{p: ?} };
     return (f00 is Some && f00 == f10 && f10 == f20) ||
            (f01 is Some && f01 == f11 && f11 == f21) ||
            (f01 is Some && f02 == f12 && f12 == f22) ||
@@ -148,7 +148,7 @@ function game_over(gameID: id, x: int, y: int, p: string) bool {
            (f10 is Some && f10 == f11 && f11 == f12) ||
            (f20 is Some && f20 == f21 && f21 == f22) ||
            (f00 is Some && f00 == f11 && f11 == f22) ||
-           (f20 is Some && f20 == f11 && f11 == f02)
+           (f20 is Some && f20 == f11 && f11 == f02);
 }
 
 command Move2 with Base {
@@ -158,15 +158,15 @@ command Move2 with Base {
         Y: int,
     }
     policy(this) {
-        let player = envelope.author_id
-        let players = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail()
-        let p = query NextPlayer[gameID]=>{p: ?} or test_fail()
-        let nextp = if p == "X" { :"O" } else { :"X" }
+        let player = envelope.author_id;
+        let players = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail();
+        let p = query NextPlayer[gameID]=>{p: ?} or test_fail();
+        let nextp = if p == "X" { :"O" } else { :"X" };
 
-        check !exists GameOver[gameID]=>{} else test_fail("game is over")
-        check bounds(X) else test_fail("X invalid")
-        check bounds(Y) else test_fail("Y invalid")
-        check (p == "X" && player == players.x) || (p == "O" && player == players.o) else test_fail("bad state: wrong player")
+        check !exists GameOver[gameID]=>{} else test_fail("game is over");
+        check bounds(X) else test_fail("X invalid");
+        check bounds(Y) else test_fail("Y invalid");
+        check (p == "X" && player == players.x) || (p == "O" && player == players.o) else test_fail("bad state: wrong player");
 
         match game_over(gameID, X, Y, p) {
             true => {
@@ -178,20 +178,20 @@ command Move2 with Base {
                         gameID,
                         winner: player,
                         p,
-                    }
+                    };
                 }
             }
             false => {
                 finish {
                     create Field[gameID, x: X, y: Y]=>{p}
-                    set_next_player(gameID, op)
+                    set_next_player(gameID, op);
                     emit GameUpdate{
                         gameID,
                         player,
                         p,
                         x: X,
                         y: Y,
-                    }
+                    };
                 }
             }
         }

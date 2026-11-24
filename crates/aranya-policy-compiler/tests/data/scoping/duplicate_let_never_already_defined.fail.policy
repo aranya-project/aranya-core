@@ -1,5 +1,5 @@
 function f() unit {
-    let x = 3
-    let x = return Unit
-    return Unit
+    let x = 3;
+    let x = return Unit;
+    return Unit;
 }

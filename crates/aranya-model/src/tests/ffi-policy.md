@@ -16,16 +16,16 @@ commands and do not persist any changes to the factDB. Hence, they are also not
 delivered through syncs and should be transmitted via some other mechanism.
 
 ```policy
-use idam
-use perspective
-use device
+use idam;
+use perspective;
+use device;
 
 base[init] BaseInit {
     fields {
         sign_pk: bytes,
     }
     get_key(this, _dev: id) option[bytes] {
-        return Some(this.sign_pk)
+        return Some(this.sign_pk);
     }
 }
 
@@ -34,7 +34,7 @@ base[basic] BaseSelfSigned {
         sign_pk: bytes,
     }
     get_key(this, _dev: id) option[bytes] {
-        return Some(this.sign_pk)
+        return Some(this.sign_pk);
     }
 }
 
@@ -43,7 +43,7 @@ base[basic] Base {
         return match query DeviceSignKey[device_id] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -52,7 +52,7 @@ base[ephemeral] Ephemeral {
         return match query DeviceSignKey[device_id] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -103,29 +103,29 @@ struct NewDevice {
 
 // Returns the role: string.
 function Role_Device() string {
-    return "Role::Device"
+    return "Role::Device";
 }
 
 // Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the DeviceId.)
 function authorized_device_key_ids(device_keys: struct DeviceKeyBundle) result[struct NewDevice, unit] {
-    let got_device_id = idam::derive_device_id(device_keys.ident_pk)
+    let got_device_id = idam::derive_device_id(device_keys.ident_pk);
 
-    check got_device_id == device_keys.device_id else return Err(Unit)
+    check got_device_id == device_keys.device_id else return Err(Unit);
 
-    let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
+    let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk);
 
     return Ok(NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
         sign_pk_id,
         sign_pk: device_keys.sign_pk,
-    })
+    });
 }
 
 action[init] init(nonce: int, sign_pk: bytes) {
-    publish Init { nonce, sign_pk }
+    publish Init { nonce, sign_pk };
 }
 
 command Init with BaseInit {
@@ -134,13 +134,13 @@ command Init with BaseInit {
     }
 
     policy(this) {
-        check this.nonce > 0 else test_fail("nonce must be positive")
+        check this.nonce > 0 else test_fail("nonce must be positive");
         finish {}
     }
 }
 
 action[basic] add_device_keys(ident_pk: bytes, sign_pk: bytes) {
-    publish AddDeviceKeys { ident_pk, sign_pk }
+    publish AddDeviceKeys { ident_pk, sign_pk };
 }
 
 command AddDeviceKeys with BaseSelfSigned {
@@ -153,20 +153,20 @@ command AddDeviceKeys with BaseSelfSigned {
     }
 
     policy(this, envelope) {
-        let author = envelope.author_id
-        let device_id = idam::derive_device_id(this.ident_pk)
-        check author == device_id else test_fail("author must be device")
+        let author = envelope.author_id;
+        let device_id = idam::derive_device_id(this.ident_pk);
+        check author == device_id else test_fail("author must be device");
 
         let device_keys = DeviceKeyBundle {
             device_id: author,
             ident_pk: this.ident_pk,
             sign_pk: this.sign_pk,
-        }
+        };
 
         let device = match authorized_device_key_ids(device_keys) {
             Ok(d) => d
             Err(Unit) => recall reject()
-        }
+        };
 
         finish {
             create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
@@ -180,7 +180,7 @@ action[basic] create_action(v: int) {
     publish Create{
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 command Create with Base {
@@ -197,7 +197,7 @@ command Create with Base {
     policy(this) {
         finish {
             create Stuff[a: this.key_a]=>{x: this.value}
-            emit StuffHappened{a: this.key_a, x: this.value}
+            emit StuffHappened{a: this.key_a, x: this.value};
         }
     }
 }
@@ -206,7 +206,7 @@ action[basic] increment(v: int) {
     publish Increment{
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 command Increment with Base {
@@ -220,13 +220,13 @@ command Increment with Base {
     }
 
     policy(this) {
-        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
-        let new_x = add(stuff.x, this.value) or test_fail()
-        check new_x < 25 else test_fail("new_x out of range")
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail();
+        let new_x = add(stuff.x, this.value) or test_fail();
+        check new_x < 25 else test_fail("new_x out of range");
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
-            emit StuffHappened{a: this.key_a, x: new_x}
+            emit StuffHappened{a: this.key_a, x: new_x};
         }
     }
 }
@@ -235,7 +235,7 @@ action[basic] decrement(v: int) {
     publish Decrement{
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 command Decrement with Base {
@@ -249,19 +249,19 @@ command Decrement with Base {
     }
 
     policy(this) {
-        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
-        let new_x = sub(stuff.x, this.value) or test_fail()
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail();
+        let new_x = sub(stuff.x, this.value) or test_fail();
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
-            emit StuffHappened{a: this.key_a, x: new_x}
+            emit StuffHappened{a: this.key_a, x: new_x};
         }
     }
 }
 
 // The `create_greeting` action calls the command `CreateGreeting`.
 action[ephemeral] create_greeting(key: string, value: string) {
-    publish CreateGreeting { key, value }
+    publish CreateGreeting { key, value };
 }
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
@@ -277,7 +277,7 @@ command CreateGreeting with Ephemeral {
             // Write the Message fact to the session factDB
             create Message[msg: this.key]=>{value: this.value}
             // Return our value
-            emit Greeting { key: this.key, value: this.value }
+            emit Greeting { key: this.key, value: this.value };
         }
     }
 }
@@ -288,11 +288,11 @@ action[ephemeral] verify_hellos() {
     publish VerifyGreeting {
         key: "greeting1",
         value: "hello1",
-    }
+    };
     publish VerifyGreeting {
         key: "greeting2",
         value: "hello2",
-    }
+    };
 }
 
 // `VerifyGreeting` is an ephemeral command that looks up the Message fact and
@@ -309,18 +309,18 @@ command VerifyGreeting with Ephemeral {
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy(this) {
-        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail();
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value else test_fail("greeting mismatch")
+        check greeting.value == this.value else test_fail("greeting mismatch");
         finish {
-            emit Success{value: true}
+            emit Success{value: true};
         }
     }
 }
 
 action[basic] verify_no_hello() {
-    publish VerifyNoHello {}
+    publish VerifyNoHello {};
 }
 
 // `VerifyNoHello` is a command that verifies that there are no greetings in
@@ -333,9 +333,9 @@ command VerifyNoHello with Base {
     fields {}
 
     policy() {
-        check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")
+        check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists");
         finish {
-            emit Success{value: true}
+            emit Success{value: true};
         }
     }
 }

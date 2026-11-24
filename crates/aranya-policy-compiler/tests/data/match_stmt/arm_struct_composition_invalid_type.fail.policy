@@ -6,7 +6,7 @@ struct Bar {
     y: string
 }
 action[null] foo(x: struct Foo) {
-    let b = Bar { y: "y" }
+    let b = Bar { y: "y" };
     match x {
         Foo { x: 10, ...b } => {}
         _ => {}

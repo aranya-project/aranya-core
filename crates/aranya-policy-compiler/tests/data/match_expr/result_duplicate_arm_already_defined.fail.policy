@@ -3,5 +3,5 @@ function match_duplicate_arms(r: result[int, string]) int {
         Ok(v) => v
         Ok(v) => v
         _ => 0
-    }
+    };
 }

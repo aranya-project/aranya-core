@@ -7,8 +7,8 @@ fact Owner[] => {device_id: id}
 command AddThing with StubBase {
     fields {}
     policy(this) {
-        let owner = query Owner[] or recall reject()
-        check owner.device_id == owner.device_id else recall reject()
+        let owner = query Owner[] or recall reject();
+        check owner.device_id == owner.device_id else recall reject();
         finish {}
     }
     recall reject() {}

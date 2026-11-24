@@ -1,6 +1,6 @@
 function ret_bar() struct Bar {
-    let fum = Fum { b: true }
-    return Bar { s: "s", num: 1, f: fum }
+    let fum = Fum { b: true };
+    return Bar { s: "s", num: 1, f: fum };
 }
 
 struct Fum { b: bool }

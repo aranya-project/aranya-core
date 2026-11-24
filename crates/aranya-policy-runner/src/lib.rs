@@ -215,7 +215,7 @@ impl PolicyRunner {
                     policy_doc.push_str(&format!(
                         r#"
         action policy_runner_thunk_{thunk_counter}({action_args}) {{
-            {action_body}
+            {action_body};
         }}"#
                     ));
                     // and they are sequentially numbered.

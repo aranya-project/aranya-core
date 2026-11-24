@@ -3,18 +3,18 @@ policy-version: 2
 ---
 
 ```policy
-let g_int = 42
-let g_bool = true
+let g_int = 42;
+let g_bool = true;
 
-let g_string = "a\n\x01b"
+let g_string = "a\n\x01b";
 
-let g_some = Some(42)
-let g_none = None
+let g_some = Some(42);
+let g_none = None;
 
-let g_ok = Ok(42)
-let g_err = Err("err")
+let g_ok = Ok(42);
+let g_err = Err("err");
 
-let g_enum = Answer::No
+let g_enum = Answer::No;
 
 let g_struct = Complex {
     m_int: 1,
@@ -26,7 +26,7 @@ let g_struct = Complex {
     m_err: Err("uh oh"),
     m_enum: Answer::Yes,
     m_struct: Simple { m_int: 3 }
-}
+};
 
 enum Answer {
     Yes,

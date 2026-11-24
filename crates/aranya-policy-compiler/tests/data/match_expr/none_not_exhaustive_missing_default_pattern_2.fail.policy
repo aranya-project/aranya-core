@@ -2,5 +2,5 @@ function f() int {
     return match None {
         Some(true) => 0
         None => 1
-    }
+    };
 }
