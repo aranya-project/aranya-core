@@ -678,6 +678,57 @@ error: Invalid type
 }
 
 #[test]
+fn parse_vtype_rejects_trailing_input() {
+    #[track_caller]
+    fn case(input: &str, output: snapbox::data::Inline) {
+        assert_data_eq!(
+            parse_vtype(input).map_or_else(|err| err.to_string(), |ok| ok.to_string()),
+            output
+        );
+    }
+
+    case(
+        "int garbage",
+        str![[r#"
+error: Syntax error
+  |
+1 | int garbage
+  |     ^ expected EOI
+"#]],
+    );
+
+    case(
+        "option[int]]",
+        str![[r#"
+error: Syntax error
+  |
+1 | option[int]]
+  |            ^ expected EOI
+"#]],
+    );
+
+    case(
+        "int, string",
+        str![[r#"
+error: Syntax error
+  |
+1 | int, string
+  |    ^ expected EOI
+"#]],
+    );
+
+    case(
+        "bytes struct Foo",
+        str![[r#"
+error: Syntax error
+  |
+1 | bytes struct Foo
+  |       ^ expected EOI
+"#]],
+    );
+}
+
+#[test]
 fn test_result_literal() {
     #[track_caller]
     fn case(input: &str, output: snapbox::data::Inline) {

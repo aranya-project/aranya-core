@@ -1909,7 +1909,7 @@ pub fn parse_vtype(s: &str) -> Result<VType> {
     fn inner(s: &str) -> Result<VType> {
         let pratt = get_pratt_parser();
         let p = ChunkParser::new(0, &pratt, s.len());
-        let mut pairs = PolicyParser::parse(Rule::vtype, s)?;
+        let mut pairs = PolicyParser::parse(Rule::complete_vtype, s)?;
         let pair = pairs.next().assume("has tokens")?;
         p.parse_type(pair)
     }
