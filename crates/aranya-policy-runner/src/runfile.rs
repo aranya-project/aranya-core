@@ -242,10 +242,10 @@ impl RunFile {
     ) -> Result<Vec<(Identifier, Value)>, RunFileError> {
         let func_str = format!(
             r#"use testing
-            base[null] Base {{ get_key(this, _dev: id) option[bytes] {{ return None }} }}
+            base[null] Base {{ get_key(_dev: id) option[bytes] {{ return None }} }}
             command CaptureVariables with Base {{
                 fields {{ }}
-                policy(this) {{ }}
+                policy() {{ }}
             }}
             action[null] preamble() {{
                 {}
@@ -258,6 +258,8 @@ impl RunFile {
             // It is important that only `TestingFfi` is specified here, as `PreambleIO` uses it
             // alone.
             .ffi_modules(&[TestingFfi::<KS>::SCHEMA])
+            .allow_unused(true)
+            .allow_todo(true)
             .compile()?;
 
         let machine = Machine::from_module(module).expect("cannot get unsupported version");

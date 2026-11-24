@@ -54,7 +54,8 @@ macro_rules! test_impl {
 
             // Test regular AEADs.
             $crate::testing::__test_impl!($(#[$meta]),* aes256gcm,
-                $type, $crate::crypto::Aes256Gcm);
+                $type, ::aranya_crypto::dangerous::spideroak_crypto::rust::Aes256Gcm
+            );
 
             // Test an AEAD with funky key, nonce, etc. sizes.
             $crate::testing::__test_impl!($(#[$meta]),* funky_sizes,

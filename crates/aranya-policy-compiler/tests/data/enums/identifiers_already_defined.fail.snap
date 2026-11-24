@@ -1,7 +1,7 @@
 error: the name `Drink` is defined multiple times
   |
 1 | enum Drink {
-  |      ----- previous defintion here
+  |      ----- previous definition of enum `Drink`
 ...
 5 | enum Drink {
-  |      ^^^^^ re-defined here
+  |      ^^^^^ enum `Drink` re-defined here

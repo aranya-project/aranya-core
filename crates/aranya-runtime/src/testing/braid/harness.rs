@@ -265,7 +265,7 @@ pub fn run_program(program: &Program) -> RunResult {
     let gid = graph.graph_id();
 
     let mut clients: Vec<Client> = (0..program.clients)
-        .map(|_| ClientState::new(ProbePolicyStore, MemStorageProvider::default()))
+        .map(|_| ClientState::new(ProbePolicyStore, MemStorageProvider::default(), None))
         .collect();
     let mut buffers = Buffers::new();
 

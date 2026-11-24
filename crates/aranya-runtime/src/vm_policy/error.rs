@@ -1,4 +1,5 @@
 use alloc::{format, string::String};
+use core::fmt::Display;
 
 use aranya_policy_vm::ContractValidationError;
 
@@ -35,7 +36,12 @@ pub enum VmPolicyError {
 pub struct AttributeError(pub(crate) String);
 
 impl AttributeError {
-    pub(crate) fn type_mismatch(cmd: &str, attr: &str, expected: &str, actual: &str) -> Self {
+    pub(crate) fn type_mismatch(
+        cmd: impl Display,
+        attr: impl Display,
+        expected: impl Display,
+        actual: impl Display,
+    ) -> Self {
         Self(format!("{cmd}::{attr} should be {expected}, was {actual}"))
     }
 

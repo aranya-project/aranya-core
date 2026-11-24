@@ -10,11 +10,14 @@ use crate::{Compiler, validate::validate};
 #[track_caller]
 fn compile_pass(text: &str) -> Module {
     let policy = parse_policy_str(text, Version::V2).unwrap();
-    Compiler::new(&policy).debug(true).compile().unwrap()
+    Compiler::new(&policy)
+        .allow_test_fail(true)
+        .compile()
+        .unwrap()
 }
 
 #[test]
-fn test_todo_requires_debug_mode() {
+fn test_allow_todo() {
     let text = r#"
         function f() int {
             check false else todo()
@@ -24,23 +27,22 @@ fn test_todo_requires_debug_mode() {
     let policy = parse_policy_str(text, Version::V2).expect("parse ok");
 
     Compiler::new(&policy)
-        .debug(true)
+        .allow_todo(true)
         .compile()
-        .expect("compiles with debug mode enabled");
+        .expect("compiles with todo allowed");
 
     let err = Compiler::new(&policy)
-        .debug(false)
         .compile()
-        .expect_err("`todo` requires debug mode");
+        .expect_err("`todo` not allowed");
     assert!(
         err.to_string().contains("todo()"),
         "unexpected error: {err}"
     );
 }
 
-// `test_fail`, like `todo()`, is only allowed when debug mode is enabled.
+// `test_fail`, like `todo()`, is only allowed when configured.
 #[test]
-fn test_fail_requires_debug_mode() {
+fn test_allow_test_fail() {
     let text = r#"
         function f() int {
             check false else test_fail("boom")
@@ -50,37 +52,35 @@ fn test_fail_requires_debug_mode() {
     let policy = parse_policy_str(text, Version::V2).expect("parse ok");
 
     Compiler::new(&policy)
-        .debug(true)
+        .allow_test_fail(true)
         .compile()
-        .expect("compiles with debug mode enabled");
+        .expect("compiles with test_fail allowed ");
 
     let err = Compiler::new(&policy)
-        .debug(false)
         .compile()
-        .expect_err("`test_fail` requires debug mode");
+        .expect_err("`test_fail` not allowed");
     assert!(
         err.to_string().contains("test_fail()"),
         "unexpected error: {err}"
     );
 }
 
-// An action must publish or call another action. This is only a warning in debug mode.
+// An action must publish or call another action.
 #[test]
-fn test_action_without_publish_requires_debug_mode() {
+fn test_require_publish() {
     let text = r#"
         action[null] f() {}
     "#;
     let policy = parse_policy_str(text, Version::V2).expect("parse ok");
 
     Compiler::new(&policy)
-        .debug(true)
+        .require_publish(false)
         .compile()
-        .expect("compiles with debug mode enabled");
+        .expect("compiles with `require_publish = false`");
 
     let err = Compiler::new(&policy)
-        .debug(false)
         .compile()
-        .expect_err("action without publish fails without debug mode");
+        .expect_err("action without publish fails without `require_publish = false`");
     assert!(
         err.to_string()
             .contains("action must publish or call another action"),
@@ -105,9 +105,9 @@ fn test_action_without_publish_requires_debug_mode() {
     "#;
     let policy = parse_policy_str(text, Version::V2).expect("parse ok");
     Compiler::new(&policy)
-        .debug(false)
+        .require_publish(true)
         .compile()
-        .expect("compiles without debug mode");
+        .expect("compiles with `require_publish = true`");
 }
 
 #[test]
@@ -242,7 +242,7 @@ fn test_validate_get_key() {
     // Need to use base command so label is produced.
     let common = r#"
         command C with Base {
-            policy(this) {}
+            policy() {}
         }
     "#;
 
@@ -268,7 +268,7 @@ fn test_validate_publish() {
                 fields {
                     a: int
                 }
-                policy(this) {
+                policy() {
                     finish {}
                 }
                 recall default() {

@@ -412,7 +412,7 @@ command Link with Base {
     // Local variables for command
     fields {}
 
-    policy(this, envelope) {
+    policy(envelope) {
         finish {
             emit Relationship{parent_id: envelope.parent_id, command_id: envelope.command_id}
         }

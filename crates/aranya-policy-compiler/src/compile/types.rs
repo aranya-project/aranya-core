@@ -6,7 +6,7 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, FactLiteral, Ident, Identifier, NamedStruct, ResultTypeKind, Span, Spanned as _,
-    TypeKind, VType,
+    TypeKind, VType, WithSpanExt as _,
 };
 use aranya_policy_module::ffi;
 use indexmap::IndexMap;
@@ -16,7 +16,10 @@ use crate::{
     CompileError,
     compile::{
         CompileState,
-        error::{AlreadyDefined, InvalidType, NotDefined, UnusedVariable, rendering::Error as _},
+        error::{
+            AlreadyDefined, InvalidType, NotDefined, Reference, UnusedVariable,
+            rendering::Error as _,
+        },
     },
 };
 
@@ -27,6 +30,19 @@ pub(crate) enum UserType<'a> {
     BaseCommand(&'a ast::BaseCommandDefinition),
     Command(&'a ast::CommandDefinition),
     FFIStruct(&'a ffi::Struct<'a>),
+}
+
+impl UserType<'_> {
+    pub(super) fn reference(&self) -> Reference {
+        match self {
+            UserType::Struct(def) => Reference::Struct(def.name.clone()),
+            UserType::Fact(def) => Reference::Fact(def.name.clone()),
+            UserType::Effect(def) => Reference::Effect(def.name.clone()),
+            UserType::BaseCommand(def) => Reference::Base(def.name.clone()),
+            UserType::Command(def) => Reference::Command(def.name.clone()),
+            UserType::FFIStruct(def) => Reference::Struct(def.name.clone().nowhere()),
+        }
+    }
 }
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
@@ -48,7 +64,17 @@ pub enum NameType {
     /// A global `let` binding with its associated type.
     Global(VType),
     /// Anything else (callable or type). Doesn't have a type.
-    Item,
+    Item(Reference),
+}
+
+impl NameType {
+    /// Returns a [`Reference`] to the top-level `name` of this kind.
+    fn reference(&self, name: &Ident) -> Reference {
+        match self {
+            Self::Global(_) => Reference::Global(name.clone()),
+            Self::Item(reference) => reference.clone(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -85,8 +111,11 @@ impl IdentifierTypeStack {
     /// any local that shadows a reserved name.
     #[allow(clippy::result_large_err)]
     pub fn add_global(&mut self, name: Ident, kind: NameType) -> Result<(), AlreadyDefined> {
-        if let Some((existing, _)) = self.top_level.get_key_value(&name) {
-            return Err(AlreadyDefined::new(existing.clone(), name));
+        if let Some((existing, existing_kind)) = self.top_level.get_key_value(&name) {
+            return Err(AlreadyDefined::new(
+                existing_kind.reference(existing),
+                kind.reference(&name),
+            ));
         }
         self.top_level.insert(name, kind);
         Ok(())
@@ -95,12 +124,18 @@ impl IdentifierTypeStack {
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
     pub fn add(&mut self, ident: Ident, vtype: VType) -> Result<(), AlreadyDefined> {
-        if let Some((existing, _)) = self.top_level.get_key_value(&ident) {
-            return Err(AlreadyDefined::new(existing.clone(), ident));
+        if let Some((existing, existing_kind)) = self.top_level.get_key_value(&ident) {
+            return Err(AlreadyDefined::new(
+                existing_kind.reference(existing),
+                Reference::Variable(ident),
+            ));
         }
         for prev in self.locals.iter().rev() {
             if let Some((existing_var, _)) = prev.get_key_value(&ident) {
-                return Err(AlreadyDefined::new(ident, existing_var.clone()));
+                return Err(AlreadyDefined::new(
+                    Reference::Variable(ident),
+                    Reference::Variable(existing_var.clone()),
+                ));
             }
         }
         let block = self.locals.last_mut().expect("no block scope");
@@ -218,8 +253,7 @@ impl CompileState<'_> {
                 span: s.name.span,
             })
         } else {
-            let note = format!("struct `{}` not defined", s.name);
-            Err(self.err(NotDefined(note, s.name.span)))
+            Err(self.err(NotDefined(Reference::Struct(s.name.clone()))))
         }
     }
 
@@ -232,8 +266,7 @@ impl CompileState<'_> {
                 span: f.name.span,
             })
         } else {
-            let note = format!("fact `{}` not defined", f.name);
-            Err(self.err(NotDefined(note, f.name.span)))
+            Err(self.err(NotDefined(Reference::Fact(f.name.clone()))))
         }
     }
 }

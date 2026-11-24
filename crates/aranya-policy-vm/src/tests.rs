@@ -344,8 +344,8 @@ fn test_extcall_invalid_arg() {
     assert_eq!(
         rs.run().unwrap_err(),
         MachineError::new(MachineErrorType::invalid_type(
-            "String",
-            "Int",
+            "string",
+            "int",
             "Value -> Text"
         ))
     );
@@ -459,7 +459,7 @@ fn test_errors() {
             Instruction::Const(ConstValue::String(text.clone())),
             Instruction::Gt,
         ],
-        MachineErrorType::invalid_type("Int, Int", "Int, String", "Greater-than comparison"),
+        MachineErrorType::invalid_type("int, int", "int, string", "Greater-than comparison"),
     );
 
     // InvalidType: 3 + "x" (same case as 3 - "x")
@@ -469,13 +469,13 @@ fn test_errors() {
             Instruction::Const(ConstValue::String(text.clone())),
             Instruction::Add,
         ],
-        MachineErrorType::invalid_type("Int", "String", "Value -> i64"),
+        MachineErrorType::invalid_type("int", "string", "Value -> i64"),
     );
 
     // InvalidType: !3
     error_test_harness(
         &[Instruction::Const(ConstValue::Int(3)), Instruction::Not],
-        MachineErrorType::invalid_type("bool", "Int", "Value -> bool"),
+        MachineErrorType::invalid_type("bool", "int", "Value -> bool"),
     );
 
     // InvalidType: Set a struct value on a thing that isn't a struct
@@ -485,7 +485,7 @@ fn test_errors() {
             Instruction::Const(ConstValue::Int(3)),
             Instruction::StructSet(x.clone()),
         ],
-        MachineErrorType::invalid_type("Struct", "Int", "Value -> Struct"),
+        MachineErrorType::invalid_type("struct _", "int", "Value -> Struct"),
     );
 
     // InvalidType: Branch on a non-bool value
@@ -494,7 +494,7 @@ fn test_errors() {
             Instruction::Const(ConstValue::Int(3)),
             Instruction::Branch(Target::Unresolved(Label::new_temp(x.clone()))),
         ],
-        MachineErrorType::invalid_type("Bool", "Int", "Value -> bool"),
+        MachineErrorType::invalid_type("bool", "int", "Value -> bool"),
     );
 
     // InvalidStructGet: Access `foo.x` when `x` is not a member of `foo`

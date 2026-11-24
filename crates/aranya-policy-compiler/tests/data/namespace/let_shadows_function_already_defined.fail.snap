@@ -1,7 +1,7 @@
 error: the name `f` is defined multiple times
   |
 1 | function f() int {
-  |          - previous defintion here
+  |          - previous definition of function `f`
 ...
 6 |     let f = 2
-  |         ^ re-defined here
+  |         ^ variable `f` re-defined here

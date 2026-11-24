@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: function `g` is not defined
   |
 2 |     return g()
-  |            ^ function `g` not defined
+  |            ^ used here

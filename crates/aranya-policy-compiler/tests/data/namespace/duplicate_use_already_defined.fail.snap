@@ -1,6 +1,6 @@
 error: the name `test` is defined multiple times
   |
 1 | use test
-  |     ---- previous defintion here
+  |     ---- previous definition of module `test`
 2 | use test
-  |     ^^^^ re-defined here
+  |     ^^^^ module `test` re-defined here

@@ -190,15 +190,15 @@ Module {
     exit panic
 <policy 'MyInit'>:
     pop
-    def 'this'
+    pop
     exit panic
 <policy 'MyBasic1'>:
     pop
-    def 'this'
+    pop
     exit panic
 <policy 'MyBasic2'>:
     pop
-    def 'this'
+    pop
     exit panic
 <action 'my_init'>:
     def 'key'

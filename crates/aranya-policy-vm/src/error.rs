@@ -1,4 +1,7 @@
-use alloc::{borrow::ToOwned as _, string::String};
+use alloc::{
+    borrow::ToOwned as _,
+    string::{String, ToString},
+};
 use core::{convert::Infallible, fmt};
 
 use aranya_policy_ast::Identifier;
@@ -107,12 +110,12 @@ impl MachineErrorType {
     /// Constructs an `InvalidType` error
     pub fn invalid_type(
         want: impl Into<String>,
-        got: impl Into<String>,
+        got: impl ToString,
         msg: impl Into<String>,
     ) -> Self {
         Self::InvalidType {
             want: want.into(),
-            got: got.into(),
+            got: got.to_string(),
             msg: msg.into(),
         }
     }

@@ -86,7 +86,7 @@ fn run(options: Opt) -> Result<()> {
     let engine = TestPolicyStore::new();
     let storage = MemStorageProvider::default();
 
-    let client = Arc::new(Mutex::new(ClientState::new(engine, storage)));
+    let client = Arc::new(Mutex::new(ClientState::new(engine, storage, Some(()))));
     let mut buffers = RuntimeBuffers::new();
     let spill_dir = std::env::temp_dir();
     let make_spill = || LibcSpill::new(&spill_dir);

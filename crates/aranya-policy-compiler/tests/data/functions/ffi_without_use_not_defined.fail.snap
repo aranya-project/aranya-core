@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: module `test` is not defined
   |
 2 |     return test::doit(x)
-  |            ^^^^ module `test` not imported
+  |            ^^^^ used here

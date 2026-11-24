@@ -302,11 +302,10 @@ fn spawn_syncer<PS, SP, S>(
     server: TcpListener,
 ) -> Result<SocketAddr>
 where
-    PS: PolicyStore + Send + 'static,
-    SP: StorageProvider + Send + 'static,
-    SP::Segment: Send,
-    S: Sink<<PS as PolicyStore>::Effect> + Send + 'static,
-    <SP as StorageProvider>::Perspective: Send,
+    PS: PolicyStore,
+    SP: StorageProvider,
+    S: Sink<<PS as PolicyStore>::Effect>,
+    Syncer<PS, SP, S>: Send + 'static,
 {
     let server_addr = server.local_addr()?;
     std::thread::spawn(|| run_syncer(syncer, server, receiver));
@@ -317,5 +316,5 @@ fn make_client() -> Arc<Mutex<ClientState<TestPolicyStore, MemStorageProvider>>>
     let engine = TestPolicyStore::new();
     let storage = MemStorageProvider::default();
 
-    Arc::new(Mutex::new(ClientState::new(engine, storage)))
+    Arc::new(Mutex::new(ClientState::new(engine, storage, Some(()))))
 }

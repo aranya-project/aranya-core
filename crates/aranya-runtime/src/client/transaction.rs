@@ -10,9 +10,9 @@ use tracing::{error, instrument, warn};
 use super::braiding;
 use crate::{
     Address, BraidBuffer, ClientError, CmdId, Command, CommandExt as _, GraphId, Location,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy as _, PolicyError, PolicyId,
-    PolicyStore, Prior, Priority, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage,
-    StorageError, StorageProvider, TraversalBuffer,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective as _, Policy, PolicyError, PolicyId, PolicyStore,
+    Prior, Priority, Revertable as _, RuntimeBuffers, Segment as _, Sink, Storage, StorageError,
+    StorageProvider, TraversalBuffer,
     policy::{CommandPlacement, NullSink},
     storage::{HeadSet, HeadSetOffset, LocatedAddress, Spill},
     sync::{PeerCache, SessionHeads},
@@ -162,7 +162,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
                 storage,
                 &head_locs,
                 sink,
-                policy,
+                &policy,
                 &mut buffers.traversal.primary,
                 &mut buffers.braid,
                 make_spill,
@@ -351,7 +351,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Transaction<SP, PS> {
             storage,
             &[left_loc, right_loc],
             sink,
-            policy,
+            &policy,
             &mut buffers.traversal.primary,
             &mut buffers.braid,
             make_spill,
@@ -628,7 +628,7 @@ where
             storage,
             &[left.location(), right.location()],
             &mut null,
-            policy,
+            &policy,
             &mut buffers.traversal.primary,
             &mut buffers.braid,
             make_spill,
@@ -664,7 +664,7 @@ where
 /// command on top) has this exact command committed in its graph.
 pub(crate) fn synthetic_head<S, PS>(
     storage: &S,
-    policy_store: &PS,
+    policy_store: &mut PS,
     heads: &HeadSet,
 ) -> Result<Address, ClientError>
 where
@@ -680,9 +680,9 @@ where
     // segment to read a policy id from, and a merge's policy is the
     // max-serial policy of its inputs — the same choice `choose_policy`
     // makes from segments in `collapse_heads`.
-    struct Entry<'a, P> {
+    struct Entry<P> {
         addr: Address,
-        policy: &'a P,
+        policy: P,
     }
 
     let entries = heads
@@ -697,7 +697,7 @@ where
         .collect::<Result<Vec<_>, ClientError>>()?;
 
     let folded = fold_merge_pairs(entries, |left, right| {
-        let policy = core::cmp::max_by_key(left.policy, right.policy, |p| p.serial());
+        let policy = core::cmp::max_by_key(left.policy, right.policy, Policy::serial);
         let merge_ids = MergeIds::new(left.addr, right.addr).assume("merging different ids")?;
         let mut buf = [0u8; MAX_COMMAND_LENGTH];
         let command = policy.merge(&mut buf, merge_ids)?;
@@ -710,12 +710,12 @@ where
 }
 
 /// Select the policy from two locations with the greatest serial value.
-fn choose_policy<'a, PS: PolicyStore>(
+fn choose_policy<PS: PolicyStore>(
     storage: &impl Storage,
-    policy_store: &'a PS,
+    policy_store: &mut PS,
     left: Location,
     right: Location,
-) -> Result<(&'a PS::Policy, PolicyId), ClientError> {
+) -> Result<(PS::Policy, PolicyId), ClientError> {
     Ok(core::cmp::max_by_key(
         get_policy(storage, policy_store, left)?,
         get_policy(storage, policy_store, right)?,
@@ -723,11 +723,11 @@ fn choose_policy<'a, PS: PolicyStore>(
     ))
 }
 
-fn get_policy<'a, PS: PolicyStore>(
+fn get_policy<PS: PolicyStore>(
     storage: &impl Storage,
-    policy_store: &'a PS,
+    policy_store: &mut PS,
     location: Location,
-) -> Result<(&'a PS::Policy, PolicyId), ClientError> {
+) -> Result<(PS::Policy, PolicyId), ClientError> {
     let segment = storage.get_segment(location)?;
     let policy_id = segment.policy();
     let policy = policy_store.get_policy(policy_id)?;
@@ -780,12 +780,8 @@ mod test {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
-            Ok(&SeqPolicy)
-        }
-
-        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-            unreachable!()
+        fn get_policy(&mut self, _id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
+            Ok(SeqPolicy)
         }
     }
 
@@ -1124,7 +1120,7 @@ mod test {
     #[test]
     fn test_simple() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "b";
             "a" < "c";
@@ -1150,7 +1146,7 @@ mod test {
     #[test]
     fn test_complex() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "1" "2" "3";
             "3" < "4" "6" "7";
@@ -1190,7 +1186,7 @@ mod test {
     #[test]
     fn test_duplicates() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "b" "c";
             "a" < "b";
@@ -1218,7 +1214,7 @@ mod test {
     #[test]
     fn test_mid_braid_1() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
@@ -1244,7 +1240,7 @@ mod test {
     #[test]
     fn test_mid_braid_2() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "b" "c" "d" "h" "i" "j";
             "d" < "e" "f" "g";
@@ -1268,7 +1264,7 @@ mod test {
     #[test]
     fn test_sequential_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
@@ -1296,7 +1292,7 @@ mod test {
     #[test]
     fn test_parallel_finalize() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
@@ -1316,7 +1312,7 @@ mod test {
     #[test]
     fn test_stored_priorities_are_derived_locally() {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "a";
             "a" < "b" "c";
             "b" "c" < "ma";
@@ -1394,7 +1390,7 @@ mod test {
             max_cut: MaxCut::new(0),
         };
 
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut trx = Transaction::new(graph_id);
         let mut buffers = RuntimeBuffers::new();
 
@@ -1542,7 +1538,7 @@ mod test {
         );
 
         // Missing graph: sync.
-        let mut fresh = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut fresh = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         assert!(
             fresh
                 .should_sync_on_hello(graph_id, advertised, &mut buffer)
@@ -1618,7 +1614,7 @@ mod test {
 
         let init_cmd = SeqCommand::new(init_id, Prior::None);
 
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut trx = Transaction::new(graph_id);
         let mut buffers = RuntimeBuffers::new();
 
@@ -1673,7 +1669,7 @@ mod test {
         let c: CmdId = id_from_u64(2);
         let graph_id = GraphId::transmute(a);
 
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut trx = Transaction::new(graph_id);
         let mut buffers = RuntimeBuffers::new();
 
@@ -1745,7 +1741,7 @@ mod test {
         let c: CmdId = id_from_u64(2);
         let graph_id = GraphId::transmute(a);
 
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut buffers = RuntimeBuffers::new();
 
         // Commit `a` so the graph exists.
@@ -1844,7 +1840,7 @@ mod test {
             max_cut: MaxCut::new(1),
         };
 
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut buffers = RuntimeBuffers::new();
 
         // Commit `a`, then flush (but do not commit) `b`.
@@ -1925,7 +1921,7 @@ mod test {
         let c: CmdId = id_from_u64(2);
         let graph_id = GraphId::transmute(a);
 
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut buffers = RuntimeBuffers::new();
 
         let addr_a = Address {
@@ -2008,7 +2004,7 @@ mod test {
     #[test]
     fn test_merge_bug() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "i";
             "i" < "j";
             "j" < "qo1";
@@ -2037,7 +2033,7 @@ mod test {
     #[test]
     fn test_linear_bug() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "i";
             "i" < "j";
             commit;
@@ -2064,7 +2060,7 @@ mod test {
     #[test]
     fn test_fact_convergence_bug() -> Result<(), StorageError> {
         let mut gb = graph! {
-            ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+            ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
             "i";
             "i" < "a" "b";
             "i" < "c";

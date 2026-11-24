@@ -165,7 +165,7 @@ command AddDeviceKeys with BaseSelfSigned {
 
         let device = match authorized_device_key_ids(device_keys) {
             Ok(d) => d
-            Err(e) => recall reject()
+            Err(Unit) => recall reject()
         }
 
         finish {
@@ -332,7 +332,7 @@ command VerifyNoHello with Base {
 
     fields {}
 
-    policy(this) {
+    policy() {
         check !exists Message[msg: ?]=>{value: ?} else test_fail("message already exists")
         finish {
             emit Success{value: true}

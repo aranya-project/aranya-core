@@ -1,6 +1,6 @@
 error: the name `a` is defined multiple times
   |
 1 | struct Bar { a: int }
-  |              - previous defintion here
+  |              - previous definition of field `a` of struct `Foo`
 2 | struct Foo { +Bar, a: string }
-  |                    ^ re-defined here
+  |                    ^ field `a` of struct `Foo` re-defined here

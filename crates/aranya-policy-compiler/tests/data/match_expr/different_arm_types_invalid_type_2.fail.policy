@@ -1,7 +1,8 @@
-action[null] f(n: int) {
+function f(n: int) unit {
     let x = match n {
-        0 => todo()
+        0 => return Unit
         1 => 1
         _ => false
     }
+    return Unit
 }

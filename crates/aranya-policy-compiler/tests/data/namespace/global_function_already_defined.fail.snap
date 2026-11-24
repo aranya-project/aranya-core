@@ -1,7 +1,7 @@
 error: the name `f` is defined multiple times
   |
 1 | let f = 1
-  |     - previous defintion here
+  |     - previous definition of global value `f`
 2 |
 3 | function f() int {
-  |          ^ re-defined here
+  |          ^ function `f` re-defined here

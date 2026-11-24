@@ -6,7 +6,7 @@ use aranya_crypto::{
 use aranya_policy_vm::Struct;
 use buggy::bug;
 
-use super::protocol::{BasicEnvelope, Envelope, EphemeralEnvelope, FinalizeEnvelope, InitEnvelope};
+use super::flavors::{BasicEnvelope, Envelope, EphemeralEnvelope, FinalizeEnvelope, InitEnvelope};
 use crate::GraphId;
 
 #[derive(Debug, thiserror::Error)]
@@ -26,10 +26,7 @@ pub struct SealCtx<CE: Engine> {
     pub key: SigningKey<CE::CS>,
 }
 
-impl<CE: Engine> Clone for SealCtx<CE>
-where
-    SigningKey<CE::CS>: Clone,
-{
+impl<CE: Engine> Clone for SealCtx<CE> {
     fn clone(&self) -> Self {
         Self {
             author: self.author,

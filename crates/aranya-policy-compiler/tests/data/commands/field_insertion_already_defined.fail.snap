@@ -1,7 +1,7 @@
 error: the name `a` is defined multiple times
   |
 2 | struct Bar { a: int }
-  |              - previous defintion here
+  |              - previous definition of field `a` of struct `Foo`
 ...
 6 |         a: bool // Duplicate field `a`
-  |         ^ re-defined here
+  |         ^ field `a` of struct `Foo` re-defined here

@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: variable `envelope` is not defined
   |
 6 |         let _var = envelope
-  |                    ^^^^^^^^ 'envelope' not in scope
+  |                    ^^^^^^^^ used here

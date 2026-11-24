@@ -19,6 +19,7 @@ use aranya_policy_vm::{
 };
 use aranya_runtime::{
     ClientState, PolicyStore, StorageProvider, VmEffect,
+    policy::store::testing::NullStore,
     storage::linear::{self, testing::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::{FLAVORS, FfiSet, SealCtx},
@@ -55,7 +56,10 @@ impl BasicClientFactory {
 
     fn compile(policy_doc: &str) -> Result<Vec<u8>, ModelError> {
         let policy_ast = parse_policy_document(policy_doc)?;
-        let module = Compiler::new(&policy_ast).flavors(&FLAVORS).compile()?;
+        let module = Compiler::new(&policy_ast)
+            .flavors(&FLAVORS)
+            .allow_test_fail(true)
+            .compile()?;
         Ok(module.write_to_vec()?)
     }
 
@@ -85,11 +89,15 @@ impl ClientFactory for BasicClientFactory {
         // Configure testing FFIs
         let ffis = FfiSet::new();
 
-        let policy_store = ModelPolicyStore::new(Arc::new(eng), ffis, self.seal_ctx.clone());
+        let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(policy_store, provider)),
+            state: RefCell::new(ClientState::new(
+                policy_store,
+                provider,
+                Some(self.seal_ctx.clone()),
+            )),
             public_keys: EmptyKeys,
         }
     }
@@ -113,6 +121,7 @@ impl FfiClientFactory {
         let module = Compiler::new(&policy_ast)
             .ffi_modules(ffi_schema)
             .flavors(&FLAVORS)
+            .allow_test_fail(true)
             .compile()?;
 
         Ok(module.write_to_vec()?)
@@ -162,18 +171,18 @@ impl ClientFactory for FfiClientFactory {
             .with(IdamFfi::new(store))
             .unwrap();
 
-        let policy_store = ModelPolicyStore::new(
-            Arc::new(eng),
-            ffis,
-            SealCtx {
-                author: bundle.device_id,
-                key,
-            },
-        );
+        let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
         let provider = Lsp::default();
 
         ModelClient {
-            state: RefCell::new(ClientState::new(policy_store, provider)),
+            state: RefCell::new(ClientState::new(
+                policy_store,
+                provider,
+                Some(SealCtx {
+                    author: bundle.device_id,
+                    key,
+                }),
+            )),
             public_keys,
         }
     }
@@ -1463,18 +1472,18 @@ fn should_create_clients_with_args() {
                 .with(IdamFfi::new(store))
                 .unwrap();
 
-            let policy_store = ModelPolicyStore::new(
-                Arc::new(eng),
-                ffis,
-                SealCtx {
-                    author: bundle.device_id,
-                    key,
-                },
-            );
+            let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
             let provider = MemStorageProvider::default();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(policy_store, provider)),
+                state: RefCell::new(ClientState::new(
+                    policy_store,
+                    provider,
+                    Some(SealCtx {
+                        author: bundle.device_id,
+                        key,
+                    }),
+                )),
                 public_keys: EmptyKeys,
             }
         })
@@ -1537,11 +1546,11 @@ fn should_create_clients_with_args() {
                 .with(IdamFfi::new(store))
                 .unwrap();
 
-            let policy_store = ModelPolicyStore::new_readonly(Arc::new(eng), ffis);
+            let policy_store = ModelPolicyStore::new(NullStore, Arc::new(eng), ffis);
             let provider = MemStorageProvider::default();
 
             ModelClient {
-                state: RefCell::new(ClientState::new(policy_store, provider)),
+                state: RefCell::new(ClientState::new(policy_store, provider, None)),
                 public_keys: EmptyKeys,
             }
         })

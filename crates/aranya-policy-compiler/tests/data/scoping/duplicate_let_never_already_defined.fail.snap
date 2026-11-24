@@ -1,0 +1,6 @@
+error: the name `x` is defined multiple times
+  |
+2 |     let x = 3
+  |         - previous definition of variable `x`
+3 |     let x = return Unit
+  |         ^ variable `x` re-defined here

@@ -4,15 +4,16 @@
 use std::sync::Arc;
 
 use aranya_crypto::{
-    DeviceId, Rng, SigningKey,
+    Rng,
     default::{DefaultCipherSuite, DefaultEngine},
 };
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{FfiContract, Machine, TypeContract, ffi::FfiModule as _, ident};
 use aranya_runtime::{
+    policy::store::testing::NullStore,
     testing::vm::{self, TestPolicyStore},
-    vm_policy::{FLAVORS, FfiSet, SealCtx, VmPolicy, VmPolicyError, VmPolicyStore},
+    vm_policy::{FLAVORS, FfiSet, VmPolicy, VmPolicyError, VmPolicyStore},
 };
 use test_log::test;
 
@@ -22,29 +23,24 @@ fn new_policy_store() -> TestPolicyStore {
     store
 }
 
-/// Create multiple `TestPolicyStore`s with the same seal context.
+/// Create multiple `TestPolicyStore`s with the same engine.
 fn new_policy_stores<const N: usize>() -> [TestPolicyStore; N] {
-    let seal_ctx = generate_seal_context();
     core::array::from_fn(|_| {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        VmPolicyStore::new(Arc::new(eng), FfiSet::new(), seal_ctx.clone())
+        VmPolicyStore::new(NullStore, Arc::new(eng), FfiSet::new())
     })
 }
 
 /// Compile and serialize the policy.
 fn compile_policy() -> Vec<u8> {
     let ast = parse_policy_document(vm::TEST_POLICY_1).unwrap();
-    let module = Compiler::new(&ast).flavors(&FLAVORS).compile().unwrap();
+    let module = Compiler::new(&ast)
+        .flavors(&FLAVORS)
+        .allow_test_fail(true)
+        .require_publish(false)
+        .compile()
+        .unwrap();
     module.write_to_vec().expect("can serialize test module")
-}
-
-/// Generate a random seal context.
-fn generate_seal_context() -> SealCtx<Arc<DefaultEngine>> {
-    use aranya_crypto::id::IdExt as _;
-    SealCtx {
-        author: DeviceId::random(Rng),
-        key: SigningKey::new(Rng),
-    }
 }
 
 #[test]
@@ -78,6 +74,8 @@ fn contract_tester<F: FnOnce(&mut Vec<FfiContract>)>(contract_mutator: F, expect
     let module = Compiler::new(&ast)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .flavors(&FLAVORS)
+        .allow_test_fail(true)
+        .require_publish(false)
         .compile()
         .unwrap_or_else(|e| panic!("{e}"));
     let mut machine = Machine::from_module(module).expect("module conversion failed");
@@ -274,3 +272,32 @@ mod ffi {
     }
 }
 use ffi::TestFfiEnvelope;
+
+#[cfg(feature = "libc")]
+#[test]
+fn test_add_policy_after_restart() {
+    use aranya_runtime::policy::{PolicyStore as _, store::libc::FileStore};
+
+    let dir = tempfile::tempdir().unwrap();
+    let policy = compile_policy();
+    let (eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
+    let eng = Arc::new(eng);
+
+    // Before restart: adding the same policy twice is fine.
+    let mut store = VmPolicyStore::new(
+        FileStore::new(dir.path()).unwrap(),
+        Arc::clone(&eng),
+        FfiSet::new(),
+    );
+    let id = store.add_policy(&policy).expect("first add");
+    assert_eq!(store.add_policy(&policy).expect("second add"), id);
+    drop(store);
+
+    // After restart: same directory, fresh in-memory state.
+    let mut store = VmPolicyStore::new(
+        FileStore::new(dir.path()).unwrap(),
+        Arc::clone(&eng),
+        FfiSet::new(),
+    );
+    assert_eq!(store.add_policy(&policy).expect("add after restart"), id);
+}

@@ -580,6 +580,7 @@ dependencies = [
  "proptest",
  "rend",
  "rkyv",
+ "rustix",
  "serde",
  "serde_json",
  "spideroak-base58",

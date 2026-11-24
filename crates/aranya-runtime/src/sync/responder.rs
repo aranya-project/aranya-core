@@ -788,7 +788,11 @@ mod tests {
     type TestClient = ClientState<TestPolicyStore, MemStorageProvider>;
 
     fn new_client() -> TestClient {
-        ClientState::new(TestPolicyStore::new(), MemStorageProvider::default())
+        ClientState::new(
+            TestPolicyStore::new(),
+            MemStorageProvider::default(),
+            Some(()),
+        )
     }
 
     fn new_sink() -> TestSink {
