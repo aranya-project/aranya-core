@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use aranya_crypto::{Csprng, Rng};
+use aranya_crypto::Csprng;
 use buggy::{BugExt as _, bug};
 use heapless::Vec;
 use itertools::Itertools as _;
@@ -507,7 +507,7 @@ impl SyncResponder {
             let start = if head.max_cut <= skip_target {
                 head.location()
             } else {
-                skip_jump(storage, head.location(), skip_target, AtMerge::<Rng>::Stop)?
+                skip_jump(storage, head.location(), skip_target, AtMerge::Stop)?
             };
             // Landing in the head's own segment still sends all of it, but
             // landing lower skips the segments in between.

@@ -5,7 +5,7 @@
 use alloc::vec;
 use core::num::NonZeroUsize;
 
-use aranya_crypto::{Csprng, Rng};
+use aranya_crypto::Csprng;
 use buggy::{Bug, BugExt as _};
 use heapless::Vec;
 
@@ -30,19 +30,20 @@ fn random_below(rng: impl Csprng, n: u64) -> Result<u64, Bug> {
 
 /// Returns a uniformly random index into a collection of length `len`.
 pub(super) fn random_index(rng: impl Csprng, len: usize) -> Result<usize, Bug> {
-    let i = random_below(rng, len as u64)?;
+    let len = u64::try_from(len).assume("len fits in u64")?;
+    let i = random_below(rng, len)?;
     usize::try_from(i).assume("index fits in usize")
 }
 
 /// What [`skip_jump`] does at a merge with no usable skip-list entry.
-pub(super) enum AtMerge<R> {
+pub(super) enum AtMerge<'a> {
     /// Stop at the merge.
     Stop,
     /// Continue from the merge's LCA, so the walk only visits commands
     /// every head passes through.
     Lca,
     /// Continue from a random parent with max cut at least the target.
-    RandomParent(R),
+    RandomParent(&'a dyn Csprng),
 }
 
 /// Walk back from `start` toward max cut `target`, which must not be above
@@ -55,11 +56,11 @@ pub(super) enum AtMerge<R> {
 /// Returns the command at `target` when the walk reaches the segment that
 /// contains it, or the first location at or below `target` that a merge's
 /// LCA leads to. With [`AtMerge::Stop`], returns the merge's location.
-pub(super) fn skip_jump<S: Storage, R: Csprng>(
+pub(super) fn skip_jump<S: Storage>(
     storage: &S,
     start: Location,
     target: MaxCut,
-    at_merge: AtMerge<R>,
+    at_merge: AtMerge<'_>,
 ) -> Result<Location, SyncError> {
     if start.max_cut < target {
         buggy::bug!("skip_jump target is above start");
@@ -128,7 +129,7 @@ fn floor<S: Storage>(storage: &S, cache_heads: &[LocatedAddress]) -> Result<MaxC
     if lca.max_cut <= lowest {
         return Ok(lca.max_cut);
     }
-    let floor = skip_jump(storage, lca, lowest, AtMerge::<Rng>::Lca)?;
+    let floor = skip_jump(storage, lca, lowest, AtMerge::Lca)?;
     Ok(floor.max_cut)
 }
 
@@ -281,7 +282,7 @@ fn random_command_at<S: Storage>(
     rng: impl Csprng,
 ) -> Result<Address, SyncError> {
     let head = random_head_reaching(heads, target, &rng)?;
-    let location = skip_jump(storage, head, target, AtMerge::RandomParent(rng))?;
+    let location = skip_jump(storage, head, target, AtMerge::RandomParent(&rng))?;
     Ok(storage.get_command_address(location)?)
 }
 
