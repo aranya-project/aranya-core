@@ -110,7 +110,11 @@ impl IdentifierTypeStack {
     /// Locals are compiled after both phases, and [`Self::add`] rejects
     /// any local that shadows a reserved name.
     #[allow(clippy::result_large_err)]
-    pub fn add_global(&mut self, name: Ident, kind: NameType) -> Result<(), AlreadyDefined> {
+    pub fn add_top_level_item(
+        &mut self,
+        name: Ident,
+        kind: NameType,
+    ) -> Result<(), AlreadyDefined> {
         if let Some((existing, existing_kind)) = self.top_level.get_key_value(&name) {
             return Err(AlreadyDefined::new(
                 existing_kind.reference(existing),

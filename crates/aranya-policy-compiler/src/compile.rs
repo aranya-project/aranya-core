@@ -1275,7 +1275,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier.clone(), NameType::Global(vt))
+            .add_top_level_item(identifier.clone(), NameType::Global(vt))
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -2121,7 +2121,7 @@ impl<'a> CompileState<'a> {
         let names = builtins.chain(ffi).chain(policy_types);
         for reference in names {
             self.identifier_types
-                .add_global(reference.name(), NameType::Item(reference))
+                .add_top_level_item(reference.name(), NameType::Item(reference))
                 .map_err(|e| self.err(e))?;
         }
         Ok(())
