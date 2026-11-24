@@ -42,7 +42,7 @@ use self::{
     },
     target::CompileTarget,
     topo::TopoSort,
-    types::{IdentifierTypeStack, UserType},
+    types::{IdentifierTypeStack, NameType, UserType},
 };
 pub use self::{error::CompileError, target::PolicyInterface};
 
@@ -1263,7 +1263,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier.clone(), vt)
+            .add_global(identifier.clone(), NameType::Global(vt))
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -2007,7 +2007,54 @@ impl<'a> CompileState<'a> {
         Ok(sorted_defs)
     }
 
+    /// Reserves top-level callables and type names (including imported
+    /// FFI structs and enums).
+    fn define_top_level_names(&mut self) -> Result<(), CompileError> {
+        let policy = self.policy;
+
+        // An FFI module may be imported only once.
+        for (i, import) in policy.ffi_imports.iter().enumerate() {
+            if let Some(prev) = policy.ffi_imports[..i].iter().find(|p| *p == import) {
+                return Err(self.err(AlreadyDefined::new(prev.clone(), import.clone())));
+            }
+        }
+
+        let builtins = self.builtin_functions.keys().map(|n| n.clone().nowhere());
+        // Add FFI types to global namespace.
+        // NOTE: FFI types are used unqualified, while calls are qualified. Maybe worth addressing this inconsistency.
+        let ffi = policy.ffi_imports.iter().flat_map(|import| {
+            let module = self.ffi_modules.iter().find(|m| m.name == import.inner);
+            let structs = module.into_iter().flat_map(|m| m.structs).map(|s| &s.name);
+            let enums = module.into_iter().flat_map(|m| m.enums).map(|e| &e.name);
+            structs.chain(enums).map(|name| Ident {
+                inner: name.clone(),
+                span: import.span,
+            })
+        });
+        let policy_types = iter::empty()
+            .chain(policy.enums.iter().map(|d| &d.name))
+            .chain(policy.structs.iter().map(|d| &d.name))
+            .chain(policy.effects.iter().map(|d| &d.name))
+            .chain(policy.facts.iter().map(|d| &d.name))
+            .chain(policy.base_commands.iter().map(|d| &d.name))
+            .chain(policy.commands.iter().map(|d| &d.name))
+            .chain(policy.actions.iter().map(|d| &d.name))
+            .chain(policy.functions.iter().map(|d| &d.name))
+            .chain(policy.finish_functions.iter().map(|d| &d.name))
+            .cloned(); // cloning `Identifier`s is cheap - they're ultimately `&'static str`s
+        let names = builtins.chain(ffi).chain(policy_types); //.collect();
+        for name in names {
+            self.identifier_types
+                .add_global(name, NameType::Item)
+                .map_err(|e| self.err(e))?;
+        }
+        Ok(())
+    }
+
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
+        self.define_builtins()?;
+        self.define_top_level_names()?;
+
         // map enum names to constants
         for enum_def in &self.policy.enums {
             self.compile_enum_definition(enum_def)?;
@@ -2106,8 +2153,6 @@ impl<'a> CompileState<'a> {
 
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        self.define_builtins()?;
 
         // Define the finish function signatures before compiling them, so that they can be
         // used to catch usage errors in regular functions.

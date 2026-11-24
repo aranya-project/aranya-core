@@ -1,0 +1,7 @@
+error: the name `FFIColor` is defined multiple times
+  |
+1 | use test
+  |     ---- previous defintion here
+2 |
+3 | enum FFIColor { Blue }
+  |      ^^^^^^^^ re-defined here

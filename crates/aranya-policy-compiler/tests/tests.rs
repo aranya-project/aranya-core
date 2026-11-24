@@ -30,7 +30,10 @@ const TEST_SCHEMAS: &[ModuleSchema<'static>] = &[
             return_type: ffi::Type::Bool,
         }],
         structs: &[],
-        enums: &[],
+        enums: &[ffi::Enum {
+            name: ident!("FFIColor"),
+            variants: &[ident!("Red")],
+        }],
     },
     ModuleSchema {
         name: ident!("cyclic_types"),

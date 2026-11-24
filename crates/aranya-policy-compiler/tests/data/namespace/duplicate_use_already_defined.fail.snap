@@ -1,0 +1,6 @@
+error: the name `test` is defined multiple times
+  |
+1 | use test
+  |     ---- previous defintion here
+2 | use test
+  |     ^^^^ re-defined here

@@ -37,8 +37,8 @@ Module {
 <11>:
     block
     unwrap some
-    def 'f'
-    get 'f'
+    def 'foo'
+    get 'foo'
     end
     jump 24
 <17>:

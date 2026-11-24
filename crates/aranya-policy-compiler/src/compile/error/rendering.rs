@@ -281,7 +281,11 @@ impl SimpleError for error::AlreadyDefined {
         format!("the name `{}` is defined multiple times", self.prev).into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
-        [
+        // Builtins have no source location.
+        if self.prev.span.is_empty() {
+            return vec![(self.primary.span, "already defined by a builtin".into())];
+        }
+        vec![
             (self.primary.span, "re-defined here".into()),
             (self.prev.span, "previous defintion here".into()),
         ]
