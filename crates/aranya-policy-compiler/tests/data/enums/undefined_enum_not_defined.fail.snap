@@ -1,4 +1,4 @@
 error: enum `Drink` is not defined
   |
-2 |     let n = Drink::Coffee
+2 |     let n = Drink::Coffee;
   |             ^^^^^ used here

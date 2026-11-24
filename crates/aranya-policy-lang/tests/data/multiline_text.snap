@@ -19,5 +19,5 @@ Policy {
             span: 0..21,
         },
     ],
-    text: "let x = \"foo\n    bar\"\n",
+    text: "let x = \"foo\n    bar\";\n",
 }

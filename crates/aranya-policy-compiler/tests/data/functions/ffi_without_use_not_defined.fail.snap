@@ -1,4 +1,4 @@
 error: module `test` is not defined
   |
-2 |     return test::doit(x)
+2 |     return test::doit(x);
   |            ^^^^ used here

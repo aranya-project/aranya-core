@@ -7,5 +7,5 @@ error: Missing default pattern in `match` statement/expression
 14 | |         Light {  color: LightColor::Yellow, go: true } => 3
 15 | |         Light {  color: LightColor::Green, go: false } => 4
 16 | |         Light {  color: LightColor::Green, go: true } => 5
-17 | |     }
+17 | |     };
    | |_____^

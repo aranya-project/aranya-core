@@ -1,4 +1,4 @@
 error: action `bad` is not defined
   |
-2 |     action bad()
+2 |     action bad();
   |            ^^^ used here

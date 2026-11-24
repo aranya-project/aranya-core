@@ -1,7 +1,7 @@
 error: the name `x` is defined multiple times
   |
-2 |     let x = 4
+2 |     let x = 4;
   |         - previous defintion of variable `x`
 3 |     if (b) {
-4 |         let x = 4
+4 |         let x = 4;
   |             ^ variable `x` re-defined here

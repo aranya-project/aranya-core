@@ -71,15 +71,15 @@ Policy {
                 Return(
                     ReturnStatement {
                         value: Identifier(
-                            "x" @ 128..129,
-                        ) @ 128..129,
+                            "x" @ 129..130,
+                        ) @ 129..130,
                     },
-                ) @ 121..129,
+                ) @ 122..130,
             ],
-            span: 0..131,
+            span: 0..133,
         },
     ],
     finish_functions: [],
     global_lets: [],
-    text: "function foo(r: result[int, string]) int {\n    let x = match r {\n        Ok(val) => val\n        Err(err) => -1\n    }\n    return x\n}\n",
+    text: "function foo(r: result[int, string]) int {\n    let x = match r {\n        Ok(val) => val\n        Err(err) => -1\n    };\n    return x;\n}\n",
 }

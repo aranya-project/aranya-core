@@ -1,4 +1,4 @@
 error: field `y` of struct `Foo` is not defined
   |
-3 |     return x.y
+3 |     return x.y;
   |              ^ used here

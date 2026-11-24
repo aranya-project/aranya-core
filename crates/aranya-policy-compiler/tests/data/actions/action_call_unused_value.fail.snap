@@ -1,4 +1,4 @@
 error: unused value
   |
-6 |     action can_fail() // return value not used
+6 |     action can_fail(); // return value not used
   |     ^^^^^^^^^^^^^^^^^ expression values must be used

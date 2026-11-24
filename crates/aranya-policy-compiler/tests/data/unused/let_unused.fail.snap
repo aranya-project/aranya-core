@@ -1,4 +1,4 @@
 error: unused variable(s): `x`
   |
-2 |     let x = 3 // unused variable
+2 |     let x = 3; // unused variable
   |         ^ never used

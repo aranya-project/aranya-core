@@ -1,8 +1,8 @@
 error: invalid statement
   |
 2 | function foo() int {
-3 |     action bar()
+3 |     action bar();
   |     ^^^^^^^^^^^^ statement not allowed in pure function context
-4 |     return 0
+4 |     return 0;
 5 | }
   |

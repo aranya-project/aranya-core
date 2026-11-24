@@ -1,4 +1,4 @@
 error: bad argument
   |
-6 |     return f()
+6 |     return f();
   |            ^ call to `f` has 0 arguments, but it should have 1

@@ -1,7 +1,7 @@
 error: invalid statement
   |
 1 | finish function foo() {
-2 |     let x = 3
+2 |     let x = 3;
   |     ^^^^^^^^^ statement not allowed in finish block/function context
 3 | }
   |

@@ -1,4 +1,4 @@
 error: unused value
   |
-7 |     f()
+7 |     f();
   |     ^^^ expression values must be used

@@ -1,4 +1,4 @@
 error: finish function not allowed in expression
   |
-6 |     return f()
+6 |     return f();
   |            ^^^ function call not valid in this context

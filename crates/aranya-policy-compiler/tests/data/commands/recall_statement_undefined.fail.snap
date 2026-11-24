@@ -1,4 +1,4 @@
 error: recall block `nonexistent` is not defined
   |
-4 |         recall nonexistent()
+4 |         recall nonexistent();
   |                ^^^^^^^^^^^ used here

@@ -1,4 +1,4 @@
 error: invalid type: int
   |
-4 |             emit 0
+4 |             emit 0;
   |                  ^ expected `struct T` but found `int`

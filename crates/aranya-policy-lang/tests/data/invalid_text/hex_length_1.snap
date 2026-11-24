@@ -1,4 +1,4 @@
 error: Invalid string
   |
-1 | let x = "a\x1"
+1 | let x = "a\x1";
   |           ^^^ hex character escape is too short

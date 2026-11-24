@@ -42,30 +42,30 @@ Policy {
                         ],
                         fallback: None,
                     },
-                ) @ 32..90,
+                ) @ 32..91,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Bool(
                                     false,
-                                ) @ 99..104,
+                                ) @ 100..105,
                                 [
                                     Check(
                                         CheckStatement {
                                             condition: Int(
-                                                1 @ 121..122,
-                                            ) @ 121..122,
+                                                1 @ 122..123,
+                                            ) @ 122..123,
                                             else_expression: InternalFunction(
                                                 TestFail(
                                                     Some(
                                                         "check 2",
                                                     ),
-                                                    128..148,
+                                                    129..149,
                                                 ),
-                                            ) @ 128..148,
+                                            ) @ 129..149,
                                         },
-                                    ) @ 115..148,
+                                    ) @ 116..149,
                                 ],
                             ),
                         ],
@@ -74,117 +74,117 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         condition: Int(
-                                            2 @ 176..177,
-                                        ) @ 176..177,
+                                            2 @ 178..179,
+                                        ) @ 178..179,
                                         else_expression: InternalFunction(
                                             TestFail(
                                                 Some(
                                                     "check 3",
                                                 ),
-                                                183..203,
+                                                185..205,
                                             ),
-                                        ) @ 183..203,
+                                        ) @ 185..205,
                                     },
-                                ) @ 170..203,
+                                ) @ 172..205,
                             ],
                         ),
                     },
-                ) @ 96..209,
+                ) @ 97..212,
                 If(
                     IfStatement {
                         branches: [
                             (
                                 Bool(
                                     false,
-                                ) @ 218..223,
+                                ) @ 221..226,
                                 [
                                     Check(
                                         CheckStatement {
                                             condition: Int(
-                                                1 @ 240..241,
-                                            ) @ 240..241,
+                                                1 @ 243..244,
+                                            ) @ 243..244,
                                             else_expression: InternalFunction(
                                                 TestFail(
                                                     Some(
                                                         "check 4",
                                                     ),
-                                                    247..267,
+                                                    250..270,
                                                 ),
-                                            ) @ 247..267,
+                                            ) @ 250..270,
                                         },
-                                    ) @ 234..267,
+                                    ) @ 237..270,
                                     Let(
                                         LetStatement {
-                                            name: "c" @ 280..281,
+                                            name: "c" @ 284..285,
                                             value: FunctionCall(
                                                 FunctionCall {
-                                                    name: "add" @ 284..287,
+                                                    name: "add" @ 288..291,
                                                     arguments: [
                                                         Int(
-                                                            1 @ 288..289,
-                                                        ) @ 288..289,
+                                                            1 @ 292..293,
+                                                        ) @ 292..293,
                                                         Int(
-                                                            1 @ 291..292,
-                                                        ) @ 291..292,
+                                                            1 @ 295..296,
+                                                        ) @ 295..296,
                                                     ],
                                                 },
-                                            ) @ 284..293,
+                                            ) @ 288..297,
                                         },
-                                    ) @ 276..293,
+                                    ) @ 280..297,
                                 ],
                             ),
                             (
                                 Equal(
                                     Identifier(
-                                        "n" @ 308..309,
-                                    ) @ 308..309,
-                                    Int(
-                                        2 @ 313..314,
+                                        "n" @ 313..314,
                                     ) @ 313..314,
-                                ) @ 308..314,
+                                    Int(
+                                        2 @ 318..319,
+                                    ) @ 318..319,
+                                ) @ 313..319,
                                 [
                                     Check(
                                         CheckStatement {
                                             condition: Int(
-                                                3 @ 331..332,
-                                            ) @ 331..332,
+                                                3 @ 336..337,
+                                            ) @ 336..337,
                                             else_expression: InternalFunction(
                                                 TestFail(
                                                     Some(
                                                         "check 5",
                                                     ),
-                                                    338..358,
+                                                    343..363,
                                                 ),
-                                            ) @ 338..358,
+                                            ) @ 343..363,
                                         },
-                                    ) @ 325..358,
+                                    ) @ 330..363,
                                 ],
                             ),
                             (
                                 Equal(
                                     Identifier(
-                                        "n" @ 373..374,
-                                    ) @ 373..374,
+                                        "n" @ 379..380,
+                                    ) @ 379..380,
                                     Int(
-                                        4 @ 378..379,
-                                    ) @ 378..379,
-                                ) @ 373..379,
+                                        4 @ 384..385,
+                                    ) @ 384..385,
+                                ) @ 379..385,
                                 [
                                     Check(
                                         CheckStatement {
                                             condition: Int(
-                                                5 @ 396..397,
-                                            ) @ 396..397,
+                                                5 @ 402..403,
+                                            ) @ 402..403,
                                             else_expression: InternalFunction(
                                                 TestFail(
                                                     Some(
                                                         "check 6",
                                                     ),
-                                                    403..423,
+                                                    409..429,
                                                 ),
-                                            ) @ 403..423,
+                                            ) @ 409..429,
                                         },
-                                    ) @ 390..423,
+                                    ) @ 396..429,
                                 ],
                             ),
                         ],
@@ -193,24 +193,24 @@ Policy {
                                 Check(
                                     CheckStatement {
                                         condition: Int(
-                                            6 @ 451..452,
-                                        ) @ 451..452,
+                                            6 @ 458..459,
+                                        ) @ 458..459,
                                         else_expression: InternalFunction(
                                             TestFail(
                                                 Some(
                                                     "check 7",
                                                 ),
-                                                458..478,
+                                                465..485,
                                             ),
-                                        ) @ 458..478,
+                                        ) @ 465..485,
                                     },
-                                ) @ 445..478,
+                                ) @ 452..485,
                             ],
                         ),
                     },
-                ) @ 215..484,
+                ) @ 218..492,
             ],
-            span: 0..486,
+            span: 0..494,
         },
     ],
     effects: [],
@@ -221,5 +221,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action[null] test(n: int) {\n    if false {\n        check 1 else test_fail(\"check 1\")\n    }\n\n    if false {\n        check 1 else test_fail(\"check 2\")\n    } else {\n        check 2 else test_fail(\"check 3\")\n    }\n\n    if false {\n        check 1 else test_fail(\"check 4\")\n        let c = add(1, 1)\n    } else if n == 2 {\n        check 3 else test_fail(\"check 5\")\n    } else if n == 4 {\n        check 5 else test_fail(\"check 6\")\n    } else {\n        check 6 else test_fail(\"check 7\")\n    }\n}\n",
+    text: "action[null] test(n: int) {\n    if false {\n        check 1 else test_fail(\"check 1\");\n    }\n\n    if false {\n        check 1 else test_fail(\"check 2\");\n    } else {\n        check 2 else test_fail(\"check 3\");\n    }\n\n    if false {\n        check 1 else test_fail(\"check 4\");\n        let c = add(1, 1);\n    } else if n == 2 {\n        check 3 else test_fail(\"check 5\");\n    } else if n == 4 {\n        check 5 else test_fail(\"check 6\");\n    } else {\n        check 6 else test_fail(\"check 7\");\n    }\n}\n",
 }

@@ -1,4 +1,4 @@
 error: variable `p` is not defined
   |
-4 |     check p == None else test_fail()
+4 |     check p == None else test_fail();
   |           ^ used here

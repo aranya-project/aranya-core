@@ -3,5 +3,5 @@ error: Missing default pattern in `match` statement/expression
 2 |       return match r {
   |  ____________^
 3 | |         Ok(n) => n
-4 | |     }
+4 | |     };
   | |_____^

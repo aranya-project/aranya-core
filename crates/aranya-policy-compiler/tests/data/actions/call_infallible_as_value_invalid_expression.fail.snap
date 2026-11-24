@@ -1,4 +1,4 @@
 error: invalid expression
   |
-5 |     let x = action infallible()
+5 |     let x = action infallible();
   |             ^^^^^^^^^^^^^^^^^^^ this action does not return a value

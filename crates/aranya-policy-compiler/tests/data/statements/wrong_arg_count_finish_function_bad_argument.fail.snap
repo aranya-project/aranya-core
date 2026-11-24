@@ -1,4 +1,4 @@
 error: bad argument
    |
-17 |             f()
+17 |             f();
    |             ^^^ call to `f` has 0 arguments, but it should have 1

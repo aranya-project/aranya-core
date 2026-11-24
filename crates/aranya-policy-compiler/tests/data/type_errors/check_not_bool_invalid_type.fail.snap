@@ -1,4 +1,4 @@
 error: invalid type: int
   |
-3 |         check 0 else test_fail("should fail")
+3 |         check 0 else test_fail("should fail");
   |               ^ expected `bool` but found `int`

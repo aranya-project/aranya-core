@@ -1,4 +1,4 @@
 error: struct `Bar` is not defined
   |
-3 |     return Foo { a: 1, b: "test" } as Bar
+3 |     return Foo { a: 1, b: "test" } as Bar;
   |                                       ^^^ used here

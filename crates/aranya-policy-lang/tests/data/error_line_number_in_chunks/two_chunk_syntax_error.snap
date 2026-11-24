@@ -1,4 +1,4 @@
 error: Syntax error
    |
-11 |     let = 2
+11 |     let = 2;
    |         ^ expected identifier

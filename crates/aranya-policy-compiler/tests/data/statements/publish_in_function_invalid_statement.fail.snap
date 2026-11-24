@@ -1,7 +1,7 @@
 error: invalid statement
   |
 1 | function foo(x: int) int {
-2 |     publish Bar{}
+2 |     publish Bar{};
   |     ^^^^^^^^^^^^^ statement not allowed in pure function context
 3 | }
   |

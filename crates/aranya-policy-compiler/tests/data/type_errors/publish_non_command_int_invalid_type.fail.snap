@@ -1,4 +1,4 @@
 error: invalid type: int
   |
-2 |     publish 3
+2 |     publish 3;
   |             ^ expected `struct T` but found `int`

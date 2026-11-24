@@ -1,4 +1,4 @@
 error: Syntax error
   |
-2 |     return x is Sum
+2 |     return x is Sum;
   |                 ^ expected None or Some

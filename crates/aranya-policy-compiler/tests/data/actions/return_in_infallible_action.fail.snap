@@ -1,4 +1,4 @@
 error: cannot return from an infallible action; declare a `result[unit, E]` return type
   |
-3 |     return Ok(0)
+3 |     return Ok(0);
   |            ^^^^^

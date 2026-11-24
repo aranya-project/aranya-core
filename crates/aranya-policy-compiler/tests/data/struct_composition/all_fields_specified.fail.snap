@@ -5,5 +5,5 @@ error: A struct literal has all its fields explicitly specified while also havin
 4 | |         x: 3,
 5 | |         y: true,
 6 | |         ...f
-7 | |     }
+7 | |     };
   | |_____^

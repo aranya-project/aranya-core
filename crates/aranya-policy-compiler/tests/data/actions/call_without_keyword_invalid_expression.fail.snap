@@ -1,4 +1,4 @@
 error: invalid expression
   |
-3 |     bar()
+3 |     bar();
   |     ^^^^^ actions must be called with the `action` keyword

@@ -4,5 +4,5 @@ error: Missing default pattern in `match` statement/expression
   |  ____________^
 5 | |         Bar { r: Ok(42) } => 1
 6 | |         Bar { r: Ok(16) } => 2
-7 | |     }
+7 | |     };
   | |_____^

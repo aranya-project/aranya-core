@@ -1,4 +1,4 @@
 error: bad argument
   |
-3 |     let x = count_up_to 0 Foo[i:?]
+3 |     let x = count_up_to 0 Foo[i:?];
   |                         ^ count limit must be greater than zero

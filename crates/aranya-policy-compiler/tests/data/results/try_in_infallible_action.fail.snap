@@ -1,4 +1,4 @@
 error: cannot use `?` in an infallible action; declare a `result[unit, E]` return type
   |
-6 |     let n = may_fail(x)?
+6 |     let n = may_fail(x)?;
   |             ^^^^^^^^^^^^

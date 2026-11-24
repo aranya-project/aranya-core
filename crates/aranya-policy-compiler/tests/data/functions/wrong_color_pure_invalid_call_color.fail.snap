@@ -1,7 +1,7 @@
 error: pure function not allowed in finish context
   |
 5 | finish function g() {
-6 |     f()
+6 |     f();
   |     ^^^ function call not valid in this context
 7 | }
   |

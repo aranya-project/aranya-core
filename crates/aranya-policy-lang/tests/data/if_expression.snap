@@ -34,7 +34,7 @@ Policy {
                     },
                 ) @ 26..60,
             ],
-            span: 0..62,
+            span: 0..63,
         },
     ],
     effects: [],
@@ -45,5 +45,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action[null] test() {\n    let b = if true { :1 } else { :0 }\n}\n",
+    text: "action[null] test() {\n    let b = if true { :1 } else { :0 };\n}\n",
 }

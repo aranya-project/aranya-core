@@ -1,4 +1,4 @@
 error: struct `Bar` is not defined
   |
-2 |     let v = Bar {}
+2 |     let v = Bar {};
   |             ^^^ used here

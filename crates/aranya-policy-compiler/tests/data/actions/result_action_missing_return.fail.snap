@@ -1,6 +1,6 @@
 error: missing return statement
   |
 2 | / action[null] oops(x: int) result[unit, string] {
-3 | |     let y = x
+3 | |     let y = x;
 4 | | }
   | |_^ no return found in this body

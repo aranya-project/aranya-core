@@ -1,7 +1,7 @@
 error: unused variable(s): `x`, `z`
   |
-3 |     let x = 1 // unused
+3 |     let x = 1; // unused
   |         ^ never used
-4 |     let y = 2
-5 |     let z = 3 // unused
+4 |     let y = 2;
+5 |     let z = 3; // unused
   |         ^ never used

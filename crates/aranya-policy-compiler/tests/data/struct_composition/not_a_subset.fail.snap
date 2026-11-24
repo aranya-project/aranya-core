@@ -4,5 +4,5 @@ error: struct `Bar` must be a subset of struct `Foo`
 5 |         y: true,
 6 |         ...b
   |            ^ type `Bar`
-7 |     }
+7 |     };
   |

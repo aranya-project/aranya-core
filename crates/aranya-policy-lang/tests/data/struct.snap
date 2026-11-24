@@ -62,10 +62,10 @@ Policy {
                     },
                 ) @ 78..118,
             ],
-            span: 27..120,
+            span: 27..121,
         },
     ],
     finish_functions: [],
     global_lets: [],
-    text: "struct Foo {\n    x: int\n}\n\nfunction convert(foo: struct Foo) struct Bar {\n    return Bar { y: foo.x, ...baz, ...thud }\n}\n",
+    text: "struct Foo {\n    x: int\n}\n\nfunction convert(foo: struct Foo) struct Bar {\n    return Bar { y: foo.x, ...baz, ...thud };\n}\n",
 }

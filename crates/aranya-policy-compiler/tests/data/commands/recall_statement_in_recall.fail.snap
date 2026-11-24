@@ -6,7 +6,7 @@ error: invalid statement
  4 |         finish {}
  5 |     }
  6 |     recall handle() {
- 7 |         recall other()
+ 7 |         recall other();
    |         ^^^^^^^^^^^^^^ statement not allowed in command recall block context
  8 |     }
  9 |     recall other() {

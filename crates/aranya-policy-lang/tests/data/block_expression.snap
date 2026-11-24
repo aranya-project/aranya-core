@@ -24,39 +24,39 @@ Policy {
                                 ) @ 43..52,
                                 Let(
                                     LetStatement {
-                                        name: "b" @ 65..66,
+                                        name: "b" @ 66..67,
                                         value: Int(
-                                            4 @ 69..70,
-                                        ) @ 69..70,
+                                            4 @ 70..71,
+                                        ) @ 70..71,
                                     },
-                                ) @ 61..70,
+                                ) @ 62..71,
                             ],
                             Coalesce(
                                 FunctionCall(
                                     FunctionCall {
-                                        name: "saturating_add" @ 81..95,
+                                        name: "saturating_add" @ 83..97,
                                         arguments: [
                                             Identifier(
-                                                "a" @ 96..97,
-                                            ) @ 96..97,
+                                                "a" @ 98..99,
+                                            ) @ 98..99,
                                             Identifier(
-                                                "b" @ 99..100,
-                                            ) @ 99..100,
+                                                "b" @ 101..102,
+                                            ) @ 101..102,
                                         ],
                                     },
-                                ) @ 81..101,
+                                ) @ 83..103,
                                 InternalFunction(
                                     TestFail(
                                         None,
-                                        105..116,
+                                        107..118,
                                     ),
-                                ) @ 105..116,
-                            ) @ 81..116,
-                        ) @ 33..122,
+                                ) @ 107..118,
+                            ) @ 83..118,
+                        ) @ 33..124,
                     },
-                ) @ 25..122,
+                ) @ 25..124,
             ],
-            span: 0..124,
+            span: 0..127,
         },
     ],
     effects: [],
@@ -67,5 +67,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action[null] foo() {\n    let x = {\n        let a = 3\n        let b = 4\n        : saturating_add(a, b) or test_fail()\n    }\n}\n",
+    text: "action[null] foo() {\n    let x = {\n        let a = 3;\n        let b = 4;\n        : saturating_add(a, b) or test_fail()\n    };\n}\n",
 }

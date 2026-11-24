@@ -1,4 +1,4 @@
 error: invalid type: int
   |
-2 |     return x is None
+2 |     return x is None;
   |            ^ expected `option[T]` but found `int`
