@@ -126,21 +126,23 @@ impl PeerCache {
 
         // A storage error can leave some covered heads dropped, which is
         // safe: the cache only ever under-reports what the peer holds.
-        let mut add_command = true;
         let mut i = 0;
         while let Some(old) = self.heads.get(i) {
             if old.id == new.id || storage.is_ancestor(new.location(), old.location(), buffer)? {
-                // The new command is already covered by this head.
-                add_command = false;
+                // The new command is already covered by this head. No
+                // other head can be an ancestor of the new command, since
+                // it would then be an ancestor of this head.
+                return Ok(());
             } else if storage.is_ancestor(old.location(), new.location(), buffer)? {
-                // The new command covers this head.
-                self.heads.remove(i);
+                // The new command covers this head. Order doesn't matter,
+                // and the swapped-in head is checked next.
+                self.heads.swap_remove(i);
                 continue;
             }
             i = i.checked_add(1).assume("index + 1 mustn't overflow")?;
         }
 
-        if add_command && let Err(new) = self.heads.push(new) {
+        if let Err(new) = self.heads.push(new) {
             // Full: evict a random head.
             let evict = sample::random_index(rng, self.heads.len())?;
             *self.heads.get_mut(evict).assume("index in range")? = new;
