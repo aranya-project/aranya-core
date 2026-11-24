@@ -88,6 +88,11 @@ use_self = "warn"
 # Wildcard imports are usually bad, we should be explicitly allowing it where needed.
 wildcard_imports = "warn"
 
+# Libraries shouldn't print.
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+
 [workspace.dependencies]
 buggy = { version = "0.1.0", default-features = false }
 spideroak-base58 = { version = "0.2.0", default-features = false }

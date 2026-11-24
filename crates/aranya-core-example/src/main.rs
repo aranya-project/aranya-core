@@ -6,6 +6,8 @@
 //! The FFI/compiler/VM crates are needed for one-time policy compilation
 //! and FFI module wiring.
 
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "example")]
+
 use std::{fs, sync::Arc};
 
 use anyhow::{Context as _, Result};

@@ -42,6 +42,7 @@
 //! vectors::run_all(|| MemBackend).unwrap();
 //! ```
 
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "test")]
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
