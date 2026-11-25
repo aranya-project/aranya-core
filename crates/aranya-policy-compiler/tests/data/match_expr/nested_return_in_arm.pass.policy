@@ -5,6 +5,6 @@ function f(n: int, m: int) int {
             _ => return 2
         }
         _ => 3
-    }
-    return x
+    };
+    return x;
 }

@@ -1,6 +1,6 @@
 fact Pet[name: string]=>{age: int}
 action[null] pets() {
     map Pet[name:?] as p {
-        let age = p.age
+        let age = p.age;
     }
 }

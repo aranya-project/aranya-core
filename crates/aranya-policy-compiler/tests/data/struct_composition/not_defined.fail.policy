@@ -3,7 +3,7 @@ struct Foo { x: int, y: bool }
 function baz() struct Foo {
     let new_foo = Foo {
         ...x
-    }
+    };
 
-    return new_foo
+    return new_foo;
 }

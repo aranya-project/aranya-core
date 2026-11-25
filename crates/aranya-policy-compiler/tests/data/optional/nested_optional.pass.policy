@@ -1,7 +1,7 @@
 function f() option[option[int]] {
-    return Some(Some(1))
+    return Some(Some(1));
 }
 
 action[null] a() {
-    let x = f()
+    let x = f();
 }

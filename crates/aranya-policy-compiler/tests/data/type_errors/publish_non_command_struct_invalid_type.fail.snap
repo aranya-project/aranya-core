@@ -1,4 +1,4 @@
 error: invalid type: Struct T
   |
-3 |     publish Foo {}
+3 |     publish Foo {};
   |             ^^^^^^ expected `Command Struct T` but found `Struct T`

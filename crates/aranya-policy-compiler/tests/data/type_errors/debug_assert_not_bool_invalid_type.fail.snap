@@ -1,4 +1,4 @@
 error: invalid type: int
   |
-2 |     debug_assert(3)
+2 |     debug_assert(3);
   |                  ^ expected `bool` but found `int`

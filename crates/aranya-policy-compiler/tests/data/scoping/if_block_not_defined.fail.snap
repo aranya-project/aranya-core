@@ -1,4 +1,4 @@
 error: variable `x` is not defined
   |
-3 |     return x // x should not exist in the outer scope
+3 |     return x; // x should not exist in the outer scope
   |            ^ used here

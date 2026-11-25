@@ -13,5 +13,5 @@ struct Bar {
     y: bool,
 }
 action[null] baz(source: struct Bar) {
-    publish source substruct Foo
+    publish source substruct Foo;
 }

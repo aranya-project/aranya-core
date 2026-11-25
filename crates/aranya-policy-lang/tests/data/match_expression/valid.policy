@@ -1,9 +1,9 @@
 action[null] foo(n: int) {
     let x = match n {
         0 => {
-            let x = true
-            : x
+            let x = true;
+            x
         }
         _ => false
-    }
+    };
 }

@@ -1,4 +1,4 @@
 enum Drink { Water, Coffee }
 action[null] test() {
-    let n = Drink::Tea
+    let n = Drink::Tea;
 }

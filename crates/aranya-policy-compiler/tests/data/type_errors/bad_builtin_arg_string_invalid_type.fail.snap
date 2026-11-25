@@ -1,4 +1,4 @@
 error: invalid type: string
   |
-2 |     return saturating_add("3", "4")
+2 |     return saturating_add("3", "4");
   |                           ^^^ expected `int` but found `string`

@@ -1,4 +1,4 @@
 action[null] ping() {}
 action[null] pong() {
-    action ping()
+    action ping();
 }

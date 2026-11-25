@@ -1,4 +1,4 @@
 error: invalid type: option[int]
   |
-3 |     return test::doit(Some(3))
+3 |     return test::doit(Some(3));
   |                       ^^^^^^^ expected `int` but found `option[int]`

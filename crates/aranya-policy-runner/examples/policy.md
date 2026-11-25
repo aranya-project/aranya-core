@@ -9,9 +9,9 @@ management.
 
 ```policy
 // Import necessary FFIs
-use device
-use perspective
-use idam
+use device;
+use perspective;
+use idam;
 ```
 
 ## Facts
@@ -29,7 +29,7 @@ the first device in the team. See `init.run`.
 
 ```policy
 action[init] init(owner_key: bytes) {
-    publish Init { owner_key }
+    publish Init { owner_key };
 }
 
 effect TeamCreated {
@@ -42,12 +42,12 @@ command Init with BaseInit {
     }
 
     policy(this) {
-        let device_id = device::current_device_id()
+        let device_id = device::current_device_id();
         finish {
             create Device[dev: device_id]=>{key: this.owner_key}
             emit TeamCreated {
                 owner_dev: device_id,
-            }
+            };
         }
     }
 }
@@ -60,7 +60,7 @@ ID is the id of this command. See `init.run`.
 
 ```policy
 action[null] add_user(new_user_key: bytes) {
-    publish AddUser { new_user_key }
+    publish AddUser { new_user_key };
 }
 
 effect UserAdded {
@@ -78,15 +78,15 @@ command AddUser with BasicBase {
     }
 
     policy(this, envelope) {
-        let dev_id = envelope.command_id
+        let dev_id = envelope.command_id;
         // Check that this device has not already been added
-        check !exists Device[dev: dev_id] else test_fail("no device")
+        check !exists Device[dev: dev_id] else test_fail("no device");
 
         finish {
             create Device[dev: dev_id]=>{key: this.new_user_key}
             emit UserAdded {
                 dev: dev_id,
-            }
+            };
         }
     }
 }
@@ -100,7 +100,7 @@ testing. See `add_raw_device.run`.
 
 ```policy
 action[null] add_raw_device(device_id: id, device_key: bytes) {
-    publish AddDevice { device_id, device_key }
+    publish AddDevice { device_id, device_key };
 }
 
 command AddDevice with BasicBase {
@@ -114,13 +114,13 @@ command AddDevice with BasicBase {
     }
 
     policy(this) {
-        check !exists Device[dev: this.device_id] else test_fail("no device")
+        check !exists Device[dev: this.device_id] else test_fail("no device");
 
         finish {
             create Device[dev: this.device_id]=>{key: this.device_key}
             emit UserAdded {
                 dev: this.device_id,
-            }
+            };
         }
     }
 }
@@ -133,7 +133,7 @@ This simply fetches the keys from the `Device` fact, or reports that the device 
 
 ```policy
 action[null] get_raw_device(device_id: id) {
-    publish GetDevice { device_id }
+    publish GetDevice { device_id };
 }
 
 effect DeviceInfo {
@@ -161,14 +161,14 @@ command GetDevice with BasicBase {
                     emit DeviceInfo {
                         device_id: device_info.dev,
                         device_key: device_info.key,
-                    }
+                    };
                 }
             }
             None => {
                 finish {
                     emit DeviceNotFound {
                         device_id: this.device_id,
-                    }
+                    };
                 }
             }
         }
@@ -199,7 +199,7 @@ command Hello with BasicBase {
         finish {
             emit Message {
                 msg: this.msg
-            }
+            };
         }
     }
 }

@@ -2,7 +2,7 @@ Policy {
     version: V2,
     ffi_imports: [
         "crypto" @ 4..10,
-        "perspective" @ 15..26,
+        "perspective" @ 16..27,
     ],
     facts: [],
     actions: [],
@@ -14,5 +14,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "use crypto\nuse perspective\n",
+    text: "use crypto;\nuse perspective;\n",
 }

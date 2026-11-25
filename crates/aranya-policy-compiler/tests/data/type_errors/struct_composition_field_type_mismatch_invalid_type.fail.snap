@@ -9,5 +9,5 @@ error: struct composition type mismatch: field `x` expects `int` but found `stri
 5 |         y: true,
 6 |         ...b
   |            - composed here
-7 |     }
+7 |     };
   |

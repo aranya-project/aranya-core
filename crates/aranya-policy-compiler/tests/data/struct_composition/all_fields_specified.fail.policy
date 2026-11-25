@@ -4,7 +4,7 @@ function baz(f: struct Foo) struct Foo {
         x: 3,
         y: true,
         ...f
-    }
+    };
 
-    return new_foo
+    return new_foo;
 }

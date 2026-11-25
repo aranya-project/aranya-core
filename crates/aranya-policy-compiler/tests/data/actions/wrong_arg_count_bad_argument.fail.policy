@@ -1,4 +1,4 @@
 action[null] bar(n: int) {}
 action[null] foo() {
-    action bar()
+    action bar();
 }

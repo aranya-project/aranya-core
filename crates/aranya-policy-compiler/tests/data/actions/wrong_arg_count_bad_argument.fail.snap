@@ -1,4 +1,4 @@
 error: bad argument
   |
-3 |     action bar()
+3 |     action bar();
   |     ^^^^^^^^^^^^ call to `bar` has 0 arguments, but it should have 1

@@ -1,4 +1,4 @@
 error: Invalid string
   |
-1 | let x = "a\x0wb"
+1 | let x = "a\x0wb";
   |              ^ invalid character in hex character escape

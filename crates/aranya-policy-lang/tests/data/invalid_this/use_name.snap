@@ -1,4 +1,4 @@
 error: Reserved identifier
   |
-1 | use this
+1 | use this;
   |     ^^^^ found reserved identifier: `this`

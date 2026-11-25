@@ -14,6 +14,6 @@ fact NotAPolicyBlock[]=>{}
 
 ```policy
 action[null] foo() {
-    publish SomeCommand{}
+    publish SomeCommand{};
 }
 ```

@@ -1,6 +1,6 @@
 error: invalid type: bool
   |
-2 |     return Some(42) or true
+2 |     return Some(42) or true;
   |                 --     ^^^^ expected `int` but found `bool`
   |                 |
   |                 expected because of this

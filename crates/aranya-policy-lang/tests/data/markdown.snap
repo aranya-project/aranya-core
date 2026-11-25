@@ -28,7 +28,7 @@ Policy {
                     ) @ 151..164,
                 ) @ 143..164,
             ],
-            span: 118..166,
+            span: 118..167,
         },
     ],
     effects: [],
@@ -39,5 +39,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "---\npolicy-version: 2\n---\n\n# A fact\n\n```policy\nfact Markdown[]=>{}\n```\n\n```\nfact NotAPolicyBlock[]=>{}\n```\n\n```policy\naction[null] foo() {\n    publish SomeCommand{}\n}\n```\n",
+    text: "---\npolicy-version: 2\n---\n\n# A fact\n\n```policy\nfact Markdown[]=>{}\n```\n\n```\nfact NotAPolicyBlock[]=>{}\n```\n\n```policy\naction[null] foo() {\n    publish SomeCommand{};\n}\n```\n",
 }

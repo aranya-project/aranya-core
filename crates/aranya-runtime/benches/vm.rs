@@ -76,7 +76,7 @@ policy-version: 2
 ```policy
         base[init] BaseInit {
             fields { key: bytes }
-            get_key(this, _dev: id) option[bytes] { return Some(this.key) }
+            get_key(this, _dev: id) option[bytes] { return Some(this.key); }
         }
 
         fact Key[]=>{key: bytes}
@@ -86,7 +86,7 @@ policy-version: 2
                 return match query Key[] {
                     Some(f) => Some(f.key)
                     None => None
-                }
+                };
             }
         }
 
@@ -101,11 +101,11 @@ policy-version: 2
         }
 
         action[init] init(key: bytes) {
-            publish Init { key: key }
+            publish Init { key: key };
         }
 
         action[basic] insert(i: int, value: string) {
-            publish Insert { i:i, value: value }
+            publish Insert { i:i, value: value };
         }
 
         command Insert with Base {
@@ -125,7 +125,7 @@ policy-version: 2
 
         action[basic] run() {
             map F[i:?] as f {
-                publish DoSomething { i: f.i }
+                publish DoSomething { i: f.i };
             }
         }
 

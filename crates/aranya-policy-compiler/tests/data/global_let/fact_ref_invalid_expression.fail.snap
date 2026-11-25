@@ -1,4 +1,4 @@
 error: invalid expression
   |
-2 | let x = Foo
+2 | let x = Foo;
   |         ^^^ This expression is not valid in a const context

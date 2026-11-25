@@ -1,14 +1,14 @@
 // Functions and structs may be used before they are defined.
 function double(x: int) int {
-    return sum(make_pair(x, x))
+    return sum(make_pair(x, x));
 }
 
 function sum(p: struct Pair) int {
-    return saturating_add(p.a, p.b)
+    return saturating_add(p.a, p.b);
 }
 
 function make_pair(a: int, b: int) struct Pair {
-    return Pair { a, b }
+    return Pair { a, b };
 }
 
 struct Pair {

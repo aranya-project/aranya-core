@@ -5,5 +5,5 @@ error: Missing default pattern in `match` statement/expression
 3 | |         0 => 0
 4 | |         1 => 1
 5 | |         2 => 2
-6 | |     }
+6 | |     };
   | |_____^

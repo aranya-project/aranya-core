@@ -39,7 +39,7 @@ Policy {
                     },
                 ) @ 26..51,
             ],
-            span: 0..53,
+            span: 0..54,
         },
     ],
     effects: [],
@@ -50,5 +50,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action[null] test() {\n    let x = query A[i:1, j:?]\n}\n",
+    text: "action[null] test() {\n    let x = query A[i:1, j:?];\n}\n",
 }

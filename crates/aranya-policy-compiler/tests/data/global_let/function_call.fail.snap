@@ -1,4 +1,4 @@
 error: invalid expression
   |
-1 | let x = call()
+1 | let x = call();
   |         ^^^^^^ This expression is not valid in a const context

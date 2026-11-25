@@ -3,6 +3,6 @@ error: invalid statement
 1 | function pets() int {
 2 |     map Pet[name:?]=>{} as p {}
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ statement not allowed in pure function context
-3 |     return 0
+3 |     return 0;
 4 | }
   |

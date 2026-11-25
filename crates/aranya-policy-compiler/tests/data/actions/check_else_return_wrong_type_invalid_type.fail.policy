@@ -1,5 +1,5 @@
 // Must return the action's `result[unit, E]` type.
 action[null] f() result[unit, string] {
-    check false else return 5
-    return Ok(Unit)
+    check false else return 5;
+    return Ok(Unit);
 }

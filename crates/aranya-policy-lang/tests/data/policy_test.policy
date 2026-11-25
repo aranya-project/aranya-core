@@ -6,8 +6,8 @@ fact F[v: string]=>{x: int, y: bool}
 action[null] add2(x: int, y: int) {
     let obj = Add {
         count: x,
-    }
-    publish obj
+    };
+    publish obj;
 }
 
 effect Added {
@@ -20,16 +20,16 @@ command Add with Base {
         count: int
     }
     policy(this, envelope) {
-        let envelope_id = envelope.command_id
-        let author = envelope.author_id
-        let new_x = add2(x, count)
-        check exists TestFact[v: "test"]=>{} else recall default(this, envelope)
+        let envelope_id = envelope.command_id;
+        let author = envelope.author_id;
+        let new_x = add2(x, count);
+        check exists TestFact[v: "test"]=>{} else recall default(this, envelope);
         match x {
             0 => {
-                check positive(Some(new_x)) else recall default(this, envelope)
+                check positive(Some(new_x)) else recall default(this, envelope);
             }
             1 => {
-                check positive(None) else recall default(this, envelope)
+                check positive(None) else recall default(this, envelope);
             }
             _ => {
 
@@ -37,10 +37,10 @@ command Add with Base {
         }
 
         if x == 3 {
-            check new_x < 10 else recall default(this, envelope)
+            check new_x < 10 else recall default(this, envelope);
         }
 
-        let a = foo::ext_func(x)
+        let a = foo::ext_func(x);
 
         finish {
             create F[v: "hello"]=>{x, y: saturating_sub(0, x)}
@@ -49,13 +49,13 @@ command Add with Base {
             emit Added {
                 x: new_x,
                 y: count,
-            }
+            };
         }
     }
     recall default(this, envelope) {
-        let envelope_id = envelope.command_id
-        let author = envelope.author_id
-        let new_x = add2(x, count)
+        let envelope_id = envelope.command_id;
+        let author = envelope.author_id;
+        let new_x = add2(x, count);
         finish {
             create F[v: "hello"]=>{x, y: saturating_sub(0, x)}
             update F[]=>{x} to {x: new_x}
@@ -63,7 +63,7 @@ command Add with Base {
             emit Added {
                 x: new_x,
                 y: count,
-            }
+            };
         }
     }
 }
@@ -72,7 +72,7 @@ function positive(v: option[int]) bool {
     return match v {
         Some(x) => x > 0
         None => test_fail()
-    }
+    };
 }
 
 finish function next(x: int) {
@@ -83,7 +83,7 @@ finish function next(x: int) {
 // ephemeral commands and actions
 
 base[ephemeral] Ephemeral {
-    get_key(_dev: id) option[bytes] { return None }
+    get_key(_dev: id) option[bytes] { return None; }
 }
 
 command C with Ephemeral {

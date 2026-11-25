@@ -28,7 +28,7 @@ base[init] BaseInit {
         key: bytes
     }
     get_key(this, _dev: id) option[bytes] {
-        return Some(this.key)
+        return Some(this.key);
     }
 }
 
@@ -39,7 +39,7 @@ base[basic] Base {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -48,7 +48,7 @@ base[ephemeral] BaseEphemeral {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -79,7 +79,7 @@ action[init] init(nonce: int, key: bytes) {
     publish Init {
         key: key,
         nonce: nonce,
-    }
+    };
 }
 
 command Create with Base {
@@ -93,7 +93,7 @@ command Create with Base {
     policy(this) {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
-            emit StuffHappened{x: this.key, y: this.value}
+            emit StuffHappened{x: this.key, y: this.value};
         }
     }
 }
@@ -102,7 +102,7 @@ action[basic] create_action(v: int) {
     publish Create{
         key: 1,
         value: v,
-    }
+    };
 }
 
 command Increment with Base {
@@ -114,22 +114,22 @@ command Increment with Base {
         amount: int,
     }
     policy(this) {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
-        check stuff.y > 0 else recall default(this)
-        let new_y = add(stuff.y, this.amount) or test_fail()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail();
+        check stuff.y > 0 else recall default(this);
+        let new_y = add(stuff.y, this.amount) or test_fail();
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
-            emit StuffHappened{x: this.key, y: new_y}
+            emit StuffHappened{x: this.key, y: new_y};
         }
     }
 
     recall default(this) {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail();
         finish {
             emit OutOfRange {
                 value: stuff.y,
                 increment: this.amount,
-            }
+            };
         }
     }
 }
@@ -138,14 +138,14 @@ action[basic] increment() {
     publish Increment{
         key: 1,
         amount: 1
-    }
+    };
 }
 
 action[ephemeral] try_result(fail: bool) result[unit, string] {
     if fail {
-        return Err("boom")
+        return Err("boom");
     }
-    return Ok(Unit)
+    return Ok(Unit);
 }
 
 command IncrementEphemeral with BaseEphemeral {
@@ -154,22 +154,22 @@ command IncrementEphemeral with BaseEphemeral {
         amount: int,
     }
     policy(this) {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
-        check stuff.y > 0 else recall default(this)
-        let new_y = add(stuff.y, this.amount) or test_fail()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail();
+        check stuff.y > 0 else recall default(this);
+        let new_y = add(stuff.y, this.amount) or test_fail();
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
-            emit StuffHappened{x: this.key, y: new_y}
+            emit StuffHappened{x: this.key, y: new_y};
         }
     }
 
     recall default(this) {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail();
         finish {
             emit OutOfRange {
                 value: stuff.y,
                 increment: this.amount,
-            }
+            };
         }
     }
 }
@@ -178,26 +178,26 @@ action[ephemeral] increment_ephemeral() {
     publish IncrementEphemeral {
         key: 1,
         amount: 1
-    }
+    };
 }
 
 
 action[ephemeral] incrementFour(n: int) result[unit, string] {
-    check n == 4 else return Err("n must be 4")
+    check n == 4 else return Err("n must be 4");
     publish IncrementEphemeral {
         key: 1,
         amount: n,
-    }
-    return Ok(Unit)
+    };
+    return Ok(Unit);
 }
 
 action[ephemeral] lookup(k: int, v: int, expected: bool) result[unit, string] {
-    let f = query Stuff[x: k]=>{y: v}
+    let f = query Stuff[x: k]=>{y: v};
     match expected {
-        true => { check f is Some else return Err("expected Some") }
-        false => { check f is None else return Err("expected None") }
+        true => { check f is Some else return Err("expected Some"); }
+        false => { check f is None else return Err("expected None"); }
     }
-    return Ok(Unit)
+    return Ok(Unit);
 }
 
 command Invalidate with Base {
@@ -208,17 +208,17 @@ command Invalidate with Base {
         key: int
     }
     policy(this) {
-        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
-        let newval = -1  // hack around negative number parse bug; see #869
+        let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail();
+        let newval = -1;  // hack around negative number parse bug; see #869
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: newval}
-            emit StuffHappened{x: this.key, y: newval}
+            emit StuffHappened{x: this.key, y: newval};
         }
     }
 }
 
 action[basic] invalidate() {
-    publish Invalidate { key: 1 }
+    publish Invalidate { key: 1 };
 }
 ```
 "#;

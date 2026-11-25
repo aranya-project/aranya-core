@@ -1,4 +1,4 @@
 error: invalid type: bool
   |
-5 |     let new_struct = x substruct Baz
+5 |     let new_struct = x substruct Baz;
   |                      ^ expected `struct T` but found `bool`

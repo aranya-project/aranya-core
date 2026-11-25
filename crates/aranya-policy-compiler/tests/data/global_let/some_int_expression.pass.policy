@@ -1,1 +1,1 @@
-let global = Some(42)
+let global = Some(42);

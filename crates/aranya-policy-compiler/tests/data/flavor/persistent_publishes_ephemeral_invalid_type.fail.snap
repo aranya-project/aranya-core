@@ -1,4 +1,4 @@
 error: invalid type: ephemeral command
    |
-11 |     publish Cmd {}
+11 |     publish Cmd {};
    |             ^^^^^^ expected `null command` but found `ephemeral command`

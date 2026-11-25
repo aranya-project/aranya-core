@@ -1,5 +1,5 @@
 action[null] bar() {}
 function foo() int {
-    action bar()
-    return 0
+    action bar();
+    return 0;
 }

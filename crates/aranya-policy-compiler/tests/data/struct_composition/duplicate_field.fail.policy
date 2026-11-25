@@ -6,7 +6,7 @@ function baz(b: struct Bar, t: struct Thud) struct Foo {
         y: true,
         ...b,
         ...t
-    }
+    };
 
-    return new_foo
+    return new_foo;
 }

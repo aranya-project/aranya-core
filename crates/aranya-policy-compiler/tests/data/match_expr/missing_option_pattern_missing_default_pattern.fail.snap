@@ -4,5 +4,5 @@ error: Missing default pattern in `match` statement/expression
   |  _____________^
 3 | |         None => 0
 4 | |         Some(false) => 2
-5 | |     }
+5 | |     };
   | |_____^

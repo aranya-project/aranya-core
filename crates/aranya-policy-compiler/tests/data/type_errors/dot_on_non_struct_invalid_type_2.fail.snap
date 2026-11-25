@@ -1,4 +1,4 @@
 error: invalid type: int
   |
-2 |     return x.y
+2 |     return x.y;
   |            ^ expected `struct _` but found `int`

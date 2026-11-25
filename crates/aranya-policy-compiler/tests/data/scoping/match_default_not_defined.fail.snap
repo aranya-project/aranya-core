@@ -1,4 +1,4 @@
 error: variable `y` is not defined
   |
-6 |     return y
+6 |     return y;
   |            ^ used here

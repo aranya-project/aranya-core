@@ -13,6 +13,6 @@ struct Bar {
 }
 
 function convert() struct Bar {
-    return Foo { a: 1, b: "test" } as Bar
+    return Foo { a: 1, b: "test" } as Bar;
 }
 ```

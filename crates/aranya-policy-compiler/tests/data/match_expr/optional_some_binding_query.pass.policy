@@ -4,6 +4,6 @@ action[null] test() {
     let n = match query Foo[i: 1] {
         Some(f) => f.x
         None => 0
-    }
-    check n == 0 else test_fail()
+    };
+    check n == 0 else test_fail();
 }

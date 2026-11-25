@@ -20,8 +20,8 @@ fn compile_pass(text: &str) -> Module {
 fn test_allow_todo() {
     let text = r#"
         function f() int {
-            check false else todo()
-            return 1
+            check false else todo();
+            return 1;
         }
     "#;
     let policy = parse_policy_str(text, Version::V2).expect("parse ok");
@@ -45,8 +45,8 @@ fn test_allow_todo() {
 fn test_allow_test_fail() {
     let text = r#"
         function f() int {
-            check false else test_fail("boom")
-            return 1
+            check false else test_fail("boom");
+            return 1;
         }
     "#;
     let policy = parse_policy_str(text, Version::V2).expect("parse ok");
@@ -89,18 +89,18 @@ fn test_require_publish() {
 
     // A publish on any path, or a call to another action, satisfies the check.
     let text = r#"
-        base[null] Base { get_key(_dev: id) option[bytes] { return None } }
+        base[null] Base { get_key(_dev: id) option[bytes] { return None; } }
         command Foo with Base {
             fields { a: int }
             policy() { finish {} }
         }
         action[null] conditional(a: int) {
             if a > 0 {
-                publish Foo { a: a }
+                publish Foo { a: a };
             }
         }
         action[null] caller(a: int) {
-            action conditional(a)
+            action conditional(a);
         }
     "#;
     let policy = parse_policy_str(text, Version::V2).expect("parse ok");
@@ -114,37 +114,37 @@ fn test_require_publish() {
 fn test_validate_return() {
     let valid = [
         r#"function a() int {
-            return 0 // ok
+            return 0; // ok
         }"#,
         r#"function c() int {
             if true {
                 // no return - ok
             }
-            return 6
+            return 6;
         }"#,
         r#"function d() int {
-            let n = 0
+            let n = 0;
             if n > 0 {
                 // ok, return at end
             }
             else {
-                return 0
+                return 0;
             }
-            return 1
+            return 1;
         }"#,
         r#"function f() int {
             if true {
-                return 1
+                return 1;
             }
             else {
-                return 0
+                return 0;
             }
             // ok
         }"#,
         r#"function g(n: int) int {
             match n {
-                0 => { return 0 }
-                _ => { return n }
+                0 => { return 0; }
+                _ => { return n; }
             }
         }"#,
     ];
@@ -152,17 +152,17 @@ fn test_validate_return() {
     let invalid = [
         r#"function b() int {
             if false {
-                return 0
+                return 0;
             }
             // missing return - fail
         }"#,
         r#"function e() int {
-            let n = 0
+            let n = 0;
             if n > 0 {
 
             }
             else {
-                return 0
+                return 0;
             }
             // missing return - fail
         }"#,
@@ -185,14 +185,14 @@ fn test_validate_get_key() {
         r#"
             base[null] Base {
                 fields { key: bytes }
-                get_key(this, _dev: id) option[bytes] { return Some(this.key) }
+                get_key(this, _dev: id) option[bytes] { return Some(this.key); }
             }
         "#,
         r#"
             fact Key[author_id: id]=>{key: bytes}
             base[null] Base {
                 get_key(author_id: id) option[bytes] {
-                    return Some((query Key[author_id] or return None).key)
+                    return Some((query Key[author_id] or return None).key);
                 }
             }
         "#,
@@ -203,7 +203,7 @@ fn test_validate_get_key() {
                     return match query Key[author_id] {
                         Some(f) => Some(f.key)
                         None => None
-                    }
+                    };
                 }
             }
         "#,
@@ -212,8 +212,8 @@ fn test_validate_get_key() {
             base[null] Base {
                 get_key(author_id: id) option[bytes] {
                     match query Key[author_id] {
-                        Some(f) => { return Some(f.key) }
-                        None => { return None }
+                        Some(f) => { return Some(f.key); }
+                        None => { return None; }
                     }
                 }
             }
@@ -223,7 +223,7 @@ fn test_validate_get_key() {
     let invalid = [
         r#"
             base[null] Base {
-                get_key(_dev: id) option[bytes] { if false { return None } }
+                get_key(_dev: id) option[bytes] { if false { return None; } }
             }
         "#,
         r#"
@@ -231,7 +231,7 @@ fn test_validate_get_key() {
             base[null] Base {
                 get_key(author_id: id) option[bytes] {
                     match query Key[author_id] {
-                        Some(f) => { return Some(f.key) }
+                        Some(f) => { return Some(f.key); }
                         None => {}
                     }
                 }
@@ -263,7 +263,7 @@ fn test_validate_get_key() {
 fn test_validate_publish() {
     let concat = |text| {
         let base = r#"
-            base[null] Base { get_key(_dev: id) option[bytes] { return None } }
+            base[null] Base { get_key(_dev: id) option[bytes] { return None; } }
             command Foo with Base {
                 fields {
                     a: int
@@ -283,7 +283,7 @@ fn test_validate_publish() {
         concat(
             r#"
             action[null] a() {
-                publish Foo { a: 0 } // ok
+                publish Foo { a: 0 }; // ok
             }
         "#,
         ),
@@ -292,7 +292,7 @@ fn test_validate_publish() {
             action[null] b() {
                 if true {}
 
-                publish Foo { a: 0 } // ok
+                publish Foo { a: 0 }; // ok
             }
         "#,
         ),
@@ -301,9 +301,9 @@ fn test_validate_publish() {
             action[null] c() {
                 if true {}
                 else {
-                    publish Foo { a: 0 }
+                    publish Foo { a: 0 };
                 }
-                publish Foo { a: 1 }
+                publish Foo { a: 1 };
             }
         "#,
         ),
@@ -311,10 +311,10 @@ fn test_validate_publish() {
             r#"
             action[null] d() {
                 if true {
-                    publish Foo { a: 0 }
+                    publish Foo { a: 0 };
                 }
                 else {
-                    publish Foo { a: 1 }
+                    publish Foo { a: 1 };
                 }
             }
         "#,
@@ -322,10 +322,10 @@ fn test_validate_publish() {
         concat(
             r#"
             action[null] e() {
-                let n = 0
+                let n = 0;
                 match n {
-                    0 => { publish Foo { a: 0 } }
-                    _ => { publish Foo { a: 1 } }
+                    0 => { publish Foo { a: 0 }; }
+                    _ => { publish Foo { a: 1 }; }
                 }
             }
         "#,
@@ -337,7 +337,7 @@ fn test_validate_publish() {
             r#"
             action[null] f() {
                 if true {
-                    publish Foo { a: 0 }
+                    publish Foo { a: 0 };
                 }
             }
         "#,
@@ -350,7 +350,7 @@ fn test_validate_publish() {
                 else if false {
                 }
                 else {
-                    publish Foo { a: 0 }
+                    publish Foo { a: 0 };
                 }
             }
         "#,

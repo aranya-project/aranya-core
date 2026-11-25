@@ -1,5 +1,5 @@
 base[null] Base {
     get_key() option[bytes] {
-        return todo()
+        return todo();
     }
 }

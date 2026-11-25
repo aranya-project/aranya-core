@@ -1,7 +1,7 @@
 action[null] foo() {
     let x = {
-        let a = 3
-        let b = 4
-        : saturating_add(a, b) or test_fail()
-    }
+        let a = 3;
+        let b = 4;
+        saturating_add(a, b) or test_fail()
+    };
 }

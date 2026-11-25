@@ -22,7 +22,7 @@ base[init] BaseInit {
         key: bytes
     }
     get_key(this, _dev: id) option[bytes] {
-        return Some(this.key)
+        return Some(this.key);
     }
 }
 
@@ -31,7 +31,7 @@ base[basic] Base {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -40,7 +40,7 @@ base[ephemeral] BaseEphemeral {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -75,7 +75,7 @@ effect Success {
 
 // The `init` action takes a nonce variable and passes it to the Init command.
 action[init] init(nonce: int, key: bytes) {
-    publish Init { key, nonce }
+    publish Init { key, nonce };
 }
 
 // `Init` is a command that initializes a graph.
@@ -87,7 +87,7 @@ command Init with BaseInit {
 
     // The policy block contains statements which query data and check its validity.
     policy(this) {
-        check this.nonce > 0 else test_fail("nonce must be positive")
+        check this.nonce > 0 else test_fail("nonce must be positive");
         // The finish block contains statements which mutate facts.
         finish {
             create Key[]=>{key: this.key}
@@ -101,7 +101,7 @@ action[basic] create_action(v: int) {
     publish Create{
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
@@ -119,7 +119,7 @@ command Create with Base {
     policy(this) {
         finish {
             create Stuff[a: this.key_a]=>{x: this.value}
-            emit StuffHappened{a: this.key_a, x: this.value}
+            emit StuffHappened{a: this.key_a, x: this.value};
         }
     }
 }
@@ -128,7 +128,7 @@ action[ephemeral] create_action_ephemeral(v: int) {
     publish CreateEphemeral {
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 command CreateEphemeral with BaseEphemeral {
@@ -140,7 +140,7 @@ command CreateEphemeral with BaseEphemeral {
     policy(this) {
         finish {
             create Stuff[a: this.key_a]=>{x: this.value}
-            emit StuffHappened{a: this.key_a, x: this.value}
+            emit StuffHappened{a: this.key_a, x: this.value};
         }
     }
 }
@@ -151,7 +151,7 @@ action[basic] increment(v: int) {
     publish Increment{
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 // `Increment` is an on-graph command that will increase our test count by the
@@ -167,13 +167,13 @@ command Increment with Base {
     }
 
     policy(this) {
-        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
-        let new_x = add(stuff.x, this.value) or test_fail()
-        check new_x < 25 else test_fail("new_x out of range")
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail();
+        let new_x = add(stuff.x, this.value) or test_fail();
+        check new_x < 25 else test_fail("new_x out of range");
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
-            emit StuffHappened{a: this.key_a, x: new_x}
+            emit StuffHappened{a: this.key_a, x: new_x};
         }
     }
 }
@@ -182,7 +182,7 @@ action[ephemeral] increment_ephemeral(v: int) {
     publish IncrementEphemeral {
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 command IncrementEphemeral with BaseEphemeral {
@@ -192,13 +192,13 @@ command IncrementEphemeral with BaseEphemeral {
     }
 
     policy(this) {
-        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
-        let new_x = add(stuff.x, this.value) or test_fail()
-        check new_x < 25 else test_fail("new_x out of range")
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail();
+        let new_x = add(stuff.x, this.value) or test_fail();
+        check new_x < 25 else test_fail("new_x out of range");
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
-            emit StuffHappened{a: this.key_a, x: new_x}
+            emit StuffHappened{a: this.key_a, x: new_x};
         }
     }
 }
@@ -209,7 +209,7 @@ action[basic] decrement(v: int) {
     publish Decrement{
         key_a: 1,
         value: v,
-    }
+    };
 }
 
 // `Decrement` is an on-graph command that will decrease our test count by the
@@ -225,12 +225,12 @@ command Decrement with Base {
     }
 
     policy(this) {
-        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail()
-        let new_x = sub(stuff.x, this.value) or test_fail()
+        let stuff = query Stuff[a: this.key_a]=>{x: ?} or test_fail();
+        let new_x = sub(stuff.x, this.value) or test_fail();
 
         finish {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
-            emit StuffHappened{a: this.key_a, x: new_x}
+            emit StuffHappened{a: this.key_a, x: new_x};
         }
     }
 }
@@ -239,7 +239,7 @@ command Decrement with Base {
 action[ephemeral] get_stuff() {
     publish GetStuff {
         key_a: 1,
-    }
+    };
 }
 
 // `GetStuff` is a command that queries the contents of the `Stuff` fact and
@@ -250,9 +250,9 @@ command GetStuff with BaseEphemeral {
     }
 
     policy(this) {
-        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
+        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail();
         finish {
-            emit StuffHappened{a: this.key_a, x: stuff.x}
+            emit StuffHappened{a: this.key_a, x: stuff.x};
         }
     }
 }
@@ -260,7 +260,7 @@ command GetStuff with BaseEphemeral {
 action[basic] get_stuff_on_graph() {
     publish GetStuffOnGraph {
         key_a: 1,
-    }
+    };
 }
 
 command GetStuffOnGraph with Base {
@@ -273,9 +273,9 @@ command GetStuffOnGraph with Base {
     }
 
     policy(this) {
-        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail()
+        let stuff = query Stuff[a: 1]=>{x: ?} or test_fail();
         finish {
-            emit StuffHappened{a: this.key_a, x: stuff.x}
+            emit StuffHappened{a: this.key_a, x: stuff.x};
         }
     }
 }
@@ -286,7 +286,7 @@ action[ephemeral] create_greeting(v: string) {
     publish CreateGreeting {
         key: "greeting",
         value: v,
-    }
+    };
 }
 
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
@@ -302,7 +302,7 @@ command CreateGreeting with BaseEphemeral {
             // Write the Message fact to the session factDB
             create Message[msg: this.key]=>{value: this.value}
             // Return our value
-            emit Greeting{msg: this.value}
+            emit Greeting{msg: this.value};
         }
     }
 }
@@ -313,7 +313,7 @@ action[ephemeral] verify_hello() {
     publish VerifyGreeting {
         key: "greeting",
         value: "hello",
-    }
+    };
 }
 
 // `VerifyGreeting` is an ephemeral command that looks up the Message fact and
@@ -330,12 +330,12 @@ command VerifyGreeting with BaseEphemeral {
     // within the same session. We can query the session factDB and do something
     // with that data.
     policy(this) {
-        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail();
         // Check that the stored value in the Message fact we look up matches
         // the value passed into the command.
-        check greeting.value == this.value else test_fail("greeting mismatch")
+        check greeting.value == this.value else test_fail("greeting mismatch");
         finish {
-            emit Success{value: true}
+            emit Success{value: true};
         }
     }
 }
@@ -344,7 +344,7 @@ action[basic] verify_hello_on_graph() {
     publish VerifyGreetingOnGraph {
         key: "greeting",
         value: "hello",
-    }
+    };
 }
 
 command VerifyGreetingOnGraph with Base {
@@ -358,10 +358,10 @@ command VerifyGreetingOnGraph with Base {
     }
 
     policy(this) {
-        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail()
-        check greeting.value == this.value else test_fail("greeting mismatch")
+        let greeting = query Message[msg: this.key]=>{value: ?} or test_fail();
+        check greeting.value == this.value else test_fail("greeting mismatch");
         finish {
-            emit Success{value: true}
+            emit Success{value: true};
         }
     }
 }
@@ -373,7 +373,7 @@ action[basic] store_session_data(key: string, value: bytes) {
     publish StoreSessionData {
         key,
         cmd: value,
-    }
+    };
 }
 
 // `StoreSessionData` will take serialized byte information and add it to
@@ -391,7 +391,7 @@ command StoreSessionData with Base {
     policy(this) {
         finish {
             create PersistedSessionData[command_type: this.key]=>{value: this.cmd}
-            emit Success{value: true}
+            emit Success{value: true};
         }
     }
 }
@@ -414,15 +414,15 @@ command Link with Base {
 
     policy(envelope) {
         finish {
-            emit Relationship{parent_id: envelope.parent_id, command_id: envelope.command_id}
+            emit Relationship{parent_id: envelope.parent_id, command_id: envelope.command_id};
         }
     }
 }
 
 // Publishes multiple `Link` commands
 action[basic] publish_multiple_commands() {
-    publish Link{}
-    publish Link{}
-    publish Link{}
+    publish Link{};
+    publish Link{};
+    publish Link{};
 }
 ```

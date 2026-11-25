@@ -1,4 +1,4 @@
 error: Reserved identifier
   |
-1 | let this = 42
+1 | let this = 42;
   |     ^^^^ found reserved identifier: `this`

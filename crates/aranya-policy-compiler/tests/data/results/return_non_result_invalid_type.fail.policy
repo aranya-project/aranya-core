@@ -1,1 +1,1 @@
-function f() result[int, string] { return 0 }
+function f() result[int, string] { return 0; }

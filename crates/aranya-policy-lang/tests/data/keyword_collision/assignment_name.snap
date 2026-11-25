@@ -1,4 +1,4 @@
 error: Reserved identifier
   |
-2 |     let int = 3
+2 |     let int = 3;
   |         ^^^ found reserved identifier: `int`

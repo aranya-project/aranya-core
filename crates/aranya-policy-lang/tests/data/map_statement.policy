@@ -1,6 +1,6 @@
 fact Foo[i: int]=>{n: int}
 action[null] foo() {
     map Foo[i:1] as f {
-        process(f)
+        process(f);
     }
 }

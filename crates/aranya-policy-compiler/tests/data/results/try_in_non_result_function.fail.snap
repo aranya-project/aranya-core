@@ -1,4 +1,4 @@
 error: cannot use `?` in a function returning `int`; the return type must be `result[T, E]`
   |
-6 |     return may_fail(x)?
+6 |     return may_fail(x)?;
   |            ^^^^^^^^^^^^

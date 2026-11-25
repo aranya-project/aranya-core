@@ -10,9 +10,9 @@ command signing/verification, and application-level facts.
 ## Imports
 
 ```policy
-use device
-use idam
-use perspective
+use device;
+use idam;
+use perspective;
 ```
 
 ## Data Structures
@@ -77,7 +77,7 @@ base[init] BaseInit {
         owner_keys: struct PublicKeys,
     }
     get_key(this, _dev: id) option[bytes] {
-        return Some(this.owner_keys.sign_key)
+        return Some(this.owner_keys.sign_key);
     }
 }
 
@@ -87,10 +87,10 @@ command Init with BaseInit {
     }
 
     policy(this, envelope) {
-        let author_id = envelope.author_id
-        check author_id == idam::derive_device_id(this.owner_keys.ident_key) else test_fail("not authorized")
+        let author_id = envelope.author_id;
+        check author_id == idam::derive_device_id(this.owner_keys.ident_key) else test_fail("not authorized");
 
-        let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key)
+        let sign_key_id = idam::derive_sign_key_id(this.owner_keys.sign_key);
 
         finish {
             create DeviceSignPubKey[device_id: author_id]=>{
@@ -98,7 +98,7 @@ command Init with BaseInit {
                 key: this.owner_keys.sign_key,
             }
             create Owner[]=>{device_id: author_id}
-            emit Initialized{device_id: author_id}
+            emit Initialized{device_id: author_id};
         }
     }
 }
@@ -112,7 +112,7 @@ base[basic] Base {
         return match query DeviceSignPubKey[device_id] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 
@@ -121,7 +121,7 @@ base[ephemeral] BaseEphemeral {
         return match query DeviceSignPubKey[device_id] {
             Some(f) => Some(f.key)
             None => None
-        }
+        };
     }
 }
 ```
@@ -142,21 +142,21 @@ command AddDevice with Base {
     }
 
     policy(this, envelope) {
-        let author_id = envelope.author_id
-        let owner = query Owner[] or recall reject()
-        check author_id == owner.device_id else test_fail("not authorized")
+        let author_id = envelope.author_id;
+        let owner = query Owner[] or recall reject();
+        check author_id == owner.device_id else test_fail("not authorized");
 
-        let new_device_id = idam::derive_device_id(this.device_keys.ident_key)
-        check !exists DeviceSignPubKey[device_id: new_device_id] else test_fail("no key")
+        let new_device_id = idam::derive_device_id(this.device_keys.ident_key);
+        check !exists DeviceSignPubKey[device_id: new_device_id] else test_fail("no key");
 
-        let new_sign_key_id = idam::derive_sign_key_id(this.device_keys.sign_key)
+        let new_sign_key_id = idam::derive_sign_key_id(this.device_keys.sign_key);
 
         finish {
             create DeviceSignPubKey[device_id: new_device_id]=>{
                 key_id: new_sign_key_id,
                 key: this.device_keys.sign_key,
             }
-            emit DeviceAdded{device_id: new_device_id}
+            emit DeviceAdded{device_id: new_device_id};
         }
     }
 
@@ -180,7 +180,7 @@ command SetCounter with Base {
     policy(this) {
         finish {
             create Counter[name: this.name]=>{value: this.value}
-            emit CounterSet{name: this.name, value: this.value}
+            emit CounterSet{name: this.name, value: this.value};
         }
     }
 }
@@ -196,12 +196,12 @@ command IncrementCounter with Base {
     }
 
     policy(this) {
-        let counter = query Counter[name: this.name]=>{value: ?} or recall reject()
-        let new_value = add(counter.value, this.amount) or recall reject()
+        let counter = query Counter[name: this.name]=>{value: ?} or recall reject();
+        let new_value = add(counter.value, this.amount) or recall reject();
 
         finish {
             update Counter[name: this.name]=>{value: counter.value} to {value: new_value}
-            emit CounterIncremented{name: this.name, value: new_value}
+            emit CounterIncremented{name: this.name, value: new_value};
         }
     }
 
@@ -218,9 +218,9 @@ command GetCounter with BaseEphemeral {
     }
 
     policy(this) {
-        let counter = query Counter[name: this.name]=>{value: ?} or test_fail()
+        let counter = query Counter[name: this.name]=>{value: ?} or test_fail();
         finish {
-            emit CounterValue{name: this.name, value: counter.value}
+            emit CounterValue{name: this.name, value: counter.value};
         }
     }
 }
@@ -230,22 +230,22 @@ command GetCounter with BaseEphemeral {
 
 ```policy
 action[init] init(owner_keys: struct PublicKeys, nonce: int) {
-    publish Init { owner_keys, nonce }
+    publish Init { owner_keys, nonce };
 }
 
 action[basic] add_device(device_keys: struct PublicKeys) {
-    publish AddDevice { device_keys }
+    publish AddDevice { device_keys };
 }
 
 action[basic] set_counter(name: int, value: int) {
-    publish SetCounter { name, value }
+    publish SetCounter { name, value };
 }
 
 action[basic] increment_counter(name: int, amount: int) {
-    publish IncrementCounter { name, amount }
+    publish IncrementCounter { name, amount };
 }
 
 action[ephemeral] get_counter(name: int) {
-    publish GetCounter { name }
+    publish GetCounter { name };
 }
 ```

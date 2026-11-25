@@ -1,4 +1,4 @@
 error: cycle found: [FFIBar, FFIFoo]
   |
-1 | use cyclic_types
+1 | use cyclic_types;
   | -

@@ -1,4 +1,4 @@
 error: variable `this` is not defined
   |
-3 |         return this
+3 |         return this;
   |                ^^^^ used here

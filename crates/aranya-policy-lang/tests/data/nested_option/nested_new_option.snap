@@ -26,10 +26,10 @@ Policy {
                     },
                 ) @ 53..64,
             ],
-            span: 0..66,
+            span: 0..67,
         },
     ],
     finish_functions: [],
     global_lets: [],
-    text: "function maybe_maybe_int() option[option[int]] {\n    return None\n}",
+    text: "function maybe_maybe_int() option[option[int]] {\n    return None;\n}\n",
 }

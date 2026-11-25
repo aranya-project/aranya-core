@@ -2,6 +2,6 @@ struct Baz {
     y: int,
 }
 action[null] foo(x: bool) {
-    let new_struct = x substruct Baz
-    publish new_struct
+    let new_struct = x substruct Baz;
+    publish new_struct;
 }

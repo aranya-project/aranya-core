@@ -12,5 +12,5 @@ action[null] f(c: struct ColorName) {
         ColorName {  color: LightColor::Red, name: "red" } => 0
         ColorName {  color: LightColor::Yellow, name: "yellow" } => 1
         ColorName {  color: LightColor::Green, name: "green" } => 2
-    }
+    };
 }

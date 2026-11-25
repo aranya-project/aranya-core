@@ -1,7 +1,7 @@
 fact F[k: int]=>{v: int}
 
 function may_fail(x: int) result[int, string] {
-    return Err("nope")
+    return Err("nope");
 }
 
 command Work with StubBase {

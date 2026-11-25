@@ -5,5 +5,5 @@ command Cmd with StubBase {
     }
 }
 action[null] test() {
-    publish Cmd {}
+    publish Cmd {};
 }

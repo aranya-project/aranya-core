@@ -1,4 +1,4 @@
 error: variant `Tea` of enum `Drink` is not defined
   |
-3 |     let n = Drink::Tea
+3 |     let n = Drink::Tea;
   |                    ^^^ used here

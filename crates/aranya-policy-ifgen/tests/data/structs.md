@@ -18,7 +18,7 @@ effect UserAdded {
 }
 
 base[basic] Base {
-    get_key(_dev: id) option[bytes] { return None }
+    get_key(_dev: id) option[bytes] { return None; }
 }
 
 command AddUser with Base {
@@ -27,13 +27,13 @@ command AddUser with Base {
     }
     policy(this) {
         finish {
-            emit UserAdded { uid: this.uid }
+            emit UserAdded { uid: this.uid };
         }
     }
 }
 
 action[basic] add_user(uid: id, name: string) {
-    publish AddUser { uid, name }
+    publish AddUser { uid, name };
 }
 
 action[basic] delete_user(admin: struct Admin, uid: id) {}

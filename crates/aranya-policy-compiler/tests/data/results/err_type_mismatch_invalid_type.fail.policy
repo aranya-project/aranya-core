@@ -1,1 +1,1 @@
-function f() result[int, string] { return Err(1) }
+function f() result[int, string] { return Err(1); }

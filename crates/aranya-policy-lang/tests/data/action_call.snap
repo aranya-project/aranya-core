@@ -24,7 +24,7 @@ Policy {
                     },
                 ) @ 49..62,
             ],
-            span: 23..64,
+            span: 23..65,
         },
     ],
     effects: [],
@@ -35,5 +35,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action[null] ping() {}\naction[null] pong() {\n    action ping()\n}\n",
+    text: "action[null] ping() {}\naction[null] pong() {\n    action ping();\n}\n",
 }

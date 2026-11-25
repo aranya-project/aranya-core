@@ -57,9 +57,9 @@ Policy {
                             ) @ 80..90,
                         ],
                     },
-                ) @ 52..96,
+                ) @ 52..97,
             ],
-            span: 27..98,
+            span: 27..99,
         },
     ],
     effects: [],
@@ -70,5 +70,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "fact Foo[i: int]=>{n: int}\naction[null] foo() {\n    map Foo[i:1] as f {\n        process(f)\n    }\n}\n",
+    text: "fact Foo[i: int]=>{n: int}\naction[null] foo() {\n    map Foo[i:1] as f {\n        process(f);\n    }\n}\n",
 }

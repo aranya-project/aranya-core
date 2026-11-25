@@ -1,8 +1,8 @@
 function f() int {
     let x = {
-        let x = 1
-        : x
-    }
+        let x = 1;
+        x
+    };
 
-    return x
+    return x;
 }

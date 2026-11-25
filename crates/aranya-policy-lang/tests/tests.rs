@@ -80,11 +80,11 @@ fact F[v: int]=>{}
 command C with Base {
     fields { v: int }
     policy(this) {
-        let found = exists F[v: this.v]   // trailing comment
-        let text = "a // not a comment"
-        check found else recall failed()  /* block comment */
+        let found = exists F[v: this.v];   // trailing comment
+        let text = "a // not a comment";
+        check found else recall failed();  /* block comment */
         if found {
-            let unused = 1
+            let unused = 1;
         }
         finish {
             delete F[v: this.v]
@@ -109,7 +109,7 @@ command C with Base {
             "let found = exists F[v: this.v]",
             r#"let text = "a // not a comment""#,
             "check found else recall failed()",
-            "if found {\n            let unused = 1\n        }",
+            "if found {\n            let unused = 1;\n        }",
         ]
     );
     let aranya_policy_ast::StmtKind::Let(found) = &policy.commands[0].policy.body[0].inner else {

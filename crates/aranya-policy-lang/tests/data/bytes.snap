@@ -27,10 +27,10 @@ Policy {
                     },
                 ) @ 35..43,
             ],
-            span: 0..45,
+            span: 0..46,
         },
     ],
     finish_functions: [],
     global_lets: [],
-    text: "function foo(x: bytes) bytes {\n    return x\n}\n",
+    text: "function foo(x: bytes) bytes {\n    return x;\n}\n",
 }

@@ -1,4 +1,4 @@
 error: struct `Foo` is not defined
   |
-6 |     let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz
+6 |     let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz;
   |                      ^^^ used here

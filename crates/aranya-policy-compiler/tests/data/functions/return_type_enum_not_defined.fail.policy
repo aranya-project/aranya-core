@@ -1,3 +1,3 @@
 function f() enum Blah {
-    return Blah::Foo
+    return Blah::Foo;
 }

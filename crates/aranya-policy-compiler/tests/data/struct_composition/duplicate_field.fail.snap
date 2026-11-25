@@ -6,5 +6,5 @@ error: struct `Bar` and struct `Thud` have at least 1 field with the same name
   |            ^ type `Bar`
 8 |         ...t
   |            - type `Thud`
-9 |     }
+9 |     };
   |
