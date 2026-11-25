@@ -195,8 +195,7 @@ fn keep_random_subset(
         return Ok(());
     }
     // Partial Fisher-Yates: the first `n` entries become the subset.
-    for i in 0..n {
-        let rest = items.len().checked_sub(i).assume("i < len")?;
+    for (i, rest) in (0..n).zip((0..=items.len()).rev()) {
         let j = i
             .checked_add(random_index(&rng, rest)?)
             .assume("index mustn't overflow")?;
@@ -240,16 +239,17 @@ fn add_random_commands<S: Storage>(
 }
 
 /// The spacing between random commands: the span from `floor` to `top`
-/// shared among `free` slots, but never less than one reply, since tighter
-/// spacing saves less than a reply.
+/// shared among `free` slots, but never less than one reply. Commands
+/// within one reply of each other go out in the same round trip, so a
+/// tighter sample saves no round trips and costs request space.
 fn gap(top: MaxCut, floor: MaxCut, free: NonZeroUsize) -> Result<u64, Bug> {
     let span = top
         .get()
         .checked_sub(floor.get())
         .assume("floor is not above the tallest head")?;
-    Ok(span
-        .div_ceil(free.get() as u64)
-        .max(COMMAND_RESPONSE_MAX as u64))
+    let free = u64::try_from(free.get()).assume("free fits in u64")?;
+    let reply = u64::try_from(COMMAND_RESPONSE_MAX).assume("reply size fits in u64")?;
+    Ok(span.div_ceil(free).max(reply))
 }
 
 /// How far below the tallest head the first random command is, uniform in
