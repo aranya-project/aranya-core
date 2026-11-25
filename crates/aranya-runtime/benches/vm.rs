@@ -41,7 +41,7 @@ fn benchmark_1() {
 
     let mut sink = TestSink::new();
     let graph_id = cs
-        .new_graph(&policy, vm_action!(init(0, key)), &mut sink)
+        .new_graph(&policy, vm_action!(initialize(0, key)), &mut sink)
         .expect("could not create graph");
 
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
@@ -100,7 +100,7 @@ policy-version: 2
             }
         }
 
-        action[init] init(key: bytes) {
+        action[init] initialize(key: bytes) {
             publish Init { key: key }
         }
 
@@ -152,7 +152,7 @@ policy-version: 2
 
     let mut sink = TestSink::new();
     let graph_id = cs
-        .new_graph(&policy, vm_action!(init(key)), &mut sink)
+        .new_graph(&policy, vm_action!(initialize(key)), &mut sink)
         .expect("could not create graph");
 
     for i in 1..10 {

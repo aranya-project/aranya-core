@@ -74,7 +74,7 @@ effect Success {
 }
 
 // The `init` action takes a nonce variable and passes it to the Init command.
-action[init] init(nonce: int, key: bytes) {
+action[init] initialize(nonce: int, key: bytes) {
     publish Init { key, nonce }
 }
 

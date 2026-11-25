@@ -76,11 +76,11 @@ pub enum EphemeralAction {
 }
 #[actions(interface = Init)]
 pub enum InitAction {
-    init(init),
+    initialize(initialize),
 }
-/// init policy action.
+/// initialize policy action.
 #[action(interface = Init)]
-pub struct init {
+pub struct initialize {
     pub owner_keys: PublicKeys,
     pub nonce: i64,
 }

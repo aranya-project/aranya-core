@@ -229,7 +229,7 @@ command GetCounter with BaseEphemeral {
 ## Actions
 
 ```policy
-action[init] init(owner_keys: struct PublicKeys, nonce: int) {
+action[init] initialize(owner_keys: struct PublicKeys, nonce: int) {
     publish Init { owner_keys, nonce }
 }
 

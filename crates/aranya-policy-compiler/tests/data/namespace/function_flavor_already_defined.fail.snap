@@ -1,0 +1,4 @@
+error: the name `init` is defined multiple times
+  |
+1 | function init() int {
+  |          ^^^^ reserved for flavor `init`

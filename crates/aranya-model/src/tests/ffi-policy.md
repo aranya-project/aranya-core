@@ -124,7 +124,7 @@ function authorized_device_key_ids(device_keys: struct DeviceKeyBundle) result[s
     })
 }
 
-action[init] init(nonce: int, sign_pk: bytes) {
+action[init] initialize(nonce: int, sign_pk: bytes) {
     publish Init { nonce, sign_pk }
 }
 
