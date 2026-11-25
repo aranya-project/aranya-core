@@ -15,9 +15,8 @@
 //!
 //! [`ClientState`]: crate::ClientState
 
-use alloc::{collections::BTreeMap, format, string::String, vec, vec::Vec};
-
-use aranya_crypto::Rng;
+use alloc::{format, string::String, vec, vec::Vec};
+use core::time::Duration;
 
 use super::{
     naive::{NaiveCommand, NaivePriority, naive_braid, spec_violation},
@@ -25,13 +24,12 @@ use super::{
     shapes::{ProgParents, chain_clients},
 };
 use crate::{
-    Address, ClientState, CmdId, GraphId, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, RuntimeBuffers,
-    StorageProvider, SyncRequester,
+    Address, ClientState, CmdId, GraphId, Prior, RuntimeBuffers, StorageProvider, Syncer,
     command::CommandExt as _,
     mem_spill,
     policy::NullSink,
     storage::{Query as _, Storage as _, linear::testing::MemStorageProvider},
-    testing::{dsl::dispatch, hash_for_testing_only, short_b58},
+    testing::{hash_for_testing_only, pull_in_process, short_b58},
 };
 
 /// One step of a schedule, performed by the named client.
@@ -152,111 +150,43 @@ impl GraphCommands {
 type Client = ClientState<ProbePolicyStore, MemStorageProvider>;
 type Buffers = RuntimeBuffers<<MemStorageProvider as StorageProvider>::Segment>;
 
-/// Two disjoint `&mut Client` from the client slice, for the one sync
-/// exchange that borrows both a requester's and a responder's storage.
-fn two_mut(clients: &mut [Client], a: usize, b: usize) -> (&mut Client, &mut Client) {
+type PeerSyncer = Syncer<usize, Duration>;
+
+/// Two disjoint `&mut` elements of `items`, for the one sync that borrows
+/// both a requester's and a responder's state.
+fn two_mut<T>(items: &mut [T], a: usize, b: usize) -> (&mut T, &mut T) {
     assert_ne!(a, b);
     if a < b {
-        let (lo, hi) = clients.split_at_mut(b);
+        let (lo, hi) = items.split_at_mut(b);
         (&mut lo[a], &mut hi[0])
     } else {
-        let (lo, hi) = clients.split_at_mut(a);
+        let (lo, hi) = items.split_at_mut(a);
         (&mut hi[0], &mut lo[b])
     }
 }
 
-/// `to` pulls everything available from `from` through the real sync
-/// protocol, committing and advancing peer caches as the DSL does. One
-/// exchange transfers up to `COMMAND_RESPONSE_MAX` commands (100 under default
-/// features, so a whole test graph moves in one round); the loop drains any
-/// remainder and stops when a response is empty or adds nothing new. The
-/// latter exit is required: the peer cache ignores addresses already covered
-/// by a cached head, so a response of only already-held commands leaves the
-/// next request unchanged, and without it the loop would never end. Returns
-/// the number of new commands added.
+/// `to` pulls everything available from `from` through the clients'
+/// syncers. Returns the number of new commands added.
 fn sync_pull(
     clients: &mut [Client],
-    req_caches: &mut BTreeMap<(usize, usize), PeerCache>,
-    resp_caches: &mut BTreeMap<(usize, usize), PeerCache>,
+    syncers: &mut [PeerSyncer],
     buffers: &mut Buffers,
     gid: GraphId,
     from: usize,
     to: usize,
 ) -> usize {
-    let mut total = 0usize;
-    loop {
-        let (from_c, to_c) = two_mut(clients, from, to);
-        let mut requester = SyncRequester::new(gid, Rng);
-        let mut request = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let req_cache = req_caches
-            .get_mut(&(to, from))
-            .expect("requester cache exists");
-        let (req_len, _sample) = requester
-            .poll(
-                &mut request,
-                to_c.provider(),
-                req_cache.session_heads(),
-                &Rng,
-            )
-            .expect("requester poll succeeds");
-
-        let mut response = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let resp_cache = resp_caches
-            .get_mut(&(from, to))
-            .expect("responder cache exists");
-        let resp_len = dispatch(
-            &request[..req_len],
-            &mut response,
-            from_c.provider(),
-            resp_cache,
-            &mut buffers.traversal,
-        )
-        .expect("dispatch succeeds");
-        if resp_len == 0 {
-            break;
-        }
-
-        let Some(reply) = requester
-            .receive(&response[..resp_len], req_cache)
-            .expect("requester receive succeeds")
-        else {
-            break;
-        };
-        if reply.commands().is_empty() {
-            break;
-        }
-
-        let mut trx = to_c.transaction(gid);
-        let received = to_c
-            .add_commands(
-                &mut trx,
-                &mut NullSink,
-                reply.commands(),
-                buffers,
-                mem_spill,
-            )
-            .expect("add_commands succeeds");
-        to_c.commit(trx, &mut NullSink, buffers, mem_spill)
-            .expect("commit succeeds");
-
-        let req_cache = req_caches
-            .get_mut(&(to, from))
-            .expect("requester cache exists");
-        to_c.update_heads(
-            gid,
-            reply.addresses(),
-            req_cache,
-            &mut buffers.traversal.primary,
-            &Rng,
-        )
-        .expect("update_heads succeeds");
-
-        total = total.checked_add(received).expect("received count fits");
-        if received == 0 {
-            break;
-        }
-    }
-    total
+    let (from_c, to_c) = two_mut(clients, from, to);
+    let (from_s, to_s) = two_mut(syncers, from, to);
+    pull_in_process(
+        gid,
+        (to, to_s, to_c),
+        (from, from_s, from_c),
+        &mut NullSink,
+        buffers,
+        u64::MAX,
+        |_| {},
+    )
+    .expect("pull succeeds")
 }
 
 /// The committed seq fact on `client`, or the empty string if none exists.
@@ -282,16 +212,7 @@ pub fn run_program(program: &Program) -> RunResult {
         .collect();
     let mut buffers = Buffers::new();
 
-    let mut req_caches: BTreeMap<(usize, usize), PeerCache> = BTreeMap::new();
-    let mut resp_caches: BTreeMap<(usize, usize), PeerCache> = BTreeMap::new();
-    for a in 0..program.clients {
-        for b in 0..program.clients {
-            if a != b {
-                req_caches.insert((a, b), PeerCache::new());
-                resp_caches.insert((a, b), PeerCache::new());
-            }
-        }
-    }
+    let mut syncers: Vec<PeerSyncer> = (0..program.clients).map(|_| Syncer::new()).collect();
 
     for step in &program.steps {
         match *step {
@@ -306,15 +227,7 @@ pub fn run_program(program: &Program) -> RunResult {
                     .expect("commit succeeds");
             }
             Step::Sync { from, to } => {
-                sync_pull(
-                    &mut clients,
-                    &mut req_caches,
-                    &mut resp_caches,
-                    &mut buffers,
-                    gid,
-                    from,
-                    to,
-                );
+                sync_pull(&mut clients, &mut syncers, &mut buffers, gid, from, to);
             }
         }
     }
@@ -329,8 +242,7 @@ pub fn run_program(program: &Program) -> RunResult {
                     if from != to {
                         moved = moved.saturating_add(sync_pull(
                             &mut clients,
-                            &mut req_caches,
-                            &mut resp_caches,
+                            &mut syncers,
                             &mut buffers,
                             gid,
                             from,
