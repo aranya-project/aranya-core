@@ -34,29 +34,29 @@ Policy {
                             Coalesce(
                                 FunctionCall(
                                     FunctionCall {
-                                        name: "saturating_add" @ 83..97,
+                                        name: "saturating_add" @ 81..95,
                                         arguments: [
                                             Identifier(
-                                                "a" @ 98..99,
-                                            ) @ 98..99,
+                                                "a" @ 96..97,
+                                            ) @ 96..97,
                                             Identifier(
-                                                "b" @ 101..102,
-                                            ) @ 101..102,
+                                                "b" @ 99..100,
+                                            ) @ 99..100,
                                         ],
                                     },
-                                ) @ 83..103,
+                                ) @ 81..101,
                                 InternalFunction(
                                     TestFail(
                                         None,
-                                        107..118,
+                                        105..116,
                                     ),
-                                ) @ 107..118,
-                            ) @ 83..118,
-                        ) @ 33..124,
+                                ) @ 105..116,
+                            ) @ 81..116,
+                        ) @ 33..122,
                     },
-                ) @ 25..124,
+                ) @ 25..122,
             ],
-            span: 0..127,
+            span: 0..125,
         },
     ],
     effects: [],
@@ -67,5 +67,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action[null] foo() {\n    let x = {\n        let a = 3;\n        let b = 4;\n        : saturating_add(a, b) or test_fail()\n    };\n}\n",
+    text: "action[null] foo() {\n    let x = {\n        let a = 3;\n        let b = 4;\n        saturating_add(a, b) or test_fail()\n    };\n}\n",
 }

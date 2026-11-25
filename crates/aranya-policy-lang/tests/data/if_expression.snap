@@ -20,21 +20,21 @@ Policy {
                                 Block(
                                     [],
                                     Int(
-                                        1 @ 45..46,
-                                    ) @ 45..46,
-                                ) @ 42..48,
+                                        1 @ 44..45,
+                                    ) @ 44..45,
+                                ) @ 42..47,
                                 Block(
                                     [],
                                     Int(
-                                        0 @ 57..58,
-                                    ) @ 57..58,
-                                ) @ 54..60,
+                                        0 @ 55..56,
+                                    ) @ 55..56,
+                                ) @ 53..58,
                             ),
-                        ) @ 34..60,
+                        ) @ 34..58,
                     },
-                ) @ 26..60,
+                ) @ 26..58,
             ],
-            span: 0..63,
+            span: 0..61,
         },
     ],
     effects: [],
@@ -45,5 +45,5 @@ Policy {
     functions: [],
     finish_functions: [],
     global_lets: [],
-    text: "action[null] test() {\n    let b = if true { :1 } else { :0 };\n}\n",
+    text: "action[null] test() {\n    let b = if true { 1 } else { 0 };\n}\n",
 }
