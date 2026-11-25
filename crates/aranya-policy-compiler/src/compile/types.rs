@@ -1,12 +1,12 @@
 use std::{
-    collections::{HashMap, hash_map},
+    collections::HashMap,
     fmt::{self, Display},
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use aranya_policy_ast::{
     self as ast, FactLiteral, Ident, Identifier, NamedStruct, ResultTypeKind, Span, Spanned as _,
-    TypeKind, VType, WithSpanExt as _,
+    TypeKind, VType,
 };
 use aranya_policy_module::ffi;
 use indexmap::IndexMap;
@@ -32,27 +32,36 @@ pub(crate) enum UserType<'a> {
     FFIStruct(&'a ffi::Struct<'a>),
 }
 
-impl UserType<'_> {
-    pub(super) fn reference(&self) -> Reference {
-        match self {
-            UserType::Struct(def) => Reference::Struct(def.name.clone()),
-            UserType::Fact(def) => Reference::Fact(def.name.clone()),
-            UserType::Effect(def) => Reference::Struct(def.name.clone()), // TODO: Add effect?
-            UserType::BaseCommand(def) => Reference::Base(def.name.clone()),
-            UserType::Command(def) => Reference::Command(def.name.clone()),
-            UserType::FFIStruct(def) => Reference::Struct(def.name.clone().nowhere()),
-        }
-    }
-}
-
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
 /// scope" is the one on the top of the stack.
 #[derive(Debug)]
 pub struct IdentifierTypeStack {
-    globals: HashMap<Ident, VType>,
+    /// Top-level namespace: callables, types (including imported FFI structs
+    /// and enums), imported FFI module names, and globals. Locals may not
+    /// shadow global names.
+    top_level: HashMap<Ident, NameType>,
     locals: Vec<IndexMap<Ident, Local>>,
     /// When set, don't error on unused vars
     allow_unused: bool,
+}
+
+/// What a top-level name refers to.
+#[derive(Debug)]
+pub enum NameType {
+    /// A global `let` binding with its associated type.
+    Global(VType),
+    /// Anything else (callable or type). Doesn't have a type.
+    Item(Reference),
+}
+
+impl NameType {
+    /// Returns a [`Reference`] to the top-level `name` of this kind.
+    fn reference(&self, name: &Ident) -> Reference {
+        match self {
+            Self::Global(_) => Reference::Global(name.clone()),
+            Self::Item(reference) => reference.clone(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -65,36 +74,51 @@ impl IdentifierTypeStack {
     /// Create a new `IdentifierTypeStack`
     pub fn new(allow_unused: bool) -> Self {
         Self {
-            globals: HashMap::new(),
+            top_level: HashMap::new(),
             locals: Vec::new(),
             allow_unused,
         }
     }
 
-    /// Add an identifier-type mapping to the global variables
+    /// Reserves `name` in the top-level namespace, failing if it is
+    /// already taken.
+    ///
+    /// Callables, types, and globals share one namespace. Names are
+    /// reserved in two phases:
+    ///
+    /// 1. Every callable, type, and imported FFI module (including
+    ///    builtins and imported FFI types) is reserved up front as
+    ///    [`NameType::Item`],
+    ///    so conflicts are found regardless of definition order.
+    /// 2. Globals are reserved as [`NameType::Global`] as each one is
+    ///    compiled, since their types aren't known until then. Phase 1
+    ///    is complete by this point, so conflicts with callables and
+    ///    types are still caught.
+    ///
+    /// Locals are compiled after both phases, and [`Self::add`] rejects
+    /// any local that shadows a reserved name.
     #[allow(clippy::result_large_err)]
-    pub fn add_global(&mut self, name: Ident, value: VType) -> Result<(), AlreadyDefined> {
-        match self.globals.entry(name.clone()) {
-            hash_map::Entry::Occupied(o) => {
-                let existing_global = o.key().clone();
-                Err(AlreadyDefined::new(
-                    Reference::Global(existing_global),
-                    Reference::Global(name),
-                ))
-            }
-            hash_map::Entry::Vacant(e) => {
-                e.insert(value);
-                Ok(())
-            }
+    pub fn add_top_level_item(
+        &mut self,
+        name: Ident,
+        kind: NameType,
+    ) -> Result<(), AlreadyDefined> {
+        if let Some((existing, existing_kind)) = self.top_level.get_key_value(&name) {
+            return Err(AlreadyDefined::new(
+                existing_kind.reference(existing),
+                kind.reference(&name),
+            ));
         }
+        self.top_level.insert(name, kind);
+        Ok(())
     }
 
     /// Add an identifier-type mapping to the current scope
     #[allow(clippy::result_large_err)]
     pub fn add(&mut self, ident: Ident, vtype: VType) -> Result<(), AlreadyDefined> {
-        if let Some((existing_global, _)) = self.globals.get_key_value(&ident) {
+        if let Some((existing, existing_kind)) = self.top_level.get_key_value(&ident) {
             return Err(AlreadyDefined::new(
-                Reference::Global(existing_global.clone()),
+                existing_kind.reference(existing),
                 Reference::Variable(ident),
             ));
         }
@@ -131,7 +155,7 @@ impl IdentifierTypeStack {
                 return Ok(v.vtype.clone());
             }
         }
-        if let Some(v) = self.globals.get(name) {
+        if let Some(NameType::Global(v)) = self.top_level.get(name) {
             return Ok(v.clone());
         }
         Err(IdentNotDefined)

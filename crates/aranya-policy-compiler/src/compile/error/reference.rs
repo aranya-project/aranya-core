@@ -4,7 +4,7 @@ use core::fmt;
 
 use aranya_policy_ast::{Ident, Span, WithSpanExt as _, ident};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Reference {
     Callable(Callable),
     Param(Callable, Ident),
@@ -13,6 +13,7 @@ pub enum Reference {
     Command(Ident),
     CommandAttribute(Ident, Ident),
     Struct(Ident),
+    Effect(Ident),
     StructField(Ident, Ident),
     Enum(Ident),
     EnumVariant(Ident, Ident),
@@ -40,7 +41,7 @@ impl Reference {
     ///
     /// This is the most specific part of the reference, such as the function name of an ffi call or
     /// the field name in a struct, regardless of the extra context contained.
-    pub(super) fn name(&self) -> Ident {
+    pub(crate) fn name(&self) -> Ident {
         match self {
             Self::Callable(callable) => callable.name(),
             Self::Param(_, name) => name.clone(),
@@ -49,6 +50,7 @@ impl Reference {
             | Self::Command(name)
             | Self::CommandAttribute(_, name)
             | Self::Struct(name)
+            | Self::Effect(name)
             | Self::StructField(_, name)
             | Self::Enum(name)
             | Self::EnumVariant(_, name)
@@ -107,6 +109,7 @@ impl fmt::Display for Reference {
             Self::Command(name) => write!(f, "command `{name}`"),
             Self::CommandAttribute(cmd, name) => write!(f, "attribute `{name}` of command `{cmd}`"),
             Self::Struct(name) => write!(f, "struct `{name}`"),
+            Self::Effect(name) => write!(f, "effect `{name}`"),
             Self::StructField(strukt, field) => {
                 write!(f, "field `{field}` of struct `{strukt}`")
             }

@@ -1,6 +1,6 @@
 error: the name `Water` is defined multiple times
   |
 2 |     Water, Tea, Water
-  |     -----       ^^^^^ variant `Water` of enum `Drink` re-defined here
+  |     -----       ^^^^^ re-defined as variant `Water` of enum `Drink` here
   |     |
-  |     previous defintion of variant `Water` of enum `Drink`
+  |     defined as variant `Water` of enum `Drink` previously

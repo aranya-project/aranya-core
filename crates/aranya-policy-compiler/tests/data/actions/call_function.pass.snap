@@ -1,13 +1,13 @@
 Module {
     version: "1",
     labels: {
-        <action 'f'>: 14,
+        <action 'a'>: 14,
         <fn 'f'>: 1,
         <fn 'g'>: 8,
     },
     action_defs: [
         ActionDef {
-            name: "f",
+            name: "a",
             flavor: "null",
             params: [
                 Field {
@@ -42,7 +42,7 @@ Module {
     restore SP
     return
     exit panic
-<action 'f'>:
+<action 'a'>:
     def 'n'
     get 'n'
     call <fn 'f'>

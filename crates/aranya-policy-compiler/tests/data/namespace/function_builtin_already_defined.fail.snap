@@ -1,0 +1,4 @@
+error: the name `add` is defined multiple times
+  |
+1 | function add(x: int, y: int) int {
+  |          ^^^ already defined by a builtin

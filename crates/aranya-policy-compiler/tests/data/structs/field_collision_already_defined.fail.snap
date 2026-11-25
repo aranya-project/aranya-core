@@ -1,6 +1,6 @@
 error: the name `x` is defined multiple times
   |
 2 |     x: int,
-  |     - previous defintion of field `x` of struct `Bar`
+  |     - defined as field `x` of struct `Bar` previously
 3 |     x: int
-  |     ^ field `x` of struct `Bar` re-defined here
+  |     ^ re-defined as field `x` of struct `Bar` here

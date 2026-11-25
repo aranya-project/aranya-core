@@ -29,7 +29,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
-use itertools::zip_eq;
+use itertools::{chain, zip_eq};
 use tracing::warn;
 
 use self::{
@@ -42,7 +42,7 @@ use self::{
     },
     target::CompileTarget,
     topo::TopoSort,
-    types::{IdentifierTypeStack, UserType},
+    types::{IdentifierTypeStack, NameType, UserType},
 };
 pub use self::{error::CompileError, target::PolicyInterface};
 
@@ -1275,7 +1275,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier.clone(), vt)
+            .add_top_level_item(identifier.clone(), NameType::Global(vt))
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -1910,21 +1910,11 @@ impl<'a> CompileState<'a> {
     ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
         let mut type_defs: HashMap<Ident, UserType<'a>> = HashMap::new();
         let mut insert_type_def = |ident: Ident, def: UserType<'a>| {
-            use std::collections::hash_map::Entry as E;
-            // Check for duplicate type names.
-            // struct Foo { .. }
-            // effect Foo { .. }
-            match type_defs.entry(ident) {
-                E::Occupied(e) => {
-                    let new = def.reference();
-                    let old = e.get().reference();
-                    return Err(self.err(AlreadyDefined::new(old, new)));
-                }
-                E::Vacant(e) => {
-                    e.insert(def);
-                }
+            // Duplicate names are rejected earlier (single namespace).
+            if type_defs.insert(ident, def).is_some() {
+                bug!("type def names should be unique");
             }
-            Ok(())
+            Ok::<(), CompileError>(())
         };
 
         let mut topo = TopoSort::new();
@@ -2035,7 +2025,99 @@ impl<'a> CompileState<'a> {
         Ok(sorted_defs)
     }
 
+    /// Reserves top-level callables, type names, and imported FFI module
+    /// names, along with their structs and enums.
+    fn define_top_level_names(&mut self) -> Result<(), CompileError> {
+        let policy = self.policy;
+
+        let builtins = self
+            .builtin_functions
+            .keys()
+            .map(|n| Reference::Callable(Callable::Function(n.clone().nowhere())));
+
+        let mut imported_modules = Vec::new();
+        // Stubbed FFI has no schemas, so there are no FFI types to add.
+        if !self.config.stub_ffi {
+            for import in &policy.ffi_imports {
+                // Ensure FFI module exists
+                let module = self
+                    .ffi_modules
+                    .iter()
+                    .find(|m| m.name == import.inner)
+                    .ok_or_else(|| self.err(NotDefined(Reference::Module(import.clone()))))?;
+                imported_modules.push((import, module));
+            }
+        }
+
+        // Add FFI module names to namespace. They're reserved even when FFI
+        // is stubbed.
+        let modules = policy
+            .ffi_imports
+            .iter()
+            .map(|import| Reference::Module(import.clone()));
+        // Add FFI types to global namespace.
+        // NOTE: FFI types are used unqualified, while calls are qualified. Maybe worth addressing this inconsistency.
+        let ffi_types = imported_modules.into_iter().flat_map(|(import, module)| {
+            let at_import = |name: &Identifier| Ident {
+                inner: name.clone(),
+                span: import.span,
+            };
+            let structs = module
+                .structs
+                .iter()
+                .map(move |s| Reference::Struct(at_import(&s.name)));
+            let enums = module
+                .enums
+                .iter()
+                .map(move |e| Reference::Enum(at_import(&e.name)));
+            structs.chain(enums)
+        });
+        let policy_types = chain!(
+            policy.enums.iter().map(|d| Reference::Enum(d.name.clone())),
+            policy
+                .structs
+                .iter()
+                .map(|d| Reference::Struct(d.name.clone())),
+            policy
+                .effects
+                .iter()
+                .map(|d| Reference::Effect(d.name.clone())),
+            policy.facts.iter().map(|d| Reference::Fact(d.name.clone())),
+            policy
+                .base_commands
+                .iter()
+                .map(|d| Reference::Base(d.name.clone())),
+            policy
+                .commands
+                .iter()
+                .map(|d| Reference::Command(d.name.clone())),
+            policy
+                .actions
+                .iter()
+                .map(|d| Callable::Action(d.name.clone()).into()),
+            policy
+                .functions
+                .iter()
+                .map(|d| Callable::Function(d.name.clone()).into()),
+            policy
+                .finish_functions
+                .iter()
+                .map(|d| Callable::FinishFunction(d.name.clone()).into()),
+        );
+        let mut names = chain!(builtins, modules, ffi_types, policy_types);
+        names
+            .try_for_each(|reference| {
+                self.identifier_types
+                    .add_top_level_item(reference.name(), NameType::Item(reference))
+            })
+            .map_err(|e| self.err(e))?;
+        Ok(())
+    }
+
     fn define_interfaces(&mut self) -> Result<(), CompileError> {
+        self.define_builtins()?;
+        self.define_top_level_names()?;
+
         // map enum names to constants
         for enum_def in &self.policy.enums {
             self.compile_enum_definition(enum_def)?;
@@ -2134,8 +2216,6 @@ impl<'a> CompileState<'a> {
 
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
-
-        self.define_builtins()?;
 
         // Define the finish function signatures before compiling them, so that they can be
         // used to catch usage errors in regular functions.

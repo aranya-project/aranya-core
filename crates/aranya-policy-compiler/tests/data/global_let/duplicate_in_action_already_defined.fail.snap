@@ -1,7 +1,7 @@
 error: the name `x` is defined multiple times
   |
 1 | let x = 10
-  |     - previous defintion of global value `x`
+  |     - defined as global value `x` previously
 2 | action[null] foo() {
 3 |     let x = saturating_add(x, 15)
-  |         ^ variable `x` re-defined here
+  |         ^ re-defined as variable `x` here

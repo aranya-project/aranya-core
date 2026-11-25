@@ -286,9 +286,16 @@ impl SimpleError for error::AlreadyDefined {
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         let Self { primary, prev } = self;
-        [
-            (primary.span(), format!("{primary} re-defined here").into()),
-            (prev.span(), format!("previous defintion of {prev}").into()),
+        // Builtins have no source location.
+        if prev.span().is_empty() {
+            return vec![(primary.span(), "already defined by a builtin".into())];
+        }
+        vec![
+            (
+                primary.span(),
+                format!("re-defined as {primary} here").into(),
+            ),
+            (prev.span(), format!("defined as {prev} previously").into()),
         ]
     }
 }

@@ -1,0 +1,6 @@
+function f(n: int) int {
+    return n
+}
+
+// same name as function
+action[null] f() {}

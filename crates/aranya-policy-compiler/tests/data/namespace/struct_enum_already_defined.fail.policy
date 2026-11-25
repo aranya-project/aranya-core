@@ -1,0 +1,3 @@
+struct Foo { x: int }
+
+enum Foo { A, B }
