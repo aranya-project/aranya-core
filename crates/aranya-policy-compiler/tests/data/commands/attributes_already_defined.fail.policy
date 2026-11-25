@@ -3,7 +3,7 @@ command F with StubBase {
         a: 5,
         a: "five"
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

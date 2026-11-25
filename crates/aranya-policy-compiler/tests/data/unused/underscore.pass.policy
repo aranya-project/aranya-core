@@ -1,0 +1,4 @@
+function f(_arg: int) unit {
+    let _var = true
+    return Unit
+}

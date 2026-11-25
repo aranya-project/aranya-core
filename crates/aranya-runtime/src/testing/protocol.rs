@@ -140,15 +140,12 @@ impl PolicyStore for TestPolicyStore {
         Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
-        Ok(&self.policy)
-    }
-
-    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-        Some(&())
+    fn get_policy(&mut self, _id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
+        Ok(self.policy)
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct TestPolicy {
     serial: u32,
 }

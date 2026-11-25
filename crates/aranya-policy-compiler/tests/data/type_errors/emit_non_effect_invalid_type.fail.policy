@@ -1,5 +1,5 @@
 command Foo with StubBase {
-    policy {
+    policy(this) {
         finish {
             emit 0
         }

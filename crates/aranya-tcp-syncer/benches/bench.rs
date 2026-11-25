@@ -61,7 +61,7 @@ impl Sink<TestEffect> for CountSink {
 fn create_client() -> ClientState<TestPolicyStore, MemStorageProvider> {
     let policy_store = TestPolicyStore::new();
     let storage = MemStorageProvider::default();
-    ClientState::new(policy_store, storage)
+    ClientState::new(policy_store, storage, Some(()))
 }
 
 fn new_graph(

@@ -13,8 +13,11 @@ pub fn validate_text(item: MacroString) -> syn::Result<TokenStream> {
 pub fn validate_identifier(item: MacroString) -> syn::Result<TokenStream> {
     let text = item.eval()?;
     let mut bytes = text.bytes();
-    if !bytes.next().is_some_and(|b| b.is_ascii_alphabetic()) {
-        return Err(item.error("identifier must start with [a-zA-Z]"));
+    if !bytes
+        .next()
+        .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
+    {
+        return Err(item.error("identifier must start with [a-zA-Z_]"));
     }
     for b in bytes {
         if !(b.is_ascii_alphanumeric() || b == b'_') {

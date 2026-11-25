@@ -1,5 +1,7 @@
 use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
+use core::borrow::Borrow as _;
 
+use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     PolicyContext, RunState, Stack as _, Struct, Value, ast::Identifier, ffi_contract_validate,
@@ -9,89 +11,25 @@ use tracing::{error, info, instrument, warn};
 
 use super::{
     error::VmPolicyError,
+    flavors::{BasicEnvelope, Envelope, EphemeralEnvelope, FinalizeEnvelope, InitEnvelope},
     interface::{VmAction, VmEffect},
     io::{FfiCallable, VmPolicyIO},
     priority::{VmPriority, get_command_priorities},
-    protocol::{Envelope, VmProtocol, VmProtocolData},
-    seal_open::{SealCtx, open_with_key, seal_with_key},
+    protocol::{VmProtocol, VmProtocolData},
+    seal_open::{SealCtx, open_with_key},
 };
 use crate::{
-    Address, CommandPlacement, FactPerspective, FlavorCtx, MergeIds, NullSink, Perspective, Prior,
-    Priority,
+    Address, CommandPlacement, FactPerspective, FlavorCtx, GraphId, MergeIds, NullSink,
+    Perspective, Prior, Priority,
     command::{CmdId, Command},
     policy::{Policy, PolicyError, Sink},
-};
-
-pub static FLAVORS: aranya_policy_module::flavor::Flavors<'static> = {
-    use aranya_policy_module::{
-        arg,
-        flavor::{Flavor, Flavors, Struct},
-    };
-    use aranya_policy_vm::ident;
-    Flavors {
-        flavors: &[
-            (
-                ident!("init"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("InitEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            // no parent_id
-                            arg!("author_id", Id),
-                        ],
-                    },
-                },
-            ),
-            (
-                ident!("basic"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("DefaultEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            arg!("parent_id", Id),
-                            arg!("author_id", Id),
-                        ],
-                    },
-                },
-            ),
-            (
-                ident!("ephemeral"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("EphemeralEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            arg!("graph_id", Id),
-                            arg!("author_id", Id),
-                        ],
-                    },
-                },
-            ),
-            (
-                ident!("finalize"),
-                Flavor {
-                    envelope: Struct {
-                        name: ident!("FinalizeEnvelope"),
-                        fields: &[
-                            arg!("command_id", Id),
-                            arg!("parent_id", Id),
-                            // TODO(jdygert): Make finalize certified.
-                            // Omit `author_id` so nothing relies on it.
-                        ],
-                    },
-                },
-            ),
-        ],
-    }
 };
 
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<CE> {
     machine: Machine,
     engine: CE,
-    ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
+    ffis: Vec<Arc<dyn FfiCallable<CE> + Send + Sync>>,
     priority_map: BTreeMap<Identifier, VmPriority>,
 }
 
@@ -100,7 +38,7 @@ impl<CE> VmPolicy<CE> {
     pub fn new(
         machine: Machine,
         engine: CE,
-        ffis: Vec<Arc<dyn FfiCallable<CE> + Send + 'static>>,
+        ffis: Vec<Arc<dyn FfiCallable<CE> + Send + Sync>>,
     ) -> Result<Self, VmPolicyError> {
         if let Some(module_ffis) = &machine.ffis {
             ffi_contract_validate(module_ffis, ffis.iter().map(|m| m.schema()))?;
@@ -176,25 +114,36 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         command_struct: &Struct,
         parent_id: CmdId,
         seal_ctx: &SealCtx<CE>,
-    ) -> Result<(Vec<u8>, Envelope<'_>), PolicyError> {
+        policy: Option<&[u8]>,
+    ) -> Result<super::seal_open::Sealed<CE::CS>, PolicyError> {
         let payload = self.machine.serialize_struct(command_struct).map_err(|e| {
             error!(error = %e, "cannot serialize command");
             PolicyError::Write
         })?;
 
-        let envelope = seal_with_key(
+        let flavor = self
+            .machine
+            .command_defs
+            .get(&command_struct.name)
+            .assume("sealing known command")?
+            .flavor
+            .as_str();
+
+        let sealed = super::seal_open::seal_with_key(
             &seal_ctx.key,
+            flavor,
             command_struct,
-            &payload,
+            payload,
             seal_ctx.author,
             parent_id,
+            policy,
         )
         .map_err(|e| {
             error!(error = %e, "could not seal command");
             PolicyError::Panic
         })?;
 
-        Ok((payload, envelope))
+        Ok(sealed)
     }
 
     #[instrument(skip_all, fields(name = command_struct.name.as_str()))]
@@ -202,15 +151,17 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
         &self,
         command_struct: &Struct,
         payload: &[u8],
+        signature: &[u8],
         envelope: &Envelope,
         facts: &mut impl FactPerspective,
+        policy: Option<&[u8]>,
     ) -> Result<(), PolicyError> {
         let mut sink = NullSink;
         let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &self.ffis);
 
         let (_, value) = self
             .machine
-            .call_get_key(command_struct.clone(), envelope.author_id, &mut io)
+            .call_get_key(command_struct.clone(), envelope.author_id(), &mut io)
             .inspect_err(|e| warn!(error = %e, "failed getting key"))
             .map_err(|_| PolicyError::Panic)?;
 
@@ -224,7 +175,7 @@ impl<CE: aranya_crypto::Engine> VmPolicy<CE> {
                 PolicyError::Panic
             })?;
 
-        open_with_key(key, command_struct, payload, envelope)
+        open_with_key(key, command_struct, payload, signature, envelope, policy)
             .inspect_err(|e| warn!(error = %e, "open_with_key failed"))
             .map_err(|_| PolicyError::Panic)
     }
@@ -272,11 +223,29 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             PolicyError::InternalError
         })?;
 
-        let envelope = Envelope {
-            parent_id,
-            author_id,
-            command_id: command.id(),
-            signature: Cow::Borrowed(signature),
+        let command_id = command.id();
+        let envelope = match def.flavor.as_str() {
+            "basic" => Envelope::Basic(BasicEnvelope {
+                command_id,
+                parent_id,
+                author_id,
+            }),
+            "init" => Envelope::Init(InitEnvelope {
+                command_id,
+                author_id,
+            }),
+            "finalize" => Envelope::Finalize(FinalizeEnvelope {
+                command_id,
+                parent_id,
+                fact_root: BaseId::default(), // TODO(jdygert): real fact root
+            }),
+            "ephemeral" => Envelope::Ephemeral(EphemeralEnvelope {
+                command_id,
+                graph_id: GraphId::transmute(parent_id),
+                author_id,
+            }),
+            // TODO(jdygert): validate in contract so this is truly unreachable.
+            _ => bug!("unknown flavor"),
         };
 
         let def_is_ephemeral = def.flavor == "ephemeral";
@@ -312,7 +281,14 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
 
         match placement {
             CommandPlacement::OnGraphAtOrigin | CommandPlacement::OffGraph => {
-                self.open_command(&command_struct, payload, &envelope, facts)?;
+                self.open_command(
+                    &command_struct,
+                    payload,
+                    signature,
+                    &envelope,
+                    facts,
+                    command.policy(),
+                )?;
             }
             CommandPlacement::OnGraphInBraid => {
                 // Bypass real open and just deserialize.
@@ -328,7 +304,7 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
             name: kind.clone(),
             id: command.id(),
             author: author_id,
-            version: aranya_crypto::BaseId::default(),
+            version: BaseId::default(),
         });
         self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx)?;
 
@@ -443,21 +419,22 @@ impl<CE: aranya_crypto::Engine> Policy for VmPolicy<CE> {
                             return Err(PolicyError::InternalError);
                         }
 
-                        let (payload, envelope) =
-                            self.seal_command(&command_struct, parent_id, seal_ctx)?;
+                        let sealed =
+                            self.seal_command(&command_struct, parent_id, seal_ctx, maybe_policy)?;
 
+                        let signature = sealed.signature.to_bytes();
                         let data = VmProtocolData {
-                            author_id: envelope.author_id,
+                            author_id: sealed.envelope.author_id(),
                             kind: command_name,
-                            serialized_fields: &payload,
-                            signature: &envelope.signature,
+                            serialized_fields: &sealed.payload,
+                            signature: signature.borrow(),
                         };
 
                         let wrapped = postcard::to_allocvec(&data)
                             .assume("can serialize vm protocol data")?;
 
                         let new_command = VmProtocol {
-                            id: envelope.command_id,
+                            id: sealed.envelope.command_id(),
                             parent,
                             policy: maybe_policy,
                             data: &wrapped,

@@ -10,6 +10,7 @@
 //! Peer 2
 //! cargo run --example sync -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --graph $GRAPH_ID
 
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "example")]
 #![allow(clippy::unwrap_used)]
 
 use std::{
@@ -86,7 +87,7 @@ fn run(options: Opt) -> Result<()> {
     let engine = TestPolicyStore::new();
     let storage = MemStorageProvider::default();
 
-    let client = Arc::new(Mutex::new(ClientState::new(engine, storage)));
+    let client = Arc::new(Mutex::new(ClientState::new(engine, storage, Some(()))));
     let mut buffers = RuntimeBuffers::new();
     let spill_dir = std::env::temp_dir();
     let make_spill = || LibcSpill::new(&spill_dir);

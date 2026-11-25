@@ -65,15 +65,15 @@ Module {
 ---
     exit panic
 <get_key 'test'>:
-    def 'author_id'
-    def 'this'
+    def '_dev'
+    pop
     save SP
     const None
     restore SP
     return
     exit panic
 <policy 'test'>:
-    def 'envelope'
+    pop
     def 'this'
     meta: finish enabled
     block

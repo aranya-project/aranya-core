@@ -14,14 +14,14 @@ enum Player {
 }
 
 base[basic] Base {
-    get_key { return None }
+    get_key(_dev: id) option[bytes] { return None }
 }
 
 command Start with Base {
     fields {
         players: struct Players
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }
@@ -32,7 +32,7 @@ command Move with Base {
         X: int,
         Y: int,
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }
@@ -59,9 +59,7 @@ action[basic] MakeMove(gameID: id, x: int, y: int) {
 effect GameUpdate {
     gameID: id,
     player: id,
-    // the "dynamic" keyword is an annotation used to indicate to the consumer
-    // that this value is not based on static event data and may change.
-    p:      enum Player dynamic,
+    p:      enum Player,
     X:      int,
     Y:      int,
 }

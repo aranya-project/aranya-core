@@ -38,7 +38,7 @@ command Start with Base {
         ProfileX: id,
         ProfileO: id,
     }
-    policy {
+    policy(this, envelope) {
         check ProfileX != ProfileO else test_fail("Profiles must be different")
         let gameID = envelope.command_id
         finish {
@@ -66,9 +66,7 @@ action[null] MakeMove(gameID: id, x: int, y: int) {
 effect GameUpdate {
     gameID: id,
     player: id,
-    // the "dynamic" keyword is an annotation used to indicate to the consumer
-    // that this value is not based on static event data and may change.
-    p:      string dynamic,
+    p:      string,
     X:      int,
     Y:      int,
 }
@@ -86,7 +84,7 @@ command Move with Base {
         X: int,
         Y: int,
     }
-    policy {
+    policy(this) {
         // phase 1: variable definition/checks
         // These aren't "variables" in the procedural sense, they are
         // set-once constant definitions that can be used in later
@@ -159,7 +157,7 @@ command Move2 with Base {
         X: int,
         Y: int,
     }
-    policy {
+    policy(this) {
         let player = envelope.author_id
         let players = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail()
         let p = query NextPlayer[gameID]=>{p: ?} or test_fail()

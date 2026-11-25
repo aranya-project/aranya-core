@@ -1,10 +1,5 @@
-use alloc::borrow::Cow;
-
 use aranya_crypto::DeviceId;
-use aranya_policy_vm::{
-    Struct,
-    ast::{Identifier, ident},
-};
+use aranya_policy_vm::ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -50,27 +45,5 @@ impl Command for VmProtocol<'_> {
 
     fn bytes(&self) -> &[u8] {
         self.data
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Envelope<'a> {
-    pub parent_id: CmdId,
-    pub author_id: DeviceId,
-    pub command_id: CmdId,
-    pub signature: Cow<'a, [u8]>,
-}
-
-impl From<Envelope<'_>> for Struct {
-    fn from(e: Envelope) -> Self {
-        Self::new(
-            ident!("Envelope"),
-            [
-                (ident!("parent_id"), e.parent_id.into()),
-                (ident!("author_id"), e.author_id.into()),
-                (ident!("command_id"), e.command_id.into()),
-                (ident!("signature"), e.signature.into_owned().into()),
-            ],
-        )
     }
 }

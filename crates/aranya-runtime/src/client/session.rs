@@ -76,7 +76,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     /// commands, so another client can [`Session::receive`] them.
     pub fn action<ES, MS>(
         &mut self,
-        client: &ClientState<PS, SP>,
+        client: &mut ClientState<PS, SP>,
         effect_sink: &mut ES,
         message_sink: &mut MS,
         action: <PS::Policy as Policy>::Action<'_>,
@@ -85,11 +85,8 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
         ES: Sink<PS::Effect>,
         MS: for<'b> Sink<&'b [u8]>,
     {
+        let seal_ctx = client.seal_ctx.as_ref().ok_or(ClientError::NotAnAuthor)?;
         let policy = client.policy_store.get_policy(self.policy_id)?;
-        let seal_ctx = client
-            .policy_store
-            .seal_ctx(self.policy_id)
-            .ok_or(ClientError::NotAnAuthor)?;
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
@@ -128,7 +125,7 @@ impl<SP: StorageProvider, PS: PolicyStore> Session<SP, PS> {
     /// same session.
     pub fn receive(
         &mut self,
-        client: &ClientState<PS, SP>,
+        client: &mut ClientState<PS, SP>,
         sink: &mut impl Sink<PS::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
@@ -489,7 +486,6 @@ where
 #[cfg(test)]
 mod test {
     use aranya_crypto::id::{Id, IdTag};
-    use buggy::BugExt as _;
     use test_log::test;
 
     use super::*;
@@ -519,25 +515,23 @@ mod test {
 
     impl PolicyStore for SeqPolicyStore {
         type Policy = SeqPolicy;
-        type Effect = ();
+        type Effect = Never;
 
         fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
             Ok(PolicyId::default())
         }
 
-        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
-            Ok(&SeqPolicy)
-        }
-
-        fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-            Some(&())
+        fn get_policy(&mut self, _id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
+            Ok(SeqPolicy)
         }
     }
 
+    enum Never {}
+
     impl Policy for SeqPolicy {
-        type Action<'a> = &'a str;
-        type SealCtx = ();
-        type Effect = ();
+        type Action<'a> = Never;
+        type SealCtx = Never;
+        type Effect = Never;
         type Command<'a> = SeqCommand;
 
         fn serial(&self) -> u32 {
@@ -555,24 +549,22 @@ mod test {
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges should not be evaluated"
             );
+
             let data = command.bytes();
-            if let Some(seq) = facts
+
+            // For init and basic commands, append the id to the seq fact.
+            let value = match facts
                 .query("seq", &Keys::default())
-                .assume("can query")?
+                .expect("can query")
                 .as_deref()
             {
-                facts
-                    .insert(
-                        "seq".into(),
-                        Keys::default(),
-                        [seq, b":", data].concat().into(),
-                    )
-                    .unwrap();
-            } else {
-                facts
-                    .insert("seq".into(), Keys::default(), data.into())
-                    .unwrap();
-            }
+                Some(seq) => [seq, b":", data].concat().into(),
+                None => data.into(),
+            };
+            facts
+                .insert("seq".into(), Keys::default(), value)
+                .expect("can insert");
+
             Ok(match command.parent() {
                 Prior::None => Priority::Init,
                 // Use the last byte of the ID as priority, just so we can
@@ -586,13 +578,13 @@ mod test {
 
         fn call_action(
             &self,
-            _action: Self::Action<'_>,
+            action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-            _seal_ctx: &(),
+            _seal_ctx: &Self::SealCtx,
             _flavor_ctx: FlavorCtx<'_>,
         ) -> Result<(), PolicyError> {
-            unimplemented!()
+            match action {}
         }
 
         fn merge<'a>(
@@ -648,7 +640,7 @@ mod test {
     ///
     /// After commit this yields two heads: "b" and "c".
     fn build_two_head_graph() -> (ClientState<SeqPolicyStore, MemStorageProvider>, GraphId) {
-        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default());
+        let mut client = ClientState::new(SeqPolicyStore, MemStorageProvider::default(), None);
         let mut buffers = RuntimeBuffers::new();
 
         // The graph_id must equal the init command's id (by protocol).

@@ -3,7 +3,7 @@
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 use core::assert_matches;
 
-use aranya_crypto::{Rng, default::DefaultEngine};
+use aranya_crypto::{DeviceId, Rng, SigningKey, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Value, ast::ident};
 use tracing::trace;
 
@@ -14,7 +14,7 @@ use crate::{
     policy::{PolicyStore, Sink},
     storage::{Query as _, Storage as _, StorageProvider, linear::testing::MemStorageProvider},
     vm_action, vm_effect,
-    vm_policy::{VmPolicyStore, ser_keys},
+    vm_policy::{SealCtx, VmPolicyStore, ser_keys},
 };
 
 /// The policy used by these tests.
@@ -27,7 +27,7 @@ base[init] BaseInit {
     fields {
         key: bytes
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.key)
     }
 }
@@ -35,7 +35,7 @@ base[init] BaseInit {
 fact Key[]=>{key: bytes}
 
 base[basic] Base {
-    get_key {
+    get_key(_dev: id) option[bytes] {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
@@ -44,7 +44,7 @@ base[basic] Base {
 }
 
 base[ephemeral] BaseEphemeral {
-    get_key {
+    get_key(_dev: id) option[bytes] {
         return match query Key[] {
             Some(f) => Some(f.key)
             None => None
@@ -68,7 +68,7 @@ command Init with BaseInit {
     fields {
         nonce: int,
     }
-    policy {
+    policy(this) {
         finish {
             create Key[]=>{key: this.key}
         }
@@ -90,7 +90,7 @@ command Create with Base {
         key: int,
         value: int,
     }
-    policy {
+    policy(this) {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
             emit StuffHappened{x: this.key, y: this.value}
@@ -113,9 +113,9 @@ command Increment with Base {
         key: int,
         amount: int,
     }
-    policy {
+    policy(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
-        check stuff.y > 0 else recall default()
+        check stuff.y > 0 else recall default(this)
         let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -123,7 +123,7 @@ command Increment with Base {
         }
     }
 
-    recall default() {
+    recall default(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
@@ -153,9 +153,9 @@ command IncrementEphemeral with BaseEphemeral {
         key: int,
         amount: int,
     }
-    policy {
+    policy(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
-        check stuff.y > 0 else recall default()
+        check stuff.y > 0 else recall default(this)
         let new_y = add(stuff.y, this.amount) or test_fail()
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
@@ -163,7 +163,7 @@ command IncrementEphemeral with BaseEphemeral {
         }
     }
 
-    recall default() {
+    recall default(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         finish {
             emit OutOfRange {
@@ -207,7 +207,7 @@ command Invalidate with Base {
     fields {
         key: int
     }
-    policy {
+    policy(this) {
         let stuff = query Stuff[x: this.key]=>{y: ?} or test_fail()
         let newval = -1  // hack around negative number parse bug; see #869
         finish {
@@ -324,7 +324,19 @@ impl Sink<VmEffect> for VecSink {
     }
 }
 
-pub type TestPolicyStore = VmPolicyStore<Arc<DefaultEngine>>;
+pub type TestPolicyStore =
+    VmPolicyStore<crate::policy::store::testing::NullStore, Arc<DefaultEngine>>;
+
+pub fn random_seal_ctx() -> (SealCtx<Arc<DefaultEngine>>, Vec<u8>) {
+    let seal_ctx = SealCtx {
+        author: DeviceId::random(Rng),
+        key: SigningKey::new(Rng),
+    };
+    let verifying_key =
+        postcard::to_allocvec(&seal_ctx.key.public().expect("can compute verifying key"))
+            .expect("can serialize verifying key");
+    (seal_ctx, verifying_key)
+}
 
 /// This test currently serves as the only real example of using
 /// the Policy VM to execute Policy. Hopefully the comments will
@@ -340,13 +352,13 @@ pub fn test_vmpolicy(policy_store: TestPolicyStore, policy: &[u8]) -> Result<(),
     // expected that the VM will consume compiled policy code to eliminate the need for the
     // parser/compiler to work in constrained environments.
 
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
 
     // We're using MemStorageProvider as our storage interface.
     let provider = MemStorageProvider::default();
     // ClientState contains the policy store and the storage provider. It is the main interface
     // for using Aranya.
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
     // TestSink implements the Sink interface to consume Effects. TestSink is borrowed from
     // the tests in protocol.rs. Here we
@@ -425,9 +437,9 @@ pub fn test_action_result(
     policy_store: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
 
     let graph = cs
         .new_graph(policy, vm_action!(init(0, key)), &mut NullSink)
@@ -439,7 +451,7 @@ pub fn test_action_result(
     // `return Ok(unit)` => the action succeeds.
     session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(try_result(false)),
@@ -448,7 +460,7 @@ pub fn test_action_result(
 
     let err = session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(try_result(true)),
@@ -467,9 +479,9 @@ pub fn test_query_fact_value(
     policy_store: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
 
     let graph = cs
@@ -489,7 +501,7 @@ pub fn test_query_fact_value(
 
     session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(lookup(1, 1, true)),
@@ -498,7 +510,7 @@ pub fn test_query_fact_value(
 
     session
         .action(
-            &cs,
+            &mut cs,
             &mut NullSink,
             &mut NullSink,
             vm_action!(lookup(1, 2, false)),
@@ -517,9 +529,9 @@ pub fn test_aranya_session(
     policy_store: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
     let provider = MemStorageProvider::default();
-    let mut cs = ClientState::new(policy_store, provider);
+    let mut cs = ClientState::new(policy_store, provider, Some(seal_ctx));
     let mut buffers = RuntimeBuffers::new();
 
     let mut sink = TestSink::new();
@@ -569,7 +581,7 @@ pub fn test_aranya_session(
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
             session
                 .action(
-                    &cs,
+                    &mut cs,
                     &mut sink,
                     &mut msg_sink,
                     vm_action!(increment_ephemeral()),
@@ -578,13 +590,23 @@ pub fn test_aranya_session(
 
             // reject incrementFour(33)
             session
-                .action(&cs, &mut sink, &mut msg_sink, vm_action!(incrementFour(33)))
+                .action(
+                    &mut cs,
+                    &mut sink,
+                    &mut msg_sink,
+                    vm_action!(incrementFour(33)),
+                )
                 .expect_err("action should fail");
 
             // succeed incrementFour(4)
             sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 9 }));
             session
-                .action(&cs, &mut sink, &mut msg_sink, vm_action!(incrementFour(4)))
+                .action(
+                    &mut cs,
+                    &mut sink,
+                    &mut msg_sink,
+                    vm_action!(incrementFour(4)),
+                )
                 .expect("failed session action");
 
             msg_sink.0
@@ -600,7 +622,7 @@ pub fn test_aranya_session(
             let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
-                    .receive(&cs, &mut sink, msg)
+                    .receive(&mut cs, &mut sink, msg)
                     .expect("failed session receive");
             }
         }
@@ -626,7 +648,7 @@ pub fn test_aranya_session(
             let mut session = cs.session(graph_id).expect("failed to create session");
             for msg in &msgs {
                 session
-                    .receive(&cs, &mut sink, msg)
+                    .receive(&mut cs, &mut sink, msg)
                     .expect("failed session receive");
             }
         }
@@ -717,13 +739,13 @@ pub fn test_effect_metadata(
     policy_store_2: TestPolicyStore,
     policy: &[u8],
 ) -> Result<(), VmPolicyError> {
-    let key = policy_store_1.verifying_key();
+    let (seal_ctx, key) = random_seal_ctx();
 
     let mut rt_buffers = RuntimeBuffers::<_>::new();
 
     // create client 1 and initialize it with a nonce of 1
     let provider = MemStorageProvider::default();
-    let mut cs1 = ClientState::new(policy_store_1, provider);
+    let mut cs1 = ClientState::new(policy_store_1, provider, Some(seal_ctx.clone()));
     let mut sink = VecSink::new();
     let graph_id = cs1
         .new_graph(policy, vm_action!(init(1, key)), &mut sink)
@@ -745,7 +767,7 @@ pub fn test_effect_metadata(
 
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::default();
-    let mut cs2 = ClientState::new(policy_store_2, provider);
+    let mut cs2 = ClientState::new(policy_store_2, provider, Some(seal_ctx));
     test_sync(graph_id, &mut cs1, &mut cs2, &mut sink, &mut rt_buffers);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();

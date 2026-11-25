@@ -1,7 +1,7 @@
 immutable fact Foo[i: int] => {a: string}
 command test with StubBase {
     fields {}
-    policy {
+    policy(this) {
         finish {
             update Foo[i: 1]=>{a: 1} to {a: 0}
         }

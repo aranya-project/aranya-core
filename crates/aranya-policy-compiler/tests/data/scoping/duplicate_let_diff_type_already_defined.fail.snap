@@ -1,6 +1,6 @@
 error: the name `x` is defined multiple times
   |
 2 |     let x = 3
-  |         - previous defintion here
+  |         - previous defintion of variable `x`
 3 |     let x = "foo"
-  |         ^ re-defined here
+  |         ^ variable `x` re-defined here

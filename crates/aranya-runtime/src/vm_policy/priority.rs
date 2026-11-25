@@ -72,8 +72,8 @@ fn load_priority(def: &CommandDef) -> Result<u32, AttributeError> {
         return Err(AttributeError::type_mismatch(
             cmd_name,
             attr_name,
-            "Int",
-            &attr.value.type_name(),
+            "int",
+            attr.value.type_name(),
         ));
     };
     u32::try_from(int).map_err(|_| {
@@ -96,29 +96,29 @@ mod test {
     fn test_require_command_priority() {
         let cases = [
             r#"
-            base[basic] Base { get_key { return None } }
+            base[basic] Base { get_key(_dev: id) option[bytes] { return None } }
             command Test with Base {
                 fields {}
-                policy {}
+                policy() {}
             }
             "#,
             r#"
-            base[basic] Base { get_key { return None } }
+            base[basic] Base { get_key(_dev: id) option[bytes] { return None } }
             command Test with Base {
                 attributes {}
                 fields {}
-                policy {}
+                policy() {}
             }
             "#,
             r#"
-            base[basic] Base { get_key { return None } }
+            base[basic] Base { get_key(_dev: id) option[bytes] { return None } }
             command Test with Base {
                 attributes {
                     init: false,
                     finalize: false,
                 }
                 fields {}
-                policy {}
+                policy() {}
             }
             "#,
         ];
@@ -138,13 +138,13 @@ mod test {
         fn process(flavor: &str, attrs: &str) -> Result<VmPriority, AttributeError> {
             let policy = format!(
                 r#"
-                base[{flavor}] Base {{ get_key {{ return None }} }}
+                base[{flavor}] Base {{ get_key(_dev: id) option[bytes] {{ return None }} }}
                 command Test with Base {{
                     attributes {{
                         {attrs}
                     }}
                     fields {{ }}
-                    policy {{ }}
+                    policy() {{ }}
                 }}
                 "#
             );
@@ -171,7 +171,7 @@ mod test {
         assert_eq!(
             process("basic", "priority: false"),
             Err(AttributeError::type_mismatch(
-                "Test", "priority", "Int", "Bool"
+                "Test", "priority", "int", "bool"
             ))
         );
         assert_eq!(

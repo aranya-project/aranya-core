@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: field `y` of struct `Foo` is not defined
   |
 3 |     return x.y
-  |              ^ struct `Foo` has no member `y`
+  |              ^ used here

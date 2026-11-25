@@ -162,7 +162,7 @@ impl<'a, F: Spill> BraidIter<'a, F> {
                 count,
                 Location::new(crate::SegmentIndex::new(0), crate::MaxCut::new(0)),
             )
-            .map_err(|()| ClientError::from(StorageError::Bug(Bug::new("disk buf overflow"))))?;
+            .map_err(|_| ClientError::from(StorageError::Bug(Bug::new("disk buf overflow"))))?;
         self.file
             .read_at(offset, self.disk_buf.as_mut_slice().as_mut_bytes())?;
 
@@ -236,7 +236,7 @@ where
     let mut convergence = convergence_map::ConvergenceMap::new(
         heads,
         lca,
-        traversal.get(),
+        traversal.get_queue_with_duplicates(),
         braid_buf.convergence.get(),
         make_spill()?,
     )?;

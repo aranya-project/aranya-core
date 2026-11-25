@@ -10,7 +10,6 @@ use proptest::{
 
 use crate::{Identifier, Text};
 
-#[cfg_attr(docsrs, doc(cfg(feature = "proptest")))]
 impl Arbitrary for Text {
     type Parameters = SizeRange;
     type Strategy = BoxedStrategy<Self>;
@@ -26,15 +25,14 @@ impl Arbitrary for Text {
     }
 }
 
-#[cfg_attr(docsrs, doc(cfg(feature = "proptest")))]
 impl Arbitrary for Identifier {
     type Parameters = SizeRange;
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(size_range: Self::Parameters) -> Self::Strategy {
-        // [a-zA-Z][a-zA-Z0-9_]*
+        // [a-zA-Z_][a-zA-Z0-9_]*
         (
-            Union::new([b'a'..=b'z', b'A'..=b'Z']),
+            Union::new([b'a'..=b'z', b'A'..=b'Z', b'_'..=b'_']),
             vec(
                 Union::new([b'a'..=b'z', b'A'..=b'Z', b'0'..=b'9', b'_'..=b'_']),
                 size_range,

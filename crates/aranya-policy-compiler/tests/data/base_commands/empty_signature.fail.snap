@@ -1,0 +1,4 @@
+error: invalid signature for `get_key` block
+  |
+2 |     get_key() option[bytes] {
+  |             ^ expected one named param of type `id`

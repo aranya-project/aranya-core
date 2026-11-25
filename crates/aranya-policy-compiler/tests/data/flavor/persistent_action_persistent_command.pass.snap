@@ -8,7 +8,7 @@ Module {
     action_defs: [
         ActionDef {
             name: "test",
-            flavor: "ephemeral",
+            flavor: "null",
             params: [],
             result_type: Unit,
         },
@@ -16,7 +16,7 @@ Module {
     command_defs: [
         CommandDef {
             name: "Cmd",
-            flavor: "ephemeral",
+            flavor: "null",
             attributes: [],
             fields: [],
         },
@@ -28,11 +28,11 @@ Module {
             items: [],
         },
         StructDef {
-            name: "Ephemeral",
+            name: "NullEnvelope",
             items: [],
         },
         StructDef {
-            name: "EphemeralEnvelope",
+            name: "StubBase",
             items: [],
         },
     ],
@@ -43,15 +43,15 @@ Module {
 ---
     exit panic
 <get_key 'Cmd'>:
-    def 'author_id'
-    def 'this'
+    def '_dev'
+    pop
     save SP
     const None
     restore SP
     return
     exit panic
 <policy 'Cmd'>:
-    def 'envelope'
+    pop
     def 'this'
     meta: finish enabled
     block

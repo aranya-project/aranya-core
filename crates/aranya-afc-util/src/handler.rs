@@ -161,6 +161,12 @@ impl From<BaseId> for UniKeyId {
     }
 }
 
+impl From<UniAuthorSecretId> for UniKeyId {
+    fn from(id: UniAuthorSecretId) -> Self {
+        Self(id.as_base())
+    }
+}
+
 impl From<UniKeyId> for UniAuthorSecretId {
     fn from(id: UniKeyId) -> Self {
         Self::from_base(id.0)

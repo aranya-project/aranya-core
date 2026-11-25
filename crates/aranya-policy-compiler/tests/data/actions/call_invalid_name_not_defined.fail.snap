@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: action `bad` is not defined
   |
 2 |     action bad()
-  |            ^^^ action `bad` not defined
+  |            ^^^ used here

@@ -76,7 +76,7 @@ base[init] BaseInit {
     fields {
         owner_keys: struct PublicKeys,
     }
-    get_key {
+    get_key(this, _dev: id) option[bytes] {
         return Some(this.owner_keys.sign_key)
     }
 }
@@ -86,7 +86,7 @@ command Init with BaseInit {
         nonce: int,
     }
 
-    policy {
+    policy(this, envelope) {
         let author_id = envelope.author_id
         check author_id == idam::derive_device_id(this.owner_keys.ident_key) else test_fail("not authorized")
 
@@ -108,8 +108,8 @@ command Init with BaseInit {
 
 ```policy
 base[basic] Base {
-    get_key {
-        return match query DeviceSignPubKey[device_id: author_id] {
+    get_key(device_id: id) option[bytes] {
+        return match query DeviceSignPubKey[device_id] {
             Some(f) => Some(f.key)
             None => None
         }
@@ -117,8 +117,8 @@ base[basic] Base {
 }
 
 base[ephemeral] BaseEphemeral {
-    get_key {
-        return match query DeviceSignPubKey[device_id: author_id] {
+    get_key(device_id: id) option[bytes] {
+        return match query DeviceSignPubKey[device_id] {
             Some(f) => Some(f.key)
             None => None
         }
@@ -141,7 +141,7 @@ command AddDevice with Base {
         device_keys: struct PublicKeys,
     }
 
-    policy {
+    policy(this, envelope) {
         let author_id = envelope.author_id
         let owner = query Owner[] or recall reject()
         check author_id == owner.device_id else test_fail("not authorized")
@@ -177,7 +177,7 @@ command SetCounter with Base {
         value: int,
     }
 
-    policy {
+    policy(this) {
         finish {
             create Counter[name: this.name]=>{value: this.value}
             emit CounterSet{name: this.name, value: this.value}
@@ -195,7 +195,7 @@ command IncrementCounter with Base {
         amount: int,
     }
 
-    policy {
+    policy(this) {
         let counter = query Counter[name: this.name]=>{value: ?} or recall reject()
         let new_value = add(counter.value, this.amount) or recall reject()
 
@@ -217,7 +217,7 @@ command GetCounter with BaseEphemeral {
         name: int,
     }
 
-    policy {
+    policy(this) {
         let counter = query Counter[name: this.name]=>{value: ?} or test_fail()
         finish {
             emit CounterValue{name: this.name, value: counter.value}

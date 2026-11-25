@@ -5,7 +5,7 @@ command A with StubBase {
         s: "abc",
         priority: Priority::High
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

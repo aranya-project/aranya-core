@@ -274,25 +274,6 @@ impl FieldDefinition {
     }
 }
 
-/// An identifier and its type and dynamic effect marker
-///
-/// A variant used exclusively for Effects
-#[derive(Debug, Clone)]
-pub struct EffectFieldDefinition {
-    /// the field's name
-    pub name: Ident,
-    /// the field's type
-    pub vtype: VType,
-    /// Whether the field is marked "dynamic" or not
-    pub dynamic: bool,
-}
-
-impl Spanned for EffectFieldDefinition {
-    fn span(&self) -> Span {
-        self.name.span.merge(self.vtype.span())
-    }
-}
-
 /// Value part of a key/value pair for a fact field.
 #[derive(Debug, Clone)]
 pub enum FactField {
@@ -1146,7 +1127,7 @@ pub struct EffectDefinition {
     /// The name of the effect
     pub name: Ident,
     /// The fields of the effect and their types
-    pub items: Vec<StructItem<EffectFieldDefinition>>,
+    pub items: Vec<StructItem>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1163,7 +1144,7 @@ pub struct StructDefinition {
     /// The name of the struct
     pub name: Ident,
     /// The fields of the struct and their types
-    pub items: Vec<StructItem<FieldDefinition>>,
+    pub items: Vec<StructItem>,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1176,16 +1157,16 @@ impl Spanned for StructDefinition {
 
 /// Struct field or insertion reference
 #[derive(Debug, Clone)]
-pub enum StructItem<T> {
+pub enum StructItem {
     /// Field definition
-    Field(T),
+    Field(FieldDefinition),
     /// Named struct whose fields to add to the current struct
     StructRef(Ident),
 }
 
-impl<T> StructItem<T> {
+impl StructItem {
     /// Get the field definition from this struct item
-    pub fn field(&self) -> Option<&T> {
+    pub fn field(&self) -> Option<&FieldDefinition> {
         match self {
             Self::Field(f) => Some(f),
             Self::StructRef(_) => None,
@@ -1193,12 +1174,29 @@ impl<T> StructItem<T> {
     }
 }
 
-impl<T: Spanned> Spanned for StructItem<T> {
+impl Spanned for StructItem {
     fn span(&self) -> Span {
         match self {
             Self::Field(f) => f.span(),
             Self::StructRef(ident) => ident.span,
         }
+    }
+}
+
+/// A policy block definition
+#[derive(Debug, Clone)]
+pub struct PolicyBlockDefinition {
+    /// The parameters to the policy block
+    pub parameters: MethodParams,
+    /// The policy rule statements for this block
+    pub body: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for PolicyBlockDefinition {
+    fn span(&self) -> Span {
+        self.span
     }
 }
 
@@ -1208,7 +1206,7 @@ pub struct RecallBlockDefinition {
     /// The name of the recall block
     pub name: Ident,
     /// The parameters to the recall block
-    pub parameters: Vec<Param>,
+    pub parameters: MethodParams,
     /// The recall rule statements for this block
     pub body: Vec<Statement>,
     /// The source location of this definition
@@ -1231,9 +1229,9 @@ pub struct CommandDefinition {
     /// The name of the command
     pub name: Ident,
     /// The fields of the command and their types
-    pub fields: Vec<StructItem<FieldDefinition>>,
+    pub fields: Vec<StructItem>,
     /// The policy rule statements for this command
-    pub policy: Vec<Statement>,
+    pub policy: PolicyBlockDefinition,
     /// The named recall blocks for this command
     pub recalls: Vec<RecallBlockDefinition>,
     /// The source location of this definition
@@ -1241,6 +1239,25 @@ pub struct CommandDefinition {
 }
 
 impl Spanned for CommandDefinition {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// A `get_key` block definition
+#[derive(Debug, Clone)]
+pub struct GetKeyBlockDefinition {
+    /// The parameters
+    pub parameters: MethodParams,
+    /// The return type
+    pub return_type: VType,
+    /// The body statements
+    pub body: Vec<Statement>,
+    /// The source location of this definition
+    pub span: Span,
+}
+
+impl Spanned for GetKeyBlockDefinition {
     fn span(&self) -> Span {
         self.span
     }
@@ -1254,9 +1271,9 @@ pub struct BaseCommandDefinition {
     /// The name of the base command
     pub name: Ident,
     /// The fields of the base command and their types
-    pub fields: Vec<StructItem<FieldDefinition>>,
+    pub fields: Vec<StructItem>,
     /// The get key block
-    pub get_key: Vec<Statement>,
+    pub get_key: GetKeyBlockDefinition,
     /// The source location of this definition
     pub span: Span,
 }
@@ -1265,6 +1282,17 @@ impl Spanned for BaseCommandDefinition {
     fn span(&self) -> Span {
         self.span
     }
+}
+
+/// Parameters to a method-like callable.
+#[derive(Debug, Clone)]
+pub struct MethodParams {
+    /// The span of the `this` parameter, if present.
+    pub this: Option<Span>,
+    /// The span of the `envelope` parameter, if present.
+    pub envelope: Option<Span>,
+    /// The parameter names and types, not including `this` or `envelope`.
+    pub other_params: WithSpan<Vec<Param>>,
 }
 
 /// A function definition

@@ -1,8 +1,10 @@
 //! Utilities for deriving `FfiModule` implementations.
 
 #![cfg(feature = "derive")]
-#![cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 
+/// Provides impls needed to use a struct in ffi.
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+pub use aranya_policy_derive::Valuable;
 /// When applied to an `impl` block, [`macro@ffi`] generates an
 /// implementation of  [`FfiModule`][crate::ffi::FfiModule].
 ///
@@ -65,7 +67,10 @@
 /// use core::{convert::Infallible, marker::PhantomData};
 ///
 /// use aranya_crypto::Engine;
-/// use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, ffi::ffi};
+/// use aranya_policy_vm::{
+///     CommandContext, MachineError, MachineErrorType, Text,
+///     ffi::{Valuable, ffi},
+/// };
 ///
 /// #[derive(Copy, Clone, Debug)]
 /// struct Overflow;
@@ -87,19 +92,19 @@
 ///
 /// struct Crypto<T>(PhantomData<T>);
 ///
-/// #[ffi(
-///     module = "crypto",
-///     def = r#"
+/// #[derive(Valuable)]
 /// struct S0 {
-///     a: int,
-///     b: bytes,
-///     c: string,
+///     a: i64,
+///     b: Vec<u8>,
+///     c: Text,
 /// }
+///
+/// #[derive(Valuable)]
 /// struct S1 {
-///     x: struct S0,
+///     x: S0,
 /// }
-/// "#
-/// )]
+///
+/// #[ffi(module = "crypto")]
 /// impl<T> Crypto<T> {
 ///     /// By default, the function's name is the same as it
 ///     /// exists in Rust. This will be `calc::add2` in the
@@ -146,5 +151,4 @@
 ///     fn ignored() {}
 /// }
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use aranya_policy_derive::ffi;

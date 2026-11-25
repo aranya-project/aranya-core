@@ -1,7 +1,6 @@
 //! Memory implementation of State for same process APS usage
 
 #![cfg(any(test, feature = "memory"))]
-#![cfg_attr(docsrs, doc(cfg(feature = "memory")))]
 
 mod lender;
 

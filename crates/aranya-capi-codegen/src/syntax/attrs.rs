@@ -349,11 +349,15 @@ pub trait AttrsExt {
 
     /// Dumps all attributes.
     #[allow(dead_code)] // for debugging
-    fn dump(&self) {
-        println!("found {} attrs:", self.get().len());
-        for attr in self.get() {
-            println!("\t{}", quote!(#attr));
-        }
+    #[must_use]
+    fn dump(&self) -> impl core::fmt::Display {
+        core::fmt::from_fn(|f| {
+            writeln!(f, "found {} attrs:", self.get().len())?;
+            for attr in self.get() {
+                writeln!(f, "\t{}", quote!(#attr))?;
+            }
+            Ok(())
+        })
     }
 
     /// Returns an iterator over the outer attributes.

@@ -125,6 +125,49 @@ impl SimpleError for error::InvalidCallColor {
     }
 }
 
+impl SimpleError for error::InvalidPolicySignature {
+    fn description(&self) -> Cow<'_, str> {
+        "invalid signature for `policy` block".into()
+    }
+    fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        once((
+            self.0,
+            "`policy` blocks do not take additional arguments".into(),
+        ))
+    }
+}
+
+impl Error for error::InvalidGetKeySignature {
+    fn description(&self) -> Cow<'_, str> {
+        "invalid signature for `get_key` block".into()
+    }
+    fn add_group<'a>(&'a self, input: &'a str, report: &mut Vec<Group<'a>>) {
+        let mut group = Group::with_title(Level::ERROR.primary_title(self.description()));
+        if let Some(envelope) = self.envelope {
+            group = group.element(
+                Snippet::source(input).annotation(
+                    AnnotationKind::Primary
+                        .span(envelope.into())
+                        .label("`get_key` does not take `envelope`"),
+                ),
+            );
+        }
+        if let Some(rest) = self.other_params {
+            group = group.element(
+                Snippet::source(input).annotation(
+                    AnnotationKind::Primary
+                        .span(rest.into())
+                        .label("expected one named param of type `id`"),
+                ),
+            );
+        }
+        report.push(group);
+        if let Some(return_type) = &self.return_type {
+            return_type.add_group(input, report);
+        }
+    }
+}
+
 impl SimpleError for error::BadArgument {
     fn description(&self) -> Cow<'_, str> {
         "bad argument".into()
@@ -145,10 +188,10 @@ impl SimpleError for error::UnusedValue {
 
 impl SimpleError for error::NotDefined {
     fn description(&self) -> Cow<'_, str> {
-        "a thing being referenced is not in scope".into()
+        format!("{} is not defined", self.0).into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
-        once((self.1, self.0.as_str().into()))
+        once((self.0.span(), "used here".into()))
     }
 }
 
@@ -235,12 +278,17 @@ impl SimpleError for error::DuplicateField {
 
 impl SimpleError for error::AlreadyDefined {
     fn description(&self) -> Cow<'_, str> {
-        format!("the name `{}` is defined multiple times", self.prev).into()
+        format!(
+            "the name `{}` is defined multiple times",
+            self.primary.name()
+        )
+        .into()
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
+        let Self { primary, prev } = self;
         [
-            (self.primary.span, "re-defined here".into()),
-            (self.prev.span, "previous defintion here".into()),
+            (primary.span(), format!("{primary} re-defined here").into()),
+            (prev.span(), format!("previous defintion of {prev}").into()),
         ]
     }
 }

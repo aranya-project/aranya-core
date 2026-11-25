@@ -56,7 +56,6 @@ macro_rules! eprintln {
 }
 
 /// Configures the debugging logger.
-#[cfg_attr(docsrs, doc(cfg(feature = "unsafe_debug")))]
 #[cfg(feature = "unsafe_debug")]
 pub fn init_debug_logging() {
     struct PrintLogger;
@@ -65,6 +64,7 @@ pub fn init_debug_logging() {
             true
         }
 
+        #[allow(clippy::print_stderr, reason = "logging impl")]
         fn log(&self, record: &log::Record) {
             let file = record
                 .file()

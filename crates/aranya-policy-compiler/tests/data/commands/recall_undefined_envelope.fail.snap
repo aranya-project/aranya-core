@@ -1,0 +1,4 @@
+error: variable `envelope` is not defined
+  |
+6 |         let _var = envelope
+  |                    ^^^^^^^^ used here

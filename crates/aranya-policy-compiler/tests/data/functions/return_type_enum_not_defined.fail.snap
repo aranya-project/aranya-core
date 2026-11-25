@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: enum `Blah` is not defined
   |
 1 | function f() enum Blah {
-  |                   ^^^^ enum `Blah` not defined
+  |                   ^^^^ used here

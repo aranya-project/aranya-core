@@ -492,7 +492,7 @@ impl SyncResponder {
         let mut have_cursor: usize = 0;
 
         // heads queue: segments to process, popped by highest max_cut.
-        let heads = buffers.primary.get();
+        let heads = buffers.primary.get_queue_with_coverage();
 
         // Jump from each head toward highest_have + SEGMENT_BUFFER_MAX before
         // starting the main traversal, so per-round cost is O(log n) instead
@@ -514,11 +514,11 @@ impl SyncResponder {
             // Landing in the head's own segment still sends all of it, but
             // landing lower skips the segments in between.
             truncated |= start.segment != head.segment;
-            heads.push(start)?;
+            heads.push_uncovered(start)?;
         }
 
         // pending queue: segments tentatively needed by the peer.
-        let pending = buffers.secondary.get();
+        let pending = buffers.secondary.get_queue_with_coverage();
 
         // Accumulate needed segments, keeping only the SEGMENT_BUFFER_MAX
         // entries with the lowest max_cut (ancestors first). When full,
@@ -548,11 +548,11 @@ impl SyncResponder {
                 // Propagate coverage to priors so they'll be processed as
                 // covered if not yet visited.
                 for prior in segment.prior() {
-                    heads.push_covered(prior, true)?;
+                    heads.push_covered(prior)?;
                 }
                 // Early termination: if all remaining heads are covered, stop.
                 // Every remaining path leads to segments the peer already has.
-                if heads.all_covered() && !heads.is_empty() {
+                if heads.nontrivially_covered() {
                     break;
                 }
                 continue;
@@ -589,7 +589,7 @@ impl SyncResponder {
                 // covered — the peer has at least part of this segment,
                 // so its priors are reachable.
                 for prior in segment.prior() {
-                    heads.push_covered(prior, true)?;
+                    heads.push_covered(prior)?;
                 }
 
                 // If the peer doesn't have the whole segment (have_location
@@ -604,21 +604,21 @@ impl SyncResponder {
                         max_cut: next_max_cut,
                         segment: head.segment,
                     };
-                    pending.push(partial_loc)?;
+                    pending.push_uncovered(partial_loc)?;
                 }
                 // else: peer has the entire segment, nothing to send.
             } else {
                 // Case 3: Uncovered, no have_location. Add to pending and
                 // continue traversal through priors.
-                pending.push(segment.first_location())?;
+                pending.push_uncovered(segment.first_location())?;
                 for prior in segment.prior() {
-                    heads.push(prior)?;
+                    heads.push_uncovered(prior)?;
                 }
             }
 
             // Early termination: if all remaining heads are covered, stop.
             // Every remaining path leads to segments the peer already has.
-            if heads.all_covered() && !heads.is_empty() {
+            if heads.nontrivially_covered() {
                 break;
             }
         }
@@ -851,14 +851,14 @@ impl SyncResponder {
 fn add_command_data(
     buf: &mut Vec<u8, COMMAND_DATA_BUF_SIZE>,
     cmd: &impl Command,
-) -> Result<CommandMeta, ()> {
+) -> Result<CommandMeta, heapless::CapacityError> {
     let before = buf.len();
 
     if let Some(policy) = cmd.policy() {
         buf.extend_from_slice(policy)?;
     }
 
-    buf.extend_from_slice(cmd.bytes()).inspect_err(|()| {
+    buf.extend_from_slice(cmd.bytes()).inspect_err(|_| {
         buf.truncate(before);
     })?;
 
@@ -894,7 +894,11 @@ mod tests {
     type TestClient = ClientState<TestPolicyStore, MemStorageProvider>;
 
     fn new_client() -> TestClient {
-        ClientState::new(TestPolicyStore::new(), MemStorageProvider::default())
+        ClientState::new(
+            TestPolicyStore::new(),
+            MemStorageProvider::default(),
+            Some(()),
+        )
     }
 
     fn new_sink() -> TestSink {

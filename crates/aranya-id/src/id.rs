@@ -287,7 +287,6 @@ unsafe impl<Tag: IdTag> rkyv::traits::NoUndef for Id<Tag> {}
 unsafe impl<Tag: IdTag> rkyv::Portable for Id<Tag> {}
 
 #[cfg(feature = "proptest")]
-#[cfg_attr(docsrs, doc(cfg(feature = "proptest")))]
 impl<Tag: IdTag> proptest::arbitrary::Arbitrary for Id<Tag> {
     type Parameters = <[u8; 32] as proptest::arbitrary::Arbitrary>::Parameters;
     type Strategy = proptest::strategy::Map<

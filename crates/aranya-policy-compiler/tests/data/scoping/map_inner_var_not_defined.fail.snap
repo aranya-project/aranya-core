@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: variable `n` is not defined
   |
 6 |     check n == 42 else test_fail() // should not be accessible outside the block
-  |           ^ 'n' not in scope
+  |           ^ used here

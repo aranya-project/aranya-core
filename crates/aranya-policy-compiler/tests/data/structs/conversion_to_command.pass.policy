@@ -7,7 +7,7 @@ command Bar with StubBase {
         a: int,
         b: string,
     }
-    policy {
+    policy(this) {
         finish {}
     }
 }

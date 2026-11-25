@@ -1,6 +1,6 @@
 error: the name `Foo` is defined multiple times
   |
 1 | fact Foo[]=>{}
-  |      --- previous defintion here
+  |      --- previous defintion of fact `Foo`
 2 | struct Foo {}
-  |        ^^^ re-defined here
+  |        ^^^ struct `Foo` re-defined here

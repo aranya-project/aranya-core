@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: recall block `nonexistent` is not defined
   |
 4 |         recall nonexistent()
-  |                ^^^^^^^^^^^ recall block `nonexistent`
+  |                ^^^^^^^^^^^ used here

@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "binary")]
+
 use std::{fs::File, path::PathBuf, process::ExitCode};
 
 use aranya_policy_compiler::{Compiler, validate::validate};

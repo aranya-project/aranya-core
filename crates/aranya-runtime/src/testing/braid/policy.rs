@@ -12,7 +12,7 @@
 
 use alloc::boxed::Box;
 
-use buggy::{BugExt as _, bug};
+use buggy::bug;
 
 use crate::{
     Address, CmdId, Command, FlavorCtx, Prior, Priority,
@@ -82,25 +82,21 @@ pub enum Never {}
 
 impl PolicyStore for ProbePolicyStore {
     type Policy = ProbePolicy;
-    type Effect = ();
+    type Effect = Never;
 
     fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, PolicyStoreError> {
         Ok(PolicyId::default())
     }
 
-    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, PolicyStoreError> {
-        Ok(&ProbePolicy)
-    }
-
-    fn seal_ctx(&self, _id: PolicyId) -> Option<&<Self::Policy as Policy>::SealCtx> {
-        unreachable!()
+    fn get_policy(&mut self, _id: PolicyId) -> Result<Self::Policy, PolicyStoreError> {
+        Ok(ProbePolicy)
     }
 }
 
 impl Policy for ProbePolicy {
     type Action<'a> = Never;
     type SealCtx = Never;
-    type Effect = ();
+    type Effect = Never;
     type Command<'a> = ProbeCommand;
 
     fn serial(&self) -> u32 {
@@ -122,23 +118,17 @@ impl Policy for ProbePolicy {
             Prior::Merge(..) => bug!("merges must never be evaluated"),
         };
         let data = command.bytes();
-        if let Some(seq) = facts
+        let value = match facts
             .query("seq", &Keys::default())
-            .assume("can query")?
+            .expect("can query")
             .as_deref()
         {
-            facts
-                .insert(
-                    "seq".into(),
-                    Keys::default(),
-                    [seq, b":", data].concat().into(),
-                )
-                .expect("can insert");
-        } else {
-            facts
-                .insert("seq".into(), Keys::default(), data.into())
-                .expect("can insert");
-        }
+            Some(seq) => [seq, b":", data].concat().into(),
+            None => data.into(),
+        };
+        facts
+            .insert("seq".into(), Keys::default(), value)
+            .expect("can insert");
         Ok(priority)
     }
 

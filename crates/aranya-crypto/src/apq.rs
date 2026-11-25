@@ -4,7 +4,6 @@
 
 #![forbid(unsafe_code)]
 #![cfg(feature = "apq")]
-#![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
 use core::{fmt, iter, ops::Add, result::Result};
 

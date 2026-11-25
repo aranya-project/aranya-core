@@ -233,18 +233,22 @@ fn setup(path: PathBuf) -> Case {
 
 fn test(path: &Path) -> Result<String> {
     let should_pass = should_pass(path)?;
-    let debug = !path.starts_with("tests/data/unused/");
+    let allow_unused = !path.starts_with("tests/data/unused/");
 
     let mut text = std::fs::read_to_string(path).context("could not read source file")?;
     if text.contains("StubBase") {
-        text.push_str("\n\nbase[null] StubBase { get_key { return None } }");
+        text.push_str(
+            "\n\nbase[null] StubBase { get_key(_dev: id) option[bytes] { return None } }",
+        );
     }
     let ast = parse_policy_str(&text, Version::V2).context("could not parse policy text")?;
 
     let res = Compiler::new(&ast)
         .ffi_modules(TEST_SCHEMAS)
         .flavors(TEST_FLAVORS)
-        .debug(debug)
+        .allow_unused(allow_unused)
+        .allow_test_fail(true)
+        .require_publish(false)
         .compile();
 
     Ok(match (res, should_pass) {

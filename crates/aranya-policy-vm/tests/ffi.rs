@@ -6,6 +6,7 @@ use aranya_crypto::{
     id::IdExt as _,
     policy::CmdId,
 };
+use aranya_policy_derive::Valuable;
 use aranya_policy_vm::{
     self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
     Stack as _, Text, Value, ValueConversionError,
@@ -107,7 +108,7 @@ impl TryFrom<Value> for Label {
             Value::Int(x) => x,
             _ => {
                 return Err(ValueConversionError::invalid_type(
-                    "Int",
+                    "int",
                     value.type_name(),
                     "Value -> Label",
                 ));
@@ -147,29 +148,35 @@ impl<T, G> TestModule<'_, T, G> {
     const CUSTOM_TYPE_RESULT: Label = Label(4321);
 }
 
-#[ffi(
-    module = "test",
-    def = r#"
+#[derive(Clone, Debug, PartialEq, Eq, Valuable)]
 struct S0 {
-    x: int
-}
-struct S1 {
-    a: string,
-    b: bytes,
-    c: int,
-    d: bool,
-    e: id,
-    f: struct S0,
-    g: option[int],
-}
-struct S2 {
-    a: struct S0,
-    b: struct S1,
+    x: i64,
 }
 
-enum TestEnum { A, B }
-"#
-)]
+#[derive(Clone, Debug, PartialEq, Eq, Valuable)]
+struct S1 {
+    a: Text,
+    b: Vec<u8>,
+    c: i64,
+    d: bool,
+    e: BaseId,
+    f: S0,
+    g: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Valuable)]
+struct S2 {
+    a: S0,
+    b: S1,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Valuable)]
+enum TestEnum {
+    A,
+    B,
+}
+
+#[ffi(module = "test")]
 impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function add2(x: int, y: int) int")]
     fn add<E: Engine>(_ctx: &CommandContext, _eng: &E, x: i64, y: i64) -> Result<i64, Overflow> {
@@ -416,8 +423,6 @@ fn test_ffi_derive() {
 
     // Positive test for `struct_fn`.
     {
-        use __test_ffi::{S0, S1, S2};
-
         let a = S0 { x: 42 };
         let b = S1 {
             a: text!("hello, world!"),
@@ -440,8 +445,6 @@ fn test_ffi_derive() {
 
     // test enum
     {
-        use __test_ffi::TestEnum;
-
         state.push(TestEnum::A);
         state
             .call("test_enum")

@@ -1,7 +1,6 @@
 //! An in-memory implementation of [`KeyStore`].
 
 #![cfg(feature = "memstore")]
-#![cfg_attr(docsrs, doc(cfg(feature = "memstore")))]
 #![forbid(unsafe_code)]
 
 use alloc::{

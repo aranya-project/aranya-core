@@ -35,10 +35,10 @@ use tracing::warn;
 use self::{
     call_graph::CallGraph,
     error::{
-        AlreadyDefined, BadArgument, BugError, DebugModeRequired, DuplicateSourceFields,
+        AlreadyDefined, BadArgument, BugError, Callable, DebugModeRequired, DuplicateSourceFields,
         InvalidExpression, InvalidReturn, InvalidType, NoOpStructComp, NoPublishOrActionCall,
-        NoReturn, NotDefined, SourceStructNotSubsetOfBase, StructCompositionTypeMismatch,
-        UnknownError,
+        NoReturn, NotDefined, Reference, SourceStructNotSubsetOfBase,
+        StructCompositionTypeMismatch, UnknownError,
     },
     target::CompileTarget,
     topo::TopoSort,
@@ -129,27 +129,20 @@ macro_rules! typekind {
 }
 
 mod param {
-    use aranya_policy_ast::{Identifier, WithSpanExt as _};
+    use aranya_policy_ast::{Identifier, Span, WithSpanExt as _};
 
     use super::{Ident, Param, TypeKind, ident};
 
-    pub fn author_id() -> Param {
+    pub fn envelope(span: Span, name: Identifier) -> Param {
         Param {
-            name: ident!("author_id").nowhere(),
-            vtype: TypeKind::Id.nowhere(),
-        }
-    }
-
-    pub fn envelope(name: Identifier) -> Param {
-        Param {
-            name: ident!("envelope").nowhere(),
+            name: ident!("envelope").at(span),
             vtype: TypeKind::Struct(name.nowhere()).nowhere(),
         }
     }
 
-    pub fn this(name: Ident) -> Param {
+    pub fn this(span: Span, name: Ident) -> Param {
         Param {
-            name: ident!("this").nowhere(),
+            name: ident!("this").at(span),
             vtype: TypeKind::Struct(name).nowhere(),
         }
     }
@@ -213,6 +206,8 @@ struct CompileState<'a> {
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
     function_signatures: BTreeMap<Ident, FunctionSignature>,
+    /// A map over recall block signatures for easy call verification.
+    recall_signatures: BTreeMap<(Ident, Ident), Vec<Param>>,
     /// Builtin functions which have special behavior when compiling a function call.
     builtin_functions: BTreeMap<Identifier, BuiltinHandler>,
     /// The last span seen, for imprecise source locating.
@@ -293,8 +288,8 @@ impl<'a> CompileState<'a> {
     fn define_fact(&mut self, fact: &FactDefinition) -> Result<(), CompileError> {
         if let Some((existing_fact, _)) = self.m.fact_defs.get_key_value(&fact.name.inner) {
             return Err(self.err(AlreadyDefined::new(
-                fact.name.clone(),
-                existing_fact.clone(),
+                Reference::Fact(fact.name.clone()),
+                Reference::Fact(existing_fact.clone()),
             )));
         }
 
@@ -313,8 +308,8 @@ impl<'a> CompileState<'a> {
             }
             if let Some(existing_ident) = identifiers.replace(&key.name) {
                 return Err(self.err(AlreadyDefined::new(
-                    key.name.clone(),
-                    existing_ident.clone(),
+                    Reference::FactKey(fact.name.clone(), key.name.clone()),
+                    Reference::FactKey(fact.name.clone(), existing_ident.clone()),
                 )));
             }
         }
@@ -323,8 +318,8 @@ impl<'a> CompileState<'a> {
         for value in &fact.values {
             if let Some(existing_ident) = identifiers.replace(&value.name) {
                 return Err(self.err(AlreadyDefined::new(
-                    value.name.clone(),
-                    existing_ident.clone(),
+                    Reference::FactValue(fact.name.clone(), value.name.clone()),
+                    Reference::FactValue(fact.name.clone(), existing_ident.clone()),
                 )));
             }
         }
@@ -337,7 +332,7 @@ impl<'a> CompileState<'a> {
     pub fn define_struct(
         &mut self,
         name: Ident,
-        items: impl IntoIterator<Item = StructItem<FieldDefinition>>,
+        items: impl IntoIterator<Item = StructItem>,
     ) -> Result<(), CompileError> {
         // Add explicitly-defined fields and those from struct insertions
         let mut field_definitions = Vec::new();
@@ -349,31 +344,23 @@ impl<'a> CompileState<'a> {
                         .find(|f: &&FieldDefinition| f.name.inner == field.name.inner)
                     {
                         return Err(self.err(AlreadyDefined::new(
-                            field.name.clone(),
-                            existing_field.name.clone(),
+                            Reference::StructField(name.clone(), field.name.clone()),
+                            Reference::StructField(name, existing_field.name.clone()),
                         )));
                     }
 
                     field_definitions.push(field);
                 }
                 StructItem::StructRef(field_type_ident) => {
-                    let other = self
-                        .m
-                        .interface
-                        .struct_defs
-                        .get(&field_type_ident.inner)
-                        .ok_or_else(|| {
-                            let note = format!("struct {} is not defined", field_type_ident);
-                            self.err(NotDefined(note, field_type_ident.span()))
-                        })?;
+                    let other = self.get_struct_def(&field_type_ident)?;
                     for field in other {
                         if let Some(existing_def) = field_definitions
                             .iter()
                             .find(|f: &&FieldDefinition| f.name.inner == field.name.inner)
                         {
                             return Err(self.err(AlreadyDefined::new(
-                                field.name.clone(),
-                                existing_def.name.clone(),
+                                Reference::StructField(name.clone(), field.name.clone()),
+                                Reference::StructField(name, existing_def.name.clone()),
                             )));
                         }
                         // TODO(Steve): We'll likely need a better way to handle complex StructRef nesting.
@@ -401,7 +388,10 @@ impl<'a> CompileState<'a> {
         // ensure enum name is unique
         if let Some((existing_def, _)) = self.m.interface.enum_defs.get_key_value(&enum_name.inner)
         {
-            let err = AlreadyDefined::new(enum_name.clone(), existing_def.clone());
+            let err = AlreadyDefined::new(
+                Reference::Enum(enum_name.clone()),
+                Reference::Enum(existing_def.clone()),
+            );
             return Err(self.err(err));
         }
 
@@ -412,8 +402,8 @@ impl<'a> CompileState<'a> {
                 indexmap::map::Entry::Occupied(e) => {
                     let existing_variant = e.key();
                     return Err(self.err(AlreadyDefined::new(
-                        existing_variant.clone(),
-                        value_name.clone(),
+                        Reference::EnumVariant(enum_name.clone(), existing_variant.clone()),
+                        Reference::EnumVariant(enum_name.clone(), value_name.clone()),
                     )));
                 }
                 indexmap::map::Entry::Vacant(e) => {
@@ -454,7 +444,10 @@ impl<'a> CompileState<'a> {
                 //     name.push_str(" (builtin)");
                 // }
                 let existing_function = e.key();
-                let err = AlreadyDefined::new(existing_function.clone(), def.name.clone());
+                let err = AlreadyDefined::new(
+                    Callable::Function(existing_function.clone()),
+                    Callable::Function(def.name.clone()),
+                );
                 Err(self.err(err))
             }
         }
@@ -483,7 +476,10 @@ impl<'a> CompileState<'a> {
                 //     name.push_str(" (builtin)");
                 // }
                 let existing_function = e.key();
-                let err = AlreadyDefined::new(existing_function.clone(), def.name.clone());
+                let err = AlreadyDefined::new(
+                    Callable::FinishFunction(existing_function.clone()),
+                    Callable::FinishFunction(def.name.clone()),
+                );
                 Err(self.err(err))
             }
         }
@@ -588,8 +584,8 @@ impl<'a> CompileState<'a> {
 
     /// Ensure debug mode is on, or return a [`DebugModeRequired`] error. In debug
     /// mode, warns that a debug-only construct (e.g. `todo()`/`test_fail`) is present.
-    fn require_debug_mode(&self, name: &'static str, span: Span) -> Result<(), CompileError> {
-        if self.config.is_debug {
+    fn require_flag(&self, flag: bool, name: &'static str, span: Span) -> Result<(), CompileError> {
+        if flag {
             warn!("`{name}` found in policy");
             Ok(())
         } else {
@@ -673,11 +669,11 @@ impl<'a> CompileState<'a> {
                     self.define_label(end_name, self.wp)?;
                 }
                 thir::InternalFunction::Todo(span) => {
-                    self.require_debug_mode("todo()", span)?;
+                    self.require_flag(self.config.allow_todo, "todo()", span)?;
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
                 thir::InternalFunction::TestFail(_msg, span) => {
-                    self.require_debug_mode("test_fail()", span)?;
+                    self.require_flag(self.config.allow_test_fail, "test_fail()", span)?;
                     self.append_instruction(Instruction::Exit(ExitReason::Panic));
                 }
             },
@@ -893,13 +889,12 @@ impl<'a> CompileState<'a> {
             .interface
             .enum_defs
             .get(&e.enumeration.inner)
-            .ok_or_else(|| {
-                let note = format!("enum `{}` not defined", e.enumeration);
-                self.err(NotDefined(note, e.enumeration.span))
-            })?;
+            .ok_or_else(|| self.err(NotDefined(Reference::Enum(e.enumeration.clone()))))?;
         let value = enum_def.get(&e.variant.inner).ok_or_else(|| {
-            let note = format!("variant `{}::{}` not defined", e.enumeration, e.variant);
-            self.err(NotDefined(note, e.variant.span))
+            self.err(NotDefined(Reference::EnumVariant(
+                e.enumeration.clone(),
+                e.variant.clone(),
+            )))
         })?;
         Ok(*value)
     }
@@ -1047,7 +1042,7 @@ impl<'a> CompileState<'a> {
                 self.compile_action_call(fc)?;
             }
             thir::StmtKind::DebugAssert(s) => {
-                if self.config.is_debug {
+                if self.config.debug_assertions {
                     // Compile the expression within `debug_assert(e)`
                     self.compile_typed_expression(s)?;
                     // Now, branch to the next instruction if the top of the stack is true
@@ -1083,15 +1078,13 @@ impl<'a> CompileState<'a> {
             | TypeKind::Unit
             | TypeKind::String => {}
             TypeKind::Struct(name) => {
-                if name != "Envelope" && !self.m.interface.struct_defs.contains_key(&name.inner) {
-                    let note = format!("struct `{name}` not defined");
-                    return Err(self.err(NotDefined(note, name.span)));
+                if !self.m.interface.struct_defs.contains_key(&name.inner) {
+                    return Err(self.err(NotDefined(Reference::Struct(name.clone()))));
                 }
             }
             TypeKind::Enum(name) => {
                 if !self.m.interface.enum_defs.contains_key(&name.inner) {
-                    let note = format!("enum `{name}` not defined");
-                    return Err(self.err(NotDefined(note, name.span)));
+                    return Err(self.err(NotDefined(Reference::Enum(name.clone()))));
                 }
             }
             TypeKind::Optional(t) => self.ensure_type_is_defined(t)?,
@@ -1116,6 +1109,7 @@ impl<'a> CompileState<'a> {
             function_node.span,
             &function_node.body,
             label,
+            Callable::Function(function_node.name.clone()),
         )?;
         self.exit_statement_context();
         Ok(())
@@ -1134,6 +1128,7 @@ impl<'a> CompileState<'a> {
             function_node.span,
             &function_node.body,
             label,
+            Callable::FinishFunction(function_node.name.clone()),
         )?;
         // Finish functions cannot have return statements, so we add a return instruction manually.
         self.append_instruction(Instruction::Return);
@@ -1172,7 +1167,10 @@ impl<'a> CompileState<'a> {
         let mut params = NamedMap::new();
         for param in &action_node.parameters {
             params.insert(param.clone()).map_err(|e| {
-                let err = AlreadyDefined::new(e.existing, param.name.clone());
+                let err = AlreadyDefined::new(
+                    Callable::Action(action_node.name.clone()).param(e.existing),
+                    Callable::Action(action_node.name.clone()).param(param.name.clone()),
+                );
                 self.err(err)
             })?;
         }
@@ -1181,7 +1179,12 @@ impl<'a> CompileState<'a> {
             .interface
             .action_defs
             .insert(action_node.clone().into())
-            .map_err(|e| self.err(AlreadyDefined::new(action_node.name.clone(), e.existing)))?;
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    Callable::Action(action_node.name.clone()),
+                    Callable::Action(e.existing),
+                ))
+            })?;
 
         Ok(())
     }
@@ -1212,6 +1215,7 @@ impl<'a> CompileState<'a> {
             action_node.span,
             &action_node.body,
             label,
+            Callable::Action(action_node.name.clone()),
         )?;
         // An infallible action has no return statement, so add one.
         if ret.is_none() {
@@ -1231,13 +1235,13 @@ impl<'a> CompileState<'a> {
             )
         });
         if !publishes_or_calls {
-            if self.config.is_debug {
+            if self.config.require_publish {
+                return Err(self.err(NoPublishOrActionCall(action_node.span)));
+            } else {
                 warn!(
                     "action `{}` neither publishes nor calls another action",
                     action_node.name
                 );
-            } else {
-                return Err(self.err(NoPublishOrActionCall(action_node.span)));
             }
         }
 
@@ -1262,7 +1266,10 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(e) => {
                 let existing = e.key();
-                let err = AlreadyDefined::new(existing.clone(), identifier.clone());
+                let err = AlreadyDefined::new(
+                    Reference::Global(existing.clone()),
+                    Reference::Global(identifier.clone()),
+                );
                 return Err(self.err(err));
             }
         }
@@ -1279,9 +1286,6 @@ impl<'a> CompileState<'a> {
         for arg_e in recall.arguments {
             self.compile_typed_expression(arg_e)?;
         }
-        // Recall blocks take `this` and `envelope` as trailing parameters.
-        self.append_instruction(Instruction::Get(ident!("this")));
-        self.append_instruction(Instruction::Get(ident!("envelope")));
 
         let recall_label = Label::new(
             self.command_recall_name(&recall.command_name, &recall.recall_name)?,
@@ -1297,18 +1301,33 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
-        let params = [
-            param::this(command.name.clone()),
-            param::envelope(flavor_def.envelope.name.clone()),
+        // `policy` blocks must have no typed params.
+        if !command.policy.parameters.other_params.is_empty() {
+            return Err(self.err(error::InvalidPolicySignature(
+                command.policy.parameters.other_params.span,
+            )));
+        }
+
+        // Always take `this` and `envelope`, but they are ignored if absent from definition.
+        let params = &[
+            param::this(
+                command.policy.parameters.this.unwrap_or_default(),
+                command.name.clone(),
+            ),
+            param::envelope(
+                command.policy.parameters.envelope.unwrap_or_default(),
+                flavor_def.envelope.name.clone(),
+            ),
         ];
 
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.compile_function_like(
-            &params,
+            params,
             None,
             Span::empty(),
-            &command.policy,
+            &command.policy.body,
             Label::new(command.name.inner.clone(), LabelType::CommandPolicy),
+            Callable::Policy(command.policy.span),
         )?;
         // Policy blocks should exit via a finish block, so panic if it doesn't.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1341,27 +1360,34 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
         flavor_def: &Flavor,
     ) -> Result<(), CompileError> {
-        let base_params = [
-            param::this(command.name.clone()),
-            param::envelope(flavor_def.envelope.name.clone()),
-        ];
-
         let mut named_blocks: HashSet<WithSpan<Identifier>> = HashSet::new();
 
         // Compile each recall block
         for recall_block in &command.recalls {
             let full_name = self.command_recall_name(&command.name, &recall_block.name)?;
             if let Some(prev) = named_blocks.get(&recall_block.name) {
-                return Err(self.err(AlreadyDefined::new(prev.clone(), recall_block.name.clone())));
+                return Err(self.err(AlreadyDefined::new(
+                    Callable::Recall(prev.clone()),
+                    Callable::Recall(recall_block.name.clone()),
+                )));
             }
             named_blocks.insert(recall_block.name.clone());
 
-            let params = recall_block
-                .parameters
-                .iter()
-                .cloned()
-                .chain(base_params.iter().cloned())
-                .collect::<Vec<_>>();
+            let params = iter::chain(
+                // Take `this` only if actually declared.
+                recall_block
+                    .parameters
+                    .this
+                    .map(|span| param::this(span, command.name.clone())),
+                // Take `envelope` only if actually declared.
+                recall_block
+                    .parameters
+                    .envelope
+                    .map(|span| param::envelope(span, flavor_def.envelope.name.clone())),
+            )
+            // Take the other declared parameters.
+            .chain(recall_block.parameters.other_params.iter().cloned())
+            .collect::<Vec<_>>();
 
             self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
             self.compile_function_like(
@@ -1370,9 +1396,13 @@ impl<'a> CompileState<'a> {
                 recall_block.span,
                 &recall_block.body,
                 Label::new(full_name, LabelType::CommandRecall),
+                Callable::Recall(recall_block.name.clone()),
             )?;
             self.append_instruction(Instruction::Exit(ExitReason::Check));
             self.exit_statement_context();
+
+            self.recall_signatures
+                .insert((command.name.clone(), recall_block.name.clone()), params);
         }
         Ok(())
     }
@@ -1384,6 +1414,7 @@ impl<'a> CompileState<'a> {
         span: Span,
         body: &[Statement],
         label: Label,
+        callable: Callable,
     ) -> Result<(), CompileError> {
         // Only functions and actions are callable, so only they can recurse.
         if matches!(label.ltype, LabelType::Function | LabelType::Action) {
@@ -1397,14 +1428,24 @@ impl<'a> CompileState<'a> {
         self.map_range(span)?;
 
         if let Some((ident1, ident2)) = find_duplicate(params, |p| &p.name) {
-            let err = AlreadyDefined::new(ident1.clone(), ident2.clone());
+            let err = AlreadyDefined::new(
+                callable.clone().param(ident1.clone()),
+                callable.param(ident2.clone()),
+            );
             return Err(self.err(err));
         }
 
         self.identifier_types.enter_function();
         for param in params.iter().rev() {
             self.ensure_type_is_defined(&param.vtype)?;
-            self.append_var(param.name.clone(), param.vtype.clone())?;
+            if param.name.span.is_empty() {
+                // Don't add synthesized `this` and `envelope` to locals. This lets us keep the
+                // signature of `get_key` and `policy` the same to the VM while allowing to omit
+                // them from the definitions.
+                self.append_instruction(Instruction::Pop);
+            } else {
+                self.append_var(param.name.clone(), param.vtype.clone())?;
+            }
         }
         if let Some(return_type) = ret {
             self.ensure_type_is_defined(return_type)?;
@@ -1436,13 +1477,69 @@ impl<'a> CompileState<'a> {
         &mut self,
         base_command: &ast::BaseCommandDefinition,
     ) -> Result<(), CompileError> {
-        let params = &[param::this(base_command.name.clone()), param::author_id()];
+        // Check for expected get_key signature.
+        {
+            let get_key = &base_command.get_key;
+            let params = &get_key.parameters;
+
+            // `get_key` should not have an envelope param.
+            let envelope = params.envelope;
+
+            // `get_key` should only have an ID as the typed params.
+            let other_params = (!matches!(
+                params.other_params.as_slice(),
+                &[Param {
+                    vtype: VType {
+                        inner: TypeKind::Id,
+                        ..
+                    },
+                    ..
+                }]
+            ))
+            .then_some(params.other_params.span);
+
+            // TODO(jdygert): Allow `result[bytes, _]`?
+            // `get_key` should return `option[bytes]`.
+            let return_type = (!matches!(
+                &get_key.return_type.inner,
+                TypeKind::Optional(in_opt) if matches!(in_opt.inner, TypeKind::Bytes)
+            ))
+            .then(|| {
+                InvalidType::new(
+                    "option[bytes]".into(),
+                    None,
+                    get_key.return_type.to_string(),
+                    get_key.return_type.span,
+                )
+            });
+
+            // If any error is present, combine them all into one error.
+            if envelope.is_some() || other_params.is_some() || return_type.is_some() {
+                return Err(self.err(error::InvalidGetKeySignature {
+                    envelope,
+                    other_params,
+                    return_type,
+                }));
+            }
+        }
+
+        let params = iter::chain(
+            // Always take `this`, but it is ignored if absent.
+            iter::once(param::this(
+                base_command.get_key.parameters.this.unwrap_or_default(),
+                base_command.name.clone(),
+            )),
+            // The other parameters (just an ID).
+            base_command.get_key.parameters.other_params.iter().cloned(),
+        )
+        .collect::<Vec<_>>();
+
         let ret = TypeKind::Optional(Box::new(TypeKind::Bytes.nowhere())).nowhere();
         let label = self.anonymous_label();
 
         let fn_def = ast::FunctionDefinition {
             name: ident!("get_key").nowhere(),
-            parameters: params.to_vec(),
+            parameters: params.clone(),
             return_type: ret.clone(),
             body: vec![],
             span: base_command.span,
@@ -1451,11 +1548,12 @@ impl<'a> CompileState<'a> {
         let get_key_address = self.wp;
         self.enter_statement_context(StatementContext::PureFunction(fn_def));
         self.compile_function_like(
-            params,
+            &params,
             Some(&ret),
             base_command.span,
-            &base_command.get_key,
+            &base_command.get_key.body,
             label,
+            Callable::GetKey(base_command.get_key.span),
         )?;
         self.exit_statement_context();
 
@@ -1465,7 +1563,12 @@ impl<'a> CompileState<'a> {
                 get_key_address,
                 flavor: base_command.flavor.clone(),
             })
-            .map_err(|e| self.err(AlreadyDefined::new(base_command.name.clone(), e.existing)))?;
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    Reference::Base(base_command.name.clone()),
+                    Reference::Base(e.existing),
+                ))
+            })?;
 
         Ok(())
     }
@@ -1481,12 +1584,7 @@ impl<'a> CompileState<'a> {
         let base = self
             .base_commands
             .get(&command.base)
-            .ok_or_else(|| {
-                NotDefined(
-                    format!("unknown base class {}", command.base),
-                    command.base.span,
-                )
-            })
+            .ok_or_else(|| NotDefined(Reference::Base(command.base.clone())))
             .map_err(|e| self.err(e))?;
         let cmd_flavor = base.flavor.clone();
         self.define_label(
@@ -1501,15 +1599,10 @@ impl<'a> CompileState<'a> {
             .iter()
             .find(|&(name, _)| *name == cmd_flavor.inner)
             .map(|(_, flavor)| flavor)
-            .ok_or_else(|| {
-                self.err(NotDefined(
-                    format!("unknown flavor {cmd_flavor}"),
-                    cmd_flavor.span,
-                ))
-            })?;
+            .ok_or_else(|| self.err(NotDefined(Reference::Flavor(cmd_flavor.clone()))))?;
 
-        self.compile_command_policy(command, flavor_def)?;
         self.compile_command_recall(command, flavor_def)?;
+        self.compile_command_policy(command, flavor_def)?;
 
         // attributes
         let mut attributes = NamedMap::new();
@@ -1520,7 +1613,12 @@ impl<'a> CompileState<'a> {
                     name: name.clone(),
                     value,
                 })
-                .map_err(|e| self.err(AlreadyDefined::new(name.clone(), e.existing)))?;
+                .map_err(|e| {
+                    self.err(AlreadyDefined::new(
+                        Reference::CommandAttribute(command.name.clone(), name.clone()),
+                        Reference::CommandAttribute(command.name.clone(), e.existing),
+                    ))
+                })?;
         }
 
         // fields
@@ -1545,7 +1643,12 @@ impl<'a> CompileState<'a> {
                     })
                     .collect(),
             })
-            .map_err(|e| self.err(AlreadyDefined::new(command.name.clone(), e.existing)))?;
+            .map_err(|e| {
+                self.err(AlreadyDefined::new(
+                    Reference::Command(command.name.clone()),
+                    Reference::Command(e.existing),
+                ))
+            })?;
 
         Ok(())
     }
@@ -1805,16 +1908,17 @@ impl<'a> CompileState<'a> {
     fn sorted_type_definitions(
         &self,
     ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
-        let mut type_defs: HashMap<Ident, _> = HashMap::new();
-        let mut insert_type_def = |ident: Ident, def| {
+        let mut type_defs: HashMap<Ident, UserType<'a>> = HashMap::new();
+        let mut insert_type_def = |ident: Ident, def: UserType<'a>| {
             use std::collections::hash_map::Entry as E;
             // Check for duplicate type names.
             // struct Foo { .. }
             // effect Foo { .. }
-            match type_defs.entry(ident.clone()) {
+            match type_defs.entry(ident) {
                 E::Occupied(e) => {
-                    let existing_type = e.key();
-                    return Err(self.err(AlreadyDefined::new(ident, existing_type.clone())));
+                    let new = def.reference();
+                    let old = e.get().reference();
+                    return Err(self.err(AlreadyDefined::new(old, new)));
                 }
                 E::Vacant(e) => {
                     e.insert(def);
@@ -1825,7 +1929,7 @@ impl<'a> CompileState<'a> {
 
         let mut topo = TopoSort::new();
 
-        fn extract_struct_ident(item: &StructItem<FieldDefinition>) -> Option<&Identifier> {
+        fn extract_struct_ident(item: &StructItem) -> Option<&Identifier> {
             match item {
                 // { +Foo }
                 StructItem::StructRef(ident) => Some(&ident.inner),
@@ -1944,25 +2048,12 @@ impl<'a> CompileState<'a> {
                     self.define_struct(struct_def.name.clone(), struct_def.items.iter().cloned())?;
                 }
                 UserType::Effect(effect) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = effect
-                        .items
-                        .iter()
-                        .map(|i| match i {
-                            StructItem::Field(f) => StructItem::Field(FieldDefinition {
-                                name: f.name.clone(),
-                                vtype: f.vtype.clone(),
-                            }),
-                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                        })
-                        .collect();
-                    self.define_struct(effect.name.clone(), fields.iter().cloned())?;
+                    self.define_struct(effect.name.clone(), effect.items.iter().cloned())?;
                     self.m.interface.effects.insert(effect.name.clone());
                 }
                 UserType::Fact(fact) => {
-                    let fields: Vec<StructItem<FieldDefinition>> =
-                        fact.fields().cloned().map(StructItem::Field).collect();
-
-                    self.define_struct(fact.name.clone(), fields.iter().cloned())?;
+                    let fields = fact.fields().cloned().map(StructItem::Field);
+                    self.define_struct(fact.name.clone(), fields)?;
                     self.define_fact(fact)?;
                 }
                 UserType::BaseCommand(base_command) => {
@@ -1979,17 +2070,13 @@ impl<'a> CompileState<'a> {
                     )?;
                 }
                 UserType::FFIStruct(s) => {
-                    let fields: Vec<StructItem<FieldDefinition>> = s
-                        .fields
-                        .iter()
-                        .map(|a| {
-                            StructItem::Field(FieldDefinition {
-                                name: a.name.clone().nowhere(),
-                                vtype: VType::from(&a.vtype),
-                            })
+                    let fields = s.fields.iter().map(|a| {
+                        StructItem::Field(FieldDefinition {
+                            name: a.name.clone().nowhere(),
+                            vtype: VType::from(&a.vtype),
                         })
-                        .collect();
-                    self.define_struct(s.name.clone().nowhere(), fields.iter().cloned())?;
+                    });
+                    self.define_struct(s.name.clone().nowhere(), fields)?;
                 }
             }
         }
@@ -2103,11 +2190,7 @@ impl<'a> CompileState<'a> {
             ExprKind::Bool(v) => Ok(ConstValue::Bool(*v)),
             ExprKind::String(v) => Ok(ConstValue::String(v.clone())),
             ExprKind::NamedStruct(struct_ast) => {
-                let Some(struct_def) = self.m.interface.struct_defs.get(&struct_ast.name.inner)
-                else {
-                    let note = format!("struct `{}` not defined", struct_ast.name);
-                    return Err(self.err(NotDefined(note, struct_ast.name.span)));
-                };
+                let struct_def = self.get_struct_def(&struct_ast.name)?;
 
                 let struct_ast = self.evaluate_sources(struct_ast, struct_def)?;
 
@@ -2192,10 +2275,10 @@ impl<'a> CompileState<'a> {
 
         for src_var_name in &base_struct.sources {
             // Look up source's type. It should be a struct.
-            let src_type = self.identifier_types.get(src_var_name).map_err(|_err| {
-                let note = format!("'{}' not in scope", src_var_name);
-                self.err(NotDefined(note, src_var_name.span))
-            })?;
+            let src_type = self
+                .identifier_types
+                .get(src_var_name)
+                .map_err(|_err| self.err(NotDefined(Reference::Variable(src_var_name.clone()))))?;
 
             let src_struct_type_name = src_type.as_struct().ok_or_else(|| {
                 let e = InvalidType::new(
@@ -2340,7 +2423,10 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(e) => {
                 let existing_function = e.key().clone();
-                return Err(self.err(AlreadyDefined::new(existing_function, name)));
+                return Err(self.err(AlreadyDefined::new(
+                    Callable::Function(existing_function),
+                    Callable::Function(name),
+                )));
             }
         }
 
@@ -2369,10 +2455,13 @@ enum Scope {
 struct Config<'a> {
     flavors: &'a Flavors<'a>,
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// Determines if one compiles with debug functionality,
-    is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
     stub_ffi: bool,
+    allow_test_fail: bool,
+    allow_todo: bool,
+    allow_unused: bool,
+    require_publish: bool,
+    debug_assertions: bool,
 }
 
 static DEFAULT_FLAVORS: Flavors<'static> = Flavors {
@@ -2392,8 +2481,12 @@ impl Config<'_> {
         Self {
             flavors: &DEFAULT_FLAVORS,
             ffi_modules: &[],
-            is_debug: cfg!(debug_assertions),
             stub_ffi: false,
+            allow_test_fail: false,
+            allow_todo: false,
+            allow_unused: false,
+            require_publish: true,
+            debug_assertions: false,
         }
     }
 }
@@ -2427,16 +2520,39 @@ impl<'a> Compiler<'a> {
         self
     }
 
-    /// Enables or disables debug mode
     #[must_use]
-    pub fn debug(mut self, is_debug: bool) -> Self {
-        self.config.is_debug = is_debug;
+    pub fn stub_ffi(mut self, flag: bool) -> Self {
+        self.config.stub_ffi = flag;
         self
     }
 
     #[must_use]
-    pub fn stub_ffi(mut self, flag: bool) -> Self {
-        self.config.stub_ffi = flag;
+    pub fn allow_test_fail(mut self, flag: bool) -> Self {
+        self.config.allow_test_fail = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn allow_todo(mut self, flag: bool) -> Self {
+        self.config.allow_todo = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn allow_unused(mut self, flag: bool) -> Self {
+        self.config.allow_unused = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn require_publish(mut self, flag: bool) -> Self {
+        self.config.require_publish = flag;
+        self
+    }
+
+    #[must_use]
+    pub fn debug_assertions(mut self, flag: bool) -> Self {
+        self.config.debug_assertions = flag;
         self
     }
 
@@ -2448,7 +2564,8 @@ impl<'a> Compiler<'a> {
     }
 
     /// Compile only the public interface of the policy, for use with tools like `aranya-policy-ifgen`.
-    pub fn compile_interface(self) -> Result<PolicyInterface, CompileError> {
+    pub fn compile_interface(mut self) -> Result<PolicyInterface, CompileError> {
+        self.config.stub_ffi = true;
         let mut cs = self.set_up_compile_state();
         cs.define_interfaces()?;
         Ok(cs.m.interface)
@@ -2464,10 +2581,11 @@ impl<'a> Compiler<'a> {
             c: 0,
             base_commands: NamedMap::new(),
             function_signatures: BTreeMap::new(),
+            recall_signatures: BTreeMap::new(),
             builtin_functions: BTreeMap::new(),
             last_span: Span::empty(),
             statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(self.config.is_debug),
+            identifier_types: IdentifierTypeStack::new(self.config.allow_unused),
             call_graph: CallGraph::new(),
             current_caller: None,
             config: self.config,

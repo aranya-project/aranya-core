@@ -6,6 +6,8 @@
 //! The FFI/compiler/VM crates are needed for one-time policy compilation
 //! and FFI module wiring.
 
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "example")]
+
 use std::{fs, sync::Arc};
 
 use anyhow::{Context as _, Result};
@@ -16,7 +18,7 @@ use aranya_core::{
     keystore::{
         DeviceId, EncryptionKey, Identified, IdentityKey, KeyStoreExt as _, MemStore, SigningKey,
     },
-    policy::{FfiSet, VmEffect, VmPolicyStore, VmSealCtx},
+    policy::{FfiSet, FileStore, VmEffect, VmPolicyStore, VmSealCtx},
     storage::{FileManager, LibcSpill, LinearStorageProvider},
     sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
 };
@@ -36,6 +38,7 @@ use policy::{Effect, PublicKeys, add_device, increment_counter, init, set_counte
 // Type Aliases
 // ---------------------------------------------------------------------------
 
+type BS = FileStore;
 type CS = DefaultCipherSuite;
 type CE = Arc<DefaultEngine<Rng, CS>>;
 
@@ -156,15 +159,16 @@ fn create_device() -> Result<Device> {
 const POLICY_SOURCE: &str = include_str!("policy.md");
 
 fn create_policy_store(
-    seal_ctx: VmSealCtx<CE>,
+    byte_store: FileStore,
+    author: DeviceId,
     eng: CE,
     store: MemStore,
-) -> Result<VmPolicyStore<CE>> {
+) -> Result<VmPolicyStore<BS, CE>> {
     let ffis = FfiSet::new()
-        .with(DeviceFfi::new(seal_ctx.author))?
+        .with(DeviceFfi::new(author))?
         .with(IdamFfi::new(store))?
         .with(PerspectiveFfi)?;
-    Ok(VmPolicyStore::new(eng, ffis, seal_ctx))
+    Ok(VmPolicyStore::new(byte_store, eng, ffis))
 }
 
 fn compile_policy() -> Result<Vec<u8>> {
@@ -176,6 +180,8 @@ fn compile_policy() -> Result<Vec<u8>> {
             PerspectiveFfi::SCHEMA,
         ])
         .flavors(&aranya_core::policy::FLAVORS)
+        // TODO: remove test fail from example policy
+        .allow_test_fail(true)
         .compile()
         .context("compile policy")?;
 
@@ -206,8 +212,8 @@ fn dispatch(
 
 fn sync_graphs(
     graph_id: GraphId,
-    source: &mut ClientState<VmPolicyStore<CE>, LinearStorageProvider<FileManager>>,
-    dest: &mut ClientState<VmPolicyStore<CE>, LinearStorageProvider<FileManager>>,
+    source: &mut ClientState<VmPolicyStore<BS, CE>, LinearStorageProvider<FileManager>>,
+    dest: &mut ClientState<VmPolicyStore<BS, CE>, LinearStorageProvider<FileManager>>,
     sink: &mut PrintSink,
     spill_dir: &std::path::Path,
 ) -> Result<()> {
@@ -275,16 +281,37 @@ fn sync_graphs(
 fn main() -> Result<()> {
     let storage_root = std::env::temp_dir().join("aranya-core-example");
 
-    // Create per-device storage directories.
-    let dir_a = storage_root.join("device_a");
-    let dir_b = storage_root.join("device_b");
-    fs::create_dir_all(&dir_a).context("create device_a storage dir")?;
-    fs::create_dir_all(&dir_b).context("create device_b storage dir")?;
+    // Create per-device storage.
 
-    let provider_a =
-        LinearStorageProvider::new(FileManager::new(&dir_a).context("FileManager for device A")?);
-    let provider_b =
-        LinearStorageProvider::new(FileManager::new(&dir_b).context("FileManager for device B")?);
+    let provider_a = LinearStorageProvider::new(
+        FileManager::new({
+            let dir = storage_root.join("graph_store_a");
+            fs::create_dir_all(&dir).context("create graph_store_a dir")?;
+            dir
+        })
+        .context("FileManager for device A")?,
+    );
+    let provider_b = LinearStorageProvider::new(
+        FileManager::new({
+            let dir = storage_root.join("graph_store_b");
+            fs::create_dir_all(&dir).context("create graph_store_b dir")?;
+            dir
+        })
+        .context("FileManager for device B")?,
+    );
+
+    let byte_store_a = FileStore::new({
+        let dir = storage_root.join("policy_store_a");
+        fs::create_dir_all(&dir).context("create policy_store_a dir")?;
+        dir
+    })
+    .context("byte store for device A")?;
+    let byte_store_b = FileStore::new({
+        let dir = storage_root.join("policy_store_b");
+        fs::create_dir_all(&dir).context("create policy_store_b dir")?;
+        dir
+    })
+    .context("byte store for device B")?;
 
     println!("== Device Setup ==");
 
@@ -301,9 +328,11 @@ fn main() -> Result<()> {
     // Step 3: Compile policy for Device A, create Client A
     println!("\n== Device A: Create Team ==");
     println!("\nStep 3: Compiling policy for Device A...");
+    let seal_ctx_a = dev_a.seal_ctx()?;
     let policy_module = compile_policy()?;
-    let policy_store_a = create_policy_store(dev_a.seal_ctx()?, dev_a.engine, dev_a.store)?;
-    let mut cs_a = ClientState::new(policy_store_a, provider_a);
+    let policy_store_a =
+        create_policy_store(byte_store_a, seal_ctx_a.author, dev_a.engine, dev_a.store)?;
+    let mut cs_a = ClientState::new(policy_store_a, provider_a, Some(seal_ctx_a));
     let mut sink = PrintSink::new();
     let mut rt_buffers = RuntimeBuffers::new();
     let make_spill = || LibcSpill::new(&storage_root);
@@ -342,8 +371,10 @@ fn main() -> Result<()> {
     // Step 8: Compile policy for Device B, create Client B
     println!("\n== Sync: A -> B ==");
     println!("\nStep 8: Compiling policy for Device B...");
-    let policy_store_b = create_policy_store(dev_b.seal_ctx()?, dev_b.engine, dev_b.store)?;
-    let mut cs_b = ClientState::new(policy_store_b, provider_b);
+    let seal_ctx_b = dev_b.seal_ctx()?;
+    let policy_store_b =
+        create_policy_store(byte_store_b, seal_ctx_b.author, dev_b.engine, dev_b.store)?;
+    let mut cs_b = ClientState::new(policy_store_b, provider_b, Some(seal_ctx_b));
 
     // Step 9: Sync graph from A to B
     println!("\nStep 9: Syncing A -> B...");

@@ -203,7 +203,7 @@ impl PolicyRunner {
                 // Prepare the action argument signatures
                 let action_args: String = preamble_vars
                     .iter()
-                    .map(|(i, v)| format!("{i} {}, ", v.type_name().to_lowercase()))
+                    .map(|(i, v)| format!("{i} {}, ", v.type_name()))
                     .collect();
                 let thunk_start = thunk_counter;
                 for policy_runnable in &run_file.do_things {
@@ -235,9 +235,7 @@ impl PolicyRunner {
         policy_doc.push_str("\n```\n");
 
         tracing::debug!("Compiling Policy");
-        let ast = parse_policy_document(&policy_doc)
-            .inspect_err(|e| println!("{e}"))
-            .context("unable to parse policy document")?;
+        let ast = parse_policy_document(&policy_doc).context("unable to parse policy document")?;
         let module = Compiler::new(&ast)
             .ffi_modules(&FFI_MODULES)
             .compile()

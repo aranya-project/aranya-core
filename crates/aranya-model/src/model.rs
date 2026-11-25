@@ -19,7 +19,7 @@ use aranya_policy_vm::ModuleIoError;
 use aranya_runtime::{
     ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
     StorageProvider, SyncError, SyncRequester, TraversalBuffers, mem_spill,
-    policy::{Policy, PolicyError, PolicyStore, Sink},
+    policy::{Policy, PolicyError, PolicyStore, Sink, store::testing::NullStore},
     storage::{GraphId, StorageError},
     testing::dsl::dispatch,
     vm_policy::{VmEffect, VmPolicyError},
@@ -31,7 +31,7 @@ use derive_where::derive_where;
 /// An Effect is a struct used in policy `finish` and `recall` blocks to describe the shape of side effects emitted from processed commands.
 pub type ModelEffect = VmEffect;
 
-pub type ModelPolicyStore<CE> = aranya_runtime::vm_policy::VmPolicyStore<CE>;
+pub type ModelPolicyStore<CE> = aranya_runtime::vm_policy::VmPolicyStore<NullStore, CE>;
 
 /// An error returned by the model.
 #[derive(Debug, thiserror::Error)]
@@ -640,7 +640,7 @@ impl<PS: PolicyStore, SP: StorageProvider> Session<'_, PS, SP> {
         action: <<PS as PolicyStore>::Policy as Policy>::Action<'_>,
     ) -> Result<()> {
         self.session.action(
-            &*self.client.borrow(),
+            &mut *self.client.borrow_mut(),
             &mut self.effects,
             &mut self.msgs,
             action,
@@ -651,7 +651,7 @@ impl<PS: PolicyStore, SP: StorageProvider> Session<'_, PS, SP> {
     /// Process a received ephemeral command.
     pub fn receive(&mut self, command: &[u8]) -> Result<()> {
         self.session
-            .receive(&*self.client.borrow(), &mut self.effects, command)?;
+            .receive(&mut *self.client.borrow_mut(), &mut self.effects, command)?;
         Ok(())
     }
 

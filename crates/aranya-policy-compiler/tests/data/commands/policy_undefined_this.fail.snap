@@ -1,0 +1,4 @@
+error: variable `this` is not defined
+  |
+3 |         let _var = this
+  |                    ^^^^ used here

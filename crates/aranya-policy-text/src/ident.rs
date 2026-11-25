@@ -14,7 +14,7 @@ use crate::{
 )]
 #[rkyv(bytecheck(verify))]
 #[rkyv(derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord))]
-/// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.
+/// A textual identifier which matches `[a-zA-Z_][a-zA-Z0-9_]*`.
 pub struct Identifier(Text);
 
 /// Creates an `Identifier` from a string literal.
@@ -44,7 +44,7 @@ impl Identifier {
                     }));
                 }
             // Check first character
-            } else if !b.is_ascii_alphabetic() {
+            } else if !(b.is_ascii_alphabetic() || b == b'_') {
                 return Err(InvalidIdentifier(
                     InvalidIdentifierRepr::InitialNotAlphabetic,
                 ));
@@ -157,7 +157,7 @@ impl<'de> de::Deserialize<'de> for Identifier {
         Self::validate(r.as_str()).map_err(|_| {
             de::Error::invalid_value(
                 de::Unexpected::Str(r.as_str()),
-                &"must match `[a-zA-Z][a-zA-Z0-9_]*`",
+                &"must match `[a-zA-Z_][a-zA-Z0-9_]*`",
             )
         })?;
         Ok(Self(Text(r)))

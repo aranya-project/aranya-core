@@ -42,6 +42,7 @@
 //! vectors::run_all(|| MemBackend).unwrap();
 //! ```
 
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "test")]
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
@@ -1126,7 +1127,7 @@ where
                 let policy_store = TestPolicyStore::new();
                 let storage = backend.provider(id);
 
-                let state = ClientState::new(policy_store, storage);
+                let state = ClientState::new(policy_store, storage, Some(()));
                 clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph {
@@ -2397,7 +2398,11 @@ mod tests {
     fn collect_facts_sees_set_values() -> Result<(), TestError> {
         let mut sink = TestSink::new();
         sink.ignore_expectations(true);
-        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut state = ClientState::new(
+            TestPolicyStore::new(),
+            MemStorageProvider::default(),
+            Some(()),
+        );
         let mut buffers = RuntimeBuffers::new();
         let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
         state.action(
@@ -2422,7 +2427,11 @@ mod tests {
     fn delete_action_removes_fact() -> Result<(), TestError> {
         let mut sink = TestSink::new();
         sink.ignore_expectations(true);
-        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut state = ClientState::new(
+            TestPolicyStore::new(),
+            MemStorageProvider::default(),
+            Some(()),
+        );
         let mut buffers = RuntimeBuffers::new();
         let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
         for action in [
@@ -2444,7 +2453,11 @@ mod tests {
     fn set_value_priority_carries_priority() -> Result<(), TestError> {
         let mut sink = TestSink::new();
         sink.ignore_expectations(true);
-        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut state = ClientState::new(
+            TestPolicyStore::new(),
+            MemStorageProvider::default(),
+            Some(()),
+        );
         let mut buffers = RuntimeBuffers::new();
         let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
         state.action(
@@ -2548,7 +2561,11 @@ mod tests {
     fn noop_action_writes_no_facts() -> Result<(), TestError> {
         let mut sink = TestSink::new();
         sink.ignore_expectations(true);
-        let mut state = ClientState::new(TestPolicyStore::new(), MemStorageProvider::default());
+        let mut state = ClientState::new(
+            TestPolicyStore::new(),
+            MemStorageProvider::default(),
+            Some(()),
+        );
         let mut buffers = RuntimeBuffers::new();
         let graph_id = state.new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink)?;
         for action in [TestActions::SetValue(7, 9), TestActions::NoOp(42, 1)] {

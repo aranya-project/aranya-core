@@ -1,8 +1,8 @@
 use aranya_policy_ast::{
-    ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FunctionCall,
-    Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern, MatchStatement,
-    NamedStruct, Param, ResultTypeKind, Span, Spanned as _, Statement, StmtKind, TypeKind, VType,
-    WithSpanExt as _, thir,
+    ExprKind, Expression, FactCountType, FactDefinition, FactField, FactLiteral, FieldDefinition,
+    FunctionCall, Ident, InternalFunction, LanguageContext, MatchExpression, MatchPattern,
+    MatchStatement, NamedStruct, Param, ResultTypeKind, Span, Spanned as _, Statement, StmtKind,
+    TypeKind, VType, WithSpanExt as _, thir,
 };
 use buggy::{BugExt as _, bug};
 use indexmap::IndexMap;
@@ -11,29 +11,37 @@ use itertools::Itertools as _;
 use super::{
     CompileError, CompileState, FunctionColor, FunctionSignature, Scope, StatementContext,
     error::{
-        BadArgument, DuplicateMatchPatterns, InvalidCallColor, InvalidCallColorKind, InvalidCast,
-        InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement, InvalidSubstruct,
-        InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm, UnknownError,
-        UnreachableMatchArm, UnusedValue,
+        BadArgument, Callable, DuplicateMatchPatterns, InvalidCallColor, InvalidCallColorKind,
+        InvalidCast, InvalidExpression, InvalidFactLiteral, InvalidReturn, InvalidStatement,
+        InvalidSubstruct, InvalidType, MissingDefaultPattern, NotDefined, RedundantMatchArm,
+        Reference, UnknownError, UnreachableMatchArm, UnusedValue,
     },
     types,
 };
 use crate::compile::error::{DuplicateField, InvalidStructLiteral, MissingFields, UnknownField};
 
 impl CompileState<'_> {
+    pub(super) fn get_struct_def(&self, name: &Ident) -> Result<&[FieldDefinition], CompileError> {
+        self.m
+            .interface
+            .struct_defs
+            .get(&name.inner)
+            .map(Vec::as_slice)
+            .ok_or_else(|| self.err(NotDefined(Reference::Struct(name.clone()))))
+    }
+
     fn get_fact_def(&self, name: &Ident) -> Result<&FactDefinition, CompileError> {
-        self.m.fact_defs.get(&name.inner).ok_or_else(|| {
-            let note = format!("fact `{}` not defined", name);
-            self.err(NotDefined(note, name.span))
-        })
+        self.m
+            .fact_defs
+            .get(&name.inner)
+            .ok_or_else(|| self.err(NotDefined(Reference::Fact(name.clone()))))
     }
 
     /// Looks up the signature of the function named `name`.
     fn get_function_signature(&self, name: &Ident) -> Result<&FunctionSignature, CompileError> {
-        self.function_signatures.get(&name.inner).ok_or_else(|| {
-            let note = format!("function `{}` not defined", name);
-            self.err(NotDefined(note, name.span))
-        })
+        self.function_signatures
+            .get(&name.inner)
+            .ok_or_else(|| self.err(NotDefined(Callable::Function(name.clone()).into())))
     }
 
     fn unreachable_match_arm_error(&self, span: Span) -> CompileError {
@@ -51,10 +59,7 @@ impl CompileState<'_> {
     /// - the fields defined in the struct are present, and have the correct types
     /// - there are no duplicate fields
     fn lower_struct_literal(&mut self, s: &NamedStruct) -> Result<thir::NamedStruct, CompileError> {
-        let Some(struct_def) = self.m.interface.struct_defs.get(&s.name.inner).cloned() else {
-            let note = format!("struct `{}` not defined", s.name);
-            return Err(self.err(NotDefined(note, s.name.span)));
-        };
+        let struct_def = self.get_struct_def(&s.name)?.to_vec();
 
         let s = self.evaluate_sources(s, &struct_def)?;
 
@@ -505,7 +510,7 @@ impl CompileState<'_> {
                 }
 
                 InternalFunction::Todo(span) => {
-                    self.require_debug_mode("todo()", *span)?;
+                    self.require_flag(self.config.allow_todo, "todo()", *span)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::Todo(*span)),
                         vtype: VType {
@@ -516,7 +521,7 @@ impl CompileState<'_> {
                     }
                 }
                 InternalFunction::TestFail(msg, span) => {
-                    self.require_debug_mode("test_fail()", *span)?;
+                    self.require_flag(self.config.allow_test_fail, "test_fail()", *span)?;
                     thir::Expression {
                         kind: thir::ExprKind::InternalFunction(thir::InternalFunction::TestFail(
                             msg.clone(),
@@ -559,8 +564,7 @@ impl CompileState<'_> {
                     .iter()
                     .any(|m| m.inner.as_str() == f.module.inner.as_str())
                 {
-                    let note = format!("module `{}` not imported", f.module);
-                    return Err(self.err(NotDefined(note, f.module.span)));
+                    return Err(self.err(NotDefined(Reference::Module(f.module.clone()))));
                 }
 
                 let mut args = Vec::new();
@@ -580,10 +584,7 @@ impl CompileState<'_> {
                         .ffi_modules
                         .iter()
                         .find_position(|m| m.name == f.module.inner.as_str())
-                        .ok_or_else(|| {
-                            let note = format!("module `{}` not defined", f.module);
-                            self.err(NotDefined(note, f.module.span))
-                        })?;
+                        .ok_or_else(|| self.err(NotDefined(Reference::Module(f.module.clone()))))?;
 
                     // find module function by name
                     let (procedure_id, procedure) = module
@@ -591,9 +592,10 @@ impl CompileState<'_> {
                         .iter()
                         .find_position(|proc| proc.name == f.function.inner.as_str())
                         .ok_or_else(|| {
-                            let note =
-                                format!("function `{}::{}` not defined", f.module, f.function);
-                            self.err(NotDefined(note, f.function.span))
+                            self.err(NotDefined(Reference::FfiFunction(
+                                f.module.clone(),
+                                f.function.clone(),
+                            )))
                         })?;
 
                     ids = Some((module_id, procedure_id));
@@ -713,10 +715,10 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Identifier(i) => {
-                let mut vtype = self.identifier_types.get(i).map_err(|_| {
-                    let note = format!("'{}' not in scope", i);
-                    self.err(NotDefined(note, i.span))
-                })?;
+                let mut vtype = self
+                    .identifier_types
+                    .get(i)
+                    .map_err(|_| self.err(NotDefined(Reference::Variable(i.clone()))))?;
                 // This makes type errors point to where the identifier is used, rather than where its type is determined.
                 // TODO: Add the type determination as a a third span to those errors?
                 vtype.span = expression.span;
@@ -746,23 +748,18 @@ impl CompileState<'_> {
 
                 let name = t.vtype.as_struct().ok_or_else(|| {
                     self.err(InvalidType::new(
-                        "struct".to_owned(),
+                        "struct _".to_owned(),
                         None,
                         t.vtype.to_string(),
                         t.span,
                     ))
                 })?;
-                let struct_def = self.m.interface.struct_defs.get(name).ok_or_else(|| {
-                    let note = format!("struct `{name}` not defined");
-                    self.err(NotDefined(note, name.span))
-                })?;
+                let struct_def = self.get_struct_def(name)?;
                 let field_def = struct_def
                     .iter()
                     .find(|f| f.name.inner == s.inner)
                     .ok_or_else(|| {
-                        // TODO(Steve): Replace with a new unknown field error type.
-                        let note = format!("struct `{}` has no member `{}`", name, s.inner);
-                        self.err(NotDefined(note, s.span))
+                        self.err(NotDefined(Reference::StructField(name.clone(), s.clone())))
                     })?;
                 let vtype = field_def.vtype.clone();
                 thir::Expression {
@@ -772,11 +769,7 @@ impl CompileState<'_> {
                 }
             }
             ExprKind::Substruct(lhs, sub) => {
-                let Some(sub_field_defns) = self.m.interface.struct_defs.get(&sub.inner).cloned()
-                else {
-                    let note = format!("struct `{}` not defined", sub);
-                    return Err(self.err(NotDefined(note, sub.span)));
-                };
+                let sub_field_defns = self.get_struct_def(sub)?.to_vec();
 
                 let lhs_expression = self.lower_expression(lhs)?;
                 let lhs_struct_name = lhs_expression.vtype.as_struct().ok_or_else(|| {
@@ -787,12 +780,7 @@ impl CompileState<'_> {
                         lhs_expression.span,
                     ))
                 })?;
-                let Some(lhs_field_defns) =
-                    self.m.interface.struct_defs.get(&lhs_struct_name.inner)
-                else {
-                    let note = format!("struct `{lhs_struct_name}` not defined");
-                    return Err(self.err(NotDefined(note, lhs_struct_name.span)));
-                };
+                let lhs_field_defns = self.get_struct_def(lhs_struct_name)?;
 
                 // Check that the struct type on the RHS is a subset of the struct expression on the LHS
                 if !sub_field_defns.iter().all(|field_def| {
@@ -821,16 +809,7 @@ impl CompileState<'_> {
                 // NOTE this is implemented only for structs
 
                 // make sure other struct is defined
-                let rhs_fields = self
-                    .m
-                    .interface
-                    .struct_defs
-                    .get(&rhs_ident.inner)
-                    .cloned()
-                    .ok_or_else(|| {
-                        let note = format!("struct `{rhs_ident}` not defined");
-                        self.err(NotDefined(note, rhs_ident.span))
-                    })?;
+                let rhs_fields = self.get_struct_def(rhs_ident)?.to_vec();
 
                 let lhs_expression = self.lower_expression(lhs)?;
                 let lhs_struct_name = lhs_expression.vtype.as_struct().ok_or_else(|| {
@@ -841,15 +820,7 @@ impl CompileState<'_> {
                         lhs_expression.span,
                     ))
                 })?;
-                let lhs_fields = self
-                    .m
-                    .interface
-                    .struct_defs
-                    .get(&lhs_struct_name.inner)
-                    .ok_or_else(|| {
-                        let note = format!("struct `{lhs_struct_name}` not defined");
-                        self.err(NotDefined(note, lhs_struct_name.span))
-                    })?;
+                let lhs_fields = self.get_struct_def(lhs_struct_name)?;
 
                 // Check that both structs have the same field names and types (though not necessarily in the same order)
                 if lhs_fields.len() != rhs_fields.len()
@@ -1149,8 +1120,7 @@ impl CompileState<'_> {
         span: Span,
     ) -> Result<thir::FunctionCall, CompileError> {
         let Some(action_def) = self.policy.actions.iter().find(|a| a.name == fc.name.inner) else {
-            let note = format!("action `{}` not defined", fc.name);
-            return Err(self.err(NotDefined(note, fc.name.span)));
+            return Err(self.err(NotDefined(Callable::Action(fc.name.clone()).into())));
         };
 
         // A returning action is an expression, not a statement. Its result
@@ -1175,8 +1145,7 @@ impl CompileState<'_> {
         expression: &Expression,
     ) -> Result<thir::Expression, CompileError> {
         let Some(action_def) = self.policy.actions.iter().find(|a| a.name == fc.name.inner) else {
-            let note = format!("action `{}` not defined", fc.name);
-            return Err(self.err(NotDefined(note, fc.name.span)));
+            return Err(self.err(NotDefined(Callable::Action(fc.name.clone()).into())));
         };
 
         // Only a returning action can be used in an expression.
@@ -1211,17 +1180,13 @@ impl CompileState<'_> {
         fc: &FunctionCall,
         cmd: &aranya_policy_ast::CommandDefinition,
     ) -> Result<thir::RecallCall, CompileError> {
-        // Find the matching recall block in the command definition
-        let recall_block = cmd
-            .recalls
-            .iter()
-            .find(|rb| rb.name.inner == fc.name.inner)
-            .ok_or_else(|| {
-                let note = format!("recall block `{}`", fc.name);
-                self.err(NotDefined(note, fc.name.span))
-            })?;
+        let parameters = self
+            .recall_signatures
+            .get(&(cmd.name.clone(), fc.name.clone()))
+            .ok_or_else(|| self.err(NotDefined(Callable::Recall(fc.name.clone()).into())))?
+            .clone();
 
-        let arguments = self.lower_call_args(fc, &recall_block.parameters, fc.span())?;
+        let arguments = self.lower_call_args(fc, &parameters, fc.span())?;
 
         Ok(thir::RecallCall {
             command_name: cmd.name.clone(),

@@ -23,7 +23,7 @@ use aranya_runtime::{
     storage::{GraphId, StorageProvider},
 };
 use buggy::{BugExt as _, bug};
-use heapless::FnvIndexMap;
+use heapless::index_map::FnvIndexMap;
 use tracing::error;
 
 /// FNVIndexMap requires that the size be a power of 2.
@@ -37,7 +37,6 @@ pub fn run_syncer<PS, SP, S>(
 ) where
     PS: PolicyStore,
     SP: StorageProvider,
-    SP::Segment: Send,
     S: Sink<<PS as PolicyStore>::Effect>,
     Syncer<PS, SP, S>: Send,
 {
@@ -300,7 +299,8 @@ where
                 }
             }
             SyncIncoming::Unsubscribe(unsub) => {
-                self.subscriptions.remove(&(peer_address, unsub.graph_id()));
+                self.subscriptions
+                    .swap_remove(&(peer_address, unsub.graph_id()));
                 0
             }
             SyncIncoming::Push(push) => {

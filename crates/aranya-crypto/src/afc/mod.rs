@@ -21,7 +21,6 @@
 //! [AFC]: https://github.com/aranya-project/aranya-core/tree/main/crates/aranya-fast-channels
 
 #![cfg(feature = "afc")]
-#![cfg_attr(docsrs, doc(cfg(feature = "afc")))]
 
 mod keys;
 mod shared;

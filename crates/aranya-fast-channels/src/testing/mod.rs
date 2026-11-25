@@ -9,9 +9,9 @@
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::panic)]
+#![allow(clippy::print_stderr)]
 #![allow(clippy::unwrap_used)]
 #![cfg(any(test, feature = "testing"))]
-#![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #![cfg_attr(not(feature = "trng"), forbid(unsafe_code))]
 
 pub mod util;
@@ -55,7 +55,8 @@ macro_rules! test_impl {
 
             // Test regular AEADs.
             $crate::testing::__test_impl!($(#[$meta]),* aes256gcm,
-                $type, $crate::crypto::Aes256Gcm);
+                $type, ::aranya_crypto::dangerous::spideroak_crypto::rust::Aes256Gcm
+            );
 
             // Test an AEAD with funky key, nonce, etc. sizes.
             $crate::testing::__test_impl!($(#[$meta]),* funky_sizes,

@@ -1,4 +1,4 @@
-error: a thing being referenced is not in scope
+error: variable `p` is not defined
   |
 3 |     check p == None else test_fail()
-  |           ^ 'p' not in scope
+  |           ^ used here
