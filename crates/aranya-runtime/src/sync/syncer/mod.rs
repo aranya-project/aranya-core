@@ -4,10 +4,14 @@
 
 use core::fmt;
 
+use aranya_crypto::Csprng;
+use buggy::Bug;
+
 use crate::{
-    ClientError, ClientState, RuntimeBuffers,
-    storage::{GraphId, StorageError, StorageProvider},
-    sync::{PeerCache, SyncError},
+    Address, ClientError, ClientState, RuntimeBuffers,
+    policy::{PolicyStore, Sink},
+    storage::{GraphId, Spill, StorageError, StorageProvider},
+    sync::{PeerCache, SyncError, SyncRequester},
 };
 
 mod config;
@@ -18,7 +22,8 @@ mod slots;
 mod time;
 
 pub use config::{Limits, LimitsBuilder, PeerConfig};
-use schedule::Schedule;
+use schedule::{Due, PollResult, Schedule};
+use slots::Inflight;
 pub use slots::{FixedSlots, HeapSlots, OutOfSlots, SyncSlot, SyncSlots};
 pub use time::SyncInstant;
 
@@ -40,6 +45,51 @@ impl<A> Token<A> {
     /// The peer the message is addressed to.
     pub fn peer(&self) -> &A {
         &self.peer
+    }
+}
+
+/// A poll request the caller should send, already encoded into its buffer
+/// by [`Syncer::next_outbound`]. Pass the peer's reply to
+/// [`Syncer::handle_reply`], or report a failure with [`Syncer::fail`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Outbound<A> {
+    token: Token<A>,
+    len: usize,
+}
+
+impl<A> Outbound<A> {
+    /// The peer to send to.
+    pub fn peer(&self) -> &A {
+        &self.token.peer
+    }
+
+    /// The graph the message concerns.
+    pub fn graph_id(&self) -> GraphId {
+        self.token.graph_id
+    }
+
+    /// Bytes written to the output buffer; send `out[..len]`.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Always false: an outbound with nothing to send is never produced.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// The handle to pass to [`Syncer::handle_reply`] or
+    /// [`Syncer::fail`].
+    pub fn token(&self) -> Token<A>
+    where
+        A: Clone,
+    {
+        self.token.clone()
+    }
+
+    /// Consumes the outbound, yielding its token.
+    pub fn into_token(self) -> Token<A> {
+        self.token
     }
 }
 
@@ -109,6 +159,28 @@ pub struct SyncContext<'a, PS, SP: StorageProvider, K, R, MS> {
     pub rng: &'a R,
     /// Creates overflow storage for a braid; see [`ClientState::commit`].
     pub make_spill: MS,
+}
+
+/// Records in `cache` that the peer holds `addrs`. A graph we do not hold
+/// yet has nothing to record against; that is not an error.
+fn record_heads<PS, SP, I>(
+    client: &mut ClientState<PS, SP>,
+    graph_id: GraphId,
+    addrs: I,
+    cache: &mut PeerCache,
+    buffer: &mut crate::storage::TraversalBuffer,
+    rng: &impl Csprng,
+) -> Result<(), SyncerError>
+where
+    PS: PolicyStore,
+    SP: StorageProvider,
+    I: IntoIterator<Item = Address>,
+    I::IntoIter: DoubleEndedIterator,
+{
+    match client.update_heads(graph_id, addrs, cache, buffer, rng) {
+        Ok(()) | Err(ClientError::StorageError(StorageError::NoSuchStorage)) => Ok(()),
+        Err(err) => Err(err.into()),
+    }
 }
 
 /// A sans-I/O syncer state machine.
@@ -302,5 +374,213 @@ where
     pub fn fail(&mut self, token: Token<A>, now: T) {
         self.schedule
             .fail_inflight(token.graph_id, &token.peer, token.seq, now);
+    }
+
+    /// Wraps: a `seq` only has to differ from the slot's previous request,
+    /// not be unique forever.
+    fn next_seq(&mut self) -> u32 {
+        self.seq = self.seq.wrapping_add(1);
+        self.seq
+    }
+
+    fn reply_deadline(&self, now: T) -> T {
+        now.saturating_add(self.schedule.limits().reply_timeout)
+    }
+}
+
+impl<A, T, S> Syncer<A, T, S>
+where
+    A: Clone + Eq,
+    T: SyncInstant,
+    S: SyncSlots<A, T>,
+{
+    /// Produces the next due outbound message, encoded into `out`, or `None`
+    /// when nothing is due at `now`.
+    ///
+    /// Drain until `None`, performing each message's I/O, then sleep until
+    /// [`next_deadline`](Self::next_deadline). `out` must hold at least
+    /// [`MAX_SYNC_MESSAGE_SIZE`](crate::sync::MAX_SYNC_MESSAGE_SIZE) bytes.
+    ///
+    /// An error is also a failed poll for the peer involved and is safe to
+    /// log and continue from.
+    pub fn next_outbound<PS, SP, K, R, MS>(
+        &mut self,
+        now: T,
+        cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
+        out: &mut [u8],
+    ) -> Result<Option<Outbound<A>>, SyncerError>
+    where
+        SP: StorageProvider,
+        R: Csprng,
+    {
+        let Some(Due { graph_id, peer }) = self.schedule.next_due(now) else {
+            return Ok(None);
+        };
+        self.start_poll(graph_id, peer, now, cx, out).map(Some)
+    }
+
+    /// Applies the peer's reply to a poll request ([`Outbound`]).
+    ///
+    /// A poll reply's commands are committed. When the peer had more to
+    /// send, its next poll is due at once. An error is a failed poll for the
+    /// peer involved.
+    pub fn handle_reply<PS, SP, K, R, F, MS>(
+        &mut self,
+        token: Token<A>,
+        data: &[u8],
+        now: T,
+        cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
+    ) -> Result<Inbound, SyncerError>
+    where
+        PS: PolicyStore,
+        SP: StorageProvider,
+        K: Sink<PS::Effect>,
+        R: Csprng,
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        let Token {
+            graph_id,
+            peer,
+            seq,
+        } = token;
+        let Some(mut requester) = self.schedule.take_inflight(graph_id, &peer, seq) else {
+            return Ok(Inbound::Ignored(IgnoreReason::StaleToken));
+        };
+        match self.apply_poll_reply(&mut requester, graph_id, &peer, data, cx) {
+            Ok((count, more)) => {
+                // Asking again after a reply that added nothing would send
+                // the same request, so a peer that keeps claiming more
+                // without sending anything new cannot keep us polling.
+                let result = if more && count > 0 {
+                    PollResult::More
+                } else {
+                    PollResult::Done
+                };
+                self.schedule.poll_finished(graph_id, &peer, result, now);
+                Ok(if count > 0 {
+                    Inbound::Committed { count }
+                } else {
+                    Inbound::Handled
+                })
+            }
+            Err(err) => {
+                self.schedule
+                    .poll_finished(graph_id, &peer, PollResult::Failed, now);
+                Err(err)
+            }
+        }
+    }
+
+    // ---- poll ----------------------------------------------------------
+
+    /// Encodes a poll request to `peer` and marks it in flight.
+    fn start_poll<PS, SP, K, R, MS>(
+        &mut self,
+        graph_id: GraphId,
+        peer: A,
+        now: T,
+        cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
+        out: &mut [u8],
+    ) -> Result<Outbound<A>, SyncerError>
+    where
+        SP: StorageProvider,
+        R: Csprng,
+    {
+        let mut requester = SyncRequester::new(graph_id, cx.rng);
+        let encoded = match self.schedule.cache(graph_id, &peer) {
+            Some(cache) => requester.poll(out, cx.client.provider(), cache.session_heads(), cx.rng),
+            // A poll only comes due from a slot, which holds the cache.
+            None => Err(Bug::new("a due poll has a slot").into()),
+        };
+        let len = match encoded {
+            Ok((len, _)) => len,
+            Err(err) => {
+                self.schedule
+                    .poll_finished(graph_id, &peer, PollResult::Failed, now);
+                return Err(err.into());
+            }
+        };
+        let seq = self.next_seq();
+        let timeout_at = self.reply_deadline(now);
+        self.schedule.poll_sent(
+            graph_id,
+            &peer,
+            Inflight {
+                requester,
+                seq,
+                timeout_at,
+            },
+        );
+        Ok(Outbound {
+            token: Token {
+                graph_id,
+                peer,
+                seq,
+            },
+            len,
+        })
+    }
+
+    /// Commits one poll reply and records what it shows the peer holds.
+    /// Returns the number of commands added and whether the peer has more.
+    fn apply_poll_reply<PS, SP, K, R, F, MS>(
+        &mut self,
+        requester: &mut SyncRequester,
+        graph_id: GraphId,
+        peer: &A,
+        data: &[u8],
+        cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
+    ) -> Result<(usize, bool), SyncerError>
+    where
+        PS: PolicyStore,
+        SP: StorageProvider,
+        K: Sink<PS::Effect>,
+        R: Csprng,
+        F: Spill,
+        MS: Fn() -> Result<F, StorageError>,
+    {
+        // The peer does not hold the graph.
+        if data.is_empty() {
+            return Ok((0, false));
+        }
+        let Some(cache) = self.schedule.cache_mut(graph_id, peer) else {
+            // The slot outlives its in-flight request, so this is
+            // unreachable; a reply with nowhere to record it is stale.
+            return Ok((0, false));
+        };
+        let Some(reply) = requester.receive(data, cache)? else {
+            return Ok((0, false));
+        };
+        let more = !reply.sample().is_empty();
+        let mut added = 0;
+        if !reply.commands().is_empty() {
+            let mut trx = cx.client.transaction(graph_id);
+            added = match cx.client.add_commands(
+                &mut trx,
+                cx.sink,
+                reply.commands(),
+                cx.buffers,
+                &cx.make_spill,
+            ) {
+                Ok(added) => added,
+                Err(err) => {
+                    if matches!(err, ClientError::NoSuchParent(_)) {
+                        cache.saw_missing_parent();
+                    }
+                    return Err(err.into());
+                }
+            };
+            cx.client.commit(trx, cx.sink, cx.buffers, &cx.make_spill)?;
+        }
+        record_heads(
+            cx.client,
+            graph_id,
+            reply.addresses(),
+            cache,
+            &mut cx.buffers.traversal.primary,
+            cx.rng,
+        )?;
+        Ok((added, more))
     }
 }
