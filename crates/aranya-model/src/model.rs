@@ -9,19 +9,20 @@ use std::{
     marker::PhantomData,
     mem,
     sync::Arc,
+    time::Duration,
     vec::Vec,
 };
 
 use anyhow::Result;
-use aranya_crypto::{Engine, Rng};
+use aranya_crypto::Engine;
 use aranya_policy_compiler::CompileError;
 use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
-    ClientError, ClientState, CmdId, MAX_SYNC_MESSAGE_SIZE, PeerCache, RuntimeBuffers,
-    StorageProvider, SyncError, SyncRequester, TraversalBuffers, mem_spill,
+    ClientError, ClientState, CmdId, RuntimeBuffers, StorageProvider, SyncError, Syncer,
+    SyncerError, mem_spill,
     policy::{Policy, PolicyError, PolicyId, PolicyStore, Sink},
-    storage::{GraphId, StorageError},
-    testing::dsl::dispatch,
+    storage::GraphId,
+    testing::pull_in_process,
     vm_policy::{SealCtx, VmEffect, VmPolicy, VmPolicyError},
 };
 use derive_where::derive_where;
@@ -85,6 +86,8 @@ pub enum ModelError {
     Policy(#[from] PolicyError),
     #[error(transparent)]
     Sync(#[from] SyncError),
+    #[error(transparent)]
+    Syncer(#[from] SyncerError),
     #[error(transparent)]
     VmPolicy(#[from] VmPolicyError),
     #[error(transparent)]
@@ -299,9 +302,8 @@ pub trait ClientFactory {
 }
 
 type ClientGraphIds = BTreeMap<ProxyGraphId, GraphId>;
-// A map of peer caches for (GraphID, DestClientID, SourceClientID)
-type ClientGraphPeerCache =
-    BTreeMap<(ProxyGraphId, ProxyClientId, ProxyClientId), RefCell<PeerCache>>;
+/// A client's syncer, which holds its peer caches.
+pub type ModelSyncer = Syncer<ProxyClientId, Duration>;
 type Clients<C> = BTreeMap<ProxyClientId, C>;
 
 /// Runtime model.
@@ -312,10 +314,9 @@ pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     pub clients: Clients<ModelClient<CF>>,
     /// Holds a collection of [`ProxyGraphId`]s and [`GraphId`]s
     pub graph_ids: ClientGraphIds,
-    /// Each client holds a `PeerCache` for each client and graph combination.
-    pub client_graph_peer_cache: ClientGraphPeerCache,
+    /// Each client's syncer, which holds its peer caches.
+    pub syncers: BTreeMap<ProxyClientId, RefCell<ModelSyncer>>,
     client_factory: CF,
-    buffers: TraversalBuffers,
     rt_buffers: RuntimeBuffers<<CF::StorageProvider as StorageProvider>::Segment>,
     _ph: PhantomData<(CID, GID)>,
 }
@@ -329,9 +330,8 @@ where
         Self {
             clients: BTreeMap::default(),
             graph_ids: BTreeMap::default(),
-            client_graph_peer_cache: BTreeMap::default(),
+            syncers: BTreeMap::default(),
             client_factory,
-            buffers: TraversalBuffers::new(),
             rt_buffers: RuntimeBuffers::new(),
             _ph: PhantomData,
         }
@@ -482,108 +482,41 @@ where
         let graph_proxy_id = graph_proxy_id.into();
         let source_client_proxy_id = source_client_proxy_id.into();
         let dest_client_proxy_id = dest_client_proxy_id.into();
-        // Destination of the sync
-        let mut request_state = self
-            .clients
-            .get(&dest_client_proxy_id)
-            .ok_or(ModelError::ClientNotFound)?
-            .state
-            .borrow_mut();
-
-        self.client_graph_peer_cache
-            .entry((graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
-            .or_default();
-        self.client_graph_peer_cache
-            .entry((graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
-            .or_default();
-
-        let mut request_cache = self
-            .client_graph_peer_cache
-            .get(&(graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
-            .ok_or(ModelError::ClientNotFound)?
-            .borrow_mut();
-        let mut response_cache = self
-            .client_graph_peer_cache
-            .get(&(graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
-            .ok_or(ModelError::ClientNotFound)?
-            .borrow_mut();
-
-        let mut sink = VecSink::new();
-
-        // Source of the sync
-        let mut response_state = self
-            .clients
-            .get(&source_client_proxy_id)
-            .ok_or(ModelError::ClientNotFound)?
-            .state
-            .borrow_mut();
-
-        let graph_id = self
+        let graph_id = *self
             .graph_ids
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
-
-        let mut request_syncer = SyncRequester::new(*graph_id, Rng);
-        assert!(request_syncer.ready());
-
-        let mut request_trx = request_state.transaction(*graph_id);
-        let mut received_addrs = Vec::new();
-
-        while request_syncer.ready() {
-            if request_syncer.ready() {
-                let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let (len, _) = request_syncer.poll(
-                    &mut buffer,
-                    request_state.provider(),
-                    request_trx.session_heads(&request_cache),
-                    &Rng,
-                )?;
-
-                let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let len = dispatch(
-                    &buffer[..len],
-                    &mut target,
-                    response_state.provider(),
-                    &mut response_cache,
-                    &mut self.buffers,
-                )?;
-                if len == 0 {
-                    break;
-                }
-
-                if let Some(reply) = request_syncer.receive(&target[..len], &mut request_cache)? {
-                    // Sample commands already committed here go in the cache
-                    // now, so the next request can use them. Without a graph
-                    // yet, there are none.
-                    match request_state.update_heads(
-                        *graph_id,
-                        reply.sample().iter().copied(),
-                        &mut request_cache,
-                        &mut self.buffers.primary,
-                        &Rng,
-                    ) {
-                        Ok(()) | Err(ClientError::StorageError(StorageError::NoSuchStorage)) => {}
-                        Err(e) => return Err(e.into()),
-                    }
-                    request_state.add_commands(
-                        &mut request_trx,
-                        &mut sink,
-                        reply.commands(),
-                        &mut self.rt_buffers,
-                        mem_spill,
-                    )?;
-                    received_addrs.extend(reply.addresses());
-                }
-            }
+        let client = |id| {
+            self.clients
+                .get(&id)
+                .map(|c| &c.state)
+                .ok_or(ModelError::ClientNotFound)
+        };
+        let (request_client, response_client) = (
+            client(dest_client_proxy_id)?,
+            client(source_client_proxy_id)?,
+        );
+        for id in [dest_client_proxy_id, source_client_proxy_id] {
+            self.syncers.entry(id).or_default();
         }
+        let syncer = |id| self.syncers.get(&id).ok_or(ModelError::ClientNotFound);
 
-        request_state.commit(request_trx, &mut sink, &mut self.rt_buffers, mem_spill)?;
-        request_state.update_heads(
-            *graph_id,
-            received_addrs,
-            &mut request_cache,
-            &mut self.buffers.primary,
-            &Rng,
+        pull_in_process(
+            graph_id,
+            (
+                dest_client_proxy_id,
+                &mut syncer(dest_client_proxy_id)?.borrow_mut(),
+                &mut request_client.borrow_mut(),
+            ),
+            (
+                source_client_proxy_id,
+                &mut syncer(source_client_proxy_id)?.borrow_mut(),
+                &mut response_client.borrow_mut(),
+            ),
+            &mut VecSink::new(),
+            &mut self.rt_buffers,
+            u64::MAX,
+            |_| {},
         )?;
 
         Ok(())

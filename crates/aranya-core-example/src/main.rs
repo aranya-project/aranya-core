@@ -6,11 +6,11 @@
 //! The FFI/compiler/VM crates are needed for one-time policy compilation
 //! and FFI module wiring.
 
-use std::{fs, sync::Arc};
+use std::{fs, sync::Arc, time::Instant};
 
 use anyhow::{Context as _, Result};
 use aranya_core::{
-    ClientState, GraphId, RuntimeBuffers, Sink, TraversalBuffer, TraversalBuffers,
+    ClientState, GraphId, RuntimeBuffers, Sink,
     crypto::{DefaultCipherSuite, DefaultEngine, Rng},
     ifgen::Actionable as _,
     keystore::{
@@ -18,7 +18,7 @@ use aranya_core::{
     },
     policy::{FfiCallable, VmEffect, VmPolicy, VmPolicyStore, VmSealCtx},
     storage::{FileManager, LibcSpill, LinearStorageProvider},
-    sync::{MAX_SYNC_MESSAGE_SIZE, PeerCache, SyncIncoming, SyncRequester, SyncResponder},
+    sync::{Inbound, MAX_SYNC_MESSAGE_SIZE, PeerConfig, SyncContext, Syncer},
 };
 use aranya_device_ffi::FfiDevice as DeviceFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
@@ -182,24 +182,9 @@ fn compile_policy(seal_ctx: VmSealCtx<CE>, eng: CE, store: MemStore) -> Result<V
 // Sync Helpers
 // ---------------------------------------------------------------------------
 
-fn dispatch(
-    data: &[u8],
-    target: &mut [u8],
-    provider: &mut LinearStorageProvider<FileManager>,
-    response_cache: &mut PeerCache,
-) -> Result<usize> {
-    let len = match SyncIncoming::decode(data)? {
-        SyncIncoming::Poll(poll) => {
-            let mut responder = SyncResponder::new();
-            let mut buffers = TraversalBuffers::default();
-            responder.receive(poll)?;
-            responder.poll(target, provider, response_cache, &mut buffers, &Rng)?
-        }
-        _ => anyhow::bail!("unsupported sync type"),
-    };
-    Ok(len)
-}
-
+/// `dest` pulls `graph_id` from `source`. Each side drives a [`Syncer`];
+/// the "transport" hands each request straight to `source` and its reply
+/// straight back, until `dest` has nothing more to ask for.
 fn sync_graphs(
     graph_id: GraphId,
     source: &mut ClientState<VmPolicyStore<CE>, LinearStorageProvider<FileManager>>,
@@ -207,58 +192,52 @@ fn sync_graphs(
     sink: &mut PrintSink,
     spill_dir: &std::path::Path,
 ) -> Result<()> {
-    let mut request_cache = PeerCache::default();
-    let mut response_cache = PeerCache::default();
-    let mut traversal = TraversalBuffer::default();
+    let mut source_syncer: Syncer<&str, Instant> = Syncer::new();
+    let mut dest_syncer: Syncer<&str, Instant> = Syncer::new();
     let mut rt_buffers = RuntimeBuffers::new();
+    let make_spill = || LibcSpill::new(spill_dir);
+    let mut request = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+    let mut reply = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
 
-    let mut syncer = SyncRequester::new(graph_id, Rng);
-    let mut trx = dest.transaction(graph_id);
-
-    let mut buf = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let (len, _sent) = syncer
-        .poll(
-            &mut buf,
-            dest.provider(),
-            trx.session_heads(&request_cache),
-            &Rng,
-        )
-        .context("sync poll failed")?;
-
-    let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let resp_len = dispatch(
-        &buf[..len],
-        &mut target,
-        source.provider(),
-        &mut response_cache,
-    )
-    .context("sync dispatch")?;
-
-    if resp_len > 0
-        && let Some(reply) = syncer
-            .receive(&target[..resp_len], &mut request_cache)
-            .context("sync receive")?
-    {
-        let make_spill = || LibcSpill::new(spill_dir);
-        let _received = dest
-            .add_commands(
-                &mut trx,
+    dest_syncer.add_peer("source", graph_id, PeerConfig::immediate(), Instant::now())?;
+    while let Some(outbound) = dest_syncer.next_outbound(
+        Instant::now(),
+        &mut SyncContext {
+            client: dest,
+            sink,
+            buffers: &mut rt_buffers,
+            rng: &Rng,
+            make_spill,
+        },
+        &mut request,
+    )? {
+        let Inbound::Reply { len } = source_syncer.handle_incoming(
+            "dest",
+            &request[..outbound.len()],
+            &mut SyncContext {
+                client: source,
                 sink,
-                reply.commands(),
-                &mut rt_buffers,
+                buffers: &mut rt_buffers,
+                rng: &Rng,
                 make_spill,
-            )
-            .context("add_commands failed")?;
-        dest.commit(trx, sink, &mut rt_buffers, make_spill)
-            .context("commit failed")?;
-        dest.update_heads(
-            graph_id,
-            reply.addresses(),
-            &mut request_cache,
-            &mut traversal,
-            &Rng,
-        )
-        .context("update_heads")?;
+            },
+            &mut reply,
+        )?
+        else {
+            anyhow::bail!("poll was not answered");
+        };
+        dest_syncer.handle_reply(
+            outbound.into_token(),
+            &reply[..len],
+            Instant::now(),
+            &mut SyncContext {
+                client: dest,
+                sink,
+                buffers: &mut rt_buffers,
+                rng: &Rng,
+                make_spill,
+            },
+        )?;
     }
 
     Ok(())
