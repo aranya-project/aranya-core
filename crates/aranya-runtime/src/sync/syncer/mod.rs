@@ -3,6 +3,9 @@
 #![allow(dead_code)]
 
 mod config;
+mod schedule;
+#[cfg(test)]
+mod schedule_tests;
 mod slots;
 mod time;
 
