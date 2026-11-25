@@ -30,7 +30,7 @@ use aranya_policy_vm::ffi::FfiModule as _;
 #[allow(dead_code)]
 mod policy;
 
-use policy::{Effect, PublicKeys, add_device, increment_counter, init, set_counter};
+use policy::{Effect, PublicKeys, add_device, increment_counter, initialize, set_counter};
 
 // ---------------------------------------------------------------------------
 // Type Aliases
@@ -326,7 +326,7 @@ fn main() -> Result<()> {
 
     // Step 4: Create graph with init action
     println!("\nStep 4: Creating graph (init)...");
-    let graph_id = init(dev_a.public_keys, 42)
+    let graph_id = initialize(dev_a.public_keys, 42)
         .with_action(|action| cs_a.new_graph(&policy_module, action, &mut sink))
         .context("new_graph")?;
     sink.drain_and_print("Device A / init");

@@ -286,7 +286,10 @@ impl SimpleError for error::AlreadyDefined {
     }
     fn annotations(&self) -> impl IntoIterator<Item = (Span, Cow<'_, str>)> {
         let Self { primary, prev } = self;
-        // Builtins have no source location.
+        // Flavors and builtins have no source location.
+        if let error::Reference::Flavor(_) = prev {
+            return vec![(primary.span(), format!("reserved for {prev}").into())];
+        }
         if prev.span().is_empty() {
             return vec![(primary.span(), "already defined by a builtin".into())];
         }

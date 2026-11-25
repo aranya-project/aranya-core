@@ -2025,8 +2025,8 @@ impl<'a> CompileState<'a> {
         Ok(sorted_defs)
     }
 
-    /// Reserves top-level callables, type names, and imported FFI module
-    /// names, along with their structs and enums.
+    /// Reserves top-level callables, type names, flavors, and imported FFI
+    /// module names, along with their structs and enums.
     fn define_top_level_names(&mut self) -> Result<(), CompileError> {
         let policy = self.policy;
 
@@ -2034,6 +2034,13 @@ impl<'a> CompileState<'a> {
             .builtin_functions
             .keys()
             .map(|n| Reference::Callable(Callable::Function(n.clone().nowhere())));
+        // All configured flavors are reserved, whether or not the policy uses them.
+        let flavors = self
+            .config
+            .flavors
+            .flavors
+            .iter()
+            .map(|(name, _)| Reference::Flavor(name.clone().nowhere()));
 
         let mut imported_modules = Vec::new();
         // Stubbed FFI has no schemas, so there are no FFI types to add.
@@ -2104,7 +2111,7 @@ impl<'a> CompileState<'a> {
                 .iter()
                 .map(|d| Callable::FinishFunction(d.name.clone()).into()),
         );
-        let mut names = chain!(builtins, modules, ffi_types, policy_types);
+        let mut names = chain!(builtins, flavors, modules, ffi_types, policy_types);
         names
             .try_for_each(|reference| {
                 self.identifier_types

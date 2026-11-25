@@ -37,8 +37,8 @@ pub(crate) enum UserType<'a> {
 #[derive(Debug)]
 pub struct IdentifierTypeStack {
     /// Top-level namespace: callables, types (including imported FFI structs
-    /// and enums), imported FFI module names, and globals. Locals may not
-    /// shadow global names.
+    /// and enums), flavors, imported FFI module names, and globals. Locals
+    /// may not shadow global names.
     top_level: HashMap<Ident, NameType>,
     locals: Vec<IndexMap<Ident, Local>>,
     /// When set, don't error on unused vars
@@ -86,7 +86,7 @@ impl IdentifierTypeStack {
     /// Callables, types, and globals share one namespace. Names are
     /// reserved in two phases:
     ///
-    /// 1. Every callable, type, and imported FFI module (including
+    /// 1. Every callable, type, flavor, and imported FFI module (including
     ///    builtins and imported FFI types) is reserved up front as
     ///    [`NameType::Item`],
     ///    so conflicts are found regardless of definition order.

@@ -1,0 +1,4 @@
+error: the name `init` is defined multiple times
+  |
+2 |     let init = 0
+  |         ^^^^ reserved for flavor `init`

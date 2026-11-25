@@ -47,6 +47,9 @@
 //! the "init" command. It has basically all the same properties as any other command, except it has
 //! no parent.
 //!
+//! The action can have any name, but it must have the `init` flavor. Flavor names (`init`, `basic`,
+//! `ephemeral`, `finalize`) are reserved, so they can't be used as action or other names.
+//!
 //! So for this example policy:
 //!
 //! ```policy
@@ -59,7 +62,7 @@
 //!     }
 //! }
 //!
-//! action[init] init(nonce int) {
+//! action[init] initialize(nonce int) {
 //!     publish Init { nonce }
 //! }
 //! ```
@@ -73,7 +76,7 @@
 //! let mut sink = MySink::new();
 //!
 //! let graph_id = cs
-//!     .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
+//!     .new_graph(&[0u8], vm_action!(initialize(0)), &mut sink)
 //!     .expect("could not create graph");
 //! ```
 //!
