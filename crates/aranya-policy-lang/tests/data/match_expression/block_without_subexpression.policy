@@ -1,10 +1,10 @@
 action[null] foo(status: string) {
     let x = match a {
         "ready" => {
-            1
+            let _y = 1;
         }
         _ => {
-            0
+            let _z = 0;
         }
     };
 }

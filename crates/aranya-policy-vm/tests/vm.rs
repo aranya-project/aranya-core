@@ -1122,8 +1122,8 @@ fn test_match_expression() -> anyhow::Result<()> {
         }
         action[null] foo(x: int) {
             let y = match x {
-                0 => { :1 }
-                _ => { :0 }
+                0 => { 1 }
+                _ => { 0 }
             };
             publish F { x: y };
         }
@@ -2092,7 +2092,7 @@ fn test_block_expression() -> anyhow::Result<()> {
             let b = 4;
             let x = {
                 let c = 5;
-                : saturating_add(saturating_add(a, b), c)
+                saturating_add(saturating_add(a, b), c)
             };
 
             publish TestCommand {
@@ -2253,7 +2253,7 @@ fn test_boolean_short_circuit() {
         let machine = compile(&format!(
             r#"
             action[null] f() result[unit, int] {{ return Err(g()); }}
-            function g() int {{ return if {expr} {{ : 1 }} else {{ : 0 }}; }}
+            function g() int {{ return if {expr} {{ 1 }} else {{ 0 }}; }}
             "#
         ));
         let mut io = TestIO::new();
@@ -2462,7 +2462,7 @@ fn test_return_statement_in_expr() -> anyhow::Result<()> {
         function bar() int {
             let _x = baz(
                 12,
-                { return 42; : test_fail("unreachable") },
+                { return 42; test_fail("unreachable") },
                 13,
             );
             return test_fail("unreachable");
@@ -2653,9 +2653,9 @@ fn test_unit() -> anyhow::Result<()> {
 
         function verify(n: int) result[unit, enum Error] {
             return if n == 42 {
-                : Ok(Unit)
+                Ok(Unit)
             } else {
-                : Err(Error::Fail)
+                Err(Error::Fail)
             };
         }
 

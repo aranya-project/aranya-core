@@ -101,7 +101,7 @@ command Move with Base {
         let p = query NextPlayer[gameID]=>{p: ?} or test_fail();
         // the if expression works like a ternary expression, where both
         // branches must be specified.
-        let nextp = if p == "X" { :"O" } else { :"X" };
+        let nextp = if p == "X" { "O" } else { "X" };
 
         // Checks are separated here, but they can be interleaved with let
         // statements.
@@ -132,15 +132,15 @@ command Move with Base {
 }
 
 function game_over(gameID: id, x: int, y: int, p: string) bool {
-    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID, x: 0, y: 0]=>{p: ?} };
-    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID, x: 1, y: 0]=>{p: ?} };
-    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID, x: 2, y: 0]=>{p: ?} };
-    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID, x: 0, y: 1]=>{p: ?} };
-    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID, x: 1, y: 1]=>{p: ?} };
-    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID, x: 2, y: 1]=>{p: ?} };
-    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID, x: 0, y: 2]=>{p: ?} };
-    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID, x: 1, y: 2]=>{p: ?} };
-    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID, x: 2, y: 2]=>{p: ?} };
+    let f00 = if x == 0 && y == 0 { Some(p) } else { query Field[gameID, x: 0, y: 0]=>{p: ?} };
+    let f10 = if x == 1 && y == 0 { Some(p) } else { query Field[gameID, x: 1, y: 0]=>{p: ?} };
+    let f20 = if x == 2 && y == 0 { Some(p) } else { query Field[gameID, x: 2, y: 0]=>{p: ?} };
+    let f01 = if x == 0 && y == 1 { Some(p) } else { query Field[gameID, x: 0, y: 1]=>{p: ?} };
+    let f11 = if x == 1 && y == 1 { Some(p) } else { query Field[gameID, x: 1, y: 1]=>{p: ?} };
+    let f21 = if x == 2 && y == 1 { Some(p) } else { query Field[gameID, x: 2, y: 1]=>{p: ?} };
+    let f02 = if x == 0 && y == 2 { Some(p) } else { query Field[gameID, x: 0, y: 2]=>{p: ?} };
+    let f12 = if x == 1 && y == 2 { Some(p) } else { query Field[gameID, x: 1, y: 2]=>{p: ?} };
+    let f22 = if x == 2 && y == 2 { Some(p) } else { query Field[gameID, x: 2, y: 2]=>{p: ?} };
     return (f00 is Some && f00 == f10 && f10 == f20) ||
            (f01 is Some && f01 == f11 && f11 == f21) ||
            (f01 is Some && f02 == f12 && f12 == f22) ||
@@ -161,7 +161,7 @@ command Move2 with Base {
         let player = envelope.author_id;
         let players = query PlayerProfile[gameID]=>{x: ?, o: ?} or test_fail();
         let p = query NextPlayer[gameID]=>{p: ?} or test_fail();
-        let nextp = if p == "X" { :"O" } else { :"X" };
+        let nextp = if p == "X" { "O" } else { "X" };
 
         check !exists GameOver[gameID]=>{} else test_fail("game is over");
         check bounds(X) else test_fail("X invalid");
