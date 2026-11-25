@@ -29,8 +29,8 @@ pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
 pub use syncer::{
-    FixedSlots, HeapSlots, Limits, LimitsBuilder, OutOfSlots, PeerConfig, SyncInstant, SyncSlot,
-    SyncSlots,
+    FixedSlots, HeapSlots, IgnoreReason, Inbound, Limits, LimitsBuilder, OutOfSlots, PeerConfig,
+    SyncContext, SyncInstant, SyncSlot, SyncSlots, Syncer, SyncerError, Token,
 };
 use wire::{SubscribeResult, SyncHelloType, SyncType};
 
