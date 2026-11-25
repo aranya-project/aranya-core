@@ -76,7 +76,6 @@ fn test_sync() -> Result<()> {
     syncer2.sync(
         client2.lock().unwrap().deref_mut(),
         addr1,
-        SyncRequester::new(graph_id, Rng),
         sink2.lock().unwrap().deref_mut(),
         graph_id,
     )?;

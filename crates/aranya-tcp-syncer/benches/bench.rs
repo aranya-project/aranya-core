@@ -14,9 +14,8 @@ use std::{
 };
 
 use anyhow::Result;
-use aranya_crypto::Rng;
 use aranya_runtime::{
-    ClientState, GraphId, LibcSpill, RuntimeBuffers, Sink, SyncRequester,
+    ClientState, GraphId, LibcSpill, RuntimeBuffers, Sink,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
 };
@@ -153,14 +152,12 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().unwrap().count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(graph_id, Rng);
                 syncer1
                     .lock()
                     .unwrap()
                     .sync(
                         request_client.lock().unwrap().deref_mut(),
                         server2_addr,
-                        sync_requester,
                         request_sink.lock().unwrap().deref_mut(),
                         graph_id,
                     )

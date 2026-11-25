@@ -20,9 +20,8 @@ use std::{
 };
 
 use anyhow::{Context as _, Result, bail};
-use aranya_crypto::Rng;
 use aranya_runtime::{
-    ClientState, GraphId, LibcSpill, PolicyStore, RuntimeBuffers, StorageProvider, SyncRequester,
+    ClientState, GraphId, LibcSpill, PolicyStore, RuntimeBuffers, StorageProvider,
     policy::Sink,
     storage::linear::testing::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestPolicyStore},
@@ -71,8 +70,7 @@ fn sync_peer<PS, SP, S>(
     SP: StorageProvider,
     S: Sink<<PS as PolicyStore>::Effect>,
 {
-    let sync_requester = SyncRequester::new(graph_id, Rng);
-    match syncer.sync(client, peer_addr, sync_requester, sink, graph_id) {
+    match syncer.sync(client, peer_addr, sink, graph_id) {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
     }
