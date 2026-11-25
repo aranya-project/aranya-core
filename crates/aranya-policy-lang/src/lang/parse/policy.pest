@@ -21,6 +21,9 @@ ffi_struct_or_enum_def = _{ SOI ~ ws ~ ((struct_definition | enum_definition) ~ 
 // Used exclusively when parsing an expression on its own
 complete_expression = _{ SOI ~ ws ~ expression ~ ws ~ EOI }
 
+// Used exclusively when parsing a vtype on its own
+complete_vtype = _{ SOI ~ ws ~ vtype ~ ws ~ EOI }
+
 
 
 // # Top-level Statements
