@@ -1,7 +1,5 @@
 //! A sans-I/O syncer state machine; see [`Syncer`].
 
-#![allow(dead_code)]
-
 use core::fmt;
 
 use aranya_crypto::Csprng;
@@ -11,7 +9,7 @@ use crate::{
     Address, ClientError, ClientState, RuntimeBuffers,
     policy::{PolicyStore, Sink},
     storage::{GraphId, Spill, StorageError, StorageProvider},
-    sync::{PeerCache, SyncError, SyncRequester},
+    sync::{PeerCache, SyncError, SyncIncoming, SyncRequester, SyncResponder},
 };
 
 mod config;
@@ -19,6 +17,8 @@ mod schedule;
 #[cfg(test)]
 mod schedule_tests;
 mod slots;
+#[cfg(test)]
+mod tests;
 mod time;
 
 pub use config::{Limits, LimitsBuilder, PeerConfig};
@@ -181,6 +181,24 @@ where
         Ok(()) | Err(ClientError::StorageError(StorageError::NoSuchStorage)) => Ok(()),
         Err(err) => Err(err.into()),
     }
+}
+
+/// Answers a poll with a cache that is dropped afterwards, for when the
+/// slots are full. Kept out of line so the common path's stack frame does
+/// not hold a [`PeerCache`].
+#[inline(never)]
+fn answer_with_fresh_cache<PS, SP: StorageProvider, K, R: Csprng, MS>(
+    responder: &mut SyncResponder,
+    out: &mut [u8],
+    cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
+) -> Result<usize, SyncError> {
+    responder.poll(
+        out,
+        cx.client.provider(),
+        &mut PeerCache::new(),
+        &mut cx.buffers.traversal,
+        cx.rng,
+    )
 }
 
 /// A sans-I/O syncer state machine.
@@ -417,6 +435,61 @@ where
             return Ok(None);
         };
         self.start_poll(graph_id, peer, now, cx, out).map(Some)
+    }
+
+    /// Applies a message received from `peer`. A reply, if the protocol
+    /// calls for one, is encoded into `out`.
+    ///
+    /// `peer` is whatever identity the transport authenticated; the syncer
+    /// keys all state by it. Decode failures leave no partial state.
+    ///
+    /// Answering a poll for a graph we hold keeps a cache for `peer` (see
+    /// [`peer_cache`](Self::peer_cache)), so later replies skip what it is
+    /// known to hold. When the slots are full, the reply is built from a
+    /// fresh cache instead.
+    pub fn handle_incoming<PS, SP, K, R, MS>(
+        &mut self,
+        peer: A,
+        data: &[u8],
+        cx: &mut SyncContext<'_, PS, SP, K, R, MS>,
+        out: &mut [u8],
+    ) -> Result<Inbound, SyncerError>
+    where
+        SP: StorageProvider,
+        R: Csprng,
+    {
+        match SyncIncoming::decode(data)? {
+            SyncIncoming::Poll(poll) => {
+                // Only a session-opening request names a graph, and the
+                // syncer's polls always open one.
+                let Some(graph_id) = poll.graph_id() else {
+                    return Ok(Inbound::Ignored(IgnoreReason::Unsupported));
+                };
+                // We do not hold the graph: an empty reply says so. Checked
+                // first so a peer cannot make us keep state for any graph id.
+                if let Err(StorageError::NoSuchStorage) = cx.client.provider().get_storage(graph_id)
+                {
+                    return Ok(Inbound::Reply { len: 0 });
+                }
+                let mut responder = SyncResponder::new();
+                responder.receive(poll)?;
+                let len = match self.schedule.cache_or_insert(graph_id, &peer) {
+                    Ok(cache) => responder.poll(
+                        out,
+                        cx.client.provider(),
+                        cache,
+                        &mut cx.buffers.traversal,
+                        cx.rng,
+                    )?,
+                    Err(OutOfSlots) => answer_with_fresh_cache(&mut responder, out, cx)?,
+                };
+                Ok(Inbound::Reply { len })
+            }
+            SyncIncoming::Subscribe(_)
+            | SyncIncoming::Unsubscribe(_)
+            | SyncIncoming::Push(_)
+            | SyncIncoming::Hello(_) => Ok(Inbound::Ignored(IgnoreReason::Unsupported)),
+        }
     }
 
     /// Applies the peer's reply to a poll request ([`Outbound`]).

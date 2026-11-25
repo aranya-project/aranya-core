@@ -11,6 +11,18 @@ extern crate aranya_policy_module;
 extern crate aranya_policy_vm;
 extern crate aranya_runtime;
 
+/// Instantiates the syncer on inline slots, so a regression that pulls a
+/// growable collection or `std` into it fails to build for this target.
+#[allow(dead_code)]
+fn syncer_builds_without_std() {
+    use core::time::Duration;
+
+    use aranya_core::sync::{FixedSlots, Syncer};
+
+    let _syncer: Syncer<u8, Duration, FixedSlots<u8, Duration, 4>> =
+        Syncer::new_in(FixedSlots::new());
+}
+
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
