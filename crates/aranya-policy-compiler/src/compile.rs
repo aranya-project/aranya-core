@@ -2025,22 +2025,20 @@ impl<'a> CompileState<'a> {
         Ok(sorted_defs)
     }
 
-    /// Reserves top-level callables and type names (including imported
-    /// FFI structs and enums).
+    /// Reserves top-level callables, type names, and imported FFI module
+    /// names, along with their structs and enums.
     fn define_top_level_names(&mut self) -> Result<(), CompileError> {
         let policy = self.policy;
+
+        let builtins = self
+            .builtin_functions
+            .keys()
+            .map(|n| Reference::Callable(Callable::Function(n.clone().nowhere())));
 
         let mut imported_modules = Vec::new();
         // Stubbed FFI has no schemas, so there are no FFI types to add.
         if !self.config.stub_ffi {
-            for (i, import) in policy.ffi_imports.iter().enumerate() {
-                // An FFI module may be imported only once.
-                if let Some(prev) = policy.ffi_imports[..i].iter().find(|p| *p == import) {
-                    return Err(self.err(AlreadyDefined::new(
-                        Reference::Module(prev.clone()),
-                        Reference::Module(import.clone()),
-                    )));
-                }
+            for import in &policy.ffi_imports {
                 // Ensure FFI module exists
                 let module = self
                     .ffi_modules
@@ -2051,13 +2049,15 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        let builtins = self
-            .builtin_functions
-            .keys()
-            .map(|n| Reference::Callable(Callable::Function(n.clone().nowhere())));
+        // Add FFI module names to namespace. They're reserved even when FFI
+        // is stubbed.
+        let modules = policy
+            .ffi_imports
+            .iter()
+            .map(|import| Reference::Module(import.clone()));
         // Add FFI types to global namespace.
         // NOTE: FFI types are used unqualified, while calls are qualified. Maybe worth addressing this inconsistency.
-        let ffi = imported_modules.into_iter().flat_map(|(import, module)| {
+        let ffi_types = imported_modules.into_iter().flat_map(|(import, module)| {
             let at_import = |name: &Identifier| Ident {
                 inner: name.clone(),
                 span: import.span,
@@ -2104,7 +2104,7 @@ impl<'a> CompileState<'a> {
                 .iter()
                 .map(|d| Callable::FinishFunction(d.name.clone()).into()),
         );
-        let mut names = chain!(builtins, ffi, policy_types);
+        let mut names = chain!(builtins, modules, ffi_types, policy_types);
         names
             .try_for_each(|reference| {
                 self.identifier_types

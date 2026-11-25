@@ -163,14 +163,14 @@ command AddDeviceKeys with BaseSelfSigned {
             sign_pk: this.sign_pk,
         }
 
-        let device = match authorized_device_key_ids(device_keys) {
+        let key_ids = match authorized_device_key_ids(device_keys) {
             Ok(d) => d
             Err(Unit) => recall reject()
         }
 
         finish {
-            create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
-            create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
+            create DeviceSignKey[device_id: key_ids.device_id]=>{key_id: key_ids.sign_pk_id, key: key_ids.sign_pk}
+            create DeviceIdentKey[device_id: key_ids.device_id]=>{key: key_ids.ident_pk}
         }
     }
     recall reject() {}

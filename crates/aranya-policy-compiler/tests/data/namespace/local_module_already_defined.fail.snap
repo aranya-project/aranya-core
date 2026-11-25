@@ -1,0 +1,7 @@
+error: the name `test` is defined multiple times
+  |
+1 | use test
+  |     ---- defined as module `test` previously
+...
+4 |     let test = 0
+  |         ^^^^ re-defined as variable `test` here

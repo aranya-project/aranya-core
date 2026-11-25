@@ -1,0 +1,6 @@
+use test
+
+function f() int {
+    let test = 0
+    return test
+}

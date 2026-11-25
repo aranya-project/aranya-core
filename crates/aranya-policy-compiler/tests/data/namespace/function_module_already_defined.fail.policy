@@ -1,0 +1,5 @@
+use test
+
+function test() int {
+    return 0
+}
