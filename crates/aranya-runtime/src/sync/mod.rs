@@ -28,7 +28,10 @@ pub(crate) use requester::SyncRequestMessage;
 pub use requester::SyncRequester;
 use responder::SyncResponseMessage;
 pub use responder::{PeerCache, SyncResponder};
-pub use syncer::{Limits, LimitsBuilder, PeerConfig, SyncInstant};
+pub use syncer::{
+    FixedSlots, HeapSlots, Limits, LimitsBuilder, OutOfSlots, PeerConfig, SyncInstant, SyncSlot,
+    SyncSlots,
+};
 use wire::{SubscribeResult, SyncHelloType, SyncType};
 
 /// The frontier a requester advertises during a sync session: committed
