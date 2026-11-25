@@ -291,8 +291,11 @@ impl SimpleError for error::AlreadyDefined {
             return vec![(primary.span(), "already defined by a builtin".into())];
         }
         vec![
-            (primary.span(), format!("{primary} re-defined here").into()),
-            (prev.span(), format!("previous definition of {prev}").into()),
+            (
+                primary.span(),
+                format!("re-defined as {primary} here").into(),
+            ),
+            (prev.span(), format!("defined as {prev} previously").into()),
         ]
     }
 }

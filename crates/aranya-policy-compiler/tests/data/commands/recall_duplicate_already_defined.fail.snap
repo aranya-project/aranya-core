@@ -1,7 +1,7 @@
 error: the name `foo` is defined multiple times
   |
 6 |     recall foo() {
-  |            --- previous definition of recall block `foo`
+  |            --- defined as recall block `foo` previously
 7 |     }
 8 |     recall foo() {
-  |            ^^^ recall block `foo` re-defined here
+  |            ^^^ re-defined as recall block `foo` here

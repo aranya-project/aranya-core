@@ -1,7 +1,7 @@
 error: the name `Foo` is defined multiple times
   |
 1 | struct Foo { x: int }
-  |        --- previous definition of struct `Foo`
+  |        --- defined as struct `Foo` previously
 2 |
 3 | enum Foo { A, B }
-  |      ^^^ enum `Foo` re-defined here
+  |      ^^^ re-defined as enum `Foo` here

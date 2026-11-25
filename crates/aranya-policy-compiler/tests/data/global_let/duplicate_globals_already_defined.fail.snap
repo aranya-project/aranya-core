@@ -1,6 +1,6 @@
 error: the name `x` is defined multiple times
   |
 1 | let x = 10
-  |     - previous definition of global value `x`
+  |     - defined as global value `x` previously
 2 | let x = 5
-  |     ^ global value `x` re-defined here
+  |     ^ re-defined as global value `x` here

@@ -1,7 +1,7 @@
 error: the name `FFIColor` is defined multiple times
   |
 1 | use test
-  |     ---- previous definition of enum `FFIColor`
+  |     ---- defined as enum `FFIColor` previously
 2 |
 3 | enum FFIColor { Blue }
-  |      ^^^^^^^^ enum `FFIColor` re-defined here
+  |      ^^^^^^^^ re-defined as enum `FFIColor` here

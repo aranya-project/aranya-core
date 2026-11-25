@@ -1,6 +1,6 @@
 error: the name `i` is defined multiple times
   |
 1 | fact F[i: int] => {i: int}
-  |        -           ^ field `i` of struct `F` re-defined here
+  |        -           ^ re-defined as field `i` of struct `F` here
   |        |
-  |        previous definition of field `i` of struct `F`
+  |        defined as field `i` of struct `F` previously

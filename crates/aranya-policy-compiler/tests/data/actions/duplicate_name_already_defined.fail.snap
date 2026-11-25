@@ -1,7 +1,7 @@
 error: the name `foo` is defined multiple times
   |
 1 | action[null] foo() {}
-  |              --- previous definition of action `foo`
+  |              --- defined as action `foo` previously
 2 | action[null] bar() {}
 3 | action[null] foo() {}
-  |              ^^^ action `foo` re-defined here
+  |              ^^^ re-defined as action `foo` here

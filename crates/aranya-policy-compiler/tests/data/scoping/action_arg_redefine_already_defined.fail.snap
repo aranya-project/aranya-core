@@ -1,6 +1,6 @@
 error: the name `n` is defined multiple times
   |
 1 | action[null] foo(n: int) {
-  |                  - previous definition of variable `n`
+  |                  - defined as variable `n` previously
 2 |     let n = n
-  |         ^ variable `n` re-defined here
+  |         ^ re-defined as variable `n` here
