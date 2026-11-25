@@ -2030,13 +2030,24 @@ impl<'a> CompileState<'a> {
     fn define_top_level_names(&mut self) -> Result<(), CompileError> {
         let policy = self.policy;
 
-        // An FFI module may be imported only once.
-        for (i, import) in policy.ffi_imports.iter().enumerate() {
-            if let Some(prev) = policy.ffi_imports[..i].iter().find(|p| *p == import) {
-                return Err(self.err(AlreadyDefined::new(
-                    Reference::Module(prev.clone()),
-                    Reference::Module(import.clone()),
-                )));
+        let mut imported_modules = Vec::new();
+        // Stubbed FFI has no schemas, so there are no FFI types to add.
+        if !self.config.stub_ffi {
+            for (i, import) in policy.ffi_imports.iter().enumerate() {
+                // An FFI module may be imported only once.
+                if let Some(prev) = policy.ffi_imports[..i].iter().find(|p| *p == import) {
+                    return Err(self.err(AlreadyDefined::new(
+                        Reference::Module(prev.clone()),
+                        Reference::Module(import.clone()),
+                    )));
+                }
+                // Ensure FFI module exists
+                let module = self
+                    .ffi_modules
+                    .iter()
+                    .find(|m| m.name == import.inner)
+                    .ok_or_else(|| self.err(NotDefined(Reference::Module(import.clone()))))?;
+                imported_modules.push((import, module));
             }
         }
 
@@ -2046,23 +2057,21 @@ impl<'a> CompileState<'a> {
             .map(|n| Reference::Callable(Callable::Function(n.clone().nowhere())));
         // Add FFI types to global namespace.
         // NOTE: FFI types are used unqualified, while calls are qualified. Maybe worth addressing this inconsistency.
-        let ffi = policy.ffi_imports.iter().flat_map(|import| {
-            let module = self.ffi_modules.iter().find(|m| m.name == import.inner);
+        let ffi = imported_modules.into_iter().flat_map(|(import, module)| {
             let at_import = |name: &Identifier| Ident {
                 inner: name.clone(),
                 span: import.span,
             };
             let structs = module
-                .into_iter()
-                .flat_map(|m| m.structs)
+                .structs
+                .iter()
                 .map(move |s| Reference::Struct(at_import(&s.name)));
             let enums = module
-                .into_iter()
-                .flat_map(|m| m.enums)
+                .enums
+                .iter()
                 .map(move |e| Reference::Enum(at_import(&e.name)));
             structs.chain(enums)
         });
-        // cloning `Identifier`s is cheap - they're ultimately `&'static str`s
         let policy_types = chain!(
             policy.enums.iter().map(|d| Reference::Enum(d.name.clone())),
             policy
