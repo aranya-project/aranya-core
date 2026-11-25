@@ -6,7 +6,7 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, FactLiteral, Ident, Identifier, NamedStruct, ResultTypeKind, Span, Spanned as _,
-    TypeKind, VType, WithSpanExt as _,
+    TypeKind, VType,
 };
 use aranya_policy_module::ffi;
 use indexmap::IndexMap;
@@ -30,19 +30,6 @@ pub(crate) enum UserType<'a> {
     BaseCommand(&'a ast::BaseCommandDefinition),
     Command(&'a ast::CommandDefinition),
     FFIStruct(&'a ffi::Struct<'a>),
-}
-
-impl UserType<'_> {
-    pub(super) fn reference(&self) -> Reference {
-        match self {
-            UserType::Struct(def) => Reference::Struct(def.name.clone()),
-            UserType::Fact(def) => Reference::Fact(def.name.clone()),
-            UserType::Effect(def) => Reference::Effect(def.name.clone()),
-            UserType::BaseCommand(def) => Reference::Base(def.name.clone()),
-            UserType::Command(def) => Reference::Command(def.name.clone()),
-            UserType::FFIStruct(def) => Reference::Struct(def.name.clone().nowhere()),
-        }
-    }
 }
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current

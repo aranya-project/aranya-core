@@ -29,7 +29,7 @@ use aranya_policy_module::{
 pub use ast::Policy as AstPolicy;
 use buggy::{Bug, BugExt as _, bug};
 use indexmap::IndexMap;
-use itertools::zip_eq;
+use itertools::{chain, zip_eq};
 use tracing::warn;
 
 use self::{
@@ -1910,21 +1910,11 @@ impl<'a> CompileState<'a> {
     ) -> Result<impl Iterator<Item = UserType<'a>> + use<'a>, CompileError> {
         let mut type_defs: HashMap<Ident, UserType<'a>> = HashMap::new();
         let mut insert_type_def = |ident: Ident, def: UserType<'a>| {
-            use std::collections::hash_map::Entry as E;
-            // Check for duplicate type names.
-            // struct Foo { .. }
-            // effect Foo { .. }
-            match type_defs.entry(ident) {
-                E::Occupied(e) => {
-                    let new = def.reference();
-                    let old = e.get().reference();
-                    return Err(self.err(AlreadyDefined::new(old, new)));
-                }
-                E::Vacant(e) => {
-                    e.insert(def);
-                }
+            // Duplicate names are rejected earlier (single namespace).
+            if type_defs.insert(ident, def).is_some() {
+                bug!("type def names should be unique");
             }
-            Ok(())
+            Ok::<(), CompileError>(())
         };
 
         let mut topo = TopoSort::new();
@@ -2073,57 +2063,45 @@ impl<'a> CompileState<'a> {
             structs.chain(enums)
         });
         // cloning `Identifier`s is cheap - they're ultimately `&'static str`s
-        let policy_types = iter::empty()
-            .chain(policy.enums.iter().map(|d| Reference::Enum(d.name.clone())))
-            .chain(
-                policy
-                    .structs
-                    .iter()
-                    .map(|d| Reference::Struct(d.name.clone())),
-            )
-            .chain(
-                policy
-                    .effects
-                    .iter()
-                    .map(|d| Reference::Effect(d.name.clone())),
-            )
-            .chain(policy.facts.iter().map(|d| Reference::Fact(d.name.clone())))
-            .chain(
-                policy
-                    .base_commands
-                    .iter()
-                    .map(|d| Reference::Base(d.name.clone())),
-            )
-            .chain(
-                policy
-                    .commands
-                    .iter()
-                    .map(|d| Reference::Command(d.name.clone())),
-            )
-            .chain(
-                policy
-                    .actions
-                    .iter()
-                    .map(|d| Callable::Action(d.name.clone()).into()),
-            )
-            .chain(
-                policy
-                    .functions
-                    .iter()
-                    .map(|d| Callable::Function(d.name.clone()).into()),
-            )
-            .chain(
-                policy
-                    .finish_functions
-                    .iter()
-                    .map(|d| Callable::FinishFunction(d.name.clone()).into()),
-            );
-        let names = builtins.chain(ffi).chain(policy_types);
-        for reference in names {
-            self.identifier_types
-                .add_top_level_item(reference.name(), NameType::Item(reference))
-                .map_err(|e| self.err(e))?;
-        }
+        let policy_types = chain!(
+            policy.enums.iter().map(|d| Reference::Enum(d.name.clone())),
+            policy
+                .structs
+                .iter()
+                .map(|d| Reference::Struct(d.name.clone())),
+            policy
+                .effects
+                .iter()
+                .map(|d| Reference::Effect(d.name.clone())),
+            policy.facts.iter().map(|d| Reference::Fact(d.name.clone())),
+            policy
+                .base_commands
+                .iter()
+                .map(|d| Reference::Base(d.name.clone())),
+            policy
+                .commands
+                .iter()
+                .map(|d| Reference::Command(d.name.clone())),
+            policy
+                .actions
+                .iter()
+                .map(|d| Callable::Action(d.name.clone()).into()),
+            policy
+                .functions
+                .iter()
+                .map(|d| Callable::Function(d.name.clone()).into()),
+            policy
+                .finish_functions
+                .iter()
+                .map(|d| Callable::FinishFunction(d.name.clone()).into()),
+        );
+        let mut names = chain!(builtins, ffi, policy_types);
+        names
+            .try_for_each(|reference| {
+                self.identifier_types
+                    .add_top_level_item(reference.name(), NameType::Item(reference))
+            })
+            .map_err(|e| self.err(e))?;
         Ok(())
     }
 
