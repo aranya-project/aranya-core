@@ -355,7 +355,7 @@ envelope = { "envelope" }
 
 // A block expression is a series of statements followed by an expression
 // the statement list is separated for easier parsing
-block_expression = { "{" ~ ws ~ block_statement_list ~ ws ~ ":" ~ ws ~ expression ~ ws ~ "}" }
+block_expression = { "{" ~ ws ~ block_statement_list ~ ws ~ expression ~ ws ~ "}" }
 block_statement_list = { (ws ~ statements)* }
 
 
