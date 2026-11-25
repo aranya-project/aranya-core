@@ -1,4 +1,4 @@
-use aranya_policy_ast as ast;
+use aranya_policy_ast::{self as ast, Version};
 use buggy::BugExt as _;
 use markdown::{
     ParseOptions,
@@ -7,7 +7,10 @@ use markdown::{
 };
 use serde::Deserialize;
 
-use super::{ParseError, ParseErrorKind, Result, Version, error, parse_policy_chunk};
+use super::{
+    error::{self, ParseError, ParseErrorKind, Result},
+    parse_policy_chunk,
+};
 
 #[derive(Deserialize)]
 struct FrontMatter {
@@ -110,7 +113,8 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy> {
     }
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {
-        parse_policy_chunk(&c.text, &mut policy, c.start)?;
+        parse_policy_chunk(&c.text, &mut policy, c.start.byte)
+            .map_err(|e| e.with_source(data.into()))?;
     }
     Ok(policy)
 }

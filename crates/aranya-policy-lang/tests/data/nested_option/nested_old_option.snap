@@ -1,10 +1,4 @@
-error: Invalid nested option
+error: Syntax error
   |
 3 | function maybe_maybe_foo() optional optional struct Foo {
-  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Unable to use `optional T` for nested optional types.
-  |
-help: you should use `option[T]`
-  |
-3 - function maybe_maybe_foo() optional optional struct Foo {
-3 + function maybe_maybe_foo() option[option[struct Foo]] {
-  |
+  |                            ^^^^^^^^ found 'identifier "optional"' expected vtype

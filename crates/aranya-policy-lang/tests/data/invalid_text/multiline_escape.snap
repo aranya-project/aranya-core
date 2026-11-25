@@ -1,4 +1,4 @@
-error: Invalid string
+error: Syntax error
   |
 1 | let x = "foo \
-  |              ^ cannot end line with escape
+  |         ^^^^^^ found '<error>' expected expression

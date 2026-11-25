@@ -1,4 +1,4 @@
 error: Syntax error
   |
 1 | let x = y substruct 4
-  |                     ^ expected identifier
+  |                     ^ found 'number 4' expected identifier

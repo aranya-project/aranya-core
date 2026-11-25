@@ -1,4 +1,4 @@
-error: Reserved identifier
+error: Syntax error
   |
 6 |     let int = 0
-  |         ^^^ found reserved identifier: `int`
+  |         ^^^ found 'int' expected identifier

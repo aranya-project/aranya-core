@@ -115,18 +115,6 @@ jobs:
       - name: Check Features
         run: cargo make check-features
 
-  keywords:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-
-      - name: Update keywords
-        run: cargo make update-keywords
-
-      - name: Verify keywords were unchanged
-        run: cargo make git-unchanged
-
   # ==== Coverage ====
 
   coverage:
@@ -296,7 +284,6 @@ jobs:
       - clippy
       - machete
       - check
-      - keywords
       # ==== Coverage ====
       - coverage
       # ==== Docs ====

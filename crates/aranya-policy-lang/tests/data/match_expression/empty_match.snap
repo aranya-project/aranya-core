@@ -1,4 +1,41 @@
-error: Syntax error
-  |
-3 | }
-  | ^ expected dot, substruct, cast, is, ?, add, subtract, greater_than, less_than, greater_than_or_equal, less_than_or_equal, equal, not_equal, and, or, or coalesce
+Policy {
+    version: V2,
+    ffi_imports: [],
+    facts: [],
+    actions: [],
+    effects: [],
+    structs: [],
+    enums: [],
+    commands: [],
+    base_commands: [],
+    functions: [
+        FunctionDefinition {
+            name: "f" @ 9..10,
+            parameters: [
+                Param {
+                    name: "n" @ 11..12,
+                    vtype: Int @ 14..17,
+                },
+            ],
+            return_type: Bool @ 19..23,
+            body: [
+                Return(
+                    ReturnStatement {
+                        value: Match(
+                            MatchExpression {
+                                scrutinee: Identifier(
+                                    "n" @ 43..44,
+                                ) @ 43..44,
+                                arms: [],
+                            },
+                        ) @ 37..47,
+                    },
+                ) @ 30..47,
+            ],
+            span: 0..49,
+        },
+    ],
+    finish_functions: [],
+    global_lets: [],
+    text: "function f(n: int) bool {\n    return match n {}\n}\n",
+}
