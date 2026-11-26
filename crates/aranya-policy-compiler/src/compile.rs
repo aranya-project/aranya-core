@@ -2104,13 +2104,12 @@ impl<'a> CompileState<'a> {
                 .iter()
                 .map(|d| Callable::FinishFunction(d.name.clone()).into()),
         );
-        let mut names = chain!(builtins, modules, ffi_types, policy_types);
-        names
-            .try_for_each(|reference| {
-                self.identifier_types
-                    .add_top_level_item(reference.name(), NameType::Item(reference))
-            })
-            .map_err(|e| self.err(e))?;
+        let names = chain!(builtins, modules, ffi_types, policy_types);
+        for reference in names {
+            self.identifier_types
+                .add_top_level_item(reference.name(), NameType::Item(reference))
+                .map_err(|e| self.err(e))?;
+        }
         Ok(())
     }
 
