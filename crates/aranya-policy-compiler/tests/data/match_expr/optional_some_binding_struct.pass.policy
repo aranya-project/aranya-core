@@ -2,7 +2,7 @@ struct Foo { x: int }
 
 function f(o: option[struct Foo]) struct Foo {
     return match o {
-        Some(f) => f
+        Some(foo) => foo
         None => Foo { x: 0 }
     }
 }

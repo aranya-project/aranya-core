@@ -1,0 +1,7 @@
+error: the name `f` is defined multiple times
+  |
+1 | function f(n: int) int {
+  |          - defined as function `f` previously
+...
+6 | action[null] f() {}
+  |              ^ re-defined as action `f` here

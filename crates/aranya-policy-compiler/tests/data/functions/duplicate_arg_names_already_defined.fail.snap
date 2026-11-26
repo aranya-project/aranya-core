@@ -1,6 +1,6 @@
 error: the name `x` is defined multiple times
   |
 1 | function f(x: int, x: int) int {
-  |            -       ^ param `x` of function `f` re-defined here
+  |            -       ^ re-defined as param `x` of function `f` here
   |            |
-  |            previous defintion of param `x` of function `f`
+  |            defined as param `x` of function `f` previously

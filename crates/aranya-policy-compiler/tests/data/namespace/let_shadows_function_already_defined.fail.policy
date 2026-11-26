@@ -1,0 +1,8 @@
+function f() int {
+    return 1
+}
+
+function g() int {
+    let f = 2
+    return f
+}

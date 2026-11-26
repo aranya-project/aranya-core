@@ -1,0 +1,7 @@
+error: the name `FFIFoo` is defined multiple times
+  |
+1 | use cyclic_types
+  |     ------------ defined as struct `FFIFoo` previously
+2 |
+3 | struct FFIFoo { x: int }
+  |        ^^^^^^ re-defined as struct `FFIFoo` here

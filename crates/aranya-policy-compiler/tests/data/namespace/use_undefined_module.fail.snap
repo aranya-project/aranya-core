@@ -1,0 +1,4 @@
+error: module `bogus` is not defined
+  |
+1 | use bogus
+  |     ^^^^^ used here
